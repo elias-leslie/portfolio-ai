@@ -134,7 +134,7 @@ export function ServiceStatusTable({
               <TableCell>
                 <div className="flex items-center gap-2">
                   {getStatusIcon(status.status)}
-                  <span className="font-medium">{status.service_name}</span>
+                  <span className="font-medium">{status.serviceName}</span>
                 </div>
               </TableCell>
               <TableCell>{getStatusBadge(status.status)}</TableCell>
@@ -142,10 +142,10 @@ export function ServiceStatusTable({
                 {status.pid || "—"}
               </TableCell>
               <TableCell className="text-right font-mono text-xs">
-                {status.memory_mb ? `${status.memory_mb} MB` : "—"}
+                {status.memoryMb ? `${status.memoryMb} MB` : "—"}
               </TableCell>
               <TableCell className="text-right font-mono text-xs">
-                {formatUptime(status.uptime_seconds)}
+                {formatUptime(status.uptimeSeconds)}
               </TableCell>
               <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">
                 {status.message || "—"}
@@ -158,7 +158,7 @@ export function ServiceStatusTable({
                     className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
                     onClick={() => onRestart(serviceName)}
                     disabled={isRestartDisabled}
-                    title={`Restart ${status.service_name}`}
+                    title={`Restart ${status.serviceName}`}
                   >
                     <RotateCw className="h-4 w-4" />
                   </Button>

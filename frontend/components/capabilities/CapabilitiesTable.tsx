@@ -103,9 +103,9 @@ function formatDuration(ms: number | null): string {
  * Format Celery schedule (compact)
  */
 function formatSchedule(capability: CeleryCapability): string {
-  if (capability.schedule_type === "manual") return "Manual";
-  if (capability.schedule_interval) return capability.schedule_interval;
-  if (capability.schedule_crontab) return capability.schedule_crontab;
+  if (capability.scheduleType === "manual") return "Manual";
+  if (capability.scheduleInterval) return capability.scheduleInterval;
+  if (capability.scheduleCrontab) return capability.scheduleCrontab;
   return "—";
 }
 
@@ -122,13 +122,13 @@ function truncate(text: string | null | undefined, maxLength: number): string {
  * Get capability name based on type
  */
 function getCapabilityName(capability: Capability): string {
-  switch (capability.capability_type) {
+  switch (capability.capabilityType) {
     case "db":
-      return (capability as DbCapability).table_name;
+      return (capability as DbCapability).tableName;
     case "celery":
-      return (capability as CeleryCapability).task_name;
+      return (capability as CeleryCapability).taskName;
     case "api":
-      return (capability as ApiCapability).endpoint_path;
+      return (capability as ApiCapability).endpointPath;
     default:
       return "Unknown";
   }
@@ -138,22 +138,22 @@ function getCapabilityName(capability: Capability): string {
  * Get capability source/schedule info
  */
 function getCapabilitySource(capability: Capability): string {
-  switch (capability.capability_type) {
+  switch (capability.capabilityType) {
     case "db":
       return (capability as DbCapability).source || "—";
     case "celery": {
       const celery = capability as CeleryCapability;
-      if (celery.schedule_type === "cron") {
-        return `Scheduled (${celery.schedule_interval || "—"})`;
-      } else if (celery.schedule_type === "interval") {
-        return `Every ${celery.schedule_interval || "—"}`;
-      } else if (celery.schedule_type === "manual") {
+      if (celery.scheduleType === "cron") {
+        return `Scheduled (${celery.scheduleInterval || "—"})`;
+      } else if (celery.scheduleType === "interval") {
+        return `Every ${celery.scheduleInterval || "—"}`;
+      } else if (celery.scheduleType === "manual") {
         return "Manual";
       }
       return "—";
     }
     case "api":
-      return (capability as ApiCapability).http_method;
+      return (capability as ApiCapability).httpMethod;
     default:
       return "—";
   }
@@ -163,32 +163,32 @@ function getCapabilitySource(capability: Capability): string {
  * Get capability status/coverage info
  */
 function getCapabilityStatus(capability: Capability): React.ReactNode {
-  switch (capability.capability_type) {
+  switch (capability.capabilityType) {
     case "db": {
       const db = capability as DbCapability;
       return (
         <div className="flex items-center gap-2">
-          <StatusBadge type="freshness" value={db.freshness_status} />
-          {db.age_hours != null && (
-            <span className="text-xs text-muted-foreground">{formatAge(db.age_hours)}</span>
+          <StatusBadge type="freshness" value={db.freshnessStatus} />
+          {db.ageHours != null && (
+            <span className="text-xs text-muted-foreground">{formatAge(db.ageHours)}</span>
           )}
         </div>
       );
     }
     case "celery": {
       const celery = capability as CeleryCapability;
-      const hasRun = celery.last_run_at != null;
+      const hasRun = celery.lastRunAt != null;
       return (
         <div className="flex items-center gap-2">
           {hasRun ? (
             <>
               <span className="text-xs text-muted-foreground">
-                {formatDistanceToNow(new Date(celery.last_run_at!), { addSuffix: true })}
+                {formatDistanceToNow(new Date(celery.lastRunAt!), { addSuffix: true })}
               </span>
-              {celery.last_run_status && (
+              {celery.lastRunStatus && (
                 <StatusBadge
                   type="status"
-                  value={celery.last_run_status === "SUCCESS" ? "confirmed" : "dismissed"}
+                  value={celery.lastRunStatus === "SUCCESS" ? "confirmed" : "dismissed"}
                 />
               )}
             </>
@@ -203,7 +203,7 @@ function getCapabilityStatus(capability: Capability): React.ReactNode {
       return (
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">
-            {api.depends_on_tables.length} dependencies
+            {api.dependsOnTables.length} dependencies
           </span>
         </div>
       );
@@ -238,23 +238,23 @@ function DbOverview({ db }: { db: DbCapability }) {
     <div className="grid grid-cols-2 gap-4">
       <div>
         <p className="text-xs uppercase tracking-wide text-muted-foreground">Table Name</p>
-        <p className="text-sm font-medium">{db.table_name}</p>
+        <p className="text-sm font-medium">{db.tableName}</p>
       </div>
       <div>
         <p className="text-xs uppercase tracking-wide text-muted-foreground">Freshness Status</p>
-        <StatusBadge type="freshness" value={db.freshness_status} />
+        <StatusBadge type="freshness" value={db.freshnessStatus} />
       </div>
       <div>
         <p className="text-xs uppercase tracking-wide text-muted-foreground">Row Count</p>
         <p className="text-sm font-medium">
-          <Hash className="inline h-3 w-3" /> {db.row_count?.toLocaleString() || "0"}
+          <Hash className="inline h-3 w-3" /> {db.rowCount?.toLocaleString() || "0"}
         </p>
       </div>
       <div>
         <p className="text-xs uppercase tracking-wide text-muted-foreground">Age</p>
         <p className="text-sm font-medium">
           <Clock className="inline h-3 w-3" />{" "}
-          {db.age_hours != null ? `${db.age_hours.toFixed(1)} hours` : "—"}
+          {db.ageHours != null ? `${db.ageHours.toFixed(1)} hours` : "—"}
         </p>
       </div>
       <div>
@@ -263,7 +263,7 @@ function DbOverview({ db }: { db: DbCapability }) {
       </div>
       <div>
         <p className="text-xs uppercase tracking-wide text-muted-foreground">Expected Refresh (hours)</p>
-        <p className="text-sm font-medium">{db.expected_refresh_hours}</p>
+        <p className="text-sm font-medium">{db.expectedRefreshHours}</p>
       </div>
       {db.description && (
         <div className="col-span-2">
@@ -300,31 +300,31 @@ function CeleryOverview({ celery }: { celery: CeleryCapability }) {
     <div className="grid grid-cols-2 gap-4">
       <div>
         <p className="text-xs uppercase tracking-wide text-muted-foreground">Task Name</p>
-        <p className="text-sm font-medium font-mono">{celery.task_name}</p>
+        <p className="text-sm font-medium font-mono">{celery.taskName}</p>
       </div>
       <div>
         <p className="text-xs uppercase tracking-wide text-muted-foreground">Schedule Type</p>
-        <p className="text-sm font-medium">{celery.schedule_type || "—"}</p>
+        <p className="text-sm font-medium">{celery.scheduleType || "—"}</p>
       </div>
       <div className="col-span-2">
         <p className="text-xs uppercase tracking-wide text-muted-foreground">Schedule</p>
-        <p className="text-sm font-medium">{celery.schedule_interval || "—"}</p>
+        <p className="text-sm font-medium">{celery.scheduleInterval || "—"}</p>
       </div>
       <div>
         <p className="text-xs uppercase tracking-wide text-muted-foreground">Last Run</p>
         <p className="text-sm font-medium">
           <Calendar className="inline h-3 w-3" />{" "}
-          {celery.last_run_at
-            ? formatDistanceToNow(new Date(celery.last_run_at), { addSuffix: true })
+          {celery.lastRunAt
+            ? formatDistanceToNow(new Date(celery.lastRunAt), { addSuffix: true })
             : "Never"}
         </p>
       </div>
       <div>
         <p className="text-xs uppercase tracking-wide text-muted-foreground">Last Status</p>
-        {celery.last_run_status ? (
+        {celery.lastRunStatus ? (
           <StatusBadge
             type="status"
-            value={celery.last_run_status === "SUCCESS" ? "confirmed" : "dismissed"}
+            value={celery.lastRunStatus === "SUCCESS" ? "confirmed" : "dismissed"}
           />
         ) : (
           <p className="text-sm font-medium">—</p>
@@ -348,15 +348,15 @@ function ApiOverview({ api }: { api: ApiCapability }) {
     <div className="grid grid-cols-2 gap-4">
       <div className="col-span-2">
         <p className="text-xs uppercase tracking-wide text-muted-foreground">Endpoint Path</p>
-        <p className="text-sm font-medium font-mono">{api.endpoint_path}</p>
+        <p className="text-sm font-medium font-mono">{api.endpointPath}</p>
       </div>
       <div>
         <p className="text-xs uppercase tracking-wide text-muted-foreground">HTTP Method</p>
-        <StatusBadge type="category" value={api.http_method} />
+        <StatusBadge type="category" value={api.httpMethod} />
       </div>
       <div>
         <p className="text-xs uppercase tracking-wide text-muted-foreground">Response Format</p>
-        <p className="text-sm font-medium">{api.response_format || "JSON"}</p>
+        <p className="text-sm font-medium">{api.responseFormat || "JSON"}</p>
       </div>
       {api.description && (
         <div className="col-span-2">
@@ -375,15 +375,15 @@ function DependenciesSection({
   dependencies,
 }: {
   dependencies: {
-    populates_tables?: string[];
-    depends_on_tasks?: string[];
-    depends_on_tables?: string[];
+    populatesTables?: string[];
+    dependsOnTasks?: string[];
+    dependsOnTables?: string[];
   };
 }) {
   const hasAnyDependencies =
-    (dependencies.populates_tables?.length || 0) > 0 ||
-    (dependencies.depends_on_tasks?.length || 0) > 0 ||
-    (dependencies.depends_on_tables?.length || 0) > 0;
+    (dependencies.populatesTables?.length || 0) > 0 ||
+    (dependencies.dependsOnTasks?.length || 0) > 0 ||
+    (dependencies.dependsOnTables?.length || 0) > 0;
 
   if (!hasAnyDependencies) {
     return (
@@ -396,11 +396,11 @@ function DependenciesSection({
 
   return (
     <div className="space-y-4">
-      {dependencies.populates_tables && dependencies.populates_tables.length > 0 && (
+      {dependencies.populatesTables && dependencies.populatesTables.length > 0 && (
         <div className="rounded-lg border border-border bg-surface p-4">
           <p className="mb-3 text-sm font-medium text-text">Populates Tables</p>
           <div className="flex flex-wrap gap-2">
-            {dependencies.populates_tables.map((table) => (
+            {dependencies.populatesTables.map((table) => (
               <span
                 key={table}
                 className="rounded-md bg-surface-muted px-3 py-1 text-xs font-mono text-text"
@@ -413,11 +413,11 @@ function DependenciesSection({
         </div>
       )}
 
-      {dependencies.depends_on_tasks && dependencies.depends_on_tasks.length > 0 && (
+      {dependencies.dependsOnTasks && dependencies.dependsOnTasks.length > 0 && (
         <div className="rounded-lg border border-border bg-surface p-4">
           <p className="mb-3 text-sm font-medium text-text">Depends On Tasks</p>
           <div className="flex flex-wrap gap-2">
-            {dependencies.depends_on_tasks.map((task) => (
+            {dependencies.dependsOnTasks.map((task) => (
               <span
                 key={task}
                 className="rounded-md bg-surface-muted px-3 py-1 text-xs font-mono text-text"
@@ -430,11 +430,11 @@ function DependenciesSection({
         </div>
       )}
 
-      {dependencies.depends_on_tables && dependencies.depends_on_tables.length > 0 && (
+      {dependencies.dependsOnTables && dependencies.dependsOnTables.length > 0 && (
         <div className="rounded-lg border border-border bg-surface p-4">
           <p className="mb-3 text-sm font-medium text-text">Depends On Tables</p>
           <div className="flex flex-wrap gap-2">
-            {dependencies.depends_on_tables.map((table) => (
+            {dependencies.dependsOnTables.map((table) => (
               <span
                 key={table}
                 className="rounded-md bg-surface-muted px-3 py-1 text-xs font-mono text-text"
@@ -464,7 +464,7 @@ function DbTableRow({
 }) {
   return (
     <div
-      className={`grid grid-cols-[auto_200px_120px_100px_100px_80px_80px_70px_70px_120px_60px] gap-3 px-4 py-3 transition-colors duration-150 cursor-pointer ${getHealthRowClass(capability.health_status)}`}
+      className={`grid grid-cols-[auto_200px_120px_100px_100px_80px_80px_70px_70px_120px_60px] gap-3 px-4 py-3 transition-colors duration-150 cursor-pointer ${getHealthRowClass(capability.healthStatus)}`}
       onClick={onClick}
     >
       {/* Icon + Expand */}
@@ -481,8 +481,8 @@ function DbTableRow({
 
       {/* Name */}
       <div className="flex flex-col justify-center">
-        <p className="text-sm font-medium text-text truncate" title={capability.table_name}>
-          {truncate(capability.table_name, 25)}
+        <p className="text-sm font-medium text-text truncate" title={capability.tableName}>
+          {truncate(capability.tableName, 25)}
         </p>
       </div>
 
@@ -493,32 +493,32 @@ function DbTableRow({
 
       {/* Row Count */}
       <div className="flex items-center">
-        <span className="text-xs text-muted-foreground" title={capability.row_count?.toLocaleString() || "0"}>
-          #{formatNumber(capability.row_count)}
+        <span className="text-xs text-muted-foreground" title={capability.rowCount?.toLocaleString() || "0"}>
+          #{formatNumber(capability.rowCount)}
         </span>
       </div>
 
       {/* Health */}
       <div className="flex items-center">
-        <StatusBadge type="health" value={capability.health_status} />
+        <StatusBadge type="health" value={capability.healthStatus} />
       </div>
 
       {/* Freshness */}
       <div className="flex items-center">
-        <StatusBadge type="freshness" value={capability.freshness_status} />
+        <StatusBadge type="freshness" value={capability.freshnessStatus} />
       </div>
 
       {/* Age */}
       <div className="flex items-center">
-        <span className="text-xs text-muted-foreground" title={`${capability.age_hours?.toFixed(1)} hours`}>
-          {formatAge(capability.age_hours)}
+        <span className="text-xs text-muted-foreground" title={`${capability.ageHours?.toFixed(1)} hours`}>
+          {formatAge(capability.ageHours)}
         </span>
       </div>
 
       {/* Insights */}
       <div className="flex items-center justify-center">
-        {capability.insights_count > 0 ? (
-          <span className="text-xs font-medium text-accent">#{capability.insights_count}</span>
+        {capability.insightsCount > 0 ? (
+          <span className="text-xs font-medium text-accent">#{capability.insightsCount}</span>
         ) : (
           <span className="text-xs text-muted-foreground">—</span>
         )}
@@ -526,8 +526,8 @@ function DbTableRow({
 
       {/* Notes */}
       <div className="flex items-center justify-center">
-        {capability.notes_count > 0 ? (
-          <span className="text-xs font-medium text-muted-foreground">#{capability.notes_count}</span>
+        {capability.notesCount > 0 ? (
+          <span className="text-xs font-medium text-muted-foreground">#{capability.notesCount}</span>
         ) : (
           <span className="text-xs text-muted-foreground">—</span>
         )}
@@ -535,9 +535,9 @@ function DbTableRow({
 
       {/* Updated */}
       <div className="flex items-center">
-        <span className="text-xs text-muted-foreground" title={capability.last_updated || "Unknown"}>
-          {capability.last_updated
-            ? formatDistanceToNow(new Date(capability.last_updated), { addSuffix: true })
+        <span className="text-xs text-muted-foreground" title={capability.lastUpdated || "Unknown"}>
+          {capability.lastUpdated
+            ? formatDistanceToNow(new Date(capability.lastUpdated), { addSuffix: true })
             : "—"}
         </span>
       </div>
@@ -564,7 +564,7 @@ function CeleryTaskRow({
   isExpanded: boolean;
   onClick: () => void;
 }) {
-  const successRate = capability.success_rate_pct;
+  const successRate = capability.successRatePct;
   const successRateColor =
     successRate != null && successRate >= 95
       ? "text-gain"
@@ -574,7 +574,7 @@ function CeleryTaskRow({
 
   return (
     <div
-      className={`grid grid-cols-[auto_200px_120px_140px_120px_100px_100px_80px_70px_70px_60px] gap-3 px-4 py-3 transition-colors duration-150 cursor-pointer ${getHealthRowClass(capability.health_status)}`}
+      className={`grid grid-cols-[auto_200px_120px_140px_120px_100px_100px_80px_70px_70px_60px] gap-3 px-4 py-3 transition-colors duration-150 cursor-pointer ${getHealthRowClass(capability.healthStatus)}`}
       onClick={onClick}
     >
       {/* Icon + Expand */}
@@ -591,8 +591,8 @@ function CeleryTaskRow({
 
       {/* Name */}
       <div className="flex flex-col justify-center">
-        <p className="text-sm font-medium text-text truncate" title={capability.task_name}>
-          {truncate(capability.task_name, 25)}
+        <p className="text-sm font-medium text-text truncate" title={capability.taskName}>
+          {truncate(capability.taskName, 25)}
         </p>
       </div>
 
@@ -610,9 +610,9 @@ function CeleryTaskRow({
 
       {/* Last Run */}
       <div className="flex items-center">
-        <span className="text-xs text-muted-foreground" title={capability.last_run_at || "Never"}>
-          {capability.last_run_at
-            ? formatDistanceToNow(new Date(capability.last_run_at), { addSuffix: true })
+        <span className="text-xs text-muted-foreground" title={capability.lastRunAt || "Never"}>
+          {capability.lastRunAt
+            ? formatDistanceToNow(new Date(capability.lastRunAt), { addSuffix: true })
             : "Never"}
         </span>
       </div>
@@ -626,23 +626,23 @@ function CeleryTaskRow({
 
       {/* Health */}
       <div className="flex items-center">
-        <StatusBadge type="health" value={capability.health_status} />
+        <StatusBadge type="health" value={capability.healthStatus} />
       </div>
 
       {/* Duration */}
       <div className="flex items-center">
         <span
           className="text-xs text-muted-foreground"
-          title={`Avg: ${formatDuration(capability.avg_duration_ms)}, Max: ${formatDuration(capability.max_duration_ms)}`}
+          title={`Avg: ${formatDuration(capability.avgDurationMs)}, Max: ${formatDuration(capability.maxDurationMs)}`}
         >
-          {formatDuration(capability.avg_duration_ms)}
+          {formatDuration(capability.avgDurationMs)}
         </span>
       </div>
 
       {/* Insights */}
       <div className="flex items-center justify-center">
-        {capability.insights_count > 0 ? (
-          <span className="text-xs font-medium text-accent">#{capability.insights_count}</span>
+        {capability.insightsCount > 0 ? (
+          <span className="text-xs font-medium text-accent">#{capability.insightsCount}</span>
         ) : (
           <span className="text-xs text-muted-foreground">—</span>
         )}
@@ -650,8 +650,8 @@ function CeleryTaskRow({
 
       {/* Notes */}
       <div className="flex items-center justify-center">
-        {capability.notes_count > 0 ? (
-          <span className="text-xs font-medium text-muted-foreground">#{capability.notes_count}</span>
+        {capability.notesCount > 0 ? (
+          <span className="text-xs font-medium text-muted-foreground">#{capability.notesCount}</span>
         ) : (
           <span className="text-xs text-muted-foreground">—</span>
         )}
@@ -687,11 +687,11 @@ function ApiEndpointRow({
     DELETE: "bg-red-500/10 text-red-500",
   };
 
-  const methodColor = methodColors[capability.http_method] || "bg-surface-muted text-muted-foreground";
+  const methodColor = methodColors[capability.httpMethod] || "bg-surface-muted text-muted-foreground";
 
   return (
     <div
-      className={`grid grid-cols-[auto_250px_80px_120px_80px_100px_70px_70px_200px_60px] gap-3 px-4 py-3 transition-colors duration-150 cursor-pointer ${getHealthRowClass(capability.health_status)}`}
+      className={`grid grid-cols-[auto_250px_80px_120px_80px_100px_70px_70px_200px_60px] gap-3 px-4 py-3 transition-colors duration-150 cursor-pointer ${getHealthRowClass(capability.healthStatus)}`}
       onClick={onClick}
     >
       {/* Icon + Expand */}
@@ -708,15 +708,15 @@ function ApiEndpointRow({
 
       {/* Path */}
       <div className="flex flex-col justify-center">
-        <p className="text-sm font-medium text-text truncate font-mono" title={capability.endpoint_path}>
-          {truncate(capability.endpoint_path, 35)}
+        <p className="text-sm font-medium text-text truncate font-mono" title={capability.endpointPath}>
+          {truncate(capability.endpointPath, 35)}
         </p>
       </div>
 
       {/* Method */}
       <div className="flex items-center">
         <span className={`text-xs font-medium px-2 py-1 rounded ${methodColor}`}>
-          {capability.http_method}
+          {capability.httpMethod}
         </span>
       </div>
 
@@ -727,22 +727,22 @@ function ApiEndpointRow({
 
       {/* Dependencies */}
       <div className="flex items-center">
-        <span className="text-xs text-muted-foreground" title={capability.depends_on_tables.join(", ")}>
-          {capability.depends_on_tables.length > 0
-            ? `${capability.depends_on_tables.length} tbl`
+        <span className="text-xs text-muted-foreground" title={capability.dependsOnTables.join(", ")}>
+          {capability.dependsOnTables.length > 0
+            ? `${capability.dependsOnTables.length} tbl`
             : "—"}
         </span>
       </div>
 
       {/* Health */}
       <div className="flex items-center">
-        <StatusBadge type="health" value={capability.health_status} />
+        <StatusBadge type="health" value={capability.healthStatus} />
       </div>
 
       {/* Insights */}
       <div className="flex items-center justify-center">
-        {capability.insights_count > 0 ? (
-          <span className="text-xs font-medium text-accent">#{capability.insights_count}</span>
+        {capability.insightsCount > 0 ? (
+          <span className="text-xs font-medium text-accent">#{capability.insightsCount}</span>
         ) : (
           <span className="text-xs text-muted-foreground">—</span>
         )}
@@ -750,8 +750,8 @@ function ApiEndpointRow({
 
       {/* Notes */}
       <div className="flex items-center justify-center">
-        {capability.notes_count > 0 ? (
-          <span className="text-xs font-medium text-muted-foreground">#{capability.notes_count}</span>
+        {capability.notesCount > 0 ? (
+          <span className="text-xs font-medium text-muted-foreground">#{capability.notesCount}</span>
         ) : (
           <span className="text-xs text-muted-foreground">—</span>
         )}
@@ -759,8 +759,8 @@ function ApiEndpointRow({
 
       {/* File */}
       <div className="flex items-center">
-        <span className="text-xs text-muted-foreground font-mono truncate" title={capability.route_file || "—"}>
-          {capability.route_file ? truncate(capability.route_file.split("/").pop() || "—", 25) : "—"}
+        <span className="text-xs text-muted-foreground font-mono truncate" title={capability.routeFile || "—"}>
+          {capability.routeFile ? truncate(capability.routeFile.split("/").pop() || "—", 25) : "—"}
         </span>
       </div>
 
@@ -795,14 +795,14 @@ export function CapabilitiesTable({ capabilities }: CapabilitiesTableProps) {
 
   // Get capability detail when expanded
   const expandedCapability = capabilities.find(
-    (c) => `${c.capability_type}-${c.id}` === expandedId
+    (c) => `${c.capabilityType}-${c.id}` === expandedId
   );
 
   const { data: detailData, isLoading: detailLoading } = useQuery({
-    queryKey: ["capability-detail", expandedCapability?.capability_type, expandedCapability?.id],
+    queryKey: ["capability-detail", expandedCapability?.capabilityType, expandedCapability?.id],
     queryFn: () => {
       if (!expandedCapability) throw new Error("No capability selected");
-      return fetchCapabilityDetail(expandedCapability.capability_type, expandedCapability.id);
+      return fetchCapabilityDetail(expandedCapability.capabilityType, expandedCapability.id);
     },
     enabled: !!expandedCapability,
   });
@@ -814,9 +814,9 @@ export function CapabilitiesTable({ capabilities }: CapabilitiesTableProps) {
     mutationFn: async () => {
       if (!noteText.trim() || !expandedCapability) throw new Error("Missing data");
       return createNote({
-        capability_type: expandedCapability.capability_type,
-        capability_id: expandedCapability.id,
-        note_type: noteType,
+        capabilityType: expandedCapability.capabilityType,
+        capabilityId: expandedCapability.id,
+        noteType: noteType,
         note: noteText,
       });
     },
@@ -826,7 +826,7 @@ export function CapabilitiesTable({ capabilities }: CapabilitiesTableProps) {
       setNoteType("observation");
       setShowNoteForm(false);
       queryClient.invalidateQueries({
-        queryKey: ["capability-detail", expandedCapability?.capability_type, expandedCapability?.id],
+        queryKey: ["capability-detail", expandedCapability?.capabilityType, expandedCapability?.id],
       });
     },
     onError: (error: Error) => {
@@ -844,11 +844,11 @@ export function CapabilitiesTable({ capabilities }: CapabilitiesTableProps) {
   }
 
   // Group capabilities by type for rendering type-specific headers
-  const dbCapabilities = capabilities.filter((c) => c.capability_type === "db") as DbCapability[];
+  const dbCapabilities = capabilities.filter((c) => c.capabilityType === "db") as DbCapability[];
   const celeryCapabilities = capabilities.filter(
-    (c) => c.capability_type === "celery"
+    (c) => c.capabilityType === "celery"
   ) as CeleryCapability[];
-  const apiCapabilities = capabilities.filter((c) => c.capability_type === "api") as ApiCapability[];
+  const apiCapabilities = capabilities.filter((c) => c.capabilityType === "api") as ApiCapability[];
 
   return (
     <div className="space-y-6">
@@ -873,7 +873,7 @@ export function CapabilitiesTable({ capabilities }: CapabilitiesTableProps) {
           {/* Rows */}
           <div className="divide-y divide-border">
             {dbCapabilities.map((capability) => {
-              const capabilityId = `${capability.capability_type}-${capability.id}`;
+              const capabilityId = `${capability.capabilityType}-${capability.id}`;
               const isExpanded = expandedId === capabilityId;
 
               return (
@@ -986,10 +986,10 @@ export function CapabilitiesTable({ capabilities }: CapabilitiesTableProps) {
                             {detailData.notes.map((note) => (
                               <div key={note.id} className="rounded-lg border border-border bg-surface p-4">
                                 <div className="mb-2 flex items-center justify-between">
-                                  <StatusBadge type="category" value={note.note_type} />
+                                  <StatusBadge type="category" value={note.noteType} />
                                   <span className="text-xs text-muted-foreground">
-                                    {formatDistanceToNow(new Date(note.created_at), { addSuffix: true })} by{" "}
-                                    {note.created_by}
+                                    {formatDistanceToNow(new Date(note.createdAt), { addSuffix: true })} by{" "}
+                                    {note.createdBy}
                                   </span>
                                 </div>
                                 <p className="text-sm text-text">{note.note}</p>
@@ -1035,7 +1035,7 @@ export function CapabilitiesTable({ capabilities }: CapabilitiesTableProps) {
           {/* Rows */}
           <div className="divide-y divide-border">
             {celeryCapabilities.map((capability) => {
-              const capabilityId = `${capability.capability_type}-${capability.id}`;
+              const capabilityId = `${capability.capabilityType}-${capability.id}`;
               const isExpanded = expandedId === capabilityId;
 
               return (
@@ -1148,10 +1148,10 @@ export function CapabilitiesTable({ capabilities }: CapabilitiesTableProps) {
                                 {detailData.notes.map((note) => (
                                   <div key={note.id} className="rounded-lg border border-border bg-surface p-4">
                                     <div className="mb-2 flex items-center justify-between">
-                                      <StatusBadge type="category" value={note.note_type} />
+                                      <StatusBadge type="category" value={note.noteType} />
                                       <span className="text-xs text-muted-foreground">
-                                        {formatDistanceToNow(new Date(note.created_at), { addSuffix: true })} by{" "}
-                                        {note.created_by}
+                                        {formatDistanceToNow(new Date(note.createdAt), { addSuffix: true })} by{" "}
+                                        {note.createdBy}
                                       </span>
                                     </div>
                                     <p className="text-sm text-text">{note.note}</p>
@@ -1196,7 +1196,7 @@ export function CapabilitiesTable({ capabilities }: CapabilitiesTableProps) {
           {/* Rows */}
           <div className="divide-y divide-border">
             {apiCapabilities.map((capability) => {
-              const capabilityId = `${capability.capability_type}-${capability.id}`;
+              const capabilityId = `${capability.capabilityType}-${capability.id}`;
               const isExpanded = expandedId === capabilityId;
 
               return (
@@ -1309,10 +1309,10 @@ export function CapabilitiesTable({ capabilities }: CapabilitiesTableProps) {
                                 {detailData.notes.map((note) => (
                                   <div key={note.id} className="rounded-lg border border-border bg-surface p-4">
                                     <div className="mb-2 flex items-center justify-between">
-                                      <StatusBadge type="category" value={note.note_type} />
+                                      <StatusBadge type="category" value={note.noteType} />
                                       <span className="text-xs text-muted-foreground">
-                                        {formatDistanceToNow(new Date(note.created_at), { addSuffix: true })} by{" "}
-                                        {note.created_by}
+                                        {formatDistanceToNow(new Date(note.createdAt), { addSuffix: true })} by{" "}
+                                        {note.createdBy}
                                       </span>
                                     </div>
                                     <p className="text-sm text-text">{note.note}</p>

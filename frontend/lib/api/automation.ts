@@ -6,7 +6,7 @@ import { apiRequest } from "./client";
 
 export interface PipelineResponse {
   status: string;
-  task_id?: string;
+  taskId?: string;
   stage: string;
   message: string;
 }
@@ -19,11 +19,11 @@ export interface FullPipelineResponse {
 
 export interface PipelineStatus {
   stages: {
-    strategies: { active_count: number };
-    signals: { today_count: number };
-    paper_trades: { open_count: number };
+    strategies: { activeCount: number };
+    signals: { todayCount: number };
+    paperTrades: { openCount: number };
   };
-  last_run: Record<string, string | null>;
+  lastRun: Record<string, string | null>;
 }
 
 /**

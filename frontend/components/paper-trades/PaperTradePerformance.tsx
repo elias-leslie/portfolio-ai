@@ -24,15 +24,15 @@ import { cn } from "@/lib/utils";
 interface PaperTrade {
   id: string;
   symbol: string;
-  entry_price: number;
-  current_price?: number;
-  exit_price?: number;
-  return_pct?: number;
+  entryPrice: number;
+  currentPrice?: number;
+  exitPrice?: number;
+  returnPct?: number;
   status: "open" | "closed_win" | "closed_loss" | "stopped_out";
-  entry_date: string;
-  exit_date?: string;
-  signal_type?: string;
-  signal_strength?: number;
+  entryDate: string;
+  exitDate?: string;
+  signalType?: string;
+  signalStrength?: number;
   style?: string;
 }
 
@@ -66,9 +66,9 @@ interface FeatureContribution {
 function calculateMetrics(trades: PaperTrade[]): PerformanceMetrics {
   const openTrades = trades.filter((t) => t.status === "open");
   const closedTrades = trades.filter((t) => t.status !== "open");
-  const wins = closedTrades.filter((t) => (t.return_pct ?? 0) > 0);
+  const wins = closedTrades.filter((t) => (t.returnPct ?? 0) > 0);
 
-  const returns = closedTrades.map((t) => t.return_pct ?? 0);
+  const returns = closedTrades.map((t) => t.returnPct ?? 0);
   const avgReturn = returns.length > 0 ? returns.reduce((a, b) => a + b, 0) / returns.length : 0;
   const totalReturn = returns.reduce((a, b) => a + b, 0);
 
@@ -89,7 +89,7 @@ function calculateFeatureContributions(trades: PaperTrade[]): FeatureContributio
 
   // Group by signal type
   const signalGroups = closedTrades.reduce((acc, trade) => {
-    const signal = trade.signal_type || "UNKNOWN";
+    const signal = trade.signalType || "UNKNOWN";
     if (!acc[signal]) {
       acc[signal] = [];
     }
@@ -99,8 +99,8 @@ function calculateFeatureContributions(trades: PaperTrade[]): FeatureContributio
 
   // Calculate metrics per signal
   const contributions: FeatureContribution[] = Object.entries(signalGroups).map(([signal, trades]) => {
-    const wins = trades.filter((t) => (t.return_pct ?? 0) > 0);
-    const returns = trades.map((t) => t.return_pct ?? 0);
+    const wins = trades.filter((t) => (t.returnPct ?? 0) > 0);
+    const returns = trades.map((t) => t.returnPct ?? 0);
     const avgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
 
     return {
@@ -188,14 +188,14 @@ export function PaperTradePerformance({ trades, isLoading }: PaperTradePerforman
 
   // Cumulative return chart data
   const closedTrades = trades
-    .filter((t) => t.status !== "open" && t.exit_date)
-    .sort((a, b) => new Date(a.exit_date!).getTime() - new Date(b.exit_date!).getTime());
+    .filter((t) => t.status !== "open" && t.exitDate)
+    .sort((a, b) => new Date(a.exitDate!).getTime() - new Date(b.exitDate!).getTime());
 
   let cumulative = 0;
   const chartData = closedTrades.map((trade) => {
-    cumulative += trade.return_pct ?? 0;
+    cumulative += trade.returnPct ?? 0;
     return {
-      date: trade.exit_date!,
+      date: trade.exitDate!,
       return: cumulative,
     };
   });

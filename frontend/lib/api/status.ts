@@ -8,11 +8,11 @@ import { get } from "./client";
  * Service status from process monitoring
  */
 export interface ServiceStatus {
-  service_name: string;
+  serviceName: string;
   status: "running" | "down" | "degraded";
   pid?: number;
-  uptime_seconds?: number;
-  memory_mb?: number;
+  uptimeSeconds?: number;
+  memoryMb?: number;
   message: string;
 }
 
@@ -23,143 +23,143 @@ export interface HealthResponse {
   status: "healthy" | "degraded" | "down";
   timestamp: string;
   version: string;
-  uptime_seconds: number;
+  uptimeSeconds: number;
   checks: Record<string, CheckResult>;
   sources: Record<string, SourceHealthCheck>;
   services: Record<string, ServiceStatus>;
-  cache_stats?: CacheStats;
-  agent_stats?: AgentStats;
-  watchlist_stats?: WatchlistStats;
-  api_quotas?: APIQuotaInfo[];
-  workflow_health?: WorkflowHealthInfo;
+  cacheStats?: CacheStats;
+  agentStats?: AgentStats;
+  watchlistStats?: WatchlistStats;
+  apiQuotas?: APIQuotaInfo[];
+  workflowHealth?: WorkflowHealthInfo;
 }
 
 export interface CheckResult {
   status: "ok" | "degraded" | "down";
-  latency_ms?: number;
-  last_success?: string;
+  latencyMs?: number;
+  lastSuccess?: string;
   message?: string;
 }
 
 export interface SourceHealthCheck {
   status: "ok" | "degraded" | "down";
-  last_success?: string;
-  success_rate?: number;
-  avg_latency_ms?: number;
-  rate_limit_hits: number;
-  in_cooldown: boolean;
-  cooldown_remaining_seconds: number;
+  lastSuccess?: string;
+  successRate?: number;
+  avgLatencyMs?: number;
+  rateLimitHits: number;
+  inCooldown: boolean;
+  cooldownRemainingSeconds: number;
 }
 
 export interface CacheStats {
-  total_cached: number;
-  cache_age_minutes?: number;
+  totalCached: number;
+  cacheAgeMinutes?: number;
 }
 
 export interface AgentStats {
-  total_runs: number;
-  completed_runs: number;
-  failed_runs: number;
-  avg_duration_s?: number;
-  avg_cost_usd?: number;
+  totalRuns: number;
+  completedRuns: number;
+  failedRuns: number;
+  avgDurationS?: number;
+  avgCostUsd?: number;
 }
 
 export interface WatchlistStats {
-  total_items: number;
-  last_refresh?: string;
-  refresh_age_minutes?: number;
-  items_with_scores: number;
+  totalItems: number;
+  lastRefresh?: string;
+  refreshAgeMinutes?: number;
+  itemsWithScores: number;
 }
 
 export interface APIQuotaInfo {
-  source_name: string;
+  sourceName: string;
   configured: boolean;
-  rate_limit?: string;
-  daily_limit?: string;
-  estimated_capacity?: number;
+  rateLimit?: string;
+  dailyLimit?: string;
+  estimatedCapacity?: number;
 }
 
 export interface DayBarFreshnessInfo {
   symbol: string;
-  last_updated?: string;
-  age_days?: number;
+  lastUpdated?: string;
+  ageDays?: number;
 }
 
 export interface TableFreshnessStatus {
-  table_name: string;
-  last_updated: string | null;
-  age_hours: number | null;
+  tableName: string;
+  lastUpdated: string | null;
+  ageHours: number | null;
   status: "fresh" | "stale" | "critical" | "unknown" | "error";
-  row_count: number | null;
-  expected_refresh_hours: number;
+  rowCount: number | null;
+  expectedRefreshHours: number;
   description: string;
 }
 
 export interface TableFreshnessResponse {
   tables: TableFreshnessStatus[];
-  fresh_count: number;
-  stale_count: number;
-  critical_count: number;
+  freshCount: number;
+  staleCount: number;
+  criticalCount: number;
   timestamp: string;
 }
 
 export interface CeleryWorkerStatus {
   active: boolean;
-  pool_size?: number;
-  active_tasks?: number;
+  poolSize?: number;
+  activeTasks?: number;
   message: string;
 }
 
 export interface APIKeyStatusInfo {
   source: string;
   configured: boolean;
-  env_var: string;
+  envVar: string;
 }
 
 export interface DiskUsageInfo {
-  total_gb: number;
-  used_gb: number;
-  free_gb: number;
-  percent_used: number;
+  totalGb: number;
+  usedGb: number;
+  freeGb: number;
+  percentUsed: number;
   status: "ok" | "warning" | "critical";
 }
 
 export interface WorkflowHealthInfo {
   status: "healthy" | "warning" | "critical";
-  total_workflows_24h: number;
-  successful_workflows: number;
-  failed_workflows: number;
-  blocked_workflows: number;
-  success_rate: number;
-  avg_duration_s?: number;
-  last_successful_workflow?: string;
-  last_successful_type?: string;
-  failures_by_type: Record<string, number>;
-  blocked_by_type: Record<string, number>;
+  totalWorkflows24H: number;
+  successfulWorkflows: number;
+  failedWorkflows: number;
+  blockedWorkflows: number;
+  successRate: number;
+  avgDurationS?: number;
+  lastSuccessfulWorkflow?: string;
+  lastSuccessfulType?: string;
+  failuresByType: Record<string, number>;
+  blockedByType: Record<string, number>;
 }
 
 export interface WorkflowMetrics {
-  recent_workflows: Array<{
+  recentWorkflows: Array<{
     id: number;
     type: string;
     status: string;
-    created_at: string | null;
+    createdAt: string | null;
   }>;
-  summary_by_type: Record<string, Record<string, number>>;
-  total_by_status: Record<string, number>;
-  total_workflows_7d: number;
-  success_rate: number;
+  summaryByType: Record<string, Record<string, number>>;
+  totalByStatus: Record<string, number>;
+  totalWorkflows7D: number;
+  successRate: number;
 }
 
 /**
  * Detailed health check response with additional system information
  */
 export interface DetailedHealthResponse extends HealthResponse {
-  day_bars_freshness?: DayBarFreshnessInfo[];
-  celery_worker?: CeleryWorkerStatus;
-  api_keys?: APIKeyStatusInfo[];
-  disk_usage?: DiskUsageInfo;
-  workflow_metrics?: WorkflowMetrics;
+  dayBarsFreshness?: DayBarFreshnessInfo[];
+  celeryWorker?: CeleryWorkerStatus;
+  apiKeys?: APIKeyStatusInfo[];
+  diskUsage?: DiskUsageInfo;
+  workflowMetrics?: WorkflowMetrics;
 }
 
 /**
@@ -167,9 +167,9 @@ export interface DetailedHealthResponse extends HealthResponse {
  */
 export interface LogResponse {
   service: string;
-  log_file: string;
+  logFile: string;
   lines: string[];
-  total_lines: number;
+  totalLines: number;
   timestamp: string;
 }
 
@@ -206,25 +206,25 @@ export async function fetchTableFreshness(): Promise<TableFreshnessResponse> {
 
 // System Resources Types
 export interface ResourceUsage {
-  total_gb: number;
-  used_gb: number;
-  free_gb?: number;
-  available_gb?: number;
-  percent_used: number;
+  totalGb: number;
+  usedGb: number;
+  freeGb?: number;
+  availableGb?: number;
+  percentUsed: number;
   status: "ok" | "warning" | "critical";
 }
 
 export interface CpuUsage {
-  percent_used: number;
+  percentUsed: number;
   cores: number;
   status: "ok" | "warning" | "critical";
 }
 
 export interface DatabasePoolUsage {
-  pool_size: number;
-  checked_out: number;
+  poolSize: number;
+  checkedOut: number;
   overflow: number;
-  percent_used: number;
+  percentUsed: number;
   status: "ok" | "warning" | "critical";
 }
 
@@ -232,7 +232,7 @@ export interface SystemResourcesResponse {
   disk: ResourceUsage;
   memory: ResourceUsage;
   cpu: CpuUsage;
-  database_pool: DatabasePoolUsage;
+  databasePool: DatabasePoolUsage;
   timestamp: string;
 }
 
@@ -258,8 +258,8 @@ export interface UnifiedLogEntry {
  */
 export interface UnifiedLogsResponse {
   logs: UnifiedLogEntry[];
-  total_entries: number;
-  level_counts: Record<string, number>;
+  totalEntries: number;
+  levelCounts: Record<string, number>;
   timestamp: string;
 }
 
@@ -267,8 +267,8 @@ export interface UnifiedLogsResponse {
  * Log level configuration
  */
 export interface LogLevelConfig {
-  current_level: string;
-  available_levels: string[];
+  currentLevel: string;
+  availableLevels: string[];
 }
 
 /**

@@ -28,19 +28,19 @@ export interface SitemapEntry {
   port: number;
   path: string;
   method: string;
-  entry_type: EntryType;
+  entryType: EntryType;
   source: string | null;
   title: string | null;
-  parent_path: string | null;
-  health_status: HealthStatus;
-  console_errors: number;
-  console_warnings: number;
-  http_status: number | null;
-  response_time_ms: number | null;
-  last_error_message: string | null;
-  artifact_id: number | null;
-  last_checked_at: string | null;
-  discovered_at: string | null;
+  parentPath: string | null;
+  healthStatus: HealthStatus;
+  consoleErrors: number;
+  consoleWarnings: number;
+  httpStatus: number | null;
+  responseTimeMs: number | null;
+  lastErrorMessage: string | null;
+  artifactId: number | null;
+  lastCheckedAt: string | null;
+  discoveredAt: string | null;
 }
 
 export interface SitemapListResponse {
@@ -54,60 +54,60 @@ export interface HealthSummaryResponse {
   warning: number;
   error: number;
   unknown: number;
-  by_port: Record<string, { healthy: number; warning: number; error: number; unknown: number }>;
+  byPort: Record<string, { healthy: number; warning: number; error: number; unknown: number }>;
 }
 
 export interface SitemapFilters {
   port?: number;
-  health_status?: HealthStatus;
-  entry_type?: EntryType;
+  healthStatus?: HealthStatus;
+  entryType?: EntryType;
   limit?: number;
   offset?: number;
 }
 
 export interface DiscoveredPort {
   port: number;
-  service_name: string;
-  service_type: string;
+  serviceName: string;
+  serviceType: string;
   source: string;
   description: string | null;
 }
 
 export interface DiscoveredPortsResponse {
   ports: DiscoveredPort[];
-  backend_port: number;
-  frontend_port: number;
+  backendPort: number;
+  frontendPort: number;
 }
 
 export interface DiscoveryResponse {
-  openapi_discovered: number;
-  frontend_discovered: number;
-  websocket_discovered: number;
-  nextjs_discovered: number;
-  api_imported: number;
-  total_saved: number;
+  openapiDiscovered: number;
+  frontendDiscovered: number;
+  websocketDiscovered: number;
+  nextjsDiscovered: number;
+  apiImported: number;
+  totalSaved: number;
 }
 
 export interface HealthCheckResponse {
   success: boolean;
-  entry_id?: number;
-  health_status?: HealthStatus;
-  console_errors?: number;
-  console_warnings?: number;
-  http_status?: number;
-  response_time_ms?: number;
+  entryId?: number;
+  healthStatus?: HealthStatus;
+  consoleErrors?: number;
+  consoleWarnings?: number;
+  httpStatus?: number;
+  responseTimeMs?: number;
   error?: string;
 }
 
 export interface HistoryStatsResponse {
-  total_rows: number;
-  oldest_entry: string | null;
-  storage_size: string;
+  totalRows: number;
+  oldestEntry: string | null;
+  storageSize: string;
 }
 
 export interface CleanupResponse {
   deleted: number;
-  retention_days: number;
+  retentionDays: number;
 }
 
 // ============================================================================
@@ -122,8 +122,8 @@ export async function fetchSitemapEntries(
 ): Promise<SitemapListResponse> {
   const params = new URLSearchParams();
   if (filters.port) params.append("port", filters.port.toString());
-  if (filters.health_status) params.append("health_status", filters.health_status);
-  if (filters.entry_type) params.append("entry_type", filters.entry_type);
+  if (filters.healthStatus) params.append("health_status", filters.healthStatus);
+  if (filters.entryType) params.append("entry_type", filters.entryType);
   if (filters.limit) params.append("limit", filters.limit.toString());
   if (filters.offset) params.append("offset", filters.offset.toString());
 
@@ -164,7 +164,7 @@ export async function checkEntryHealth(id: number): Promise<HealthCheckResponse>
 /**
  * Check health of all sitemap entries (queues background task)
  */
-export async function checkAllHealth(): Promise<{ status: string; task_id: string; message: string }> {
+export async function checkAllHealth(): Promise<{ status: string; taskId: string; message: string }> {
   return post("/api/sitemap/check-all");
 }
 

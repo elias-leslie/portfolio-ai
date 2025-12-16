@@ -129,7 +129,7 @@ export function useClosePaperTrade() {
         refetchType: "active",
       });
       queryClient.invalidateQueries({
-        queryKey: paperTradeKeys.detail(data.trade_id),
+        queryKey: paperTradeKeys.detail(data.tradeId),
         refetchType: "active",
       });
     },

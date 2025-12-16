@@ -12,11 +12,11 @@ export interface ScoreWeights {
 }
 
 export interface PriceSubWeights {
-    change_pct: number;
+    changePct: number;
 }
 
 export interface TechnicalSubWeights {
-    rsi_14: number;
+    rsi14: number;
     trend: number;
     macd: number;
 }
@@ -30,63 +30,63 @@ export interface FundamentalSubWeights {
 
 // Types matching backend Pydantic models
 export interface PreferencesResponse {
-    risk_tolerance: number;
-    allow_long: boolean;
-    allow_short: boolean;
-    allow_options: boolean;
-    allow_crypto: boolean;
-    allow_futures: boolean;
-    max_position_size_pct: number;
+    riskTolerance: number;
+    allowLong: boolean;
+    allowShort: boolean;
+    allowOptions: boolean;
+    allowCrypto: boolean;
+    allowFutures: boolean;
+    maxPositionSizePct: number;
     // Refresh control fields
-    default_refresh_minutes: number;
-    watchlist_refresh_override: number | null;
-    portfolio_refresh_override: number | null;
-    news_refresh_override: number | null;
-    news_lookback_hours: number;
-    news_max_articles: number;
-    frontend_poll_interval: number;
+    defaultRefreshMinutes: number;
+    watchlistRefreshOverride: number | null;
+    portfolioRefreshOverride: number | null;
+    newsRefreshOverride: number | null;
+    newsLookbackHours: number;
+    newsMaxArticles: number;
+    frontendPollInterval: number;
     // Legacy watchlist fields (kept for backward compatibility)
-    watchlist_refresh_minutes: number;
-    watchlist_auto_expand: boolean;
-    watchlist_price_weight: number;
-    watchlist_technical_weight: number;
-    display_timezone: string;
-    watchlist_show_news: boolean;
+    watchlistRefreshMinutes: number;
+    watchlistAutoExpand: boolean;
+    watchlistPriceWeight: number;
+    watchlistTechnicalWeight: number;
+    displayTimezone: string;
+    watchlistShowNews: boolean;
     // New weight configuration fields (migration 019)
-    watchlist_score_weights?: ScoreWeights;
-    price_sub_weights?: PriceSubWeights;
-    technical_sub_weights?: TechnicalSubWeights;
-    fundamental_sub_weights?: FundamentalSubWeights;
+    watchlistScoreWeights?: ScoreWeights;
+    priceSubWeights?: PriceSubWeights;
+    technicalSubWeights?: TechnicalSubWeights;
+    fundamentalSubWeights?: FundamentalSubWeights;
 }
 
 export interface PreferencesUpdate {
-    risk_tolerance?: number;
-    allow_long?: boolean;
-    allow_short?: boolean;
-    allow_options?: boolean;
-    allow_crypto?: boolean;
-    allow_futures?: boolean;
-    max_position_size_pct?: number;
+    riskTolerance?: number;
+    allowLong?: boolean;
+    allowShort?: boolean;
+    allowOptions?: boolean;
+    allowCrypto?: boolean;
+    allowFutures?: boolean;
+    maxPositionSizePct?: number;
     // Refresh control fields
-    default_refresh_minutes?: number;
-    watchlist_refresh_override?: number | null;
-    portfolio_refresh_override?: number | null;
-    news_refresh_override?: number | null;
-    news_lookback_hours?: number | null;
-    news_max_articles?: number | null;
-    frontend_poll_interval?: number;
+    defaultRefreshMinutes?: number;
+    watchlistRefreshOverride?: number | null;
+    portfolioRefreshOverride?: number | null;
+    newsRefreshOverride?: number | null;
+    newsLookbackHours?: number | null;
+    newsMaxArticles?: number | null;
+    frontendPollInterval?: number;
     // Legacy watchlist fields (kept for backward compatibility)
-    watchlist_refresh_minutes?: number;
-    watchlist_auto_expand?: boolean;
-    watchlist_price_weight?: number;
-    watchlist_technical_weight?: number;
-    display_timezone?: string;
-    watchlist_show_news?: boolean;
+    watchlistRefreshMinutes?: number;
+    watchlistAutoExpand?: boolean;
+    watchlistPriceWeight?: number;
+    watchlistTechnicalWeight?: number;
+    displayTimezone?: string;
+    watchlistShowNews?: boolean;
     // New weight configuration fields (migration 019)
-    watchlist_score_weights?: ScoreWeights;
-    price_sub_weights?: PriceSubWeights;
-    technical_sub_weights?: TechnicalSubWeights;
-    fundamental_sub_weights?: FundamentalSubWeights;
+    watchlistScoreWeights?: ScoreWeights;
+    priceSubWeights?: PriceSubWeights;
+    technicalSubWeights?: TechnicalSubWeights;
+    fundamentalSubWeights?: FundamentalSubWeights;
 }
 
 /**

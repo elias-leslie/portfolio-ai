@@ -144,7 +144,7 @@ export function RulesViewer() {
   };
 
   // Render catalyst impacts section (special handling for nested structure)
-  const renderCatalystImpacts = (data: Record<string, { impact: number; duration_days: number }>) => {
+  const renderCatalystImpacts = (data: Record<string, { impact: number; durationDays: number }>) => {
     const title = "catalyst_impacts";
     const isExpanded = expandedSections[title];
 
@@ -201,7 +201,7 @@ export function RulesViewer() {
                       <div>
                         <div className="text-xs text-muted-foreground">Duration</div>
                         <div className="text-base font-semibold text-foreground">
-                          {catalyst.duration_days}d
+                          {catalyst.durationDays}d
                         </div>
                       </div>
                     </div>
@@ -239,7 +239,7 @@ export function RulesViewer() {
         <div>
           <h2 className="text-2xl font-bold text-foreground">Trading Rules</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Version {rules.version} - Updated {rules.updated} by {rules.updated_by}
+            Version {rules.version} - Updated {rules.updated} by {rules.updatedBy}
           </p>
         </div>
         <DropdownMenu>
@@ -268,25 +268,25 @@ export function RulesViewer() {
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="text-2xl font-bold text-green-500">
-            {(rules.position_sizing.default_risk_percent * 100).toFixed(1)}%
+            {(rules.positionSizing.defaultRiskPercent * 100).toFixed(1)}%
           </div>
           <div className="text-sm text-muted-foreground">Default Risk/Trade</div>
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="text-2xl font-bold text-red-500">
-            {rules.risk_management.portfolio_drawdown_halt_pct.toFixed(0)}%
+            {rules.riskManagement.portfolioDrawdownHaltPct.toFixed(0)}%
           </div>
           <div className="text-sm text-muted-foreground">Drawdown Halt</div>
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="text-2xl font-bold text-blue-500">
-            {rules.watchlist_management.max_watchlist_size}
+            {rules.watchlistManagement.maxWatchlistSize}
           </div>
           <div className="text-sm text-muted-foreground">Max Watchlist</div>
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="text-2xl font-bold text-purple-500">
-            {Object.keys(rules.catalyst_impacts).length}
+            {Object.keys(rules.catalystImpacts).length}
           </div>
           <div className="text-sm text-muted-foreground">Catalyst Events</div>
         </div>
@@ -294,18 +294,18 @@ export function RulesViewer() {
 
       {/* Rule Sections */}
       <div className="space-y-3">
-        {renderRuleSection("position_sizing", rules.position_sizing as Record<string, unknown>)}
-        {renderRuleSection("risk_management", rules.risk_management as Record<string, unknown>)}
-        {renderRuleSection("technical_thresholds", rules.technical_thresholds as Record<string, unknown>)}
+        {renderRuleSection("position_sizing", rules.positionSizing as Record<string, unknown>)}
+        {renderRuleSection("risk_management", rules.riskManagement as Record<string, unknown>)}
+        {renderRuleSection("technical_thresholds", rules.technicalThresholds as Record<string, unknown>)}
         {renderRuleSection("scoring", rules.scoring as Record<string, unknown>)}
         {renderRuleSection("fundamentals", rules.fundamentals as Record<string, unknown>)}
         {renderRuleSection("signals", rules.signals as Record<string, unknown>)}
         {renderRuleSection("fees", rules.fees as Record<string, unknown>)}
         {renderRuleSection("compliance", rules.compliance as Record<string, unknown>)}
         {renderRuleSection("market", rules.market as Record<string, unknown>)}
-        {renderRuleSection("paper_trading", rules.paper_trading as Record<string, unknown>)}
-        {renderCatalystImpacts(rules.catalyst_impacts)}
-        {renderRuleSection("watchlist_management", rules.watchlist_management as Record<string, unknown>)}
+        {renderRuleSection("paper_trading", rules.paperTrading as Record<string, unknown>)}
+        {renderCatalystImpacts(rules.catalystImpacts)}
+        {renderRuleSection("watchlist_management", rules.watchlistManagement as Record<string, unknown>)}
       </div>
     </div>
   );

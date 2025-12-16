@@ -5,10 +5,10 @@ import ChatPanel from '@/components/dev-assistant/ChatPanel';
 
 interface Session {
   id: string;
-  working_dir: string;
-  created_at: string;
-  updated_at: string;
-  is_active: boolean;
+  workingDir: string;
+  createdAt: string;
+  updatedAt: string;
+  isActive: boolean;
   metadata: Record<string, unknown>;
 }
 
@@ -74,7 +74,7 @@ export default function DevAssistantPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          working_dir: '/home/kasadis/portfolio-ai',
+          workingDir: '/home/kasadis/portfolio-ai',
         }),
       });
       if (!response.ok) throw new Error('Failed to create session');
@@ -168,7 +168,7 @@ export default function DevAssistantPage() {
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-300 font-mono">{session.id}</span>
                 <div className="flex items-center gap-1">
-                  {session.is_active && (
+                  {session.isActive && (
                     <span className="w-2 h-2 rounded-full bg-green-500" title="Active" />
                   )}
                   <button
@@ -183,11 +183,11 @@ export default function DevAssistantPage() {
                   </button>
                 </div>
               </div>
-              <div className="text-xs text-gray-500 truncate" title={session.working_dir}>
-                {session.working_dir.split('/').pop()}
+              <div className="text-xs text-gray-500 truncate" title={session.workingDir}>
+                {session.workingDir.split('/').pop()}
               </div>
               <div className="text-xs text-gray-600">
-                {new Date(session.updated_at).toLocaleDateString()}
+                {new Date(session.updatedAt).toLocaleDateString()}
               </div>
             </div>
           ))}

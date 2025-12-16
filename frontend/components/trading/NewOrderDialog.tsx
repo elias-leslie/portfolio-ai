@@ -45,8 +45,8 @@ export function NewOrderDialog({ open, onOpenChange }: NewOrderDialogProps) {
         symbol,
         action,
         thesis,
-        target_price: targetPrice ? Number.parseFloat(targetPrice) : undefined,
-        stop_loss_pct: stopLossPct ? Number.parseFloat(stopLossPct) : undefined,
+        targetPrice: targetPrice ? Number.parseFloat(targetPrice) : undefined,
+        stopLossPct: stopLossPct ? Number.parseFloat(stopLossPct) : undefined,
       },
       {
         onSuccess: () => {

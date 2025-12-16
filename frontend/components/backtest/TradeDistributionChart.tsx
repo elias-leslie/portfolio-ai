@@ -15,7 +15,7 @@ import { Card } from "@/components/ui/card";
 import { SectionCard } from "@/components/shared/SectionCard";
 
 interface Trade {
-  pnl_pct: string | number | null;
+  pnlPct: string | number | null;
 }
 
 interface TradeDistributionChartProps {
@@ -32,11 +32,11 @@ interface BinData {
 }
 
 function createDistributionBins(trades: Trade[]): BinData[] {
-  // Parse pnl_pct values (filter out null)
+  // Parse pnlPct values (filter out null)
   const pnlValues = trades
-    .filter((t) => t.pnl_pct !== null)
+    .filter((t) => t.pnlPct !== null)
     .map((t) =>
-      typeof t.pnl_pct === "string" ? parseFloat(t.pnl_pct) : (t.pnl_pct as number)
+      typeof t.pnlPct === "string" ? parseFloat(t.pnlPct) : (t.pnlPct as number)
     );
 
   // Define bins: -30%, -20%, -10%, -5%, 0%, +5%, +10%, +20%, +30%
@@ -120,9 +120,9 @@ export function TradeDistributionChart({
 
   // Calculate statistics from trades (filter out null values)
   const pnlValues = trades
-    .filter((t) => t.pnl_pct !== null)
+    .filter((t) => t.pnlPct !== null)
     .map((t) =>
-      typeof t.pnl_pct === "string" ? parseFloat(t.pnl_pct) : (t.pnl_pct as number)
+      typeof t.pnlPct === "string" ? parseFloat(t.pnlPct) : (t.pnlPct as number)
     );
 
   const winningTrades = pnlValues.filter((v) => v >= 0);

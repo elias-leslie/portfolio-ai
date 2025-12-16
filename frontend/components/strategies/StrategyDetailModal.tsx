@@ -69,7 +69,7 @@ export function StrategyDetailModal({
     if (reason) {
       updateStatus.mutate({
         strategyId,
-        request: { status: "archived", archive_reason: reason },
+        request: { status: "archived", archiveReason: reason },
       });
     }
   };
@@ -96,7 +96,7 @@ export function StrategyDetailModal({
                 </Badge>
               </div>
               <DialogDescription>
-                {strategy.symbol} &bull; {strategy.strategy_type} strategy &bull; v
+                {strategy.symbol} &bull; {strategy.strategyType} strategy &bull; v
                 {strategy.version}
               </DialogDescription>
             </DialogHeader>
@@ -105,27 +105,27 @@ export function StrategyDetailModal({
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
               <MetricCard
                 label="Expected Sharpe"
-                value={strategy.expected_sharpe?.toFixed(2) || "-"}
+                value={strategy.expectedSharpe?.toFixed(2) || "-"}
               />
               <MetricCard
                 label="Expected Win Rate"
                 value={
-                  strategy.expected_win_rate != null
-                    ? `${(strategy.expected_win_rate * 100).toFixed(0)}%`
+                  strategy.expectedWinRate != null
+                    ? `${(strategy.expectedWinRate * 100).toFixed(0)}%`
                     : "-"
                 }
               />
               <MetricCard
                 label="Max Drawdown"
                 value={
-                  strategy.expected_max_drawdown != null
-                    ? `${(strategy.expected_max_drawdown * 100).toFixed(1)}%`
+                  strategy.expectedMaxDrawdown != null
+                    ? `${(strategy.expectedMaxDrawdown * 100).toFixed(1)}%`
                     : "-"
                 }
               />
               <MetricCard
                 label="Live Trades"
-                value={strategy.live_trades_count.toString()}
+                value={strategy.liveTradesCount.toString()}
               />
             </div>
 
@@ -138,7 +138,7 @@ export function StrategyDetailModal({
                 <CardTitle className="text-sm font-medium">Generation Reasoning</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-text-muted">{strategy.generation_reasoning}</p>
+                <p className="text-sm text-text-muted">{strategy.generationReasoning}</p>
               </CardContent>
             </Card>
 
@@ -159,41 +159,41 @@ export function StrategyDetailModal({
                   <CardContent className="grid grid-cols-2 gap-4 md:grid-cols-3">
                     <ResearchItem
                       label="News Sentiment"
-                      value={strategy.research_summary.news_sentiment_trend}
-                      score={strategy.research_summary.news_sentiment_score}
+                      value={strategy.researchSummary.newsSentimentTrend}
+                      score={strategy.researchSummary.newsSentimentScore}
                     />
                     <ResearchItem
                       label="Company Health"
-                      value={strategy.research_summary.company_health}
-                      score={strategy.research_summary.fundamental_score}
+                      value={strategy.researchSummary.companyHealth}
+                      score={strategy.researchSummary.fundamentalScore}
                     />
                     <ResearchItem
                       label="Valuation"
-                      value={strategy.research_summary.valuation_tier}
+                      value={strategy.researchSummary.valuationTier}
                     />
                     <ResearchItem
                       label="Trend"
-                      value={strategy.research_summary.trend_strength}
+                      value={strategy.researchSummary.trendStrength}
                     />
                     <ResearchItem
                       label="Market Regime"
-                      value={strategy.research_summary.market_regime}
+                      value={strategy.researchSummary.marketRegime}
                     />
                     <ResearchItem
                       label="Fear & Greed"
-                      value={strategy.research_summary.fear_greed_score?.toString() || "-"}
+                      value={strategy.researchSummary.fearGreedScore?.toString() || "-"}
                     />
                     <ResearchItem
                       label="Sector"
-                      value={strategy.research_summary.sector}
+                      value={strategy.researchSummary.sector}
                     />
                     <ResearchItem
                       label="Sector Momentum"
-                      value={strategy.research_summary.sector_momentum}
+                      value={strategy.researchSummary.sectorMomentum}
                     />
                     <ResearchItem
                       label="Confidence"
-                      value={`${((strategy.research_summary.overall_confidence || 0) * 100).toFixed(0)}%`}
+                      value={`${((strategy.researchSummary.overallConfidence || 0) * 100).toFixed(0)}%`}
                     />
                   </CardContent>
                 </CollapsibleContent>
@@ -237,7 +237,7 @@ export function StrategyDetailModal({
                   <CardHeader className="cursor-pointer hover:bg-muted/50">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-sm font-medium">
-                        Walk-Forward Backtest Results ({strategy.backtest_metrics.length} windows)
+                        Walk-Forward Backtest Results ({strategy.backtestMetrics.length} windows)
                       </CardTitle>
                       <ChevronDown
                         className={`h-4 w-4 transition-transform ${backtestOpen ? "rotate-180" : ""}`}
@@ -248,13 +248,13 @@ export function StrategyDetailModal({
                 <CollapsibleContent>
                   <CardContent>
                     <div className="space-y-2">
-                      {strategy.backtest_metrics.map((metric, i) => (
+                      {strategy.backtestMetrics.map((metric, i) => (
                         <div
                           key={i}
                           className="flex items-center justify-between rounded border p-2 text-sm"
                         >
                           <span className="text-text-muted">
-                            {metric.window_start || "?"} - {metric.window_end || "?"}
+                            {metric.windowStart || "?"} - {metric.windowEnd || "?"}
                           </span>
                           <div className="flex gap-4">
                             <span>
@@ -266,10 +266,10 @@ export function StrategyDetailModal({
                               </span>
                             </span>
                             <span>
-                              Win: {metric.win_rate != null ? `${(metric.win_rate * 100).toFixed(0)}%` : "-"}
+                              Win: {metric.winRate != null ? `${(metric.winRate * 100).toFixed(0)}%` : "-"}
                             </span>
                             <span>
-                              DD: {metric.max_drawdown != null ? `${(metric.max_drawdown * 100).toFixed(1)}%` : "-"}
+                              DD: {metric.maxDrawdown != null ? `${(metric.maxDrawdown * 100).toFixed(1)}%` : "-"}
                             </span>
                           </div>
                         </div>

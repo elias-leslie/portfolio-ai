@@ -79,12 +79,12 @@ function CapabilitiesPageContent() {
   // Fetch health summary for tab counts (always enabled)
   interface HealthSummary {
     total: number;
-    by_type: {
+    byType: {
       database: { active: number; orphaned: number; legacy: number; suspect: number };
       celery: { active: number; orphaned: number; legacy: number; suspect: number };
       api: { active: number; orphaned: number; legacy: number; suspect: number };
     };
-    by_status: { active: number; orphaned: number; legacy: number; suspect: number };
+    byStatus: { active: number; orphaned: number; legacy: number; suspect: number };
   }
 
   const { data: healthSummary } = useQuery<HealthSummary>({
@@ -176,11 +176,11 @@ function CapabilitiesPageContent() {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter((cap) => {
         const name =
-          cap.capability_type === "db"
-            ? (cap.table_name || "")
-            : cap.capability_type === "celery"
-              ? (cap.task_name || "")
-              : (cap.endpoint_path || "");
+          cap.capabilityType === "db"
+            ? (cap.tableName || "")
+            : cap.capabilityType === "celery"
+              ? (cap.taskName || "")
+              : (cap.endpointPath || "");
         return (
           name.toLowerCase().includes(query) ||
           cap.category?.toLowerCase().includes(query) ||
@@ -191,7 +191,7 @@ function CapabilitiesPageContent() {
 
     // Apply health filter
     if (healthFilter !== "all") {
-      filtered = filtered.filter((cap) => cap.health_status === healthFilter);
+      filtered = filtered.filter((cap) => cap.healthStatus === healthFilter);
     }
 
     // Sort by health status (priority: orphaned > legacy > suspect > active)
@@ -204,8 +204,8 @@ function CapabilitiesPageContent() {
 
     // Create a copy before sorting to avoid mutating the original array
     const sorted = [...filtered].sort((a, b) => {
-      const priorityA = healthPriority[a.health_status] ?? 4;
-      const priorityB = healthPriority[b.health_status] ?? 4;
+      const priorityA = healthPriority[a.healthStatus] ?? 4;
+      const priorityB = healthPriority[b.healthStatus] ?? 4;
 
       if (priorityA !== priorityB) {
         return priorityA - priorityB;
@@ -213,17 +213,17 @@ function CapabilitiesPageContent() {
 
       // Secondary sort by name for same health status
       const nameA =
-        a.capability_type === "db"
-          ? (a.table_name || "")
-          : a.capability_type === "celery"
-            ? (a.task_name || "")
-            : (a.endpoint_path || "");
+        a.capabilityType === "db"
+          ? (a.tableName || "")
+          : a.capabilityType === "celery"
+            ? (a.taskName || "")
+            : (a.endpointPath || "");
       const nameB =
-        b.capability_type === "db"
-          ? (b.table_name || "")
-          : b.capability_type === "celery"
-            ? (b.task_name || "")
-            : (b.endpoint_path || "");
+        b.capabilityType === "db"
+          ? (b.tableName || "")
+          : b.capabilityType === "celery"
+            ? (b.taskName || "")
+            : (b.endpointPath || "");
       return nameA.localeCompare(nameB);
     });
 
@@ -246,10 +246,10 @@ function CapabilitiesPageContent() {
     }
 
     const total = capabilitiesData.capabilities.length;
-    const active = capabilitiesData.capabilities.filter((c) => c.health_status === "active").length;
-    const orphaned = capabilitiesData.capabilities.filter((c) => c.health_status === "orphaned").length;
-    const legacy = capabilitiesData.capabilities.filter((c) => c.health_status === "legacy").length;
-    const suspect = capabilitiesData.capabilities.filter((c) => c.health_status === "suspect").length;
+    const active = capabilitiesData.capabilities.filter((c) => c.healthStatus === "active").length;
+    const orphaned = capabilitiesData.capabilities.filter((c) => c.healthStatus === "orphaned").length;
+    const legacy = capabilitiesData.capabilities.filter((c) => c.healthStatus === "legacy").length;
+    const suspect = capabilitiesData.capabilities.filter((c) => c.healthStatus === "suspect").length;
     const filtered = filteredCapabilities.length;
 
     return { total, active, orphaned, legacy, suspect, filtered };
@@ -272,8 +272,8 @@ function CapabilitiesPageContent() {
   }
 
   // Count capabilities by type from health summary (always available)
-  const dbStats = healthSummary?.by_type?.database;
-  const celeryStats = healthSummary?.by_type?.celery;
+  const dbStats = healthSummary?.byType?.database;
+  const celeryStats = healthSummary?.byType?.celery;
 
   const dbCount = dbStats
     ? dbStats.active + dbStats.orphaned + dbStats.legacy + dbStats.suspect

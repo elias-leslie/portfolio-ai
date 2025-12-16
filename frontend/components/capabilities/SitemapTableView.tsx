@@ -47,7 +47,7 @@ export function SitemapTableView({ entries }: SitemapTableViewProps) {
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["sitemap"] });
       if (result.success) {
-        toast.success(`Health: ${result.health_status}`);
+        toast.success(`Health: ${result.healthStatus}`);
       }
     },
     onSettled: () => setCheckingId(null),
@@ -104,12 +104,12 @@ export function SitemapTableView({ entries }: SitemapTableViewProps) {
               <TableRow
                 key={entry.id}
                 className={cn(
-                  entry.health_status === "error" && "bg-loss/5",
-                  entry.health_status === "warning" && "bg-warning/5"
+                  entry.healthStatus === "error" && "bg-loss/5",
+                  entry.healthStatus === "warning" && "bg-warning/5"
                 )}
               >
                 <TableCell>
-                  <HealthIcon status={entry.health_status} />
+                  <HealthIcon status={entry.healthStatus} />
                 </TableCell>
                 <TableCell>
                   <Badge variant="outline" className="text-xs font-mono">
@@ -144,24 +144,24 @@ export function SitemapTableView({ entries }: SitemapTableViewProps) {
                   <span
                     className={cn(
                       "tabular-nums",
-                      entry.console_errors > 0 && "text-loss font-semibold"
+                      entry.consoleErrors > 0 && "text-loss font-semibold"
                     )}
                   >
-                    {entry.console_errors}
+                    {entry.consoleErrors}
                   </span>
                 </TableCell>
                 <TableCell className="text-right">
                   <span
                     className={cn(
                       "tabular-nums",
-                      entry.console_warnings > 0 && "text-warning"
+                      entry.consoleWarnings > 0 && "text-warning"
                     )}
                   >
-                    {entry.console_warnings}
+                    {entry.consoleWarnings}
                   </span>
                 </TableCell>
                 <TableCell className="text-xs text-text-secondary">
-                  {formatLastChecked(entry.last_checked_at)}
+                  {formatLastChecked(entry.lastCheckedAt)}
                 </TableCell>
                 <TableCell>
                   <div className="flex gap-1">

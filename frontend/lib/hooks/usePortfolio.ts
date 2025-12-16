@@ -96,11 +96,11 @@ export function useAddPosition() {
   return useMutation({
     mutationFn: async (data: AddPositionRequest) => {
       const promise = addPosition(data);
-      const positionTypeLabel = data.position_type === "paper" ? "paper" : "live";
+      const positionTypeLabel = data.positionType === "paper" ? "paper" : "live";
       toast.promise(promise, {
         loading: `Adding ${data.symbol.toUpperCase()} position...`,
         success: (position) =>
-          `${position.symbol} ${positionTypeLabel} position added (${data.shares} shares @ $${data.cost_basis.toFixed(2)})`,
+          `${position.symbol} ${positionTypeLabel} position added (${data.shares} shares @ $${data.costBasis.toFixed(2)})`,
         error: (error) => {
           const errorMsg = error instanceof Error ? error.message : "Failed to add position";
           return `Failed to add ${data.symbol.toUpperCase()}: ${errorMsg}`;
@@ -133,7 +133,7 @@ export function useUpdatePosition() {
       toast.promise(promise, {
         loading: `Updating ${data.symbol.toUpperCase()} position...`,
         success: (position) =>
-          `${position.symbol} position updated (${data.shares} shares @ $${data.cost_basis.toFixed(2)})`,
+          `${position.symbol} position updated (${data.shares} shares @ $${data.costBasis.toFixed(2)})`,
         error: (error) => {
           const errorMsg = error instanceof Error ? error.message : "Failed to update position";
           return `Failed to update ${data.symbol.toUpperCase()}: ${errorMsg}`;

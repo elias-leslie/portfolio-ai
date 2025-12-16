@@ -92,7 +92,7 @@ export function AccountsCard() {
               <div>
                 <div className="font-medium text-sm">{account.name}</div>
                 <div className="text-xs text-text-muted mt-1">
-                  {account.account_type}
+                  {account.accountType}
                 </div>
               </div>
               <Button

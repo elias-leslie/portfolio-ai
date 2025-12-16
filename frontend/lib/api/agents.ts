@@ -10,63 +10,63 @@
 import { get } from "./client";
 
 export interface TokenUsage {
-  input_tokens: number;
-  output_tokens: number;
-  total_tokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
 }
 
 export interface ProviderMetrics {
   provider: string;
-  total_runs: number;
-  successful_runs: number;
-  failed_runs: number;
-  success_rate: number;
-  total_tokens: number;
-  avg_tokens_per_run: number;
-  avg_duration_ms: number;
-  total_cost_usd: number;
+  totalRuns: number;
+  successfulRuns: number;
+  failedRuns: number;
+  successRate: number;
+  totalTokens: number;
+  avgTokensPerRun: number;
+  avgDurationMs: number;
+  totalCostUsd: number;
 }
 
 export interface DailyTelemetry {
   date: string;
-  total_runs: number;
-  successful_runs: number;
-  failed_runs: number;
-  total_input_tokens: number;
-  total_output_tokens: number;
-  total_tokens: number;
-  avg_duration_ms: number;
-  estimated_cost_usd: number;
+  totalRuns: number;
+  successfulRuns: number;
+  failedRuns: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalTokens: number;
+  avgDurationMs: number;
+  estimatedCostUsd: number;
 }
 
 export interface TelemetrySummary {
-  period_start: string;
-  period_end: string;
-  period_days: number;
-  total_runs: number;
-  successful_runs: number;
-  failed_runs: number;
-  success_rate: number;
-  total_input_tokens: number;
-  total_output_tokens: number;
-  total_tokens: number;
-  avg_tokens_per_run: number;
-  avg_duration_ms: number;
-  total_cost_usd: number;
-  by_provider: ProviderMetrics[];
-  daily_data: DailyTelemetry[];
+  periodStart: string;
+  periodEnd: string;
+  periodDays: number;
+  totalRuns: number;
+  successfulRuns: number;
+  failedRuns: number;
+  successRate: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalTokens: number;
+  avgTokensPerRun: number;
+  avgDurationMs: number;
+  totalCostUsd: number;
+  byProvider: ProviderMetrics[];
+  dailyData: DailyTelemetry[];
 }
 
 export interface AgentRunDetail {
   id: string;
-  agent_type: string;
-  started_at: string;
-  completed_at: string | null;
+  agentType: string;
+  startedAt: string;
+  completedAt: string | null;
   status: string;
   provider: string | null;
   model: string | null;
-  duration_ms: number | null;
-  token_usage: TokenUsage | null;
+  durationMs: number | null;
+  tokenUsage: TokenUsage | null;
   error: string | null;
 }
 

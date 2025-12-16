@@ -10,7 +10,7 @@ interface APIQuotasCardProps {
 }
 
 export function APIQuotasCard({ health }: APIQuotasCardProps) {
-  const quotas = health.api_quotas || [];
+  const quotas = health.apiQuotas || [];
 
   if (!quotas.length) {
     return null;
@@ -33,10 +33,10 @@ export function APIQuotasCard({ health }: APIQuotasCardProps) {
     >
       <div className="space-y-3">
         {quotas
-          .sort((a, b) => a.source_name.localeCompare(b.source_name))
+          .sort((a, b) => a.sourceName.localeCompare(b.sourceName))
           .map((quota) => (
             <div
-              key={quota.source_name}
+              key={quota.sourceName}
               className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50"
             >
               <div className="flex flex-1 items-center gap-3">
@@ -47,14 +47,14 @@ export function APIQuotasCard({ health }: APIQuotasCardProps) {
                 )}
                 <div className="flex-1">
                   <div className="font-medium capitalize">
-                    {quota.source_name.replace(/_/g, " ")}
+                    {quota.sourceName.replace(/_/g, " ")}
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                    {quota.rate_limit && <div>Rate limit: {quota.rate_limit}</div>}
-                    {quota.daily_limit && <div>Daily limit: {quota.daily_limit}</div>}
-                    {quota.estimated_capacity !== null &&
-                      quota.estimated_capacity !== undefined && (
-                        <div>Estimated capacity: ~{quota.estimated_capacity} symbols</div>
+                    {quota.rateLimit && <div>Rate limit: {quota.rateLimit}</div>}
+                    {quota.dailyLimit && <div>Daily limit: {quota.dailyLimit}</div>}
+                    {quota.estimatedCapacity !== null &&
+                      quota.estimatedCapacity !== undefined && (
+                        <div>Estimated capacity: ~{quota.estimatedCapacity} symbols</div>
                       )}
                   </div>
                 </div>

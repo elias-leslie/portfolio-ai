@@ -53,7 +53,7 @@ export function OptionsIndicatorsCard() {
   }
 
   const putcall = data.indicators?.putcall;
-  const optionsActivity = data.options_activity;
+  const optionsActivity = data.optionsActivity;
 
   // If no options data at all, don't render
   if (!putcall && !optionsActivity) {
@@ -64,9 +64,9 @@ export function OptionsIndicatorsCard() {
     <Card className="p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-text">Options Market Sentiment</h3>
-        {putcall?.last_updated && (
+        {putcall?.lastUpdated && (
           <span className="text-xs text-text-muted">
-            {formatRelativeTime(putcall.last_updated)}
+            {formatRelativeTime(putcall.lastUpdated)}
           </span>
         )}
       </div>
@@ -112,12 +112,12 @@ export function OptionsIndicatorsCard() {
                 <div className="flex items-center gap-1 justify-end">
                   <TrendIcon trend={putcall.context.trend} />
                   <span className="text-xs text-text-muted">
-                    {putcall.context.trend_pct > 0 ? "+" : ""}
-                    {putcall.context.trend_pct.toFixed(1)}% 7d
+                    {putcall.context.trendPct > 0 ? "+" : ""}
+                    {putcall.context.trendPct.toFixed(1)}% 7d
                   </span>
                 </div>
                 <div className="text-xs text-text-muted mt-0.5">
-                  {putcall.context.percentile_rank}th percentile (90d)
+                  {putcall.context.percentileRank}th percentile (90d)
                 </div>
               </div>
             )}
@@ -132,10 +132,10 @@ export function OptionsIndicatorsCard() {
               <div className="text-xs text-text-muted">Near-Term Options</div>
               <div className="flex items-baseline gap-1 mt-0.5">
                 <span className="text-sm font-medium text-text">
-                  {optionsActivity.near_term_pct.toFixed(0)}%
+                  {optionsActivity.nearTermPct.toFixed(0)}%
                 </span>
                 <span className="text-xs text-text-muted">
-                  ({optionsActivity.near_term_signal})
+                  ({optionsActivity.nearTermSignal})
                 </span>
               </div>
             </div>
@@ -145,10 +145,10 @@ export function OptionsIndicatorsCard() {
               <div className="text-xs text-text-muted">Top 5 Concentration</div>
               <div className="flex items-baseline gap-1 mt-0.5">
                 <span className="text-sm font-medium text-text">
-                  {optionsActivity.concentration_pct.toFixed(0)}%
+                  {optionsActivity.concentrationPct.toFixed(0)}%
                 </span>
                 <span className="text-xs text-text-muted">
-                  ({optionsActivity.concentration_signal})
+                  ({optionsActivity.concentrationSignal})
                 </span>
               </div>
             </div>
@@ -156,16 +156,16 @@ export function OptionsIndicatorsCard() {
         )}
 
         {/* Top Sectors if available */}
-        {optionsActivity?.top_sectors && optionsActivity.top_sectors.length > 0 && (
+        {optionsActivity?.topSectors && optionsActivity.topSectors.length > 0 && (
           <div className="pt-2 border-t border-border/30">
             <div className="text-xs text-text-muted mb-1">Active Sectors</div>
             <div className="flex flex-wrap gap-1">
-              {optionsActivity.top_sectors.slice(0, 5).map((s) => (
+              {optionsActivity.topSectors.slice(0, 5).map((s) => (
                 <span
                   key={s.sector}
                   className="text-xs px-2 py-0.5 rounded bg-surface-muted border border-border/50 text-text-muted"
                 >
-                  {s.sector} {s.weight_pct.toFixed(0)}%
+                  {s.sector} {s.weightPct.toFixed(0)}%
                 </span>
               ))}
             </div>

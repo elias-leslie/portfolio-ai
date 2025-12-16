@@ -302,17 +302,17 @@ export default function StatusPage() {
         value ? new Date(value).toLocaleString() : "—";
 
     const finbertStatus = newsHealth
-        ? newsHealth.finbert_available
+        ? newsHealth.finbertAvailable
             ? { label: "FinBERT Available", variant: "default" as const }
             : { label: "FinBERT Unavailable", variant: "destructive" as const }
         : { label: "Loading...", variant: "secondary" as const };
 
-    const fallbackRatePercent = (newsHealth?.fallback_rate_24h ?? 0) * 100;
-    const fallbackAvgLatency = newsHealth?.fallback_avg_latency_ms_24h ?? null;
-    const fallbackP95Latency = newsHealth?.fallback_p95_latency_ms_24h ?? null;
-    const fallbackLastEventAt = newsHealth?.fallback_last_event_at ?? null;
+    const fallbackRatePercent = (newsHealth?.fallbackRate24H ?? 0) * 100;
+    const fallbackAvgLatency = newsHealth?.fallbackAvgLatencyMs24H ?? null;
+    const fallbackP95Latency = newsHealth?.fallbackP95LatencyMs24H ?? null;
+    const fallbackLastEventAt = newsHealth?.fallbackLastEventAt ?? null;
     const lookbackHours =
-        newsHealth?.lookback_window_hours ?? newsHealth?.cache_ttl_hours ?? 0;
+        newsHealth?.lookbackWindowHours ?? newsHealth?.cacheTtlHours ?? 0;
 
     const renderShell = (content: React.ReactNode) => (
         <PageContainer className="space-y-10 py-10">
@@ -361,9 +361,9 @@ export default function StatusPage() {
             if (!newsHealth) {
                 return "Waiting for news telemetry";
             }
-            const fallbackCount = newsHealth.fallback_headlines_24h ?? 0;
+            const fallbackCount = newsHealth.fallbackHeadlines24H ?? 0;
             const fallbackSummary = fallbackCount > 0 ? `${fallbackCount} fallback` : "No fallback";
-            return `${newsHealth.headlines_24h ?? 0} headlines • ${fallbackSummary} • ${finbertStatus.label}`;
+            return `${newsHealth.headlines24H ?? 0} headlines • ${fallbackSummary} • ${finbertStatus.label}`;
         })();
 
         return (
@@ -408,7 +408,7 @@ export default function StatusPage() {
                             <p className="text-sm font-medium">
                                 {newsHealthLoading && !newsHealth
                                     ? "Loading..."
-                                    : formatDateTime(newsHealth?.market_last_refreshed_at)}
+                                    : formatDateTime(newsHealth?.marketLastRefreshedAt)}
                             </p>
                         </div>
                         <div>
@@ -418,7 +418,7 @@ export default function StatusPage() {
                             <p className="text-sm font-medium">
                                 {newsHealthLoading && !newsHealth
                                     ? "Loading..."
-                                    : formatDateTime(newsHealth?.watchlist_last_refreshed_at)}
+                                    : formatDateTime(newsHealth?.watchlistLastRefreshedAt)}
                             </p>
                         </div>
                         <div>
@@ -426,7 +426,7 @@ export default function StatusPage() {
                                 Headlines (24h)
                             </p>
                             <p className="text-sm font-medium">
-                                {newsHealth?.headlines_24h ?? 0}
+                                {newsHealth?.headlines24H ?? 0}
                             </p>
                             <p className="text-xs text-muted-foreground">
                                 Lookback window: {lookbackHours} hrs
@@ -437,7 +437,7 @@ export default function StatusPage() {
                                 Fallback Usage (24h)
                             </p>
                             <p className="text-sm font-medium">
-                                {newsHealth?.fallback_headlines_24h ?? 0} headlines
+                                {newsHealth?.fallbackHeadlines24H ?? 0} headlines
                             </p>
                             <p className="text-xs text-muted-foreground">
                                 {newsHealth
@@ -528,8 +528,8 @@ export default function StatusPage() {
                     <DataSourcesCard health={health} />
                     <TableFreshnessCard />
                     <APIQuotasCard health={health} />
-                    {detailedHealth?.api_keys && detailedHealth.api_keys.length > 0 && (
-                        <APIKeysCard apiKeys={detailedHealth.api_keys} />
+                    {detailedHealth?.apiKeys && detailedHealth.apiKeys.length > 0 && (
+                        <APIKeysCard apiKeys={detailedHealth.apiKeys} />
                     )}
                 </div>
             </SectionCard>
@@ -566,10 +566,10 @@ export default function StatusPage() {
                 description="Autonomous trading workflows with AI agent collaboration and execution tracking."
             >
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <WorkflowHealthCard workflowHealth={detailedHealth?.workflow_health} />
-                    <AgentStatsCard stats={health?.agent_stats} />
+                    <WorkflowHealthCard workflowHealth={detailedHealth?.workflowHealth} />
+                    <AgentStatsCard stats={health?.agentStats} />
                     <div className="md:col-span-2 lg:col-span-3">
-                        <WorkflowMetricsCard metrics={detailedHealth?.workflow_metrics} />
+                        <WorkflowMetricsCard metrics={detailedHealth?.workflowMetrics} />
                     </div>
                 </div>
             </SectionCard>

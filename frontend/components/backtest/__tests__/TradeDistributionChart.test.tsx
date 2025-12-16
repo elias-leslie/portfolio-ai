@@ -39,10 +39,10 @@ describe("TradeDistributionChart", () => {
 
   it("renders chart with valid trades", () => {
     const trades = [
-      { pnl_pct: 5.5 },
-      { pnl_pct: -3.2 },
-      { pnl_pct: 8.1 },
-      { pnl_pct: -1.5 },
+      { pnlPct: 5.5 },
+      { pnlPct: -3.2 },
+      { pnlPct: 8.1 },
+      { pnlPct: -1.5 },
     ];
 
     render(<TradeDistributionChart trades={trades} profitFactor={1.8} />);
@@ -52,10 +52,10 @@ describe("TradeDistributionChart", () => {
 
   it("displays key metrics cards", () => {
     const trades = [
-      { pnl_pct: 5.0 },
-      { pnl_pct: 10.0 },
-      { pnl_pct: -3.0 },
-      { pnl_pct: -5.0 },
+      { pnlPct: 5.0 },
+      { pnlPct: 10.0 },
+      { pnlPct: -3.0 },
+      { pnlPct: -5.0 },
     ];
 
     render(<TradeDistributionChart trades={trades} profitFactor={1.5} />);
@@ -68,9 +68,9 @@ describe("TradeDistributionChart", () => {
 
   it("calculates correct average win", () => {
     const trades = [
-      { pnl_pct: 10.0 },
-      { pnl_pct: 20.0 },
-      { pnl_pct: -5.0 },
+      { pnlPct: 10.0 },
+      { pnlPct: 20.0 },
+      { pnlPct: -5.0 },
     ];
 
     render(<TradeDistributionChart trades={trades} profitFactor={null} />);
@@ -81,9 +81,9 @@ describe("TradeDistributionChart", () => {
 
   it("calculates correct average loss", () => {
     const trades = [
-      { pnl_pct: 10.0 },
-      { pnl_pct: -4.0 },
-      { pnl_pct: -6.0 },
+      { pnlPct: 10.0 },
+      { pnlPct: -4.0 },
+      { pnlPct: -6.0 },
     ];
 
     render(<TradeDistributionChart trades={trades} profitFactor={null} />);
@@ -93,7 +93,7 @@ describe("TradeDistributionChart", () => {
   });
 
   it("displays profit factor when provided", () => {
-    const trades = [{ pnl_pct: 5.0 }];
+    const trades = [{ pnlPct: 5.0 }];
 
     render(<TradeDistributionChart trades={trades} profitFactor={2.35} />);
 
@@ -101,7 +101,7 @@ describe("TradeDistributionChart", () => {
   });
 
   it("displays dash for null profit factor", () => {
-    const trades = [{ pnl_pct: 5.0 }];
+    const trades = [{ pnlPct: 5.0 }];
 
     render(<TradeDistributionChart trades={trades} profitFactor={null} />);
 
@@ -112,10 +112,10 @@ describe("TradeDistributionChart", () => {
     expect(profitFactorCard).toHaveTextContent("—");
   });
 
-  it("handles string pnl_pct values", () => {
+  it("handles string pnlPct values", () => {
     const trades = [
-      { pnl_pct: "5.5" },
-      { pnl_pct: "-3.2" },
+      { pnlPct: "5.5" },
+      { pnlPct: "-3.2" },
     ];
 
     render(<TradeDistributionChart trades={trades} profitFactor={null} />);
@@ -123,11 +123,11 @@ describe("TradeDistributionChart", () => {
     expect(screen.getByText("Trade Distribution")).toBeInTheDocument();
   });
 
-  it("filters out null pnl_pct values", () => {
+  it("filters out null pnlPct values", () => {
     const trades = [
-      { pnl_pct: 10.0 },
-      { pnl_pct: null },
-      { pnl_pct: -5.0 },
+      { pnlPct: 10.0 },
+      { pnlPct: null },
+      { pnlPct: -5.0 },
     ];
 
     render(<TradeDistributionChart trades={trades} profitFactor={null} />);
@@ -139,10 +139,10 @@ describe("TradeDistributionChart", () => {
 
   it("calculates correct win rate", () => {
     const trades = [
-      { pnl_pct: 5.0 },
-      { pnl_pct: 10.0 },
-      { pnl_pct: 15.0 },
-      { pnl_pct: -5.0 },
+      { pnlPct: 5.0 },
+      { pnlPct: 10.0 },
+      { pnlPct: 15.0 },
+      { pnlPct: -5.0 },
     ];
 
     render(<TradeDistributionChart trades={trades} profitFactor={null} />);
@@ -152,7 +152,7 @@ describe("TradeDistributionChart", () => {
   });
 
   it("renders the chart container", () => {
-    const trades = [{ pnl_pct: 5.0 }];
+    const trades = [{ pnlPct: 5.0 }];
 
     render(<TradeDistributionChart trades={trades} profitFactor={null} />);
 
@@ -161,7 +161,7 @@ describe("TradeDistributionChart", () => {
   });
 
   it("displays color legend", () => {
-    const trades = [{ pnl_pct: 5.0 }];
+    const trades = [{ pnlPct: 5.0 }];
 
     render(<TradeDistributionChart trades={trades} profitFactor={null} />);
 

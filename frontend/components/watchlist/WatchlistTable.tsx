@@ -50,7 +50,7 @@ type SortDirection = "asc" | "desc";
 type WatchlistSnapshot = {
   price: number | null;
   score: number | null;
-  risk: WatchlistItem["risk_level"];
+  risk: WatchlistItem["riskLevel"];
   updatedAt: string | null;
 };
 
@@ -70,7 +70,7 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
   const [recentlyUpdatedRows, setRecentlyUpdatedRows] = useState<Set<string>>(new Set());
 
   // Get user's timezone preference
-  const userTimezone = preferences?.display_timezone ?? "America/New_York";
+  const userTimezone = preferences?.displayTimezone ?? "America/New_York";
 
   // Get current portfolio symbols (for showing portfolio badge)
   const portfolioSymbols = new Set(
@@ -79,12 +79,12 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
 
   const buildSnapshot = (item: WatchlistItem): WatchlistSnapshot => ({
     price:
-      typeof item.current_score?.price.metadata?.price === "number"
-        ? item.current_score.price.metadata.price
+      typeof item.currentScore?.price.metadata?.price === "number"
+        ? item.currentScore.price.metadata.price
         : null,
-    score: item.current_score?.overall ?? null,
-    risk: item.risk_level ?? null,
-    updatedAt: item.current_score?.price?.updated_at ?? item.updated_at,
+    score: item.currentScore?.overall ?? null,
+    risk: item.riskLevel ?? null,
+    updatedAt: item.currentScore?.price?.updatedAt ?? item.updatedAt,
   });
 
   // Scroll to symbol from query parameter
@@ -129,28 +129,28 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
         bVal = b.symbol;
         break;
       case "overall":
-        aVal = a.current_score?.overall ?? -1;
-        bVal = b.current_score?.overall ?? -1;
+        aVal = a.currentScore?.overall ?? -1;
+        bVal = b.currentScore?.overall ?? -1;
         break;
       case "price":
-        aVal = a.current_score?.price.score ?? -1;
-        bVal = b.current_score?.price.score ?? -1;
+        aVal = a.currentScore?.price.score ?? -1;
+        bVal = b.currentScore?.price.score ?? -1;
         break;
       case "technical":
-        aVal = a.current_score?.technical.score ?? -1;
-        bVal = b.current_score?.technical.score ?? -1;
+        aVal = a.currentScore?.technical.score ?? -1;
+        bVal = b.currentScore?.technical.score ?? -1;
         break;
       case "news":
-        aVal = a.news_sentiment_score ?? -2;
-        bVal = b.news_sentiment_score ?? -2;
+        aVal = a.newsSentimentScore ?? -2;
+        bVal = b.newsSentimentScore ?? -2;
         break;
       case "risk":
-        aVal = a.risk_level ?? "";
-        bVal = b.risk_level ?? "";
+        aVal = a.riskLevel ?? "";
+        bVal = b.riskLevel ?? "";
         break;
       case "updated":
-        aVal = a.current_score?.price?.updated_at ?? a.updated_at;
-        bVal = b.current_score?.price?.updated_at ?? b.updated_at;
+        aVal = a.currentScore?.price?.updatedAt ?? a.updatedAt;
+        bVal = b.currentScore?.price?.updatedAt ?? b.updatedAt;
         break;
     }
 
@@ -434,12 +434,12 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
         <TableBody>
           {sortedItems.map((item) => {
             const isExpanded = expandedId === item.id;
-            const hasScore = !!item.current_score;
-            const overall = item.current_score?.overall ?? 0;
-            const priceScore = item.current_score?.price.score ?? 0;
-            const techScore = item.current_score?.technical.score ?? 0;
-            const priceStale = item.current_score?.price.stale ?? false;
-            const techStale = item.current_score?.technical.stale ?? false;
+            const hasScore = !!item.currentScore;
+            const overall = item.currentScore?.overall ?? 0;
+            const priceScore = item.currentScore?.price.score ?? 0;
+            const techScore = item.currentScore?.technical.score ?? 0;
+            const priceStale = item.currentScore?.price.stale ?? false;
+            const techStale = item.currentScore?.technical.stale ?? false;
 
             return (
               <Fragment key={item.id}>
@@ -496,28 +496,28 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                           <span>Portfolio</span>
                         </Badge>
                       )}
-                      {item.current_score?.price.metadata?.source &&
-                      typeof item.current_score.price.metadata.source ===
+                      {item.currentScore?.price.metadata?.source &&
+                      typeof item.currentScore.price.metadata.source ===
                         "string" ? (
                         <SourceBadge
-                          source={item.current_score.price.metadata.source}
-                          stale={item.current_score.price.stale}
+                          source={item.currentScore.price.metadata.source}
+                          stale={item.currentScore.price.stale}
                           priority={
-                            typeof item.current_score.price.metadata
+                            typeof item.currentScore.price.metadata
                               .priority === "number"
-                              ? item.current_score.price.metadata.priority
+                              ? item.currentScore.price.metadata.priority
                               : undefined
                           }
                         />
                       ) : null}
-                      {refreshStatus?.is_refreshing &&
-                        refreshStatus.current_symbol === item.symbol && (
+                      {refreshStatus?.isRefreshing &&
+                        refreshStatus.currentSymbol === item.symbol && (
                           <Loader2
                             className="h-4 w-4 animate-spin text-accent"
                             aria-label="Refreshing..."
                           />
                         )}
-                      {item.score_alert && (
+                      {item.scoreAlert && (
                         <AlertCircle
                           className="h-4 w-4 text-accent"
                           aria-label="Score changed >10 points in last 7 days"
@@ -529,7 +529,7 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                     data-slot="table-cell"
                     data-changed={changedCells[item.id]?.price ? "true" : undefined}
                   >
-                    {item.current_score?.price.metadata?.price ? (
+                    {item.currentScore?.price.metadata?.price ? (
                       <div
                         className="text-sm price-display"
                         data-changed={
@@ -537,20 +537,20 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                         }
                       >
                         <div className="font-medium">
-                          ${typeof item.current_score.price.metadata.price === 'number'
-                            ? item.current_score.price.metadata.price.toFixed(2)
-                            : String(item.current_score.price.metadata.price)}
+                          ${typeof item.currentScore.price.metadata.price === 'number'
+                            ? item.currentScore.price.metadata.price.toFixed(2)
+                            : String(item.currentScore.price.metadata.price)}
                         </div>
-                        {item.current_score.price.metadata.raw_change_pct !== undefined && (
+                        {item.currentScore.price.metadata.rawChangePct !== undefined && (
                           <div className={cn(
                             "text-xs",
-                            typeof item.current_score.price.metadata.raw_change_pct === 'number' && item.current_score.price.metadata.raw_change_pct >= 0
+                            typeof item.currentScore.price.metadata.rawChangePct === 'number' && item.currentScore.price.metadata.rawChangePct >= 0
                               ? "text-gain"
                               : "text-loss"
                           )}>
-                            {typeof item.current_score.price.metadata.raw_change_pct === 'number'
-                              ? `${item.current_score.price.metadata.raw_change_pct >= 0 ? '+' : ''}${item.current_score.price.metadata.raw_change_pct.toFixed(2)}%`
-                              : `${String(item.current_score.price.metadata.raw_change_pct)}%`}
+                            {typeof item.currentScore.price.metadata.rawChangePct === 'number'
+                              ? `${item.currentScore.price.metadata.rawChangePct >= 0 ? '+' : ''}${item.currentScore.price.metadata.rawChangePct.toFixed(2)}%`
+                              : `${String(item.currentScore.price.metadata.rawChangePct)}%`}
                           </div>
                         )}
                       </div>
@@ -585,7 +585,7 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                     data-slot="table-cell"
                     data-changed={changedCells[item.id]?.risk ? "true" : undefined}
                   >
-                    {item.risk_level ? (
+                    {item.riskLevel ? (
                       (() => {
                         const riskConfig: Record<string, { label: string; icon: string; color: string }> = {
                           "Low": { label: "Low", icon: "✓", color: "text-gain" },
@@ -593,7 +593,7 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                           "Medium": { label: "Medium", icon: "⚠", color: "text-neutral" },
                           "High": { label: "High", icon: "⚠⚠", color: "text-loss" }
                         };
-                        const config = riskConfig[item.risk_level] || { label: item.risk_level, icon: "", color: "text-text-muted" };
+                        const config = riskConfig[item.riskLevel] || { label: item.riskLevel, icon: "", color: "text-text-muted" };
                         return (
                           <div className={cn("text-xs font-medium", config.color)}>
                             {config.icon} {config.label}
@@ -605,18 +605,18 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                     )}
                   </TableCell>
                   <TableCell data-slot="table-cell">
-                    {item.data_quality ? (
+                    {item.dataQuality ? (
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <div
                               className={cn(
                                 "inline-flex items-center justify-center rounded-md px-2 py-1 text-xs font-semibold cursor-help",
-                                getDataQualityBgColor(item.data_quality.overall_pct),
-                                getDataQualityColor(item.data_quality.overall_pct)
+                                getDataQualityBgColor(item.dataQuality.overallPct),
+                                getDataQualityColor(item.dataQuality.overallPct)
                               )}
                             >
-                              {item.data_quality.overall_pct.toFixed(0)}%
+                              {item.dataQuality.overallPct.toFixed(0)}%
                             </div>
                           </TooltipTrigger>
                           <TooltipContent side="left" className="max-w-xs">
@@ -624,7 +624,7 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                               <div className="font-semibold text-xs border-b border-border pb-1">
                                 Data Quality Breakdown
                               </div>
-                              {Object.entries(item.data_quality.pillars).map(([pillar, data]) => (
+                              {Object.entries(item.dataQuality.pillars).map(([pillar, data]) => (
                                 <div key={pillar} className="text-xs">
                                   <div className="font-medium capitalize">{pillar}:</div>
                                   <div className="text-text-muted ml-2">
@@ -646,7 +646,7 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                         itemId={item.id}
                         width={80}
                         height={24}
-                        recommendedStyle={item.recommended_style}
+                        recommendedStyle={item.recommendedStyle}
                       />
                     ) : (
                       <span className="text-text-muted">—</span>
@@ -657,9 +657,9 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                     data-slot="table-cell"
                     data-changed={changedCells[item.id]?.updatedAt ? "true" : undefined}
                   >
-                    {item.current_score?.price?.updated_at
-                      ? formatDate(item.current_score.price.updated_at, userTimezone)
-                      : formatDate(item.updated_at, userTimezone)}
+                    {item.currentScore?.price?.updatedAt
+                      ? formatDate(item.currentScore.price.updatedAt, userTimezone)
+                      : formatDate(item.updatedAt, userTimezone)}
                   </TableCell>
                   <TableCell data-slot="table-cell">
                     <Button

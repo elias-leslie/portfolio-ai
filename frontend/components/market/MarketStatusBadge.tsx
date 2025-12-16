@@ -14,15 +14,15 @@ import { apiRequest } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 
 interface MarketStatusResponse {
-  status: "open" | "pre_market" | "after_hours" | "closed";
-  is_open: boolean;
-  last_trading_day: string;
-  next_trading_day: string;
-  current_time_et: string;
-  is_holiday: boolean;
-  holiday_name: string | null;
-  is_early_close: boolean;
-  early_close_name: string | null;
+  status: "open" | "preMarket" | "afterHours" | "closed";
+  isOpen: boolean;
+  lastTradingDay: string;
+  nextTradingDay: string;
+  currentTimeEt: string;
+  isHoliday: boolean;
+  holidayName: string | null;
+  isEarlyClose: boolean;
+  earlyCloseName: string | null;
 }
 
 async function fetchMarketStatus(): Promise<MarketStatusResponse> {
@@ -35,12 +35,12 @@ const STATUS_CONFIG = {
     dotColor: "bg-success",
     badgeVariant: "success" as const,
   },
-  pre_market: {
+  preMarket: {
     label: "Pre-Market",
     dotColor: "bg-warning",
     badgeVariant: "warning" as const,
   },
-  after_hours: {
+  afterHours: {
     label: "After Hours",
     dotColor: "bg-warning",
     badgeVariant: "warning" as const,
@@ -83,14 +83,14 @@ export function MarketStatusBadge() {
 
   // Build tooltip content
   const tooltipLines: string[] = [];
-  tooltipLines.push(`Current: ${data.current_time_et}`);
-  tooltipLines.push(`Last Trading: ${data.last_trading_day}`);
-  tooltipLines.push(`Next Trading: ${data.next_trading_day}`);
-  if (data.is_holiday && data.holiday_name) {
-    tooltipLines.push(`Holiday: ${data.holiday_name}`);
+  tooltipLines.push(`Current: ${data.currentTimeEt}`);
+  tooltipLines.push(`Last Trading: ${data.lastTradingDay}`);
+  tooltipLines.push(`Next Trading: ${data.nextTradingDay}`);
+  if (data.isHoliday && data.holidayName) {
+    tooltipLines.push(`Holiday: ${data.holidayName}`);
   }
-  if (data.is_early_close && data.early_close_name) {
-    tooltipLines.push(`Early Close: ${data.early_close_name}`);
+  if (data.isEarlyClose && data.earlyCloseName) {
+    tooltipLines.push(`Early Close: ${data.earlyCloseName}`);
   }
 
   return (

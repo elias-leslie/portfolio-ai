@@ -32,8 +32,8 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
     const { data: preferences } = usePreferences();
     const { data: fullNewsData } = useNewsIntelligence(item.symbol, { limit: 50 });
 
-    const userTimezone = preferences?.display_timezone ?? "America/New_York";
-    const newsHidden = preferences?.watchlist_show_news === false;
+    const userTimezone = preferences?.displayTimezone ?? "America/New_York";
+    const newsHidden = preferences?.watchlistShowNews === false;
 
     return (
         <div className="space-y-4">

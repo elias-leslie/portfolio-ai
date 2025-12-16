@@ -54,19 +54,19 @@ function formatAnalysisType(type: string): string {
  */
 interface SymbolCoverageData {
   symbol: string;
-  readiness_score: number;
-  confidence_level: "LOW" | "MEDIUM" | "HIGH";
-  coverage_by_analysis: Record<string, number>;
-  missing_capabilities: string[];
-  data_availability: Record<string, { exists: boolean; has_data: boolean; row_count: number }>;
+  readinessScore: number;
+  confidenceLevel: "LOW" | "MEDIUM" | "HIGH";
+  coverageByAnalysis: Record<string, number>;
+  missingCapabilities: string[];
+  dataAvailability: Record<string, { exists: boolean; hasData: boolean; rowCount: number }>;
 }
 
 /**
- * Calculate average coverage for a symbol from coverage_by_analysis
+ * Calculate average coverage for a symbol from coverageByAnalysis
  */
 function getAverageCoverage(symbolData: SymbolCoverageData | undefined): number {
-  if (!symbolData?.coverage_by_analysis) return 0;
-  const coverages = Object.values(symbolData.coverage_by_analysis);
+  if (!symbolData?.coverageByAnalysis) return 0;
+  const coverages = Object.values(symbolData.coverageByAnalysis);
   if (coverages.length === 0) return 0;
   return coverages.reduce((sum, val) => sum + val, 0) / coverages.length;
 }
@@ -96,10 +96,10 @@ function SymbolRow({
   isExpanded: boolean;
   onToggle: () => void;
 }) {
-  const coverageByAnalysis = symbolData?.coverage_by_analysis || {};
-  const missingCapabilities = symbolData?.missing_capabilities || [];
-  const readinessScore = symbolData?.readiness_score || 0;
-  const confidenceLevel = symbolData?.confidence_level || "LOW";
+  const coverageByAnalysis = symbolData?.coverageByAnalysis || {};
+  const missingCapabilities = symbolData?.missingCapabilities || [];
+  const readinessScore = symbolData?.readinessScore || 0;
+  const confidenceLevel = symbolData?.confidenceLevel || "LOW";
 
   return (
     <div className="border-b border-border last:border-0">
@@ -202,17 +202,17 @@ export function WatchlistCoverage({ data }: WatchlistCoverageProps) {
     setExpandedSymbol(expandedSymbol === symbol ? null : symbol);
   };
 
-  // Get unique analysis types from coverage_by_analysis of all symbols
-  const symbolCoverage = data.symbol_coverage || {};
+  // Get unique analysis types from coverageByAnalysis of all symbols
+  const symbolCoverage = data.symbolCoverage || {};
   const analysisTypes = Array.from(
     new Set(
       Object.values(symbolCoverage).flatMap((symbolData) =>
-        Object.keys((symbolData as SymbolCoverageData)?.coverage_by_analysis || {})
+        Object.keys((symbolData as SymbolCoverageData)?.coverageByAnalysis || {})
       )
     )
   ).sort();
 
-  const symbols = data.watchlist_symbols || [];
+  const symbols = data.watchlistSymbols || [];
 
   if (symbols.length === 0) {
     return (
@@ -229,7 +229,7 @@ export function WatchlistCoverage({ data }: WatchlistCoverageProps) {
   // Calculate average readiness across all symbols
   const avgReadiness = symbols.reduce((sum, symbol) => {
     const symbolData = symbolCoverage[symbol] as SymbolCoverageData | undefined;
-    return sum + (symbolData?.readiness_score || 0);
+    return sum + (symbolData?.readinessScore || 0);
   }, 0) / (symbols.length || 1);
 
   return (

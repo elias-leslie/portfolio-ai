@@ -8,15 +8,15 @@ import { Button } from "@/components/ui/button";
 
 interface SourceMetrics {
   vendor: string;
-  duplicate_rate: number;
-  diversity_score: number;
-  confidence_avg: number;
-  freshness_score: number;
-  user_useful_rate: number | null;
-  quality_score: number;
-  article_count: number;
-  sample_period_start: string;
-  calculated_at: string;
+  duplicateRate: number;
+  diversityScore: number;
+  confidenceAvg: number;
+  freshnessScore: number;
+  userUsefulRate: number | null;
+  qualityScore: number;
+  articleCount: number;
+  samplePeriodStart: string;
+  calculatedAt: string;
 }
 
 export function SourceQualityCard() {
@@ -101,7 +101,7 @@ export function SourceQualityCard() {
   };
 
   const summary = lastUpdate
-    ? `${metrics.filter((m) => m.article_count > 0).length} active sources • Updated ${formatTimestamp(lastUpdate)}`
+    ? `${metrics.filter((m) => m.articleCount > 0).length} active sources • Updated ${formatTimestamp(lastUpdate)}`
     : "No profiling data captured yet";
 
   return (
@@ -148,7 +148,7 @@ export function SourceQualityCard() {
             </div>
           ) : (
             <div className="space-y-3">
-            {metrics.filter((m) => m.article_count > 0).map((metric) => (
+            {metrics.filter((m) => m.articleCount > 0).map((metric) => (
               <div
                 key={metric.vendor}
                 className="border rounded-lg p-3 hover:bg-accent/50 transition-colors"
@@ -156,38 +156,38 @@ export function SourceQualityCard() {
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{metric.vendor}</span>
-                    {getQualityBadge(metric.quality_score)}
+                    {getQualityBadge(metric.qualityScore)}
                   </div>
                   <span className="text-sm text-muted-foreground">
-                    {metric.article_count} articles
+                    {metric.articleCount} articles
                   </span>
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
                   <div>
                     <span className="text-muted-foreground">Quality:</span>{" "}
-                    <span className="font-medium">{formatPercent(metric.quality_score)}</span>
+                    <span className="font-medium">{formatPercent(metric.qualityScore)}</span>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Diversity:</span>{" "}
-                    <span className="font-medium">{formatPercent(metric.diversity_score)}</span>
+                    <span className="font-medium">{formatPercent(metric.diversityScore)}</span>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Confidence:</span>{" "}
-                    <span className="font-medium">{formatPercent(metric.confidence_avg)}</span>
+                    <span className="font-medium">{formatPercent(metric.confidenceAvg)}</span>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Freshness:</span>{" "}
-                    <span className="font-medium">{formatPercent(metric.freshness_score)}</span>
+                    <span className="font-medium">{formatPercent(metric.freshnessScore)}</span>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Duplicates:</span>{" "}
-                    <span className="font-medium">{formatPercent(metric.duplicate_rate)}</span>
+                    <span className="font-medium">{formatPercent(metric.duplicateRate)}</span>
                   </div>
-                  {metric.user_useful_rate !== null && (
+                  {metric.userUsefulRate !== null && (
                     <div>
                       <span className="text-muted-foreground">Useful:</span>{" "}
-                      <span className="font-medium">{formatPercent(metric.user_useful_rate)}</span>
+                      <span className="font-medium">{formatPercent(metric.userUsefulRate)}</span>
                     </div>
                   )}
                 </div>

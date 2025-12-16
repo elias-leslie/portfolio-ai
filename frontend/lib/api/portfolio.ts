@@ -8,43 +8,43 @@ import { apiRequest } from "./client";
 export interface Account {
   id: string;
   name: string;
-  account_type: string;
-  created_at: string;
-  updated_at: string;
+  accountType: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Position {
   id: string;
-  account_id: string;
+  accountId: string;
   symbol: string;
   shares: number;
-  cost_basis: number;
-  position_type: string;
-  created_at: string;
-  updated_at: string;
+  costBasis: number;
+  positionType: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface PositionWithValue extends Position {
-  current_price: number;
-  current_value: number;
+  currentPrice: number;
+  currentValue: number;
   gain: number;
-  gain_pct: number;
+  gainPct: number;
 }
 
 export interface PortfolioResponse {
   positions: PositionWithValue[];
-  total_value: number;
-  total_cost_basis: number;
-  total_gain: number;
-  total_gain_pct: number;
+  totalValue: number;
+  totalCostBasis: number;
+  totalGain: number;
+  totalGainPct: number;
 }
 
 export interface PositionPerformance {
   symbol: string;
-  gain_pct: number;
-  gain_amount: number;
-  current_value: number;
-  weight_pct: number;
+  gainPct: number;
+  gainAmount: number;
+  currentValue: number;
+  weightPct: number;
 }
 
 export interface RiskProfile {
@@ -56,46 +56,46 @@ export interface RiskProfile {
 export interface DiversificationScore {
   score: number;
   level: string;
-  num_holdings: number;
-  num_sectors: number;
+  numHoldings: number;
+  numSectors: number;
 }
 
 export interface PortfolioAnalytics {
-  portfolio_value: {
-    total_value: number;
-    total_cost_basis: number;
-    total_gain: number;
-    total_gain_pct: number;
+  portfolioValue: {
+    totalValue: number;
+    totalCostBasis: number;
+    totalGain: number;
+    totalGainPct: number;
   };
-  portfolio_beta: number;
-  portfolio_volatility: number;
-  sharpe_ratio: number | null;
+  portfolioBeta: number;
+  portfolioVolatility: number;
+  sharpeRatio: number | null;
   concentration: {
-    top_holding_pct: number;
-    top_3_pct: number;
-    top_10_pct: number;
-    herfindahl_index: number;
+    topHoldingPct: number;
+    top3Pct: number;
+    top10Pct: number;
+    herfindahlIndex: number;
   };
-  sector_exposure: Record<string, number>;
-  risk_profile: RiskProfile | null;
-  diversification_score: DiversificationScore | null;
-  top_performers: PositionPerformance[];
-  bottom_performers: PositionPerformance[];
-  num_positions: number;
-  num_symbols: number;
+  sectorExposure: Record<string, number>;
+  riskProfile: RiskProfile | null;
+  diversificationScore: DiversificationScore | null;
+  topPerformers: PositionPerformance[];
+  bottomPerformers: PositionPerformance[];
+  numPositions: number;
+  numSymbols: number;
 }
 
 export interface CreateAccountRequest {
   name: string;
-  account_type: string;
+  accountType: string;
 }
 
 export interface AddPositionRequest {
-  account_id: string;
+  accountId: string;
   symbol: string;
   shares: number;
-  cost_basis: number;
-  position_type: string;
+  costBasis: number;
+  positionType: string;
 }
 
 /**

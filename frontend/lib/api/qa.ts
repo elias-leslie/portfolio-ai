@@ -27,31 +27,31 @@ export interface QAIssue {
   id: string;
   category: QACategory;
   severity: QASeverity;
-  file_path: string;
-  line_number: number | null;
+  filePath: string;
+  lineNumber: number | null;
   description: string;
   suggestion: string | null;
-  detected_at: string;
-  resolved_at: string | null;
-  resolved_by: string | null;
-  is_false_positive: boolean;
-  false_positive_notes: string | null;
+  detectedAt: string;
+  resolvedAt: string | null;
+  resolvedBy: string | null;
+  isFalsePositive: boolean;
+  falsePositiveNotes: string | null;
 }
 
 /**
  * QA Summary Interface
  */
 export interface QASummary {
-  total_issues: number;
-  critical_count: number;
-  high_count: number;
-  medium_count: number;
-  low_count: number;
-  resolved_this_week: number;
-  added_this_week: number;
-  by_category: Record<QACategory, number>;
-  by_severity: Record<QASeverity, number>;
-  resolution_rate: number;
+  totalIssues: number;
+  criticalCount: number;
+  highCount: number;
+  mediumCount: number;
+  lowCount: number;
+  resolvedThisWeek: number;
+  addedThisWeek: number;
+  byCategory: Record<QACategory, number>;
+  bySeverity: Record<QASeverity, number>;
+  resolutionRate: number;
 }
 
 /**
@@ -84,10 +84,10 @@ export interface QATrendsResponse {
  * QA Scan Response
  */
 export interface QAScanResponse {
-  task_id: string;
+  taskId: string;
   status: string;
   message: string;
-  categories_scanned: string[];
+  categoriesScanned: string[];
 }
 
 /**
@@ -105,7 +105,7 @@ export interface QAIssuesFilters {
  * Resolve issue request
  */
 export interface ResolveIssueRequest {
-  resolved_by: string;
+  resolvedBy: string;
   notes?: string;
 }
 

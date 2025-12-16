@@ -87,9 +87,9 @@ export function StrategiesTable({
               <TableCell>
                 <Badge
                   variant="outline"
-                  className={strategyTypeColors[strategy.strategy_type] || ""}
+                  className={strategyTypeColors[strategy.strategyType] || ""}
                 >
-                  {strategy.strategy_type}
+                  {strategy.strategyType}
                 </Badge>
               </TableCell>
               <TableCell>
@@ -98,19 +98,19 @@ export function StrategiesTable({
                 </Badge>
               </TableCell>
               <TableCell className="text-right">
-                {strategy.expected_sharpe?.toFixed(2) || "-"}
+                {strategy.expectedSharpe?.toFixed(2) || "-"}
               </TableCell>
               <TableCell className="text-right">
-                {strategy.live_sharpe_ratio?.toFixed(2) || "-"}
+                {strategy.liveSharpeRatio?.toFixed(2) || "-"}
               </TableCell>
               <TableCell className="text-right">
-                {strategy.live_win_rate != null
-                  ? `${(strategy.live_win_rate * 100).toFixed(0)}%`
+                {strategy.liveWinRate != null
+                  ? `${(strategy.liveWinRate * 100).toFixed(0)}%`
                   : "-"}
               </TableCell>
-              <TableCell className="text-right">{strategy.trades_count || 0}</TableCell>
+              <TableCell className="text-right">{strategy.tradesCount || 0}</TableCell>
               <TableCell className="text-text-muted">
-                {formatDistanceToNow(new Date(strategy.created_at), { addSuffix: true })}
+                {formatDistanceToNow(new Date(strategy.createdAt), { addSuffix: true })}
               </TableCell>
             </TableRow>
           ))}

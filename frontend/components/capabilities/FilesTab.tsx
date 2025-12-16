@@ -48,37 +48,37 @@ import { toast } from "sonner";
 
 // Types
 interface FileSummary {
-  total_files: number;
-  total_directories: number;
-  total_loc: number;
-  bloat_warnings: number;
-  bloat_critical: number;
-  stale_files: number;
-  orphan_files: number;
-  fresh_files: number;
-  untracked_files: number;
-  last_scan: string | null;
-  by_extension: Array<{ extension: string; count: number; loc: number }>;
+  totalFiles: number;
+  totalDirectories: number;
+  totalLoc: number;
+  bloatWarnings: number;
+  bloatCritical: number;
+  staleFiles: number;
+  orphanFiles: number;
+  freshFiles: number;
+  untrackedFiles: number;
+  lastScan: string | null;
+  byExtension: Array<{ extension: string; count: number; loc: number }>;
 }
 
 interface FileNode {
   path: string;
   name: string;
-  is_directory: boolean;
+  isDirectory: boolean;
   extension: string | null;
-  size_bytes: number;
-  lines_of_code: number;
-  file_count: number | null;
-  total_loc: number | null;
-  bloat_level: "warning" | "critical" | null;
-  last_modified: string | null;
-  subdir_count: number;
-  direct_file_count: number;
-  has_children: boolean;
+  sizeBytes: number;
+  linesOfCode: number;
+  fileCount: number | null;
+  totalLoc: number | null;
+  bloatLevel: "warning" | "critical" | null;
+  lastModified: string | null;
+  subdirCount: number;
+  directFileCount: number;
+  hasChildren: boolean;
   // Stale detection fields
-  last_commit_days: number | null;
-  reference_count: number | null;
-  stale_status: "fresh" | "stale" | "orphan" | "untracked" | null;
+  lastCommitDays: number | null;
+  referenceCount: number | null;
+  staleStatus: "fresh" | "stale" | "orphan" | "untracked" | null;
 }
 
 type SortField = "name" | "loc" | "size" | "files" | "modified";
@@ -101,8 +101,8 @@ async function fetchChildren(
     path,
     sort,
     dir,
-    folders_first: String(foldersFirst),
-    include_files: "true",
+    foldersFirst: String(foldersFirst),
+    includeFiles: "true",
   });
   const res = await fetch(`/api/files/children?${params}`);
   if (!res.ok) throw new Error("Failed to fetch children");
@@ -117,24 +117,24 @@ async function triggerScan(): Promise<{ status: string; message: string }> {
 
 interface GitCommit {
   hash: string;
-  full_hash: string;
+  fullHash: string;
   author: string;
   date: string;
   subject: string;
-  lines_added: number;
-  lines_deleted: number;
+  linesAdded: number;
+  linesDeleted: number;
 }
 
 interface GitHistory {
   commits: GitCommit[];
-  total_commits: number;
-  file_path: string;
+  totalCommits: number;
+  filePath: string;
   error?: string;
 }
 
 async function fetchGitHistory(path: string): Promise<GitHistory> {
   const res = await fetch(`/api/files/history?path=${encodeURIComponent(path)}&limit=5`);
-  if (!res.ok) return { commits: [], total_commits: 0, file_path: path, error: "Failed to fetch" };
+  if (!res.ok) return { commits: [], totalCommits: 0, filePath: path, error: "Failed to fetch" };
   return res.json();
 }
 
@@ -157,7 +157,7 @@ async function fetchAllFiles(
     modified: "last_modified",
   };
   const params = new URLSearchParams({
-    is_directory: "false",
+    isDirectory: "false",
     sort: sortMap[sort],
     dir,
     limit: "500",
@@ -172,9 +172,9 @@ async function fetchAllFiles(
     items: data.items.map((item: Record<string, unknown>) => ({
       ...item,
       name: (item.path as string).split("/").pop() || item.path,
-      subdir_count: 0,
-      direct_file_count: 0,
-      has_children: false,
+      subdirCount: 0,
+      directFileCount: 0,
+      hasChildren: false,
     })),
   };
 }
@@ -203,10 +203,10 @@ function InlineDetails({
   onClose: () => void;
   depth: number;
 }) {
-  const isDir = node.is_directory;
-  const loc = isDir ? node.total_loc || 0 : node.lines_of_code;
-  const bloatStatus = node.bloat_level;
-  const staleStatus = node.stale_status;
+  const isDir = node.isDirectory;
+  const loc = isDir ? node.totalLoc || 0 : node.linesOfCode;
+  const bloatStatus = node.bloatLevel;
+  const staleStatus = node.staleStatus;
 
   // Fetch git history for files only
   const { data: gitHistory, isLoading: historyLoading } = useQuery({
@@ -290,18 +290,18 @@ function InlineDetails({
           <div className="bg-background/50 rounded px-2 py-1.5">
             <div className="text-text-secondary">{isDir ? "Files" : "Size"}</div>
             <div className="font-semibold">
-              {isDir ? node.file_count : formatBytes(node.size_bytes)}
+              {isDir ? node.fileCount : formatBytes(node.sizeBytes)}
             </div>
           </div>
           {isDir ? (
             <>
               <div className="bg-background/50 rounded px-2 py-1.5">
                 <div className="text-text-secondary">Subdirs</div>
-                <div className="font-semibold">{node.subdir_count}</div>
+                <div className="font-semibold">{node.subdirCount}</div>
               </div>
               <div className="bg-background/50 rounded px-2 py-1.5">
                 <div className="text-text-secondary">Direct</div>
-                <div className="font-semibold">{node.direct_file_count}</div>
+                <div className="font-semibold">{node.directFileCount}</div>
               </div>
             </>
           ) : (
@@ -312,31 +312,31 @@ function InlineDetails({
               </div>
               <div className="bg-background/50 rounded px-2 py-1.5">
                 <div className="text-text-secondary">Modified</div>
-                <div className="font-semibold">{formatDate(node.last_modified)}</div>
+                <div className="font-semibold">{formatDate(node.lastModified)}</div>
               </div>
             </>
           )}
         </div>
 
         {/* Stale info row - only show for files with stale data */}
-        {!isDir && (node.last_commit_days !== null || node.reference_count !== null) && (
+        {!isDir && (node.lastCommitDays !== null || node.referenceCount !== null) && (
           <div className="grid grid-cols-2 gap-2 text-xs mt-2">
             <div className="bg-background/50 rounded px-2 py-1.5">
               <div className="text-text-secondary">Last Commit</div>
               <div className={cn(
                 "font-semibold",
-                node.last_commit_days !== null && node.last_commit_days >= 90 && "text-accent"
+                node.lastCommitDays !== null && node.lastCommitDays >= 90 && "text-accent"
               )}>
-                {node.last_commit_days !== null ? `${node.last_commit_days} days ago` : "-"}
+                {node.lastCommitDays !== null ? `${node.lastCommitDays} days ago` : "-"}
               </div>
             </div>
             <div className="bg-background/50 rounded px-2 py-1.5">
               <div className="text-text-secondary">References</div>
               <div className={cn(
                 "font-semibold",
-                node.reference_count === 0 && "text-accent"
+                node.referenceCount === 0 && "text-accent"
               )}>
-                {node.reference_count ?? "-"}
+                {node.referenceCount ?? "-"}
               </div>
             </div>
           </div>
@@ -349,7 +349,7 @@ function InlineDetails({
               <GitCommitIcon className="h-3.5 w-3.5 text-text-secondary" />
               <span className="text-xs font-medium text-text-secondary">
                 Recent Commits
-                {gitHistory?.total_commits ? ` (${gitHistory.total_commits} total)` : ""}
+                {gitHistory?.totalCommits ? ` (${gitHistory.totalCommits} total)` : ""}
               </span>
             </div>
             {historyLoading ? (
@@ -365,7 +365,7 @@ function InlineDetails({
               <div className="space-y-1.5">
                 {gitHistory?.commits.slice(0, 3).map((commit) => (
                   <div
-                    key={commit.full_hash}
+                    key={commit.fullHash}
                     className="flex items-start gap-2 text-xs bg-background/50 rounded px-2 py-1.5"
                   >
                     <span className="font-mono text-primary/70 flex-shrink-0">{commit.hash}</span>
@@ -386,7 +386,7 @@ function InlineDetails({
         {bloatStatus && (
           <div className="mt-2 text-xs text-text-secondary">
             {isDir
-              ? `Contains ${node.file_count} files (threshold: 50 for warning, 50+ for critical)`
+              ? `Contains ${node.fileCount} files (threshold: 50 for warning, 50+ for critical)`
               : `${formatNumber(loc)} lines exceeds ${node.extension === ".py" ? "500/1000" : "300/600"} LOC threshold`}
           </div>
         )}
@@ -506,7 +506,7 @@ export function FilesTab() {
   // Toggle children expansion (chevron click)
   const toggleChildren = useCallback(
     async (node: FileNode) => {
-      if (!node.has_children) return;
+      if (!node.hasChildren) return;
 
       const isExpanded = expandedPaths.has(node.path);
       if (isExpanded) {
@@ -575,15 +575,15 @@ export function FilesTab() {
 
       // Bloat filter
       if (bloatFilter !== "all") {
-        if (bloatFilter === "warning" && node.bloat_level !== "warning") return false;
-        if (bloatFilter === "critical" && node.bloat_level !== "critical") return false;
+        if (bloatFilter === "warning" && node.bloatLevel !== "warning") return false;
+        if (bloatFilter === "critical" && node.bloatLevel !== "critical") return false;
       }
 
       // Stale filter
       if (staleFilter !== "all") {
-        if (staleFilter === "stale" && node.stale_status !== "stale") return false;
-        if (staleFilter === "orphan" && node.stale_status !== "orphan") return false;
-        if (staleFilter === "untracked" && node.stale_status !== "untracked") return false;
+        if (staleFilter === "stale" && node.staleStatus !== "stale") return false;
+        if (staleFilter === "orphan" && node.staleStatus !== "orphan") return false;
+        if (staleFilter === "untracked" && node.staleStatus !== "untracked") return false;
       }
 
       return true;
@@ -608,7 +608,7 @@ export function FilesTab() {
     const isDetailsOpen = detailsOpenPaths.has(node.path);
     const isLoading = loadingPaths.has(node.path);
     const children = loadedChildren.get(node.path) || [];
-    const loc = node.is_directory ? node.total_loc || 0 : node.lines_of_code;
+    const loc = node.isDirectory ? node.totalLoc || 0 : node.linesOfCode;
 
     return (
       <div key={node.path}>
@@ -619,13 +619,13 @@ export function FilesTab() {
             "hover:bg-surface-alt",
             isDetailsOpen && "bg-primary/5",
             // Bloat indicator - left border (higher priority)
-            node.bloat_level === "critical" && "border-l-2 border-l-loss",
-            node.bloat_level === "warning" && "border-l-2 border-l-warning",
+            node.bloatLevel === "critical" && "border-l-2 border-l-loss",
+            node.bloatLevel === "warning" && "border-l-2 border-l-warning",
             // Stale indicator - left border (when no bloat)
-            !node.bloat_level && node.stale_status === "orphan" && "border-l-2 border-l-loss",
-            !node.bloat_level && node.stale_status === "stale" && "border-l-2 border-l-accent",
-            !node.bloat_level && node.stale_status === "untracked" && "border-l-2 border-l-neutral",
-            !node.bloat_level && (!node.stale_status || node.stale_status === "fresh") && "border-l-2 border-l-transparent"
+            !node.bloatLevel && node.staleStatus === "orphan" && "border-l-2 border-l-loss",
+            !node.bloatLevel && node.staleStatus === "stale" && "border-l-2 border-l-accent",
+            !node.bloatLevel && node.staleStatus === "untracked" && "border-l-2 border-l-neutral",
+            !node.bloatLevel && (!node.staleStatus || node.staleStatus === "fresh") && "border-l-2 border-l-transparent"
           )}
           onClick={() => toggleDetails(node.path)}
         >
@@ -636,14 +636,14 @@ export function FilesTab() {
           <div
             className={cn(
               "w-5 h-5 flex items-center justify-center flex-shrink-0 rounded",
-              node.has_children && "hover:bg-surface-alt"
+              node.hasChildren && "hover:bg-surface-alt"
             )}
             onClick={(e) => {
               e.stopPropagation();
-              if (node.has_children) toggleChildren(node);
+              if (node.hasChildren) toggleChildren(node);
             }}
           >
-            {node.has_children ? (
+            {node.hasChildren ? (
               isLoading ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-text-secondary" />
               ) : isChildrenExpanded ? (
@@ -655,12 +655,12 @@ export function FilesTab() {
           </div>
 
           {/* Selection checkbox (files only) */}
-          {!node.is_directory && (
+          {!node.isDirectory && (
             <div
               className="w-5 h-5 flex items-center justify-center flex-shrink-0"
               onClick={(e) => {
                 e.stopPropagation();
-                toggleFileSelection(node.path, node.is_directory);
+                toggleFileSelection(node.path, node.isDirectory);
               }}
             >
               <Checkbox
@@ -669,18 +669,18 @@ export function FilesTab() {
               />
             </div>
           )}
-          {node.is_directory && <div className="w-5 flex-shrink-0" />}
+          {node.isDirectory && <div className="w-5 flex-shrink-0" />}
 
           {/* Icon */}
           <div className="w-5 flex-shrink-0">
-            {node.is_directory ? (
+            {node.isDirectory ? (
               isChildrenExpanded ? (
                 <FolderOpen
                   className={cn(
                     "h-4 w-4",
-                    node.bloat_level === "critical"
+                    node.bloatLevel === "critical"
                       ? "text-loss"
-                      : node.bloat_level === "warning"
+                      : node.bloatLevel === "warning"
                         ? "text-warning"
                         : "text-primary"
                   )}
@@ -689,9 +689,9 @@ export function FilesTab() {
                 <Folder
                   className={cn(
                     "h-4 w-4",
-                    node.bloat_level === "critical"
+                    node.bloatLevel === "critical"
                       ? "text-loss"
-                      : node.bloat_level === "warning"
+                      : node.bloatLevel === "warning"
                         ? "text-warning"
                         : "text-text-secondary"
                   )}
@@ -701,15 +701,15 @@ export function FilesTab() {
               <File
                 className={cn(
                   "h-4 w-4",
-                  node.bloat_level === "critical"
+                  node.bloatLevel === "critical"
                     ? "text-loss"
-                    : node.bloat_level === "warning"
+                    : node.bloatLevel === "warning"
                       ? "text-warning"
-                      : node.stale_status === "orphan"
+                      : node.staleStatus === "orphan"
                         ? "text-loss"
-                        : node.stale_status === "stale"
+                        : node.staleStatus === "stale"
                           ? "text-accent"
-                          : node.stale_status === "untracked"
+                          : node.staleStatus === "untracked"
                             ? "text-neutral"
                             : "text-text-secondary"
                 )}
@@ -721,12 +721,12 @@ export function FilesTab() {
           <span
             className={cn(
               "flex-1 truncate text-sm",
-              node.bloat_level === "critical" && "text-loss",
-              node.bloat_level === "warning" && "text-warning",
-              !node.bloat_level && node.stale_status === "orphan" && "text-loss",
-              !node.bloat_level && node.stale_status === "stale" && "text-accent",
-              !node.bloat_level && node.stale_status === "untracked" && "text-neutral",
-              !node.bloat_level && (!node.stale_status || node.stale_status === "fresh") && node.is_directory && "text-primary"
+              node.bloatLevel === "critical" && "text-loss",
+              node.bloatLevel === "warning" && "text-warning",
+              !node.bloatLevel && node.staleStatus === "orphan" && "text-loss",
+              !node.bloatLevel && node.staleStatus === "stale" && "text-accent",
+              !node.bloatLevel && node.staleStatus === "untracked" && "text-neutral",
+              !node.bloatLevel && (!node.staleStatus || node.staleStatus === "fresh") && node.isDirectory && "text-primary"
             )}
             title={node.path}
           >
@@ -736,7 +736,7 @@ export function FilesTab() {
           {/* Files column (folders only, hidden in files-only mode) */}
           {!filesOnly && (
             <span className="w-16 text-right text-xs tabular-nums text-primary/70">
-              {node.is_directory ? node.file_count : ""}
+              {node.isDirectory ? node.fileCount : ""}
             </span>
           )}
 
@@ -747,15 +747,15 @@ export function FilesTab() {
 
           {/* Size column */}
           <span className="w-16 text-right text-xs tabular-nums text-gain/70">
-            {node.is_directory
-              ? (node.size_bytes ? formatBytes(node.size_bytes) : "")
-              : formatBytes(node.size_bytes)}
+            {node.isDirectory
+              ? (node.sizeBytes ? formatBytes(node.sizeBytes) : "")
+              : formatBytes(node.sizeBytes)}
           </span>
 
           {/* Modified column */}
           <span className="w-20 text-right text-xs tabular-nums text-neutral">
-            {node.last_modified
-              ? new Date(node.last_modified).toLocaleDateString("en-US", {
+            {node.lastModified
+              ? new Date(node.lastModified).toLocaleDateString("en-US", {
                   month: "numeric",
                   day: "numeric",
                   year: "2-digit",
@@ -808,49 +808,49 @@ export function FilesTab() {
         <div className="bg-surface border border-border rounded-lg p-3">
           <div className="text-xs text-text-secondary">Files</div>
           <div className="text-xl font-semibold">
-            {formatNumber(summary?.total_files || 0)}
+            {formatNumber(summary?.totalFiles || 0)}
           </div>
         </div>
         <div className="bg-surface border border-border rounded-lg p-3">
           <div className="text-xs text-text-secondary">Directories</div>
           <div className="text-xl font-semibold">
-            {formatNumber(summary?.total_directories || 0)}
+            {formatNumber(summary?.totalDirectories || 0)}
           </div>
         </div>
         <div className="bg-surface border border-border rounded-lg p-3">
           <div className="text-xs text-text-secondary">Total LOC</div>
           <div className="text-xl font-semibold">
-            {formatNumber(summary?.total_loc || 0)}
+            {formatNumber(summary?.totalLoc || 0)}
           </div>
         </div>
         <div className="bg-surface border border-border rounded-lg p-3">
           <div className="text-xs text-text-secondary">Warnings</div>
           <div className="text-xl font-semibold text-warning">
-            {formatNumber(summary?.bloat_warnings || 0)}
+            {formatNumber(summary?.bloatWarnings || 0)}
           </div>
         </div>
         <div className="bg-surface border border-border rounded-lg p-3">
           <div className="text-xs text-text-secondary">Critical</div>
           <div className="text-xl font-semibold text-loss">
-            {formatNumber(summary?.bloat_critical || 0)}
+            {formatNumber(summary?.bloatCritical || 0)}
           </div>
         </div>
         <div className="bg-surface border border-border rounded-lg p-3">
           <div className="text-xs text-text-secondary">Stale</div>
           <div className="text-xl font-semibold text-accent">
-            {formatNumber(summary?.stale_files || 0)}
+            {formatNumber(summary?.staleFiles || 0)}
           </div>
         </div>
         <div className="bg-surface border border-border rounded-lg p-3">
           <div className="text-xs text-text-secondary">Orphan</div>
           <div className="text-xl font-semibold text-loss">
-            {formatNumber(summary?.orphan_files || 0)}
+            {formatNumber(summary?.orphanFiles || 0)}
           </div>
         </div>
         <div className="bg-surface border border-border rounded-lg p-3">
           <div className="text-xs text-text-secondary">Untracked</div>
           <div className="text-xl font-semibold text-neutral">
-            {formatNumber(summary?.untracked_files || 0)}
+            {formatNumber(summary?.untrackedFiles || 0)}
           </div>
         </div>
       </div>
@@ -1086,21 +1086,21 @@ export function FilesTab() {
         </div>
 
         {/* Footer */}
-        {summary?.last_scan && (
+        {summary?.lastScan && (
           <div className="px-3 py-1.5 border-t border-border text-xs text-text-secondary">
-            Last scan: {new Date(summary.last_scan).toLocaleString()}
+            Last scan: {new Date(summary.lastScan).toLocaleString()}
           </div>
         )}
       </div>
 
       {/* Extension breakdown */}
-      {summary?.by_extension && summary.by_extension.length > 0 && (
+      {summary?.byExtension && summary.byExtension.length > 0 && (
         <div className="mt-3 bg-surface border border-border rounded-lg p-3 flex-shrink-0">
           <h3 className="text-xs font-medium text-text-secondary mb-2">
             Lines of Code by Type
           </h3>
           <div className="flex flex-wrap gap-2">
-            {summary.by_extension.slice(0, 8).map((ext) => (
+            {summary.byExtension.slice(0, 8).map((ext) => (
               <Badge
                 key={ext.extension}
                 variant="outline"

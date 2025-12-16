@@ -34,17 +34,17 @@ interface VisionGoal {
   name: string;
   description: string | null;
   category: string | null;
-  feature_count: number;
-  criteria_total: number;
-  criteria_passed: number;
-  pass_rate: number;
+  featureCount: number;
+  criteriaTotal: number;
+  criteriaPassed: number;
+  passRate: number;
 }
 
 interface FeatureLink {
-  feature_id: string;
+  featureId: string;
   name: string;
-  criteria_total: number;
-  criteria_passed: number;
+  criteriaTotal: number;
+  criteriaPassed: number;
 }
 
 interface VisionGoalDetail extends VisionGoal {
@@ -53,25 +53,25 @@ interface VisionGoalDetail extends VisionGoal {
 
 interface VisionContentItem {
   id: number;
-  content_type: string;
-  content_key: string;
+  contentType: string;
+  contentKey: string;
   title: string | null;
   content: string;
-  order_num: number;
+  orderNum: number;
   metadata: Record<string, unknown> | null;
 }
 
 interface VisionContentResponse {
-  content_types: string[];
+  contentTypes: string[];
   content: Record<string, VisionContentItem[]>;
 }
 
 interface GoalDetail {
   id: number;
-  goal_code: string;
-  detail_type: string;
+  goalCode: string;
+  detailType: string;
   content: string;
-  order_num: number;
+  orderNum: number;
   metadata: Record<string, unknown> | null;
 }
 
@@ -167,12 +167,12 @@ export function VisionGoalsTab() {
   const goals = goalsData || [];
   const mission = visionContent?.content?.mission?.[0];
   const principles = visionContent?.content?.principle || [];
-  const roadmapPhases = visionContent?.content?.roadmap_phase || [];
+  const roadmapPhases = visionContent?.content?.roadmapPhase || [];
 
   // Calculate totals
-  const totalFeatures = goals.reduce((sum, g) => sum + g.feature_count, 0);
-  const totalCriteria = goals.reduce((sum, g) => sum + g.criteria_total, 0);
-  const totalPassed = goals.reduce((sum, g) => sum + g.criteria_passed, 0);
+  const totalFeatures = goals.reduce((sum, g) => sum + g.featureCount, 0);
+  const totalCriteria = goals.reduce((sum, g) => sum + g.criteriaTotal, 0);
+  const totalPassed = goals.reduce((sum, g) => sum + g.criteriaPassed, 0);
   const overallPassRate = totalCriteria > 0 ? totalPassed / totalCriteria : 0;
 
   return (
@@ -237,7 +237,7 @@ export function VisionGoalsTab() {
             <div className="px-4 pb-4 grid grid-cols-2 gap-3">
               {principles.map((p) => (
                 <div
-                  key={p.content_key}
+                  key={p.contentKey}
                   className="rounded-lg border border-border/50 bg-muted/20 p-3"
                 >
                   <div className="flex items-center gap-2 mb-1">
@@ -279,7 +279,7 @@ export function VisionGoalsTab() {
                 const features = (phase.metadata as { features?: string[] })?.features || [];
                 return (
                   <div
-                    key={phase.content_key}
+                    key={phase.contentKey}
                     className="flex items-start gap-3 rounded-lg border border-border/50 bg-muted/20 p-3"
                   >
                     <div className="shrink-0 mt-0.5">
@@ -385,33 +385,33 @@ export function VisionGoalsTab() {
                         )}
                       </TableCell>
                       <TableCell className="px-2 py-2 text-center">
-                        <span className="text-sm">{goal.feature_count}</span>
+                        <span className="text-sm">{goal.featureCount}</span>
                       </TableCell>
                       <TableCell className="px-2 py-2 text-center">
                         <span
                           className="text-sm font-mono"
                           style={{
                             color:
-                              goal.criteria_passed === goal.criteria_total &&
-                              goal.criteria_total > 0
+                              goal.criteriaPassed === goal.criteriaTotal &&
+                              goal.criteriaTotal > 0
                                 ? "#4ade80"
                                 : "#a1a1aa",
                           }}
                         >
-                          {goal.criteria_passed}/{goal.criteria_total}
+                          {goal.criteriaPassed}/{goal.criteriaTotal}
                         </span>
                       </TableCell>
                       <TableCell className="px-2 py-2">
                         <div className="flex items-center gap-2">
                           <Progress
-                            value={goal.pass_rate * 100}
+                            value={goal.passRate * 100}
                             className="h-2 w-20"
                           />
                           <span
                             className="text-xs font-medium"
-                            style={{ color: getPassRateColor(goal.pass_rate) }}
+                            style={{ color: getPassRateColor(goal.passRate) }}
                           >
-                            {Math.round(goal.pass_rate * 100)}%
+                            {Math.round(goal.passRate * 100)}%
                           </span>
                         </div>
                       </TableCell>
@@ -473,9 +473,9 @@ function ExpandedGoalContent({ code, description }: { code: string; description:
   }
 
   const features = goalDetail?.features || [];
-  const objective = goalDetails?.find((d) => d.detail_type === "objective");
-  const featureBullets = goalDetails?.filter((d) => d.detail_type === "feature") || [];
-  const successCriteria = goalDetails?.filter((d) => d.detail_type === "success_criterion") || [];
+  const objective = goalDetails?.find((d) => d.detailType === "objective");
+  const featureBullets = goalDetails?.filter((d) => d.detailType === "feature") || [];
+  const successCriteria = goalDetails?.filter((d) => d.detailType === "success_criterion") || [];
 
   return (
     <div className="pl-6 space-y-4">
@@ -541,33 +541,33 @@ function ExpandedGoalContent({ code, description }: { code: string; description:
           <div className="grid grid-cols-2 gap-2">
             {features.map((f) => (
               <div
-                key={f.feature_id}
+                key={f.featureId}
                 className="flex items-center gap-2 text-sm py-1 px-2 rounded bg-muted/30"
               >
-                {f.criteria_total > 0 && f.criteria_passed === f.criteria_total ? (
+                {f.criteriaTotal > 0 && f.criteriaPassed === f.criteriaTotal ? (
                   <CheckCircle2 className="h-3.5 w-3.5 text-green-400 shrink-0" />
-                ) : f.criteria_total > 0 && f.criteria_passed < f.criteria_total ? (
+                ) : f.criteriaTotal > 0 && f.criteriaPassed < f.criteriaTotal ? (
                   <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />
                 ) : (
                   <HelpCircle className="h-3.5 w-3.5 text-yellow-500 shrink-0" />
                 )}
                 <span className="font-mono text-xs text-muted-foreground shrink-0">
-                  {f.feature_id}
+                  {f.featureId}
                 </span>
                 <span className="truncate flex-1">{f.name}</span>
-                {f.criteria_total > 0 && (
+                {f.criteriaTotal > 0 && (
                   <span
                     className="text-xs font-mono shrink-0"
                     style={{
                       color:
-                        f.criteria_passed === f.criteria_total
+                        f.criteriaPassed === f.criteriaTotal
                           ? "#4ade80"
-                          : f.criteria_passed > 0
+                          : f.criteriaPassed > 0
                           ? "#facc15"
                           : "#71717a",
                     }}
                   >
-                    {f.criteria_passed}/{f.criteria_total}
+                    {f.criteriaPassed}/{f.criteriaTotal}
                   </span>
                 )}
               </div>

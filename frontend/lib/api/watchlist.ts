@@ -9,9 +9,9 @@ export interface ScoreComponent {
     score: number;
     weight: number;
     stale: boolean;
-    updated_at?: string;
+    updatedAt?: string;
     metadata?: Record<string, unknown>;
-    sub_scores?: Record<string, number>; // NEW: Sub-metric scores
+    subScores?: Record<string, number>; // NEW: Sub-metric scores
 }
 
 export interface ScoreBreakdown {
@@ -19,8 +19,8 @@ export interface ScoreBreakdown {
     technical: ScoreComponent;
     fundamental?: ScoreComponent | null;
     catalyst?: ScoreComponent | null;
-    options_flow?: ScoreComponent | null;
-    performance_factor?: ScoreComponent | null;
+    optionsFlow?: ScoreComponent | null;
+    performanceFactor?: ScoreComponent | null;
     overall: number;
 }
 
@@ -30,15 +30,15 @@ export interface SentimentProbabilities {
 
 export interface NewsSentimentDetail {
     score: number | null;
-    score_change: number | null;
-    positive_count: number;
-    neutral_count: number;
-    negative_count: number;
-    article_count: number;
-    latest_published_at?: string | null;
-    top_positive?: SentimentArticle | null;
-    top_negative?: SentimentArticle | null;
-    model_breakdown: Record<string, number>;
+    scoreChange: number | null;
+    positiveCount: number;
+    neutralCount: number;
+    negativeCount: number;
+    articleCount: number;
+    latestPublishedAt?: string | null;
+    topPositive?: SentimentArticle | null;
+    topNegative?: SentimentArticle | null;
+    modelBreakdown: Record<string, number>;
 }
 
 export interface SentimentScoreMeta {
@@ -57,19 +57,19 @@ export interface SentimentArticle {
     source?: string | null;
     vendor?: string | null;
     author?: string | null;
-    image_url?: string | null;
-    published_at?: string | null;
-    fetched_at: string;
+    imageUrl?: string | null;
+    publishedAt?: string | null;
+    fetchedAt: string;
     sentiment: SentimentScoreMeta;
-    content_hash: string;
+    contentHash: string;
     raw?: Record<string, unknown>;
     // AI-generated insights
-    impact_summary?: string | null;
-    actionable_insight?: string | null;
+    impactSummary?: string | null;
+    actionableInsight?: string | null;
     // Story clustering metadata
-    story_id?: string | null;
-    is_primary_article?: boolean;
-    coverage_count?: number;
+    storyId?: string | null;
+    isPrimaryArticle?: boolean;
+    coverageCount?: number;
 }
 
 export interface RecentNewsPayload {
@@ -80,19 +80,19 @@ export interface RecentNewsPayload {
 export interface KeyEvent {
     icon: string;
     text: string;
-    time_ago: string;
-    is_material: boolean;
-    event_category?: string | null;
-    published_at?: string | null;
+    timeAgo: string;
+    isMaterial: boolean;
+    eventCategory?: string | null;
+    publishedAt?: string | null;
 }
 
 export interface NewsIntelligence {
     headline: string;
-    sentiment_score: number;
-    sentiment_label: string;
-    article_count_24h: number;
-    key_events: KeyEvent[];
-    recent_articles: Record<string, unknown>[];
+    sentimentScore: number;
+    sentimentLabel: string;
+    articleCount24H: number;
+    keyEvents: KeyEvent[];
+    recentArticles: Record<string, unknown>[];
 }
 
 export interface PriorityIndicator {
@@ -110,7 +110,7 @@ export interface PillarDataQuality {
 }
 
 export interface DataQuality {
-    overall_pct: number;
+    overallPct: number;
     pillars: {
         [key: string]: PillarDataQuality;
     };
@@ -121,37 +121,37 @@ export interface WatchlistItem {
     symbol: string;
     note?: string;
     source?: "manual" | "portfolio";
-    created_at: string;
-    updated_at: string;
-    current_score?: ScoreBreakdown;
-    score_alert?: boolean;
+    createdAt: string;
+    updatedAt: string;
+    currentScore?: ScoreBreakdown;
+    scoreAlert?: boolean;
     // Narrative Intelligence fields
-    signal_type?: "BUY" | "HOLD" | "AVOID" | null;
-    signal_strength?: number | null;
-    narrative_headline?: string | null;
-    recommended_style?: "Index" | "Trend" | "Value" | "Swing" | "Event" | null;
-    style_confidence?: number | null;
-    optimal_holding_period?: string | null;
-    risk_level?: "Low" | "Medium-Low" | "Medium" | "High" | null;
+    signalType?: "BUY" | "HOLD" | "AVOID" | null;
+    signalStrength?: number | null;
+    narrativeHeadline?: string | null;
+    recommendedStyle?: "Index" | "Trend" | "Value" | "Swing" | "Event" | null;
+    styleConfidence?: number | null;
+    optimalHoldingPeriod?: string | null;
+    riskLevel?: "Low" | "Medium-Low" | "Medium" | "High" | null;
     // Trade Calculator fields
-    entry_price?: number | null;
-    stop_loss?: number | null;
-    profit_target?: number | null;
-    position_size_shares?: number | null;
+    entryPrice?: number | null;
+    stopLoss?: number | null;
+    profitTarget?: number | null;
+    positionSizeShares?: number | null;
     // News sentiment
-    news_sentiment_score?: number | null;
-    recent_news?: RecentNewsPayload | null;
+    newsSentimentScore?: number | null;
+    recentNews?: RecentNewsPayload | null;
     // News Intelligence
-    news_intelligence?: NewsIntelligence | null;
+    newsIntelligence?: NewsIntelligence | null;
     // Priority indicators
-    priority_indicators?: PriorityIndicator[];
+    priorityIndicators?: PriorityIndicator[];
     // Data Quality
-    data_quality?: DataQuality | null;
+    dataQuality?: DataQuality | null;
 }
 
 export interface WatchlistListResponse {
     items: WatchlistItem[];
-    total_count: number;
+    totalCount: number;
 }
 
 export interface WatchlistItemCreate {
@@ -171,32 +171,32 @@ export interface FailedSymbolInfo {
 export interface RefreshResponse {
     status: string;
     message: string;
-    refreshed_count: number;
-    failed_count?: number;
+    refreshedCount: number;
+    failedCount?: number;
     failed?: FailedSymbolInfo[];
 }
 
 export interface ScoreHistory {
     timestamp: string;
     overall: number;
-    price_score: number;
-    technical_score: number;
+    priceScore: number;
+    technicalScore: number;
 }
 
 export interface ScoreHistoryResponse {
-    item_id: string;
+    itemId: string;
     symbol: string;
     history: ScoreHistory[];
 }
 
 export interface RefreshStatus {
-    is_refreshing: boolean;
-    started_at?: string;
-    elapsed_seconds?: number;
-    total_items?: number;
-    processed_items?: number;
-    current_symbol?: string;
-    percent_complete?: number;
+    isRefreshing: boolean;
+    startedAt?: string;
+    elapsedSeconds?: number;
+    totalItems?: number;
+    processedItems?: number;
+    currentSymbol?: string;
+    percentComplete?: number;
 }
 
 /**
@@ -281,7 +281,7 @@ export async function fetchScoreHistory(
     } catch {
         // History endpoint may not exist yet, return empty response
         return {
-            item_id: itemId,
+            itemId: itemId,
             symbol: "",
             history: [],
         };

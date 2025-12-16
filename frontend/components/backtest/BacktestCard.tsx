@@ -105,7 +105,7 @@ export function BacktestCard() {
                     {latestRun.symbol}
                   </p>
                   <p className="text-xs text-text-muted mt-1">
-                    {new Date(latestRun.created_at).toLocaleDateString(undefined, {
+                    {new Date(latestRun.createdAt).toLocaleDateString(undefined, {
                       month: "short",
                       day: "numeric",
                     })}
@@ -117,23 +117,23 @@ export function BacktestCard() {
               </div>
 
               {/* Latest Run Metrics */}
-              {latestRun.status === "completed" && latestRun.sharpe_ratio !== undefined && latestRun.sharpe_ratio !== null && (
+              {latestRun.status === "completed" && latestRun.sharpeRatio !== undefined && latestRun.sharpeRatio !== null && (
                 <div className="mt-3 pt-3 border-t border-border/30 space-y-2">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-text-muted">Sharpe Ratio:</span>
                     <span className="font-medium text-text">
-                      {typeof latestRun.sharpe_ratio === "number"
-                        ? latestRun.sharpe_ratio.toFixed(2)
-                        : parseFloat(String(latestRun.sharpe_ratio)).toFixed(2)}
+                      {typeof latestRun.sharpeRatio === "number"
+                        ? latestRun.sharpeRatio.toFixed(2)
+                        : parseFloat(String(latestRun.sharpeRatio)).toFixed(2)}
                     </span>
                   </div>
-                  {latestRun.max_drawdown_pct !== undefined && latestRun.max_drawdown_pct !== null && (
+                  {latestRun.maxDrawdownPct !== undefined && latestRun.maxDrawdownPct !== null && (
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-text-muted">Max Drawdown:</span>
                       <span className="font-medium text-loss">
-                        {typeof latestRun.max_drawdown_pct === "number"
-                          ? latestRun.max_drawdown_pct.toFixed(2)
-                          : parseFloat(String(latestRun.max_drawdown_pct)).toFixed(2)}
+                        {typeof latestRun.maxDrawdownPct === "number"
+                          ? latestRun.maxDrawdownPct.toFixed(2)
+                          : parseFloat(String(latestRun.maxDrawdownPct)).toFixed(2)}
                         %
                       </span>
                     </div>
@@ -160,7 +160,7 @@ export function BacktestCard() {
                         {run.symbol}
                       </p>
                       <p className="text-xs text-text-muted">
-                        {new Date(run.created_at).toLocaleDateString(undefined, {
+                        {new Date(run.createdAt).toLocaleDateString(undefined, {
                           month: "short",
                           day: "numeric",
                         })}

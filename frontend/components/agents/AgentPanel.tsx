@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { MessageSquare, X, Plus, Trash2, Settings, Activity, Diamond, Star, Camera, Eye } from 'lucide-react';
+import { toCamelCaseKeys } from '@/lib/api/client';
 // Note: We use a custom side panel instead of Sheet to allow non-overlay behavior (FEAT-220)
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -19,31 +20,31 @@ import { EvidenceViewerModal } from '../capabilities/EvidenceViewerModal';
 interface ContentBlock {
   type: 'text' | 'tool_use' | 'tool_result' | 'thinking';
   text?: string | null;
-  tool_name?: string | null;
-  tool_input?: Record<string, unknown> | null;
-  tool_use_id?: string | null;
-  is_error?: boolean;
+  toolName?: string | null;
+  toolInput?: Record<string, unknown> | null;
+  toolUseId?: string | null;
+  isError?: boolean;
 }
 
 interface StreamMessage {
   type: 'assistant' | 'user' | 'system' | 'result';
   content: ContentBlock[];
   model?: string | null;
-  stop_reason?: string | null;
-  session_id?: string | null;
+  stopReason?: string | null;
+  sessionId?: string | null;
 }
 
 interface PermissionRequest {
-  tool_name: string;
-  tool_input: Record<string, unknown>;
+  toolName: string;
+  toolInput: Record<string, unknown>;
 }
 
 interface WebSocketMessage {
   type: 'stream' | 'done' | 'error' | 'pong' | 'permission_request' | 'interrupt_ack' | 'provider' | 'agent_start' | 'agent_done' | 'discussion_start' | 'discussion_round';
   data?: StreamMessage;
   message?: string;
-  tool_name?: string;
-  tool_input?: Record<string, unknown>;
+  toolName?: string;
+  toolInput?: Record<string, unknown>;
   success?: boolean;
   name?: string;  // For provider confirmation
   agent?: 'claude' | 'gemini';  // Which agent is responding (roundtable mode)
@@ -52,11 +53,11 @@ interface WebSocketMessage {
 }
 
 interface EvidenceData {
-  feature_id: string;
-  criterion_id: string;
+  featureId: string;
+  criterionId: string;
   version: number;
-  console_errors: number;
-  network_failures: number;
+  consoleErrors: number;
+  networkFailures: number;
   url: string;
 }
 
@@ -71,13 +72,13 @@ interface ChatMessage {
 
 interface Session {
   id: string;
-  working_dir: string;
-  created_at: string;
-  updated_at: string;
-  is_active: boolean;
+  workingDir: string;
+  createdAt: string;
+  updatedAt: string;
+  isActive: boolean;
   metadata: Record<string, unknown>;
-  original_provider?: string | null;
-  message_count?: number;
+  originalProvider?: string | null;
+  messageCount?: number;
   description?: string | null;
   participants?: string[];
 }
@@ -243,10 +244,10 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
         const res = await fetch(`${serverUrl}/sessions/${currentSessionId}/history`);
         if (res.ok) {
           const data = await res.json();
-          const loadedMessages: ChatMessage[] = data.messages.map((msg: { role: string; content: string; created_at: string; agent?: string; metadata?: { evidence?: EvidenceData } }) => ({
+          const loadedMessages: ChatMessage[] = data.messages.map((msg: { role: string; content: string; createdAt: string; agent?: string; metadata?: { evidence?: EvidenceData } }) => ({
             role: msg.role as 'user' | 'assistant' | 'system' | 'evidence',
             content: msg.content,
-            timestamp: new Date(msg.created_at),
+            timestamp: new Date(msg.createdAt),
             agent: msg.agent as 'claude' | 'gemini' | undefined,
             evidence: msg.metadata?.evidence,
           }));
@@ -325,7 +326,7 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
     };
 
     ws.onmessage = (event) => {
-      const msg: WebSocketMessage = JSON.parse(event.data);
+      const msg: WebSocketMessage = toCamelCaseKeys(JSON.parse(event.data));
 
       switch (msg.type) {
         case 'stream':
@@ -425,10 +426,10 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
           break;
 
         case 'permission_request':
-          if (msg.tool_name && msg.tool_input) {
+          if (msg.toolName && msg.toolInput) {
             setPendingPermission({
-              tool_name: msg.tool_name,
-              tool_input: msg.tool_input,
+              toolName: msg.toolName,
+              toolInput: msg.toolInput,
             });
           }
           break;
@@ -479,7 +480,7 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          working_dir: '/home/kasadis/portfolio-ai',
+          workingDir: '/home/kasadis/portfolio-ai',
         }),
       });
       if (!response.ok) throw new Error('Failed to create session');
@@ -528,8 +529,8 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
 
     const evidenceLines = evidenceMessages.map((msg) => {
       const e = msg.evidence;
-      const screenshotUrl = `/api/artifacts/${e.feature_id}/${e.criterion_id}/screenshot`;
-      return `[Evidence: ${e.feature_id}/${e.criterion_id} v${e.version} - ${e.console_errors} console errors, ${e.network_failures} network failures - screenshot: ${screenshotUrl}]`;
+      const screenshotUrl = `/api/artifacts/${e.featureId}/${e.criterionId}/screenshot`;
+      return `[Evidence: ${e.featureId}/${e.criterionId} v${e.version} - ${e.consoleErrors} console errors, ${e.networkFailures} network failures - screenshot: ${screenshotUrl}]`;
     });
 
     return `\n--- Available Evidence ---\n${evidenceLines.join('\n')}\n---\n\n`;
@@ -600,7 +601,7 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
       ...prev,
       {
         role: 'system',
-        content: `Permission ${allowed ? 'ALLOWED' : 'DENIED'} for: ${pendingPermission.tool_name}`,
+        content: `Permission ${allowed ? 'ALLOWED' : 'DENIED'} for: ${pendingPermission.toolName}`,
         timestamp: new Date(),
       },
     ]);
@@ -721,8 +722,8 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
                 {/* Show original provider badge if session has one */}
                 {(() => {
                   const currentSession = sessions.find(s => s.id === currentSessionId);
-                  return currentSession?.original_provider && (
-                    <ProviderBadge provider={currentSession.original_provider} size="xs" />
+                  return currentSession?.originalProvider && (
+                    <ProviderBadge provider={currentSession.originalProvider} size="xs" />
                   );
                 })()}
               </span>
@@ -731,7 +732,7 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
               {/* Show "Started with: X" if current agent differs from original */}
               {(() => {
                 const currentSession = sessions.find(s => s.id === currentSessionId);
-                const originalProvider = currentSession?.original_provider;
+                const originalProvider = currentSession?.originalProvider;
                 if (originalProvider && originalProvider !== 'both' && originalProvider !== agentProvider) {
                   return (
                     <span className="text-xs text-gray-500 flex items-center gap-1">
@@ -808,16 +809,16 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
                         <div className="flex items-center gap-2 mb-1">
                           <span className={cn(
                             "w-2 h-2 rounded-full",
-                            session.is_active ? "bg-green-500" : "bg-gray-600"
+                            session.isActive ? "bg-green-500" : "bg-gray-600"
                           )} />
                           <span className="font-mono text-sm text-gray-300">
                             {session.id.slice(0, 8)}
                           </span>
-                          <ProviderBadge provider={session.original_provider} size="xs" />
+                          <ProviderBadge provider={session.originalProvider} size="xs" />
                         </div>
                         {/* Description or placeholder */}
                         <div className="text-xs text-gray-400 truncate">
-                          {session.description || (session.message_count ? 'No description' : '(No messages yet)')}
+                          {session.description || (session.messageCount ? 'No description' : '(No messages yet)')}
                         </div>
                         {/* Participants row */}
                         {session.participants && session.participants.length > 0 && (
@@ -831,14 +832,14 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
                       </div>
                       <div className="flex flex-col items-end gap-1 text-right">
                         {/* Message count */}
-                        {session.message_count != null && session.message_count > 0 && (
+                        {session.messageCount != null && session.messageCount > 0 && (
                           <span className="text-xs text-gray-400">
-                            {session.message_count} msgs
+                            {session.messageCount} msgs
                           </span>
                         )}
                         {/* Relative time */}
                         <span className="text-[10px] text-gray-500">
-                          {formatRelativeTime(session.updated_at)}
+                          {formatRelativeTime(session.updatedAt)}
                         </span>
                         {/* Delete button */}
                         <Button
@@ -889,8 +890,8 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
                 onViewEvidence={() => {
                   setEvidenceViewer({
                     open: true,
-                    featureId: msg.evidence!.feature_id,
-                    criterionId: msg.evidence!.criterion_id,
+                    featureId: msg.evidence!.featureId,
+                    criterionId: msg.evidence!.criterionId,
                   });
                 }}
               />
@@ -929,12 +930,12 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
               <div className="flex-1">
                 <h4 className="font-semibold text-yellow-200 mb-2">Permission Required</h4>
                 <p className="text-sm text-yellow-100 mb-2">
-                  Claude wants to use: <span className="font-mono font-bold">{pendingPermission.tool_name}</span>
+                  Claude wants to use: <span className="font-mono font-bold">{pendingPermission.toolName}</span>
                 </p>
-                {pendingPermission.tool_input && Object.keys(pendingPermission.tool_input).length > 0 && (
+                {pendingPermission.toolInput && Object.keys(pendingPermission.toolInput).length > 0 && (
                   <div className="bg-gray-800/50 rounded p-2 mb-3 max-h-24 overflow-y-auto">
                     <pre className="text-xs text-gray-300 whitespace-pre-wrap font-mono">
-                      {JSON.stringify(pendingPermission.tool_input, null, 2)}
+                      {JSON.stringify(pendingPermission.toolInput, null, 2)}
                     </pre>
                   </div>
                 )}
@@ -1021,14 +1022,14 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
           // Create evidence message
           const evidenceMsg: ChatMessage = {
             role: 'evidence',
-            content: `Evidence captured for ${result.feature_id}`,
+            content: `Evidence captured for ${result.featureId}`,
             timestamp: new Date(),
             evidence: {
-              feature_id: result.feature_id,
-              criterion_id: result.criterion_id,
+              featureId: result.featureId,
+              criterionId: result.criterionId,
               version: result.version,
-              console_errors: result.evidence?.console?.errorCount ?? 0,
-              network_failures: result.evidence?.network?.failedRequests ?? 0,
+              consoleErrors: result.evidence?.console?.errorCount ?? 0,
+              networkFailures: result.evidence?.network?.failedRequests ?? 0,
               url: result.evidence?.metadata?.url ?? '',
             },
           };
@@ -1086,7 +1087,7 @@ function blocksToText(blocks: ContentBlock[]): string {
   return blocks
     .map(block => {
       if (block.type === 'text' && block.text) return block.text;
-      if (block.type === 'tool_use') return `[Tool: ${block.tool_name}]`;
+      if (block.type === 'tool_use') return `[Tool: ${block.toolName}]`;
       if (block.type === 'tool_result') return `[Result: ${block.text}]`;
       return '';
     })
@@ -1141,7 +1142,7 @@ function EvidenceMessageBubble({
   onViewEvidence: () => void;
 }) {
   const evidence = message.evidence!;
-  const hasErrors = evidence.console_errors > 0 || evidence.network_failures > 0;
+  const hasErrors = evidence.consoleErrors > 0 || evidence.networkFailures > 0;
 
   return (
     <div className="flex justify-start">
@@ -1159,17 +1160,17 @@ function EvidenceMessageBubble({
           <span className="text-xs text-gray-500">v{evidence.version}</span>
         </div>
         <div className="text-xs text-gray-400 mb-2">
-          {evidence.feature_id} / {evidence.criterion_id}
+          {evidence.featureId} / {evidence.criterionId}
         </div>
         <div className="flex items-center gap-3 text-xs">
-          {evidence.console_errors > 0 && (
+          {evidence.consoleErrors > 0 && (
             <span className="text-red-400">
-              {evidence.console_errors} console error{evidence.console_errors !== 1 ? 's' : ''}
+              {evidence.consoleErrors} console error{evidence.consoleErrors !== 1 ? 's' : ''}
             </span>
           )}
-          {evidence.network_failures > 0 && (
+          {evidence.networkFailures > 0 && (
             <span className="text-red-400">
-              {evidence.network_failures} network failure{evidence.network_failures !== 1 ? 's' : ''}
+              {evidence.networkFailures} network failure{evidence.networkFailures !== 1 ? 's' : ''}
             </span>
           )}
           {!hasErrors && (
@@ -1198,13 +1199,13 @@ function ContentBlockView({ block }: { block: ContentBlock }) {
         <div className="my-2 p-2 bg-gray-700/50 rounded border border-gray-600 animate-pulse">
           <div className="text-xs text-blue-400 mb-1 flex items-center gap-2">
             <span className="inline-block w-2 h-2 bg-blue-400 rounded-full animate-ping" />
-            Running: {block.tool_name}
+            Running: {block.toolName}
           </div>
-          {block.tool_input && (
+          {block.toolInput && (
             <pre className="text-xs text-gray-400 overflow-x-auto max-h-16">
-              {typeof block.tool_input === 'object'
-                ? JSON.stringify(block.tool_input, null, 2).slice(0, 150)
-                : String(block.tool_input).slice(0, 150)}
+              {typeof block.toolInput === 'object'
+                ? JSON.stringify(block.toolInput, null, 2).slice(0, 150)
+                : String(block.toolInput).slice(0, 150)}
             </pre>
           )}
         </div>
@@ -1214,7 +1215,7 @@ function ContentBlockView({ block }: { block: ContentBlock }) {
       return (
         <div className={cn(
           "my-2 p-2 rounded border",
-          block.is_error ? 'bg-red-900/30 border-red-700' : 'bg-gray-700/30 border-gray-600'
+          block.isError ? 'bg-red-900/30 border-red-700' : 'bg-gray-700/30 border-gray-600'
         )}>
           <div className="text-xs text-gray-400 mb-1">Result:</div>
           <pre className="text-xs overflow-x-auto whitespace-pre-wrap">{block.text}</pre>

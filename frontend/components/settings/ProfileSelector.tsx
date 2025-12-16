@@ -70,7 +70,7 @@ export function ProfileSelector({
   const [deleteProfileId, setDeleteProfileId] = useState<number | null>(null);
   const [importData, setImportData] = useState("");
 
-  const activeProfile = profiles.find((p) => p.is_active);
+  const activeProfile = profiles.find((p) => p.isActive);
 
   const handleSave = async () => {
     if (!saveName.trim()) {
@@ -82,9 +82,9 @@ export function ProfileSelector({
       await createProfile.mutateAsync({
         name: saveName,
         description: saveDescription || undefined,
-        profile_data: currentPreferences,
-        is_active: false,
-        user_id: userId,
+        profileData: currentPreferences,
+        isActive: false,
+        userId: userId,
       });
       toast.success(`Profile "${saveName}" saved successfully`);
       setShowSaveDialog(false);
@@ -100,7 +100,7 @@ export function ProfileSelector({
     if (!profile) return;
 
     try {
-      onProfileLoad(profile.profile_data);
+      onProfileLoad(profile.profileData);
       await activateProfile.mutateAsync({ profileId, userId });
       toast.success(`Profile "${profile.name}" loaded`);
     } catch (error) {
@@ -142,8 +142,8 @@ export function ProfileSelector({
       await importProfile.mutateAsync({
         name: data.name || "Imported Profile",
         description: data.description,
-        profile_data: data.profile_data,
-        user_id: userId,
+        profileData: data.profileData,
+        userId: userId,
       });
       toast.success("Profile imported successfully");
       setShowImportDialog(false);
@@ -178,7 +178,7 @@ export function ProfileSelector({
     if (!deleteProfileId) return;
 
     const profile = profiles.find((p) => p.id === deleteProfileId);
-    if (profile?.is_active) {
+    if (profile?.isActive) {
       toast.error("Cannot delete the active profile");
       return;
     }
@@ -262,7 +262,7 @@ export function ProfileSelector({
                 {profiles.map((profile) => (
                   <SelectItem key={profile.id} value={profile.id.toString()}>
                     <div className="flex items-center gap-2">
-                      {profile.is_active && (
+                      {profile.isActive && (
                         <Check className="h-4 w-4 text-primary" />
                       )}
                       <span>{profile.name}</span>
@@ -301,7 +301,7 @@ export function ProfileSelector({
                         size="sm"
                         onClick={() => openDeleteDialog(activeProfile.id)}
                         className="h-8 px-2 text-loss hover:text-loss"
-                        disabled={activeProfile.is_active}
+                        disabled={activeProfile.isActive}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -314,7 +314,7 @@ export function ProfileSelector({
                   </p>
                 )}
                 <p className="mt-1 text-xs text-text-muted">
-                  Updated: {new Date(activeProfile.updated_at).toLocaleDateString()}
+                  Updated: {new Date(activeProfile.updatedAt).toLocaleDateString()}
                 </p>
               </div>
             )}

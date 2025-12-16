@@ -38,9 +38,9 @@ export function AgentStatsCard({ stats }: AgentStatsCardProps) {
     );
   }
 
-  const successRate = stats && stats.total_runs > 0
-    ? ((stats.completed_runs / stats.total_runs) * 100).toFixed(1)
-    : telemetry ? telemetry.success_rate.toFixed(1) : "0.0";
+  const successRate = stats && stats.totalRuns > 0
+    ? ((stats.completedRuns / stats.totalRuns) * 100).toFixed(1)
+    : telemetry ? telemetry.successRate.toFixed(1) : "0.0";
 
   const getSuccessRateColor = (rate: number) => {
     if (rate >= 80) return "text-green-600";
@@ -66,7 +66,7 @@ export function AgentStatsCard({ stats }: AgentStatsCardProps) {
               <Activity className="h-4 w-4 text-muted-foreground" />
               <p className="text-sm font-medium">Total Runs</p>
             </div>
-            <p className="text-2xl font-bold">{stats?.total_runs ?? telemetry?.total_runs ?? 0}</p>
+            <p className="text-2xl font-bold">{stats?.totalRuns ?? telemetry?.totalRuns ?? 0}</p>
           </div>
 
           {/* Success Rate */}
@@ -87,7 +87,7 @@ export function AgentStatsCard({ stats }: AgentStatsCardProps) {
               <p className="text-sm font-medium">Completed</p>
             </div>
             <div className="flex items-center gap-2">
-              <p className="text-xl font-semibold">{stats?.completed_runs ?? telemetry?.successful_runs ?? 0}</p>
+              <p className="text-xl font-semibold">{stats?.completedRuns ?? telemetry?.successfulRuns ?? 0}</p>
               <Badge variant="success" className="text-xs">
                 Success
               </Badge>
@@ -101,7 +101,7 @@ export function AgentStatsCard({ stats }: AgentStatsCardProps) {
               <p className="text-sm font-medium">Failed</p>
             </div>
             <div className="flex items-center gap-2">
-              <p className="text-xl font-semibold">{stats?.failed_runs ?? telemetry?.failed_runs ?? 0}</p>
+              <p className="text-xl font-semibold">{stats?.failedRuns ?? telemetry?.failedRuns ?? 0}</p>
               <Badge variant="destructive" className="text-xs">
                 Failed
               </Badge>
@@ -109,31 +109,31 @@ export function AgentStatsCard({ stats }: AgentStatsCardProps) {
           </div>
 
           {/* Average Duration */}
-          {(stats?.avg_duration_s !== undefined || telemetry?.avg_duration_ms !== undefined) && (
+          {(stats?.avgDurationS !== undefined || telemetry?.avgDurationMs !== undefined) && (
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-muted-foreground" />
                 <p className="text-sm font-medium">Avg Duration</p>
               </div>
               <p className="text-lg font-semibold">
-                {stats?.avg_duration_s !== undefined
-                  ? `${stats.avg_duration_s.toFixed(1)}s`
-                  : telemetry?.avg_duration_ms !== undefined
-                  ? `${(telemetry.avg_duration_ms / 1000).toFixed(1)}s`
+                {stats?.avgDurationS !== undefined
+                  ? `${stats.avgDurationS.toFixed(1)}s`
+                  : telemetry?.avgDurationMs !== undefined
+                  ? `${(telemetry.avgDurationMs / 1000).toFixed(1)}s`
                   : "N/A"}
               </p>
             </div>
           )}
 
           {/* Average Cost */}
-          {stats?.avg_cost_usd !== undefined && stats?.avg_cost_usd !== null && (
+          {stats?.avgCostUsd !== undefined && stats?.avgCostUsd !== null && (
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
                 <p className="text-sm font-medium">Avg Cost</p>
               </div>
               <p className="text-lg font-semibold">
-                ${stats.avg_cost_usd.toFixed(4)}
+                ${stats.avgCostUsd.toFixed(4)}
               </p>
             </div>
           )}
@@ -146,7 +146,7 @@ export function AgentStatsCard({ stats }: AgentStatsCardProps) {
                 <p className="text-sm font-medium">Tokens (7d)</p>
               </div>
               <p className="text-lg font-semibold">
-                {formatNumber(telemetry.total_tokens)}
+                {formatNumber(telemetry.totalTokens)}
               </p>
             </div>
           )}

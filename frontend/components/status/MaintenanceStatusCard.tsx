@@ -65,7 +65,7 @@ export function MaintenanceStatusCard() {
       summary={
         loading
           ? "Loading..."
-          : `DB: ${dbSize?.database_size_mb.toFixed(1)} MB | ${diskSpace?.partitions.length || 0} disks monitored`
+          : `DB: ${dbSize?.databaseSizeMb.toFixed(1)} MB | ${diskSpace?.partitions.length || 0} disks monitored`
       }
       defaultCollapsed={true}
       actions={
@@ -93,16 +93,16 @@ export function MaintenanceStatusCard() {
                 <div className="flex items-center justify-between text-sm">
                   <span className="font-medium">{partition.path}</span>
                   <div className="flex items-center gap-2">
-                    <Badge variant={getDiskStatusVariant(partition.used_percentage)}>
-                      {partition.used_percentage.toFixed(1)}%
+                    <Badge variant={getDiskStatusVariant(partition.usedPercentage)}>
+                      {partition.usedPercentage.toFixed(1)}%
                     </Badge>
                     <span className="text-muted-foreground">
-                      {(partition.used_bytes / (1024 ** 3)).toFixed(1)} GB /{" "}
-                      {(partition.total_bytes / (1024 ** 3)).toFixed(1)} GB
+                      {(partition.usedBytes / (1024 ** 3)).toFixed(1)} GB /{" "}
+                      {(partition.totalBytes / (1024 ** 3)).toFixed(1)} GB
                     </span>
                   </div>
                 </div>
-                <Progress value={partition.used_percentage} />
+                <Progress value={partition.usedPercentage} />
               </div>
             ))}
           </div>
@@ -113,7 +113,7 @@ export function MaintenanceStatusCard() {
               </p>
               {diskSpace.alerts.map((alert) => (
                 <p key={alert.partition} className="text-xs text-muted-foreground">
-                  {alert.partition}: {alert.used_percentage.toFixed(1)}% used ({alert.free_mb.toFixed(0)} MB free)
+                  {alert.partition}: {alert.usedPercentage.toFixed(1)}% used ({alert.freeMb.toFixed(0)} MB free)
                 </p>
               ))}
             </div>
@@ -127,18 +127,18 @@ export function MaintenanceStatusCard() {
             <h3 className="text-lg font-semibold">Database Size</h3>
           </div>
           <div className="mb-3">
-            <div className="text-2xl font-bold">{dbSize?.database_size_mb.toFixed(1)} MB</div>
+            <div className="text-2xl font-bold">{dbSize?.databaseSizeMb.toFixed(1)} MB</div>
             <p className="text-sm text-muted-foreground">Total database size</p>
           </div>
           <details className="mt-3">
             <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
-              Top {dbSize?.top_tables.length || 0} Tables
+              Top {dbSize?.topTables.length || 0} Tables
             </summary>
             <div className="mt-2 space-y-2">
-              {dbSize?.top_tables.map((table) => (
+              {dbSize?.topTables.map((table) => (
                 <div key={table.table} className="flex items-center justify-between text-sm">
                   <span className="font-medium">{table.table}</span>
-                  <span className="text-muted-foreground">{table.size_pretty}</span>
+                  <span className="text-muted-foreground">{table.sizePretty}</span>
                 </div>
               ))}
             </div>
@@ -152,14 +152,14 @@ export function MaintenanceStatusCard() {
             <h3 className="text-lg font-semibold">Scheduled Maintenance Tasks</h3>
           </div>
           <div className="text-sm text-muted-foreground">
-            <p className="mb-2">{schedule?.total_count || 0} tasks scheduled</p>
+            <p className="mb-2">{schedule?.totalCount || 0} tasks scheduled</p>
             <details>
               <summary className="cursor-pointer font-medium text-foreground hover:underline">
                 View All Tasks
               </summary>
               <div className="mt-3 space-y-2">
                 {schedule &&
-                  Object.entries(schedule.scheduled_tasks).map(([name, task]) => (
+                  Object.entries(schedule.scheduledTasks).map(([name, task]) => (
                     <div key={name} className="rounded border p-2">
                       <div className="font-medium">{name}</div>
                       <div className="text-xs text-muted-foreground">{task.schedule}</div>

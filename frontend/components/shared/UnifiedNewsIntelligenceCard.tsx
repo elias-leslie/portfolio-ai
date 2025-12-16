@@ -19,8 +19,8 @@ type SortOption = "recent" | "positive" | "negative";
 interface KeyEvent {
   icon: string;
   text: string;
-  time_ago: string;
-  is_material: boolean;
+  timeAgo: string;
+  isMaterial: boolean;
   event_category?: string | null;
   published_at?: string | null;
 }
@@ -31,34 +31,34 @@ interface NewsArticle {
   url?: string | null;
   source?: string | null;
   vendor?: string | null;
-  published_at?: string | null;
-  sentiment_score?: number;
-  sentiment_label?: string;
+  publishedAt?: string | null;
+  sentimentScore?: number;
+  sentimentLabel?: string;
   sentiment?: {
     score: number;
     label: string;
     confidence?: number;
     model?: string;
   };
-  impact_summary?: string | null;
-  actionable_insight?: string | null;
-  content_hash?: string;
-  quality_prediction?: boolean | null;
-  quality_confidence?: number | null;
+  impactSummary?: string | null;
+  actionableInsight?: string | null;
+  contentHash?: string;
+  qualityPrediction?: boolean | null;
+  qualityConfidence?: number | null;
   // Story clustering metadata
-  story_id?: string | null;
-  is_primary_article?: boolean;
-  coverage_count?: number;
+  storyId?: string | null;
+  isPrimaryArticle?: boolean;
+  coverageCount?: number;
 }
 
 // Data structure types
 interface SymbolNewsIntelligence {
   headline: string;
-  sentiment_score: number;
-  sentiment_label: string;
-  article_count_24h: number;
-  key_events: KeyEvent[];
-  recent_articles: NewsArticle[];
+  sentimentScore: number;
+  sentimentLabel: string;
+  articleCount24H: number;
+  keyEvents: KeyEvent[];
+  recentArticles: NewsArticle[];
   summary?: NewsSentimentDetail | null;
 }
 
@@ -69,13 +69,13 @@ interface MarketNewsData {
 
 interface NewsSentimentDetail {
   score: number | null;
-  score_change: number | null;
-  positive_count: number;
-  neutral_count: number;
-  negative_count: number;
-  article_count: number;
+  scoreChange: number | null;
+  positiveCount: number;
+  neutralCount: number;
+  negativeCount: number;
+  articleCount: number;
   latest_published_at?: string | null;
-  model_breakdown: Record<string, number>;
+  modelBreakdown: Record<string, number>;
 }
 
 interface RecentNewsPayload {
@@ -154,7 +154,7 @@ export function UnifiedNewsIntelligenceCard({
   // Normalize articles and summary from any data structure (MUST be before early returns)
   const articles = useMemo(() => {
     if (newsIntelligence) {
-      return newsIntelligence.recent_articles || [];
+      return newsIntelligence.recentArticles || [];
     }
     if (marketNewsData) {
       return marketNewsData.articles || [];
@@ -184,18 +184,18 @@ export function UnifiedNewsIntelligenceCard({
     const sorted = [...articles];
     if (sortBy === "positive") {
       return sorted.sort((a, b) => {
-        const scoreA = a.sentiment_score ?? a.sentiment?.score ?? 0;
-        const scoreB = b.sentiment_score ?? b.sentiment?.score ?? 0;
+        const scoreA = a.sentimentScore ?? a.sentiment?.score ?? 0;
+        const scoreB = b.sentimentScore ?? b.sentiment?.score ?? 0;
         return scoreB - scoreA;
       });
     } else if (sortBy === "negative") {
       return sorted.sort((a, b) => {
-        const scoreA = a.sentiment_score ?? a.sentiment?.score ?? 0;
-        const scoreB = b.sentiment_score ?? b.sentiment?.score ?? 0;
+        const scoreA = a.sentimentScore ?? a.sentiment?.score ?? 0;
+        const scoreB = b.sentimentScore ?? b.sentiment?.score ?? 0;
         return scoreA - scoreB;
       });
     }
-    // "recent" - keep original order (already sorted by published_at from backend)
+    // "recent" - keep original order (already sorted by publishedAt from backend)
     return sorted;
   }, [articles, sortBy]);
 
@@ -209,7 +209,7 @@ export function UnifiedNewsIntelligenceCard({
     // Default balanced view: show extremes
     const withScores = articles.map(a => ({
       article: a,
-      score: a.sentiment_score ?? a.sentiment?.score ?? 0
+      score: a.sentimentScore ?? a.sentiment?.score ?? 0
     }));
 
     // Sort by score to find extremes
@@ -301,14 +301,14 @@ export function UnifiedNewsIntelligenceCard({
               <Badge variant={getSentimentBadgeVariant(summary.score)}>
                 {formatSentimentScore(summary.score)}
               </Badge>
-              {summary.score_change !== null && summary.score_change !== undefined && (
+              {summary.scoreChange !== null && summary.scoreChange !== undefined && (
                 <span
                   className={`inline-flex items-center text-xs font-medium ${
-                    summary.score_change >= 0 ? "text-gain" : "text-loss"
+                    summary.scoreChange >= 0 ? "text-gain" : "text-loss"
                   }`}
                 >
-                  {summary.score_change >= 0 ? "▲" : "▼"}
-                  {Math.abs(summary.score_change).toFixed(2)}
+                  {summary.scoreChange >= 0 ? "▲" : "▼"}
+                  {Math.abs(summary.scoreChange).toFixed(2)}
                 </span>
               )}
             </div>
@@ -317,23 +317,23 @@ export function UnifiedNewsIntelligenceCard({
             <div>
               <p className="font-semibold text-text">Headline Mix</p>
               <p>
-                Positive: <span className="font-medium text-gain">{summary.positive_count}</span>
+                Positive: <span className="font-medium text-gain">{summary.positiveCount}</span>
               </p>
               <p>
-                Neutral: <span className="font-medium text-text">{summary.neutral_count}</span>
+                Neutral: <span className="font-medium text-text">{summary.neutralCount}</span>
               </p>
               <p>
-                Negative: <span className="font-medium text-loss">{summary.negative_count}</span>
+                Negative: <span className="font-medium text-loss">{summary.negativeCount}</span>
               </p>
             </div>
             <div>
               <p className="font-semibold text-text">Model Coverage</p>
               {(() => {
-                const totalCoverage = Object.values(summary.model_breakdown || {}).reduce(
+                const totalCoverage = Object.values(summary.modelBreakdown || {}).reduce(
                   (sum, val) => sum + val,
                   0
                 );
-                const finbertCoverage = summary.model_breakdown?.finbert ?? 0;
+                const finbertCoverage = summary.modelBreakdown?.finbert ?? 0;
                 const fallbackCoverage = Math.max(totalCoverage - finbertCoverage, 0);
 
                 if (totalCoverage === 0) {
@@ -372,24 +372,24 @@ export function UnifiedNewsIntelligenceCard({
             <div className="flex flex-wrap items-center gap-3 text-xs">
               <div>
                 <span className="text-text-muted">Sentiment: </span>
-                <Badge variant={getSentimentBadgeVariant(newsIntelligence.sentiment_label)}>
-                  {newsIntelligence.sentiment_label}{" "}
-                  ({formatSentimentScore(newsIntelligence.sentiment_score)})
+                <Badge variant={getSentimentBadgeVariant(newsIntelligence.sentimentLabel)}>
+                  {newsIntelligence.sentimentLabel}{" "}
+                  ({formatSentimentScore(newsIntelligence.sentimentScore)})
                 </Badge>
               </div>
               <div className="text-text-muted">
-                {newsIntelligence.article_count_24h} articles in 24h
+                {newsIntelligence.articleCount24H} articles in 24h
               </div>
             </div>
           </div>
         )}
 
         {/* Key Events (symbol-specific only) */}
-        {symbol && newsIntelligence && newsIntelligence.key_events && newsIntelligence.key_events.length > 0 && (
+        {symbol && newsIntelligence && newsIntelligence.keyEvents && newsIntelligence.keyEvents.length > 0 && (
           <div>
             <h5 className="text-xs font-semibold text-text mb-2">Key Events:</h5>
             <div className="space-y-2">
-              {newsIntelligence.key_events.map((event, idx) => (
+              {newsIntelligence.keyEvents.map((event, idx) => (
                 <div
                   key={`event-${idx}-${event.text.substring(0, 20)}`}
                   className="flex items-start gap-2 text-xs"
@@ -397,7 +397,7 @@ export function UnifiedNewsIntelligenceCard({
                   <span className="text-base flex-shrink-0">{event.icon}</span>
                   <div className="flex-1">
                     <span className="text-text">{event.text}</span>
-                    <span className="text-text-muted ml-2">({event.time_ago})</span>
+                    <span className="text-text-muted ml-2">({event.timeAgo})</span>
                   </div>
                 </div>
               ))}
@@ -432,22 +432,22 @@ export function UnifiedNewsIntelligenceCard({
             <div className="space-y-2">
               {displayedArticles.map((article, idx) => {
                 // Normalize article data from either structure
-                const sentimentScore = article.sentiment_score ?? article.sentiment?.score;
-                const sentimentLabel = article.sentiment_label ?? article.sentiment?.label;
+                const sentimentScore = article.sentimentScore ?? article.sentiment?.score;
+                const sentimentLabel = article.sentimentLabel ?? article.sentiment?.label;
                 const sentimentConfidence = article.sentiment?.confidence;
                 const sentimentModel = article.sentiment?.model;
 
-                const timeAgo = formatNewsDate(article.published_at);
+                const timeAgo = formatNewsDate(article.publishedAt);
                 const source = article.source && article.source.trim().length > 0
                   ? article.source.trim()
                   : formatVendorLabel(article.vendor);
 
-                const impactSummary = article.impact_summary;
-                const actionableInsight = article.actionable_insight;
+                const impactSummary = article.impactSummary;
+                const actionableInsight = article.actionableInsight;
                 const displayHeadline = article.headline;
 
                 // Generate unique key
-                const articleKey = article.content_hash || article.url || `article-${idx}-${article.headline.substring(0, 30)}`;
+                const articleKey = article.contentHash || article.url || `article-${idx}-${article.headline.substring(0, 30)}`;
 
                 // Unified detailed layout for all news (market and symbol)
                   return (
@@ -490,22 +490,22 @@ export function UnifiedNewsIntelligenceCard({
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-2 text-xs">
-                          {article.quality_confidence !== undefined && article.quality_confidence !== null && (
+                          {article.qualityConfidence !== undefined && article.qualityConfidence !== null && (
                             <Badge
-                              variant={article.quality_confidence >= 0.7 ? "success" : article.quality_confidence >= 0.5 ? "warning" : "secondary"}
+                              variant={article.qualityConfidence >= 0.7 ? "success" : article.qualityConfidence >= 0.5 ? "warning" : "secondary"}
                               className="text-[10px]"
                             >
-                              Quality {Math.round(article.quality_confidence * 100)}%
+                              Quality {Math.round(article.qualityConfidence * 100)}%
                             </Badge>
                           )}
-                          {article.is_primary_article && (
+                          {article.isPrimaryArticle && (
                             <Badge variant="success" className="text-[10px]">
                               Primary
                             </Badge>
                           )}
-                          {article.coverage_count && article.coverage_count > 1 && (
+                          {article.coverageCount && article.coverageCount > 1 && (
                             <Badge variant="secondary" className="text-[10px]">
-                              {article.coverage_count} sources
+                              {article.coverageCount} sources
                             </Badge>
                           )}
                           {sentimentLabel && (

@@ -52,7 +52,7 @@ export function SectorPerformanceChart() {
       const entry: Record<string, number | string> = { date: point.date };
       data.sectors.forEach((sector) => {
         if (sector.data[idx]) {
-          entry[sector.symbol] = sector.data[idx].pct_change;
+          entry[sector.symbol] = sector.data[idx].pctChange;
           entry[`${sector.symbol}_price`] = sector.data[idx].close;
         }
       });
@@ -174,21 +174,21 @@ export function SectorPerformanceChart() {
                 {" "}
                 <span
                   className={
-                    sector.current_pct >= 0 ? "text-gain" : "text-loss"
+                    sector.currentPct >= 0 ? "text-gain" : "text-loss"
                   }
                 >
-                  {sector.current_pct >= 0 ? "+" : ""}
-                  {sector.current_pct.toFixed(1)}%
+                  {sector.currentPct >= 0 ? "+" : ""}
+                  {sector.currentPct.toFixed(1)}%
                 </span>
               </span>
             </button>
           ))}
         </div>
-        {data.period_end && (() => {
-          const freshness = checkDataFreshness(data.period_end, marketStatus?.expected_data_date);
+        {data.periodEnd && (() => {
+          const freshness = checkDataFreshness(data.periodEnd, marketStatus?.expectedDataDate);
           return (
             <span className="text-[10px] text-text-muted whitespace-nowrap ml-2" title={freshness.tooltip}>
-              Data as of {formatDate(data.period_end, false)} {freshness.indicator}
+              Data as of {formatDate(data.periodEnd, false)} {freshness.indicator}
             </span>
           );
         })()}

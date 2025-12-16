@@ -13,14 +13,14 @@ import { get, post } from "./client";
 // Types
 
 export interface MaintenanceResult {
-  task_id: number;
-  task_name: string;
+  taskId: number;
+  taskName: string;
   status: "running" | "success" | "error";
-  started_at: string;
-  completed_at: string | null;
-  dry_run: boolean;
+  startedAt: string;
+  completedAt: string | null;
+  dryRun: boolean;
   summary: Record<string, unknown> | null;
-  error_message: string | null;
+  errorMessage: string | null;
 }
 
 export interface LastRunSummary {
@@ -40,53 +40,53 @@ export interface ScheduledTask {
 }
 
 export interface MaintenanceScheduleResponse {
-  scheduled_tasks: Record<string, ScheduledTask>;
-  total_count: number;
+  scheduledTasks: Record<string, ScheduledTask>;
+  totalCount: number;
 }
 
 export interface PartitionInfo {
   path: string;
   name: string;
-  total_bytes: number;
-  used_bytes: number;
-  free_bytes: number;
-  used_percentage: number;
+  totalBytes: number;
+  usedBytes: number;
+  freeBytes: number;
+  usedPercentage: number;
 }
 
 export interface DiskSpaceResponse {
-  task_id: string;
+  taskId: string;
   partitions: PartitionInfo[];
   alerts: Array<{
     partition: string;
-    used_percentage: number;
-    free_mb: number;
+    usedPercentage: number;
+    freeMb: number;
   }>;
-  alert_count: number;
-  duration_seconds: number;
+  alertCount: number;
+  durationSeconds: number;
   success: boolean;
 }
 
 export interface TableSize {
   table: string;
-  size_bytes: number;
-  size_pretty: string;
+  sizeBytes: number;
+  sizePretty: string;
 }
 
 export interface DatabaseSizeResponse {
-  task_id: string;
-  database_size_bytes: number;
-  database_size_mb: number;
-  top_tables: TableSize[];
-  duration_seconds: number;
+  taskId: string;
+  databaseSizeBytes: number;
+  databaseSizeMb: number;
+  topTables: TableSize[];
+  durationSeconds: number;
   success: boolean;
 }
 
 export interface MaintenanceStatsResponse {
-  metric_name?: string;
+  metricName?: string;
   days?: number;
-  data_points?: number;
+  dataPoints?: number;
   trends?: Array<{
-    recorded_at: string;
+    recordedAt: string;
     value: number;
     unit: string | null;
     metadata: Record<string, unknown> | null;
@@ -96,36 +96,36 @@ export interface MaintenanceStatsResponse {
     {
       value: number;
       unit: string | null;
-      recorded_at: string;
+      recordedAt: string;
     }
   >;
-  metric_count?: number;
+  metricCount?: number;
 }
 
 export interface TriggerTaskResponse {
-  task_id: string;
-  task_name: string;
+  taskId: string;
+  taskName: string;
   status: "triggered" | "completed" | "timeout";
   message: string;
   result?: Record<string, unknown> | null;
 }
 
 export interface BackupRequirementCheck {
-  backup_exists: boolean;
-  backup_recent: boolean;
-  backup_verified: boolean;
-  backup_name: string | null;
-  backup_age_hours: number | null;
-  can_proceed: boolean;
-  blocking_reason: string | null;
+  backupExists: boolean;
+  backupRecent: boolean;
+  backupVerified: boolean;
+  backupName: string | null;
+  backupAgeHours: number | null;
+  canProceed: boolean;
+  blockingReason: string | null;
   warnings: string[];
 }
 
 export interface FileCleanupInfo {
   path: string;
-  size_mb: number;
-  file_count: number;
-  retention_policy: string;
+  sizeMb: number;
+  fileCount: number;
+  retentionPolicy: string;
   schedule: string;
 }
 
@@ -133,22 +133,22 @@ export interface FileCleanupStatusResponse {
   logs: FileCleanupInfo;
   backups: FileCleanupInfo;
   models: FileCleanupInfo;
-  solution_state: FileCleanupInfo;
-  total_size_mb: number;
+  solutionState: FileCleanupInfo;
+  totalSizeMb: number;
 }
 
 export interface CacheDirectoryInfo {
   name: string;
   path: string;
-  size_mb: number;
-  file_count: number;
+  sizeMb: number;
+  fileCount: number;
   description: string;
 }
 
 export interface CacheStatusResponse {
   directories: CacheDirectoryInfo[];
-  total_size_mb: number;
-  total_file_count: number;
+  totalSizeMb: number;
+  totalFileCount: number;
 }
 
 // API Functions

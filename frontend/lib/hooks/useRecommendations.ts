@@ -19,11 +19,11 @@ export const recommendationKeys = {
   all: ["recommendations"] as const,
   lists: () => [...recommendationKeys.all, "list"] as const,
   list: (params?: {
-    min_strength?: number;
+    minStrength?: number;
     limit?: number;
-    signal_type?: string;
-    portfolio_size?: number;
-    position_pct?: number;
+    signalType?: string;
+    portfolioSize?: number;
+    positionPct?: number;
   }) => [...recommendationKeys.lists(), params] as const,
   symbols: (minStrength?: number) =>
     [...recommendationKeys.all, "symbols", minStrength] as const,
@@ -34,11 +34,11 @@ export const recommendationKeys = {
 // ============================================================================
 
 export function useRecommendations(params?: {
-  min_strength?: number;
+  minStrength?: number;
   limit?: number;
-  signal_type?: "BUY" | "SELL" | "all";
-  portfolio_size?: number;
-  position_pct?: number;
+  signalType?: "BUY" | "SELL" | "all";
+  portfolioSize?: number;
+  positionPct?: number;
 }) {
   return useQuery({
     queryKey: recommendationKeys.list(params),

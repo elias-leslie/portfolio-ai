@@ -7,14 +7,14 @@ import { apiRequest } from "@/lib/api/client";
 
 interface BuybackSummary {
   symbol: string;
-  buyback_count: number;
-  total_buybacks: number;
-  latest_buyback: string | null;
+  buybackCount: number;
+  totalBuybacks: number;
+  latestBuyback: string | null;
 }
 
 interface BuybackSummaryResponse {
   summaries: BuybackSummary[];
-  total_symbols: number;
+  totalSymbols: number;
 }
 
 function formatBuybackAmount(amount: number): string {
@@ -67,19 +67,19 @@ export function BuybackSummaryCard() {
             <span className="font-medium text-text">{summary.symbol}</span>
             <div className="flex items-center gap-3">
               <span className="text-text-muted">
-                {summary.buyback_count} qtr{summary.buyback_count !== 1 ? "s" : ""}
+                {summary.buybackCount} qtr{summary.buybackCount !== 1 ? "s" : ""}
               </span>
               <span className="font-medium text-gain">
-                {formatBuybackAmount(summary.total_buybacks)}
+                {formatBuybackAmount(summary.totalBuybacks)}
               </span>
             </div>
           </div>
         ))}
       </div>
 
-      {data.total_symbols > 5 && (
+      {data.totalSymbols > 5 && (
         <div className="mt-2 pt-2 border-t border-border/30 text-xs text-text-muted">
-          +{data.total_symbols - 5} more symbols with buybacks
+          +{data.totalSymbols - 5} more symbols with buybacks
         </div>
       )}
     </Card>

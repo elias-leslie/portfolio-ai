@@ -16,70 +16,70 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 // ========================================================================
 
 export interface GapInfo {
-  gap_id: string;
+  gapId: string;
   capability: string;
-  analysis_type: string;
+  analysisType: string;
   criticality: "P0" | "P1" | "P2" | "P3";
-  current_state: string;
-  desired_state: string;
+  currentState: string;
+  desiredState: string;
   impact: string;
-  data_sources: Array<Record<string, any>>;
+  dataSources: Array<Record<string, any>>;
   effort: "LOW" | "MEDIUM" | "HIGH";
-  blocks_strategies: string[];
+  blocksStrategies: string[];
   recommendation: string;
   severity: "blocking" | "limiting" | "optional";
 }
 
 export interface CoverageResult {
-  analysis_type: string;
+  analysisType: string;
   description: string;
-  total_capabilities: number;
-  available_capabilities: number;
-  missing_capabilities: number;
-  coverage_pct: number;
-  maturity_level: number;  // 0-3
+  totalCapabilities: number;
+  availableCapabilities: number;
+  missingCapabilities: number;
+  coveragePct: number;
+  maturityLevel: number;  // 0-3
   gaps: GapInfo[];
 }
 
 export interface GapSummary {
   timestamp: string;
-  total_gaps: number;
-  resolved_count: number;  // Gaps resolved (tracked via feature passes=true)
-  p0_gaps: number;
-  p1_gaps: number;
-  p2_gaps: number;
-  p3_gaps: number;
-  analysis_types: Record<string, CoverageResult>;
-  avg_coverage_pct: number;
-  top_10_priorities: GapInfo[];
-  mvp_roadmap: Record<string, any>;
+  totalGaps: number;
+  resolvedCount: number;  // Gaps resolved (tracked via feature passes=true)
+  p0Gaps: number;
+  p1Gaps: number;
+  p2Gaps: number;
+  p3Gaps: number;
+  analysisTypes: Record<string, CoverageResult>;
+  avgCoveragePct: number;
+  top10Priorities: GapInfo[];
+  mvpRoadmap: Record<string, any>;
 }
 
 export interface GapsByAnalysis {
-  analysis_types: Record<string, CoverageResult>;
+  analysisTypes: Record<string, CoverageResult>;
 }
 
 export interface SymbolGaps {
   symbol: string;
-  analysis_types: Record<string, any>;
+  analysisTypes: Record<string, any>;
 }
 
 export interface WatchlistGaps {
-  watchlist_symbols: string[];
-  symbol_coverage: Record<string, any>;
-  aggregate_gaps: Array<{
+  watchlistSymbols: string[];
+  symbolCoverage: Record<string, any>;
+  aggregateGaps: Array<{
     capability: string;
     description: string;
-    affected_symbols: number;
-    total_symbols: number;
-    affected_pct: number;
+    affectedSymbols: number;
+    totalSymbols: number;
+    affectedPct: number;
     symbols: string[];
   }>;
 }
 
 export interface TaskListGenerated {
-  gap_ids: string[];
-  task_file: string;
+  gapIds: string[];
+  taskFile: string;
   message: string;
 }
 

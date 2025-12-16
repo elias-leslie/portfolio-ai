@@ -55,9 +55,9 @@ export function MarketMoversTable() {
       case "losers":
         return data.losers;
       case "volume":
-        return data.most_active;
+        return data.mostActive;
       case "rvol":
-        return data.top_rvol;
+        return data.topRvol;
     }
   };
 
@@ -162,11 +162,11 @@ export function MarketMoversTable() {
                 <td
                   className={cn(
                     "text-right py-1 font-semibold whitespace-nowrap",
-                    item.change_pct >= 0 ? "text-gain" : "text-loss"
+                    item.changePct >= 0 ? "text-gain" : "text-loss"
                   )}
                 >
-                  {item.change_pct >= 0 ? "+" : ""}
-                  {item.change_pct.toFixed(2)}%
+                  {item.changePct >= 0 ? "+" : ""}
+                  {item.changePct.toFixed(2)}%
                 </td>
                 {showRvolColumn ? (
                   <td className="text-right py-1 text-text font-semibold whitespace-nowrap">
@@ -184,7 +184,7 @@ export function MarketMoversTable() {
       </div>
 
       <div className="text-[10px] text-text-muted text-right">
-        {data.last_updated && `Updated ${formatRelativeTime(data.last_updated)}`}
+        {data.lastUpdated && `Updated ${formatRelativeTime(data.lastUpdated)}`}
       </div>
     </div>
   );

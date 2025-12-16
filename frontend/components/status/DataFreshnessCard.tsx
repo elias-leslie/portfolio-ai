@@ -33,7 +33,7 @@ export function DataFreshnessCard({ freshness }: DataFreshnessCardProps) {
                 </CardHeader>
                 <CardContent>
                     <p className="text-sm text-muted-foreground">
-                        No day_bars data available. Price data may not have been ingested yet.
+                        No dayBars data available. Price data may not have been ingested yet.
                     </p>
                 </CardContent>
             </Card>
@@ -41,9 +41,9 @@ export function DataFreshnessCard({ freshness }: DataFreshnessCardProps) {
     }
 
     // Categorize by freshness
-    const fresh = freshness.filter((f) => (f.age_days ?? 999) <= 1);
-    const stale = freshness.filter((f) => (f.age_days ?? 999) > 1 && (f.age_days ?? 999) <= 7);
-    const veryStale = freshness.filter((f) => (f.age_days ?? 999) > 7);
+    const fresh = freshness.filter((f) => (f.ageDays ?? 999) <= 1);
+    const stale = freshness.filter((f) => (f.ageDays ?? 999) > 1 && (f.ageDays ?? 999) <= 7);
+    const veryStale = freshness.filter((f) => (f.ageDays ?? 999) > 7);
 
     const getStatusIcon = (ageDays?: number) => {
         if (ageDays === undefined || ageDays === null) {
@@ -86,24 +86,24 @@ export function DataFreshnessCard({ freshness }: DataFreshnessCardProps) {
             className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
         >
             <div className="flex items-center gap-3 flex-1">
-                {getStatusIcon(item.age_days)}
+                {getStatusIcon(item.ageDays)}
                 <div className="flex-1">
                     <div className="font-medium font-mono">{item.symbol}</div>
                     <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
-                        <div>Last updated: {formatDate(item.last_updated)}</div>
-                        {item.age_days !== undefined && item.age_days !== null && (
+                        <div>Last updated: {formatDate(item.lastUpdated)}</div>
+                        {item.ageDays !== undefined && item.ageDays !== null && (
                             <div>
-                                {item.age_days === 0
+                                {item.ageDays === 0
                                     ? "Today"
-                                    : item.age_days === 1
+                                    : item.ageDays === 1
                                       ? "1 day old"
-                                      : `${item.age_days} days old`}
+                                      : `${item.ageDays} days old`}
                             </div>
                         )}
                     </div>
                 </div>
             </div>
-            <div>{getStatusBadge(item.age_days)}</div>
+            <div>{getStatusBadge(item.ageDays)}</div>
         </div>
     );
 
@@ -186,7 +186,7 @@ export function DataFreshnessCard({ freshness }: DataFreshnessCardProps) {
                 <div className="mt-4 p-3 bg-muted/50 rounded-lg text-xs text-muted-foreground">
                     <p className="font-medium mb-1">Note:</p>
                     <p>
-                        Data freshness indicates how recent the last day_bars entry is for each symbol.
+                        Data freshness indicates how recent the last dayBars entry is for each symbol.
                         Fresh data (&lt;1 day) is normal. Stale data may indicate ingestion issues or
                         market holidays.
                     </p>

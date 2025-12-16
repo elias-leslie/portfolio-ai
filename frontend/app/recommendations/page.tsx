@@ -110,32 +110,32 @@ function RecommendationCard({
   onTrackInPortfolio: () => void;
   isPaperTrading: boolean;
 }) {
-  const riskReward = rec.risk_reward_ratio;
-  const potentialGain = rec.target_price - rec.current_price;
-  const potentialLoss = rec.current_price - rec.stop_loss;
-  const potentialGainPct = (potentialGain / rec.current_price) * 100;
-  const potentialLossPct = (potentialLoss / rec.current_price) * 100;
-  const priceChange = rec.current_price - rec.entry_price;
-  const priceChangePct = (priceChange / rec.entry_price) * 100;
+  const riskReward = rec.riskRewardRatio;
+  const potentialGain = rec.targetPrice - rec.currentPrice;
+  const potentialLoss = rec.currentPrice - rec.stopLoss;
+  const potentialGainPct = (potentialGain / rec.currentPrice) * 100;
+  const potentialLossPct = (potentialLoss / rec.currentPrice) * 100;
+  const priceChange = rec.currentPrice - rec.entryPrice;
+  const priceChangePct = (priceChange / rec.entryPrice) * 100;
 
   return (
-    <Card className={`transition-shadow hover:shadow-lg ${rec.signal_status === "caution" ? "border-amber-300 dark:border-amber-700" : ""}`}>
+    <Card className={`transition-shadow hover:shadow-lg ${rec.signalStatus === "caution" ? "border-amber-300 dark:border-amber-700" : ""}`}>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div>
             <CardTitle className="flex flex-wrap items-center gap-2 text-xl">
               {rec.symbol}
-              <SignalBadge type={rec.signal_type} strength={rec.signal_strength} />
-              <ValidationBadge validationType={rec.validation_type} />
-              <SignalStatusBadge status={rec.signal_status} />
+              <SignalBadge type={rec.signalType} strength={rec.signalStrength} />
+              <ValidationBadge validationType={rec.validationType} />
+              <SignalStatusBadge status={rec.signalStatus} />
             </CardTitle>
             <p className="mt-1 text-sm text-text-muted">
-              {rec.strategy_name} ({rec.strategy_type})
+              {rec.strategyName} ({rec.strategyType})
             </p>
           </div>
-          {rec.expected_sharpe && (
+          {rec.expectedSharpe && (
             <Badge variant="outline" className="text-xs">
-              Sharpe: {rec.expected_sharpe.toFixed(2)}
+              Sharpe: {rec.expectedSharpe.toFixed(2)}
             </Badge>
           )}
         </div>
@@ -145,7 +145,7 @@ function RecommendationCard({
         <div className="flex items-center justify-between rounded-lg bg-surface-muted p-3">
           <div>
             <p className="text-xs font-medium text-text-muted">Current Price</p>
-            <p className="text-2xl font-bold">${rec.current_price.toFixed(2)}</p>
+            <p className="text-2xl font-bold">${rec.currentPrice.toFixed(2)}</p>
           </div>
           <div className="text-right">
             <p className="text-xs text-text-muted">Since Signal</p>
@@ -160,21 +160,21 @@ function RecommendationCard({
           <div className="rounded-lg bg-red-50 p-3 dark:bg-red-950/30">
             <p className="text-xs font-medium text-red-600 dark:text-red-400">Stop Loss</p>
             <p className="text-lg font-bold text-red-700 dark:text-red-300">
-              ${rec.stop_loss.toFixed(2)}
+              ${rec.stopLoss.toFixed(2)}
             </p>
             <p className="text-xs text-red-500">-{potentialLossPct.toFixed(1)}%</p>
           </div>
           <div className="rounded-lg bg-blue-50 p-3 dark:bg-blue-950/30">
             <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Signal Price</p>
             <p className="text-lg font-bold text-blue-700 dark:text-blue-300">
-              ${rec.entry_price.toFixed(2)}
+              ${rec.entryPrice.toFixed(2)}
             </p>
-            <p className="text-xs text-blue-500">{rec.signal_date}</p>
+            <p className="text-xs text-blue-500">{rec.signalDate}</p>
           </div>
           <div className="rounded-lg bg-green-50 p-3 dark:bg-green-950/30">
             <p className="text-xs font-medium text-green-600 dark:text-green-400">Target</p>
             <p className="text-lg font-bold text-green-700 dark:text-green-300">
-              ${rec.target_price.toFixed(2)}
+              ${rec.targetPrice.toFixed(2)}
             </p>
             <p className="text-xs text-green-500">+{potentialGainPct.toFixed(1)}%</p>
           </div>
@@ -185,11 +185,11 @@ function RecommendationCard({
           <div>
             <p className="text-sm font-medium">Position Size</p>
             <p className="text-xs text-text-muted">
-              {rec.position_size_shares} shares @ ${rec.current_price.toFixed(2)}
+              {rec.positionSizeShares} shares @ ${rec.currentPrice.toFixed(2)}
             </p>
           </div>
           <div className="text-right">
-            <p className="text-lg font-bold">${rec.position_size_dollars.toLocaleString()}</p>
+            <p className="text-lg font-bold">${rec.positionSizeDollars.toLocaleString()}</p>
             <p className="text-xs text-text-muted">
               R/R: {riskReward > 0 ? `1:${riskReward.toFixed(1)}` : "N/A"}
             </p>
@@ -200,14 +200,14 @@ function RecommendationCard({
         <div>
           <p className="mb-2 text-xs font-medium text-text-muted">Signal Reasons:</p>
           <div className="flex flex-wrap gap-1">
-            {rec.signal_reasons.slice(0, 4).map((reason, i) => (
+            {rec.signalReasons.slice(0, 4).map((reason, i) => (
               <Badge key={i} variant="outline" className="text-xs">
                 {reason}
               </Badge>
             ))}
-            {rec.signal_reasons.length > 4 && (
+            {rec.signalReasons.length > 4 && (
               <Badge variant="outline" className="text-xs">
-                +{rec.signal_reasons.length - 4} more
+                +{rec.signalReasons.length - 4} more
               </Badge>
             )}
           </div>
@@ -219,7 +219,7 @@ function RecommendationCard({
             onClick={onPaperTrade}
             disabled={isPaperTrading}
             className="flex-1"
-            variant={rec.signal_type === "BUY" ? "default" : "outline"}
+            variant={rec.signalType === "BUY" ? "default" : "outline"}
           >
             <LineChart className="mr-2 h-4 w-4" />
             {isPaperTrading ? "Trading..." : "Paper Trade"}
@@ -252,12 +252,12 @@ function TrackInPortfolioModal({ open, onOpenChange, recommendation, onConfirm, 
   const [shares, setShares] = useState<number>(0);
 
   // Filter out paper accounts
-  const realAccounts = accounts?.filter(a => a.account_type !== "paper") || [];
+  const realAccounts = accounts?.filter(a => a.accountType !== "paper") || [];
 
   // Reset form when modal opens with new recommendation
   const handleOpenChange = (newOpen: boolean) => {
     if (newOpen && recommendation) {
-      setShares(recommendation.position_size_shares);
+      setShares(recommendation.positionSizeShares);
       setSelectedAccount("");
     }
     onOpenChange(newOpen);
@@ -271,7 +271,7 @@ function TrackInPortfolioModal({ open, onOpenChange, recommendation, onConfirm, 
 
   if (!recommendation) return null;
 
-  const totalCost = shares * recommendation.current_price;
+  const totalCost = shares * recommendation.currentPrice;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -303,7 +303,7 @@ function TrackInPortfolioModal({ open, onOpenChange, recommendation, onConfirm, 
                 <SelectContent>
                   {realAccounts.map((account) => (
                     <SelectItem key={account.id} value={account.id}>
-                      {account.name} ({account.account_type})
+                      {account.name} ({account.accountType})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -322,7 +322,7 @@ function TrackInPortfolioModal({ open, onOpenChange, recommendation, onConfirm, 
               onChange={(e) => setShares(parseInt(e.target.value) || 0)}
             />
             <p className="text-xs text-text-muted">
-              Suggested: {recommendation.position_size_shares} shares (${recommendation.position_size_dollars.toLocaleString()})
+              Suggested: {recommendation.positionSizeShares} shares (${recommendation.positionSizeDollars.toLocaleString()})
             </p>
           </div>
 
@@ -330,7 +330,7 @@ function TrackInPortfolioModal({ open, onOpenChange, recommendation, onConfirm, 
           <div className="rounded-lg border border-border bg-surface-muted/50 p-3">
             <div className="flex justify-between text-sm">
               <span>Current Price:</span>
-              <span className="font-medium">${recommendation.current_price.toFixed(2)}</span>
+              <span className="font-medium">${recommendation.currentPrice.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span>Shares:</span>
@@ -368,11 +368,11 @@ export default function RecommendationsPage() {
   const [selectedRec, setSelectedRec] = useState<TradeRecommendation | null>(null);
 
   const { data, isLoading, error } = useRecommendations({
-    min_strength: minStrength,
+    minStrength: minStrength,
     limit: 20,
-    signal_type: "BUY",
-    portfolio_size: portfolioSize,
-    position_pct: 0.05,
+    signalType: "BUY",
+    portfolioSize: portfolioSize,
+    positionPct: 0.05,
   });
 
   const paperTradeMutation = usePaperTrade();
@@ -391,7 +391,7 @@ export default function RecommendationsPage() {
     trackMutation.mutate(
       {
         symbol: selectedRec.symbol,
-        strategyId: selectedRec.strategy_id,
+        strategyId: selectedRec.strategyId,
         accountId,
         shares,
       },
@@ -421,7 +421,7 @@ export default function RecommendationsPage() {
               <div>
                 <p className="text-sm font-medium text-text-muted">Active Picks</p>
                 <p className="text-3xl font-bold text-green-600">
-                  {summary?.buy_signals || 0}
+                  {summary?.buySignals || 0}
                 </p>
               </div>
               <Target className="h-8 w-8 text-primary" />
@@ -434,7 +434,7 @@ export default function RecommendationsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-text-muted">Avg Strength</p>
-                <p className="text-3xl font-bold">{summary?.avg_signal_strength?.toFixed(1) || 0}</p>
+                <p className="text-3xl font-bold">{summary?.avgSignalStrength?.toFixed(1) || 0}</p>
               </div>
               <Badge variant="outline" className="text-lg">
                 /10
@@ -449,7 +449,7 @@ export default function RecommendationsPage() {
               <div>
                 <p className="text-sm font-medium text-text-muted">Total Position</p>
                 <p className="text-3xl font-bold">
-                  ${(summary?.total_position_size || 0).toLocaleString()}
+                  ${(summary?.totalPositionSize || 0).toLocaleString()}
                 </p>
               </div>
               <DollarSign className="h-8 w-8 text-green-600" />
@@ -464,7 +464,7 @@ export default function RecommendationsPage() {
                 <p className="text-sm font-medium text-text-muted">Portfolio Size</p>
                 <p className="text-3xl font-bold">${portfolioSize.toLocaleString()}</p>
               </div>
-              <Badge variant="outline">{((summary?.position_pct || 0.05) * 100).toFixed(0)}% each</Badge>
+              <Badge variant="outline">{((summary?.positionPct || 0.05) * 100).toFixed(0)}% each</Badge>
             </div>
           </CardContent>
         </Card>
@@ -540,12 +540,12 @@ export default function RecommendationsPage() {
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           {recommendations.map((rec, i) => (
             <RecommendationCard
-              key={`${rec.strategy_id}-${rec.symbol}-${i}`}
+              key={`${rec.strategyId}-${rec.symbol}-${i}`}
               rec={rec}
               onPaperTrade={() =>
                 paperTradeMutation.mutate({
                   symbol: rec.symbol,
-                  strategyId: rec.strategy_id,
+                  strategyId: rec.strategyId,
                 })
               }
               onTrackInPortfolio={() => handleTrackClick(rec)}

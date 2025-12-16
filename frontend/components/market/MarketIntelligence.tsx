@@ -44,7 +44,7 @@ export function MarketIntelligence() {
     );
   }
 
-  const { fear_greed, sector_rotation, last_updated } = data;
+  const { fearGreed, sectorRotation, lastUpdated } = data;
 
   return (
     <Card className="p-6 shadow-lg">
@@ -56,9 +56,9 @@ export function MarketIntelligence() {
       </div>
 
       {/* Fear & Greed Alert if stale */}
-      {fear_greed.is_stale && (
+      {fearGreed.isStale && (
         <div className="mb-4 px-3 py-2 bg-warning/10 border border-warning/30 rounded-lg text-xs text-warning">
-          Fear & Greed data is {fear_greed.age_days} days old. Market may have changed.
+          Fear & Greed data is {fearGreed.ageDays} days old. Market may have changed.
         </div>
       )}
 
@@ -72,10 +72,10 @@ export function MarketIntelligence() {
         {/* Sector Movers */}
         <div className="bg-surface-muted/30 rounded-xl p-4 border border-border/30">
           <SectorMoversTable
-            leading={sector_rotation.leading}
-            neutral={sector_rotation.neutral}
-            lagging={sector_rotation.lagging}
-            lastUpdated={last_updated}
+            leading={sectorRotation.leading}
+            neutral={sectorRotation.neutral}
+            lagging={sectorRotation.lagging}
+            lastUpdated={lastUpdated}
           />
         </div>
       </div>

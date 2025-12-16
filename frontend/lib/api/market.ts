@@ -11,44 +11,44 @@ export interface ComponentScore {
   value: number | null;
   interpretation: string;
   signal: "Bullish" | "Neutral" | "Bearish";
-  last_updated?: string | null;
+  lastUpdated?: string | null;
 }
 
 export interface SectorScore {
   symbol: string;
   name: string;
   price: number | null;
-  change_pct: number | null;
+  changePct: number | null;
   signal: "Leading" | "Neutral" | "Lagging" | "Unknown";
-  last_updated?: string | null;
+  lastUpdated?: string | null;
 }
 
 export interface MarketHealthScore {
-  overall_score: number;
-  overall_label: string;
+  overallScore: number;
+  overallLabel: string;
   components: ComponentScore[];
   sectors: SectorScore[];
-  last_updated: string;
+  lastUpdated: string;
 }
 
 export interface MarketConditionsResponse {
   sp500: {
     price: number | null;
-    change_pct: number | null;
-    last_updated?: string;
+    changePct: number | null;
+    lastUpdated?: string;
   };
   vix: {
     price: number | null;
     level: number | null;
-    last_updated?: string;
+    lastUpdated?: string;
   };
   tnx: {
     yield: number | null;
-    last_updated?: string;
+    lastUpdated?: string;
   };
   dxy: {
     price: number | null;
-    last_updated?: string;
+    lastUpdated?: string;
   };
   health: MarketHealthScore;
 }
@@ -70,19 +70,19 @@ export interface FearGreedReading {
   date: string;
   score: number;
   label: "Extreme Fear" | "Fear" | "Neutral" | "Greed" | "Extreme Greed";
-  previous_score?: number;
-  score_change?: number;
-  signal_count: number;
+  previousScore?: number;
+  scoreChange?: number;
+  signalCount: number;
 }
 
 export interface FearGreedComponent {
   date: string;
-  vix_pct?: number;
-  momentum_pct?: number;
-  rsi_pct?: number;
-  pcr_pct?: number;
-  credit_pct?: number;
-  window_days: number;
+  vixPct?: number;
+  momentumPct?: number;
+  rsiPct?: number;
+  pcrPct?: number;
+  creditPct?: number;
+  windowDays: number;
 }
 
 export interface FearGreedResponse {
@@ -93,19 +93,19 @@ export interface FearGreedResponse {
 // Market Intelligence types (unified endpoint)
 export interface PutCallContext {
   trend: "up" | "down" | "flat";
-  trend_pct: number;
-  percentile_rank: number;
+  trendPct: number;
+  percentileRank: number;
 }
 
 export interface EnrichedIndicator {
   value: number;
-  change_pct: number | null;
+  changePct: number | null;
   label: string;
-  short_label: string;
+  shortLabel: string;
   tooltip: string;
   signal: "Bullish" | "Neutral" | "Bearish";
   emoji: string;
-  last_updated: string | null;
+  lastUpdated: string | null;
   context?: PutCallContext;  // Optional: present on putcall indicator
 }
 
@@ -114,68 +114,68 @@ export interface SectorInfo {
   name: string;
   description: string;
   price: number | null;
-  change_pct: number | null;
+  changePct: number | null;
   signal: "Leading" | "Neutral" | "Lagging";
-  last_updated: string | null;
+  lastUpdated: string | null;
 }
 
 export interface SectorRotationSummary {
   leading: SectorInfo[];
   neutral: SectorInfo[];
   lagging: SectorInfo[];
-  leading_count: number;
-  neutral_count: number;
-  lagging_count: number;
+  leadingCount: number;
+  neutralCount: number;
+  laggingCount: number;
 }
 
 export interface MarketHealthScoreSimple {
-  overall_score: number;
-  overall_label: string;
-  last_updated: string;
+  overallScore: number;
+  overallLabel: string;
+  lastUpdated: string;
   trend?: "up" | "down" | "flat" | null;
-  trend_change?: number | null;
+  trendChange?: number | null;
 }
 
 export interface FearGreedScore {
   score: number;
   label: "Extreme Fear" | "Fear" | "Neutral" | "Greed" | "Extreme Greed";
-  score_change: number | null;
-  signal_count: number;
-  last_updated: string;
-  is_stale: boolean;
-  age_days: number;
+  scoreChange: number | null;
+  signalCount: number;
+  lastUpdated: string;
+  isStale: boolean;
+  ageDays: number;
   trend?: "up" | "down" | "flat" | null;
-  trend_change?: number | null;
+  trendChange?: number | null;
 }
 
 export interface SectorWeight {
   sector: string;
-  weight_pct: number;
+  weightPct: number;
 }
 
 export interface OptionsActivityMetrics {
-  near_term_pct: number;
-  near_term_signal: "High" | "Normal" | "Low";
-  concentration_pct: number;
-  concentration_signal: "Focused" | "Balanced" | "Dispersed";
-  top_sectors: SectorWeight[];
-  last_updated: string;
+  nearTermPct: number;
+  nearTermSignal: "High" | "Normal" | "Low";
+  concentrationPct: number;
+  concentrationSignal: "Focused" | "Balanced" | "Dispersed";
+  topSectors: SectorWeight[];
+  lastUpdated: string;
 }
 
 export interface MarketIntelligenceResponse {
   narrative: string;
-  market_health: MarketHealthScoreSimple;
-  fear_greed: FearGreedScore;
+  marketHealth: MarketHealthScoreSimple;
+  fearGreed: FearGreedScore;
   indicators: Record<string, EnrichedIndicator>;
-  sector_rotation: SectorRotationSummary;
-  options_activity: OptionsActivityMetrics | null;
-  last_updated: string;
+  sectorRotation: SectorRotationSummary;
+  optionsActivity: OptionsActivityMetrics | null;
+  lastUpdated: string;
 }
 
 export interface MarketTrendsResponse {
   dates: string[];
-  fear_greed_scores: number[];
-  market_health_scores: number[];
+  fearGreedScores: number[];
+  marketHealthScores: number[];
 }
 
 /**
@@ -237,21 +237,21 @@ export interface FearGreedHistoryResponse {
   dates: string[];
   scores: number[];
   labels: string[];
-  put_call_ratios: (number | null)[];
+  putCallRatios: (number | null)[];
 }
 
 export interface NewsSentimentHistoryResponse {
   dates: string[];
   scores: number[];  // -1 to +1
-  positive_counts: number[];
-  negative_counts: number[];
-  article_counts: number[];
+  positiveCounts: number[];
+  negativeCounts: number[];
+  articleCounts: number[];
 }
 
 export interface IndicatorDataPoint {
   date: string;
   close: number;
-  pct_change: number;
+  pctChange: number;
 }
 
 export interface IndicatorHistoryResponse {
@@ -259,27 +259,27 @@ export interface IndicatorHistoryResponse {
   vix: IndicatorDataPoint[];
   tnx: IndicatorDataPoint[];
   dxy: IndicatorDataPoint[];
-  period_start: string;
-  period_end: string;
+  periodStart: string;
+  periodEnd: string;
 }
 
 export interface SectorDataPoint {
   date: string;
   close: number;
-  pct_change: number;
+  pctChange: number;
 }
 
 export interface SectorHistory {
   name: string;
   symbol: string;
   data: SectorDataPoint[];
-  current_pct: number;
+  currentPct: number;
 }
 
 export interface SectorHistoryResponse {
   sectors: SectorHistory[];
-  period_start: string;
-  period_end: string;
+  periodStart: string;
+  periodEnd: string;
 }
 
 /**
@@ -337,10 +337,10 @@ export interface MarketMoverItem {
   symbol: string;
   name: string | null;
   price: number;
-  change_pct: number;
+  changePct: number;
   volume: number | null;
-  market_cap: number | null;
-  avg_volume: number | null;
+  marketCap: number | null;
+  avgVolume: number | null;
   rvol: number | null;
   sector: string | null;
 }
@@ -348,10 +348,10 @@ export interface MarketMoverItem {
 export interface MarketMoversResponse {
   gainers: MarketMoverItem[];
   losers: MarketMoverItem[];
-  most_active: MarketMoverItem[];
-  top_rvol: MarketMoverItem[];
+  mostActive: MarketMoverItem[];
+  topRvol: MarketMoverItem[];
   source: string;
-  last_updated: string | null;
+  lastUpdated: string | null;
 }
 
 /**
@@ -371,15 +371,15 @@ export async function fetchMarketMovers(
 
 export interface MarketStatusResponse {
   status: "open" | "closed" | "pre_market" | "after_hours";
-  is_open: boolean;
-  last_trading_day: string;
-  next_trading_day: string;
-  current_time_et: string;
-  expected_data_date: string;
-  is_holiday: boolean;
-  holiday_name: string | null;
-  is_early_close: boolean;
-  early_close_name: string | null;
+  isOpen: boolean;
+  lastTradingDay: string;
+  nextTradingDay: string;
+  currentTimeEt: string;
+  expectedDataDate: string;
+  isHoliday: boolean;
+  holidayName: string | null;
+  isEarlyClose: boolean;
+  earlyCloseName: string | null;
 }
 
 /**
@@ -401,23 +401,23 @@ export interface MarketEvent {
   title: string;
   label: string;
   color: string;
-  impact_score: number | null;
-  actual_value: number | null;
-  expected_value: number | null;
-  surprise_pct: number | null;
+  impactScore: number | null;
+  actualValue: number | null;
+  expectedValue: number | null;
+  surprisePct: number | null;
 }
 
 export interface MarketEventsChartResponse {
   events: MarketEvent[];
   total: number;
-  start_date: string;
-  end_date: string;
+  startDate: string;
+  endDate: string;
 }
 
 export interface MarketEventType {
-  event_type: string;
+  eventType: string;
   label: string;
-  short_label: string;
+  shortLabel: string;
   color: string;
   frequency: string;
   impact: string;

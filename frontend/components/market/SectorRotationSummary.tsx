@@ -39,10 +39,10 @@ function SectorBadge({ sector }: { sector: SectorInfo }) {
         <InfoTooltip content={sector.description} side="top" iconSize={11} />
       </div>
       <div className="flex items-center gap-2">
-        {sector.change_pct !== null && (
+        {sector.changePct !== null && (
           <span className={cn("text-xs font-semibold", signalColor)}>
-            {sector.change_pct > 0 ? "+" : ""}
-            {sector.change_pct.toFixed(2)}%
+            {sector.changePct > 0 ? "+" : ""}
+            {sector.changePct.toFixed(2)}%
           </span>
         )}
       </div>
@@ -64,7 +64,7 @@ export function SectorRotationSummary({
               🟢
             </span>
             <h4 className="text-sm font-semibold text-text">
-              Leading ({rotation.leading_count})
+              Leading ({rotation.leadingCount})
             </h4>
           </div>
           <div className="space-y-2 pl-8">
@@ -83,7 +83,7 @@ export function SectorRotationSummary({
               🟡
             </span>
             <h4 className="text-sm font-semibold text-text">
-              Neutral ({rotation.neutral_count})
+              Neutral ({rotation.neutralCount})
             </h4>
           </div>
           <div className="space-y-2 pl-8">
@@ -102,7 +102,7 @@ export function SectorRotationSummary({
               🔴
             </span>
             <h4 className="text-sm font-semibold text-text">
-              Lagging ({rotation.lagging_count})
+              Lagging ({rotation.laggingCount})
             </h4>
           </div>
           <div className="space-y-2 pl-8">

@@ -121,7 +121,7 @@ function BackupStatusCard() {
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
             <span className="text-text-muted">Total Backups:</span>{" "}
-            <span className="font-medium">{status.backup_count}</span>
+            <span className="font-medium">{status.backupCount}</span>
           </div>
           <div>
             <span className="text-text-muted">Destination:</span>{" "}
@@ -129,14 +129,14 @@ function BackupStatusCard() {
           </div>
         </div>
 
-        {status.latest_backup && (
+        {status.latestBackup && (
           <div className="rounded-md bg-surface-muted p-3">
             <div className="text-xs text-text-muted uppercase mb-1">Latest Backup</div>
-            <div className="font-mono text-sm">{status.latest_backup.name}</div>
+            <div className="font-mono text-sm">{status.latestBackup.name}</div>
             <div className="flex gap-4 mt-1 text-xs text-text-muted">
-              <span>{formatBackupAge(status.latest_backup.timestamp)}</span>
-              <span>{formatBytes(status.latest_backup.size_bytes)}</span>
-              <span>DB: {formatBytes(status.latest_backup.db_size_bytes)}</span>
+              <span>{formatBackupAge(status.latestBackup.timestamp)}</span>
+              <span>{formatBytes(status.latestBackup.sizeBytes)}</span>
+              <span>DB: {formatBytes(status.latestBackup.dbSizeBytes)}</span>
             </div>
           </div>
         )}
@@ -154,11 +154,11 @@ function TriggerBackupCard() {
     mutationFn: (quick: boolean) => triggerBackup(quick),
     onSuccess: (data) => {
       if (data.status === "started") {
-        setActiveJobId(data.job_id);
+        setActiveJobId(data.jobId);
         toast.success("Backup started", { description: data.message });
       } else {
         toast.info("Backup already running", { description: data.message });
-        setActiveJobId(data.job_id);
+        setActiveJobId(data.jobId);
       }
     },
     onError: (error) => {
@@ -367,7 +367,7 @@ function BackupHistoryCard() {
                         className="text-xs"
                       >
                         {backup.verification.verified ? (
-                          <><CheckCircle2 className="mr-1 size-3" />{backup.verification.total_files} files</>
+                          <><CheckCircle2 className="mr-1 size-3" />{backup.verification.totalFiles} files</>
                         ) : (
                           <><AlertCircle className="mr-1 size-3" />FAILED</>
                         )}
@@ -376,7 +376,7 @@ function BackupHistoryCard() {
                   </div>
                   <div className="flex items-center gap-3 text-xs text-text-muted">
                     <span>{formatBackupAge(backup.timestamp)}</span>
-                    <span>{formatBytes(backup.size_bytes)}</span>
+                    <span>{formatBytes(backup.sizeBytes)}</span>
                   </div>
                 </div>
 
@@ -391,11 +391,11 @@ function BackupHistoryCard() {
                       </div>
                       <div>
                         <span className="text-text-muted">Archive Size:</span>{" "}
-                        <span>{formatBytes(backup.size_bytes)}</span>
+                        <span>{formatBytes(backup.sizeBytes)}</span>
                       </div>
                       <div>
                         <span className="text-text-muted">DB Size:</span>{" "}
-                        <span>{formatBytes(backup.db_size_bytes)}</span>
+                        <span>{formatBytes(backup.dbSizeBytes)}</span>
                       </div>
                       <div>
                         <span className="text-text-muted">Status:</span>{" "}
@@ -435,7 +435,7 @@ function BackupHistoryCard() {
 
                         <div className="flex items-center gap-4 text-xs text-text-muted">
                           <span>
-                            Total: <span className="font-mono">{backup.verification.total_files}</span> files
+                            Total: <span className="font-mono">{backup.verification.totalFiles}</span> files
                           </span>
                           <span className="font-mono text-[10px] truncate">
                             {backup.verification.checksum}

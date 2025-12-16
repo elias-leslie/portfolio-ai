@@ -49,7 +49,7 @@ export function SentimentTrendChart() {
     return fearGreedData.dates.map((date, idx) => {
       const dateKey = date.split("T")[0];
       const newsScore = newsMap.get(dateKey);
-      const pcRatio = fearGreedData.put_call_ratios?.[idx];
+      const pcRatio = fearGreedData.putCallRatios?.[idx];
       return {
         date,
         score: fearGreedData.scores[idx],
@@ -234,7 +234,7 @@ export function SentimentTrendChart() {
           </div>
           {chartData.length > 0 && (() => {
             const dataDate = chartData[chartData.length - 1].date.split("T")[0];
-            const freshness = checkDataFreshness(dataDate, marketStatus?.expected_data_date);
+            const freshness = checkDataFreshness(dataDate, marketStatus?.expectedDataDate);
             return (
               <span className="text-[10px]" title={freshness.tooltip}>
                 Data as of {formatDate(dataDate, false)} {freshness.indicator}

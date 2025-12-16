@@ -60,7 +60,7 @@ export function SitemapTreeView({ entries }: SitemapTreeViewProps) {
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["sitemap"] });
       if (result.success) {
-        toast.success(`Health: ${result.health_status}`);
+        toast.success(`Health: ${result.healthStatus}`);
       }
     },
     onSettled: () => setCheckingId(null),
@@ -166,19 +166,19 @@ export function SitemapTreeView({ entries }: SitemapTreeViewProps) {
 
     // Health status styling
     const healthColor = entry
-      ? entry.health_status === "healthy"
+      ? entry.healthStatus === "healthy"
         ? "text-gain"
-        : entry.health_status === "warning"
+        : entry.healthStatus === "warning"
           ? "text-warning"
-          : entry.health_status === "error"
+          : entry.healthStatus === "error"
             ? "text-loss"
             : "text-neutral"
       : "";
 
     const borderColor = entry
-      ? entry.health_status === "error"
+      ? entry.healthStatus === "error"
         ? "border-l-2 border-l-loss"
-        : entry.health_status === "warning"
+        : entry.healthStatus === "warning"
           ? "border-l-2 border-l-warning"
           : ""
       : "";
@@ -214,7 +214,7 @@ export function SitemapTreeView({ entries }: SitemapTreeViewProps) {
             ) : (
               <Server className="h-4 w-4 text-primary shrink-0" />
             )
-          ) : entry?.entry_type === "frontend_page" ? (
+          ) : entry?.entryType === "frontend_page" ? (
             <Globe className="h-4 w-4 text-text-secondary shrink-0" />
           ) : (
             <FileCode className="h-4 w-4 text-text-secondary shrink-0" />
@@ -231,17 +231,17 @@ export function SitemapTreeView({ entries }: SitemapTreeViewProps) {
           {/* Health indicator & counts */}
           {entry && (
             <>
-              {entry.console_errors > 0 && (
+              {entry.consoleErrors > 0 && (
                 <span className="text-xs tabular-nums text-loss">
-                  {entry.console_errors} {entry.console_errors === 1 ? "error" : "errors"}
+                  {entry.consoleErrors} {entry.consoleErrors === 1 ? "error" : "errors"}
                 </span>
               )}
-              {entry.console_warnings > 0 && entry.console_errors === 0 && (
+              {entry.consoleWarnings > 0 && entry.consoleErrors === 0 && (
                 <span className="text-xs tabular-nums text-warning">
-                  {entry.console_warnings} {entry.console_warnings === 1 ? "warning" : "warnings"}
+                  {entry.consoleWarnings} {entry.consoleWarnings === 1 ? "warning" : "warnings"}
                 </span>
               )}
-              <HealthIcon status={entry.health_status} />
+              <HealthIcon status={entry.healthStatus} />
             </>
           )}
 

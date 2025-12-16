@@ -14,23 +14,23 @@ export interface NewsBundle {
 export interface MarketNewsResponse extends NewsBundle {}
 
 export interface WatchlistNewsResponse {
-    account_id: string;
+    accountId: string;
     items: NewsBundle[];
     status?: "hidden" | "ok";
 }
 
 export interface NewsHealthResponse {
-    finbert_available: boolean;
-    market_last_refreshed_at: string | null;
-    watchlist_last_refreshed_at: string | null;
-    fallback_headlines_24h: number;
-    headlines_24h: number;
-    cache_ttl_hours: number;
-    lookback_window_hours: number;
-    fallback_rate_24h: number;
-    fallback_avg_latency_ms_24h: number | null;
-    fallback_p95_latency_ms_24h: number | null;
-    fallback_last_event_at: string | null;
+    finbertAvailable: boolean;
+    marketLastRefreshedAt: string | null;
+    watchlistLastRefreshedAt: string | null;
+    fallbackHeadlines24H: number;
+    headlines24H: number;
+    cacheTtlHours: number;
+    lookbackWindowHours: number;
+    fallbackRate24H: number;
+    fallbackAvgLatencyMs24H: number | null;
+    fallbackP95LatencyMs24H: number | null;
+    fallbackLastEventAt: string | null;
     vendors: Record<string, VendorHealth>;
 }
 
@@ -38,13 +38,13 @@ export interface VendorHealth {
     configured: boolean;
     enabled: boolean;
     active: boolean;
-    last_attempt_at: string | null;
-    last_success_at: string | null;
-    last_error_at: string | null;
-    last_error: string | null;
-    articles_last_fetch: number;
-    articles_last_24h: number;
-    last_article_at: string | null;
+    lastAttemptAt: string | null;
+    lastSuccessAt: string | null;
+    lastErrorAt: string | null;
+    lastError: string | null;
+    articlesLastFetch: number;
+    articlesLast24H: number;
+    lastArticleAt: string | null;
     notes: string | null;
     reason: string | null;
 }

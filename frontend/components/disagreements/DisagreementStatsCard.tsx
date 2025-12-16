@@ -10,15 +10,15 @@ interface DisagreementStatsCardProps {
 }
 
 export function DisagreementStatsCard({ stats, className }: DisagreementStatsCardProps) {
-  const agreementPercent = Math.round(stats.agreement_rate * 100);
-  const minorPercent = Math.round(stats.minor_disagreement_rate * 100);
-  const majorPercent = Math.round(stats.major_disagreement_rate * 100);
-  const avgScore = Math.round(stats.avg_agreement_score * 100);
+  const agreementPercent = Math.round(stats.agreementRate * 100);
+  const minorPercent = Math.round(stats.minorDisagreementRate * 100);
+  const majorPercent = Math.round(stats.majorDisagreementRate * 100);
+  const avgScore = Math.round(stats.avgAgreementScore * 100);
 
   // Calculate trend (compare first vs last day of trend data)
-  const trend = stats.trend_7d;
+  const trend = stats.trend7D;
   const trendDirection = trend.length >= 2
-    ? trend[0].avg_score > trend[trend.length - 1].avg_score
+    ? trend[0].avgScore > trend[trend.length - 1].avgScore
       ? "improving"
       : "declining"
     : "stable";
@@ -82,8 +82,8 @@ export function DisagreementStatsCard({ stats, className }: DisagreementStatsCar
       {/* Review Counts */}
       <div className="mt-4 pt-4 border-t border-border/40">
         <div className="flex justify-between text-sm text-text-muted">
-          <span>{stats.total_reviews} total reviews</span>
-          <span>{stats.total_review_pairs} review pairs</span>
+          <span>{stats.totalReviews} total reviews</span>
+          <span>{stats.totalReviewPairs} review pairs</span>
         </div>
       </div>
 
@@ -93,7 +93,7 @@ export function DisagreementStatsCard({ stats, className }: DisagreementStatsCar
           <div className="text-sm text-text-muted mb-2">7-Day Trend</div>
           <div className="flex items-end gap-1 h-12">
             {trend.slice().reverse().map((day, idx) => {
-              const height = Math.max(10, day.avg_score * 100);
+              const height = Math.max(10, day.avgScore * 100);
               const hasDisagreements = day.disagreements > 0;
               return (
                 <div

@@ -38,7 +38,7 @@ export function TableFreshnessCard() {
   const summaryText = (() => {
     if (error) return error;
     if (!data) return "Loading freshness telemetry...";
-    return `${data.critical_count} critical • ${data.stale_count} stale • ${data.fresh_count} fresh`;
+    return `${data.criticalCount} critical • ${data.staleCount} stale • ${data.freshCount} fresh`;
   })();
 
   if (!data || isLoading) {
@@ -129,7 +129,7 @@ function renderSection(
       </div>
       <div className="space-y-2">
         {rows.map((table) => (
-          <TableRow key={table.table_name} table={table} />
+          <TableRow key={table.tableName} table={table} />
         ))}
       </div>
     </section>
@@ -150,19 +150,19 @@ function toneIcon(tone: "destructive" | "warning" | "success" | "muted") {
 }
 
 function TableRow({ table }: { table: TableFreshnessStatus }) {
-  const ageText = formatAge(table.age_hours);
-  const refreshText = table.expected_refresh_hours
-    ? `refreshes every ${table.expected_refresh_hours}h`
+  const ageText = formatAge(table.ageHours);
+  const refreshText = table.expectedRefreshHours
+    ? `refreshes every ${table.expectedRefreshHours}h`
     : null;
   const rowsText =
-    table.row_count && table.row_count > 0
-      ? `${table.row_count.toLocaleString()} rows`
+    table.rowCount && table.rowCount > 0
+      ? `${table.rowCount.toLocaleString()} rows`
       : null;
 
   return (
     <div className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
       <div className="flex-1">
-        <div className="font-medium">{formatTableName(table.table_name)}</div>
+        <div className="font-medium">{formatTableName(table.tableName)}</div>
         <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground mt-1">
           <div>{ageText}</div>
           {refreshText && <div>{refreshText}</div>}

@@ -23,7 +23,7 @@ interface SectorInfo {
   symbol: string;
   name: string;
   price: number | null;
-  change_pct: number | null;
+  changePct: number | null;
 }
 
 interface SectorMoversTableProps {
@@ -38,12 +38,12 @@ type SectorWithStatus = SectorInfo & { status: "leading" | "neutral" | "lagging"
 export function SectorMoversTable({ leading, neutral, lagging, lastUpdated }: SectorMoversTableProps) {
   const { data: marketStatus } = useMarketStatus();
 
-  // Combine and sort all sectors by change_pct descending
+  // Combine and sort all sectors by changePct descending
   const allSectors: SectorWithStatus[] = [
     ...leading.map((s) => ({ ...s, status: "leading" as const })),
     ...neutral.map((s) => ({ ...s, status: "neutral" as const })),
     ...lagging.map((s) => ({ ...s, status: "lagging" as const })),
-  ].sort((a, b) => (b.change_pct ?? 0) - (a.change_pct ?? 0));
+  ].sort((a, b) => (b.changePct ?? 0) - (a.changePct ?? 0));
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -103,11 +103,11 @@ export function SectorMoversTable({ leading, neutral, lagging, lastUpdated }: Se
                 <td
                   className={cn(
                     "text-right py-2 font-semibold",
-                    (sector.change_pct ?? 0) >= 0 ? "text-gain" : "text-loss"
+                    (sector.changePct ?? 0) >= 0 ? "text-gain" : "text-loss"
                   )}
                 >
-                  {(sector.change_pct ?? 0) >= 0 ? "+" : ""}
-                  {(sector.change_pct ?? 0).toFixed(2)}%
+                  {(sector.changePct ?? 0) >= 0 ? "+" : ""}
+                  {(sector.changePct ?? 0).toFixed(2)}%
                 </td>
                 <td className="text-center py-2">
                   {getStatusIcon(sector.status)}
@@ -120,7 +120,7 @@ export function SectorMoversTable({ leading, neutral, lagging, lastUpdated }: Se
 
       {lastUpdated && (() => {
         const dataDate = lastUpdated.split("T")[0];
-        const freshness = checkDataFreshness(dataDate, marketStatus?.expected_data_date);
+        const freshness = checkDataFreshness(dataDate, marketStatus?.expectedDataDate);
         return (
           <div className="text-[10px] text-text-muted text-right" title={freshness.tooltip}>
             Data as of {formatDate(dataDate, false)} {freshness.indicator}

@@ -52,9 +52,9 @@ export function PaperTradingCard() {
     );
   }
 
-  const pnlValue = typeof summary.total_pnl_pct === "number"
-    ? summary.total_pnl_pct
-    : parseFloat(String(summary.total_pnl_pct));
+  const pnlValue = typeof summary.totalPnlPct === "number"
+    ? summary.totalPnlPct
+    : parseFloat(String(summary.totalPnlPct));
   const pnlColor = pnlValue >= 0 ? "text-gain" : "text-loss";
   const pnlBgColor = pnlValue >= 0 ? "bg-gain/10" : "bg-loss/10";
 
@@ -76,7 +76,7 @@ export function PaperTradingCard() {
             <div>
               <p className="text-sm text-text-muted">Open Positions</p>
               <p className="text-2xl font-bold text-text mt-1">
-                {summary.total_open}
+                {summary.totalOpen}
               </p>
             </div>
           </div>
@@ -86,9 +86,9 @@ export function PaperTradingCard() {
             <p className="text-sm text-text-muted">Total P&L</p>
             <p className={`text-2xl font-bold ${pnlColor} mt-1`}>
               {pnlValue >= 0 ? "+" : ""}
-              {typeof summary.total_pnl_pct === "number"
-                ? summary.total_pnl_pct.toFixed(2)
-                : parseFloat(String(summary.total_pnl_pct)).toFixed(2)}
+              {typeof summary.totalPnlPct === "number"
+                ? summary.totalPnlPct.toFixed(2)
+                : parseFloat(String(summary.totalPnlPct)).toFixed(2)}
               %
             </p>
           </div>
@@ -98,32 +98,32 @@ export function PaperTradingCard() {
             <div>
               <p className="text-sm text-text-muted">Win Rate</p>
               <p className="text-2xl font-bold text-text mt-1">
-                {typeof summary.win_rate === "number"
-                  ? summary.win_rate.toFixed(0)
-                  : parseFloat(String(summary.win_rate)).toFixed(0)}
+                {typeof summary.winRate === "number"
+                  ? summary.winRate.toFixed(0)
+                  : parseFloat(String(summary.winRate)).toFixed(0)}
                 %
               </p>
             </div>
             <div className="text-xs text-text-muted text-right">
-              <p>{summary.total_closed} closed trades</p>
+              <p>{summary.totalClosed} closed trades</p>
             </div>
           </div>
 
           {/* Additional Stats */}
-          {summary.avg_return_pct !== undefined && summary.avg_return_pct !== null && (
+          {summary.avgReturnPct !== undefined && summary.avgReturnPct !== null && (
             <div className="border-t border-border/50 pt-3 mt-3">
               <p className="text-xs text-text-muted">Average Return</p>
               <p className="text-sm font-medium text-text mt-1">
-                {typeof summary.avg_return_pct === "number"
-                  ? summary.avg_return_pct >= 0
+                {typeof summary.avgReturnPct === "number"
+                  ? summary.avgReturnPct >= 0
                     ? "+"
                     : ""
-                  : parseFloat(String(summary.avg_return_pct)) >= 0
+                  : parseFloat(String(summary.avgReturnPct)) >= 0
                     ? "+"
                     : ""}
-                {typeof summary.avg_return_pct === "number"
-                  ? summary.avg_return_pct.toFixed(2)
-                  : parseFloat(String(summary.avg_return_pct)).toFixed(2)}
+                {typeof summary.avgReturnPct === "number"
+                  ? summary.avgReturnPct.toFixed(2)
+                  : parseFloat(String(summary.avgReturnPct)).toFixed(2)}
                 %
               </p>
             </div>

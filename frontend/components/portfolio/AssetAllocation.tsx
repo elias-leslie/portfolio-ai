@@ -10,7 +10,7 @@ interface AssetAllocationProps {
 
 export function AssetAllocation({ topPerformers }: AssetAllocationProps) {
   // Sort by weight to show largest holdings
-  const topHoldings = [...topPerformers].sort((a, b) => b.weight_pct - a.weight_pct).slice(0, 5);
+  const topHoldings = [...topPerformers].sort((a, b) => b.weightPct - a.weightPct).slice(0, 5);
 
   const formatPercent = (value: number) => {
     return `${value.toFixed(1)}%`;
@@ -50,22 +50,22 @@ export function AssetAllocation({ topPerformers }: AssetAllocationProps) {
               <div className="mb-1 flex items-center justify-between">
                 <span className="font-medium text-text">{position.symbol}</span>
                 <span className="text-sm text-text-muted">
-                  {formatPercent(position.weight_pct)}
+                  {formatPercent(position.weightPct)}
                 </span>
               </div>
               <div className="mb-1 h-2 w-full overflow-hidden rounded-full bg-surface-muted">
                 <div
                   className={`h-full transition-all duration-500 ${getBarColor(index)}`}
-                  style={{ width: `${position.weight_pct}%` }}
+                  style={{ width: `${position.weightPct}%` }}
                 />
               </div>
               <div className="flex items-center justify-between text-xs text-text-muted">
-                <span>{formatCurrency(position.current_value)}</span>
+                <span>{formatCurrency(position.currentValue)}</span>
                 <span
-                  className={position.gain_pct >= 0 ? "text-gain" : "text-loss"}
+                  className={position.gainPct >= 0 ? "text-gain" : "text-loss"}
                 >
-                  {position.gain_pct >= 0 ? "+" : ""}
-                  {position.gain_pct.toFixed(1)}%
+                  {position.gainPct >= 0 ? "+" : ""}
+                  {position.gainPct.toFixed(1)}%
                 </span>
               </div>
             </div>

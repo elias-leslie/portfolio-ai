@@ -4,12 +4,12 @@ import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 interface TokenSummary {
-  total_tokens: number;
-  by_provider: Record<string, number>;
-  by_agent: Record<string, number>;
-  period_days: number;
-  period_start: string;
-  period_end: string;
+  totalTokens: number;
+  byProvider: Record<string, number>;
+  byAgent: Record<string, number>;
+  periodDays: number;
+  periodStart: string;
+  periodEnd: string;
 }
 
 function formatTokenCount(tokens: number): string {
@@ -40,11 +40,11 @@ function TokenCard({ days, data, isLoading }: TokenCardProps) {
       ) : data ? (
         <>
           <div className="text-xl font-bold text-gray-100">
-            {formatTokenCount(data.total_tokens)}
+            {formatTokenCount(data.totalTokens)}
           </div>
           <div className="text-[10px] text-gray-500">tokens</div>
           <div className="mt-2 space-y-1">
-            {Object.entries(data.by_provider).map(([provider, tokens]) => (
+            {Object.entries(data.byProvider).map(([provider, tokens]) => (
               <div key={provider} className="flex justify-between text-xs">
                 <span className={cn(
                   "capitalize",

@@ -9,71 +9,71 @@ import { apiRequest } from "./client";
 // ============================================================================
 
 export interface PaperTrade {
-  idea_id: string;
-  agent_run_id: string;
+  ideaId: string;
+  agentRunId: string;
   symbol: string;
-  idea_type: "buy" | "sell";
+  ideaType: "buy" | "sell";
   shares?: number;
-  entry_price?: number;
-  entry_amount?: number;
-  entry_date?: string;
-  target_price?: number;
-  stop_loss_price?: number;
-  current_price?: number;
-  current_return_pct?: number;
+  entryPrice?: number;
+  entryAmount?: number;
+  entryDate?: string;
+  targetPrice?: number;
+  stopLossPrice?: number;
+  currentPrice?: number;
+  currentReturnPct?: number;
   status: string;
-  exit_price?: number;
-  exit_date?: string;
-  exit_reason?: string;
-  realized_return_pct?: number;
-  holding_days?: number;
-  max_favorable_pct?: number;
-  max_adverse_pct?: number;
+  exitPrice?: number;
+  exitDate?: string;
+  exitReason?: string;
+  realizedReturnPct?: number;
+  holdingDays?: number;
+  maxFavorablePct?: number;
+  maxAdversePct?: number;
   // AI reasoning fields
   thesis?: string;
-  confidence_score?: number;
-  risk_level?: string;
+  confidenceScore?: number;
+  riskLevel?: string;
   // Agent approval details
-  workflow_id?: string;
-  strategy_agent_approved?: boolean;
-  risk_agent_approved?: boolean;
-  backtest_sharpe?: number;
-  backtest_win_rate?: number;
-  backtest_max_drawdown?: number;
+  workflowId?: string;
+  strategyAgentApproved?: boolean;
+  riskAgentApproved?: boolean;
+  backtestSharpe?: number;
+  backtestWinRate?: number;
+  backtestMaxDrawdown?: number;
 }
 
 export interface PaperTradesListResponse {
   trades: PaperTrade[];
-  total_count: number;
+  totalCount: number;
 }
 
 export interface PaperTradeSummary {
-  total_open: number;
-  total_closed: number;
-  win_rate: number;
-  avg_return_pct: number;
-  total_pnl_pct: number;
-  best_trade_pct?: number;
-  worst_trade_pct?: number;
+  totalOpen: number;
+  totalClosed: number;
+  winRate: number;
+  avgReturnPct: number;
+  totalPnlPct: number;
+  bestTradePct?: number;
+  worstTradePct?: number;
   // Paper trading account balances
-  cash_balance?: number;
-  starting_balance?: number;
-  positions_value?: number;
-  total_portfolio_value?: number;
+  cashBalance?: number;
+  startingBalance?: number;
+  positionsValue?: number;
+  totalPortfolioValue?: number;
 }
 
 export interface CloseTradeRequest {
-  exit_price?: number;
-  exit_reason?: string;
+  exitPrice?: number;
+  exitReason?: string;
 }
 
 export interface CloseTradeResponse {
   status: string;
-  trade_id: string;
+  tradeId: string;
   symbol: string;
-  exit_price: number;
-  exit_date: string;
-  realized_return_pct: number;
+  exitPrice: number;
+  exitDate: string;
+  realizedReturnPct: number;
   message: string;
 }
 
@@ -81,35 +81,35 @@ export interface CreateTradeRequest {
   symbol: string;
   action: "buy" | "sell";
   thesis: string;
-  target_price?: number;
-  stop_loss_pct?: number;
+  targetPrice?: number;
+  stopLossPct?: number;
 }
 
 export interface CreateTradeResponse {
   status: string;
-  trade_id?: string;
+  tradeId?: string;
   symbol?: string;
   action?: string;
   shares?: number;
-  entry_price?: number;
-  entry_amount?: number;
-  target_price?: number;
-  stop_loss_price?: number;
-  cash_remaining?: number;
+  entryPrice?: number;
+  entryAmount?: number;
+  targetPrice?: number;
+  stopLossPrice?: number;
+  cashRemaining?: number;
   message: string;
   error?: string;
 }
 
 export interface ResetAccountRequest {
-  new_starting_balance?: number;
-  close_open_trades?: boolean;
+  newStartingBalance?: number;
+  closeOpenTrades?: boolean;
 }
 
 export interface ResetAccountResponse {
   status: string;
-  previous_balance: number;
-  new_balance: number;
-  trades_closed: number;
+  previousBalance: number;
+  newBalance: number;
+  tradesClosed: number;
   message: string;
 }
 

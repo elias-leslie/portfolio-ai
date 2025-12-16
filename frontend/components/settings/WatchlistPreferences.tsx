@@ -34,108 +34,108 @@ export function WatchlistPreferences({
 }: WatchlistPreferencesProps) {
     // Basic settings
     const [defaultRefreshMinutes, setDefaultRefreshMinutes] = useState(
-        preferences.default_refresh_minutes,
+        preferences.defaultRefreshMinutes,
     );
     const [showAdvanced, setShowAdvanced] = useState(false);
 
     // Per-feature overrides
     const [useWatchlistOverride, setUseWatchlistOverride] = useState(
-        preferences.watchlist_refresh_override !== null,
+        preferences.watchlistRefreshOverride !== null,
     );
     const [watchlistOverride, setWatchlistOverride] = useState(
-        preferences.watchlist_refresh_override ??
-            preferences.default_refresh_minutes,
+        preferences.watchlistRefreshOverride ??
+            preferences.defaultRefreshMinutes,
     );
     const [useNewsOverride, setUseNewsOverride] = useState(
-        preferences.news_refresh_override !== null,
+        preferences.newsRefreshOverride !== null,
     );
     const [newsOverride, setNewsOverride] = useState(
-        preferences.news_refresh_override ??
-            preferences.default_refresh_minutes,
+        preferences.newsRefreshOverride ??
+            preferences.defaultRefreshMinutes,
     );
     const [newsLookbackHours, setNewsLookbackHours] = useState(
-        preferences.news_lookback_hours,
+        preferences.newsLookbackHours,
     );
     const [newsMaxArticles, setNewsMaxArticles] = useState(
-        preferences.news_max_articles,
+        preferences.newsMaxArticles,
     );
 
     // Legacy watchlist settings
     const [autoExpand, setAutoExpand] = useState(
-        preferences.watchlist_auto_expand,
+        preferences.watchlistAutoExpand,
     );
     const [priceWeight, setPriceWeight] = useState(
-        preferences.watchlist_price_weight,
+        preferences.watchlistPriceWeight,
     );
     const [technicalWeight, setTechnicalWeight] = useState(
-        preferences.watchlist_technical_weight,
+        preferences.watchlistTechnicalWeight,
     );
-    const [showNews, setShowNews] = useState(preferences.watchlist_show_news);
+    const [showNews, setShowNews] = useState(preferences.watchlistShowNews);
 
     // New weight configuration (migration 019)
     const [scoreWeights, setScoreWeights] = useState<ScoreWeights>(
-        preferences.watchlist_score_weights ?? { price: 33, technical: 33, fundamental: 34 }
+        preferences.watchlistScoreWeights ?? { price: 33, technical: 33, fundamental: 34 }
     );
     const [technicalSubWeights, setTechnicalSubWeights] = useState<TechnicalSubWeights>(
-        preferences.technical_sub_weights ?? { rsi_14: 33, trend: 34, macd: 33 }
+        preferences.technicalSubWeights ?? { rsi14: 33, trend: 34, macd: 33 }
     );
     const [fundamentalSubWeights, setFundamentalSubWeights] = useState<FundamentalSubWeights>(
-        preferences.fundamental_sub_weights ?? { valuation: 30, growth: 35, health: 25, sentiment: 10 }
+        preferences.fundamentalSubWeights ?? { valuation: 30, growth: 35, health: 25, sentiment: 10 }
     );
     const [showTechnicalSubWeights, setShowTechnicalSubWeights] = useState(false);
     const [showFundamentalSubWeights, setShowFundamentalSubWeights] = useState(false);
 
     // Update local state when preferences change
     useEffect(() => {
-        setDefaultRefreshMinutes(preferences.default_refresh_minutes);
+        setDefaultRefreshMinutes(preferences.defaultRefreshMinutes);
         setUseWatchlistOverride(
-            preferences.watchlist_refresh_override !== null,
+            preferences.watchlistRefreshOverride !== null,
         );
         setWatchlistOverride(
-            preferences.watchlist_refresh_override ??
-                preferences.default_refresh_minutes,
+            preferences.watchlistRefreshOverride ??
+                preferences.defaultRefreshMinutes,
         );
-        setUseNewsOverride(preferences.news_refresh_override !== null);
+        setUseNewsOverride(preferences.newsRefreshOverride !== null);
         setNewsOverride(
-            preferences.news_refresh_override ??
-                preferences.default_refresh_minutes,
+            preferences.newsRefreshOverride ??
+                preferences.defaultRefreshMinutes,
         );
-        setNewsLookbackHours(preferences.news_lookback_hours);
-        setNewsMaxArticles(preferences.news_max_articles);
-        setAutoExpand(preferences.watchlist_auto_expand);
-        setPriceWeight(preferences.watchlist_price_weight);
-        setTechnicalWeight(preferences.watchlist_technical_weight);
-        setShowNews(preferences.watchlist_show_news);
+        setNewsLookbackHours(preferences.newsLookbackHours);
+        setNewsMaxArticles(preferences.newsMaxArticles);
+        setAutoExpand(preferences.watchlistAutoExpand);
+        setPriceWeight(preferences.watchlistPriceWeight);
+        setTechnicalWeight(preferences.watchlistTechnicalWeight);
+        setShowNews(preferences.watchlistShowNews);
         setScoreWeights(
-            preferences.watchlist_score_weights ?? { price: 33, technical: 33, fundamental: 34 }
+            preferences.watchlistScoreWeights ?? { price: 33, technical: 33, fundamental: 34 }
         );
         setTechnicalSubWeights(
-            preferences.technical_sub_weights ?? { rsi_14: 33, trend: 34, macd: 33 }
+            preferences.technicalSubWeights ?? { rsi14: 33, trend: 34, macd: 33 }
         );
         setFundamentalSubWeights(
-            preferences.fundamental_sub_weights ?? { valuation: 30, growth: 35, health: 25, sentiment: 10 }
+            preferences.fundamentalSubWeights ?? { valuation: 30, growth: 35, health: 25, sentiment: 10 }
         );
     }, [preferences]);
 
     const hasChanges = () => {
         const currentOverride = useWatchlistOverride ? watchlistOverride : null;
-        const savedOverride = preferences.watchlist_refresh_override;
+        const savedOverride = preferences.watchlistRefreshOverride;
         const currentNewsOverride = useNewsOverride ? newsOverride : null;
-        const savedNewsOverride = preferences.news_refresh_override;
+        const savedNewsOverride = preferences.newsRefreshOverride;
 
         return (
-            defaultRefreshMinutes !== preferences.default_refresh_minutes ||
+            defaultRefreshMinutes !== preferences.defaultRefreshMinutes ||
             currentOverride !== savedOverride ||
             currentNewsOverride !== savedNewsOverride ||
-            newsLookbackHours !== preferences.news_lookback_hours ||
-            newsMaxArticles !== preferences.news_max_articles ||
-            showNews !== preferences.watchlist_show_news ||
-            autoExpand !== preferences.watchlist_auto_expand ||
-            priceWeight !== preferences.watchlist_price_weight ||
-            technicalWeight !== preferences.watchlist_technical_weight ||
-            JSON.stringify(scoreWeights) !== JSON.stringify(preferences.watchlist_score_weights ?? { price: 33, technical: 33, fundamental: 34 }) ||
-            JSON.stringify(technicalSubWeights) !== JSON.stringify(preferences.technical_sub_weights ?? { rsi_14: 33, trend: 34, macd: 33 }) ||
-            JSON.stringify(fundamentalSubWeights) !== JSON.stringify(preferences.fundamental_sub_weights ?? { valuation: 30, growth: 35, health: 25, sentiment: 10 })
+            newsLookbackHours !== preferences.newsLookbackHours ||
+            newsMaxArticles !== preferences.newsMaxArticles ||
+            showNews !== preferences.watchlistShowNews ||
+            autoExpand !== preferences.watchlistAutoExpand ||
+            priceWeight !== preferences.watchlistPriceWeight ||
+            technicalWeight !== preferences.watchlistTechnicalWeight ||
+            JSON.stringify(scoreWeights) !== JSON.stringify(preferences.watchlistScoreWeights ?? { price: 33, technical: 33, fundamental: 34 }) ||
+            JSON.stringify(technicalSubWeights) !== JSON.stringify(preferences.technicalSubWeights ?? { rsi14: 33, trend: 34, macd: 33 }) ||
+            JSON.stringify(fundamentalSubWeights) !== JSON.stringify(preferences.fundamentalSubWeights ?? { valuation: 30, growth: 35, health: 25, sentiment: 10 })
         );
     };
 
@@ -148,7 +148,7 @@ export function WatchlistPreferences({
         }
 
         // Validate technical sub-weights sum to 100
-        const technicalSubTotal = technicalSubWeights.rsi_14 + technicalSubWeights.trend + technicalSubWeights.macd;
+        const technicalSubTotal = technicalSubWeights.rsi14 + technicalSubWeights.trend + technicalSubWeights.macd;
         if (Math.abs(technicalSubTotal - 100) > 0.1) {
             toast.error("Technical sub-weights (RSI + Trend + MACD) must sum to 100%");
             return;
@@ -163,22 +163,22 @@ export function WatchlistPreferences({
 
         try {
             await onUpdate({
-                default_refresh_minutes: defaultRefreshMinutes,
-                watchlist_refresh_override: useWatchlistOverride
+                defaultRefreshMinutes: defaultRefreshMinutes,
+                watchlistRefreshOverride: useWatchlistOverride
                     ? watchlistOverride
                     : null,
-                news_refresh_override: useNewsOverride ? newsOverride : null,
-                news_lookback_hours: newsLookbackHours,
-                news_max_articles: newsMaxArticles,
-                watchlist_auto_expand: autoExpand,
-                watchlist_price_weight: priceWeight,
-                watchlist_technical_weight: technicalWeight,
-                watchlist_show_news: showNews,
+                newsRefreshOverride: useNewsOverride ? newsOverride : null,
+                newsLookbackHours: newsLookbackHours,
+                newsMaxArticles: newsMaxArticles,
+                watchlistAutoExpand: autoExpand,
+                watchlistPriceWeight: priceWeight,
+                watchlistTechnicalWeight: technicalWeight,
+                watchlistShowNews: showNews,
                 // New weight configuration
-                watchlist_score_weights: scoreWeights,
-                price_sub_weights: { change_pct: 100 }, // Price only has one component currently
-                technical_sub_weights: technicalSubWeights,
-                fundamental_sub_weights: fundamentalSubWeights,
+                watchlistScoreWeights: scoreWeights,
+                priceSubWeights: { changePct: 100 }, // Price only has one component currently
+                technicalSubWeights: technicalSubWeights,
+                fundamentalSubWeights: fundamentalSubWeights,
             });
             toast.success("Watchlist preferences updated");
         } catch {
@@ -187,33 +187,33 @@ export function WatchlistPreferences({
     };
 
     const handleReset = () => {
-        setDefaultRefreshMinutes(preferences.default_refresh_minutes);
+        setDefaultRefreshMinutes(preferences.defaultRefreshMinutes);
         setUseWatchlistOverride(
-            preferences.watchlist_refresh_override !== null,
+            preferences.watchlistRefreshOverride !== null,
         );
         setWatchlistOverride(
-            preferences.watchlist_refresh_override ??
-                preferences.default_refresh_minutes,
+            preferences.watchlistRefreshOverride ??
+                preferences.defaultRefreshMinutes,
         );
-        setUseNewsOverride(preferences.news_refresh_override !== null);
+        setUseNewsOverride(preferences.newsRefreshOverride !== null);
         setNewsOverride(
-            preferences.news_refresh_override ??
-                preferences.default_refresh_minutes,
+            preferences.newsRefreshOverride ??
+                preferences.defaultRefreshMinutes,
         );
-        setNewsLookbackHours(preferences.news_lookback_hours);
-        setNewsMaxArticles(preferences.news_max_articles);
-        setAutoExpand(preferences.watchlist_auto_expand);
-        setPriceWeight(preferences.watchlist_price_weight);
-        setTechnicalWeight(preferences.watchlist_technical_weight);
-        setShowNews(preferences.watchlist_show_news);
+        setNewsLookbackHours(preferences.newsLookbackHours);
+        setNewsMaxArticles(preferences.newsMaxArticles);
+        setAutoExpand(preferences.watchlistAutoExpand);
+        setPriceWeight(preferences.watchlistPriceWeight);
+        setTechnicalWeight(preferences.watchlistTechnicalWeight);
+        setShowNews(preferences.watchlistShowNews);
         setScoreWeights(
-            preferences.watchlist_score_weights ?? { price: 33, technical: 33, fundamental: 34 }
+            preferences.watchlistScoreWeights ?? { price: 33, technical: 33, fundamental: 34 }
         );
         setTechnicalSubWeights(
-            preferences.technical_sub_weights ?? { rsi_14: 33, trend: 34, macd: 33 }
+            preferences.technicalSubWeights ?? { rsi14: 33, trend: 34, macd: 33 }
         );
         setFundamentalSubWeights(
-            preferences.fundamental_sub_weights ?? { valuation: 30, growth: 35, health: 25, sentiment: 10 }
+            preferences.fundamentalSubWeights ?? { valuation: 30, growth: 35, health: 25, sentiment: 10 }
         );
     };
 
@@ -227,7 +227,7 @@ export function WatchlistPreferences({
     };
 
     const handleEqualTechnicalSubWeights = () => {
-        setTechnicalSubWeights({ rsi_14: 33, trend: 34, macd: 33 });
+        setTechnicalSubWeights({ rsi14: 33, trend: 34, macd: 33 });
     };
 
     const handleEqualFundamentalSubWeights = () => {
@@ -239,7 +239,7 @@ export function WatchlistPreferences({
     const mainWeightTotal = scoreWeights.price + scoreWeights.technical + scoreWeights.fundamental;
     const isMainWeightValid = Math.abs(mainWeightTotal - 100) < 0.1;
 
-    const technicalSubTotal = technicalSubWeights.rsi_14 + technicalSubWeights.trend + technicalSubWeights.macd;
+    const technicalSubTotal = technicalSubWeights.rsi14 + technicalSubWeights.trend + technicalSubWeights.macd;
     const isTechnicalSubWeightValid = Math.abs(technicalSubTotal - 100) < 0.1;
 
     const fundamentalSubTotal = fundamentalSubWeights.valuation + fundamentalSubWeights.growth + fundamentalSubWeights.health + fundamentalSubWeights.sentiment;
@@ -358,7 +358,7 @@ export function WatchlistPreferences({
                     <div className="space-y-2">
                         <Label className="text-text-muted">
                             Frontend Polling:{" "}
-                            {preferences.frontend_poll_interval} seconds
+                            {preferences.frontendPollInterval} seconds
                             (automatic)
                         </Label>
                         <p className="text-xs text-text-muted">
@@ -706,15 +706,15 @@ export function WatchlistPreferences({
                             {/* RSI Weight */}
                             <div className="space-y-2">
                                 <Label htmlFor="tech-rsi">
-                                    RSI: {technicalSubWeights.rsi_14.toFixed(1)}%
+                                    RSI: {technicalSubWeights.rsi14.toFixed(1)}%
                                 </Label>
                                 <Slider
                                     id="tech-rsi"
                                     min={0}
                                     max={100}
                                     step={0.1}
-                                    value={[technicalSubWeights.rsi_14]}
-                                    onValueChange={(value) => setTechnicalSubWeights({ ...technicalSubWeights, rsi_14: value[0] })}
+                                    value={[technicalSubWeights.rsi14]}
+                                    onValueChange={(value) => setTechnicalSubWeights({ ...technicalSubWeights, rsi14: value[0] })}
                                     className="w-full"
                                 />
                             </div>

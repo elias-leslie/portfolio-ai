@@ -25,28 +25,28 @@ import { getMaintenanceLastRun, type MaintenanceResult, type LastRunSummary } fr
 interface ScheduledTask {
   name: string;
   description: string;
-  next_run: string;
-  last_run: string | null;
+  nextRun: string;
+  lastRun: string | null;
   schedule: string;
 }
 
 interface DiskSpaceInfo {
   path: string;
-  used_gb: number;
-  total_gb: number;
-  percent_used: number;
+  usedGb: number;
+  totalGb: number;
+  percentUsed: number;
   status: "ok" | "warning" | "critical";
 }
 
 interface DatabaseSize {
-  database_name: string;
-  size_mb: number;
+  databaseName: string;
+  sizeMb: number;
   tables: TableInfo[];
 }
 
 interface TableInfo {
   name: string;
-  size_mb: number;
+  sizeMb: number;
   rows: number;
 }
 
@@ -194,7 +194,7 @@ function DiskSpaceCard({ disks, isLoading }: { disks: DiskSpaceInfo[] | null; is
                 <div>
                   <p className="text-sm font-medium">{disk.path}</p>
                   <p className="text-xs text-muted-foreground">
-                    {disk.used_gb.toFixed(1)} GB / {disk.total_gb.toFixed(1)} GB
+                    {disk.usedGb.toFixed(1)} GB / {disk.totalGb.toFixed(1)} GB
                   </p>
                 </div>
                 <Badge variant={disk.status === "ok" ? "default" : "destructive"}>
@@ -202,9 +202,9 @@ function DiskSpaceCard({ disks, isLoading }: { disks: DiskSpaceInfo[] | null; is
                 </Badge>
               </div>
               <div className="space-y-1">
-                <Progress value={disk.percent_used} className="h-2" />
+                <Progress value={disk.percentUsed} className="h-2" />
                 <div className="text-right text-xs text-muted-foreground">
-                  {disk.percent_used.toFixed(1)}%
+                  {disk.percentUsed.toFixed(1)}%
                 </div>
               </div>
             </div>
@@ -254,10 +254,10 @@ function DatabaseSizeCard({ database, isLoading }: { database: DatabaseSize | nu
   }
 
   const topTables = [...database.tables]
-    .sort((a, b) => b.size_mb - a.size_mb)
+    .sort((a, b) => b.sizeMb - a.sizeMb)
     .slice(0, 5);
 
-  const totalTableSize = database.tables.reduce((sum, t) => sum + t.size_mb, 0);
+  const totalTableSize = database.tables.reduce((sum, t) => sum + t.sizeMb, 0);
 
   return (
     <Card className="border-border">
@@ -267,7 +267,7 @@ function DatabaseSizeCard({ database, isLoading }: { database: DatabaseSize | nu
             <Database className="h-5 w-5" />
             <span>Database Size</span>
           </div>
-          <Badge variant="outline">{database.size_mb.toFixed(1)} MB</Badge>
+          <Badge variant="outline">{database.sizeMb.toFixed(1)} MB</Badge>
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -275,11 +275,11 @@ function DatabaseSizeCard({ database, isLoading }: { database: DatabaseSize | nu
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <p className="text-muted-foreground">Database</p>
-              <p className="text-lg font-semibold">{database.database_name}</p>
+              <p className="text-lg font-semibold">{database.databaseName}</p>
             </div>
             <div>
               <p className="text-muted-foreground">Total Size</p>
-              <p className="text-lg font-semibold">{database.size_mb.toFixed(1)} MB</p>
+              <p className="text-lg font-semibold">{database.sizeMb.toFixed(1)} MB</p>
             </div>
           </div>
 
@@ -300,13 +300,13 @@ function DatabaseSizeCard({ database, isLoading }: { database: DatabaseSize | nu
                   <div key={table.name} className="border rounded-lg p-3 space-y-2">
                     <div className="flex items-center justify-between">
                       <p className="font-mono text-sm font-medium">{table.name}</p>
-                      <Badge variant="secondary">{table.size_mb.toFixed(1)} MB</Badge>
+                      <Badge variant="secondary">{table.sizeMb.toFixed(1)} MB</Badge>
                     </div>
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <span>{table.rows.toLocaleString()} rows</span>
-                      <span>{((table.size_mb / totalTableSize) * 100).toFixed(1)}% of total</span>
+                      <span>{((table.sizeMb / totalTableSize) * 100).toFixed(1)}% of total</span>
                     </div>
-                    <Progress value={(table.size_mb / totalTableSize) * 100} className="h-1.5" />
+                    <Progress value={(table.sizeMb / totalTableSize) * 100} className="h-1.5" />
                   </div>
                 ))}
               </div>
@@ -395,11 +395,11 @@ function ScheduledTasksCard({ tasks, isLoading }: { tasks: ScheduledTask[] | nul
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div>
                       <p className="text-muted-foreground">Last run</p>
-                      <p className="font-mono">{formatRelativeTime(task.last_run)}</p>
+                      <p className="font-mono">{formatRelativeTime(task.lastRun)}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Next run</p>
-                      <p className="font-mono">{formatDateTime(task.next_run)}</p>
+                      <p className="font-mono">{formatDateTime(task.nextRun)}</p>
                     </div>
                   </div>
                 </div>
@@ -457,16 +457,16 @@ function TaskTriggerSection({
             <StatusBadge status={lastRun.status} />
           </div>
           <div className="text-xs text-muted-foreground">
-            {formatDateTime(lastRun.started_at)}
+            {formatDateTime(lastRun.startedAt)}
           </div>
-          {lastRun.dry_run && (
+          {lastRun.dryRun && (
             <Badge variant="outline" className="text-xs">
               Dry Run
             </Badge>
           )}
-          {lastRun.status === "error" && lastRun.error_message && (
+          {lastRun.status === "error" && lastRun.errorMessage && (
             <div className="text-xs text-red-500 bg-red-50 dark:bg-red-950 p-2 rounded">
-              {lastRun.error_message}
+              {lastRun.errorMessage}
             </div>
           )}
         </div>
@@ -672,7 +672,7 @@ export function MaintenanceStatus() {
             title="Cleanup Old News"
             description="Remove news articles older than 90 days"
             icon={<AlertCircle className="h-5 w-5 text-orange-500 flex-shrink-0" />}
-            lastRun={lastRunSummary?.tasks?.cleanup_old_news_task || lastRunSummary?.tasks?.cleanup_news || null}
+            lastRun={lastRunSummary?.tasks?.cleanupOldNewsTask || lastRunSummary?.tasks?.cleanupNews || null}
             onTrigger={() =>
               triggerTask("cleanup_news", "Cleanup News", () =>
                 handleTriggerTask("cleanup_news")
@@ -685,7 +685,7 @@ export function MaintenanceStatus() {
             title="Vacuum Database"
             description="Optimize tables and reclaim disk space"
             icon={<Database className="h-5 w-5 text-blue-500 flex-shrink-0" />}
-            lastRun={lastRunSummary?.tasks?.vacuum_database_task || lastRunSummary?.tasks?.vacuum_database || null}
+            lastRun={lastRunSummary?.tasks?.vacuumDatabaseTask || lastRunSummary?.tasks?.vacuumDatabase || null}
             onTrigger={() =>
               triggerTask("vacuum_database", "Vacuum Database", () =>
                 handleTriggerTask("vacuum_database")
@@ -698,7 +698,7 @@ export function MaintenanceStatus() {
             title="Validate Data Integrity"
             description="Check for orphaned records and consistency issues"
             icon={<CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />}
-            lastRun={lastRunSummary?.tasks?.validate_integrity_task || lastRunSummary?.tasks?.validate_integrity || null}
+            lastRun={lastRunSummary?.tasks?.validateIntegrityTask || lastRunSummary?.tasks?.validateIntegrity || null}
             onTrigger={() =>
               triggerTask("validate_integrity", "Validate Integrity", () =>
                 handleTriggerTask("validate_integrity")

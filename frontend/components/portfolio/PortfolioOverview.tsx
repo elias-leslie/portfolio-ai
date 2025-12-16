@@ -38,7 +38,7 @@ export function PortfolioOverview() {
     return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
   };
 
-  const gainColor = (portfolio?.total_gain ?? 0) >= 0 ? "text-gain" : "text-loss";
+  const gainColor = (portfolio?.totalGain ?? 0) >= 0 ? "text-gain" : "text-loss";
 
   return (
     <div className="space-y-6">
@@ -54,10 +54,10 @@ export function PortfolioOverview() {
                 Total Value
               </div>
               <div className="mt-1 text-2xl font-bold text-text">
-                {formatCurrency(portfolio?.total_value ?? 0)}
+                {formatCurrency(portfolio?.totalValue ?? 0)}
               </div>
               <div className="mt-1 text-xs text-text-muted">
-                Cost: {formatCurrency(portfolio?.total_cost_basis ?? 0)}
+                Cost: {formatCurrency(portfolio?.totalCostBasis ?? 0)}
               </div>
             </div>
           </div>
@@ -65,7 +65,7 @@ export function PortfolioOverview() {
 
         <Card className="group p-6 transition-all hover:scale-[1.02] hover:shadow-lg">
           <div className="flex items-center gap-3">
-            <div className={`rounded-lg p-3 ${(portfolio?.total_gain ?? 0) >= 0 ? 'bg-gain/10' : 'bg-loss/10'}`}>
+            <div className={`rounded-lg p-3 ${(portfolio?.totalGain ?? 0) >= 0 ? 'bg-gain/10' : 'bg-loss/10'}`}>
               <TrendingUp className={`h-5 w-5 ${gainColor}`} />
             </div>
             <div className="flex-1">
@@ -73,10 +73,10 @@ export function PortfolioOverview() {
                 Total Gain/Loss
               </div>
               <div className={`mt-1 text-2xl font-bold ${gainColor}`}>
-                {formatCurrency(portfolio?.total_gain ?? 0)}
+                {formatCurrency(portfolio?.totalGain ?? 0)}
               </div>
               <div className={`mt-1 text-xs ${gainColor}`}>
-                {formatPercent(portfolio?.total_gain_pct ?? 0)}
+                {formatPercent(portfolio?.totalGainPct ?? 0)}
               </div>
             </div>
           </div>
@@ -92,7 +92,7 @@ export function PortfolioOverview() {
                 Portfolio Beta
               </div>
               <div className="mt-1 text-2xl font-bold text-text">
-                {analytics?.portfolio_beta?.toFixed(2) ?? "—"}
+                {analytics?.portfolioBeta?.toFixed(2) ?? "—"}
               </div>
               <div className="mt-1 text-xs text-text-muted">
                 vs. Market (1.0)
@@ -111,8 +111,8 @@ export function PortfolioOverview() {
                 Volatility
               </div>
               <div className="mt-1 text-2xl font-bold text-text">
-                {analytics?.portfolio_volatility
-                  ? `${(analytics.portfolio_volatility * 100).toFixed(1)}%`
+                {analytics?.portfolioVolatility
+                  ? `${(analytics.portfolioVolatility * 100).toFixed(1)}%`
                   : "—"}
               </div>
               <div className="mt-1 text-xs text-text-muted">
@@ -123,8 +123,8 @@ export function PortfolioOverview() {
         </Card>
 
         {/* Diversification Score Card */}
-        {analytics?.diversification_score && (
-          <DiversificationScore diversification={analytics.diversification_score} />
+        {analytics?.diversificationScore && (
+          <DiversificationScore diversification={analytics.diversificationScore} />
         )}
 
         {/* Portfolio Stats Card */}
@@ -132,18 +132,18 @@ export function PortfolioOverview() {
       </div>
 
       {/* Risk Profile (if available) */}
-      {analytics?.risk_profile && (
-        <RiskProfile riskProfile={analytics.risk_profile} />
+      {analytics?.riskProfile && (
+        <RiskProfile riskProfile={analytics.riskProfile} />
       )}
 
       {/* Top Performers and Asset Allocation */}
       {analytics && (
         <div className="grid gap-4 md:grid-cols-2">
           <TopPerformers
-            topPerformers={analytics.top_performers}
-            bottomPerformers={analytics.bottom_performers}
+            topPerformers={analytics.topPerformers}
+            bottomPerformers={analytics.bottomPerformers}
           />
-          <AssetAllocation topPerformers={analytics.top_performers} />
+          <AssetAllocation topPerformers={analytics.topPerformers} />
         </div>
       )}
 
@@ -158,19 +158,19 @@ export function PortfolioOverview() {
                   Top Holding
                 </span>
                 <span className="text-sm font-medium">
-                  {analytics.concentration.top_holding_pct.toFixed(1)}%
+                  {analytics.concentration.topHoldingPct.toFixed(1)}%
                 </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-text-muted">Top 3</span>
                 <span className="text-sm font-medium">
-                  {analytics.concentration.top_3_pct.toFixed(1)}%
+                  {analytics.concentration.top3Pct.toFixed(1)}%
                 </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-text-muted">Top 10</span>
                 <span className="text-sm font-medium">
-                  {analytics.concentration.top_10_pct.toFixed(1)}%
+                  {analytics.concentration.top10Pct.toFixed(1)}%
                 </span>
               </div>
               <div className="flex justify-between items-center">
@@ -178,7 +178,7 @@ export function PortfolioOverview() {
                   Herfindahl Index
                 </span>
                 <span className="text-sm font-medium">
-                  {analytics.concentration.herfindahl_index.toFixed(3)}
+                  {analytics.concentration.herfindahlIndex.toFixed(3)}
                 </span>
               </div>
             </div>
@@ -187,7 +187,7 @@ export function PortfolioOverview() {
           <Card className="p-6">
             <h3 className="mb-4 text-sm font-semibold text-text">Sector Exposure</h3>
             <div className="space-y-3">
-              {Object.entries(analytics.sector_exposure)
+              {Object.entries(analytics.sectorExposure)
                 .sort(([, a], [, b]) => b - a)
                 .slice(0, 5)
                 .map(([sector, percentage]) => (

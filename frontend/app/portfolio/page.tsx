@@ -67,11 +67,11 @@ export default function PortfolioPage() {
 
     addPosition.mutate(
       {
-        account_id: accountId,
+        accountId: accountId,
         symbol: symbol.toUpperCase().trim(),
         shares: parseFloat(shares),
-        cost_basis: parseFloat(costBasis),
-        position_type: positionType,
+        costBasis: parseFloat(costBasis),
+        positionType: positionType,
       },
       {
         onSuccess: () => {
@@ -98,7 +98,7 @@ export default function PortfolioPage() {
     createAccount.mutate(
       {
         name: accountName,
-        account_type: accountType,
+        accountType: accountType,
       },
       {
         onSuccess: () => {
@@ -215,7 +215,7 @@ export default function PortfolioPage() {
                   <SelectContent>
                     {accounts?.map((account) => (
                       <SelectItem key={account.id} value={account.id}>
-                        {account.name} ({account.account_type})
+                        {account.name} ({account.accountType})
                       </SelectItem>
                     ))}
                   </SelectContent>

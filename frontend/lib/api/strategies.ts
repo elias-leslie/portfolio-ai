@@ -12,61 +12,61 @@ export interface StrategyListItem {
   id: string;
   name: string;
   symbol: string;
-  strategy_type: string;
+  strategyType: string;
   status: "testing" | "active" | "archived";
   version: number;
-  expected_sharpe: number | null;
-  live_sharpe_ratio: number | null;
-  live_win_rate: number | null;
-  trades_count: number;
-  created_at: string;
-  activation_date: string | null;
+  expectedSharpe: number | null;
+  liveSharpeRatio: number | null;
+  liveWinRate: number | null;
+  tradesCount: number;
+  createdAt: string;
+  activationDate: string | null;
 }
 
 export interface StrategyDetail extends StrategyListItem {
   parameters: Record<string, unknown>;
-  research_summary: ResearchSummary;
-  generation_reasoning: string;
-  backtest_metrics: BacktestMetric[];
-  expected_win_rate: number | null;
-  expected_max_drawdown: number | null;
-  live_trades_count: number;
-  archive_date: string | null;
-  archive_reason: string | null;
-  performance_history: PerformanceHistoryEntry[];
+  researchSummary: ResearchSummary;
+  generationReasoning: string;
+  backtestMetrics: BacktestMetric[];
+  expectedWinRate: number | null;
+  expectedMaxDrawdown: number | null;
+  liveTradesCount: number;
+  archiveDate: string | null;
+  archiveReason: string | null;
+  performanceHistory: PerformanceHistoryEntry[];
 }
 
 export interface ResearchSummary {
   symbol: string;
-  as_of_date: string;
-  news_sentiment_trend: string;
-  news_sentiment_score: number;
-  company_health: string;
-  fundamental_score: number;
-  valuation_tier: string;
-  trend_strength: string;
-  market_regime: string;
-  fear_greed_score: number;
+  asOfDate: string;
+  newsSentimentTrend: string;
+  newsSentimentScore: number;
+  companyHealth: string;
+  fundamentalScore: number;
+  valuationTier: string;
+  trendStrength: string;
+  marketRegime: string;
+  fearGreedScore: number;
   sector: string;
-  sector_momentum: string;
-  overall_confidence: number;
+  sectorMomentum: string;
+  overallConfidence: number;
 }
 
 export interface BacktestMetric {
-  window_start: string;
-  window_end: string;
+  windowStart: string;
+  windowEnd: string;
   sharpe: number;
-  win_rate: number;
-  max_drawdown: number;
-  total_return: number;
+  winRate: number;
+  maxDrawdown: number;
+  totalReturn: number;
 }
 
 export interface PerformanceHistoryEntry {
   date: string;
-  trades_30d: number;
-  win_rate_30d: number | null;
-  sharpe_ratio_30d: number | null;
-  max_drawdown_30d: number | null;
+  trades30D: number;
+  winRate30D: number | null;
+  sharpeRatio30D: number | null;
+  maxDrawdown30D: number | null;
   status: string;
 }
 
@@ -77,33 +77,33 @@ export interface StrategiesListResponse {
 
 export interface GenerateStrategyRequest {
   symbol: string;
-  force_regenerate?: boolean;
+  forceRegenerate?: boolean;
 }
 
 export interface GenerateBatchRequest {
   symbols?: string[];
-  top_n?: number;
-  force_regenerate?: boolean;
+  topN?: number;
+  forceRegenerate?: boolean;
 }
 
 export interface GenerateStrategyResponse {
-  workflow_id?: string;
+  workflowId?: string;
   status: string;
-  strategy_id?: string;
-  commit_sha?: string;
+  strategyId?: string;
+  commitSha?: string;
   message?: string;
-  error_message?: string;
+  errorMessage?: string;
 }
 
 export interface GenerateBatchResponse {
   status: string;
-  symbols_processed?: number;
-  strategies_generated?: number;
-  symbols_evaluated?: number;
+  symbolsProcessed?: number;
+  strategiesGenerated?: number;
+  symbolsEvaluated?: number;
   results?: Array<{
     symbol: string;
     status: string;
-    strategy_id: string | null;
+    strategyId: string | null;
     message: string | null;
   }>;
   details?: string[];
@@ -111,21 +111,21 @@ export interface GenerateBatchResponse {
 
 export interface UpdateStrategyStatusRequest {
   status: "active" | "archived";
-  archive_reason?: string;
+  archiveReason?: string;
 }
 
 export interface StrategyPerformance {
   expected: {
     sharpe: number;
-    win_rate: number | null;
-    max_drawdown: number | null;
+    winRate: number | null;
+    maxDrawdown: number | null;
   };
-  actual_30d: {
+  actual30D: {
     sharpe: number;
-    win_rate: number | null;
-    trades_count: number;
+    winRate: number | null;
+    tradesCount: number;
   };
-  performance_ratio: number;
+  performanceRatio: number;
   status: "no_live_data" | "exceeding_expectations" | "meeting_expectations" | "underperforming";
 }
 
@@ -200,9 +200,9 @@ export interface StrategySeed {
   thesis: string;
   confidence: number;
   status: "pending" | "processing" | "converted" | "rejected";
-  strategy_id: string | null;
-  created_at: string;
-  processed_at: string | null;
+  strategyId: string | null;
+  createdAt: string;
+  processedAt: string | null;
 }
 
 export interface StrategySeedsListResponse {
@@ -211,7 +211,7 @@ export interface StrategySeedsListResponse {
 }
 
 export interface StrategyEvolution {
-  strategy_id: string;
+  strategyId: string;
   name: string;
   symbol: string;
   status: string;
@@ -219,43 +219,43 @@ export interface StrategyEvolution {
     id: string;
     thesis: string;
     confidence: number;
-    created_at: string;
+    createdAt: string;
   } | null;
   backtests: Array<{
     id: string;
-    start_date: string | null;
-    end_date: string | null;
-    sharpe_ratio: number | null;
-    total_return_pct: number | null;
-    max_drawdown_pct: number | null;
-    win_rate: number | null;
-    num_trades: number;
+    startDate: string | null;
+    endDate: string | null;
+    sharpeRatio: number | null;
+    totalReturnPct: number | null;
+    maxDrawdownPct: number | null;
+    winRate: number | null;
+    numTrades: number;
     status: string;
-    created_at: string | null;
+    createdAt: string | null;
   }>;
   signals: Array<{
     id: string;
     action: string;
     strength: number | null;
-    confidence_score: number | null;
-    entry_price: number | null;
-    target_price: number | null;
-    created_at: string | null;
+    confidenceScore: number | null;
+    entryPrice: number | null;
+    targetPrice: number | null;
+    createdAt: string | null;
   }>;
   trades: Array<{
     id: string;
     symbol: string;
-    entry_price: number | null;
-    exit_price: number | null;
-    return_pct: number | null;
+    entryPrice: number | null;
+    exitPrice: number | null;
+    returnPct: number | null;
     status: string;
-    created_at: string | null;
+    createdAt: string | null;
   }>;
   performance: {
-    expected_sharpe: number | null;
-    live_sharpe: number | null;
-    live_win_rate: number | null;
-    total_trades: number;
+    expectedSharpe: number | null;
+    liveSharpe: number | null;
+    liveWinRate: number | null;
+    totalTrades: number;
   };
 }
 

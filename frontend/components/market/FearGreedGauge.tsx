@@ -91,8 +91,8 @@ export function FearGreedGauge() {
 
   const { reading } = data;
   const display = getDisplay(reading.score);
-  const trendUp = reading.score_change && reading.score_change > 0;
-  const trendDown = reading.score_change && reading.score_change < 0;
+  const trendUp = reading.scoreChange && reading.scoreChange > 0;
+  const trendDown = reading.scoreChange && reading.scoreChange < 0;
 
   return (
     <Card className="p-6">
@@ -101,7 +101,7 @@ export function FearGreedGauge() {
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-foreground">Fear & Greed Index</h2>
           <span className="text-xs text-muted-foreground">
-            {reading.signal_count} signals
+            {reading.signalCount} signals
           </span>
         </div>
 
@@ -139,13 +139,13 @@ export function FearGreedGauge() {
             </div>
 
             {/* Trend Indicator */}
-            {reading.score_change !== undefined && reading.score_change !== null && (
+            {reading.scoreChange !== undefined && reading.scoreChange !== null && (
               <div className="flex items-center gap-2">
                 {trendUp && (
                   <>
                     <ArrowUpIcon className="h-4 w-4 text-green-600" />
                     <span className="text-sm text-green-600 font-medium">
-                      +{reading.score_change.toFixed(1)} from yesterday
+                      +{reading.scoreChange.toFixed(1)} from yesterday
                     </span>
                   </>
                 )}
@@ -153,7 +153,7 @@ export function FearGreedGauge() {
                   <>
                     <ArrowDownIcon className="h-4 w-4 text-red-600" />
                     <span className="text-sm text-red-600 font-medium">
-                      {reading.score_change.toFixed(1)} from yesterday
+                      {reading.scoreChange.toFixed(1)} from yesterday
                     </span>
                   </>
                 )}

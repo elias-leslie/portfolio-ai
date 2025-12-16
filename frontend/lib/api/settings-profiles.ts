@@ -6,20 +6,20 @@ import type { PreferencesResponse } from "./preferences";
 
 export interface SettingsProfile {
   id: number;
-  user_id: number;
+  userId: number;
   name: string;
   description: string | null;
-  profile_data: PreferencesResponse;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
+  profileData: PreferencesResponse;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ProfileExport {
   name: string;
   description: string | null;
-  profile_data: PreferencesResponse;
-  exported_at: string;
+  profileData: PreferencesResponse;
+  exportedAt: string;
   version: string;
 }
 
@@ -73,9 +73,9 @@ export async function fetchProfileById(
 export async function createProfile(data: {
   name: string;
   description?: string;
-  profile_data: PreferencesResponse;
-  is_active?: boolean;
-  user_id?: number;
+  profileData: PreferencesResponse;
+  isActive?: boolean;
+  userId?: number;
 }): Promise<SettingsProfile> {
   const response = await fetch(`${API_BASE_URL}/api/settings/profiles`, {
     method: "POST",
@@ -83,8 +83,11 @@ export async function createProfile(data: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      ...data,
-      user_id: data.user_id || 1,
+      name: data.name,
+      description: data.description,
+      profile_data: data.profileData,
+      is_active: data.isActive,
+      user_id: data.userId || 1,
     }),
   });
   if (!response.ok) {
@@ -101,9 +104,9 @@ export async function updateProfile(
   data: {
     name?: string;
     description?: string;
-    profile_data?: PreferencesResponse;
-    is_active?: boolean;
-    user_id?: number;
+    profileData?: PreferencesResponse;
+    isActive?: boolean;
+    userId?: number;
   }
 ): Promise<SettingsProfile> {
   const response = await fetch(
@@ -114,8 +117,11 @@ export async function updateProfile(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        ...data,
-        user_id: data.user_id || 1,
+        name: data.name,
+        description: data.description,
+        profile_data: data.profileData,
+        is_active: data.isActive,
+        user_id: data.userId || 1,
       }),
     }
   );
@@ -211,8 +217,8 @@ export async function exportProfile(
 export async function importProfile(data: {
   name: string;
   description?: string;
-  profile_data: PreferencesResponse;
-  user_id?: number;
+  profileData: PreferencesResponse;
+  userId?: number;
 }): Promise<SettingsProfile> {
   const response = await fetch(`${API_BASE_URL}/api/settings/profiles/import`, {
     method: "POST",
@@ -220,8 +226,10 @@ export async function importProfile(data: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      ...data,
-      user_id: data.user_id || 1,
+      name: data.name,
+      description: data.description,
+      profile_data: data.profileData,
+      user_id: data.userId || 1,
     }),
   });
   if (!response.ok) {

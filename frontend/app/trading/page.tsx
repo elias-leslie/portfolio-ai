@@ -69,17 +69,17 @@ function TradingPageContent() {
   // Calculate unrealized P&L from open trades
   const unrealizedPnl = openTrades?.trades.reduce((sum, trade) => {
     const shares = trade.shares || 0;
-    const entry = trade.entry_price || 0;
-    const current = trade.current_price || entry;
+    const entry = trade.entryPrice || 0;
+    const current = trade.currentPrice || entry;
     return sum + (current - entry) * shares;
   }, 0) || 0;
 
   // Calculate total realized P&L (from closed trades)
-  const realizedPnl = summary ? (summary.total_portfolio_value || 0) - (summary.starting_balance || 100000) - unrealizedPnl : 0;
+  const realizedPnl = summary ? (summary.totalPortfolioValue || 0) - (summary.startingBalance || 100000) - unrealizedPnl : 0;
 
   // Calculate wins and losses count
-  const winsCount = Math.round((summary?.win_rate || 0) / 100 * (summary?.total_closed || 0));
-  const lossesCount = (summary?.total_closed || 0) - winsCount;
+  const winsCount = Math.round((summary?.winRate || 0) / 100 * (summary?.totalClosed || 0));
+  const lossesCount = (summary?.totalClosed || 0) - winsCount;
 
   return (
     <PageContainer className="space-y-10 py-10">
@@ -92,7 +92,7 @@ function TradingPageContent() {
           <div className="flex gap-2">
             <Button
               variant="outline"
-              onClick={() => generateBatch.mutate({ top_n: 20 })}
+              onClick={() => generateBatch.mutate({ topN: 20 })}
               disabled={generateBatch.isPending}
             >
               <Sparkles className="mr-2 h-4 w-4" suppressHydrationWarning />
@@ -123,7 +123,7 @@ function TradingPageContent() {
               <div>
                 <p className="text-sm font-medium text-text-muted">Cash Balance</p>
                 <p className="text-2xl font-bold">
-                  {summaryLoading ? "-" : `$${(summary?.cash_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  {summaryLoading ? "-" : `$${(summary?.cashBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                 </p>
               </div>
               <Wallet className="h-8 w-8 text-primary" suppressHydrationWarning />
@@ -137,7 +137,7 @@ function TradingPageContent() {
               <div>
                 <p className="text-sm font-medium text-text-muted">Positions Value</p>
                 <p className="text-2xl font-bold">
-                  {summaryLoading ? "-" : `$${(summary?.positions_value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  {summaryLoading ? "-" : `$${(summary?.positionsValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                 </p>
               </div>
               <PieChart className="h-8 w-8 text-accent" suppressHydrationWarning />
@@ -151,12 +151,12 @@ function TradingPageContent() {
               <div>
                 <p className="text-sm font-medium text-text-muted">Total Portfolio</p>
                 <p className="text-2xl font-bold">
-                  {summaryLoading ? "-" : `$${(summary?.total_portfolio_value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  {summaryLoading ? "-" : `$${(summary?.totalPortfolioValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                 </p>
-                {summary?.starting_balance && (
-                  <p className={`text-sm ${(summary?.total_portfolio_value || 0) >= summary.starting_balance ? "text-gain" : "text-loss"}`}>
-                    {(summary?.total_portfolio_value || 0) >= summary.starting_balance ? "+" : ""}
-                    {(((summary?.total_portfolio_value || 0) - summary.starting_balance) / summary.starting_balance * 100).toFixed(2)}% from start
+                {summary?.startingBalance && (
+                  <p className={`text-sm ${(summary?.totalPortfolioValue || 0) >= summary.startingBalance ? "text-gain" : "text-loss"}`}>
+                    {(summary?.totalPortfolioValue || 0) >= summary.startingBalance ? "+" : ""}
+                    {(((summary?.totalPortfolioValue || 0) - summary.startingBalance) / summary.startingBalance * 100).toFixed(2)}% from start
                   </p>
                 )}
               </div>
@@ -189,7 +189,7 @@ function TradingPageContent() {
               <div>
                 <p className="text-sm font-medium text-text-muted">Open Positions</p>
                 <p className="text-3xl font-bold">
-                  {summaryLoading ? "-" : summary?.total_open || 0}
+                  {summaryLoading ? "-" : summary?.totalOpen || 0}
                 </p>
                 {!summaryLoading && !openLoading && (
                   <p className={`text-sm ${getPnlColor(unrealizedPnl)}`}>
@@ -209,14 +209,14 @@ function TradingPageContent() {
               <div>
                 <p className="text-sm font-medium text-text-muted">Win Rate</p>
                 <p className="text-3xl font-bold">
-                  {summaryLoading ? "-" : `${(summary?.win_rate || 0).toFixed(1)}%`}
+                  {summaryLoading ? "-" : `${(summary?.winRate || 0).toFixed(1)}%`}
                 </p>
-                {!summaryLoading && (summary?.total_closed || 0) > 0 && (
+                {!summaryLoading && (summary?.totalClosed || 0) > 0 && (
                   <p className="text-sm text-text-muted">
                     <span className="text-gain">{winsCount}W</span>
                     {" / "}
                     <span className="text-loss">{lossesCount}L</span>
-                    {" of "}{summary?.total_closed} trades
+                    {" of "}{summary?.totalClosed} trades
                   </p>
                 )}
               </div>
@@ -231,16 +231,16 @@ function TradingPageContent() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-text-muted">Total P&L</p>
-                <p className={`text-3xl font-bold ${getPnlColor(summary?.total_pnl_pct)}`}>
-                  {summaryLoading ? "-" : formatPct(summary?.total_pnl_pct)}
+                <p className={`text-3xl font-bold ${getPnlColor(summary?.totalPnlPct)}`}>
+                  {summaryLoading ? "-" : formatPct(summary?.totalPnlPct)}
                 </p>
                 {!summaryLoading && summary && (
-                  <p className={`text-sm ${getPnlColor((summary.total_portfolio_value || 0) - (summary.starting_balance || 100000))}`}>
-                    {formatCurrency((summary.total_portfolio_value || 0) - (summary.starting_balance || 100000))}
+                  <p className={`text-sm ${getPnlColor((summary.totalPortfolioValue || 0) - (summary.startingBalance || 100000))}`}>
+                    {formatCurrency((summary.totalPortfolioValue || 0) - (summary.startingBalance || 100000))}
                   </p>
                 )}
               </div>
-              <DollarSign className={`h-8 w-8 ${getPnlColor(summary?.total_pnl_pct)}`} suppressHydrationWarning />
+              <DollarSign className={`h-8 w-8 ${getPnlColor(summary?.totalPnlPct)}`} suppressHydrationWarning />
             </div>
           </CardContent>
         </Card>
@@ -252,11 +252,11 @@ function TradingPageContent() {
               <div>
                 <p className="text-sm font-medium text-text-muted">Best / Worst Trade</p>
                 <p className="text-3xl font-bold text-gain">
-                  {summaryLoading ? "-" : formatPct(summary?.best_trade_pct)}
+                  {summaryLoading ? "-" : formatPct(summary?.bestTradePct)}
                 </p>
-                {!summaryLoading && summary?.worst_trade_pct !== undefined && (
+                {!summaryLoading && summary?.worstTradePct !== undefined && (
                   <p className="text-sm text-loss">
-                    Worst: {formatPct(summary.worst_trade_pct)}
+                    Worst: {formatPct(summary.worstTradePct)}
                   </p>
                 )}
               </div>
@@ -272,10 +272,10 @@ function TradingPageContent() {
           <div className="border-b border-border px-6 pt-6">
             <TabsList className="grid w-full max-w-md grid-cols-2">
               <TabsTrigger value="open">
-                Open Positions ({openTrades?.total_count || 0})
+                Open Positions ({openTrades?.totalCount || 0})
               </TabsTrigger>
               <TabsTrigger value="closed">
-                Closed Trades ({closedTrades?.total_count || 0})
+                Closed Trades ({closedTrades?.totalCount || 0})
               </TabsTrigger>
             </TabsList>
           </div>
@@ -323,12 +323,12 @@ function TradingPageContent() {
         onOpenChange={setIsResetDialogOpen}
         onConfirm={() => {
           resetAccount.mutate(
-            { close_open_trades: true },
+            { closeOpenTrades: true },
             { onSuccess: () => setIsResetDialogOpen(false) }
           );
         }}
         title="Reset Paper Trading Account?"
-        description={`This will close all ${summary?.total_open || 0} open positions at current prices and reset your cash balance to $${(summary?.starting_balance || 100000).toLocaleString()}. This action cannot be undone.`}
+        description={`This will close all ${summary?.totalOpen || 0} open positions at current prices and reset your cash balance to $${(summary?.startingBalance || 100000).toLocaleString()}. This action cannot be undone.`}
         confirmLabel="Reset Account"
         tone="destructive"
       />

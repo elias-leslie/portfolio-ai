@@ -23,14 +23,14 @@ export interface LayerItem {
 
 export interface Blocker {
   layer: string;
-  item_id: string;
-  item_name: string;
+  itemId: string;
+  itemName: string;
   issue: string;
   severity: "critical" | "warning";
 }
 
 export interface SolutionMapResponse {
-  vision_goals: LayerSummary;
+  visionGoals: LayerSummary;
   features: LayerSummary;
   tasks: LayerSummary;
   tables: LayerSummary;
@@ -38,8 +38,8 @@ export interface SolutionMapResponse {
   sources: LayerSummary;
   blockers: Blocker[];
   warnings: Blocker[];
-  overall_health: number;
-  last_updated: string;
+  overallHealth: number;
+  lastUpdated: string;
 }
 
 /**

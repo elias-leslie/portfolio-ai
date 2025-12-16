@@ -350,7 +350,7 @@ export function WatchlistSettingsSection({
                   {
                     id: "rsi_14",
                     label: "RSI",
-                    value: technicalSubWeights.rsi_14,
+                    value: technicalSubWeights.rsi14,
                   },
                   {
                     id: "trend",
@@ -361,7 +361,7 @@ export function WatchlistSettingsSection({
                 ]}
                 onChange={(weights) => {
                   onTechnicalSubWeightsChange({
-                    rsi_14: weights.find((w) => w.id === "rsi_14")?.value ?? 33,
+                    rsi14: weights.find((w) => w.id === "rsi_14")?.value ?? 33,
                     trend: weights.find((w) => w.id === "trend")?.value ?? 34,
                     macd: weights.find((w) => w.id === "macd")?.value ?? 33,
                   });

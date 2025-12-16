@@ -78,11 +78,11 @@ export function PositionTable() {
 
   const handleEdit = (position: PositionWithValue) => {
     setEditingPosition(position);
-    setEditAccountId(position.account_id);
+    setEditAccountId(position.accountId);
     setEditSymbol(position.symbol);
     setEditShares(position.shares.toString());
-    setEditCostBasis(position.cost_basis.toString());
-    setEditPositionType(position.position_type as PositionType);
+    setEditCostBasis(position.costBasis.toString());
+    setEditPositionType(position.positionType as PositionType);
     setEditOpen(true);
   };
 
@@ -93,11 +93,11 @@ export function PositionTable() {
       {
         positionId: editingPosition.id,
         data: {
-          account_id: editAccountId,
+          accountId: editAccountId,
           symbol: editSymbol.toUpperCase().trim(),
           shares: parseFloat(editShares),
-          cost_basis: parseFloat(editCostBasis),
-          position_type: editPositionType,
+          costBasis: parseFloat(editCostBasis),
+          positionType: editPositionType,
         },
       },
       {
@@ -363,7 +363,7 @@ export function PositionTable() {
                 <SelectContent>
                   {accounts?.map((account) => (
                     <SelectItem key={account.id} value={account.id}>
-                      {account.name} ({account.account_type})
+                      {account.name} ({account.accountType})
                     </SelectItem>
                   ))}
                 </SelectContent>

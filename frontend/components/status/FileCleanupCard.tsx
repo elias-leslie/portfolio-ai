@@ -83,19 +83,19 @@ function CleanupCategory({
         <div className="flex justify-between">
           <span className="text-muted-foreground">Size:</span>
           <span className="font-mono">
-            {info.size_mb >= 1024
-              ? `${(info.size_mb / 1024).toFixed(2)} GB`
-              : `${info.size_mb.toFixed(2)} MB`}
+            {info.sizeMb >= 1024
+              ? `${(info.sizeMb / 1024).toFixed(2)} GB`
+              : `${info.sizeMb.toFixed(2)} MB`}
           </span>
         </div>
         <div className="flex justify-between">
           <span className="text-muted-foreground">Files:</span>
-          <span className="font-mono">{info.file_count}</span>
+          <span className="font-mono">{info.fileCount}</span>
         </div>
         <div className="flex justify-between items-center">
           <span className="text-muted-foreground">Retention:</span>
           <Badge variant="secondary" className="text-xs">
-            {info.retention_policy}
+            {info.retentionPolicy}
           </Badge>
         </div>
         <div className="flex justify-between items-center">
@@ -155,7 +155,7 @@ export function FileCleanupCard() {
 
   const formatTotalSize = () => {
     if (!status) return "Loading...";
-    const sizeMb = status.total_size_mb;
+    const sizeMb = status.totalSizeMb;
     if (sizeMb >= 1024) {
       return `${(sizeMb / 1024).toFixed(2)} GB total`;
     }
@@ -234,7 +234,7 @@ export function FileCleanupCard() {
           <CleanupCategory
             title="Test Artifacts"
             icon={<TestTube className="h-5 w-5 text-green-500" />}
-            info={status?.solution_state ?? null}
+            info={status?.solutionState ?? null}
             taskName="cleanup_solution_state_task"
             onTrigger={handleTrigger}
             isTriggering={isTriggering}

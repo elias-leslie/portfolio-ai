@@ -68,13 +68,13 @@ export function PipelineControls() {
           {status && !statusLoading && (
             <div className="flex gap-2 mt-2">
               <Badge variant="outline">
-                {status.stages.strategies.active_count} strategies
+                {status.stages.strategies.activeCount} strategies
               </Badge>
               <Badge variant="outline">
-                {status.stages.signals.today_count} signals today
+                {status.stages.signals.todayCount} signals today
               </Badge>
               <Badge variant="outline">
-                {status.stages.paper_trades.open_count} open trades
+                {status.stages.paperTrades.openCount} open trades
               </Badge>
             </div>
           )}

@@ -49,7 +49,7 @@ export function APIKeysCard({ apiKeys }: APIKeysCardProps) {
                                         {key.source.replace(/_/g, " ")}
                                     </div>
                                     <div className="text-xs text-muted-foreground mt-1">
-                                        Env var: <code className="text-xs">{key.env_var}</code>
+                                        Env var: <code className="text-xs">{key.envVar}</code>
                                     </div>
                                 </div>
                             </div>

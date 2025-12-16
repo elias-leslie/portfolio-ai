@@ -5,7 +5,7 @@ export const DEFAULT_SCORE_WEIGHTS = {
 } as const;
 
 export const DEFAULT_TECH_WEIGHTS = {
-  rsi_14: 33,
+  rsi14: 33,
   trend: 34,
   macd: 33,
 } as const;

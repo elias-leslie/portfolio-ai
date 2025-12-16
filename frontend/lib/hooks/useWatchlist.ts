@@ -51,7 +51,7 @@ export function useWatchlist() {
   });
 
   // Use preference or fallback to 5 minutes
-  const refreshMinutes = preferences?.watchlist_refresh_minutes ?? 5;
+  const refreshMinutes = preferences?.watchlistRefreshMinutes ?? 5;
   const refreshIntervalMs = refreshMinutes * 60 * 1000; // Convert to milliseconds
 
   // Query key should NOT include refreshIntervalMs - that causes unnecessary cache

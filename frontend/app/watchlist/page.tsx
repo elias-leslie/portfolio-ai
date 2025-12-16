@@ -73,11 +73,11 @@ export default function WatchlistPage() {
         // Handle different statuses
         if (data.status === "success") {
           // All success
-          toast.success(data.message || `Refreshed ${data.refreshed_count} symbols`);
+          toast.success(data.message || `Refreshed ${data.refreshedCount} symbols`);
         } else if (data.status === "partial_success") {
           // Partial success - show warning with failed symbols
           const failedSymbols = data.failed?.slice(0, 3).map((f) => f.symbol).join(", ") || "";
-          const moreCount = (data.failed_count || 0) - 3;
+          const moreCount = (data.failedCount || 0) - 3;
           const failedMsg = moreCount > 0 ? `${failedSymbols} and ${moreCount} more` : failedSymbols;
 
           toast.warning(data.message, {
@@ -97,17 +97,17 @@ export default function WatchlistPage() {
 
     // Apply style filter
     if (styleFilter !== "all") {
-      items = items.filter((item) => item.recommended_style === styleFilter);
+      items = items.filter((item) => item.recommendedStyle === styleFilter);
     }
 
     // Apply signal filter
     if (signalFilter !== "all") {
-      items = items.filter((item) => item.signal_type === signalFilter);
+      items = items.filter((item) => item.signalType === signalFilter);
     }
 
     // Apply risk filter
     if (riskFilter !== "all") {
-      items = items.filter((item) => item.risk_level === riskFilter);
+      items = items.filter((item) => item.riskLevel === riskFilter);
     }
 
     // Apply search filter
@@ -124,24 +124,24 @@ export default function WatchlistPage() {
 
   // Count by style
   const styleCounts = (watchlistData?.items || []).reduce((acc, item) => {
-    if (item.recommended_style) {
-      acc[item.recommended_style] = (acc[item.recommended_style] || 0) + 1;
+    if (item.recommendedStyle) {
+      acc[item.recommendedStyle] = (acc[item.recommendedStyle] || 0) + 1;
     }
     return acc;
   }, {} as Record<string, number>);
 
   // Count by signal
   const signalCounts = (watchlistData?.items || []).reduce((acc, item) => {
-    if (item.signal_type) {
-      acc[item.signal_type] = (acc[item.signal_type] || 0) + 1;
+    if (item.signalType) {
+      acc[item.signalType] = (acc[item.signalType] || 0) + 1;
     }
     return acc;
   }, {} as Record<string, number>);
 
   // Count by risk
   const riskCounts = (watchlistData?.items || []).reduce((acc, item) => {
-    if (item.risk_level) {
-      acc[item.risk_level] = (acc[item.risk_level] || 0) + 1;
+    if (item.riskLevel) {
+      acc[item.riskLevel] = (acc[item.riskLevel] || 0) + 1;
     }
     return acc;
   }, {} as Record<string, number>);
@@ -180,16 +180,16 @@ export default function WatchlistPage() {
 
       {/* Major Disagreement Alerts */}
       {disagreementsData?.items
-        .filter((d) => d.disagreement_severity === "major")
+        .filter((d) => d.disagreementSeverity === "major")
         .slice(0, 3)
         .map((disagreement) => (
           <DisagreementAlert
-            key={disagreement.review_pair_id}
+            key={disagreement.reviewPairId}
             symbol={disagreement.symbol}
-            severity={disagreement.disagreement_severity as "minor" | "major"}
-            geminiReview={disagreement.gemini_review}
-            claudeReview={disagreement.claude_review}
-            agreementScore={disagreement.agreement_score}
+            severity={disagreement.disagreementSeverity as "minor" | "major"}
+            geminiReview={disagreement.geminiReview}
+            claudeReview={disagreement.claudeReview}
+            agreementScore={disagreement.agreementScore}
             className="mb-4"
           />
         ))}
@@ -269,7 +269,7 @@ export default function WatchlistPage() {
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
               {disagreementsData.items.slice(0, 6).map((disagreement) => (
                 <DisagreementCard
-                  key={disagreement.review_pair_id}
+                  key={disagreement.reviewPairId}
                   item={disagreement}
                 />
               ))}

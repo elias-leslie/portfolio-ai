@@ -2,6 +2,13 @@
  * Unified API client with retry logic and error handling
  */
 
+import { toCamelCaseKeys, toSnakeCaseKeys } from "es-toolkit";
+
+/**
+ * Re-export transformation utilities for WebSocket and other non-REST use cases
+ */
+export { toCamelCaseKeys, toSnakeCaseKeys };
+
 /**
  * Get the API base URL.
  * Returns empty string to use relative URLs - this allows Next.js to proxy
@@ -92,8 +99,9 @@ export async function apiRequest<T>(
         throw new ApiError(errorMessage, response.status, response);
       }
 
-      // Parse and return successful response
-      return (await response.json()) as T;
+      // Parse and transform response (snake_case → camelCase)
+      const data = await response.json();
+      return toCamelCaseKeys(data) as T;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
 
@@ -130,10 +138,12 @@ export async function post<T>(
   data?: unknown,
   options: RequestInit = {}
 ): Promise<T> {
+  // Transform request body (camelCase → snake_case) for backend
+  const transformedData = data ? toSnakeCaseKeys(data) : undefined;
   return apiRequest<T>(url, {
     ...options,
     method: "POST",
-    body: data ? JSON.stringify(data) : undefined,
+    body: transformedData ? JSON.stringify(transformedData) : undefined,
   });
 }
 
@@ -145,10 +155,12 @@ export async function patch<T>(
   data?: unknown,
   options: RequestInit = {}
 ): Promise<T> {
+  // Transform request body (camelCase → snake_case) for backend
+  const transformedData = data ? toSnakeCaseKeys(data) : undefined;
   return apiRequest<T>(url, {
     ...options,
     method: "PATCH",
-    body: data ? JSON.stringify(data) : undefined,
+    body: transformedData ? JSON.stringify(transformedData) : undefined,
   });
 }
 

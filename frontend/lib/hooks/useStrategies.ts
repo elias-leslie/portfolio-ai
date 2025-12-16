@@ -100,7 +100,7 @@ export function useGenerateStrategy() {
       } else if (data.status === "skipped") {
         toast.info(`Strategy already exists for ${symbol}`);
       } else {
-        toast.error(data.error_message || `Strategy generation failed for ${symbol}`);
+        toast.error(data.errorMessage || `Strategy generation failed for ${symbol}`);
       }
 
       queryClient.invalidateQueries({ queryKey: strategyKeys.lists() });
@@ -130,8 +130,8 @@ export function useGenerateStrategiesBatch() {
     onSuccess: (data) => {
       toast.dismiss("generate-batch");
 
-      const generated = data.strategies_generated || 0;
-      const processed = data.symbols_processed || data.symbols_evaluated || 0;
+      const generated = data.strategiesGenerated || 0;
+      const processed = data.symbolsProcessed || data.symbolsEvaluated || 0;
 
       if (generated > 0) {
         toast.success(`Generated ${generated} strategies (${processed} symbols processed)`);

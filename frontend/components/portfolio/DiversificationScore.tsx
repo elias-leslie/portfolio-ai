@@ -90,13 +90,13 @@ export function DiversificationScore({ diversification }: DiversificationScorePr
         <div className="flex justify-between items-center">
           <span className="text-sm text-text-muted">Holdings</span>
           <span className="text-sm font-medium text-text">
-            {diversification.num_holdings}
+            {diversification.numHoldings}
           </span>
         </div>
         <div className="flex justify-between items-center">
           <span className="text-sm text-text-muted">Sectors</span>
           <span className="text-sm font-medium text-text">
-            {diversification.num_sectors}
+            {diversification.numSectors}
           </span>
         </div>
       </div>

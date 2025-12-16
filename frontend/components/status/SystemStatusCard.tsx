@@ -71,8 +71,8 @@ export function SystemStatusCard({ health }: SystemStatusCardProps) {
               {health.checks?.database?.status === "ok" ? "OK" : "Down"}
             </div>
             <div className="text-xs text-muted-foreground">
-              {health.checks?.database?.latency_ms
-                ? `${health.checks.database.latency_ms}ms latency`
+              {health.checks?.database?.latencyMs
+                ? `${health.checks.database.latencyMs}ms latency`
                 : "No latency data"}
             </div>
           </div>

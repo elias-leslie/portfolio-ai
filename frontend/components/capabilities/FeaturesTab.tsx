@@ -138,18 +138,18 @@ function FeaturesTabSkeleton() {
 // Task interface for subtasks
 interface Task {
   id: number | null;
-  task_id: string;
+  taskId: string;
   description: string;
   completed: boolean;
-  order_num: number;
-  completed_at: string | null;
-  completed_by: string | null;
+  orderNum: number;
+  completedAt: string | null;
+  completedBy: string | null;
   // Enhanced fields
   files: string[];
   notes: string | null;
   status: string;
   effort: string | null;
-  task_type: string;  // implementation, fix, task_file, discovery
+  taskType: string;  // implementation, fix, taskFile, discovery
 }
 
 // Acceptance Criterion interface (matches backend AcceptanceCriterion model)
@@ -160,9 +160,9 @@ interface AcceptanceCriterion {
   type: string;
   passed: boolean | null;
   // Verification tracking fields (added for auto-verification)
-  verified_at: string | null;
-  verified_by: string | null; // auto, manual, pytest, browser
-  verification_output: string | null;
+  verifiedAt: string | null;
+  verifiedBy: string | null; // auto, manual, pytest, browser
+  verificationOutput: string | null;
 }
 
 // Implementation Notes interface for structured task file replacement
@@ -177,29 +177,29 @@ interface ImplementationNotes {
 
 interface Feature {
   id: number | null;
-  feature_id: string;
+  featureId: string;
   name: string;
   category: string | null;
   description: string | null;
   layers: string[];
-  layer_results: Record<string, { passed: boolean; evidence?: string }>;
-  test_count: number;
-  task_file: string | null;
-  task_section: string | null;
-  task_file_exists: boolean;
-  total_tasks: number;
-  completed_tasks: number;
-  completion_pct: number;
-  health_status: string;
-  last_verified_at: string | null;
-  verified_by: string | null;
+  layerResults: Record<string, { passed: boolean; evidence?: string }>;
+  testCount: number;
+  taskFile: string | null;
+  taskSection: string | null;
+  taskFileExists: boolean;
+  totalTasks: number;
+  completedTasks: number;
+  completionPct: number;
+  healthStatus: string;
+  lastVerifiedAt: string | null;
+  verifiedBy: string | null;
   tasks: Task[];
   // New spec-driven fields
   priority: number | null;
-  effective_priority: number;
-  acceptance_criteria: AcceptanceCriterion[];
-  vision_goals: string[];
-  implementation_notes: ImplementationNotes;
+  effectivePriority: number;
+  acceptanceCriteria: AcceptanceCriterion[];
+  visionGoals: string[];
+  implementationNotes: ImplementationNotes;
   // Enhanced fields for task file replacement
   status: string;
   effort: string | null;
@@ -215,17 +215,17 @@ interface FeaturesResponse {
 
 interface FeaturesSummary {
   total: number;
-  passes_breakdown: Record<string, number>;
-  category_breakdown: Record<string, number>;
-  health_breakdown: Record<string, number>;
+  passesBreakdown: Record<string, number>;
+  categoryBreakdown: Record<string, number>;
+  healthBreakdown: Record<string, number>;
 }
 
 interface VerificationSummary {
-  total_criteria: number;
+  totalCriteria: number;
   passed: number;
   failed: number;
   pending: number;
-  by_type: Record<string, { total: number; passed: number; failed: number; pending: number }>;
+  byType: Record<string, { total: number; passed: number; failed: number; pending: number }>;
 }
 
 interface VisionGoal {
@@ -289,7 +289,7 @@ export function FeaturesTab() {
       const response = await fetch(`/api/capabilities/features/${featureId}/tasks/${taskId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ completed, completed_by: "manual" }),
+        body: JSON.stringify({ completed, completedBy: "manual" }),
       });
       if (!response.ok) throw new Error("Failed to toggle task");
       // Invalidate queries to refresh data
@@ -362,7 +362,7 @@ export function FeaturesTab() {
       });
       if (!response.ok) throw new Error("Failed to start verification");
       const data = await response.json();
-      toast.success(`Verification queued: ${data.task_id.slice(0, 8)}...`);
+      toast.success(`Verification queued: ${data.taskId.slice(0, 8)}...`);
       // Poll for completion
       const pollInterval = setInterval(async () => {
         const summaryRes = await fetch("/api/capabilities/features/verification-summary");
@@ -406,8 +406,8 @@ export function FeaturesTab() {
 
   // Helper to compute verification status for a feature
   const getVerificationStatus = (f: Feature): "verified" | "needs-review" | "has-tasks" | "no-criteria" => {
-    const incompleteTasks = f.total_tasks - f.completed_tasks;
-    const criteria = f.acceptance_criteria ?? [];
+    const incompleteTasks = f.totalTasks - f.completedTasks;
+    const criteria = f.acceptanceCriteria ?? [];
     const hasCriteria = criteria.length > 0;
     const allPassed = hasCriteria && criteria.every((c) => c.passed === true);
 
@@ -421,7 +421,7 @@ export function FeaturesTab() {
   const filteredFeatures = featuresData?.features.filter((f) => {
     // Vision goal filter
     if (visionGoalFilter !== "all") {
-      if (!f.vision_goals || !f.vision_goals.includes(visionGoalFilter)) {
+      if (!f.visionGoals || !f.visionGoals.includes(visionGoalFilter)) {
         return false;
       }
     }
@@ -436,7 +436,7 @@ export function FeaturesTab() {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return (
-      f.feature_id.toLowerCase().includes(q) ||
+      f.featureId.toLowerCase().includes(q) ||
       f.name.toLowerCase().includes(q) ||
       f.category?.toLowerCase().includes(q) ||
       f.description?.toLowerCase().includes(q)
@@ -452,8 +452,8 @@ export function FeaturesTab() {
     let noCriteria = 0;
 
     for (const f of features) {
-      const incompleteTasks = f.total_tasks - f.completed_tasks;
-      const criteria = f.acceptance_criteria ?? [];
+      const incompleteTasks = f.totalTasks - f.completedTasks;
+      const criteria = f.acceptanceCriteria ?? [];
       const hasCriteria = criteria.length > 0;
       const allPassed = hasCriteria && criteria.every((c) => c.passed === true);
 
@@ -478,10 +478,10 @@ export function FeaturesTab() {
     switch (sortColumn) {
       case "feature_id":
         // Natural sort for IDs like FEAT-001, FEAT-002, FEAT-GAP-001
-        comparison = a.feature_id.localeCompare(b.feature_id, undefined, { numeric: true });
+        comparison = a.featureId.localeCompare(b.featureId, undefined, { numeric: true });
         break;
       case "priority":
-        comparison = (a.priority ?? a.effective_priority) - (b.priority ?? b.effective_priority);
+        comparison = (a.priority ?? a.effectivePriority) - (b.priority ?? b.effectivePriority);
         break;
       case "name":
         comparison = a.name.localeCompare(b.name);
@@ -490,16 +490,16 @@ export function FeaturesTab() {
         comparison = (a.category ?? "").localeCompare(b.category ?? "");
         break;
       case "last_verified_at": {
-        const aDate = a.last_verified_at ? new Date(a.last_verified_at).getTime() : 0;
-        const bDate = b.last_verified_at ? new Date(b.last_verified_at).getTime() : 0;
+        const aDate = a.lastVerifiedAt ? new Date(a.lastVerifiedAt).getTime() : 0;
+        const bDate = b.lastVerifiedAt ? new Date(b.lastVerifiedAt).getTime() : 0;
         comparison = aDate - bDate;
         break;
       }
       case "criteria": {
-        const aPassed = a.acceptance_criteria?.filter(c => c.passed === true).length ?? 0;
-        const bPassed = b.acceptance_criteria?.filter(c => c.passed === true).length ?? 0;
-        const aTotal = a.acceptance_criteria?.length ?? 0;
-        const bTotal = b.acceptance_criteria?.length ?? 0;
+        const aPassed = a.acceptanceCriteria?.filter(c => c.passed === true).length ?? 0;
+        const bPassed = b.acceptanceCriteria?.filter(c => c.passed === true).length ?? 0;
+        const aTotal = a.acceptanceCriteria?.length ?? 0;
+        const bTotal = b.acceptanceCriteria?.length ?? 0;
         // Sort by ratio, then by total
         const aRatio = aTotal > 0 ? aPassed / aTotal : 0;
         const bRatio = bTotal > 0 ? bPassed / bTotal : 0;
@@ -521,7 +521,7 @@ export function FeaturesTab() {
         break;
       }
       case "progress":
-        comparison = a.completion_pct - b.completion_pct;
+        comparison = a.completionPct - b.completionPct;
         break;
       default:
         comparison = 0;
@@ -550,8 +550,8 @@ export function FeaturesTab() {
   };
 
   // Get unique categories
-  const categories = summaryData?.category_breakdown
-    ? Object.keys(summaryData.category_breakdown).sort()
+  const categories = summaryData?.categoryBreakdown
+    ? Object.keys(summaryData.categoryBreakdown).sort()
     : [];
 
   // Category color mapping (deterministic colors per category)
@@ -582,8 +582,8 @@ export function FeaturesTab() {
   // Render verified status badge
   // Logic: "Verified" only when tasks=0 AND all criteria passed
   const renderPassesBadge = (feature: Feature) => {
-    const incompleteTasks = feature.total_tasks - feature.completed_tasks;
-    const criteria = feature.acceptance_criteria || [];
+    const incompleteTasks = feature.totalTasks - feature.completedTasks;
+    const criteria = feature.acceptanceCriteria || [];
     const allCriteriaPassed = criteria.length > 0 && criteria.every(c => c.passed === true);
     const hasCriteria = criteria.length > 0;
 
@@ -697,8 +697,8 @@ export function FeaturesTab() {
 
     const headers = ["Feature ID", "Name", "Category", "Status", "Priority", "Incomplete Tasks", "Criteria Passed", "Total Criteria"];
     const rows = sortedFeatures.map(f => {
-      const incompleteTasks = f.total_tasks - f.completed_tasks;
-      const criteria = f.acceptance_criteria ?? [];
+      const incompleteTasks = f.totalTasks - f.completedTasks;
+      const criteria = f.acceptanceCriteria ?? [];
       const hasCriteria = criteria.length > 0;
       const allPassed = hasCriteria && criteria.every(c => c.passed === true);
       let status = "No Criteria";
@@ -707,11 +707,11 @@ export function FeaturesTab() {
       else if (allPassed) status = "Verified";
       else status = "Needs Review";
       return [
-        f.feature_id,
+        f.featureId,
         f.name,
         f.category || "",
         status,
-        String(f.priority ?? f.effective_priority),
+        String(f.priority ?? f.effectivePriority),
         String(incompleteTasks),
         String(criteria.filter(c => c.passed === true).length),
         String(criteria.length),
@@ -734,8 +734,8 @@ export function FeaturesTab() {
     if (!sortedFeatures.length) return;
 
     const exportData = sortedFeatures.map(f => {
-      const incompleteTasks = f.total_tasks - f.completed_tasks;
-      const criteria = f.acceptance_criteria ?? [];
+      const incompleteTasks = f.totalTasks - f.completedTasks;
+      const criteria = f.acceptanceCriteria ?? [];
       const hasCriteria = criteria.length > 0;
       const allPassed = hasCriteria && criteria.every(c => c.passed === true);
       let status = "no_criteria";
@@ -744,15 +744,15 @@ export function FeaturesTab() {
       else if (allPassed) status = "verified";
       else status = "needs_review";
       return {
-        feature_id: f.feature_id,
+        featureId: f.featureId,
         name: f.name,
         category: f.category,
         status,
-        priority: f.priority ?? f.effective_priority,
-        incomplete_tasks: incompleteTasks,
-        criteria_passed: criteria.filter(c => c.passed === true).length,
-        criteria_total: criteria.length,
-        vision_goals: f.vision_goals,
+        priority: f.priority ?? f.effectivePriority,
+        incompleteTasks: incompleteTasks,
+        criteriaPassed: criteria.filter(c => c.passed === true).length,
+        criteriaTotal: criteria.length,
+        visionGoals: f.visionGoals,
       };
     });
 
@@ -836,7 +836,7 @@ export function FeaturesTab() {
                 )}
                 {isVerifying ? "Verifying..." : "Verify All"}
               </Button>
-              <span className="text-xs text-muted-foreground">{verificationData.total_criteria} total</span>
+              <span className="text-xs text-muted-foreground">{verificationData.totalCriteria} total</span>
             </div>
           </div>
           <div className="grid grid-cols-3 gap-4">
@@ -862,9 +862,9 @@ export function FeaturesTab() {
               </div>
             </div>
           </div>
-          {verificationData.by_type && Object.keys(verificationData.by_type).length > 0 && (
+          {verificationData.byType && Object.keys(verificationData.byType).length > 0 && (
             <div className="mt-3 pt-3 border-t border-border/50 flex gap-4 text-xs">
-              {Object.entries(verificationData.by_type).map(([type, stats]) => (
+              {Object.entries(verificationData.byType).map(([type, stats]) => (
                 <span key={type} className="text-muted-foreground">
                   <span className="capitalize">{type}</span>:{" "}
                   <span className="text-green-400">{stats.passed}</span>/
@@ -1069,23 +1069,23 @@ export function FeaturesTab() {
             </TableHeader>
             <TableBody>
               {paginatedFeatures.map((feature) => {
-                const isExpanded = expandedRows.has(feature.feature_id);
+                const isExpanded = expandedRows.has(feature.featureId);
                 const hasTasks = feature.tasks && feature.tasks.length > 0;
 
                 return (
-                  <Fragment key={feature.feature_id}>
+                  <Fragment key={feature.featureId}>
                     <TableRow
-                      className={(hasTasks || (feature.acceptance_criteria && feature.acceptance_criteria.length > 0)) ? "cursor-pointer hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-accent" : ""}
-                      onClick={() => (hasTasks || (feature.acceptance_criteria && feature.acceptance_criteria.length > 0)) && toggleRow(feature.feature_id)}
+                      className={(hasTasks || (feature.acceptanceCriteria && feature.acceptanceCriteria.length > 0)) ? "cursor-pointer hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-accent" : ""}
+                      onClick={() => (hasTasks || (feature.acceptanceCriteria && feature.acceptanceCriteria.length > 0)) && toggleRow(feature.featureId)}
                       onKeyDown={(e) => {
-                        if ((e.key === "Enter" || e.key === " ") && (hasTasks || (feature.acceptance_criteria && feature.acceptance_criteria.length > 0))) {
+                        if ((e.key === "Enter" || e.key === " ") && (hasTasks || (feature.acceptanceCriteria && feature.acceptanceCriteria.length > 0))) {
                           e.preventDefault();
-                          toggleRow(feature.feature_id);
+                          toggleRow(feature.featureId);
                         }
                       }}
-                      tabIndex={(hasTasks || (feature.acceptance_criteria && feature.acceptance_criteria.length > 0)) ? 0 : -1}
+                      tabIndex={(hasTasks || (feature.acceptanceCriteria && feature.acceptanceCriteria.length > 0)) ? 0 : -1}
                       role="row"
-                      aria-expanded={(hasTasks || (feature.acceptance_criteria && feature.acceptance_criteria.length > 0)) ? isExpanded : undefined}
+                      aria-expanded={(hasTasks || (feature.acceptanceCriteria && feature.acceptanceCriteria.length > 0)) ? isExpanded : undefined}
                       style={{ backgroundColor: getRowBgColor(feature) }}
                     >
                       <TableCell className="font-mono text-xs px-2 align-top py-2 w-20">
@@ -1094,7 +1094,7 @@ export function FeaturesTab() {
                             className="w-4 h-4 inline-flex items-center justify-center shrink-0"
                             aria-hidden="true"
                           >
-                            {(hasTasks || (feature.acceptance_criteria && feature.acceptance_criteria.length > 0)) && (
+                            {(hasTasks || (feature.acceptanceCriteria && feature.acceptanceCriteria.length > 0)) && (
                               isExpanded ? (
                                 <ChevronDown className="h-4 w-4 text-muted-foreground" />
                               ) : (
@@ -1111,12 +1111,12 @@ export function FeaturesTab() {
                                 : "#a1a1aa", // zinc-400 for no-criteria
                             }}
                           >
-                            <HighlightMatch text={feature.feature_id} query={searchQuery} />
+                            <HighlightMatch text={feature.featureId} query={searchQuery} />
                           </span>
                         </div>
                       </TableCell>
                       <TableCell className="px-2 align-top py-2 w-10 text-center">
-                        {renderPriorityBadge(feature.priority, feature.effective_priority)}
+                        {renderPriorityBadge(feature.priority, feature.effectivePriority)}
                       </TableCell>
                       <TableCell className="px-2 align-top py-2 w-40">
                         <div className="flex items-center gap-1">
@@ -1153,18 +1153,18 @@ export function FeaturesTab() {
                       <TableCell className="px-2 align-top py-2 w-16 text-center">
                         <span
                           className="text-xs text-muted-foreground"
-                          title={feature.last_verified_at ? new Date(feature.last_verified_at).toLocaleString() : "Never verified"}
+                          title={feature.lastVerifiedAt ? new Date(feature.lastVerifiedAt).toLocaleString() : "Never verified"}
                         >
-                          {formatRelativeTime(feature.last_verified_at)}
+                          {formatRelativeTime(feature.lastVerifiedAt)}
                         </span>
                       </TableCell>
                       <TableCell className="px-2 text-center align-top py-2 w-14">
-                        {renderCriteriaStatus(feature.acceptance_criteria)}
+                        {renderCriteriaStatus(feature.acceptanceCriteria)}
                       </TableCell>
                       <TableCell className="px-2 align-top py-2 w-24">{renderPassesBadge(feature)}</TableCell>
                       <TableCell className="px-2 text-right align-top py-2 w-20">
                         {(() => {
-                          const incompleteTasks = feature.total_tasks - feature.completed_tasks;
+                          const incompleteTasks = feature.totalTasks - feature.completedTasks;
                           return (
                             <span
                               className="text-xs font-mono"
@@ -1173,7 +1173,7 @@ export function FeaturesTab() {
                                   ? "#4ade80"  // green-400 (no tasks)
                                   : "#facc15", // yellow-400 (has tasks)
                               }}
-                              title={`${feature.completed_tasks}/${feature.total_tasks} completed`}
+                              title={`${feature.completedTasks}/${feature.totalTasks} completed`}
                             >
                               {incompleteTasks}
                             </span>
@@ -1182,16 +1182,16 @@ export function FeaturesTab() {
                       </TableCell>
                     </TableRow>
                     {/* Expanded details row (subtasks + acceptance criteria) */}
-                    {isExpanded && (hasTasks || (feature.acceptance_criteria && feature.acceptance_criteria.length > 0)) && (
-                      <TableRow key={`${feature.feature_id}-details`} className="bg-muted/30">
+                    {isExpanded && (hasTasks || (feature.acceptanceCriteria && feature.acceptanceCriteria.length > 0)) && (
+                      <TableRow key={`${feature.featureId}-details`} className="bg-muted/30">
                         <TableCell colSpan={8} className="py-2 px-4">
                           <div className="pl-6 space-y-4">
                             {/* Acceptance Criteria Section */}
-                            {feature.acceptance_criteria && feature.acceptance_criteria.length > 0 && (
+                            {feature.acceptanceCriteria && feature.acceptanceCriteria.length > 0 && (
                               <div className="space-y-1">
                                 <div className="flex items-center justify-between mb-3">
                                   <span className="text-xs font-medium text-muted-foreground">
-                                    Acceptance Criteria ({feature.acceptance_criteria.filter(c => c.passed === true).length}/{feature.acceptance_criteria.length} verified)
+                                    Acceptance Criteria ({feature.acceptanceCriteria.filter(c => c.passed === true).length}/{feature.acceptanceCriteria.length} verified)
                                   </span>
                                   <span className="text-[10px] text-muted-foreground/70 flex items-center gap-3">
                                     <span className="flex items-center gap-0.5"><CheckCircle2 className="h-3 w-3 text-green-400" />pass</span>
@@ -1199,7 +1199,7 @@ export function FeaturesTab() {
                                     <span className="flex items-center gap-0.5"><HelpCircle className="h-3 w-3 text-yellow-500" />pending</span>
                                   </span>
                                 </div>
-                                {feature.acceptance_criteria.map((criterion) => (
+                                {feature.acceptanceCriteria.map((criterion) => (
                                   <div
                                     key={criterion.id}
                                     className="py-2 border-b border-border/50 last:border-0"
@@ -1239,7 +1239,7 @@ export function FeaturesTab() {
                                             e.stopPropagation();
                                             setEvidenceModal({
                                               open: true,
-                                              featureId: feature.feature_id,
+                                              featureId: feature.featureId,
                                               criterionId: criterion.id,
                                               criterionText: criterion.criterion,
                                               verificationUrl: parseVerificationUrl(criterion.verification || ""),
@@ -1269,11 +1269,11 @@ export function FeaturesTab() {
                               </div>
                             )}
                             {/* Vision Goals with Tooltips */}
-                            {feature.vision_goals && feature.vision_goals.length > 0 && (
+                            {feature.visionGoals && feature.visionGoals.length > 0 && (
                               <div className="flex items-center gap-2">
                                 <span className="text-xs text-muted-foreground">Vision Goals:</span>
                                 <TooltipProvider>
-                                  {feature.vision_goals.map((goalCode) => {
+                                  {feature.visionGoals.map((goalCode) => {
                                     const goalInfo = visionGoalsData?.find((g) => g.code === goalCode);
                                     return (
                                       <Tooltip key={goalCode}>
@@ -1299,38 +1299,38 @@ export function FeaturesTab() {
                               </div>
                             )}
                             {/* Implementation Notes Section */}
-                            {feature.implementation_notes && Object.keys(feature.implementation_notes).length > 0 && (
+                            {feature.implementationNotes && Object.keys(feature.implementationNotes).length > 0 && (
                               <div className="space-y-2 border-t border-border/50 pt-3">
                                 <div className="flex items-center gap-2 mb-2">
                                   <BookOpen className="h-4 w-4 text-blue-400" />
                                   <span className="text-xs font-medium text-muted-foreground">Implementation Notes</span>
                                 </div>
                                 {/* Context */}
-                                {feature.implementation_notes.context && (
+                                {feature.implementationNotes.context && (
                                   <div className="bg-muted/30 rounded p-2">
                                     <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Context</span>
-                                    <p className="text-sm mt-1">{feature.implementation_notes.context}</p>
+                                    <p className="text-sm mt-1">{feature.implementationNotes.context}</p>
                                   </div>
                                 )}
                                 {/* Steps */}
-                                {feature.implementation_notes.steps && feature.implementation_notes.steps.length > 0 && (
+                                {feature.implementationNotes.steps && feature.implementationNotes.steps.length > 0 && (
                                   <div className="bg-muted/30 rounded p-2">
                                     <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Steps</span>
                                     <ol className="list-decimal list-inside text-sm mt-1 space-y-0.5">
-                                      {feature.implementation_notes.steps.map((step, idx) => (
+                                      {feature.implementationNotes.steps.map((step, idx) => (
                                         <li key={idx} className="text-sm">{step}</li>
                                       ))}
                                     </ol>
                                   </div>
                                 )}
                                 {/* Files */}
-                                {feature.implementation_notes.files && feature.implementation_notes.files.length > 0 && (
+                                {feature.implementationNotes.files && feature.implementationNotes.files.length > 0 && (
                                   <div className="bg-muted/30 rounded p-2">
                                     <span className="text-[10px] uppercase tracking-wide text-muted-foreground flex items-center gap-1">
                                       <Code className="h-3 w-3" /> Files to Modify
                                     </span>
                                     <div className="flex flex-wrap gap-1 mt-1">
-                                      {feature.implementation_notes.files.map((file, idx) => (
+                                      {feature.implementationNotes.files.map((file, idx) => (
                                         <code key={idx} className="text-xs bg-surface px-1.5 py-0.5 rounded font-mono text-blue-400">
                                           {file}
                                         </code>
@@ -1339,23 +1339,23 @@ export function FeaturesTab() {
                                   </div>
                                 )}
                                 {/* Blockers */}
-                                {feature.implementation_notes.blockers && feature.implementation_notes.blockers.length > 0 && (
+                                {feature.implementationNotes.blockers && feature.implementationNotes.blockers.length > 0 && (
                                   <div className="bg-red-500/10 border border-red-500/20 rounded p-2">
                                     <span className="text-[10px] uppercase tracking-wide text-red-400 flex items-center gap-1">
                                       <AlertTriangle className="h-3 w-3" /> Blockers
                                     </span>
                                     <ul className="list-disc list-inside text-sm mt-1 text-red-400">
-                                      {feature.implementation_notes.blockers.map((blocker, idx) => (
+                                      {feature.implementationNotes.blockers.map((blocker, idx) => (
                                         <li key={idx}>{blocker}</li>
                                       ))}
                                     </ul>
                                   </div>
                                 )}
                                 {/* Notes */}
-                                {feature.implementation_notes.notes && (
+                                {feature.implementationNotes.notes && (
                                   <div className="bg-muted/30 rounded p-2">
                                     <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Notes</span>
-                                    <p className="text-sm mt-1 whitespace-pre-wrap">{feature.implementation_notes.notes}</p>
+                                    <p className="text-sm mt-1 whitespace-pre-wrap">{feature.implementationNotes.notes}</p>
                                   </div>
                                 )}
                               </div>
@@ -1376,11 +1376,11 @@ export function FeaturesTab() {
                             {hasTasks && (
                               <div className="space-y-2 border-t border-border/50 pt-3">
                                 <div className="text-xs font-medium text-muted-foreground mb-2">
-                                  Subtasks ({feature.completed_tasks}/{feature.total_tasks})
+                                  Subtasks ({feature.completedTasks}/{feature.totalTasks})
                                 </div>
                                 {feature.tasks.map((task) => (
                                   <div
-                                    key={task.task_id}
+                                    key={task.taskId}
                                     className="bg-muted/20 rounded p-2 space-y-1"
                                     onClick={(e) => e.stopPropagation()}
                                   >
@@ -1388,12 +1388,12 @@ export function FeaturesTab() {
                                       <Checkbox
                                         checked={task.completed}
                                         onCheckedChange={(checked) =>
-                                          toggleTask(feature.feature_id, task.task_id, checked as boolean)
+                                          toggleTask(feature.featureId, task.taskId, checked as boolean)
                                         }
                                         className="shrink-0"
                                       />
                                       <span className="font-mono text-xs text-muted-foreground shrink-0 min-w-[50px]">
-                                        {task.task_id}
+                                        {task.taskId}
                                       </span>
                                       {task.status && task.status !== "pending" && (
                                         <span
@@ -1419,24 +1419,24 @@ export function FeaturesTab() {
                                           {task.effort}
                                         </span>
                                       )}
-                                      {task.task_type && task.task_type !== "implementation" && (
+                                      {task.taskType && task.taskType !== "implementation" && (
                                         <span
                                           className="text-[10px] px-1 py-0.5 rounded border shrink-0"
                                           style={{
-                                            backgroundColor: task.task_type === "fix" ? "#ef444420" : task.task_type === "task_file" ? "#a855f720" : task.task_type === "discovery" ? "#f9731620" : "#71717a20",
-                                            color: task.task_type === "fix" ? "#f87171" : task.task_type === "task_file" ? "#c084fc" : task.task_type === "discovery" ? "#fb923c" : "#a1a1aa",
-                                            borderColor: task.task_type === "fix" ? "#ef444440" : task.task_type === "task_file" ? "#a855f740" : task.task_type === "discovery" ? "#f9731640" : "#71717a40",
+                                            backgroundColor: task.taskType === "fix" ? "#ef444420" : task.taskType === "task_file" ? "#a855f720" : task.taskType === "discovery" ? "#f9731620" : "#71717a20",
+                                            color: task.taskType === "fix" ? "#f87171" : task.taskType === "task_file" ? "#c084fc" : task.taskType === "discovery" ? "#fb923c" : "#a1a1aa",
+                                            borderColor: task.taskType === "fix" ? "#ef444440" : task.taskType === "task_file" ? "#a855f740" : task.taskType === "discovery" ? "#f9731640" : "#71717a40",
                                           }}
                                         >
-                                          {task.task_type}
+                                          {task.taskType}
                                         </span>
                                       )}
                                       <span className={`flex-1 ${task.completed ? "line-through text-muted-foreground" : ""}`}>
                                         {task.description}
                                       </span>
-                                      {task.completed_by && (
+                                      {task.completedBy && (
                                         <span className="text-xs text-muted-foreground shrink-0">
-                                          by {task.completed_by}
+                                          by {task.completedBy}
                                         </span>
                                       )}
                                     </div>

@@ -9,7 +9,7 @@ export interface ClaudeValidation {
     provider: string;
     approved: boolean;
     confidence: number;
-    review_summary: string;
+    reviewSummary: string;
     issues: string[];
 }
 
@@ -20,7 +20,7 @@ export interface CoreReason {
 
 export interface KeyCatalyst {
     catalyst: string;
-    expected_date: string | null;
+    expectedDate: string | null;
     impact: "positive" | "negative" | "neutral";
 }
 
@@ -31,46 +31,46 @@ export interface Risk {
 }
 
 export interface ValueDrivers {
-    market_size: string | null;
-    company_position: string | null;
-    upside_potential: string | null;
-    competitive_moat: string | null;
+    marketSize: string | null;
+    companyPosition: string | null;
+    upsidePotential: string | null;
+    competitiveMoat: string | null;
 }
 
 export interface Thesis {
     id: string;
     symbol: string;
     version: number;
-    status: "active" | "invalidated" | "flagged_for_review";
+    status: "active" | "invalidated" | "flaggedForReview";
     action: "BUY" | "HOLD" | "SELL";
-    core_reasons: CoreReason[];
-    key_catalysts: KeyCatalyst[];
+    coreReasons: CoreReason[];
+    keyCatalysts: KeyCatalyst[];
     risks: Risk[];
-    value_drivers: ValueDrivers | null;
-    expected_return_pct: number | null;
-    expected_timeframe_days: number | null;
-    claude_validation: ClaudeValidation | null;
-    cross_validation_score: number | null;
-    created_at: string;
-    updated_at: string;
+    valueDrivers: ValueDrivers | null;
+    expectedReturnPct: number | null;
+    expectedTimeframeDays: number | null;
+    claudeValidation: ClaudeValidation | null;
+    crossValidationScore: number | null;
+    createdAt: string;
+    updatedAt: string;
 }
 
 export interface ThesisVersion {
     version: number;
     status: string;
     action: string;
-    created_at: string;
-    updated_at: string;
+    createdAt: string;
+    updatedAt: string;
 }
 
 export interface ThesisResponse {
     thesis: Thesis | null;
     versions: ThesisVersion[];
-    version_count: number;
+    versionCount: number;
 }
 
 export interface GenerateThesisRequest {
-    force_regenerate?: boolean;
+    forceRegenerate?: boolean;
 }
 
 export interface InvalidateThesisRequest {

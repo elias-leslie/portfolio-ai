@@ -47,13 +47,13 @@ const PILLAR_CONFIG = {
         defaultWeight: 17,
         tooltip: "News catalyst impact score based on recent material events, earnings, and market-moving announcements.",
     },
-    options_flow: {
+    optionsFlow: {
         label: "Options Flow",
         icon: "📈",
         defaultWeight: 8,
         tooltip: "Options market sentiment from call/put ratios, near-term positioning, and institutional flow concentration.",
     },
-    performance_factor: {
+    performanceFactor: {
         label: "Performance",
         icon: "🎯",
         defaultWeight: 5,
@@ -105,7 +105,7 @@ interface PillarCardProps {
 
 function PillarCard({ pillarKey, pillar, userTimezone }: PillarCardProps) {
     const config = PILLAR_CONFIG[pillarKey];
-    const hasSubScores = pillar.sub_scores && Object.keys(pillar.sub_scores).length > 0;
+    const hasSubScores = pillar.subScores && Object.keys(pillar.subScores).length > 0;
     const hasMetadata = pillar.metadata && Object.keys(pillar.metadata).length > 0;
     const weightPercent = ((pillar.weight ?? config.defaultWeight / 100) * 100).toFixed(0);
 
@@ -165,7 +165,7 @@ function PillarCard({ pillarKey, pillar, userTimezone }: PillarCardProps) {
                         <div className="space-y-2">
                             <p className="text-xs font-medium text-text">Sub-scores:</p>
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                {Object.entries(pillar.sub_scores!).map(([key, value]) => (
+                                {Object.entries(pillar.subScores!).map(([key, value]) => (
                                     <div
                                         key={key}
                                         className="bg-surface-muted/50 rounded px-2 py-1"
@@ -204,9 +204,9 @@ function PillarCard({ pillarKey, pillar, userTimezone }: PillarCardProps) {
                     )}
 
                     {/* Updated timestamp */}
-                    {pillar.updated_at && (
+                    {pillar.updatedAt && (
                         <p className="text-xs text-text-muted pt-1 border-t border-border">
-                            Updated: {formatTimestamp(pillar.updated_at, userTimezone)}
+                            Updated: {formatTimestamp(pillar.updatedAt, userTimezone)}
                         </p>
                     )}
                 </div>
@@ -236,7 +236,7 @@ export function ExpandedRowScoreBreakdown({
     item,
     userTimezone,
 }: ExpandedRowScoreBreakdownProps) {
-    const score = item.current_score;
+    const score = item.currentScore;
 
     if (!score) {
         return null;
@@ -252,8 +252,8 @@ export function ExpandedRowScoreBreakdown({
     // Optional pillars
     if (score.fundamental) pillars.push({ key: "fundamental", data: score.fundamental });
     if (score.catalyst) pillars.push({ key: "catalyst", data: score.catalyst });
-    if (score.options_flow) pillars.push({ key: "options_flow", data: score.options_flow });
-    if (score.performance_factor) pillars.push({ key: "performance_factor", data: score.performance_factor });
+    if (score.optionsFlow) pillars.push({ key: "optionsFlow", data: score.optionsFlow });
+    if (score.performanceFactor) pillars.push({ key: "performanceFactor", data: score.performanceFactor });
 
     if (pillars.length === 0) {
         return null;

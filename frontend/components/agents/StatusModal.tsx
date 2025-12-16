@@ -46,43 +46,43 @@ export function StatusModal({ open, onOpenChange }: StatusModalProps) {
         <div className="grid grid-cols-2 gap-3 py-2">
           <MetricCard
             title="Total Runs"
-            value={summary?.total_runs ?? 0}
+            value={summary?.totalRuns ?? 0}
             icon={<Activity className="h-4 w-4 text-blue-400" />}
             loading={summaryLoading}
           />
           <MetricCard
             title="Success Rate"
-            value={`${summary?.success_rate?.toFixed(1) ?? 0}%`}
+            value={`${summary?.successRate?.toFixed(1) ?? 0}%`}
             icon={<CheckCircle2 className="h-4 w-4 text-green-400" />}
             loading={summaryLoading}
             valueColor={
-              (summary?.success_rate ?? 0) >= 90
+              (summary?.successRate ?? 0) >= 90
                 ? "text-green-400"
-                : (summary?.success_rate ?? 0) >= 70
+                : (summary?.successRate ?? 0) >= 70
                 ? "text-yellow-400"
                 : "text-red-400"
             }
           />
           <MetricCard
             title="Total Tokens"
-            value={formatNumber(summary?.total_tokens ?? 0)}
+            value={formatNumber(summary?.totalTokens ?? 0)}
             icon={<Cpu className="h-4 w-4 text-purple-400" />}
             loading={summaryLoading}
           />
           <MetricCard
             title="Avg Duration"
-            value={formatDuration(summary?.avg_duration_ms ?? 0)}
+            value={formatDuration(summary?.avgDurationMs ?? 0)}
             icon={<Clock className="h-4 w-4 text-orange-400" />}
             loading={summaryLoading}
           />
         </div>
 
         {/* Provider breakdown */}
-        {!summaryLoading && summary?.by_provider && summary.by_provider.length > 0 && (
+        {!summaryLoading && summary?.byProvider && summary.byProvider.length > 0 && (
           <div className="border-t border-gray-700 pt-3">
             <h4 className="text-xs text-gray-400 mb-2">By Provider</h4>
             <div className="space-y-2">
-              {summary.by_provider.map((provider) => (
+              {summary.byProvider.map((provider) => (
                 <div
                   key={provider.provider}
                   className="flex items-center justify-between p-2 bg-gray-800/50 rounded text-xs"
@@ -91,17 +91,17 @@ export function StatusModal({ open, onOpenChange }: StatusModalProps) {
                     {provider.provider}
                   </Badge>
                   <div className="flex gap-4 text-gray-400">
-                    <span>{provider.total_runs} runs</span>
+                    <span>{provider.totalRuns} runs</span>
                     <span className={
-                      provider.success_rate >= 90
+                      provider.successRate >= 90
                         ? "text-green-400"
-                        : provider.success_rate >= 70
+                        : provider.successRate >= 70
                         ? "text-yellow-400"
                         : "text-red-400"
                     }>
-                      {provider.success_rate.toFixed(0)}%
+                      {provider.successRate.toFixed(0)}%
                     </span>
-                    <span>{formatNumber(provider.total_tokens)} tok</span>
+                    <span>{formatNumber(provider.totalTokens)} tok</span>
                   </div>
                 </div>
               ))}
@@ -131,14 +131,14 @@ export function StatusModal({ open, onOpenChange }: StatusModalProps) {
                     ) : (
                       <XCircle className="h-3 w-3 text-red-400" />
                     )}
-                    <span className="text-gray-300">{run.agent_type}</span>
+                    <span className="text-gray-300">{run.agentType}</span>
                     <Badge variant="secondary" className="text-[10px] px-1 py-0">
                       {run.provider ?? 'unknown'}
                     </Badge>
                   </div>
                   <div className="flex gap-3 text-gray-500">
-                    <span>{run.duration_ms ? formatDuration(run.duration_ms) : '-'}</span>
-                    <span>{formatDate(run.started_at)}</span>
+                    <span>{run.durationMs ? formatDuration(run.durationMs) : '-'}</span>
+                    <span>{formatDate(run.startedAt)}</span>
                   </div>
                 </div>
               ))}

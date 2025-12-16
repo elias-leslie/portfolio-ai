@@ -40,17 +40,17 @@ interface AcceptanceCriterion {
 }
 
 interface Feature {
-  feature_id: string;
+  featureId: string;
   name: string;
   category: string;
-  acceptance_criteria: AcceptanceCriterion[];
+  acceptanceCriteria: AcceptanceCriterion[];
 }
 
 interface EvidenceCaptureResult {
   success: boolean;
   version: number;
-  feature_id: string;
-  criterion_id: string;
+  featureId: string;
+  criterionId: string;
   error?: string;
   evidence?: {
     console: { errorCount: number; warningCount: number };
@@ -88,7 +88,7 @@ function checkUrlMatch(
   const matchingCriteria: string[] = [];
   const pathLower = currentPath.toLowerCase();
 
-  for (const criterion of feature.acceptance_criteria) {
+  for (const criterion of feature.acceptanceCriteria) {
     if (criterion.type !== "ui") continue;
 
     // Check verification field for URL/path
@@ -271,10 +271,10 @@ export function EvidenceCaptureModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          screenshot_base64: base64,
+          screenshotBase64: base64,
           url: pageUrl,
-          page_title: document.title,
-          client_evidence: clientEvidence,
+          pageTitle: document.title,
+          clientEvidence: clientEvidence,
         }),
       });
 
@@ -285,8 +285,8 @@ export function EvidenceCaptureModal({
       onCaptured({
         success: true,
         version: 1,
-        feature_id: "DEBUG",
-        criterion_id: "debug",
+        featureId: "DEBUG",
+        criterionId: "debug",
         evidence: {
           console: clientEvidence.console,
           network: clientEvidence.network,
@@ -323,16 +323,16 @@ export function EvidenceCaptureModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          feature_id: featureId,
-          criterion_id: criterionId,
-          screenshot_base64: base64,
+          featureId: featureId,
+          criterionId: criterionId,
+          screenshotBase64: base64,
           url: pageUrl,
-          viewport_width: window.innerWidth,
-          viewport_height: window.innerHeight,
-          scroll_x: window.scrollX,
-          scroll_y: window.scrollY,
-          page_title: document.title,
-          client_evidence: clientEvidence,
+          viewportWidth: window.innerWidth,
+          viewportHeight: window.innerHeight,
+          scrollX: window.scrollX,
+          scrollY: window.scrollY,
+          pageTitle: document.title,
+          clientEvidence: clientEvidence,
         }),
       });
 
@@ -376,7 +376,7 @@ export function EvidenceCaptureModal({
 
     return featuresData.features
       .map((feature) => {
-        const uiCriteria = feature.acceptance_criteria.filter((c) => c.type === "ui");
+        const uiCriteria = feature.acceptanceCriteria.filter((c) => c.type === "ui");
         const urlMatchInfo = checkUrlMatch(feature, currentPath);
         return {
           ...feature,
@@ -398,7 +398,7 @@ export function EvidenceCaptureModal({
       const query = searchQuery.toLowerCase();
       result = result.filter(
         (f) =>
-          f.feature_id.toLowerCase().includes(query) ||
+          f.featureId.toLowerCase().includes(query) ||
           f.name.toLowerCase().includes(query) ||
           f.category.toLowerCase().includes(query) ||
           f.uiCriteria.some((c) => c.criterion.toLowerCase().includes(query))
@@ -415,7 +415,7 @@ export function EvidenceCaptureModal({
       let comparison = 0;
       switch (sortField) {
         case "feature_id":
-          comparison = a.feature_id.localeCompare(b.feature_id);
+          comparison = a.featureId.localeCompare(b.featureId);
           break;
         case "name":
           comparison = a.name.localeCompare(b.name);
@@ -430,7 +430,7 @@ export function EvidenceCaptureModal({
           // URL matches first, then by feature ID
           comparison = (b.urlMatch ? 1 : 0) - (a.urlMatch ? 1 : 0);
           if (comparison === 0) {
-            comparison = a.feature_id.localeCompare(b.feature_id);
+            comparison = a.featureId.localeCompare(b.featureId);
           }
           break;
       }
@@ -442,13 +442,13 @@ export function EvidenceCaptureModal({
 
   // Get selected feature data
   const selectedFeatureData = processedFeatures.find(
-    (f) => f.feature_id === selectedFeature
+    (f) => f.featureId === selectedFeature
   );
 
   // Reset state when modal opens/closes
   useEffect(() => {
     if (!open) {
-      setMode("quick");
+      setMode("debug");
       setSelectedFeature("");
       setSelectedCriterion("");
       setSearchQuery("");
@@ -494,14 +494,14 @@ export function EvidenceCaptureModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          feature_id: featureId,
-          criterion_id: criterionId,
+          featureId: featureId,
+          criterionId: criterionId,
           url: pageUrl,
         }),
       });
       if (!response.ok) throw new Error("Evidence capture failed");
       const result = await response.json();
-      return { ...result, feature_id: featureId, criterion_id: criterionId };
+      return { ...result, featureId: featureId, criterionId: criterionId };
     },
     onSuccess: (result) => {
       if (result.success) {
@@ -536,7 +536,7 @@ export function EvidenceCaptureModal({
             name: newFeatureName.trim(),
             category: newFeatureCategory,
             description: `Evidence capture for ${currentPath}`,
-            acceptance_criteria: [{
+            acceptanceCriteria: [{
               criterion: `Screenshot of ${currentPath}`,
               type: "ui",
               verification: pageUrl,
@@ -545,8 +545,8 @@ export function EvidenceCaptureModal({
         });
         if (!response.ok) throw new Error("Failed to create feature");
         const newFeature = await response.json();
-        const criterionId = newFeature.acceptance_criteria?.[0]?.id || "ac-001";
-        await captureForFeature(newFeature.feature_id, criterionId);
+        const criterionId = newFeature.acceptanceCriteria?.[0]?.id || "ac-001";
+        await captureForFeature(newFeature.featureId, criterionId);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Failed to create feature");
       }
@@ -755,19 +755,19 @@ export function EvidenceCaptureModal({
                   ) : (
                     filteredFeatures.map((feature) => (
                       <button
-                        key={feature.feature_id}
+                        key={feature.featureId}
                         className={cn(
                           "w-full grid grid-cols-[1fr_2fr_1fr_60px_50px] gap-2 px-3 py-2 text-xs text-left",
                           "hover:bg-muted/50 border-b border-border/50 transition-colors",
-                          selectedFeature === feature.feature_id &&
+                          selectedFeature === feature.featureId &&
                             "bg-blue-500/10 hover:bg-blue-500/20"
                         )}
                         onClick={() => {
-                          setSelectedFeature(feature.feature_id);
+                          setSelectedFeature(feature.featureId);
                           setSelectedCriterion("");
                         }}
                       >
-                        <span className="font-mono truncate">{feature.feature_id}</span>
+                        <span className="font-mono truncate">{feature.featureId}</span>
                         <span className="truncate">{feature.name}</span>
                         <span className="truncate text-muted-foreground">
                           {feature.category}

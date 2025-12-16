@@ -62,7 +62,7 @@ export function ServiceCard({ serviceName, status, onRestart }: ServiceCardProps
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             {icon}
-            <span>{status.service_name}</span>
+            <span>{status.serviceName}</span>
           </CardTitle>
           <div className="flex items-center gap-2">
             <Badge variant={variant}>{status.status}</Badge>
@@ -71,7 +71,7 @@ export function ServiceCard({ serviceName, status, onRestart }: ServiceCardProps
                 variant="ghost"
                 size="sm"
                 onClick={() => onRestart(serviceName)}
-                title={`Restart ${status.service_name}`}
+                title={`Restart ${status.serviceName}`}
               >
                 <RotateCw className="h-4 w-4" />
               </Button>
@@ -88,11 +88,11 @@ export function ServiceCard({ serviceName, status, onRestart }: ServiceCardProps
           </div>
           <div>
             <div className="text-muted-foreground">Uptime</div>
-            <div className="font-mono">{formatUptime(status.uptime_seconds)}</div>
+            <div className="font-mono">{formatUptime(status.uptimeSeconds)}</div>
           </div>
           <div>
             <div className="text-muted-foreground">Memory</div>
-            <div className="font-mono">{status.memory_mb ? `${status.memory_mb} MB` : "N/A"}</div>
+            <div className="font-mono">{status.memoryMb ? `${status.memoryMb} MB` : "N/A"}</div>
           </div>
         </div>
 

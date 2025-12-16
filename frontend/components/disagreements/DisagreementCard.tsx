@@ -36,10 +36,10 @@ const severityConfig = {
 
 export function DisagreementCard({ item, className }: DisagreementCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const config = severityConfig[item.disagreement_severity] || severityConfig.none;
+  const config = severityConfig[item.disagreementSeverity] || severityConfig.none;
   const Icon = config.icon;
 
-  const agreementPercent = Math.round(item.agreement_score * 100);
+  const agreementPercent = Math.round(item.agreementScore * 100);
 
   return (
     <div
@@ -80,7 +80,7 @@ export function DisagreementCard({ item, className }: DisagreementCardProps) {
       </div>
 
       {/* Summary */}
-      <p className="mt-2 text-sm text-text-muted">{item.consensus_summary}</p>
+      <p className="mt-2 text-sm text-text-muted">{item.consensusSummary}</p>
 
       {/* Expanded Reviews */}
       {isExpanded && (
@@ -92,7 +92,7 @@ export function DisagreementCard({ item, className }: DisagreementCardProps) {
               <span className="text-sm font-medium text-text">Gemini</span>
             </div>
             <p className="text-sm text-text-muted">
-              {item.gemini_review || "Review unavailable"}
+              {item.geminiReview || "Review unavailable"}
             </p>
           </div>
 
@@ -103,7 +103,7 @@ export function DisagreementCard({ item, className }: DisagreementCardProps) {
               <span className="text-sm font-medium text-text">Claude</span>
             </div>
             <p className="text-sm text-text-muted">
-              {item.claude_review || "Review unavailable"}
+              {item.claudeReview || "Review unavailable"}
             </p>
           </div>
         </div>
@@ -111,7 +111,7 @@ export function DisagreementCard({ item, className }: DisagreementCardProps) {
 
       {/* Timestamp */}
       <div className="mt-3 text-xs text-text-muted">
-        {new Date(item.created_at).toLocaleString()}
+        {new Date(item.createdAt).toLocaleString()}
       </div>
     </div>
   );

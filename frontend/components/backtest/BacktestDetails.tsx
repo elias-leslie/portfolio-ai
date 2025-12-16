@@ -212,7 +212,7 @@ export function BacktestDetails({
   // Handle Monte Carlo run
   const handleRunMonteCarlo = async () => {
     setMonteCarloData(null);
-    const result = await monteCarloMutation.mutateAsync({ num_simulations: 1000 });
+    const result = await monteCarloMutation.mutateAsync({ numSimulations: 1000 });
     setMonteCarloData(result);
   };
 
@@ -268,7 +268,7 @@ export function BacktestDetails({
     // Get symbol names for legend
     const symbolMap: Record<string, string> = {};
     comparisonData.metrics.forEach((m) => {
-      symbolMap[m.run_id] = m.symbol;
+      symbolMap[m.runId] = m.symbol;
     });
 
     return (
@@ -321,23 +321,23 @@ export function BacktestDetails({
         </SectionCard>
 
         {/* Correlation Matrix (if available) */}
-        {comparisonData.correlation_matrix && (
+        {comparisonData.correlationMatrix && (
           <SectionCard
             variant="surface"
             title="Strategy Correlation"
             description="Return correlation between strategies"
           >
             <div className="rounded-md border border-border bg-surface/40 overflow-x-auto p-4">
-              <div className="grid gap-2" style={{ gridTemplateColumns: `auto repeat(${Object.keys(comparisonData.correlation_matrix).length}, 1fr)` }}>
+              <div className="grid gap-2" style={{ gridTemplateColumns: `auto repeat(${Object.keys(comparisonData.correlationMatrix).length}, 1fr)` }}>
                 {/* Header row */}
                 <div className="font-medium text-text-muted"></div>
-                {Object.keys(comparisonData.correlation_matrix).map((runId) => (
+                {Object.keys(comparisonData.correlationMatrix).map((runId) => (
                   <div key={runId} className="text-center text-xs font-medium text-text-muted">
                     {symbolMap[runId] || runId.slice(0, 8)}
                   </div>
                 ))}
                 {/* Data rows */}
-                {Object.entries(comparisonData.correlation_matrix).map(([rowId, correlations]) => (
+                {Object.entries(comparisonData.correlationMatrix).map(([rowId, correlations]) => (
                   <>
                     <div key={`label-${rowId}`} className="text-xs font-medium text-text-muted">
                       {symbolMap[rowId] || rowId.slice(0, 8)}
@@ -415,12 +415,12 @@ export function BacktestDetails({
           <div>
             <h2 className="text-2xl font-bold text-text">{run.symbol}</h2>
             <p className="text-sm text-text-muted mt-1">
-              {formatDate(run.start_date)} →{" "}
-              {formatDate(run.end_date)}
+              {formatDate(run.startDate)} →{" "}
+              {formatDate(run.endDate)}
             </p>
-            {run.created_at && (
+            {run.createdAt && (
               <p className="text-xs text-text-muted mt-0.5 opacity-70">
-                Run created {formatDate(run.created_at)}
+                Run created {formatDate(run.createdAt)}
               </p>
             )}
           </div>
@@ -436,16 +436,16 @@ export function BacktestDetails({
             >
               {run.status}
             </Badge>
-            {run.total_return_pct !== null && (
+            {run.totalReturnPct !== null && (
               <div className="text-right">
                 <div
                   className={cn(
                     "text-2xl font-bold",
-                    parseFloat(String(run.total_return_pct)) >= 0 ? "text-gain" : "text-loss"
+                    parseFloat(String(run.totalReturnPct)) >= 0 ? "text-gain" : "text-loss"
                   )}
                 >
-                  {parseFloat(String(run.total_return_pct)) >= 0 ? "+" : ""}
-                  {parseFloat(String(run.total_return_pct)).toFixed(2)}%
+                  {parseFloat(String(run.totalReturnPct)) >= 0 ? "+" : ""}
+                  {parseFloat(String(run.totalReturnPct)).toFixed(2)}%
                 </div>
                 <p className="text-xs text-text-muted">Total Return</p>
               </div>
@@ -493,25 +493,25 @@ export function BacktestDetails({
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <MetricCard
           label="Total Return"
-          value={formatPercent(run.total_return_pct)}
+          value={formatPercent(run.totalReturnPct)}
           format="percent"
         />
         <MetricCard
           label="Sharpe Ratio"
-          value={run.sharpe_ratio ? parseFloat(run.sharpe_ratio.toString()) : null}
+          value={run.sharpeRatio ? parseFloat(run.sharpeRatio.toString()) : null}
           format="number"
         />
         <MetricCard
           label="Win Rate"
-          value={formatPercent(run.win_rate)}
+          value={formatPercent(run.winRate)}
           format="percent"
           isPositive
         />
         <MetricCard
           label="Max Drawdown"
           value={
-            run.max_drawdown_pct
-              ? -parseFloat(run.max_drawdown_pct.toString())
+            run.maxDrawdownPct
+              ? -parseFloat(run.maxDrawdownPct.toString())
               : null
           }
           format="percent"
@@ -519,7 +519,7 @@ export function BacktestDetails({
         />
         <MetricCard
           label="Profit Factor"
-          value={run.profit_factor ? parseFloat(run.profit_factor.toString()) : null}
+          value={run.profitFactor ? parseFloat(run.profitFactor.toString()) : null}
           format="number"
         />
       </div>
@@ -528,7 +528,7 @@ export function BacktestDetails({
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Card className="p-4">
           <div className="text-xs font-medium text-text-muted mb-2">Num Trades</div>
-          <div className="text-2xl font-bold text-text">{run.num_trades || 0}</div>
+          <div className="text-2xl font-bold text-text">{run.numTrades || 0}</div>
         </Card>
         <Card className="p-4">
           <div className="text-xs font-medium text-text-muted mb-2">Initial Capital</div>
@@ -537,24 +537,24 @@ export function BacktestDetails({
               style: "currency",
               currency: "USD",
               minimumFractionDigits: 0,
-            }).format(parseFloat(run.initial_capital.toString()))}
+            }).format(parseFloat(run.initialCapital.toString()))}
           </div>
         </Card>
         <Card className="p-4">
           <div className="text-xs font-medium text-text-muted mb-2">Final Equity</div>
           <div className="text-sm font-bold text-text">
-            {run.final_equity
+            {run.finalEquity
               ? new Intl.NumberFormat("en-US", {
                   style: "currency",
                   currency: "USD",
                   minimumFractionDigits: 0,
-                }).format(parseFloat(run.final_equity.toString()))
+                }).format(parseFloat(run.finalEquity.toString()))
               : "—"}
           </div>
         </Card>
         <Card className="p-4">
           <div className="text-xs font-medium text-text-muted mb-2">Strategy</div>
-          <div className="text-sm font-bold text-text capitalize">{run.strategy_name}</div>
+          <div className="text-sm font-bold text-text capitalize">{run.strategyName}</div>
         </Card>
       </div>
 
@@ -562,7 +562,7 @@ export function BacktestDetails({
       {trades.length > 0 && (
         <TradeDistributionChart
           trades={trades}
-          profitFactor={run.profit_factor ? parseFloat(String(run.profit_factor)) : null}
+          profitFactor={run.profitFactor ? parseFloat(String(run.profitFactor)) : null}
         />
       )}
 
@@ -670,24 +670,24 @@ function TradesTable({ trades, sorting, onSortingChange }: TradesTableProps) {
     {
       accessorKey: "entry_date",
       header: "Entry Date",
-      cell: ({ row }) => formatDate(row.original.entry_date as any),
+      cell: ({ row }) => formatDate(row.original.entryDate as any),
     },
     {
       accessorKey: "entry_price",
       header: "Entry Price",
-      cell: ({ row }) => formatCurrency(parseFloat(row.original.entry_price.toString())),
+      cell: ({ row }) => formatCurrency(parseFloat(row.original.entryPrice.toString())),
     },
     {
       accessorKey: "exit_date",
       header: "Exit Date",
-      cell: ({ row }) => formatDate(row.original.exit_date as any),
+      cell: ({ row }) => formatDate(row.original.exitDate as any),
     },
     {
       accessorKey: "exit_price",
       header: "Exit Price",
       cell: ({ row }) =>
-        row.original.exit_price
-          ? formatCurrency(parseFloat(row.original.exit_price.toString()))
+        row.original.exitPrice
+          ? formatCurrency(parseFloat(row.original.exitPrice.toString()))
           : "—",
     },
     {
@@ -699,8 +699,8 @@ function TradesTable({ trades, sorting, onSortingChange }: TradesTableProps) {
       accessorKey: "pnl_pct",
       header: "P&L %",
       cell: ({ row }) => {
-        const pnl = row.original.pnl_pct
-          ? parseFloat(row.original.pnl_pct.toString())
+        const pnl = row.original.pnlPct
+          ? parseFloat(row.original.pnlPct.toString())
           : null;
         return pnl !== null ? (
           <span className={pnl >= 0 ? "text-gain font-medium" : "text-loss font-medium"}>
@@ -761,8 +761,8 @@ function TradesTable({ trades, sorting, onSortingChange }: TradesTableProps) {
         </TableHeader>
         <TableBody>
           {table.getRowModel().rows.map((row) => {
-            const pnl = row.original.pnl_pct
-              ? parseFloat(row.original.pnl_pct.toString())
+            const pnl = row.original.pnlPct
+              ? parseFloat(row.original.pnlPct.toString())
               : 0;
             const bgClass =
               pnl >= 0
@@ -799,7 +799,7 @@ function transformComparisonData(
   const dateMap = new Map<string, ChartDataPoint>();
 
   // Iterate through each run's equity curve
-  Object.entries(comparisonData.equity_curves).forEach(([runId, equityPoints]) => {
+  Object.entries(comparisonData.equityCurves).forEach(([runId, equityPoints]) => {
     equityPoints.forEach((point) => {
       const dateStr = point.date;
       if (!dateMap.has(dateStr)) {
@@ -807,7 +807,7 @@ function transformComparisonData(
       }
 
       const chartPoint = dateMap.get(dateStr)!;
-      chartPoint[`return_${runId}`] = parseFloat(point.cumulative_return_pct.toString());
+      chartPoint[`return_${runId}`] = parseFloat(point.cumulativeReturnPct.toString());
     });
   });
 
@@ -869,21 +869,21 @@ function MetricsComparisonTable({ metrics }: { metrics: RunMetrics[] }) {
         </TableHeader>
         <TableBody>
           {metrics.map((m) => (
-            <TableRow key={m.run_id}>
+            <TableRow key={m.runId}>
               <TableCell className="font-medium">{m.symbol}</TableCell>
               <TableCell className={cn(
-                parseFloat(m.total_return_pct || "0") >= 0 ? "text-gain" : "text-loss",
+                parseFloat(m.totalReturnPct || "0") >= 0 ? "text-gain" : "text-loss",
                 "font-medium"
               )}>
-                {formatPercent(m.total_return_pct)}
+                {formatPercent(m.totalReturnPct)}
               </TableCell>
-              <TableCell><RankBadge rank={m.return_rank} /></TableCell>
-              <TableCell>{formatNumber(m.sharpe_ratio)}</TableCell>
-              <TableCell><RankBadge rank={m.sharpe_rank} /></TableCell>
-              <TableCell className="text-loss">{formatPercent(m.max_drawdown_pct)}</TableCell>
-              <TableCell><RankBadge rank={m.drawdown_rank} /></TableCell>
-              <TableCell>{formatPercent(m.win_rate)}</TableCell>
-              <TableCell>{m.num_trades ?? "—"}</TableCell>
+              <TableCell><RankBadge rank={m.returnRank} /></TableCell>
+              <TableCell>{formatNumber(m.sharpeRatio)}</TableCell>
+              <TableCell><RankBadge rank={m.sharpeRank} /></TableCell>
+              <TableCell className="text-loss">{formatPercent(m.maxDrawdownPct)}</TableCell>
+              <TableCell><RankBadge rank={m.drawdownRank} /></TableCell>
+              <TableCell>{formatPercent(m.winRate)}</TableCell>
+              <TableCell>{m.numTrades ?? "—"}</TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -906,37 +906,37 @@ function MonteCarloResults({ data }: { data: MonteCarloResponse }) {
           <div className="text-xs font-medium text-text-muted mb-2">Median Return</div>
           <div className={cn(
             "text-lg font-bold",
-            stats.percentile_50 >= 0 ? "text-gain" : "text-loss"
+            stats.percentile50 >= 0 ? "text-gain" : "text-loss"
           )}>
-            {stats.percentile_50 >= 0 ? "+" : ""}{stats.percentile_50.toFixed(2)}%
+            {stats.percentile50 >= 0 ? "+" : ""}{stats.percentile50.toFixed(2)}%
           </div>
         </Card>
         <Card className="p-4">
           <div className="text-xs font-medium text-text-muted mb-2">95% Confidence</div>
           <div className="text-sm font-medium text-text">
-            {stats.percentile_5.toFixed(1)}% to {stats.percentile_95.toFixed(1)}%
+            {stats.percentile5.toFixed(1)}% to {stats.percentile95.toFixed(1)}%
           </div>
         </Card>
         <Card className="p-4">
           <div className="text-xs font-medium text-text-muted mb-2">Prob. of Loss</div>
           <div className={cn(
             "text-lg font-bold",
-            stats.probability_of_loss <= 20 ? "text-gain" :
-            stats.probability_of_loss <= 40 ? "text-warning" : "text-loss"
+            stats.probabilityOfLoss <= 20 ? "text-gain" :
+            stats.probabilityOfLoss <= 40 ? "text-warning" : "text-loss"
           )}>
-            {stats.probability_of_loss.toFixed(1)}%
+            {stats.probabilityOfLoss.toFixed(1)}%
           </div>
         </Card>
         <Card className="p-4">
           <div className="text-xs font-medium text-text-muted mb-2">Value at Risk (95%)</div>
           <div className="text-lg font-bold text-loss">
-            {stats.value_at_risk_95.toFixed(2)}%
+            {stats.valueAtRisk95.toFixed(2)}%
           </div>
         </Card>
         <Card className="p-4">
           <div className="text-xs font-medium text-text-muted mb-2">Expected Shortfall</div>
           <div className="text-lg font-bold text-loss">
-            {stats.expected_shortfall.toFixed(2)}%
+            {stats.expectedShortfall.toFixed(2)}%
           </div>
         </Card>
       </div>
@@ -946,12 +946,12 @@ function MonteCarloResults({ data }: { data: MonteCarloResponse }) {
         <Card className="p-4">
           <div className="text-xs font-medium text-text-muted mb-2">Mean Return</div>
           <div className="text-sm font-bold text-text">
-            {stats.mean_return >= 0 ? "+" : ""}{stats.mean_return.toFixed(2)}%
+            {stats.meanReturn >= 0 ? "+" : ""}{stats.meanReturn.toFixed(2)}%
           </div>
         </Card>
         <Card className="p-4">
           <div className="text-xs font-medium text-text-muted mb-2">Std Deviation</div>
-          <div className="text-sm font-bold text-text">{stats.std_dev.toFixed(2)}%</div>
+          <div className="text-sm font-bold text-text">{stats.stdDev.toFixed(2)}%</div>
         </Card>
         <Card className="p-4">
           <div className="text-xs font-medium text-text-muted mb-2">Skewness</div>
@@ -966,12 +966,12 @@ function MonteCarloResults({ data }: { data: MonteCarloResponse }) {
       {/* Comparison with Original */}
       <div className="rounded-lg border border-border bg-surface/40 p-4">
         <p className="text-sm text-text-muted">
-          Based on {stats.num_simulations.toLocaleString()} simulations of resampled trades.
+          Based on {stats.numSimulations.toLocaleString()} simulations of resampled trades.
           Original backtest return: <span className={cn(
             "font-medium",
-            stats.original_return >= 0 ? "text-gain" : "text-loss"
+            stats.originalReturn >= 0 ? "text-gain" : "text-loss"
           )}>
-            {stats.original_return >= 0 ? "+" : ""}{stats.original_return.toFixed(2)}%
+            {stats.originalReturn >= 0 ? "+" : ""}{stats.originalReturn.toFixed(2)}%
           </span>
         </p>
       </div>

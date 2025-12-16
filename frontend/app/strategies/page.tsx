@@ -53,7 +53,7 @@ function StrategiesPageContent() {
   const testingCount = strategies.filter((s) => s.status === "testing").length;
   const avgSharpe =
     strategies.length > 0
-      ? strategies.reduce((sum, s) => sum + (s.expected_sharpe || 0), 0) / strategies.length
+      ? strategies.reduce((sum, s) => sum + (s.expectedSharpe || 0), 0) / strategies.length
       : 0;
 
   return (
@@ -65,7 +65,7 @@ function StrategiesPageContent() {
         size="md"
         actions={
           <Button
-            onClick={() => generateBatch.mutate({ top_n: 20 })}
+            onClick={() => generateBatch.mutate({ topN: 20 })}
             disabled={generateBatch.isPending}
           >
             <Sparkles className="mr-2 h-4 w-4" />

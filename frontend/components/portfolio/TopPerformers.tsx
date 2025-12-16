@@ -39,15 +39,15 @@ export function TopPerformers({ topPerformers, bottomPerformers }: TopPerformers
                   <div className="flex items-center gap-3">
                     <span className="font-medium text-text">{position.symbol}</span>
                     <span className="text-xs text-text-muted">
-                      {position.weight_pct.toFixed(1)}% of portfolio
+                      {position.weightPct.toFixed(1)}% of portfolio
                     </span>
                   </div>
                   <div className="text-right">
                     <div className="text-sm font-medium text-gain">
-                      {formatPercent(position.gain_pct)}
+                      {formatPercent(position.gainPct)}
                     </div>
                     <div className="text-xs text-text-muted">
-                      {formatCurrency(position.gain_amount)}
+                      {formatCurrency(position.gainAmount)}
                     </div>
                   </div>
                 </div>
@@ -74,15 +74,15 @@ export function TopPerformers({ topPerformers, bottomPerformers }: TopPerformers
                   <div className="flex items-center gap-3">
                     <span className="font-medium text-text">{position.symbol}</span>
                     <span className="text-xs text-text-muted">
-                      {position.weight_pct.toFixed(1)}% of portfolio
+                      {position.weightPct.toFixed(1)}% of portfolio
                     </span>
                   </div>
                   <div className="text-right">
                     <div className="text-sm font-medium text-loss">
-                      {formatPercent(position.gain_pct)}
+                      {formatPercent(position.gainPct)}
                     </div>
                     <div className="text-xs text-text-muted">
-                      {formatCurrency(position.gain_amount)}
+                      {formatCurrency(position.gainAmount)}
                     </div>
                   </div>
                 </div>

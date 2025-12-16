@@ -73,48 +73,48 @@ function EventMarker({ event, position }: EventMarkerProps) {
             <p className="text-sm font-medium text-text-primary">
               {event.title}
             </p>
-            {(event.actual_value !== null || event.expected_value !== null) && (
+            {(event.actualValue !== null || event.expectedValue !== null) && (
               <div className="flex gap-3 text-xs">
-                {event.expected_value !== null && (
+                {event.expectedValue !== null && (
                   <span className="text-text-muted">
-                    Est: {event.expected_value.toFixed(2)}
+                    Est: {event.expectedValue.toFixed(2)}
                   </span>
                 )}
-                {event.actual_value !== null && (
+                {event.actualValue !== null && (
                   <span className="text-text-primary">
-                    Act: {event.actual_value.toFixed(2)}
+                    Act: {event.actualValue.toFixed(2)}
                   </span>
                 )}
-                {event.surprise_pct !== null && (
+                {event.surprisePct !== null && (
                   <span
                     className={cn(
-                      event.surprise_pct > 0
+                      event.surprisePct > 0
                         ? "text-success"
-                        : event.surprise_pct < 0
+                        : event.surprisePct < 0
                           ? "text-error"
                           : "text-text-muted"
                     )}
                   >
-                    {event.surprise_pct > 0 ? "+" : ""}
-                    {event.surprise_pct.toFixed(1)}%
+                    {event.surprisePct > 0 ? "+" : ""}
+                    {event.surprisePct.toFixed(1)}%
                   </span>
                 )}
               </div>
             )}
-            {event.impact_score !== null && (
+            {event.impactScore !== null && (
               <div className="text-xs text-text-muted">
                 Impact:{" "}
                 <span
                   className={cn(
-                    event.impact_score > 0
+                    event.impactScore > 0
                       ? "text-success"
-                      : event.impact_score < 0
+                      : event.impactScore < 0
                         ? "text-error"
                         : "text-text-muted"
                   )}
                 >
-                  {event.impact_score > 0 ? "+" : ""}
-                  {event.impact_score}
+                  {event.impactScore > 0 ? "+" : ""}
+                  {event.impactScore}
                 </span>
               </div>
             )}

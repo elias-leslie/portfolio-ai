@@ -192,7 +192,7 @@ interface MaintenanceTask {
   description: string | null;
   taskName: string; // Celery task name
   isDbTask?: boolean; // Database tasks need special handling
-  supportsDryRun?: boolean; // Only some tasks support dry_run
+  supportsDryRun?: boolean; // Only some tasks support dryRun
 }
 
 // Sort configuration
@@ -292,19 +292,19 @@ export function MaintenanceTable() {
     try {
       const check = await checkBackupRequirements(24, true);
       setBackupCheck(check);
-      if (!check.can_proceed) {
-        toast.warning(`Backup check: ${check.blocking_reason || "Requirements not met"}`);
+      if (!check.canProceed) {
+        toast.warning(`Backup check: ${check.blockingReason || "Requirements not met"}`);
       }
     } catch {
       toast.error("Could not verify backup status");
       setBackupCheck({
-        backup_exists: false,
-        backup_recent: false,
-        backup_verified: false,
-        backup_name: null,
-        backup_age_hours: null,
-        can_proceed: false,
-        blocking_reason: "Could not verify backup status",
+        backupExists: false,
+        backupRecent: false,
+        backupVerified: false,
+        backupName: null,
+        backupAgeHours: null,
+        canProceed: false,
+        blockingReason: "Could not verify backup status",
         warnings: [],
       });
     } finally {
@@ -331,10 +331,10 @@ export function MaintenanceTable() {
         name: "Application Logs",
         category: "file",
         icon: <FileText className="h-4 w-4 text-orange-500" />,
-        sizeMb: fileCleanup.logs.size_mb,
-        fileCount: fileCleanup.logs.file_count,
+        sizeMb: fileCleanup.logs.sizeMb,
+        fileCount: fileCleanup.logs.fileCount,
         schedule: fileCleanup.logs.schedule,
-        retentionPolicy: fileCleanup.logs.retention_policy,
+        retentionPolicy: fileCleanup.logs.retentionPolicy,
         lastRun: getLastRun("cleanup_old_logs_task"),
         path: fileCleanup.logs.path,
         description: "Application log files",
@@ -346,10 +346,10 @@ export function MaintenanceTable() {
         name: "Database Backups",
         category: "file",
         icon: <Database className="h-4 w-4 text-blue-500" />,
-        sizeMb: fileCleanup.backups.size_mb,
-        fileCount: fileCleanup.backups.file_count,
+        sizeMb: fileCleanup.backups.sizeMb,
+        fileCount: fileCleanup.backups.fileCount,
         schedule: fileCleanup.backups.schedule,
-        retentionPolicy: fileCleanup.backups.retention_policy,
+        retentionPolicy: fileCleanup.backups.retentionPolicy,
         lastRun: getLastRun("cleanup_old_backups_task"),
         path: fileCleanup.backups.path,
         description: "PostgreSQL backup files",
@@ -361,10 +361,10 @@ export function MaintenanceTable() {
         name: "ML Model Versions",
         category: "file",
         icon: <Brain className="h-4 w-4 text-purple-500" />,
-        sizeMb: fileCleanup.models.size_mb,
-        fileCount: fileCleanup.models.file_count,
+        sizeMb: fileCleanup.models.sizeMb,
+        fileCount: fileCleanup.models.fileCount,
         schedule: fileCleanup.models.schedule,
-        retentionPolicy: fileCleanup.models.retention_policy,
+        retentionPolicy: fileCleanup.models.retentionPolicy,
         lastRun: getLastRun("cleanup_old_models_task"),
         path: fileCleanup.models.path,
         description: "Trained ML model files",
@@ -376,12 +376,12 @@ export function MaintenanceTable() {
         name: "Test Artifacts",
         category: "file",
         icon: <TestTube className="h-4 w-4 text-green-500" />,
-        sizeMb: fileCleanup.solution_state.size_mb,
-        fileCount: fileCleanup.solution_state.file_count,
-        schedule: fileCleanup.solution_state.schedule,
-        retentionPolicy: fileCleanup.solution_state.retention_policy,
+        sizeMb: fileCleanup.solutionState.sizeMb,
+        fileCount: fileCleanup.solutionState.fileCount,
+        schedule: fileCleanup.solutionState.schedule,
+        retentionPolicy: fileCleanup.solutionState.retentionPolicy,
         lastRun: getLastRun("cleanup_solution_state_task"),
-        path: fileCleanup.solution_state.path,
+        path: fileCleanup.solutionState.path,
         description: "UI regression test artifacts",
         taskName: "cleanup_solution_state_task",
         supportsDryRun: true,
@@ -395,8 +395,8 @@ export function MaintenanceTable() {
         name: "Dev Caches",
         category: "cache",
         icon: <Zap className="h-4 w-4 text-yellow-500" />,
-        sizeMb: cacheStatus.total_size_mb,
-        fileCount: cacheStatus.total_file_count,
+        sizeMb: cacheStatus.totalSizeMb,
+        fileCount: cacheStatus.totalFileCount,
         schedule: "Manual",
         retentionPolicy: "Auto-regenerate",
         lastRun: getLastRun("cleanup_cache_directories_task"),
@@ -583,8 +583,8 @@ export function MaintenanceTable() {
           comparison = a.schedule.localeCompare(b.schedule);
           break;
         case "lastRun":
-          const aTime = a.lastRun?.started_at ? new Date(a.lastRun.started_at).getTime() : 0;
-          const bTime = b.lastRun?.started_at ? new Date(b.lastRun.started_at).getTime() : 0;
+          const aTime = a.lastRun?.startedAt ? new Date(a.lastRun.startedAt).getTime() : 0;
+          const bTime = b.lastRun?.startedAt ? new Date(b.lastRun.startedAt).getTime() : 0;
           comparison = aTime - bTime;
           break;
       }
@@ -669,7 +669,7 @@ export function MaintenanceTable() {
     setTriggeringTask("vacuum_database");
     try {
       const result = await vacuumDatabase(dryRun);
-      toast.success(`Vacuum ${result.status}: ${result.summary?.total_reclaimed_mb || 0} MB ${dryRun ? "could be" : ""} reclaimed`);
+      toast.success(`Vacuum ${result.status}: ${result.summary?.totalReclaimedMb || 0} MB ${dryRun ? "could be" : ""} reclaimed`);
       await fetchAllData();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed";
@@ -684,8 +684,8 @@ export function MaintenanceTable() {
     try {
       const result = await validateIntegrity(dryRun);
       const summary = result.summary as Record<string, unknown> | null;
-      const totalErrors = typeof summary?.total_errors === "number" ? summary.total_errors : 0;
-      const totalWarnings = typeof summary?.total_warnings === "number" ? summary.total_warnings : 0;
+      const totalErrors = typeof summary?.totalErrors === "number" ? summary.totalErrors : 0;
+      const totalWarnings = typeof summary?.totalWarnings === "number" ? summary.totalWarnings : 0;
       toast.success(`Validation ${result.status}: ${totalErrors} errors, ${totalWarnings} warnings`);
       await fetchAllData();
     } catch (error) {
@@ -698,11 +698,11 @@ export function MaintenanceTable() {
 
   // Trigger task with appropriate handler
   const triggerTask = (task: MaintenanceTask) => {
-    const canRunLive = !dryRun && backupCheck?.can_proceed === true;
-    const liveBlocked = !dryRun && backupCheck !== null && !backupCheck.can_proceed;
+    const canRunLive = !dryRun && backupCheck?.canProceed === true;
+    const liveBlocked = !dryRun && backupCheck !== null && !backupCheck.canProceed;
 
     if (liveBlocked && task.isDbTask) {
-      toast.error(`Cannot run: ${backupCheck?.blocking_reason}`);
+      toast.error(`Cannot run: ${backupCheck?.blockingReason}`);
       return;
     }
 
@@ -768,7 +768,7 @@ export function MaintenanceTable() {
     const results: typeof batchResults = [];
 
     for (const task of filteredTasks) {
-      // In dry run mode, SKIP tasks that don't support dry_run
+      // In dry run mode, SKIP tasks that don't support dryRun
       if (dryRun && !task.supportsDryRun) {
         results.push({
           taskName: task.name,
@@ -840,8 +840,8 @@ export function MaintenanceTable() {
   };
 
   const formatLastRun = (lastRun: MaintenanceResult | null) => {
-    if (!lastRun?.started_at) return "—";
-    const date = new Date(lastRun.started_at);
+    if (!lastRun?.startedAt) return "—";
+    const date = new Date(lastRun.startedAt);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / (1000 * 60));
@@ -897,8 +897,8 @@ export function MaintenanceTable() {
     return `${tasks.length} tasks ready`;
   };
 
-  const canRunLive = !dryRun && backupCheck?.can_proceed === true;
-  const liveBlocked = !dryRun && backupCheck !== null && !backupCheck.can_proceed;
+  const canRunLive = !dryRun && backupCheck?.canProceed === true;
+  const liveBlocked = !dryRun && backupCheck !== null && !backupCheck.canProceed;
 
   return (
     <>
@@ -933,7 +933,7 @@ export function MaintenanceTable() {
                 ) : (
                   <Badge variant="destructive" className="flex items-center gap-1">
                     <ShieldAlert className="h-3 w-3" />
-                    {backupCheck?.blocking_reason?.split(".")[0] || "No backup"}
+                    {backupCheck?.blockingReason?.split(".")[0] || "No backup"}
                   </Badge>
                 )}
               </div>
@@ -982,20 +982,20 @@ export function MaintenanceTable() {
             {/* Summary Stats */}
             <div className="grid grid-cols-4 gap-4 p-4 bg-surface-muted/30 rounded-lg">
               <div className="text-center">
-                <div className="text-xl font-bold">{formatSize(fileCleanup?.total_size_mb || 0)}</div>
+                <div className="text-xl font-bold">{formatSize(fileCleanup?.totalSizeMb || 0)}</div>
                 <div className="text-xs text-muted-foreground">Managed Files</div>
               </div>
               <div className="text-center">
-                <div className="text-xl font-bold">{formatSize(dbSize?.database_size_mb || 0)}</div>
+                <div className="text-xl font-bold">{formatSize(dbSize?.databaseSizeMb || 0)}</div>
                 <div className="text-xs text-muted-foreground">Database</div>
               </div>
               <div className="text-center">
-                <div className="text-xl font-bold">{formatSize(cacheStatus?.total_size_mb || 0)}</div>
+                <div className="text-xl font-bold">{formatSize(cacheStatus?.totalSizeMb || 0)}</div>
                 <div className="text-xs text-muted-foreground">Dev Caches</div>
               </div>
               <div className="text-center">
                 <div className="text-xl font-bold">
-                  {diskSpace?.partitions?.[0]?.used_percentage?.toFixed(0) || "—"}%
+                  {diskSpace?.partitions?.[0]?.usedPercentage?.toFixed(0) || "—"}%
                 </div>
                 <div className="text-xs text-muted-foreground">Disk Used</div>
               </div>
@@ -1137,7 +1137,7 @@ export function MaintenanceTable() {
 
             {/* Scheduled Tasks Summary */}
             <div className="text-xs text-muted-foreground text-center pt-2 border-t">
-              {schedule?.total_count || 0} scheduled maintenance tasks configured
+              {schedule?.totalCount || 0} scheduled maintenance tasks configured
             </div>
           </div>
         )}

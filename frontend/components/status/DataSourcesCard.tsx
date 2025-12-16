@@ -126,24 +126,24 @@ function renderSourceRow(sourceName: string, sourceHealth: SourceHealth) {
           <div className="mt-1 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
             <div className="flex items-center gap-1">
               <Clock className="h-3 w-3" />
-              Last success: {formatTimestamp(sourceHealth.last_success)}
+              Last success: {formatTimestamp(sourceHealth.lastSuccess)}
             </div>
-            {sourceHealth.success_rate != null && (
-              <div>Success rate: {sourceHealth.success_rate.toFixed(1)}%</div>
+            {sourceHealth.successRate != null && (
+              <div>Success rate: {sourceHealth.successRate.toFixed(1)}%</div>
             )}
-            {sourceHealth.avg_latency_ms != null && (
-              <div>Avg latency: {sourceHealth.avg_latency_ms}ms</div>
+            {sourceHealth.avgLatencyMs != null && (
+              <div>Avg latency: {sourceHealth.avgLatencyMs}ms</div>
             )}
           </div>
-          {sourceHealth.in_cooldown && (
+          {sourceHealth.inCooldown && (
             <div className="mt-1 flex items-center gap-1 text-xs text-yellow-600">
               <AlertCircle className="h-3 w-3" />
-              In cooldown ({sourceHealth.cooldown_remaining_seconds}s remaining)
+              In cooldown ({sourceHealth.cooldownRemainingSeconds}s remaining)
             </div>
           )}
-          {sourceHealth.rate_limit_hits > 0 && (
+          {sourceHealth.rateLimitHits > 0 && (
             <div className="mt-1 text-xs text-orange-600">
-              Rate limit hits: {sourceHealth.rate_limit_hits}
+              Rate limit hits: {sourceHealth.rateLimitHits}
             </div>
           )}
         </div>

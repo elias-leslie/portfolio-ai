@@ -40,8 +40,8 @@ import {
 
 const SERVICE_DISPLAY_NAMES: Record<string, string> = {
     backend: "Backend",
-    celery_worker: "Celery Worker",
-    celery_beat: "Celery Beat",
+    celeryWorker: "Celery Worker",
+    celeryBeat: "Celery Beat",
     frontend: "Frontend",
     redis: "Redis",
     postgresql: "PostgreSQL",
@@ -124,7 +124,7 @@ export function LogsCard() {
     }, [data?.logs, sortOrder]);
 
     const logCounts = useMemo(() => {
-        return data?.level_counts || {
+        return data?.levelCounts || {
             CRITICAL: 0,
             ERROR: 0,
             WARN: 0,
@@ -132,7 +132,7 @@ export function LogsCard() {
             DEBUG: 0,
             UNKNOWN: 0,
         };
-    }, [data?.level_counts]);
+    }, [data?.levelCounts]);
 
     const totalUnfilteredCount = useMemo(() => {
         return (logCounts.CRITICAL || 0) +
@@ -176,7 +176,7 @@ export function LogsCard() {
 
     const summary = [
         `${sortedLogs.length} entries`,
-        `Level ${logLevelConfig?.current_level ?? "INFO"}`,
+        `Level ${logLevelConfig?.currentLevel ?? "INFO"}`,
         serviceFilter ? SERVICE_DISPLAY_NAMES[serviceFilter] : "All services",
     ]
         .filter(Boolean)
@@ -267,7 +267,7 @@ export function LogsCard() {
                             <TooltipTrigger asChild>
                                 <div className="inline-block">
                                     <Select
-                                        value={logLevelConfig?.current_level || "INFO"}
+                                        value={logLevelConfig?.currentLevel || "INFO"}
                                         onValueChange={handleLogLevelChange}
                                         disabled={logLevelMutation.isPending}
                                     >

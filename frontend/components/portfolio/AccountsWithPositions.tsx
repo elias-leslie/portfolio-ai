@@ -121,18 +121,18 @@ export function AccountsWithPositions({ onAddAccount, onAddPosition }: AccountsW
 
   // Helpers
   const getAccountPositions = (accountId: string) => {
-    return portfolio?.positions.filter((p) => p.account_id === accountId) || [];
+    return portfolio?.positions.filter((p) => p.accountId === accountId) || [];
   };
 
   const getAccountTotalValue = (accountId: string) => {
     const positions = getAccountPositions(accountId);
-    return positions.reduce((sum, p) => sum + (p.current_value || 0), 0);
+    return positions.reduce((sum, p) => sum + (p.currentValue || 0), 0);
   };
 
   const getAccountTotalGain = (accountId: string) => {
     const positions = getAccountPositions(accountId);
-    const totalValue = positions.reduce((sum, p) => sum + (p.current_value || 0), 0);
-    const totalCost = positions.reduce((sum, p) => sum + (p.shares * p.cost_basis), 0);
+    const totalValue = positions.reduce((sum, p) => sum + (p.currentValue || 0), 0);
+    const totalCost = positions.reduce((sum, p) => sum + (p.shares * p.costBasis), 0);
     return totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : 0;
   };
 
@@ -156,11 +156,11 @@ export function AccountsWithPositions({ onAddAccount, onAddPosition }: AccountsW
 
   const handleEditPosition = (position: PositionWithValue) => {
     setEditingPosition(position);
-    setEditAccountId(position.account_id);
+    setEditAccountId(position.accountId);
     setEditSymbol(position.symbol);
     setEditShares(position.shares.toString());
-    setEditCostBasis(position.cost_basis.toString());
-    setEditPositionType(position.position_type as PositionType);
+    setEditCostBasis(position.costBasis.toString());
+    setEditPositionType(position.positionType as PositionType);
     setEditOpen(true);
   };
 
@@ -171,11 +171,11 @@ export function AccountsWithPositions({ onAddAccount, onAddPosition }: AccountsW
       {
         positionId: editingPosition.id,
         data: {
-          account_id: editAccountId,
+          accountId: editAccountId,
           symbol: editSymbol.toUpperCase().trim(),
           shares: parseFloat(editShares),
-          cost_basis: parseFloat(editCostBasis),
-          position_type: editPositionType,
+          costBasis: parseFloat(editCostBasis),
+          positionType: editPositionType,
         },
       },
       {
@@ -324,7 +324,7 @@ export function AccountsWithPositions({ onAddAccount, onAddPosition }: AccountsW
                           <div className="flex items-center gap-3">
                             <span className="font-semibold text-base">{account.name}</span>
                             <span className="text-xs text-text-muted bg-surface-muted px-2 py-0.5 rounded">
-                              {account.account_type}
+                              {account.accountType}
                             </span>
                           </div>
                           <div className="flex items-center gap-4 text-sm">
@@ -392,9 +392,9 @@ export function AccountsWithPositions({ onAddAccount, onAddPosition }: AccountsW
                           </TableHeader>
                           <TableBody>
                             {positions.map((position) => {
-                              const costBasisTotal = position.shares * position.cost_basis;
-                              const pnlDollars = position.current_value
-                                ? position.current_value - costBasisTotal
+                              const costBasisTotal = position.shares * position.costBasis;
+                              const pnlDollars = position.currentValue
+                                ? position.currentValue - costBasisTotal
                                 : 0;
                               const pnlPercent = costBasisTotal > 0
                                 ? (pnlDollars / costBasisTotal) * 100
@@ -410,16 +410,16 @@ export function AccountsWithPositions({ onAddAccount, onAddPosition }: AccountsW
                                   <TableCell className="font-medium">{position.symbol}</TableCell>
                                   <TableCell className="text-right">{position.shares}</TableCell>
                                   <TableCell className="text-right">
-                                    {formatCurrency(position.cost_basis)}
+                                    {formatCurrency(position.costBasis)}
                                   </TableCell>
                                   <TableCell className="text-right">
-                                    {position.current_price
-                                      ? formatCurrency(position.current_price)
+                                    {position.currentPrice
+                                      ? formatCurrency(position.currentPrice)
                                       : "—"}
                                   </TableCell>
                                   <TableCell className="text-right">
-                                    {position.current_value
-                                      ? formatCurrency(position.current_value)
+                                    {position.currentValue
+                                      ? formatCurrency(position.currentValue)
                                       : "—"}
                                   </TableCell>
                                   <TableCell
@@ -427,14 +427,14 @@ export function AccountsWithPositions({ onAddAccount, onAddPosition }: AccountsW
                                       pnlDollars >= 0 ? "text-profit" : "text-loss"
                                     }`}
                                   >
-                                    {position.current_value ? formatPnlDollars(pnlDollars) : "—"}
+                                    {position.currentValue ? formatPnlDollars(pnlDollars) : "—"}
                                   </TableCell>
                                   <TableCell
                                     className={`text-right ${
                                       pnlPercent >= 0 ? "text-profit" : "text-loss"
                                     }`}
                                   >
-                                    {position.current_value ? formatPercent(pnlPercent) : "—"}
+                                    {position.currentValue ? formatPercent(pnlPercent) : "—"}
                                   </TableCell>
                                   <TableCell className="text-right">
                                     <div className="flex items-center justify-end gap-1">
@@ -495,7 +495,7 @@ export function AccountsWithPositions({ onAddAccount, onAddPosition }: AccountsW
                 <SelectContent>
                   {accounts?.map((account) => (
                     <SelectItem key={account.id} value={account.id}>
-                      {account.name} ({account.account_type})
+                      {account.name} ({account.accountType})
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -18,22 +18,22 @@ import { Badge } from "@/components/ui/badge";
 
 interface Transaction {
   id: string;
-  trade_id: string;
-  transaction_type: "ENTRY" | "EXIT";
+  tradeId: string;
+  transactionType: "ENTRY" | "EXIT";
   symbol: string;
   shares: number;
   price: number;
   amount: number;
-  cash_before: number;
-  cash_after: number;
+  cashBefore: number;
+  cashAfter: number;
   timestamp: string;
   notes?: string | null;
   // Slippage fields (FEAT-210)
-  expected_price?: number | null;
-  slippage_amount?: number | null;
-  slippage_bps?: number | null;
+  expectedPrice?: number | null;
+  slippageAmount?: number | null;
+  slippageBps?: number | null;
   adv?: number | null;
-  slippage_model?: string | null;
+  slippageModel?: string | null;
 }
 
 interface TransactionsListProps {
@@ -116,14 +116,14 @@ export function TransactionsList({ limit = 50 }: TransactionsListProps) {
 
   // Format slippage for display
   const formatSlippage = (tx: Transaction) => {
-    if (tx.slippage_bps === null || tx.slippage_bps === undefined) {
+    if (tx.slippageBps === null || tx.slippageBps === undefined) {
       return <span className="text-text-muted">—</span>;
     }
-    const bps = tx.slippage_bps;
-    const cost = tx.slippage_amount ?? 0;
+    const bps = tx.slippageBps;
+    const cost = tx.slippageAmount ?? 0;
     const colorClass = bps > 0 ? "text-loss" : bps < 0 ? "text-gain" : "text-text-muted";
     return (
-      <span className={colorClass} title={`Model: ${tx.slippage_model ?? "N/A"}`}>
+      <span className={colorClass} title={`Model: ${tx.slippageModel ?? "N/A"}`}>
         {bps > 0 ? "+" : ""}{bps.toFixed(1)}bps (${Math.abs(cost).toFixed(2)})
       </span>
     );
@@ -152,8 +152,8 @@ export function TransactionsList({ limit = 50 }: TransactionsListProps) {
                 {formatDateTime(tx.timestamp)}
               </TableCell>
               <TableCell>
-                <Badge variant={getTypeBadgeVariant(tx.transaction_type)}>
-                  {tx.transaction_type}
+                <Badge variant={getTypeBadgeVariant(tx.transactionType)}>
+                  {tx.transactionType}
                 </Badge>
               </TableCell>
               <TableCell className="font-semibold">{tx.symbol}</TableCell>
@@ -161,7 +161,7 @@ export function TransactionsList({ limit = 50 }: TransactionsListProps) {
               <TableCell className="text-right">{formatCurrency(tx.price)}</TableCell>
               <TableCell className="text-right">{formatSlippage(tx)}</TableCell>
               <TableCell className="text-right">{formatCurrency(tx.amount)}</TableCell>
-              <TableCell className="text-right">{formatCurrency(tx.cash_after)}</TableCell>
+              <TableCell className="text-right">{formatCurrency(tx.cashAfter)}</TableCell>
             </TableRow>
           ))}
         </TableBody>

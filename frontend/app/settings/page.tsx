@@ -26,7 +26,7 @@ import {
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { TIMEZONE_OPTIONS } from "@/components/settings/sections/DisplaySettings";
 
-const PRICE_SUB_WEIGHTS = { change_pct: 100 } as const;
+const PRICE_SUB_WEIGHTS = { changePct: 100 } as const;
 
 type EditablePreferences = {
   riskTolerance: number;
@@ -82,7 +82,7 @@ const ensureScoreWeights = (weights?: ScoreWeights | null): ScoreWeights => ({
 const ensureTechnicalWeights = (
   weights?: TechnicalSubWeights | null,
 ): TechnicalSubWeights => ({
-  rsi_14: weights?.rsi_14 ?? DEFAULT_TECH_WEIGHTS.rsi_14,
+  rsi14: weights?.rsi14 ?? DEFAULT_TECH_WEIGHTS.rsi14,
   trend: weights?.trend ?? DEFAULT_TECH_WEIGHTS.trend,
   macd: weights?.macd ?? DEFAULT_TECH_WEIGHTS.macd,
 });
@@ -113,46 +113,46 @@ const formatTimezoneLabel = (timezone: string) =>
 const buildEditableFromResponse = (
   prefs: PreferencesResponse,
 ): EditablePreferences => ({
-  riskTolerance: prefs.risk_tolerance,
-  allowLong: prefs.allow_long,
-  allowShort: prefs.allow_short,
-  allowOptions: prefs.allow_options,
-  allowCrypto: prefs.allow_crypto,
-  allowFutures: prefs.allow_futures,
-  maxPositionSizePct: prefs.max_position_size_pct,
-  displayTimezone: prefs.display_timezone,
-  defaultRefreshMinutes: prefs.default_refresh_minutes,
-  watchlistOverride: prefs.watchlist_refresh_override,
-  newsOverride: prefs.news_refresh_override,
-  newsLookbackHours: prefs.news_lookback_hours,
-  newsMaxArticles: prefs.news_max_articles,
-  showNews: prefs.watchlist_show_news,
-  autoExpand: prefs.watchlist_auto_expand,
-  scoreWeights: ensureScoreWeights(prefs.watchlist_score_weights),
-  technicalSubWeights: ensureTechnicalWeights(prefs.technical_sub_weights),
-  fundamentalSubWeights: ensureFundamentalWeights(prefs.fundamental_sub_weights),
+  riskTolerance: prefs.riskTolerance,
+  allowLong: prefs.allowLong,
+  allowShort: prefs.allowShort,
+  allowOptions: prefs.allowOptions,
+  allowCrypto: prefs.allowCrypto,
+  allowFutures: prefs.allowFutures,
+  maxPositionSizePct: prefs.maxPositionSizePct,
+  displayTimezone: prefs.displayTimezone,
+  defaultRefreshMinutes: prefs.defaultRefreshMinutes,
+  watchlistOverride: prefs.watchlistRefreshOverride,
+  newsOverride: prefs.newsRefreshOverride,
+  newsLookbackHours: prefs.newsLookbackHours,
+  newsMaxArticles: prefs.newsMaxArticles,
+  showNews: prefs.watchlistShowNews,
+  autoExpand: prefs.watchlistAutoExpand,
+  scoreWeights: ensureScoreWeights(prefs.watchlistScoreWeights),
+  technicalSubWeights: ensureTechnicalWeights(prefs.technicalSubWeights),
+  fundamentalSubWeights: ensureFundamentalWeights(prefs.fundamentalSubWeights),
 });
 
 const editableToApiPayload = (editable: EditablePreferences) => ({
-  risk_tolerance: editable.riskTolerance,
-  allow_long: editable.allowLong,
-  allow_short: editable.allowShort,
-  allow_options: editable.allowOptions,
-  allow_crypto: editable.allowCrypto,
-  allow_futures: editable.allowFutures,
-  max_position_size_pct: editable.maxPositionSizePct,
-  display_timezone: editable.displayTimezone,
-  default_refresh_minutes: editable.defaultRefreshMinutes,
-  watchlist_refresh_override: editable.watchlistOverride,
-  news_refresh_override: editable.newsOverride,
-  news_lookback_hours: editable.newsLookbackHours,
-  news_max_articles: editable.newsMaxArticles,
-  watchlist_show_news: editable.showNews,
-  watchlist_auto_expand: editable.autoExpand,
-  watchlist_score_weights: editable.scoreWeights,
-  price_sub_weights: PRICE_SUB_WEIGHTS,
-  technical_sub_weights: editable.technicalSubWeights,
-  fundamental_sub_weights: editable.fundamentalSubWeights,
+  riskTolerance: editable.riskTolerance,
+  allowLong: editable.allowLong,
+  allowShort: editable.allowShort,
+  allowOptions: editable.allowOptions,
+  allowCrypto: editable.allowCrypto,
+  allowFutures: editable.allowFutures,
+  maxPositionSizePct: editable.maxPositionSizePct,
+  displayTimezone: editable.displayTimezone,
+  defaultRefreshMinutes: editable.defaultRefreshMinutes,
+  watchlistRefreshOverride: editable.watchlistOverride,
+  newsRefreshOverride: editable.newsOverride,
+  newsLookbackHours: editable.newsLookbackHours,
+  newsMaxArticles: editable.newsMaxArticles,
+  watchlistShowNews: editable.showNews,
+  watchlistAutoExpand: editable.autoExpand,
+  watchlistScoreWeights: editable.scoreWeights,
+  priceSubWeights: PRICE_SUB_WEIGHTS,
+  technicalSubWeights: editable.technicalSubWeights,
+  fundamentalSubWeights: editable.fundamentalSubWeights,
 });
 
 const mergeEditableIntoResponse = (
@@ -336,7 +336,7 @@ export default function SettingsPage() {
       currentEditable.scoreWeights.technical +
       currentEditable.scoreWeights.fundamental;
     const techTotal =
-      currentEditable.technicalSubWeights.rsi_14 +
+      currentEditable.technicalSubWeights.rsi14 +
       currentEditable.technicalSubWeights.trend +
       currentEditable.technicalSubWeights.macd;
     const fundTotal =

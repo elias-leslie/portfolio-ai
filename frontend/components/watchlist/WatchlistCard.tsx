@@ -44,12 +44,12 @@ export function WatchlistCard({
   isDeleting,
 }: WatchlistCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const hasScore = !!item.current_score;
-  const overall = item.current_score?.overall ?? 0;
-  const priceScore = item.current_score?.price.score ?? 0;
-  const techScore = item.current_score?.technical.score ?? 0;
-  const priceStale = item.current_score?.price.stale ?? false;
-  const techStale = item.current_score?.technical.stale ?? false;
+  const hasScore = !!item.currentScore;
+  const overall = item.currentScore?.overall ?? 0;
+  const priceScore = item.currentScore?.price.score ?? 0;
+  const techScore = item.currentScore?.technical.score ?? 0;
+  const priceStale = item.currentScore?.price.stale ?? false;
+  const techStale = item.currentScore?.technical.stale ?? false;
 
   return (
     <div className="rounded-lg border border-border bg-surface p-4 shadow-sm">
@@ -58,21 +58,21 @@ export function WatchlistCard({
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
             <h3 className="text-lg font-semibold text-text">{item.symbol}</h3>
-            {item.score_alert && (
+            {item.scoreAlert && (
               <AlertCircle
                 className="h-4 w-4 text-accent"
                 aria-label="Score changed >10 points in last 7 days"
               />
             )}
           </div>
-          {item.current_score?.price.metadata?.source &&
-          typeof item.current_score.price.metadata.source === "string" ? (
+          {item.currentScore?.price.metadata?.source &&
+          typeof item.currentScore.price.metadata.source === "string" ? (
             <SourceBadge
-              source={item.current_score.price.metadata.source}
-              stale={item.current_score.price.stale}
+              source={item.currentScore.price.metadata.source}
+              stale={item.currentScore.price.stale}
               priority={
-                typeof item.current_score.price.metadata.priority === "number"
-                  ? item.current_score.price.metadata.priority
+                typeof item.currentScore.price.metadata.priority === "number"
+                  ? item.currentScore.price.metadata.priority
                   : undefined
               }
             />
@@ -164,7 +164,7 @@ export function WatchlistCard({
 
       {/* Updated Timestamp */}
       <p className="text-xs text-text-muted">
-        Updated {formatDate(item.updated_at)}
+        Updated {formatDate(item.updatedAt)}
       </p>
 
       {/* Expanded Content */}

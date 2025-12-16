@@ -83,7 +83,7 @@ export function SeedEvolution({ strategyId }: SeedEvolutionProps) {
               evolution.seed
                 ? {
                     confidence: evolution.seed.confidence,
-                    date: evolution.seed.created_at,
+                    date: evolution.seed.createdAt,
                   }
                 : undefined
             }
@@ -100,7 +100,7 @@ export function SeedEvolution({ strategyId }: SeedEvolutionProps) {
                 ? {
                     count: evolution.backtests.length,
                     bestSharpe: Math.max(
-                      ...evolution.backtests.map((b) => b.sharpe_ratio || 0)
+                      ...evolution.backtests.map((b) => b.sharpeRatio || 0)
                     ),
                   }
                 : undefined
@@ -115,7 +115,7 @@ export function SeedEvolution({ strategyId }: SeedEvolutionProps) {
             active={true}
             details={{
               status: evolution.status,
-              sharpe: evolution.performance.expected_sharpe,
+              sharpe: evolution.performance.expectedSharpe,
             }}
           />
           <ArrowRight className="h-4 w-4 shrink-0 text-text-muted" />
@@ -161,7 +161,7 @@ export function SeedEvolution({ strategyId }: SeedEvolutionProps) {
             </p>
             <p className="mt-1 text-xs text-text-muted">
               Created{" "}
-              {formatDistanceToNow(new Date(evolution.seed.created_at), {
+              {formatDistanceToNow(new Date(evolution.seed.createdAt), {
                 addSuffix: true,
               })}
             </p>
@@ -172,23 +172,23 @@ export function SeedEvolution({ strategyId }: SeedEvolutionProps) {
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <MiniMetric
             label="Expected Sharpe"
-            value={evolution.performance.expected_sharpe?.toFixed(2) || "-"}
+            value={evolution.performance.expectedSharpe?.toFixed(2) || "-"}
           />
           <MiniMetric
             label="Live Sharpe"
-            value={evolution.performance.live_sharpe?.toFixed(2) || "-"}
+            value={evolution.performance.liveSharpe?.toFixed(2) || "-"}
           />
           <MiniMetric
             label="Win Rate"
             value={
-              evolution.performance.live_win_rate
-                ? `${(evolution.performance.live_win_rate * 100).toFixed(0)}%`
+              evolution.performance.liveWinRate
+                ? `${(evolution.performance.liveWinRate * 100).toFixed(0)}%`
                 : "-"
             }
           />
           <MiniMetric
             label="Total Trades"
-            value={evolution.performance.total_trades.toString()}
+            value={evolution.performance.totalTrades.toString()}
           />
         </div>
       </CardContent>

@@ -5,32 +5,32 @@
 import { API_BASE_URL } from "./client";
 
 export interface DiskUsage {
-  total_gb: number;
-  used_gb: number;
-  free_gb: number;
-  percent_used: number;
+  totalGb: number;
+  usedGb: number;
+  freeGb: number;
+  percentUsed: number;
   status: "ok" | "warning" | "critical";
 }
 
 export interface MemoryUsage {
-  total_gb: number;
-  used_gb: number;
-  available_gb: number;
-  percent_used: number;
+  totalGb: number;
+  usedGb: number;
+  availableGb: number;
+  percentUsed: number;
   status: "ok" | "warning" | "critical";
 }
 
 export interface CpuUsage {
-  percent_used: number;
+  percentUsed: number;
   cores: number;
   status: "ok" | "warning" | "critical";
 }
 
 export interface DatabasePool {
-  pool_size: number;
-  checked_out: number;
+  poolSize: number;
+  checkedOut: number;
   overflow: number;
-  percent_used: number;
+  percentUsed: number;
   status: "ok" | "warning" | "critical";
 }
 
@@ -38,7 +38,7 @@ export interface SystemResources {
   disk: DiskUsage;
   memory: MemoryUsage;
   cpu: CpuUsage;
-  database_pool: DatabasePool;
+  databasePool: DatabasePool;
   timestamp: string;
 }
 

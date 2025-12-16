@@ -146,13 +146,13 @@ export function ApiSourcesOverview() {
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="text-2xl font-bold text-blue-500">
-            {new Set(sourcesData.providers.flatMap((p) => p.gap_coverage)).size}
+            {new Set(sourcesData.providers.flatMap((p) => p.gapCoverage)).size}
           </div>
           <div className="text-sm text-muted-foreground">GAPs Covered</div>
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="text-2xl font-bold text-foreground">
-            {sourcesData.providers.filter((p) => !p.api_key_required).length}
+            {sourcesData.providers.filter((p) => !p.apiKeyRequired).length}
           </div>
           <div className="text-sm text-muted-foreground">No Key Required</div>
         </div>
@@ -187,7 +187,7 @@ export function ApiSourcesOverview() {
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-foreground">
-                        {provider.display_name}
+                        {provider.displayName}
                       </span>
                       <Badge variant="outline" className={getTierColor(provider.tier)}>
                         {provider.tier}
@@ -197,7 +197,7 @@ export function ApiSourcesOverview() {
                       </Badge>
                     </div>
                     <div className="text-sm text-muted-foreground mt-1">
-                      {provider.api_key_required ? (
+                      {provider.apiKeyRequired ? (
                         <span className="flex items-center gap-1">
                           <Key className="h-3 w-3" /> API Key Required
                         </span>
@@ -216,10 +216,10 @@ export function ApiSourcesOverview() {
                   <div className="text-right">
                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
                       <Clock className="h-3 w-3" />
-                      {formatRateLimit(provider.rate_limits.per_minute, "min")}
+                      {formatRateLimit(provider.rateLimits.perMinute, "min")}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {formatRateLimit(provider.rate_limits.per_day, "day")}
+                      {formatRateLimit(provider.rateLimits.perDay, "day")}
                     </div>
                   </div>
 
@@ -237,9 +237,9 @@ export function ApiSourcesOverview() {
                   </div>
 
                   {/* GAP Coverage */}
-                  {provider.gap_coverage.length > 0 && (
+                  {provider.gapCoverage.length > 0 && (
                     <div className="flex gap-1 flex-wrap max-w-[200px]">
-                      {provider.gap_coverage.slice(0, 3).map((gap) => (
+                      {provider.gapCoverage.slice(0, 3).map((gap) => (
                         <Badge
                           key={gap}
                           variant="outline"
@@ -248,9 +248,9 @@ export function ApiSourcesOverview() {
                           {gap}
                         </Badge>
                       ))}
-                      {provider.gap_coverage.length > 3 && (
+                      {provider.gapCoverage.length > 3 && (
                         <Badge variant="outline" className="text-xs">
-                          +{provider.gap_coverage.length - 3}
+                          +{provider.gapCoverage.length - 3}
                         </Badge>
                       )}
                     </div>
@@ -273,7 +273,7 @@ export function ApiSourcesOverview() {
                           Best For
                         </h4>
                         <div className="flex flex-wrap gap-2">
-                          {detail.use_cases.map((useCase, i) => (
+                          {detail.useCases.map((useCase, i) => (
                             <Badge key={i} variant="secondary" className="text-xs">
                               {useCase}
                             </Badge>
@@ -282,13 +282,13 @@ export function ApiSourcesOverview() {
                       </div>
 
                       {/* GAP Coverage Details */}
-                      {provider.gap_coverage.length > 0 && (
+                      {provider.gapCoverage.length > 0 && (
                         <div>
                           <h4 className="text-sm font-medium text-foreground mb-2">
                             GAP Coverage
                           </h4>
                           <div className="flex flex-wrap gap-2">
-                            {provider.gap_coverage.map((gap) => (
+                            {provider.gapCoverage.map((gap) => (
                               <Badge
                                 key={gap}
                                 variant="outline"
@@ -317,12 +317,12 @@ export function ApiSourcesOverview() {
                                   <code className="text-sm font-mono text-foreground">
                                     {endpoint.path || endpoint.method || name}
                                   </code>
-                                  {endpoint.gap_id && (
+                                  {endpoint.gapId && (
                                     <Badge
                                       variant="outline"
                                       className="ml-2 text-xs bg-accent/10 text-accent"
                                     >
-                                      {endpoint.gap_id}
+                                      {endpoint.gapId}
                                     </Badge>
                                   )}
                                 </div>
@@ -341,13 +341,13 @@ export function ApiSourcesOverview() {
                       </div>
 
                       {/* Premium Only */}
-                      {detail.premium_only.length > 0 && (
+                      {detail.premiumOnly.length > 0 && (
                         <div>
                           <h4 className="text-sm font-medium text-muted-foreground mb-2">
                             Premium Only (Not Available)
                           </h4>
                           <div className="flex flex-wrap gap-2">
-                            {detail.premium_only.map((endpoint, i) => (
+                            {detail.premiumOnly.map((endpoint, i) => (
                               <Badge
                                 key={i}
                                 variant="outline"
@@ -361,10 +361,10 @@ export function ApiSourcesOverview() {
                       )}
 
                       {/* Implementation File */}
-                      {detail.implementation_file && (
+                      {detail.implementationFile && (
                         <div className="text-xs text-muted-foreground flex items-center gap-1">
                           <ExternalLink className="h-3 w-3" />
-                          {detail.implementation_file}
+                          {detail.implementationFile}
                         </div>
                       )}
                     </div>
@@ -381,11 +381,11 @@ export function ApiSourcesOverview() {
       </div>
 
       {/* Data Routing Section */}
-      {sourcesData.data_routing && Object.keys(sourcesData.data_routing).length > 0 && (
+      {sourcesData.dataRouting && Object.keys(sourcesData.dataRouting).length > 0 && (
         <div className="rounded-lg border border-border bg-surface p-4">
           <h3 className="font-semibold text-foreground mb-3">Data Routing Recommendations</h3>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {Object.entries(sourcesData.data_routing).map(([dataType, routing]) => (
+            {Object.entries(sourcesData.dataRouting).map(([dataType, routing]) => (
               <div
                 key={dataType}
                 className="rounded border border-border bg-surface-muted/30 p-3"
@@ -393,11 +393,11 @@ export function ApiSourcesOverview() {
                 <div className="font-medium text-sm text-foreground">{dataType}</div>
                 <div className="text-xs text-muted-foreground mt-1">
                   Primary: <span className="text-foreground">{routing.primary}</span>
-                  {routing.fallback_1 && (
-                    <> → {routing.fallback_1}</>
+                  {routing.fallback1 && (
+                    <> → {routing.fallback1}</>
                   )}
-                  {routing.fallback_2 && (
-                    <> → {routing.fallback_2}</>
+                  {routing.fallback2 && (
+                    <> → {routing.fallback2}</>
                   )}
                 </div>
                 {routing.notes && (

@@ -12,7 +12,7 @@ export const VENDOR_LABELS: Record<string, string> = {
   polygon: "Polygon",
   finnhub: "Finnhub",
   fmp: "FMP",
-  google_news: "Google News",
+  googleNews: "Google News",
   yfinance: "Yahoo Finance",
 };
 

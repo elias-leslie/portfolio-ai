@@ -7,29 +7,29 @@ import { Button } from '@/components/ui/button';
 
 interface SessionInfo {
   id: string;
-  agent_type: string;
-  run_type: string;
-  session_type: string;
-  started_at: string;
-  completed_at: string | null;
+  agentType: string;
+  runType: string;
+  sessionType: string;
+  startedAt: string;
+  completedAt: string | null;
   status: string;
   provider: string | null;
   model: string | null;
-  token_count: number;
-  parent_run_id: string | null;
+  tokenCount: number;
+  parentRunId: string | null;
   summary: string | null;
 }
 
 // Dev Companion session format
 interface DevCompanionSession {
   id: string;
-  working_dir: string;
-  created_at: string;
-  updated_at: string;
-  is_active: boolean;
+  workingDir: string;
+  createdAt: string;
+  updatedAt: string;
+  isActive: boolean;
   metadata: Record<string, unknown>;
-  original_provider?: string | null;
-  message_count?: number;
+  originalProvider?: string | null;
+  messageCount?: number;
   description?: string | null;
   participants?: string[];
 }
@@ -85,10 +85,10 @@ function formatRelativeTime(dateStr: string): string {
 
 function SessionTypeBadge({ type }: { type: string }) {
   const config = {
-    user_single_agent: { icon: MessageSquare, label: 'User Chat', color: 'text-blue-400 bg-blue-900/30' },
-    user_multi_agent: { icon: Users, label: 'Roundtable', color: 'text-purple-400 bg-purple-900/30' },
-    agent_agent_validation: { icon: RefreshCw, label: 'Validation', color: 'text-amber-400 bg-amber-900/30' },
-    agent_autonomous: { icon: Bot, label: 'Automated', color: 'text-green-400 bg-green-900/30' },
+    userSingleAgent: { icon: MessageSquare, label: 'User Chat', color: 'text-blue-400 bg-blue-900/30' },
+    userMultiAgent: { icon: Users, label: 'Roundtable', color: 'text-purple-400 bg-purple-900/30' },
+    agentAgentValidation: { icon: RefreshCw, label: 'Validation', color: 'text-amber-400 bg-amber-900/30' },
+    agentAutonomous: { icon: Bot, label: 'Automated', color: 'text-green-400 bg-green-900/30' },
   }[type] || { icon: Bot, label: type, color: 'text-gray-400 bg-gray-700' };
 
   const Icon = config.icon;
@@ -176,13 +176,13 @@ export function SessionsList({
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <SessionTypeBadge type={session.session_type} />
+                <SessionTypeBadge type={session.sessionType} />
                 <span className="text-xs text-gray-500">
-                  {formatRelativeTime(session.started_at)}
+                  {formatRelativeTime(session.startedAt)}
                 </span>
               </div>
               <div className="text-sm text-gray-300 font-medium truncate">
-                {session.agent_type}
+                {session.agentType}
               </div>
               {session.summary && (
                 <div className="text-xs text-gray-500 truncate mt-0.5">
@@ -192,7 +192,7 @@ export function SessionsList({
             </div>
             <div className="flex flex-col items-end gap-1">
               <span className="text-xs text-gray-400">
-                {formatTokenCount(session.token_count)} tok
+                {formatTokenCount(session.tokenCount)} tok
               </span>
               {session.provider && (
                 <span className={cn(
@@ -314,14 +314,14 @@ export function DevCompanionSessionsList({
                 <span className="font-mono text-sm text-gray-300">
                   {session.id.slice(0, 8)}
                 </span>
-                <ProviderBadge provider={session.original_provider} size="xs" />
-                {session.is_active && (
+                <ProviderBadge provider={session.originalProvider} size="xs" />
+                {session.isActive && (
                   <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                 )}
               </div>
               {/* Description or "No messages yet" */}
               <div className="text-xs text-gray-400 truncate">
-                {session.description || (session.message_count ? 'No description' : '(No messages yet)')}
+                {session.description || (session.messageCount ? 'No description' : '(No messages yet)')}
               </div>
               {/* Participants row */}
               {session.participants && session.participants.length > 0 && (
@@ -335,18 +335,18 @@ export function DevCompanionSessionsList({
             </div>
             <div className="flex flex-col items-end gap-1 text-right">
               {/* Message count */}
-              {session.message_count != null && session.message_count > 0 && (
+              {session.messageCount != null && session.messageCount > 0 && (
                 <span className="text-xs text-gray-400">
-                  {session.message_count} msgs
+                  {session.messageCount} msgs
                 </span>
               )}
               {/* Relative time */}
               <span className="text-[10px] text-gray-500">
-                {formatRelativeTime(session.updated_at)}
+                {formatRelativeTime(session.updatedAt)}
               </span>
               {/* Created date */}
               <span className="text-[10px] text-gray-600">
-                {new Date(session.created_at).toLocaleDateString(undefined, {
+                {new Date(session.createdAt).toLocaleDateString(undefined, {
                   month: 'short',
                   day: 'numeric',
                   hour: 'numeric',

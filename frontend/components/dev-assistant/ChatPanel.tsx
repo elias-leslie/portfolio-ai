@@ -1,36 +1,37 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { toCamelCaseKeys } from '@/lib/api/client';
 
 // Message types from Claude's stream-json output
 interface ContentBlock {
   type: 'text' | 'tool_use' | 'tool_result' | 'thinking';
   text?: string | null;
-  tool_name?: string | null;
-  tool_input?: Record<string, unknown> | null;
-  tool_use_id?: string | null;
-  is_error?: boolean;
+  toolName?: string | null;
+  toolInput?: Record<string, unknown> | null;
+  toolUseId?: string | null;
+  isError?: boolean;
 }
 
 interface StreamMessage {
   type: 'assistant' | 'user' | 'system' | 'result';
   content: ContentBlock[];
   model?: string | null;
-  stop_reason?: string | null;
-  session_id?: string | null;
+  stopReason?: string | null;
+  sessionId?: string | null;
 }
 
 interface PermissionRequest {
-  tool_name: string;
-  tool_input: Record<string, unknown>;
+  toolName: string;
+  toolInput: Record<string, unknown>;
 }
 
 interface WebSocketMessage {
   type: 'stream' | 'done' | 'error' | 'pong' | 'permission_request' | 'interrupt_ack';
   data?: StreamMessage;
   message?: string;
-  tool_name?: string;
-  tool_input?: Record<string, unknown>;
+  toolName?: string;
+  toolInput?: Record<string, unknown>;
   success?: boolean;
 }
 
@@ -83,10 +84,10 @@ export default function ChatPanel({ sessionId, serverUrl }: ChatPanelProps) {
         const res = await fetch(`${httpBaseUrl}/sessions/${sessionId}/history`);
         if (res.ok) {
           const data = await res.json();
-          const loadedMessages: ChatMessage[] = data.messages.map((msg: { role: string; content: string; created_at: string }) => ({
+          const loadedMessages: ChatMessage[] = data.messages.map((msg: { role: string; content: string; createdAt: string }) => ({
             role: msg.role as 'user' | 'assistant' | 'system',
             content: msg.content,
-            timestamp: new Date(msg.created_at),
+            timestamp: new Date(msg.createdAt),
           }));
           setMessages(loadedMessages);
         }
@@ -145,7 +146,7 @@ export default function ChatPanel({ sessionId, serverUrl }: ChatPanelProps) {
     };
 
     ws.onmessage = (event) => {
-      const msg: WebSocketMessage = JSON.parse(event.data);
+      const msg: WebSocketMessage = toCamelCaseKeys(JSON.parse(event.data));
 
       switch (msg.type) {
         case 'stream':
@@ -188,10 +189,10 @@ export default function ChatPanel({ sessionId, serverUrl }: ChatPanelProps) {
 
         case 'permission_request':
           // Show permission prompt to user
-          if (msg.tool_name && msg.tool_input) {
+          if (msg.toolName && msg.toolInput) {
             setPendingPermission({
-              tool_name: msg.tool_name,
-              tool_input: msg.tool_input,
+              toolName: msg.toolName,
+              toolInput: msg.toolInput,
             });
           }
           break;
@@ -269,7 +270,7 @@ export default function ChatPanel({ sessionId, serverUrl }: ChatPanelProps) {
       ...prev,
       {
         role: 'system',
-        content: `Permission ${allowed ? 'ALLOWED' : 'DENIED'} for: ${pendingPermission.tool_name}`,
+        content: `Permission ${allowed ? 'ALLOWED' : 'DENIED'} for: ${pendingPermission.toolName}`,
         timestamp: new Date(),
       },
     ]);
@@ -333,12 +334,12 @@ export default function ChatPanel({ sessionId, serverUrl }: ChatPanelProps) {
                 Permission Required
               </h4>
               <p className="text-sm text-yellow-100 mb-2">
-                Claude wants to use: <span className="font-mono font-bold">{pendingPermission.tool_name}</span>
+                Claude wants to use: <span className="font-mono font-bold">{pendingPermission.toolName}</span>
               </p>
-              {pendingPermission.tool_input && Object.keys(pendingPermission.tool_input).length > 0 && (
+              {pendingPermission.toolInput && Object.keys(pendingPermission.toolInput).length > 0 && (
                 <div className="bg-gray-800/50 rounded p-2 mb-3 max-h-32 overflow-y-auto">
                   <pre className="text-xs text-gray-300 whitespace-pre-wrap font-mono">
-                    {JSON.stringify(pendingPermission.tool_input, null, 2)}
+                    {JSON.stringify(pendingPermission.toolInput, null, 2)}
                   </pre>
                 </div>
               )}
@@ -400,7 +401,7 @@ function blocksToText(blocks: ContentBlock[]): string {
   return blocks
     .map(block => {
       if (block.type === 'text' && block.text) return block.text;
-      if (block.type === 'tool_use') return `[Tool: ${block.tool_name}]`;
+      if (block.type === 'tool_use') return `[Tool: ${block.toolName}]`;
       if (block.type === 'tool_result') return `[Result: ${block.text}]`;
       return '';
     })
@@ -447,13 +448,13 @@ function ContentBlockView({ block }: { block: ContentBlock }) {
         <div className="my-2 p-2 bg-gray-700/50 rounded border border-gray-600 animate-pulse">
           <div className="text-xs text-blue-400 mb-1 flex items-center gap-2">
             <span className="inline-block w-2 h-2 bg-blue-400 rounded-full animate-ping" />
-            Running: {block.tool_name}
+            Running: {block.toolName}
           </div>
-          {block.tool_input && (
+          {block.toolInput && (
             <pre className="text-xs text-gray-400 overflow-x-auto max-h-20">
-              {typeof block.tool_input === 'object'
-                ? JSON.stringify(block.tool_input, null, 2).slice(0, 200)
-                : String(block.tool_input).slice(0, 200)}
+              {typeof block.toolInput === 'object'
+                ? JSON.stringify(block.toolInput, null, 2).slice(0, 200)
+                : String(block.toolInput).slice(0, 200)}
             </pre>
           )}
         </div>
@@ -461,7 +462,7 @@ function ContentBlockView({ block }: { block: ContentBlock }) {
 
     case 'tool_result':
       return (
-        <div className={`my-2 p-2 rounded border ${block.is_error ? 'bg-red-900/30 border-red-700' : 'bg-gray-700/30 border-gray-600'}`}>
+        <div className={`my-2 p-2 rounded border ${block.isError ? 'bg-red-900/30 border-red-700' : 'bg-gray-700/30 border-gray-600'}`}>
           <div className="text-xs text-gray-400 mb-1">Result:</div>
           <pre className="text-xs overflow-x-auto whitespace-pre-wrap">{block.text}</pre>
         </div>

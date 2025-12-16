@@ -91,27 +91,27 @@ export function CeleryTaskTable() {
     // Map task names to human-readable descriptions
     const taskDescriptions: Record<string, string> = {
       // Watchlist tasks
-      "app.tasks.watchlist_tasks.refresh_watchlist_scores_task": "Refresh Watchlist Scores",
+      "app.tasks.watchlistTasks.refresh_watchlist_scores_task": "Refresh Watchlist Scores",
       "refresh_watchlist_scores_task": "Refresh Watchlist Scores",
 
       // Agent tasks
-      "app.tasks.agent_tasks.run_discovery_agent": "Run Discovery Agent",
-      "app.tasks.agent_tasks.run_portfolio_analyzer": "Run Portfolio Analyzer",
+      "app.tasks.agentTasks.run_discovery_agent": "Run Discovery Agent",
+      "app.tasks.agentTasks.run_portfolio_analyzer": "Run Portfolio Analyzer",
       "run_discovery_agent": "Run Discovery Agent",
       "run_portfolio_analyzer": "Run Portfolio Analyzer",
 
       // Data ingestion tasks
-      "app.tasks.data_ingestion_tasks.refresh_daily_ohlcv": "Refresh Daily Price Data (OHLCV)",
-      "app.tasks.data_ingestion_tasks.ingest_historical_ohlcv": "Ingest Historical Price Data",
+      "app.tasks.dataIngestionTasks.refresh_daily_ohlcv": "Refresh Daily Price Data (OHLCV)",
+      "app.tasks.dataIngestionTasks.ingest_historical_ohlcv": "Ingest Historical Price Data",
       "refresh_daily_ohlcv": "Refresh Daily Price Data (OHLCV)",
       "ingest_historical_ohlcv": "Ingest Historical Price Data",
 
       // Indicator tasks
-      "app.tasks.indicator_tasks.update_technical_indicators": "Update Technical Indicators",
+      "app.tasks.indicatorTasks.update_technical_indicators": "Update Technical Indicators",
       "update_technical_indicators": "Update Technical Indicators",
 
       // Fear & Greed tasks
-      "app.tasks.fear_greed_tasks.compute_fear_greed_daily": "Compute Fear & Greed Index",
+      "app.tasks.fearGreedTasks.compute_fear_greed_daily": "Compute Fear & Greed Index",
       "compute_fear_greed_daily": "Compute Fear & Greed Index",
 
       // Paper trading tasks
@@ -130,7 +130,7 @@ export function CeleryTaskTable() {
           <h3 className="text-lg font-semibold">Celery Tasks</h3>
           {data && (
             <div className="text-sm text-muted-foreground">
-              {data.total} total ({data.active_count} active, {data.pending_count} pending)
+              {data.total} total ({data.activeCount} active, {data.pendingCount} pending)
             </div>
           )}
         </div>
@@ -204,7 +204,7 @@ export function CeleryTaskTable() {
                       </div>
                     </TableCell>
                     <TableCell className="text-sm">
-                      {formatTimestamp(task.started_at || task.date_done)}
+                      {formatTimestamp(task.startedAt || task.dateDone)}
                     </TableCell>
                     <TableCell className="text-sm">
                       {task.status === "ACTIVE" && task.duration ? (

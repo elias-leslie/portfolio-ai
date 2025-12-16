@@ -57,7 +57,7 @@ const STRATEGIES: Record<string, StrategyDetails> = {
     bestFor: "Stocks with clear technical patterns, moderate volatility (ATR 2-4%), good liquidity (>1M daily volume)",
     avoidWhen: "Choppy sideways markets, low-volume stocks, earnings week, extreme VIX (>30)",
   },
-  signal_classifier: {
+  signalClassifier: {
     name: "Signal Classifier",
     shortDescription: "Original rule-based classifier requiring 10+ confirmations including fundamentals",
     whenToUse: "Use when you have fundamental data available and want stricter entry criteria.",
@@ -77,7 +77,7 @@ const STRATEGIES: Record<string, StrategyDetails> = {
     bestFor: "Growth stocks in uptrends, sector leaders, stocks with institutional buying, post-earnings momentum plays",
     avoidWhen: "Bear markets, mean-reverting sectors (utilities), stocks with declining volume, late-cycle rallies",
   },
-  mean_reversion: {
+  meanReversion: {
     name: "Mean Reversion",
     shortDescription: "Catches oversold bounces in fundamentally strong stocks",
     whenToUse: "Use when quality stocks are temporarily oversold (RSI < 30) but still in long-term uptrend (price > 200 SMA).",
@@ -87,7 +87,7 @@ const STRATEGIES: Record<string, StrategyDetails> = {
     bestFor: "Large-caps with temporary weakness, dividend stocks after ex-date drops, quality names hit by sector rotation",
     avoidWhen: "Downtrending stocks (price < 200 SMA), fundamental deterioration, high-beta names in bear markets",
   },
-  trend_following: {
+  trendFollowing: {
     name: "Trend Following",
     shortDescription: "Follows strong trends with trailing ATR stops, lets winners run",
     whenToUse: "Use for long-term trend capture when all moving averages are aligned (price > 20 SMA > 50 SMA > 200 SMA).",
@@ -185,13 +185,13 @@ export function NewBacktestDialog({
       await startBacktest.mutateAsync({
         symbol: symbol.toUpperCase(),
         strategy,
-        start_date: startDate,
-        end_date: endDate,
+        startDate: startDate,
+        endDate: endDate,
         parameters: {
-          stop_loss_atr_multiplier: stopLossAtr,
-          max_holding_days: maxHoldingDays,
-          target_profit_pct: targetProfitPct,
-          min_confirmations: minConfirmations,
+          stopLossAtrMultiplier: stopLossAtr,
+          maxHoldingDays: maxHoldingDays,
+          targetProfitPct: targetProfitPct,
+          minConfirmations: minConfirmations,
         },
       });
 

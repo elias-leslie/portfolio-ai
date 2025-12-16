@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 
-export type DisagreementReason = 'factual' | 'logical' | 'risk_assessment' | 'confidence' | 'other';
+export type DisagreementReason = 'factual' | 'logical' | 'riskAssessment' | 'confidence' | 'other';
 export type ResolutionType = 'use_generator' | 'use_validator' | 'hybrid' | 'escalate';
 
 interface DisagreementPanelProps {
@@ -28,7 +28,7 @@ interface DisagreementPanelProps {
 const REASON_LABELS: Record<DisagreementReason, { label: string; color: string }> = {
   factual: { label: 'Factual Error', color: 'bg-red-500/20 text-red-400 border-red-500/30' },
   logical: { label: 'Logic Issue', color: 'bg-orange-500/20 text-orange-400 border-orange-500/30' },
-  risk_assessment: { label: 'Risk Assessment', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' },
+  riskAssessment: { label: 'Risk Assessment', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' },
   confidence: { label: 'Confidence Gap', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
   other: { label: 'Other', color: 'bg-gray-500/20 text-gray-400 border-gray-500/30' },
 };

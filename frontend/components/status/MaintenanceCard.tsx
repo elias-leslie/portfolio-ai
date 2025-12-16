@@ -91,11 +91,11 @@ function TaskSection({
             <span className="text-muted-foreground">Articles deleted:</span>
             <span className="font-mono">{summary.deleted}</span>
           </div>
-          {summary.cutoff_date && (
+          {summary.cutoffDate && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">Cutoff date:</span>
               <span className="font-mono text-xs">
-                {new Date(summary.cutoff_date).toLocaleDateString()}
+                {new Date(summary.cutoffDate).toLocaleDateString()}
               </span>
             </div>
           )}
@@ -109,11 +109,11 @@ function TaskSection({
         <div className="text-sm space-y-1">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Tables processed:</span>
-            <span className="font-mono">{summary.tables_processed}</span>
+            <span className="font-mono">{summary.tablesProcessed}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Space reclaimed:</span>
-            <span className="font-mono">{summary.total_reclaimed_mb} MB</span>
+            <span className="font-mono">{summary.totalReclaimedMb} MB</span>
           </div>
         </div>
       );
@@ -125,18 +125,18 @@ function TaskSection({
         <div className="text-sm space-y-1">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Checks run:</span>
-            <span className="font-mono">{summary.checks_run}</span>
+            <span className="font-mono">{summary.checksRun}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Errors:</span>
             <span className="font-mono text-red-500">
-              {summary.total_errors || 0}
+              {summary.totalErrors || 0}
             </span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Warnings:</span>
             <span className="font-mono text-yellow-500">
-              {summary.total_warnings || 0}
+              {summary.totalWarnings || 0}
             </span>
           </div>
         </div>
@@ -181,17 +181,17 @@ function TaskSection({
             {getStatusBadge(lastRun.status)}
           </div>
           <div className="text-sm text-muted-foreground">
-            {formatDate(lastRun.started_at)}
+            {formatDate(lastRun.startedAt)}
           </div>
-          {lastRun.dry_run && (
+          {lastRun.dryRun && (
             <Badge variant="outline" className="text-xs">
               Dry Run
             </Badge>
           )}
           {lastRun.status === "success" && renderSummary(lastRun.summary)}
-          {lastRun.status === "error" && lastRun.error_message && (
+          {lastRun.status === "error" && lastRun.errorMessage && (
             <div className="text-sm text-red-500 bg-red-50 dark:bg-red-950 p-2 rounded">
-              {lastRun.error_message}
+              {lastRun.errorMessage}
             </div>
           )}
         </div>
@@ -245,9 +245,9 @@ export function MaintenanceCard() {
       // For maintenance, require backup within 24h and verified
       const check = await checkBackupRequirements(24, true);
       setBackupCheck(check);
-      if (!check.can_proceed) {
+      if (!check.canProceed) {
         toast.warning(
-          `Backup check: ${check.blocking_reason || "Requirements not met"}`,
+          `Backup check: ${check.blockingReason || "Requirements not met"}`,
           { duration: 6000 }
         );
       }
@@ -255,13 +255,13 @@ export function MaintenanceCard() {
       console.error("Failed to check backup requirements:", error);
       toast.error("Could not verify backup status");
       setBackupCheck({
-        backup_exists: false,
-        backup_recent: false,
-        backup_verified: false,
-        backup_name: null,
-        backup_age_hours: null,
-        can_proceed: false,
-        blocking_reason: "Could not verify backup status",
+        backupExists: false,
+        backupRecent: false,
+        backupVerified: false,
+        backupName: null,
+        backupAgeHours: null,
+        canProceed: false,
+        blockingReason: "Could not verify backup status",
         warnings: [],
       });
     } finally {
@@ -293,15 +293,15 @@ export function MaintenanceCard() {
   const formatTaskSummary = (label: string, result?: MaintenanceResult | null) => {
     if (!result) return `${label}: —`;
     const status = result.status ? result.status.replace(/_/g, " ") : "unknown";
-    if (!result.started_at) return `${label}: ${status}`;
-    const timestamp = new Date(result.started_at).toLocaleTimeString();
+    if (!result.startedAt) return `${label}: ${status}`;
+    const timestamp = new Date(result.startedAt).toLocaleTimeString();
     return `${label}: ${status} @ ${timestamp}`;
   };
 
   const overviewSummary = [
-    formatTaskSummary("Cleanup", lastRunSummary?.tasks?.cleanup_old_news_task || lastRunSummary?.tasks?.cleanup_news),
-    formatTaskSummary("Vacuum", lastRunSummary?.tasks?.vacuum_database_task || lastRunSummary?.tasks?.vacuum_database),
-    formatTaskSummary("Integrity", lastRunSummary?.tasks?.validate_integrity_task || lastRunSummary?.tasks?.validate_integrity),
+    formatTaskSummary("Cleanup", lastRunSummary?.tasks?.cleanupOldNewsTask || lastRunSummary?.tasks?.cleanupNews),
+    formatTaskSummary("Vacuum", lastRunSummary?.tasks?.vacuumDatabaseTask || lastRunSummary?.tasks?.vacuumDatabase),
+    formatTaskSummary("Integrity", lastRunSummary?.tasks?.validateIntegrityTask || lastRunSummary?.tasks?.validateIntegrity),
   ].join(" • ");
 
   // Cleanup News handler
@@ -327,9 +327,9 @@ export function MaintenanceCard() {
 
   const triggerCleanupNews = () => {
     // For live operations, check backup requirements first
-    if (!dryRun && backupCheck && !backupCheck.can_proceed) {
+    if (!dryRun && backupCheck && !backupCheck.canProceed) {
       toast.error(
-        `Cannot run live cleanup: ${backupCheck.blocking_reason || "Backup requirements not met"}`,
+        `Cannot run live cleanup: ${backupCheck.blockingReason || "Backup requirements not met"}`,
         { duration: 8000 }
       );
       return;
@@ -363,7 +363,7 @@ export function MaintenanceCard() {
       const result = await vacuumDatabase(dryRun);
       toast.success(
         `Vacuum ${result.status}: ${
-          result.summary?.total_reclaimed_mb || 0
+          result.summary?.totalReclaimedMb || 0
         } MB ${dryRun ? "could be" : ""} reclaimed`,
       );
       await fetchLastRunData();
@@ -379,9 +379,9 @@ export function MaintenanceCard() {
 
   const triggerVacuumDatabase = () => {
     // Vacuum is generally safe, but still check backup for live mode
-    if (!dryRun && backupCheck && !backupCheck.can_proceed) {
+    if (!dryRun && backupCheck && !backupCheck.canProceed) {
       toast.error(
-        `Cannot run live vacuum: ${backupCheck.blocking_reason || "Backup requirements not met"}`,
+        `Cannot run live vacuum: ${backupCheck.blockingReason || "Backup requirements not met"}`,
         { duration: 8000 }
       );
       return;
@@ -414,9 +414,9 @@ export function MaintenanceCard() {
     try {
       const result = await validateIntegrity(dryRun);
       const summary = result.summary as Record<string, unknown> | null;
-      const totalErrors = typeof summary?.total_errors === 'number' ? summary.total_errors : 0;
-      const totalWarnings = typeof summary?.total_warnings === 'number' ? summary.total_warnings : 0;
-      const totalInfo = typeof summary?.total_info === 'number' ? summary.total_info : 0;
+      const totalErrors = typeof summary?.totalErrors === 'number' ? summary.totalErrors : 0;
+      const totalWarnings = typeof summary?.totalWarnings === 'number' ? summary.totalWarnings : 0;
+      const totalInfo = typeof summary?.totalInfo === 'number' ? summary.totalInfo : 0;
       const totalIssues = totalErrors + totalWarnings + totalInfo;
       toast.success(
         `Validation ${result.status}: ${totalIssues} issues found (${totalErrors} errors, ${totalWarnings} warnings)`,
@@ -434,9 +434,9 @@ export function MaintenanceCard() {
 
   const triggerValidateIntegrity = () => {
     // For fix mode, require backup
-    if (!dryRun && backupCheck && !backupCheck.can_proceed) {
+    if (!dryRun && backupCheck && !backupCheck.canProceed) {
       toast.error(
-        `Cannot run live fix: ${backupCheck.blocking_reason || "Backup requirements not met"}`,
+        `Cannot run live fix: ${backupCheck.blockingReason || "Backup requirements not met"}`,
         { duration: 8000 }
       );
       return;
@@ -486,7 +486,7 @@ export function MaintenanceCard() {
                     <Loader2 className="h-3 w-3 animate-spin" />
                     Checking backup...
                   </Badge>
-                ) : backupCheck?.can_proceed ? (
+                ) : backupCheck?.canProceed ? (
                   <Badge variant="default" className="flex items-center gap-1 bg-green-600">
                     <ShieldCheck className="h-3 w-3" />
                     Backup OK
@@ -494,7 +494,7 @@ export function MaintenanceCard() {
                 ) : (
                   <Badge variant="destructive" className="flex items-center gap-1">
                     <ShieldAlert className="h-3 w-3" />
-                    {backupCheck?.blocking_reason?.split(".")[0] || "No backup"}
+                    {backupCheck?.blockingReason?.split(".")[0] || "No backup"}
                   </Badge>
                 )}
               </div>
@@ -516,7 +516,7 @@ export function MaintenanceCard() {
             title="Cleanup Old News"
             description="Remove news articles older than 90 days"
             icon={<Trash2 className="h-5 w-5 text-orange-500" />}
-            lastRun={lastRunSummary?.tasks?.cleanup_old_news_task || lastRunSummary?.tasks?.cleanup_news || null}
+            lastRun={lastRunSummary?.tasks?.cleanupOldNewsTask || lastRunSummary?.tasks?.cleanupNews || null}
             onTrigger={triggerCleanupNews}
             isLoading={isLoading}
           />
@@ -525,7 +525,7 @@ export function MaintenanceCard() {
             title="Vacuum Database"
             description="Optimize tables and reclaim disk space"
             icon={<Database className="h-5 w-5 text-blue-500" />}
-            lastRun={lastRunSummary?.tasks?.vacuum_database_task || lastRunSummary?.tasks?.vacuum_database || null}
+            lastRun={lastRunSummary?.tasks?.vacuumDatabaseTask || lastRunSummary?.tasks?.vacuumDatabase || null}
             onTrigger={triggerVacuumDatabase}
             isLoading={isLoading}
           />
@@ -534,7 +534,7 @@ export function MaintenanceCard() {
             title="Validate Data Integrity"
             description="Check for orphaned records and consistency issues"
             icon={<CheckCircle2 className="h-5 w-5 text-green-500" />}
-            lastRun={lastRunSummary?.tasks?.validate_integrity_task || lastRunSummary?.tasks?.validate_integrity || null}
+            lastRun={lastRunSummary?.tasks?.validateIntegrityTask || lastRunSummary?.tasks?.validateIntegrity || null}
             onTrigger={triggerValidateIntegrity}
             isLoading={isLoading}
           />

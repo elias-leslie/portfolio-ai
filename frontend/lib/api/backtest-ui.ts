@@ -32,52 +32,52 @@ export {
 
 export interface NormalizedEquityPoint {
   date: string;
-  cumulative_return_pct: string; // Decimal as string
+  cumulativeReturnPct: string; // Decimal as string
 }
 
 export interface RunMetrics {
-  run_id: string;
+  runId: string;
   symbol: string;
-  strategy_name: string;
-  start_date: string;
-  end_date: string;
-  total_return_pct: string | null;
-  sharpe_ratio: string | null;
-  max_drawdown_pct: string | null;
-  win_rate: string | null;
-  num_trades: number | null;
-  profit_factor: string | null;
-  return_rank: number | null;
-  sharpe_rank: number | null;
-  drawdown_rank: number | null;
+  strategyName: string;
+  startDate: string;
+  endDate: string;
+  totalReturnPct: string | null;
+  sharpeRatio: string | null;
+  maxDrawdownPct: string | null;
+  winRate: string | null;
+  numTrades: number | null;
+  profitFactor: string | null;
+  returnRank: number | null;
+  sharpeRank: number | null;
+  drawdownRank: number | null;
 }
 
 export interface BacktestComparisonResponse {
-  equity_curves: Record<string, NormalizedEquityPoint[]>;
+  equityCurves: Record<string, NormalizedEquityPoint[]>;
   metrics: RunMetrics[];
-  correlation_matrix: Record<string, Record<string, number>> | null;
+  correlationMatrix: Record<string, Record<string, number>> | null;
 }
 
 export interface MonteCarloStatistics {
-  num_simulations: number;
-  percentile_5: number;
-  percentile_25: number;
-  percentile_50: number;
-  percentile_75: number;
-  percentile_95: number;
-  probability_of_loss: number;
-  value_at_risk_95: number;
-  expected_shortfall: number;
-  mean_return: number;
-  std_dev: number;
+  numSimulations: number;
+  percentile5: number;
+  percentile25: number;
+  percentile50: number;
+  percentile75: number;
+  percentile95: number;
+  probabilityOfLoss: number;
+  valueAtRisk95: number;
+  expectedShortfall: number;
+  meanReturn: number;
+  stdDev: number;
   skewness: number;
   kurtosis: number;
-  original_return: number;
+  originalReturn: number;
 }
 
 export interface HistogramBin {
-  bin_start: number;
-  bin_end: number;
+  binStart: number;
+  binEnd: number;
   frequency: number;
 }
 
@@ -89,15 +89,15 @@ export interface EquityBand {
 }
 
 export interface MonteCarloRequest {
-  num_simulations?: number;
+  numSimulations?: number;
   seed?: number;
 }
 
 export interface MonteCarloResponse {
   statistics: MonteCarloStatistics;
-  histogram_data: HistogramBin[];
-  equity_bands: EquityBand[];
-  created_at: string;
+  histogramData: HistogramBin[];
+  equityBands: EquityBand[];
+  createdAt: string;
 }
 
 // ============================================================================

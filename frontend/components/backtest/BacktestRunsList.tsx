@@ -117,17 +117,17 @@ export function BacktestRunsList({
                     <span className="font-semibold truncate">{run.symbol}</span>
                   </div>
                   <p className="text-xs text-text-muted mt-1">
-                    {formatDateRange(run.start_date)} - {formatDateRange(run.end_date)}
+                    {formatDateRange(run.startDate)} - {formatDateRange(run.endDate)}
                   </p>
                   <div className="flex items-center gap-3 text-xs text-text-muted mt-1">
-                    {run.sharpe_ratio && (
+                    {run.sharpeRatio && (
                       <span>
-                        Sharpe: {typeof run.sharpe_ratio === "number" ? run.sharpe_ratio.toFixed(2) : parseFloat(String(run.sharpe_ratio)).toFixed(2)}
+                        Sharpe: {typeof run.sharpeRatio === "number" ? run.sharpeRatio.toFixed(2) : parseFloat(String(run.sharpeRatio)).toFixed(2)}
                       </span>
                     )}
-                    {run.created_at && (
+                    {run.createdAt && (
                       <span className="opacity-70">
-                        Created {new Date(run.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        Created {new Date(run.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                       </span>
                     )}
                   </div>

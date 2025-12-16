@@ -77,7 +77,7 @@ export function WorkflowHealthCard({ workflowHealth }: WorkflowHealthCardProps) 
               <GitBranch className="h-4 w-4 text-muted-foreground" />
               <p className="text-sm font-medium">Total (24h)</p>
             </div>
-            <p className="text-2xl font-bold">{workflowHealth.total_workflows_24h}</p>
+            <p className="text-2xl font-bold">{workflowHealth.totalWorkflows24H}</p>
           </div>
 
           {/* Success Rate */}
@@ -86,8 +86,8 @@ export function WorkflowHealthCard({ workflowHealth }: WorkflowHealthCardProps) 
               {getStatusIcon(workflowHealth.status)}
               <p className="text-sm font-medium">Success Rate</p>
             </div>
-            <p className={`text-2xl font-bold ${getSuccessRateColor(workflowHealth.success_rate)}`}>
-              {workflowHealth.success_rate}%
+            <p className={`text-2xl font-bold ${getSuccessRateColor(workflowHealth.successRate)}`}>
+              {workflowHealth.successRate}%
             </p>
           </div>
 
@@ -98,7 +98,7 @@ export function WorkflowHealthCard({ workflowHealth }: WorkflowHealthCardProps) 
               <p className="text-sm font-medium">Successful</p>
             </div>
             <div className="flex items-center gap-2">
-              <p className="text-xl font-semibold">{workflowHealth.successful_workflows}</p>
+              <p className="text-xl font-semibold">{workflowHealth.successfulWorkflows}</p>
               <Badge variant="success" className="text-xs">
                 Complete
               </Badge>
@@ -106,14 +106,14 @@ export function WorkflowHealthCard({ workflowHealth }: WorkflowHealthCardProps) 
           </div>
 
           {/* Failed Workflows */}
-          {workflowHealth.failed_workflows > 0 && (
+          {workflowHealth.failedWorkflows > 0 && (
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <XCircle className="h-4 w-4 text-red-600" />
                 <p className="text-sm font-medium">Failed</p>
               </div>
               <div className="flex items-center gap-2">
-                <p className="text-xl font-semibold">{workflowHealth.failed_workflows}</p>
+                <p className="text-xl font-semibold">{workflowHealth.failedWorkflows}</p>
                 <Badge variant="destructive" className="text-xs">
                   Failed
                 </Badge>
@@ -122,14 +122,14 @@ export function WorkflowHealthCard({ workflowHealth }: WorkflowHealthCardProps) 
           )}
 
           {/* Blocked Workflows */}
-          {workflowHealth.blocked_workflows > 0 && (
+          {workflowHealth.blockedWorkflows > 0 && (
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <AlertCircle className="h-4 w-4 text-yellow-600" />
                 <p className="text-sm font-medium">Blocked</p>
               </div>
               <div className="flex items-center gap-2">
-                <p className="text-xl font-semibold">{workflowHealth.blocked_workflows}</p>
+                <p className="text-xl font-semibold">{workflowHealth.blockedWorkflows}</p>
                 <Badge variant="warning" className="text-xs">
                   Blocked
                 </Badge>
@@ -138,7 +138,7 @@ export function WorkflowHealthCard({ workflowHealth }: WorkflowHealthCardProps) 
           )}
 
           {/* Last Successful Workflow */}
-          {workflowHealth.last_successful_workflow && (
+          {workflowHealth.lastSuccessfulWorkflow && (
             <div className="space-y-1 col-span-2">
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-muted-foreground" />
@@ -146,21 +146,21 @@ export function WorkflowHealthCard({ workflowHealth }: WorkflowHealthCardProps) 
               </div>
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">
-                  {workflowHealth.last_successful_type || "Unknown Type"}
+                  {workflowHealth.lastSuccessfulType || "Unknown Type"}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {new Date(workflowHealth.last_successful_workflow).toLocaleString()}
+                  {new Date(workflowHealth.lastSuccessfulWorkflow).toLocaleString()}
                 </p>
               </div>
             </div>
           )}
 
           {/* Failures by Type */}
-          {Object.keys(workflowHealth.failures_by_type).length > 0 && (
+          {Object.keys(workflowHealth.failuresByType).length > 0 && (
             <div className="space-y-1 col-span-2 border-t pt-3">
               <p className="text-sm font-medium text-red-600">Failures by Type:</p>
               <div className="flex flex-wrap gap-2">
-                {Object.entries(workflowHealth.failures_by_type).map(([type, count]) => (
+                {Object.entries(workflowHealth.failuresByType).map(([type, count]) => (
                   <Badge key={type} variant="destructive" className="text-xs">
                     {type}: {count}
                   </Badge>
@@ -170,11 +170,11 @@ export function WorkflowHealthCard({ workflowHealth }: WorkflowHealthCardProps) 
           )}
 
           {/* Blocked by Type */}
-          {Object.keys(workflowHealth.blocked_by_type).length > 0 && (
+          {Object.keys(workflowHealth.blockedByType).length > 0 && (
             <div className="space-y-1 col-span-2 border-t pt-3">
               <p className="text-sm font-medium text-yellow-600">Blocked by Type:</p>
               <div className="flex flex-wrap gap-2">
-                {Object.entries(workflowHealth.blocked_by_type).map(([type, count]) => (
+                {Object.entries(workflowHealth.blockedByType).map(([type, count]) => (
                   <Badge key={type} variant="warning" className="text-xs">
                     {type}: {count}
                   </Badge>

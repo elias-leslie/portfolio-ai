@@ -16,40 +16,40 @@ import { Progress } from "@/components/ui/progress";
 import { ExpandableCard } from "@/components/status/ExpandableCard";
 
 interface MLModelMetrics {
-  model_name: string;
-  model_version: string;
-  trained_at: string;
-  training_samples: number;
-  test_samples: number;
+  modelName: string;
+  modelVersion: string;
+  trainedAt: string;
+  trainingSamples: number;
+  testSamples: number;
   accuracy: number;
-  precision_score: number;
-  recall_score: number;
-  f1_score: number;
-  useful_count: number;
-  not_useful_count: number;
+  precisionScore: number;
+  recallScore: number;
+  f1Score: number;
+  usefulCount: number;
+  notUsefulCount: number;
 }
 
 interface MLModelStatus {
-  current_model: MLModelMetrics | null;
-  previous_model: MLModelMetrics | null;
-  total_training_samples: number;
-  models_trained: number;
-  next_training: string;
+  currentModel: MLModelMetrics | null;
+  previousModel: MLModelMetrics | null;
+  totalTrainingSamples: number;
+  modelsTrained: number;
+  nextTraining: string;
 }
 
 interface TrainingProgress {
-  session_id: string;
+  sessionId: string;
   status: string;
-  current_step: string;
-  progress_percent: number;
-  articles_found: number;
-  articles_labeled: number;
-  articles_total: number;
-  model_version: string | null;
+  currentStep: string;
+  progressPercent: number;
+  articlesFound: number;
+  articlesLabeled: number;
+  articlesTotal: number;
+  modelVersion: string | null;
   accuracy: number | null;
-  error_message: string | null;
-  started_at: string;
-  completed_at: string | null;
+  errorMessage: string | null;
+  startedAt: string;
+  completedAt: string | null;
 }
 
 export function MLModelCard() {
@@ -86,7 +86,7 @@ export function MLModelCard() {
     const poll = setInterval(async () => {
       try {
         const response = await fetch(
-          `/api/ml/training-progress/${trainingProgress.session_id}`,
+          `/api/ml/training-progress/${trainingProgress.sessionId}`,
         );
         if (response.ok) {
           const progress: TrainingProgress = await response.json();
@@ -116,18 +116,18 @@ export function MLModelCard() {
       if (response.ok) {
         const data = await response.json();
         setTrainingProgress({
-          session_id: data.session_id,
+          sessionId: data.sessionId,
           status: "queued",
-          current_step: "Starting training...",
-          progress_percent: 0,
-          articles_found: 0,
-          articles_labeled: 0,
-          articles_total: 0,
-          model_version: null,
+          currentStep: "Starting training...",
+          progressPercent: 0,
+          articlesFound: 0,
+          articlesLabeled: 0,
+          articlesTotal: 0,
+          modelVersion: null,
           accuracy: null,
-          error_message: null,
-          started_at: new Date().toISOString(),
-          completed_at: null,
+          errorMessage: null,
+          startedAt: new Date().toISOString(),
+          completedAt: null,
         });
       } else {
         console.error("Failed to trigger training");
@@ -140,15 +140,15 @@ export function MLModelCard() {
   };
 
   const summary = (() => {
-    if (!status?.current_model) {
+    if (!status?.currentModel) {
       if (!status) return "No trained model yet";
-      return `${status.models_trained} models trained • ${status.total_training_samples.toLocaleString()} samples`;
+      return `${status.modelsTrained} models trained • ${status.totalTrainingSamples.toLocaleString()} samples`;
     }
     return [
-      `v${status.current_model.model_version}`,
-      `${formatPercent(status.current_model.accuracy)} accuracy`,
-      status.next_training
-        ? `Next ${new Date(status.next_training).toLocaleDateString()}`
+      `v${status.currentModel.modelVersion}`,
+      `${formatPercent(status.currentModel.accuracy)} accuracy`,
+      status.nextTraining
+        ? `Next ${new Date(status.nextTraining).toLocaleDateString()}`
         : "Next training TBD",
     ].join(" • ");
   })();
@@ -201,7 +201,7 @@ export function MLModelCard() {
           )}
         </Button>
         <Badge variant="outline">
-          {status?.models_trained ?? 0} models trained
+          {status?.modelsTrained ?? 0} models trained
         </Badge>
       </div>
 
@@ -221,24 +221,24 @@ export function MLModelCard() {
               {trainingProgress.status.replace(/_/g, " ")}
             </Badge>
           </div>
-          <Progress value={trainingProgress.progress_percent} className="h-2" />
+          <Progress value={trainingProgress.progressPercent} className="h-2" />
           <p className="text-xs text-muted-foreground">
-            {trainingProgress.current_step}
+            {trainingProgress.currentStep}
           </p>
-          {trainingProgress.error_message && (
+          {trainingProgress.errorMessage && (
             <p className="text-xs text-red-500">
-              Error: {trainingProgress.error_message}
+              Error: {trainingProgress.errorMessage}
             </p>
           )}
         </div>
       )}
 
-      {status?.current_model ? (
+      {status?.currentModel ? (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">Current Model</span>
             <Badge variant="outline">
-              {status.current_model.model_version}
+              {status.currentModel.modelVersion}
             </Badge>
           </div>
 
@@ -246,7 +246,7 @@ export function MLModelCard() {
             <span className="flex items-center gap-1">
               <Calendar className="h-3 w-3" /> Trained
             </span>
-            <span>{formatDate(status.current_model.trained_at)}</span>
+            <span>{formatDate(status.currentModel.trainedAt)}</span>
           </div>
 
           <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -254,8 +254,8 @@ export function MLModelCard() {
               <Database className="h-3 w-3" /> Training Samples
             </span>
             <span>
-              {status.current_model.training_samples +
-                status.current_model.test_samples}
+              {status.currentModel.trainingSamples +
+                status.currentModel.testSamples}
             </span>
           </div>
 
@@ -263,24 +263,24 @@ export function MLModelCard() {
             <div className="text-sm font-medium">Performance Metrics</div>
             {renderMetricRow(
               "Accuracy",
-              status.current_model.accuracy,
-              status.previous_model?.accuracy,
+              status.currentModel.accuracy,
+              status.previousModel?.accuracy,
               getAccuracyBadge,
             )}
             {renderMetricRow(
               "Precision",
-              status.current_model.precision_score,
-              status.previous_model?.precision_score,
+              status.currentModel.precisionScore,
+              status.previousModel?.precisionScore,
             )}
             {renderMetricRow(
               "Recall",
-              status.current_model.recall_score,
-              status.previous_model?.recall_score,
+              status.currentModel.recallScore,
+              status.previousModel?.recallScore,
             )}
             {renderMetricRow(
               "F1 Score",
-              status.current_model.f1_score,
-              status.previous_model?.f1_score,
+              status.currentModel.f1Score,
+              status.previousModel?.f1Score,
             )}
           </div>
 
@@ -289,11 +289,11 @@ export function MLModelCard() {
             <div className="flex items-center justify-between text-xs">
               <span>Useful Articles</span>
               <span className="font-mono">
-                {status.current_model.useful_count} (
+                {status.currentModel.usefulCount} (
                 {formatPercent(
-                  status.current_model.useful_count /
-                    (status.current_model.useful_count +
-                      status.current_model.not_useful_count),
+                  status.currentModel.usefulCount /
+                    (status.currentModel.usefulCount +
+                      status.currentModel.notUsefulCount),
                 )}
                 )
               </span>
@@ -301,11 +301,11 @@ export function MLModelCard() {
             <div className="flex items-center justify-between text-xs">
               <span>Not Useful Articles</span>
               <span className="font-mono">
-                {status.current_model.not_useful_count} (
+                {status.currentModel.notUsefulCount} (
                 {formatPercent(
-                  status.current_model.not_useful_count /
-                    (status.current_model.useful_count +
-                      status.current_model.not_useful_count),
+                  status.currentModel.notUsefulCount /
+                    (status.currentModel.usefulCount +
+                      status.currentModel.notUsefulCount),
                 )}
                 )
               </span>
@@ -323,11 +323,11 @@ export function MLModelCard() {
         <div className="grid gap-2 pt-2 border-t text-xs text-muted-foreground">
           <div className="flex items-center justify-between">
             <span>Total Models Trained</span>
-            <span className="font-mono">{status.models_trained}</span>
+            <span className="font-mono">{status.modelsTrained}</span>
           </div>
           <div className="flex items-center justify-between">
             <span>Next Scheduled Training</span>
-            <span>{formatDate(status.next_training)}</span>
+            <span>{formatDate(status.nextTraining)}</span>
           </div>
         </div>
       )}

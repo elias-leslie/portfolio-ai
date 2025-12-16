@@ -16,24 +16,24 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 export interface SourceProvider {
   name: string;
-  display_name: string;
+  displayName: string;
   tier: "FREE" | "PREMIUM";
-  api_key_required: boolean;
+  apiKeyRequired: boolean;
   priority: number;
-  rate_limits: {
-    per_minute: number | null;
-    per_day: number | null;
+  rateLimits: {
+    perMinute: number | null;
+    perDay: number | null;
     notes?: string;
   };
   capabilities: string[];
-  gap_coverage: string[];
-  use_cases: string[];
+  gapCoverage: string[];
+  useCases: string[];
 }
 
 export interface SourcesResponse {
   version: string;
   providers: SourceProvider[];
-  data_routing: Record<string, DataRouting>;
+  dataRouting: Record<string, DataRouting>;
   credentials: {
     storage: string;
     table: string;
@@ -42,9 +42,9 @@ export interface SourcesResponse {
 
 export interface DataRouting {
   primary: string;
-  fallback_1?: string;
-  fallback_2?: string;
-  fallback_3?: string;
+  fallback1?: string;
+  fallback2?: string;
+  fallback3?: string;
   notes?: string;
 }
 
@@ -52,32 +52,32 @@ export interface SourceEndpoint {
   path?: string;
   method?: string;
   description: string;
-  gap_id?: string;
+  gapId?: string;
   params?: Record<string, string>;
-  fields_returned: string[];
+  fieldsReturned: string[];
   example?: string;
   notes?: string;
 }
 
 export interface SourceDetail {
   name: string;
-  display_name: string;
+  displayName: string;
   tier: "FREE" | "PREMIUM";
-  api_key_required: boolean;
-  env_var?: string;
-  db_key?: string;
+  apiKeyRequired: boolean;
+  envVar?: string;
+  dbKey?: string;
   priority: number;
-  rate_limits: {
-    per_minute: number | null;
-    per_day: number | null;
+  rateLimits: {
+    perMinute: number | null;
+    perDay: number | null;
     notes?: string;
   };
-  data_delay?: string;
+  dataDelay?: string;
   capabilities: Record<string, boolean>;
   endpoints: Record<string, SourceEndpoint>;
-  premium_only: string[];
-  use_cases: string[];
-  implementation_file: string;
+  premiumOnly: string[];
+  useCases: string[];
+  implementationFile: string;
 }
 
 export interface GapProviderEndpoint {
@@ -95,7 +95,7 @@ export interface GapProvider {
 }
 
 export interface GapProvidersResponse {
-  gap_id: string;
+  gapId: string;
   providers: GapProvider[];
   message?: string;
 }
@@ -159,7 +159,7 @@ export async function fetchGapProviderCounts(): Promise<Record<string, { count: 
   const gapCounts: Record<string, { count: number; hasFree: boolean }> = {};
 
   for (const provider of sourcesData.providers) {
-    for (const gapId of provider.gap_coverage || []) {
+    for (const gapId of provider.gapCoverage || []) {
       if (!gapCounts[gapId]) {
         gapCounts[gapId] = { count: 0, hasFree: false };
       }

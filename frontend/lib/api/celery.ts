@@ -7,23 +7,23 @@ export interface TaskInfo {
   id: string;
   name: string;
   status: string;
-  started_at: string | null;
+  startedAt: string | null;
   duration: number | null;
   worker: string | null;
   args: string | null;
   kwargs: string | null;
   result: string | null;
   traceback: string | null;
-  date_done: string | null;
+  dateDone: string | null;
 }
 
 export interface TaskListResponse {
   tasks: TaskInfo[];
   total: number;
-  active_count: number;
-  pending_count: number;
-  completed_count: number;
-  failed_count: number;
+  activeCount: number;
+  pendingCount: number;
+  completedCount: number;
+  failedCount: number;
 }
 
 export interface QueueInfo {
@@ -35,8 +35,8 @@ export interface ScheduleInfo {
   name: string;
   task: string;
   schedule: string;
-  last_run: string | null;
-  next_run: string | null;
+  lastRun: string | null;
+  nextRun: string | null;
 }
 
 /**

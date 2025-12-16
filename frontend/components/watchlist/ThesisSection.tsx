@@ -52,7 +52,7 @@ export function ThesisSection({ symbol, userTimezone }: ThesisSectionProps) {
     // Generate thesis mutation
     const generateMutation = useMutation({
         mutationFn: (forceRegenerate: boolean) =>
-            generateThesis(symbol, { force_regenerate: forceRegenerate }),
+            generateThesis(symbol, { forceRegenerate: forceRegenerate }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["thesis", symbol] });
         },
@@ -123,11 +123,11 @@ export function ThesisSection({ symbol, userTimezone }: ThesisSectionProps) {
                         <CardTitle className="text-base">Investment Thesis</CardTitle>
                         <div className="flex items-center gap-2">
                             <ActionBadge action={thesis.action} />
-                            {thesis.cross_validation_score !== null && (
+                            {thesis.crossValidationScore !== null && (
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <Badge variant="outline" className="cursor-help">
-                                            Cross-Val: {(thesis.cross_validation_score * 100).toFixed(0)}%
+                                            Cross-Val: {(thesis.crossValidationScore * 100).toFixed(0)}%
                                         </Badge>
                                     </TooltipTrigger>
                                     <TooltipContent>
@@ -143,12 +143,12 @@ export function ThesisSection({ symbol, userTimezone }: ThesisSectionProps) {
                 </CardHeader>
                 <CardContent className="space-y-4">
                     {/* Core Reasons */}
-                    <CoreReasonsSection reasons={thesis.core_reasons} />
+                    <CoreReasonsSection reasons={thesis.coreReasons} />
 
                     {/* Key Catalysts */}
-                    {thesis.key_catalysts.length > 0 && (
+                    {thesis.keyCatalysts.length > 0 && (
                         <KeyCatalystsSection
-                            catalysts={thesis.key_catalysts}
+                            catalysts={thesis.keyCatalysts}
                             userTimezone={userTimezone}
                         />
                     )}
@@ -159,19 +159,19 @@ export function ThesisSection({ symbol, userTimezone }: ThesisSectionProps) {
                     )}
 
                     {/* Value Drivers */}
-                    {thesis.value_drivers && (
-                        <ValueDriversSection drivers={thesis.value_drivers} />
+                    {thesis.valueDrivers && (
+                        <ValueDriversSection drivers={thesis.valueDrivers} />
                     )}
 
                     {/* Expected Returns */}
-                    {(thesis.expected_return_pct !== null ||
-                        thesis.expected_timeframe_days !== null) && (
+                    {(thesis.expectedReturnPct !== null ||
+                        thesis.expectedTimeframeDays !== null) && (
                         <ExpectedReturnsSection thesis={thesis} />
                     )}
 
                     {/* Claude Validation */}
-                    {thesis.claude_validation && (
-                        <ClaudeValidationSection validation={thesis.claude_validation} />
+                    {thesis.claudeValidation && (
+                        <ClaudeValidationSection validation={thesis.claudeValidation} />
                     )}
 
                     {/* Version History */}
@@ -210,7 +210,7 @@ export function ThesisSection({ symbol, userTimezone }: ThesisSectionProps) {
                             </Button>
                         )}
                         <div className="ml-auto text-xs text-text-muted">
-                            v{thesis.version} • Updated {formatTimestamp(thesis.updated_at, userTimezone)}
+                            v{thesis.version} • Updated {formatTimestamp(thesis.updatedAt, userTimezone)}
                         </div>
                     </div>
                 </CardContent>
@@ -238,11 +238,11 @@ function ActionBadge({ action }: { action: "BUY" | "HOLD" | "SELL" }) {
 }
 
 // Status Badge Component
-function StatusBadge({ status }: { status: "active" | "invalidated" | "flagged_for_review" }) {
+function StatusBadge({ status }: { status: "active" | "invalidated" | "flaggedForReview" }) {
     const config = {
         active: { color: "bg-blue-500/10 text-blue-600 border-blue-500/20", label: "Active" },
         invalidated: { color: "bg-gray-500/10 text-gray-600 border-gray-500/20", label: "Invalidated" },
-        flagged_for_review: { color: "bg-orange-500/10 text-orange-600 border-orange-500/20", label: "Flagged" },
+        flaggedForReview: { color: "bg-orange-500/10 text-orange-600 border-orange-500/20", label: "Flagged" },
     };
 
     const { color, label } = config[status];
@@ -300,9 +300,9 @@ function KeyCatalystsSection({
                         <ImpactBadge impact={catalyst.impact} />
                         <div className="flex-1">
                             <p className="text-sm text-text">{catalyst.catalyst}</p>
-                            {catalyst.expected_date && (
+                            {catalyst.expectedDate && (
                                 <p className="text-xs text-text-muted mt-0.5">
-                                    Expected: {formatTimestamp(catalyst.expected_date, userTimezone)}
+                                    Expected: {formatTimestamp(catalyst.expectedDate, userTimezone)}
                                 </p>
                             )}
                         </div>
@@ -374,12 +374,12 @@ function SeverityBadge({ severity }: { severity: "high" | "medium" | "low" }) {
 }
 
 // Value Drivers Section
-function ValueDriversSection({ drivers }: { drivers: NonNullable<Thesis["value_drivers"]> }) {
+function ValueDriversSection({ drivers }: { drivers: NonNullable<Thesis["valueDrivers"]> }) {
     const items = [
-        { label: "Market Size", value: drivers.market_size },
-        { label: "Company Position", value: drivers.company_position },
-        { label: "Upside Potential", value: drivers.upside_potential },
-        { label: "Competitive Moat", value: drivers.competitive_moat },
+        { label: "Market Size", value: drivers.marketSize },
+        { label: "Company Position", value: drivers.companyPosition },
+        { label: "Upside Potential", value: drivers.upsidePotential },
+        { label: "Competitive Moat", value: drivers.competitiveMoat },
     ].filter((item) => item.value !== null);
 
     if (items.length === 0) return null;
@@ -405,20 +405,20 @@ function ExpectedReturnsSection({ thesis }: { thesis: Thesis }) {
         <div className="border-t border-border pt-3">
             <h5 className="text-xs font-semibold text-text mb-2">Expected Returns</h5>
             <div className="grid grid-cols-2 gap-3">
-                {thesis.expected_return_pct !== null && (
+                {thesis.expectedReturnPct !== null && (
                     <div className="bg-surface-muted/50 rounded px-2 py-1.5">
                         <p className="text-xs text-text-muted">Return</p>
                         <p className="text-sm font-semibold text-text">
-                            {thesis.expected_return_pct > 0 ? "+" : ""}
-                            {thesis.expected_return_pct.toFixed(1)}%
+                            {thesis.expectedReturnPct > 0 ? "+" : ""}
+                            {thesis.expectedReturnPct.toFixed(1)}%
                         </p>
                     </div>
                 )}
-                {thesis.expected_timeframe_days !== null && (
+                {thesis.expectedTimeframeDays !== null && (
                     <div className="bg-surface-muted/50 rounded px-2 py-1.5">
                         <p className="text-xs text-text-muted">Timeframe</p>
                         <p className="text-sm font-semibold text-text">
-                            {thesis.expected_timeframe_days} days
+                            {thesis.expectedTimeframeDays} days
                         </p>
                     </div>
                 )}
@@ -431,7 +431,7 @@ function ExpectedReturnsSection({ thesis }: { thesis: Thesis }) {
 function ClaudeValidationSection({
     validation,
 }: {
-    validation: NonNullable<Thesis["claude_validation"]>;
+    validation: NonNullable<Thesis["claudeValidation"]>;
 }) {
     return (
         <div className="border-t border-border pt-3 space-y-2">
@@ -453,7 +453,7 @@ function ClaudeValidationSection({
                     </span>
                 </div>
             </div>
-            <p className="text-sm text-text-muted">{validation.review_summary}</p>
+            <p className="text-sm text-text-muted">{validation.reviewSummary}</p>
             {validation.issues.length > 0 && (
                 <div className="space-y-1">
                     <p className="text-xs font-medium text-text">Issues:</p>
@@ -475,7 +475,7 @@ function VersionHistorySection({
     versions,
     userTimezone,
 }: {
-    versions: Array<{ version: number; status: string; action: string; created_at: string }>;
+    versions: Array<{ version: number; status: string; action: string; createdAt: string }>;
     userTimezone: string;
 }) {
     return (
@@ -502,7 +502,7 @@ function VersionHistorySection({
                                         </Badge>
                                     </div>
                                     <span className="text-text-muted">
-                                        {formatTimestamp(version.created_at, userTimezone)}
+                                        {formatTimestamp(version.createdAt, userTimezone)}
                                     </span>
                                 </div>
                             ))}

@@ -27,11 +27,11 @@ vi.mock("sonner", () => ({
 
 const mockPreferences = {
   id: 1,
-  user_id: 1,
-  email_notifications: true,
-  alerts_enabled: true,
-  created_at: new Date().toISOString(),
-  updated_at: new Date().toISOString(),
+  userId: 1,
+  emailNotifications: true,
+  alertsEnabled: true,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
 };
 
 function createWrapper() {
@@ -169,10 +169,10 @@ describe("ProfileSelector", () => {
           id: 1,
           name: "Conservative Strategy",
           description: "Low risk profile",
-          is_active: true,
-          profile_data: mockPreferences,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          isActive: true,
+          profileData: mockPreferences,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         },
       ],
       isLoading: false,

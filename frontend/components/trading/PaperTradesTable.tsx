@@ -52,7 +52,7 @@ export function PaperTradesTable({ trades, type }: PaperTradesTableProps) {
     if (!selectedTrade) return;
 
     closeTrade.mutate(
-      { tradeId: selectedTrade.idea_id, request: { exit_reason: "manual" } },
+      { tradeId: selectedTrade.ideaId, request: { exitReason: "manual" } },
       {
         onSuccess: () => {
           setCloseDialogOpen(false);
@@ -80,8 +80,8 @@ export function PaperTradesTable({ trades, type }: PaperTradesTableProps) {
 
   const formatPnlDollars = (trade: PaperTrade, isClosed: boolean) => {
     const shares = trade.shares || 0;
-    const entryPrice = trade.entry_price || 0;
-    const exitPrice = isClosed ? (trade.exit_price || 0) : (trade.current_price || 0);
+    const entryPrice = trade.entryPrice || 0;
+    const exitPrice = isClosed ? (trade.exitPrice || 0) : (trade.currentPrice || 0);
     if (shares === 0 || entryPrice === 0) return "-";
     const pnl = (exitPrice - entryPrice) * shares;
     const prefix = pnl >= 0 ? "+$" : "-$";
@@ -137,22 +137,22 @@ export function PaperTradesTable({ trades, type }: PaperTradesTableProps) {
           </TableHeader>
           <TableBody>
             {trades.map((trade) => {
-              const isExpanded = expandedRows.has(trade.idea_id);
+              const isExpanded = expandedRows.has(trade.ideaId);
               const pnlPct =
-                type === "open" ? trade.current_return_pct : trade.realized_return_pct;
+                type === "open" ? trade.currentReturnPct : trade.realizedReturnPct;
               const pnlDollars = (() => {
                 const shares = trade.shares || 0;
-                const entryPrice = trade.entry_price || 0;
-                const exitPrice = type === "closed" ? (trade.exit_price || 0) : (trade.current_price || 0);
+                const entryPrice = trade.entryPrice || 0;
+                const exitPrice = type === "closed" ? (trade.exitPrice || 0) : (trade.currentPrice || 0);
                 return shares > 0 && entryPrice > 0 ? (exitPrice - entryPrice) * shares : 0;
               })();
 
               return (
-                <Fragment key={trade.idea_id}>
+                <Fragment key={trade.ideaId}>
                   {/* Main Row */}
                   <TableRow
                     className="cursor-pointer hover:bg-surface-muted/50"
-                    onClick={() => toggleRow(trade.idea_id)}
+                    onClick={() => toggleRow(trade.ideaId)}
                   >
                     <TableCell>
                       <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -165,16 +165,16 @@ export function PaperTradesTable({ trades, type }: PaperTradesTableProps) {
                     </TableCell>
                     <TableCell className="font-semibold">{trade.symbol}</TableCell>
                     <TableCell>
-                      <Badge variant={trade.idea_type === "buy" ? "default" : "secondary"}>
-                        {trade.idea_type.toUpperCase()}
+                      <Badge variant={trade.ideaType === "buy" ? "default" : "secondary"}>
+                        {trade.ideaType.toUpperCase()}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">{trade.shares || "-"}</TableCell>
-                    <TableCell className="text-right">{formatPrice(trade.entry_price)}</TableCell>
+                    <TableCell className="text-right">{formatPrice(trade.entryPrice)}</TableCell>
                     {type === "open" && (
                       <>
                         <TableCell className="text-right">
-                          {formatPrice(trade.current_price)}
+                          {formatPrice(trade.currentPrice)}
                         </TableCell>
                         <TableCell className={`text-right font-semibold ${getPnlColor(pnlDollars)}`}>
                           {formatPnlDollars(trade, false)}
@@ -183,19 +183,19 @@ export function PaperTradesTable({ trades, type }: PaperTradesTableProps) {
                           {formatPct(pnlPct)}
                         </TableCell>
                         <TableCell className="text-right text-text-muted">
-                          {formatPrice(trade.target_price)}
+                          {formatPrice(trade.targetPrice)}
                         </TableCell>
                         <TableCell className="text-right text-text-muted">
-                          {formatPrice(trade.stop_loss_price)}
+                          {formatPrice(trade.stopLossPrice)}
                         </TableCell>
                         <TableCell className="text-center text-text-muted">
-                          {trade.holding_days || 0}
+                          {trade.holdingDays || 0}
                         </TableCell>
                       </>
                     )}
                     {type === "closed" && (
                       <>
-                        <TableCell className="text-right">{formatPrice(trade.exit_price)}</TableCell>
+                        <TableCell className="text-right">{formatPrice(trade.exitPrice)}</TableCell>
                         <TableCell className={`text-right font-semibold ${getPnlColor(pnlDollars)}`}>
                           {formatPnlDollars(trade, true)}
                         </TableCell>
@@ -203,10 +203,10 @@ export function PaperTradesTable({ trades, type }: PaperTradesTableProps) {
                           {formatPct(pnlPct)}
                         </TableCell>
                         <TableCell className="text-center text-text-muted">
-                          {trade.holding_days || 0}
+                          {trade.holdingDays || 0}
                         </TableCell>
                         <TableCell className="text-text-muted">
-                          {trade.exit_reason || "-"}
+                          {trade.exitReason || "-"}
                         </TableCell>
                       </>
                     )}
@@ -249,7 +249,7 @@ export function PaperTradesTable({ trades, type }: PaperTradesTableProps) {
         onOpenChange={setCloseDialogOpen}
         onConfirm={confirmCloseTrade}
         title={`Close ${selectedTrade?.symbol} Trade?`}
-        description={`This will close your ${selectedTrade?.idea_type} position in ${selectedTrade?.symbol} at the current market price. Current P&L: ${formatPct(selectedTrade?.current_return_pct)}`}
+        description={`This will close your ${selectedTrade?.ideaType} position in ${selectedTrade?.symbol} at the current market price. Current P&L: ${formatPct(selectedTrade?.currentReturnPct)}`}
         confirmLabel="Close Position"
         tone="default"
       />

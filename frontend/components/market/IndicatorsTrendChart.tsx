@@ -40,21 +40,21 @@ export function IndicatorsTrendChart() {
 
     return data.sp500.map((point, idx) => ({
       date: point.date,
-      sp500: point.pct_change,
-      sp500_value: point.close,
-      vix: data.vix[idx]?.pct_change ?? 0,
-      vix_value: data.vix[idx]?.close ?? 0,
-      tnx: data.tnx[idx]?.pct_change ?? 0,
-      tnx_value: data.tnx[idx]?.close ?? 0,
-      dxy: data.dxy[idx]?.pct_change ?? 0,
-      dxy_value: data.dxy[idx]?.close ?? 0,
+      sp500: point.pctChange,
+      sp500Value: point.close,
+      vix: data.vix[idx]?.pctChange ?? 0,
+      vixValue: data.vix[idx]?.close ?? 0,
+      tnx: data.tnx[idx]?.pctChange ?? 0,
+      tnxValue: data.tnx[idx]?.close ?? 0,
+      dxy: data.dxy[idx]?.pctChange ?? 0,
+      dxyValue: data.dxy[idx]?.close ?? 0,
     }));
   }, [data]);
 
   // Get current values for summary
   const currentValues = useMemo(() => {
     if (!data?.sp500?.length) return null;
-    const last = (arr: { pct_change: number; close: number }[]) =>
+    const last = (arr: { pctChange: number; close: number }[]) =>
       arr.length > 0 ? arr[arr.length - 1] : null;
     return {
       sp500: last(data.sp500),
@@ -161,7 +161,7 @@ export function IndicatorsTrendChart() {
           {(Object.keys(INDICATOR_CONFIG) as IndicatorKey[]).map((key) => {
             const config = INDICATOR_CONFIG[key];
             const current = currentValues?.[key];
-            const pct = current?.pct_change ?? 0;
+            const pct = current?.pctChange ?? 0;
             return (
               <button
                 key={key}
@@ -187,7 +187,7 @@ export function IndicatorsTrendChart() {
         </div>
         {chartData.length > 0 && (() => {
           const dataDate = chartData[chartData.length - 1].date.split("T")[0];
-          const freshness = checkDataFreshness(dataDate, marketStatus?.expected_data_date);
+          const freshness = checkDataFreshness(dataDate, marketStatus?.expectedDataDate);
           return (
             <span className="text-[10px] text-text-muted" title={freshness.tooltip}>
               Data as of {formatDate(dataDate, false)} {freshness.indicator}

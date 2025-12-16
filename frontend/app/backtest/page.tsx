@@ -86,7 +86,7 @@ function BacktestPageContent() {
           <div className="flex gap-2">
             <Button
               variant="outline"
-              onClick={() => generateBatch.mutate({ top_n: 20 })}
+              onClick={() => generateBatch.mutate({ topN: 20 })}
               disabled={generateBatch.isPending}
             >
               <Sparkles className="mr-2 h-4 w-4" />

@@ -11,28 +11,28 @@ export interface TreeEntry {
 
 export interface BackupVerification {
   verified: boolean;
-  verified_at: string;
+  verifiedAt: string;
   errors: string[];
   tree: Record<string, TreeEntry>;
-  total_files: number;
+  totalFiles: number;
   checksum: string;
 }
 
 export interface BackupEntry {
   name: string;
   timestamp: string;
-  size_bytes: number;
-  db_size_bytes: number;
+  sizeBytes: number;
+  dbSizeBytes: number;
   status: "ok" | "failed" | "in_progress";
   verification?: BackupVerification;
 }
 
 export interface BackupStatusResponse {
   status: "healthy" | "stale" | "no_backups" | "error";
-  latest_backup: BackupEntry | null;
-  backup_count: number;
+  latestBackup: BackupEntry | null;
+  backupCount: number;
   destination: string;
-  last_updated: string | null;
+  lastUpdated: string | null;
   message: string;
 }
 
@@ -41,20 +41,20 @@ export interface BackupIndexResponse {
   retention: number;
   destination: string;
   backups: BackupEntry[];
-  last_updated: string | null;
+  lastUpdated: string | null;
 }
 
 export interface TriggerBackupResponse {
-  job_id: string;
+  jobId: string;
   status: "started" | "already_running";
   message: string;
 }
 
 export interface BackupJobStatus {
-  job_id: string;
+  jobId: string;
   status: "running" | "completed" | "failed" | "not_found";
-  started_at: string | null;
-  completed_at: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
   output: string | null;
   error: string | null;
 }

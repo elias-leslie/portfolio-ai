@@ -73,26 +73,26 @@ interface Evidence {
 
 interface Artifact {
   id: number;
-  artifact_id: string;
-  feature_id: string;
-  criterion_id: string;
+  artifactId: string;
+  featureId: string;
+  criterionId: string;
   version: number;
-  is_current: boolean;
-  captured_at: string;
-  expires_at: string;
-  quality_status: string;
+  isCurrent: boolean;
+  capturedAt: string;
+  expiresAt: string;
+  qualityStatus: string;
   confidence: number | null;
-  user_approved: boolean | null;
-  user_notes: string | null;
-  file_size_bytes: number;
+  userApproved: boolean | null;
+  userNotes: string | null;
+  fileSizeBytes: number;
 }
 
 interface ArtifactResponse {
   artifact: Artifact;
   versions: Artifact[];
   evidence: Evidence | null;
-  screenshot_url: string;
-  evidence_url: string;
+  screenshotUrl: string;
+  evidenceUrl: string;
 }
 
 interface EvidenceViewerModalProps {
@@ -123,7 +123,7 @@ export function EvidenceViewerModal({
   const { data, isLoading, error, refetch } = useQuery<ArtifactResponse>({
     queryKey: ["artifact", featureId, criterionId, selectedVersion],
     queryFn: async () => {
-      const params = new URLSearchParams({ include_evidence: "true" });
+      const params = new URLSearchParams({ includeEvidence: "true" });
       if (selectedVersion) params.set("version", String(selectedVersion));
       const response = await fetch(
         `/api/artifacts/${featureId}/${criterionId}?${params}`
@@ -168,7 +168,7 @@ export function EvidenceViewerModal({
       notes: string;
     }) => {
       const response = await fetch(
-        `/api/artifacts/${data?.artifact.artifact_id}/review`,
+        `/api/artifacts/${data?.artifact.artifactId}/review`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -227,8 +227,8 @@ export function EvidenceViewerModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          feature_id: featureId,
-          criterion_id: criterionId,
+          featureId: featureId,
+          criterionId: criterionId,
           url: captureUrl,
         }),
       });
@@ -267,14 +267,14 @@ export function EvidenceViewerModal({
               <Badge
                 variant="outline"
                 className={
-                  artifact.quality_status === "passed"
+                  artifact.qualityStatus === "passed"
                     ? "bg-green-500/20 text-green-400"
-                    : artifact.quality_status === "failed"
+                    : artifact.qualityStatus === "failed"
                       ? "bg-red-500/20 text-red-400"
                       : "bg-yellow-500/20 text-yellow-400"
                 }
               >
-                {artifact.quality_status}
+                {artifact.qualityStatus}
               </Badge>
             )}
           </DialogTitle>
@@ -334,8 +334,8 @@ export function EvidenceViewerModal({
                   <ChevronRight className="h-4 w-4" />
                 </Button>
                 <span className="text-xs text-muted-foreground ml-2">
-                  {artifact?.captured_at &&
-                    new Date(artifact.captured_at).toLocaleString()}
+                  {artifact?.capturedAt &&
+                    new Date(artifact.capturedAt).toLocaleString()}
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -417,7 +417,7 @@ export function EvidenceViewerModal({
               <div className="flex-1 overflow-hidden relative bg-muted/10">
                 <TabsContent value="screenshot" className="m-0 absolute inset-0 overflow-auto p-4">
                   <img
-                    src={data?.screenshot_url}
+                    src={data?.screenshotUrl}
                     alt="Page screenshot"
                     className="border border-border shadow-sm"
                   />
@@ -634,12 +634,12 @@ export function EvidenceViewerModal({
               <div className="max-w-4xl mx-auto space-y-3">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium">Your Review:</span>
-                  {artifact?.user_approved === true && (
+                  {artifact?.userApproved === true && (
                     <Badge className="bg-green-500/20 text-green-400 hover:bg-green-500/30">
                       Approved
                     </Badge>
                   )}
-                  {artifact?.user_approved === false && (
+                  {artifact?.userApproved === false && (
                     <Badge className="bg-red-500/20 text-red-400 hover:bg-red-500/30">Rejected</Badge>
                   )}
                 </div>

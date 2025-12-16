@@ -33,8 +33,8 @@ describe("AccountsCard", () => {
   it("lists accounts when data is available", () => {
     mockUseAccounts.mockReturnValue({
       data: [
-        { id: "acct-1", name: "My IRA", account_type: "IRA" },
-        { id: "acct-2", name: "Growth", account_type: "Taxable" },
+        { id: "acct-1", name: "My IRA", accountType: "IRA" },
+        { id: "acct-2", name: "Growth", accountType: "Taxable" },
       ],
       isLoading: false,
     });

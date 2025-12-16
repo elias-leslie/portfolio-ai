@@ -12,8 +12,8 @@ import { format } from "date-fns";
 
 export interface MarketTrendData {
   dates: string[];
-  fear_greed_scores: number[];
-  market_health_scores: number[];
+  fearGreedScores: number[];
+  marketHealthScores: number[];
 }
 
 interface MarketTrendChartProps {
@@ -72,8 +72,8 @@ export function MarketTrendChart({ data, height = 60 }: MarketTrendChartProps) {
   // Transform data for recharts
   const chartData: ChartDataPoint[] = data.dates.map((date, index) => ({
     date,
-    fearGreed: data.fear_greed_scores[index],
-    marketHealth: data.market_health_scores[index] || undefined,
+    fearGreed: data.fearGreedScores[index],
+    marketHealth: data.marketHealthScores[index] || undefined,
   }));
 
   return (
@@ -96,7 +96,7 @@ export function MarketTrendChart({ data, height = 60 }: MarketTrendChartProps) {
         />
 
         {/* Market Health line (secondary, if available) - using chart color */}
-        {data.market_health_scores.length > 0 && (
+        {data.marketHealthScores.length > 0 && (
           <Line
             type="monotone"
             dataKey="marketHealth"

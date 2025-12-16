@@ -24,7 +24,7 @@ export function ExpandedRowRefreshStatus({
     symbol,
 }: ExpandedRowRefreshStatusProps) {
     const isRefreshing =
-        refreshStatus.is_refreshing && refreshStatus.current_symbol === symbol;
+        refreshStatus.isRefreshing && refreshStatus.currentSymbol === symbol;
 
     if (!isRefreshing) {
         return null;
@@ -40,29 +40,29 @@ export function ExpandedRowRefreshStatus({
             </CardHeader>
             <CardContent className="space-y-2">
                 <div className="text-sm text-text-muted">
-                    {refreshStatus.elapsed_seconds !== undefined && (
+                    {refreshStatus.elapsedSeconds !== undefined && (
                         <p>
                             Elapsed time:{" "}
                             <span className="font-medium text-text">
-                                {refreshStatus.elapsed_seconds}s
+                                {refreshStatus.elapsedSeconds}s
                             </span>
                         </p>
                     )}
-                    {refreshStatus.percent_complete !== undefined && (
+                    {refreshStatus.percentComplete !== undefined && (
                         <p>
                             Progress:{" "}
                             <span className="font-medium text-text">
-                                {refreshStatus.percent_complete.toFixed(0)}%
+                                {refreshStatus.percentComplete.toFixed(0)}%
                             </span>
                         </p>
                     )}
-                    {refreshStatus.processed_items !== undefined &&
-                        refreshStatus.total_items !== undefined && (
+                    {refreshStatus.processedItems !== undefined &&
+                        refreshStatus.totalItems !== undefined && (
                             <p>
                                 Items processed:{" "}
                                 <span className="font-medium text-text">
-                                    {refreshStatus.processed_items} /{" "}
-                                    {refreshStatus.total_items}
+                                    {refreshStatus.processedItems} /{" "}
+                                    {refreshStatus.totalItems}
                                 </span>
                             </p>
                         )}

@@ -143,12 +143,12 @@ function MaintenanceItem({
             </span>
           </div>
         )}
-        {lastRun?.started_at && (
+        {lastRun?.startedAt && (
           <div className="flex justify-between items-center">
             <span className="text-muted-foreground">Last run:</span>
             <span className="text-xs text-muted-foreground flex items-center gap-1">
               <Clock className="h-3 w-3" />
-              {new Date(lastRun.started_at).toLocaleString()}
+              {new Date(lastRun.startedAt).toLocaleString()}
             </span>
           </div>
         )}
@@ -238,19 +238,19 @@ export function UnifiedMaintenanceCard() {
     try {
       const check = await checkBackupRequirements(24, true);
       setBackupCheck(check);
-      if (!check.can_proceed) {
-        toast.warning(`Backup check: ${check.blocking_reason || "Requirements not met"}`);
+      if (!check.canProceed) {
+        toast.warning(`Backup check: ${check.blockingReason || "Requirements not met"}`);
       }
     } catch {
       toast.error("Could not verify backup status");
       setBackupCheck({
-        backup_exists: false,
-        backup_recent: false,
-        backup_verified: false,
-        backup_name: null,
-        backup_age_hours: null,
-        can_proceed: false,
-        blocking_reason: "Could not verify backup status",
+        backupExists: false,
+        backupRecent: false,
+        backupVerified: false,
+        backupName: null,
+        backupAgeHours: null,
+        canProceed: false,
+        blockingReason: "Could not verify backup status",
         warnings: [],
       });
     } finally {
@@ -333,8 +333,8 @@ export function UnifiedMaintenanceCard() {
   };
 
   const triggerCleanupNews = () => {
-    if (!dryRun && backupCheck && !backupCheck.can_proceed) {
-      toast.error(`Cannot run: ${backupCheck.blocking_reason}`);
+    if (!dryRun && backupCheck && !backupCheck.canProceed) {
+      toast.error(`Cannot run: ${backupCheck.blockingReason}`);
       return;
     }
     const storageKey = "status.confirm.cleanupNews";
@@ -358,7 +358,7 @@ export function UnifiedMaintenanceCard() {
     setTriggeringTask("vacuum_database");
     try {
       const result = await vacuumDatabase(dryRun);
-      toast.success(`Vacuum ${result.status}: ${result.summary?.total_reclaimed_mb || 0} MB ${dryRun ? "could be" : ""} reclaimed`);
+      toast.success(`Vacuum ${result.status}: ${result.summary?.totalReclaimedMb || 0} MB ${dryRun ? "could be" : ""} reclaimed`);
       await fetchAllData();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed";
@@ -369,8 +369,8 @@ export function UnifiedMaintenanceCard() {
   };
 
   const triggerVacuumDatabase = () => {
-    if (!dryRun && backupCheck && !backupCheck.can_proceed) {
-      toast.error(`Cannot run: ${backupCheck.blocking_reason}`);
+    if (!dryRun && backupCheck && !backupCheck.canProceed) {
+      toast.error(`Cannot run: ${backupCheck.blockingReason}`);
       return;
     }
     const storageKey = "status.confirm.vacuumDatabase";
@@ -395,8 +395,8 @@ export function UnifiedMaintenanceCard() {
     try {
       const result = await validateIntegrity(dryRun);
       const summary = result.summary as Record<string, unknown> | null;
-      const totalErrors = typeof summary?.total_errors === "number" ? summary.total_errors : 0;
-      const totalWarnings = typeof summary?.total_warnings === "number" ? summary.total_warnings : 0;
+      const totalErrors = typeof summary?.totalErrors === "number" ? summary.totalErrors : 0;
+      const totalWarnings = typeof summary?.totalWarnings === "number" ? summary.totalWarnings : 0;
       toast.success(`Validation ${result.status}: ${totalErrors} errors, ${totalWarnings} warnings`);
       await fetchAllData();
     } catch (error) {
@@ -408,8 +408,8 @@ export function UnifiedMaintenanceCard() {
   };
 
   const triggerValidateIntegrity = () => {
-    if (!dryRun && backupCheck && !backupCheck.can_proceed) {
-      toast.error(`Cannot run: ${backupCheck.blocking_reason}`);
+    if (!dryRun && backupCheck && !backupCheck.canProceed) {
+      toast.error(`Cannot run: ${backupCheck.blockingReason}`);
       return;
     }
     const storageKey = "status.confirm.validateIntegrity";
@@ -468,8 +468,8 @@ export function UnifiedMaintenanceCard() {
     return "default";
   };
 
-  const canRunLive = !dryRun && backupCheck?.can_proceed === true;
-  const liveBlocked = !dryRun && backupCheck !== null && !backupCheck.can_proceed;
+  const canRunLive = !dryRun && backupCheck?.canProceed === true;
+  const liveBlocked = !dryRun && backupCheck !== null && !backupCheck.canProceed;
 
   return (
     <>
@@ -504,7 +504,7 @@ export function UnifiedMaintenanceCard() {
                 ) : (
                   <Badge variant="destructive" className="flex items-center gap-1">
                     <ShieldAlert className="h-3 w-3" />
-                    {backupCheck?.blocking_reason?.split(".")[0] || "No backup"}
+                    {backupCheck?.blockingReason?.split(".")[0] || "No backup"}
                   </Badge>
                 )}
               </div>
@@ -546,20 +546,20 @@ export function UnifiedMaintenanceCard() {
             <Card className="p-4">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="text-center">
-                  <div className="text-2xl font-bold">{formatSize(fileCleanup?.total_size_mb || 0)}</div>
+                  <div className="text-2xl font-bold">{formatSize(fileCleanup?.totalSizeMb || 0)}</div>
                   <div className="text-xs text-muted-foreground">Managed Files</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold">{formatSize(dbSize?.database_size_mb || 0)}</div>
+                  <div className="text-2xl font-bold">{formatSize(dbSize?.databaseSizeMb || 0)}</div>
                   <div className="text-xs text-muted-foreground">Database</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold">{formatSize(cacheStatus?.total_size_mb || 0)}</div>
+                  <div className="text-2xl font-bold">{formatSize(cacheStatus?.totalSizeMb || 0)}</div>
                   <div className="text-xs text-muted-foreground">Dev Caches</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold">
-                    {diskSpace?.partitions?.[0]?.used_percentage?.toFixed(0) || "—"}%
+                    {diskSpace?.partitions?.[0]?.usedPercentage?.toFixed(0) || "—"}%
                   </div>
                   <div className="text-xs text-muted-foreground">Disk Used</div>
                 </div>
@@ -573,10 +573,10 @@ export function UnifiedMaintenanceCard() {
                 title="Application Logs"
                 icon={<FileText className="h-5 w-5 text-orange-500" />}
                 metrics={[
-                  { label: "Size", value: formatSize(fileCleanup?.logs?.size_mb || 0) },
-                  { label: "Files", value: String(fileCleanup?.logs?.file_count || 0) },
+                  { label: "Size", value: formatSize(fileCleanup?.logs?.sizeMb || 0) },
+                  { label: "Files", value: String(fileCleanup?.logs?.fileCount || 0) },
                 ]}
-                badge={{ text: fileCleanup?.logs?.retention_policy || "N/A" }}
+                badge={{ text: fileCleanup?.logs?.retentionPolicy || "N/A" }}
                 schedule={fileCleanup?.logs?.schedule}
                 onTrigger={() => handleFileCleanupTrigger("cleanup_old_logs_task")}
                 isTriggering={triggeringTask === "cleanup_old_logs_task"}
@@ -585,10 +585,10 @@ export function UnifiedMaintenanceCard() {
                 title="Database Backups"
                 icon={<Database className="h-5 w-5 text-blue-500" />}
                 metrics={[
-                  { label: "Size", value: formatSize(fileCleanup?.backups?.size_mb || 0) },
-                  { label: "Files", value: String(fileCleanup?.backups?.file_count || 0) },
+                  { label: "Size", value: formatSize(fileCleanup?.backups?.sizeMb || 0) },
+                  { label: "Files", value: String(fileCleanup?.backups?.fileCount || 0) },
                 ]}
-                badge={{ text: fileCleanup?.backups?.retention_policy || "N/A" }}
+                badge={{ text: fileCleanup?.backups?.retentionPolicy || "N/A" }}
                 schedule={fileCleanup?.backups?.schedule}
                 onTrigger={() => handleFileCleanupTrigger("cleanup_old_backups_task")}
                 isTriggering={triggeringTask === "cleanup_old_backups_task"}
@@ -597,10 +597,10 @@ export function UnifiedMaintenanceCard() {
                 title="ML Model Versions"
                 icon={<Brain className="h-5 w-5 text-purple-500" />}
                 metrics={[
-                  { label: "Size", value: formatSize(fileCleanup?.models?.size_mb || 0) },
-                  { label: "Files", value: String(fileCleanup?.models?.file_count || 0) },
+                  { label: "Size", value: formatSize(fileCleanup?.models?.sizeMb || 0) },
+                  { label: "Files", value: String(fileCleanup?.models?.fileCount || 0) },
                 ]}
-                badge={{ text: fileCleanup?.models?.retention_policy || "N/A" }}
+                badge={{ text: fileCleanup?.models?.retentionPolicy || "N/A" }}
                 schedule={fileCleanup?.models?.schedule}
                 onTrigger={() => handleFileCleanupTrigger("cleanup_old_models_task")}
                 isTriggering={triggeringTask === "cleanup_old_models_task"}
@@ -609,11 +609,11 @@ export function UnifiedMaintenanceCard() {
                 title="Test Artifacts"
                 icon={<TestTube className="h-5 w-5 text-green-500" />}
                 metrics={[
-                  { label: "Size", value: formatSize(fileCleanup?.solution_state?.size_mb || 0) },
-                  { label: "Files", value: String(fileCleanup?.solution_state?.file_count || 0) },
+                  { label: "Size", value: formatSize(fileCleanup?.solutionState?.sizeMb || 0) },
+                  { label: "Files", value: String(fileCleanup?.solutionState?.fileCount || 0) },
                 ]}
-                badge={{ text: fileCleanup?.solution_state?.retention_policy || "N/A" }}
-                schedule={fileCleanup?.solution_state?.schedule}
+                badge={{ text: fileCleanup?.solutionState?.retentionPolicy || "N/A" }}
+                schedule={fileCleanup?.solutionState?.schedule}
                 onTrigger={() => handleFileCleanupTrigger("cleanup_solution_state_task")}
                 isTriggering={triggeringTask === "cleanup_solution_state_task"}
               />
@@ -650,21 +650,21 @@ export function UnifiedMaintenanceCard() {
               {cacheStatus && cacheStatus.directories.length > 0 && (
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm font-medium border-b pb-2">
-                    <span>Total: {formatSize(cacheStatus.total_size_mb)}</span>
-                    <span>{cacheStatus.total_file_count.toLocaleString()} files</span>
+                    <span>Total: {formatSize(cacheStatus.totalSizeMb)}</span>
+                    <span>{cacheStatus.totalFileCount.toLocaleString()} files</span>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                    {cacheStatus.directories.filter(d => d.size_mb > 0).map((dir) => (
+                    {cacheStatus.directories.filter(d => d.sizeMb > 0).map((dir) => (
                       <div key={dir.path} className="text-xs border rounded p-2">
                         <div className="font-medium truncate" title={dir.name}>{dir.name}</div>
                         <div className="flex justify-between text-muted-foreground">
-                          <span>{formatSize(dir.size_mb)}</span>
-                          <span>{dir.file_count.toLocaleString()} files</span>
+                          <span>{formatSize(dir.sizeMb)}</span>
+                          <span>{dir.fileCount.toLocaleString()} files</span>
                         </div>
                       </div>
                     ))}
                   </div>
-                  {cacheStatus.directories.every(d => d.size_mb === 0) && (
+                  {cacheStatus.directories.every(d => d.sizeMb === 0) && (
                     <div className="text-sm text-muted-foreground text-center py-2">
                       All caches are empty
                     </div>
@@ -726,7 +726,7 @@ export function UnifiedMaintenanceCard() {
             <SectionHeader title="Database Maintenance" icon={<Database className="h-4 w-4 text-muted-foreground" />} />
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {(() => {
-                const cleanupNews = lastRunSummary?.tasks?.cleanup_old_news_task || lastRunSummary?.tasks?.cleanup_news;
+                const cleanupNews = lastRunSummary?.tasks?.cleanupOldNewsTask || lastRunSummary?.tasks?.cleanupNews;
                 return (
                   <MaintenanceItem
                     title="Cleanup News"
@@ -746,7 +746,7 @@ export function UnifiedMaintenanceCard() {
                 );
               })()}
               {(() => {
-                const vacuumDb = lastRunSummary?.tasks?.vacuum_database_task || lastRunSummary?.tasks?.vacuum_database;
+                const vacuumDb = lastRunSummary?.tasks?.vacuumDatabaseTask || lastRunSummary?.tasks?.vacuumDatabase;
                 return (
                   <MaintenanceItem
                     title="Vacuum Database"
@@ -754,7 +754,7 @@ export function UnifiedMaintenanceCard() {
                     metrics={[
                       {
                         label: "Reclaimed",
-                        value: `${(vacuumDb?.summary as Record<string, unknown>)?.total_reclaimed_mb || "—"} MB`,
+                        value: `${(vacuumDb?.summary as Record<string, unknown>)?.totalReclaimedMb || "—"} MB`,
                       },
                     ]}
                     badge={{ text: "Weekly" }}
@@ -766,7 +766,7 @@ export function UnifiedMaintenanceCard() {
                 );
               })()}
               {(() => {
-                const validateIntegrity = lastRunSummary?.tasks?.validate_integrity_task || lastRunSummary?.tasks?.validate_integrity;
+                const validateIntegrity = lastRunSummary?.tasks?.validateIntegrityTask || lastRunSummary?.tasks?.validateIntegrity;
                 return (
                   <MaintenanceItem
                     title="Validate Integrity"
@@ -774,11 +774,11 @@ export function UnifiedMaintenanceCard() {
                     metrics={[
                       {
                         label: "Errors",
-                        value: String((validateIntegrity?.summary as Record<string, unknown>)?.total_errors || "—"),
+                        value: String((validateIntegrity?.summary as Record<string, unknown>)?.totalErrors || "—"),
                       },
                       {
                         label: "Warnings",
-                        value: String((validateIntegrity?.summary as Record<string, unknown>)?.total_warnings || "—"),
+                        value: String((validateIntegrity?.summary as Record<string, unknown>)?.totalWarnings || "—"),
                       },
                     ]}
                     badge={{ text: "Daily" }}
@@ -796,11 +796,11 @@ export function UnifiedMaintenanceCard() {
               <details>
                 <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground flex items-center gap-2">
                   <Calendar className="h-4 w-4" />
-                  {schedule?.total_count || 0} Scheduled Tasks
+                  {schedule?.totalCount || 0} Scheduled Tasks
                 </summary>
                 <div className="mt-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                   {schedule &&
-                    Object.entries(schedule.scheduled_tasks).map(([name, task]) => (
+                    Object.entries(schedule.scheduledTasks).map(([name, task]) => (
                       <div key={name} className="text-xs border rounded p-2">
                         <div className="font-medium truncate">{name}</div>
                         <div className="text-muted-foreground">{task.schedule}</div>
@@ -839,7 +839,7 @@ export function UnifiedMaintenanceCard() {
           <div className="my-4 max-h-80 overflow-auto border rounded p-3 bg-muted/30">
             <div className="space-y-2 text-sm">
               {taskResult.result && Object.entries(taskResult.result).map(([key, value]) => {
-                // Skip task_id and internal fields
+                // Skip taskId and internal fields
                 if (key === "task_id" || key === "success") return null;
                 // Handle details array specially
                 if (key === "details" && Array.isArray(value) && value.length > 0) {

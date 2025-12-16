@@ -18,78 +18,78 @@ export type NoteType = "observation" | "recommendation" | "question" | "decision
  */
 export interface BaseCapability {
   id: number;
-  capability_type: CapabilityType;
-  insights_count: number;
-  notes_count: number;
-  created_at: string;
-  updated_at: string;
+  capabilityType: CapabilityType;
+  insightsCount: number;
+  notesCount: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /**
  * Database Table Capability
  */
 export interface DbCapability extends BaseCapability {
-  capability_type: "db";
-  table_name: string;
+  capabilityType: "db";
+  tableName: string;
   category: string;
-  row_count: number | null;
+  rowCount: number | null;
   columns: string[] | null;
-  last_updated: string | null;
-  age_hours: number | null;
-  freshness_status: "fresh" | "stale" | "critical" | "unknown";
-  expected_refresh_hours: number;
+  lastUpdated: string | null;
+  ageHours: number | null;
+  freshnessStatus: "fresh" | "stale" | "critical" | "unknown";
+  expectedRefreshHours: number;
   description: string;
   source: string | null;
-  health_status: string;
+  healthStatus: string;
 }
 
 /**
  * Celery Task Capability
  */
 export interface CeleryCapability extends BaseCapability {
-  capability_type: "celery";
-  task_name: string;
+  capabilityType: "celery";
+  taskName: string;
   category: string;
-  schedule_type: string | null;
-  schedule_interval: string | null;
-  schedule_description: string | null;
-  schedule_crontab: string | null;
-  schedule_interval_seconds: number | null;
+  scheduleType: string | null;
+  scheduleInterval: string | null;
+  scheduleDescription: string | null;
+  scheduleCrontab: string | null;
+  scheduleIntervalSeconds: number | null;
   description: string;
-  populates_tables: string[];
-  depends_on_tasks: string[];
-  last_run_at: string | null;
-  last_run_status: string | null;
-  next_run_at: string | null;
-  success_count_7d: number | null;
-  failure_count_7d: number | null;
-  success_rate_pct: number | null;
-  avg_duration_ms: number | null;
-  max_duration_ms: number | null;
-  task_path: string | null;
-  function_name: string | null;
-  health_status: string;
+  populatesTables: string[];
+  dependsOnTasks: string[];
+  lastRunAt: string | null;
+  lastRunStatus: string | null;
+  nextRunAt: string | null;
+  successCount7D: number | null;
+  failureCount7D: number | null;
+  successRatePct: number | null;
+  avgDurationMs: number | null;
+  maxDurationMs: number | null;
+  taskPath: string | null;
+  functionName: string | null;
+  healthStatus: string;
 }
 
 /**
  * API Endpoint Capability
  */
 export interface ApiCapability extends BaseCapability {
-  capability_type: "api";
-  endpoint_path: string;
-  http_method: string;
+  capabilityType: "api";
+  endpointPath: string;
+  httpMethod: string;
   category: string;
   description: string;
-  depends_on_tables: string[];
-  response_format: string | null;
-  route_file: string | null;
-  function_name: string | null;
-  avg_response_time_ms: number | null;
-  p95_response_time_ms: number | null;
-  p99_response_time_ms: number | null;
-  error_rate_pct: number | null;
-  last_7d_request_count: number | null;
-  health_status: string;
+  dependsOnTables: string[];
+  responseFormat: string | null;
+  routeFile: string | null;
+  functionName: string | null;
+  avgResponseTimeMs: number | null;
+  p95ResponseTimeMs: number | null;
+  p99ResponseTimeMs: number | null;
+  errorRatePct: number | null;
+  last7DRequestCount: number | null;
+  healthStatus: string;
 }
 
 /**
@@ -102,25 +102,25 @@ export type Capability = DbCapability | CeleryCapability | ApiCapability;
  */
 export interface CapabilityInsight {
   id: number;
-  capability_type: CapabilityType;
-  capability_id: number | null;
-  table_name: string | null;
-  task_name: string | null;
-  endpoint_path: string | null;
-  insight_type: string;
+  capabilityType: CapabilityType;
+  capabilityId: number | null;
+  tableName: string | null;
+  taskName: string | null;
+  endpointPath: string | null;
+  insightType: string;
   severity: InsightSeverity;
   finding: string;
   impact: string | null;
-  suggested_fix: string | null;
+  suggestedFix: string | null;
   confidence: number;
   status: InsightStatus;
-  status_reason: string | null;
-  reviewed_by: string | null;
-  reviewed_at: string | null;
-  fixed_at: string | null;
-  generated_at: string;
-  updated_at: string;
-  related_table?: string;
+  statusReason: string | null;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  fixedAt: string | null;
+  generatedAt: string;
+  updatedAt: string;
+  relatedTable?: string;
 }
 
 /**
@@ -128,13 +128,13 @@ export interface CapabilityInsight {
  */
 export interface CapabilityNote {
   id: number;
-  capability_type: CapabilityType;
-  capability_id: number | null;
-  insight_id: number | null;
-  note_type: NoteType;
+  capabilityType: CapabilityType;
+  capabilityId: number | null;
+  insightId: number | null;
+  noteType: NoteType;
   note: string;
-  created_by: string;
-  created_at: string;
+  createdBy: string;
+  createdAt: string;
 }
 
 /**
@@ -150,16 +150,16 @@ export interface CapabilityDetailResponse {
   insights: CapabilityInsight[];
   notes: CapabilityNote[];
   dependencies: {
-    populates_tables?: string[];
-    depends_on_tasks?: string[];
-    depends_on_tables?: string[];
+    populatesTables?: string[];
+    dependsOnTasks?: string[];
+    dependsOnTables?: string[];
   };
 }
 
 export interface InsightsListResponse {
   total: number;
-  pending_count: number; // Actionable items (not fixed/dismissed)
-  fixed_count: number; // Completed items
+  pendingCount: number; // Actionable items (not fixed/dismissed)
+  fixedCount: number; // Completed items
   insights: CapabilityInsight[];
 }
 
@@ -168,22 +168,22 @@ export interface NotesListResponse {
 }
 
 export interface ScanTriggerResponse {
-  task_id: string;
+  taskId: string;
   status: string;
   message: string;
 }
 
 export interface InsightReviewRequest {
   status: InsightStatus;
-  status_reason?: string;
-  reviewed_by?: string;
+  statusReason?: string;
+  reviewedBy?: string;
 }
 
 export interface NoteCreateRequest {
-  capability_type: CapabilityType;
-  capability_id?: number;
-  insight_id?: number;
-  note_type: NoteType;
+  capabilityType: CapabilityType;
+  capabilityId?: number;
+  insightId?: number;
+  noteType: NoteType;
   note: string;
 }
 

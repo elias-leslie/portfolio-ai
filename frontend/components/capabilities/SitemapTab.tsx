@@ -63,7 +63,7 @@ export function SitemapTab() {
     queryFn: () =>
       fetchSitemapEntries({
         port: portFilter !== "all" ? parseInt(portFilter) : undefined,
-        health_status: healthFilter !== "all" ? (healthFilter as HealthStatus) : undefined,
+        healthStatus: healthFilter !== "all" ? (healthFilter as HealthStatus) : undefined,
         limit: 500,
       }),
     refetchInterval: 60000, // Refresh every 60 seconds
@@ -86,7 +86,7 @@ export function SitemapTab() {
     mutationFn: triggerDiscovery,
     onSuccess: (result) => {
       toast.success(
-        `Discovery complete: ${result.openapi_discovered} API, ${result.frontend_discovered} frontend, ${result.websocket_discovered} WebSocket`
+        `Discovery complete: ${result.openapiDiscovered} API, ${result.frontendDiscovered} frontend, ${result.websocketDiscovered} WebSocket`
       );
       setTimeout(() => queryClient.invalidateQueries({ queryKey: ["sitemap"] }), 2000);
     },
@@ -96,7 +96,7 @@ export function SitemapTab() {
   const checkAllMutation = useMutation({
     mutationFn: checkAllHealth,
     onSuccess: (result) => {
-      toast.success(`Health check queued (Task ID: ${result.task_id?.slice(0, 8)}...)`);
+      toast.success(`Health check queued (Task ID: ${result.taskId?.slice(0, 8)}...)`);
       // Refresh after a delay to show updated health status
       setTimeout(() => queryClient.invalidateQueries({ queryKey: ["sitemap"] }), 5000);
     },
@@ -181,7 +181,7 @@ export function SitemapTab() {
             <SelectItem value="all">All Ports</SelectItem>
             {discoveredPorts?.ports.map((p) => (
               <SelectItem key={p.port} value={String(p.port)}>
-                :{p.port} ({p.service_name.replace("portfolio-", "")})
+                :{p.port} ({p.serviceName.replace("portfolio-", "")})
               </SelectItem>
             ))}
           </SelectContent>

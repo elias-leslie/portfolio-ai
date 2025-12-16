@@ -58,14 +58,14 @@ export function useCreateProfile() {
     mutationFn: (data: {
       name: string;
       description?: string;
-      profile_data: PreferencesResponse;
-      is_active?: boolean;
-      user_id?: number;
+      profileData: PreferencesResponse;
+      isActive?: boolean;
+      userId?: number;
     }) => profilesApi.createProfile(data),
     onSuccess: (_, variables) => {
-      const userId = variables.user_id || 1;
+      const userId = variables.userId || 1;
       queryClient.invalidateQueries({ queryKey: profileKeys.list(userId) });
-      if (variables.is_active) {
+      if (variables.isActive) {
         queryClient.invalidateQueries({ queryKey: profileKeys.active(userId) });
       }
     },
@@ -86,17 +86,17 @@ export function useUpdateProfile() {
       profileId: number;
       name?: string;
       description?: string;
-      profile_data?: PreferencesResponse;
-      is_active?: boolean;
-      user_id?: number;
+      profileData?: PreferencesResponse;
+      isActive?: boolean;
+      userId?: number;
     }) => profilesApi.updateProfile(profileId, data),
     onSuccess: (data, variables) => {
-      const userId = variables.user_id || 1;
+      const userId = variables.userId || 1;
       queryClient.invalidateQueries({ queryKey: profileKeys.list(userId) });
       queryClient.invalidateQueries({
         queryKey: profileKeys.detail(variables.profileId),
       });
-      if (variables.is_active) {
+      if (variables.isActive) {
         queryClient.invalidateQueries({ queryKey: profileKeys.active(userId) });
       }
     },
@@ -180,11 +180,11 @@ export function useImportProfile() {
     mutationFn: (data: {
       name: string;
       description?: string;
-      profile_data: PreferencesResponse;
-      user_id?: number;
+      profileData: PreferencesResponse;
+      userId?: number;
     }) => profilesApi.importProfile(data),
     onSuccess: (_, variables) => {
-      const userId = variables.user_id || 1;
+      const userId = variables.userId || 1;
       queryClient.invalidateQueries({ queryKey: profileKeys.list(userId) });
     },
   });

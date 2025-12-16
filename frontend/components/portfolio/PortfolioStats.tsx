@@ -11,14 +11,14 @@ interface PortfolioStatsProps {
 export function PortfolioStats({ analytics }: PortfolioStatsProps) {
   // Calculate average position size
   const avgPositionSize =
-    analytics.num_positions > 0
-      ? analytics.portfolio_value.total_value / analytics.num_positions
+    analytics.numPositions > 0
+      ? analytics.portfolioValue.totalValue / analytics.numPositions
       : 0;
 
   // Find largest position
   const largestPosition =
-    analytics.top_performers.length > 0
-      ? Math.max(...analytics.top_performers.map((p) => p.weight_pct))
+    analytics.topPerformers.length > 0
+      ? Math.max(...analytics.topPerformers.map((p) => p.weightPct))
       : 0;
 
   const formatCurrency = (value: number) => {
@@ -41,7 +41,7 @@ export function PortfolioStats({ analytics }: PortfolioStatsProps) {
         <div className="flex justify-between items-center">
           <span className="text-sm text-text-muted">Total Positions</span>
           <span className="text-sm font-medium text-text">
-            {analytics.num_positions}
+            {analytics.numPositions}
           </span>
         </div>
         <div className="flex justify-between items-center">
@@ -56,19 +56,19 @@ export function PortfolioStats({ analytics }: PortfolioStatsProps) {
             {largestPosition.toFixed(1)}%
           </span>
         </div>
-        {analytics.sharpe_ratio !== null && (
+        {analytics.sharpeRatio !== null && (
           <div className="flex justify-between items-center border-t border-border pt-3">
             <span className="text-sm text-text-muted">Sharpe Ratio</span>
             <span
               className={`text-sm font-medium ${
-                analytics.sharpe_ratio >= 1
+                analytics.sharpeRatio >= 1
                   ? "text-gain"
-                  : analytics.sharpe_ratio >= 0
+                  : analytics.sharpeRatio >= 0
                   ? "text-accent"
                   : "text-loss"
               }`}
             >
-              {analytics.sharpe_ratio.toFixed(2)}
+              {analytics.sharpeRatio.toFixed(2)}
             </span>
           </div>
         )}

@@ -81,7 +81,7 @@ export function usePortfolioNews(options?: { maxResults?: number; forceRefresh?:
 
       // Filter out null results and format as WatchlistNewsResponse
       return {
-        account_id: "portfolio", // Not used, but required by type
+        accountId: "portfolio", // Not used, but required by type
         items: bundles.filter((b): b is NewsBundle => b !== null),
       };
     },

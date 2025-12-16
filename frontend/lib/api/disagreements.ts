@@ -12,14 +12,14 @@ import { get } from "./client";
 // Types
 
 export interface DisagreementItem {
-  review_pair_id: string;
+  reviewPairId: string;
   symbol: string;
-  created_at: string;
-  agreement_score: number;
-  disagreement_severity: "none" | "minor" | "major";
-  gemini_review: string | null;
-  claude_review: string | null;
-  consensus_summary: string;
+  createdAt: string;
+  agreementScore: number;
+  disagreementSeverity: "none" | "minor" | "major";
+  geminiReview: string | null;
+  claudeReview: string | null;
+  consensusSummary: string;
 }
 
 export interface DisagreementsResponse {
@@ -31,20 +31,20 @@ export interface TrendDataPoint {
   date: string;
   reviews: number;
   disagreements: number;
-  avg_score: number;
+  avgScore: number;
 }
 
 export interface DisagreementStats {
-  total_reviews: number;
-  total_review_pairs: number;
-  agreement_count: number;
-  minor_disagreement_count: number;
-  major_disagreement_count: number;
-  agreement_rate: number;
-  minor_disagreement_rate: number;
-  major_disagreement_rate: number;
-  avg_agreement_score: number;
-  trend_7d: TrendDataPoint[];
+  totalReviews: number;
+  totalReviewPairs: number;
+  agreementCount: number;
+  minorDisagreementCount: number;
+  majorDisagreementCount: number;
+  agreementRate: number;
+  minorDisagreementRate: number;
+  majorDisagreementRate: number;
+  avgAgreementScore: number;
+  trend7D: TrendDataPoint[];
 }
 
 // API Functions
