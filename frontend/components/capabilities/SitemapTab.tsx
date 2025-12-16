@@ -34,12 +34,14 @@ import {
   AlertTriangle,
   HelpCircle,
   Compass,
+  Activity,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
   fetchSitemapEntries,
   fetchHealthSummary,
   triggerDiscovery,
+  checkAllHealth,
   type SitemapEntry,
   type HealthStatus,
 } from "@/lib/api/sitemap";
@@ -77,11 +79,21 @@ export function SitemapTab() {
     mutationFn: triggerDiscovery,
     onSuccess: (result) => {
       toast.success(
-        `Discovery complete: ${result.backend_discovered} backend, ${result.frontend_discovered} frontend`
+        `Discovery complete: ${result.openapi_discovered} API, ${result.frontend_discovered} frontend, ${result.websocket_discovered} WebSocket`
       );
       setTimeout(() => queryClient.invalidateQueries({ queryKey: ["sitemap"] }), 2000);
     },
     onError: () => toast.error("Failed to start discovery"),
+  });
+
+  const checkAllMutation = useMutation({
+    mutationFn: checkAllHealth,
+    onSuccess: (result) => {
+      toast.success(`Health check queued (Task ID: ${result.task_id?.slice(0, 8)}...)`);
+      // Refresh after a delay to show updated health status
+      setTimeout(() => queryClient.invalidateQueries({ queryKey: ["sitemap"] }), 5000);
+    },
+    onError: () => toast.error("Failed to start health check"),
   });
 
   // Health indicator component
@@ -155,13 +167,14 @@ export function SitemapTab() {
 
         {/* Port filter */}
         <Select value={portFilter} onValueChange={setPortFilter}>
-          <SelectTrigger className="w-36 h-8 text-xs">
+          <SelectTrigger className="w-40 h-8 text-xs">
             <SelectValue placeholder="Port" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Ports</SelectItem>
             <SelectItem value="3000">:3000 (Frontend)</SelectItem>
             <SelectItem value="8000">:8000 (Backend)</SelectItem>
+            <SelectItem value="9999">:9999 (Dev Companion)</SelectItem>
           </SelectContent>
         </Select>
 
@@ -200,6 +213,23 @@ export function SitemapTab() {
         </Select>
 
         <div className="flex-1" />
+
+        {/* Check All Health button */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => checkAllMutation.mutate()}
+          disabled={checkAllMutation.isPending}
+          className="h-8"
+          title="Queue health check for all entries (runs in background)"
+        >
+          {checkAllMutation.isPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+          ) : (
+            <Activity className="h-3.5 w-3.5 mr-1" />
+          )}
+          Check All
+        </Button>
 
         {/* Discovery button */}
         <Button

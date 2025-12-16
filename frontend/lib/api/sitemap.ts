@@ -66,8 +66,10 @@ export interface SitemapFilters {
 }
 
 export interface DiscoveryResponse {
-  backend_discovered: number;
+  openapi_discovered: number;
   frontend_discovered: number;
+  websocket_discovered: number;
+  nextjs_discovered: number;
   api_imported: number;
   total_saved: number;
 }
@@ -146,9 +148,9 @@ export async function checkEntryHealth(id: number): Promise<HealthCheckResponse>
 }
 
 /**
- * Check health of all sitemap entries
+ * Check health of all sitemap entries (queues background task)
  */
-export async function checkAllHealth(): Promise<{ status: string; checked: number; healthy: number; warnings: number; errors: number }> {
+export async function checkAllHealth(): Promise<{ status: string; task_id: string; message: string }> {
   return post("/api/sitemap/check-all");
 }
 
