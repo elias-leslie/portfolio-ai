@@ -422,6 +422,174 @@ class SitemapService:
         logger.info("sitemap_discover_frontend_complete", count=len(discovered))
         return discovered
 
+    def discover_nextjs_routes(self, frontend_dir: str | None = None) -> list[dict[str, Any]]:
+        """Parse Next.js app directory to discover all routes.
+
+        This provides complete route discovery including:
+        - Static routes (/watchlist, /portfolio)
+        - Dynamic routes (/ideas/[id] -> /ideas/{id})
+        - Tab variations detected from useSearchParams
+
+        Args:
+            frontend_dir: Path to frontend directory, defaults to ~/portfolio-ai/frontend
+
+        Returns:
+            List of discovered route dicts
+        """
+        logger.info("sitemap_discover_nextjs_start")
+        discovered = []
+
+        if frontend_dir is None:
+            frontend_dir = str(Path.home() / "portfolio-ai" / "frontend")
+
+        app_dir = Path(frontend_dir) / "app"
+        if not app_dir.exists():
+            logger.warning("sitemap_nextjs_app_dir_not_found", path=str(app_dir))
+            return discovered
+
+        # Find all page.tsx files
+        page_files = list(app_dir.glob("**/page.tsx"))
+        logger.info("sitemap_nextjs_pages_found", count=len(page_files))
+
+        for page_file in page_files:
+            try:
+                # Convert file path to route
+                # app/page.tsx -> /
+                # app/watchlist/page.tsx -> /watchlist
+                # app/ideas/[id]/page.tsx -> /ideas/{id}
+                relative_path = page_file.relative_to(app_dir)
+                route_parts = list(relative_path.parts[:-1])  # Remove page.tsx
+
+                if not route_parts:
+                    route = "/"
+                else:
+                    # Convert [param] to {param} for template notation
+                    converted_parts = []
+                    for part in route_parts:
+                        if part.startswith("[") and part.endswith("]"):
+                            # Dynamic segment: [id] -> {id}
+                            param_name = part[1:-1]
+                            converted_parts.append(f"{{{param_name}}}")
+                        else:
+                            converted_parts.append(part)
+                    route = "/" + "/".join(converted_parts)
+
+                # Get page title from file (look for metadata or component name)
+                title = self._extract_page_title(page_file)
+
+                # Check for tab variations
+                tab_values = self._extract_tab_values(page_file)
+
+                # Add base route
+                discovered.append({
+                    "port": self.frontend_port,
+                    "path": route,
+                    "method": "GET",
+                    "entry_type": "frontend_page",
+                    "source": "nextjs_app",
+                    "title": title,
+                    "has_dynamic_segment": "{" in route,
+                })
+
+                # Add tab variations as separate entries
+                for tab in tab_values:
+                    discovered.append({
+                        "port": self.frontend_port,
+                        "path": f"{route}?tab={tab}",
+                        "method": "GET",
+                        "entry_type": "frontend_page",
+                        "source": "nextjs_app",
+                        "title": f"{title} - {tab.title()}" if title else tab.title(),
+                        "parent_path": route,
+                    })
+
+            except Exception as e:
+                logger.debug("sitemap_nextjs_parse_failed", file=str(page_file), error=str(e))
+
+        logger.info("sitemap_discover_nextjs_complete", count=len(discovered))
+        return discovered
+
+    def _extract_page_title(self, page_file: Path) -> str | None:
+        """Extract page title from Next.js page file.
+
+        Looks for:
+        - metadata.title export
+        - PageHeader title prop
+        - Component function name
+
+        Args:
+            page_file: Path to page.tsx file
+
+        Returns:
+            Title string or None
+        """
+        try:
+            content = page_file.read_text()
+
+            # Look for metadata title
+            # export const metadata = { title: "Watchlist" }
+            metadata_match = re.search(r'title:\s*["\']([^"\']+)["\']', content)
+            if metadata_match:
+                return metadata_match.group(1)
+
+            # Look for PageHeader title prop
+            # <PageHeader title="Watchlist"
+            header_match = re.search(r'<PageHeader[^>]*title=["\']([^"\']+)["\']', content)
+            if header_match:
+                return header_match.group(1)
+
+            # Fallback: derive from directory name
+            parent_dir = page_file.parent.name
+            if parent_dir != "app":
+                # Convert kebab-case to Title Case
+                return parent_dir.replace("-", " ").replace("_", " ").title()
+
+            return "Home"
+
+        except Exception:
+            return None
+
+    def _extract_tab_values(self, page_file: Path) -> list[str]:
+        """Extract tab values from page that uses useSearchParams.
+
+        Looks for:
+        - TabValue type definitions
+        - Tabs component with TabsTrigger values
+        - searchParams.get("tab") usage
+
+        Args:
+            page_file: Path to page.tsx file
+
+        Returns:
+            List of tab value strings
+        """
+        tabs = []
+        try:
+            content = page_file.read_text()
+
+            # Check if page uses tabs
+            if "useSearchParams" not in content and "searchParams" not in content:
+                return tabs
+
+            # Look for TabValue type definition (e.g. type TabValue = "x" | "y")
+            tabvalue_match = re.search(r'type\s+TabValue\s*=\s*([^;]+);', content)
+            if tabvalue_match:
+                values_str = tabvalue_match.group(1)
+                # Extract quoted strings
+                tabs = re.findall(r'["\']([^"\']+)["\']', values_str)
+                return tabs
+
+            # Look for TabsTrigger values
+            # <TabsTrigger value="workflows">
+            trigger_matches = re.findall(r'<TabsTrigger[^>]*value=["\']([^"\']+)["\']', content)
+            if trigger_matches:
+                return list(set(trigger_matches))
+
+        except Exception:
+            pass
+
+        return tabs
+
     def import_from_api_capabilities(self) -> int:
         """Import existing API capabilities into sitemap_entries.
 
@@ -459,25 +627,26 @@ class SitemapService:
         return imported
 
     async def run_discovery(self) -> dict[str, Any]:
-        """Run full discovery: OpenAPI + frontend crawler + api_capabilities import.
+        """Run full discovery: OpenAPI + frontend crawler + Next.js routes + api_capabilities.
 
         Returns:
             Summary of discovery results
         """
         logger.info("sitemap_full_discovery_start")
 
-        # Run discoveries in parallel
+        # Run async discoveries in parallel
         backend_task = asyncio.create_task(self.discover_backend_endpoints())
         frontend_task = asyncio.create_task(self.discover_frontend_pages())
 
         backend_entries = await backend_task
         frontend_entries = await frontend_task
 
-        # Import from api_capabilities (sync)
+        # Run sync discoveries
+        nextjs_entries = self.discover_nextjs_routes()
         api_imported = self.import_from_api_capabilities()
 
         # Save discovered entries
-        all_entries = backend_entries + frontend_entries
+        all_entries = backend_entries + frontend_entries + nextjs_entries
         saved = 0
 
         with self.conn_mgr.connection() as conn:
@@ -507,6 +676,7 @@ class SitemapService:
         result = {
             "backend_discovered": len(backend_entries),
             "frontend_discovered": len(frontend_entries),
+            "nextjs_discovered": len(nextjs_entries),
             "api_imported": api_imported,
             "total_saved": saved,
         }

@@ -3,7 +3,8 @@
 Endpoints:
 - GET /api/sitemap/entries - List all entries with filters
 - GET /api/sitemap/entries/{id} - Get single entry detail
-- POST /api/sitemap/discover - Trigger discovery scan
+- POST /api/sitemap/discover - Trigger full discovery scan (OpenAPI + crawler + Next.js)
+- POST /api/sitemap/discover/nextjs - Trigger Next.js route discovery only
 - POST /api/sitemap/check/{id} - Check single entry health
 - POST /api/sitemap/check-all - Check all entries health (manual trigger)
 - GET /api/sitemap/health-summary - Aggregate health stats
@@ -85,8 +86,16 @@ class DiscoveryResponse(BaseModel):
 
     backend_discovered: int
     frontend_discovered: int
+    nextjs_discovered: int = 0
     api_imported: int
     total_saved: int
+
+
+class NextJsDiscoveryResponse(BaseModel):
+    """Response from Next.js route discovery."""
+
+    routes_discovered: int
+    routes: list[dict]
 
 
 class HealthCheckResponse(BaseModel):
@@ -174,11 +183,27 @@ def get_entry(entry_id: int) -> SitemapEntry:
 async def trigger_discovery() -> DiscoveryResponse:
     """Trigger discovery scan for new endpoints.
 
-    Runs OpenAPI scan for backend + crawler for frontend + imports from api_capabilities.
+    Runs OpenAPI scan for backend + crawler for frontend + Next.js routes + api_capabilities.
     """
     service = SitemapService()
     result = await service.run_discovery()
     return DiscoveryResponse(**result)
+
+
+@router.post("/discover/nextjs", response_model=NextJsDiscoveryResponse)
+def discover_nextjs_routes() -> NextJsDiscoveryResponse:
+    """Discover routes by parsing Next.js app directory.
+
+    Parses frontend/app/**/page.tsx files to find:
+    - Static routes (/watchlist, /portfolio)
+    - Dynamic routes (/ideas/{id})
+    - Tab variations (?tab=workflows, ?tab=database)
+
+    This is also included in the main /discover endpoint.
+    """
+    service = SitemapService()
+    routes = service.discover_nextjs_routes()
+    return NextJsDiscoveryResponse(routes_discovered=len(routes), routes=routes)
 
 
 @router.post("/check/{entry_id}", response_model=HealthCheckResponse)
