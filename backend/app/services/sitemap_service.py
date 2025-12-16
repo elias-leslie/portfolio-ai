@@ -33,13 +33,14 @@ HTTP_TIMEOUT = 10  # seconds
 FRONTEND_HOST = "192.168.8.233"  # Network IP for SSR routing
 BACKEND_HOST = "localhost"
 
-# Endpoints to skip during health checks (even for GET requests)
-# These endpoints either:
-# - Trigger external API calls (expensive)
-# - Do heavy computation
-# - Have path parameters without safe test values
-# - Could trigger side effects even on GET
-SKIP_HEALTH_CHECK_PATTERNS: list[str] = [
+# Timeouts for health checks
+HEALTH_CHECK_TIMEOUT_NORMAL = 10  # seconds for normal endpoints
+HEALTH_CHECK_TIMEOUT_PROBE = 5  # seconds for lightweight probe checks (enough to verify route exists)
+
+# Endpoints that need lightweight "probe" checks instead of full execution
+# These are checked with short timeout and ANY response (even 4xx) = route exists
+# This verifies the endpoint is reachable without triggering expensive operations
+PROBE_CHECK_PATTERNS: list[str] = [
     # Market data endpoints - trigger external API calls
     "/api/market/intelligence",  # Fetches live market data from yfinance/polygon
     "/api/market/prices",  # Fetches live prices
@@ -58,9 +59,6 @@ SKIP_HEALTH_CHECK_PATTERNS: list[str] = [
     "/api/news/intelligence",  # Fetches news from APIs
     # Valuation endpoints - expensive calculations
     "/api/valuation/metrics",
-    # Health endpoints - avoid circular calls
-    "/api/health/detailed",  # This endpoint does heavy checks
-    "/health",  # Skip all health endpoints
     # Celery endpoints - may interact with worker
     "/api/celery/",  # Celery inspection can be slow
     # Backup endpoints - may trigger filesystem operations
@@ -72,11 +70,46 @@ SKIP_HEALTH_CHECK_PATTERNS: list[str] = [
     "/api/backtest/run",
 ]
 
-def should_skip_health_check(path: str) -> str | None:
-    """Check if a path should be skipped during health checks.
+# Endpoints to completely skip (circular dependency risk)
+SKIP_HEALTH_CHECK_PATTERNS: list[str] = [
+    "/health",  # Skip health endpoints to avoid circular calls
+    "/api/health",  # Skip all health endpoints
+]
 
-    Supports both exact matches and pattern matching with path parameters.
-    Pattern like '/api/symbols/{symbol}/intelligence' matches '/api/symbols/AAPL/intelligence'.
+
+def _matches_pattern(path: str, pattern: str) -> bool:
+    """Check if a path matches a pattern (exact, prefix, or path-param).
+
+    Args:
+        path: The endpoint path to check
+        pattern: Pattern to match against
+
+    Returns:
+        True if path matches pattern
+    """
+    # Exact match
+    if path == pattern:
+        return True
+
+    # Prefix match (patterns ending with /)
+    if pattern.endswith("/") and path.startswith(pattern):
+        return True
+
+    # Path parameter patterns like {symbol}
+    if "{" in pattern:
+        regex_pattern = re.sub(r"\{[^}]+\}", r"[^/]+", pattern)
+        if re.fullmatch(regex_pattern, path):
+            return True
+
+    # Simple prefix match for patterns without trailing /
+    return not pattern.endswith("/") and path.startswith(pattern + "/")
+
+
+def should_skip_health_check(path: str) -> str | None:
+    """Check if a path should be completely skipped during health checks.
+
+    Only returns skip reason for endpoints that could cause circular dependencies
+    (like health check endpoints calling health check endpoints).
 
     Args:
         path: The endpoint path to check
@@ -85,25 +118,26 @@ def should_skip_health_check(path: str) -> str | None:
         Skip reason string if should skip, None otherwise
     """
     for pattern in SKIP_HEALTH_CHECK_PATTERNS:
-        # Check for exact match
-        if path == pattern:
-            return f"Skipped (expensive: {pattern})"
+        if _matches_pattern(path, pattern):
+            return f"Skipped (circular: {pattern})"
+    return None
 
-        # Check for prefix match (patterns ending with /)
-        if pattern.endswith("/") and path.startswith(pattern):
-            return f"Skipped (expensive: {pattern})"
 
-        # Check for path parameter patterns like {symbol}
-        if "{" in pattern:
-            # Convert pattern to regex: /api/symbols/{symbol}/intelligence -> /api/symbols/[^/]+/intelligence
-            regex_pattern = re.sub(r"\{[^}]+\}", r"[^/]+", pattern)
-            if re.fullmatch(regex_pattern, path):
-                return f"Skipped (expensive: {pattern})"
+def should_probe_check(path: str) -> str | None:
+    """Check if a path needs lightweight probe check instead of full execution.
 
-        # Simple prefix match for patterns without trailing /
-        if not pattern.endswith("/") and path.startswith(pattern + "/"):
-            return f"Skipped (expensive: {pattern})"
+    Probe checks use short timeout and accept any response (even 4xx) as "route exists".
+    This verifies reachability without triggering expensive external API calls.
 
+    Args:
+        path: The endpoint path to check
+
+    Returns:
+        Pattern that matched if should probe, None for normal check
+    """
+    for pattern in PROBE_CHECK_PATTERNS:
+        if _matches_pattern(path, pattern):
+            return pattern
     return None
 
 
@@ -927,22 +961,22 @@ class SitemapService:
         error_details: dict[str, Any] = {}
         last_error_message = None
 
-        # Skip streaming endpoints (SSE, WebSocket) - they never complete
-        # Also skip POST/PUT/DELETE - they may trigger side effects
-        # Also skip expensive GET endpoints that trigger external API calls
+        # Determine check type based on endpoint characteristics
         is_streaming = "/stream" in path or "/ws" in path.lower() or method == "WS"
         is_mutating = method in ("POST", "PUT", "DELETE", "PATCH")
-        expensive_skip_reason = should_skip_health_check(path)
+        skip_reason = should_skip_health_check(path)  # Only for circular-risk endpoints
+        probe_pattern = should_probe_check(path)  # Expensive endpoints get probe check
 
-        if is_streaming or is_mutating or expensive_skip_reason:
+        # 1. Skip entirely: streaming, mutating, or circular-risk endpoints
+        if is_streaming or is_mutating or skip_reason:
             health_status = "healthy"
             http_status = 0  # Indicates skipped, not actually checked
             if is_streaming:
-                skip_reason = "Skipped (streaming)"
+                skip_msg = "Skipped (streaming)"
             elif is_mutating:
-                skip_reason = "Skipped (mutating method)"
+                skip_msg = "Skipped (mutating method)"
             else:
-                skip_reason = expensive_skip_reason
+                skip_msg = skip_reason
             # Update entry and return early
             with self.conn_mgr.connection() as conn:
                 conn.execute("""
@@ -953,7 +987,7 @@ class SitemapService:
                         last_checked_at = NOW(),
                         updated_at = NOW()
                     WHERE id = %s
-                """, [health_status, http_status, skip_reason, entry_id])
+                """, [health_status, http_status, skip_msg, entry_id])
                 conn.commit()
             return {
                 "success": True,
@@ -966,39 +1000,73 @@ class SitemapService:
                 "error": None,
             }
 
+        # 2. Determine timeout based on endpoint type
+        # Probe endpoints get short timeout to avoid waiting for expensive operations
+        is_probe = probe_pattern is not None
+        timeout = HEALTH_CHECK_TIMEOUT_PROBE if is_probe else HEALTH_CHECK_TIMEOUT_NORMAL
+
         try:
-            # HTTP-only health check for GET endpoints
-            # Console error capture is done separately via evidence gathering
-            async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+            # HTTP health check - probe or full depending on endpoint
+            async with httpx.AsyncClient(timeout=timeout) as client:
                 request_start = datetime.now(UTC)
                 response = await client.request(method, url)
                 response_time_ms = int((datetime.now(UTC) - request_start).total_seconds() * 1000)
                 http_status = response.status_code
 
-                # Only true errors are:
-                # - 5xx (server error)
-                # - 404 with generic "Not Found" (route doesn't exist)
-                # Other 4xx codes (400, 405, 422) mean route exists but needs proper input
-                # 404 with specific message = route exists but no data for this param
+                # Determine if this is an error
                 is_error = False
-                if response.status_code >= 500:
-                    is_error = True
-                    last_error_message = f"HTTP {response.status_code}"
-                elif response.status_code == 404:
-                    # Check if this is a real "route not found" vs "data not found"
-                    try:
-                        body = response.json()
-                        # Generic FastAPI 404 = route doesn't exist
-                        if body.get("detail") == "Not Found":
-                            is_error = True
-                            last_error_message = "Route not found"
-                        # Specific message = route exists, just no data
-                    except Exception:
+
+                if is_probe:
+                    # PROBE CHECK: Any response = route exists = not down
+                    # Only 5xx is a real error (server problem)
+                    # 4xx (400, 404, 422) means route exists but needs valid input
+                    if response.status_code >= 500:
                         is_error = True
-                        last_error_message = "HTTP 404"
+                        last_error_message = f"HTTP {response.status_code}"
+                    else:
+                        # Route exists! Record the status for visibility
+                        last_error_message = f"Probe OK ({probe_pattern})"
+                else:  # noqa: PLR5501 - intentional nesting for clarity
+                    # NORMAL CHECK: More strict validation
+                    # 5xx = server error
+                    # 404 with generic "Not Found" = route doesn't exist
+                    if response.status_code >= 500:
+                        is_error = True
+                        last_error_message = f"HTTP {response.status_code}"
+                    elif response.status_code == 404:
+                        # Check if this is a real "route not found" vs "data not found"
+                        try:
+                            body = response.json()
+                            # Generic FastAPI 404 = route doesn't exist
+                            if body.get("detail") == "Not Found":
+                                is_error = True
+                                last_error_message = "Route not found"
+                            # Specific message = route exists, just no data
+                        except Exception:
+                            is_error = True
+                            last_error_message = "HTTP 404"
 
                 if is_error:
                     console_errors = 1
+
+        except httpx.TimeoutException as e:
+            # Timeout handling depends on endpoint type
+            if is_probe:
+                # Probe timeout = endpoint is slow but might still work
+                # Mark as warning, not error - route likely exists
+                console_warnings = 1
+                last_error_message = f"Probe timeout ({timeout}s) - {probe_pattern}"
+            else:
+                # Normal timeout = endpoint is too slow
+                console_errors = 1
+                last_error_message = f"Timeout after {timeout}s"
+            error_details["exception"] = str(e)
+
+        except httpx.ConnectError as e:
+            # Connection refused/failed = endpoint is DOWN
+            console_errors = 1
+            last_error_message = f"Connection failed: {e!s}"[:500]
+            error_details["exception"] = str(e)
 
         except Exception as e:
             console_errors = 1
