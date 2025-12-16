@@ -3,6 +3,7 @@
 import { useState, Fragment, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { apiRequest, post, patch } from "@/lib/api/client";
 import {
   Table,
   TableBody,
@@ -286,12 +287,10 @@ export function FeaturesTab() {
   // Toggle task completion
   const toggleTask = async (featureId: string, taskId: string, completed: boolean) => {
     try {
-      const response = await fetch(`/api/capabilities/features/${featureId}/tasks/${taskId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ completed, completedBy: "manual" }),
+      await patch(`/api/capabilities/features/${featureId}/tasks/${taskId}`, {
+        completed,
+        completedBy: "manual",
       });
-      if (!response.ok) throw new Error("Failed to toggle task");
       // Invalidate queries to refresh data
       queryClient.invalidateQueries({ queryKey: ["features"] });
     } catch {
@@ -309,47 +308,31 @@ export function FeaturesTab() {
 
       // First request to get total count
       params.set("limit", "1");
-      const countResponse = await fetch(`/api/capabilities/features/?${params}`);
-      if (!countResponse.ok) throw new Error("Failed to fetch features");
-      const countData = await countResponse.json();
+      const countData = await apiRequest<FeaturesResponse>(`/api/capabilities/features/?${params}`);
       const total = countData.total || 200;
 
       // Fetch all features (max 500 per backend API limit)
       params.set("limit", String(Math.min(total, 500)));
-      const response = await fetch(`/api/capabilities/features/?${params}`);
-      if (!response.ok) throw new Error("Failed to fetch features");
-      return response.json();
+      return apiRequest<FeaturesResponse>(`/api/capabilities/features/?${params}`);
     },
   });
 
   // Fetch summary for counts
   const { data: summaryData } = useQuery<FeaturesSummary>({
     queryKey: ["features-summary"],
-    queryFn: async () => {
-      const response = await fetch("/api/capabilities/features/summary");
-      if (!response.ok) throw new Error("Failed to fetch summary");
-      return response.json();
-    },
+    queryFn: () => apiRequest<FeaturesSummary>("/api/capabilities/features/summary"),
   });
 
   // Fetch verification summary for criteria status
   const { data: verificationData } = useQuery<VerificationSummary>({
     queryKey: ["verification-summary"],
-    queryFn: async () => {
-      const response = await fetch("/api/capabilities/features/verification-summary");
-      if (!response.ok) throw new Error("Failed to fetch verification summary");
-      return response.json();
-    },
+    queryFn: () => apiRequest<VerificationSummary>("/api/capabilities/features/verification-summary"),
   });
 
   // Fetch vision goals for filter dropdown
   const { data: visionGoalsData } = useQuery<VisionGoal[]>({
     queryKey: ["vision-goals"],
-    queryFn: async () => {
-      const response = await fetch("/api/vision-goals");
-      if (!response.ok) throw new Error("Failed to fetch vision goals");
-      return response.json();
-    },
+    queryFn: () => apiRequest<VisionGoal[]>("/api/vision-goals"),
   });
 
   // Verify all criteria function
@@ -357,18 +340,14 @@ export function FeaturesTab() {
     setIsVerifying(true);
     try {
       const params = verifyTypeFilter !== "all" ? `?type_filter=${verifyTypeFilter}` : "";
-      const response = await fetch(`/api/capabilities/features/verify-all${params}`, {
-        method: "POST",
-      });
-      if (!response.ok) throw new Error("Failed to start verification");
-      const data = await response.json();
+      const data = await post<{ taskId: string }>(`/api/capabilities/features/verify-all${params}`);
       toast.success(`Verification queued: ${data.taskId.slice(0, 8)}...`);
       // Poll for completion
       const pollInterval = setInterval(async () => {
-        const summaryRes = await fetch("/api/capabilities/features/verification-summary");
-        if (summaryRes.ok) {
+        try {
+          await apiRequest<VerificationSummary>("/api/capabilities/features/verification-summary");
           queryClient.invalidateQueries({ queryKey: ["verification-summary"] });
-        }
+        } catch { /* ignore polling errors */ }
       }, 5000);
       // Stop polling after 2 minutes
       setTimeout(() => {
