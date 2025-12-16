@@ -115,7 +115,7 @@ def _get_git_history(file_path: str, limit: int = 10) -> dict[str, Any]:
                 "--",
                 str(full_path),
             ],
-            cwd=PROJECT_ROOT,
+            check=False, cwd=PROJECT_ROOT,
             capture_output=True,
             text=True,
             timeout=10,
@@ -175,7 +175,7 @@ def _get_git_history(file_path: str, limit: int = 10) -> dict[str, Any]:
     # Get total commit count
     count_result = subprocess.run(
         ["git", "rev-list", "--count", "HEAD", "--", str(full_path)],
-        cwd=PROJECT_ROOT,
+        check=False, cwd=PROJECT_ROOT,
         capture_output=True,
         text=True,
         timeout=5,

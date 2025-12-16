@@ -12,7 +12,7 @@ Endpoints:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -322,7 +322,7 @@ async def viewport_capture(request: ViewportCaptureRequest) -> dict[str, Any]:
     """
     import base64
     import json
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     try:
         # Decode base64 screenshot
@@ -347,7 +347,7 @@ async def viewport_capture(request: ViewportCaptureRequest) -> dict[str, Any]:
                 "featureId": request.feature_id,
                 "criterionId": request.criterion_id,
                 "version": version,
-                "capturedAt": datetime.now(timezone.utc).isoformat(),
+                "capturedAt": datetime.now(UTC).isoformat(),
                 "pageTitle": request.page_title,
                 "viewport": {
                     "width": request.viewport_width,
@@ -494,7 +494,7 @@ async def debug_capture(request: DebugCaptureRequest) -> dict[str, Any]:
     - ls -lt data/debug-captures/ | head
     """
     import base64
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     try:
         # Decode base64 screenshot
@@ -507,7 +507,7 @@ async def debug_capture(request: DebugCaptureRequest) -> dict[str, Any]:
         DEBUG_CAPTURES_DIR.mkdir(parents=True, exist_ok=True)
 
         # Create timestamped filename
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        timestamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
         screenshot_filename = f"{timestamp}.png"
         screenshot_path = DEBUG_CAPTURES_DIR / screenshot_filename
 
@@ -522,7 +522,7 @@ async def debug_capture(request: DebugCaptureRequest) -> dict[str, Any]:
             "metadata": {
                 "url": request.url,
                 "pageTitle": request.page_title,
-                "capturedAt": datetime.now(timezone.utc).isoformat(),
+                "capturedAt": datetime.now(UTC).isoformat(),
                 "captureMethod": "client-side-screen-capture-api",
             },
             "console": {
@@ -609,7 +609,7 @@ async def list_debug_captures(limit: int = Query(10, ge=1, le=50)) -> dict[str, 
                 "path": str(path),
                 "size_bytes": path.stat().st_size,
                 "created_at": datetime.fromtimestamp(
-                    path.stat().st_mtime, tz=timezone.utc
+                    path.stat().st_mtime, tz=UTC
                 ).isoformat(),
             })
             if len(captures) >= limit:
