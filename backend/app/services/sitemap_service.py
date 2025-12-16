@@ -358,6 +358,127 @@ class SitemapService:
 
         return discovered
 
+    async def discover_all_openapi_endpoints(self) -> list[dict[str, Any]]:
+        """Discover API endpoints from ALL ports that have OpenAPI specs.
+
+        Iterates through all discovered ports (from systemd) and checks each
+        for an OpenAPI spec, extracting endpoints from any that have one.
+
+        Returns:
+            List of discovered endpoint dicts from all ports
+        """
+        logger.info("sitemap_discover_all_openapi_start")
+        all_discovered = []
+
+        # Get all discovered ports
+        ports = self._port_discovery.get_all_ports()
+
+        # Ports to check for OpenAPI (backend types and websocket services)
+        openapi_candidates = [
+            p for p in ports.values()
+            if p.service_type in ("backend", "websocket", "unknown")
+        ]
+
+        logger.info("sitemap_openapi_candidates", count=len(openapi_candidates),
+                    ports=[p.port for p in openapi_candidates])
+
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+            for port_info in openapi_candidates:
+                port = port_info.port
+                try:
+                    response = await client.get(f"http://{BACKEND_HOST}:{port}/openapi.json")
+                    if response.status_code != 200:
+                        continue
+
+                    openapi = response.json()
+                    paths = openapi.get("paths", {})
+
+                    port_discovered = 0
+                    for path, methods in paths.items():
+                        for method, details in methods.items():
+                            if method.upper() in ("GET", "POST", "PUT", "DELETE", "PATCH"):
+                                # Skip health/docs endpoints
+                                if any(x in path for x in ["/health", "/docs", "/openapi", "/redoc"]):
+                                    continue
+
+                                all_discovered.append({
+                                    "port": port,
+                                    "path": path,
+                                    "method": method.upper(),
+                                    "entry_type": "api_endpoint",
+                                    "source": "openapi",
+                                    "title": details.get("summary") or details.get("operationId"),
+                                    "service_name": port_info.service_name,
+                                })
+                                port_discovered += 1
+
+                    logger.info("sitemap_openapi_port_complete",
+                               port=port, service=port_info.service_name, count=port_discovered)
+
+                except Exception as e:
+                    logger.debug("sitemap_openapi_port_failed", port=port, error=str(e))
+
+        logger.info("sitemap_discover_all_openapi_complete", total=len(all_discovered))
+        return all_discovered
+
+    async def discover_websocket_endpoints(self) -> list[dict[str, Any]]:
+        """Discover WebSocket endpoints from services.
+
+        Checks known WebSocket paths (/ws, /ws/{id}) on ports that
+        might have WebSocket support.
+
+        Returns:
+            List of discovered WebSocket endpoint dicts
+        """
+        logger.info("sitemap_discover_websocket_start")
+        discovered = []
+
+        # Get ports that might have WebSocket
+        ports = self._port_discovery.get_all_ports()
+        ws_candidates = [
+            p for p in ports.values()
+            if p.service_type in ("websocket", "backend", "unknown")
+        ]
+
+        # Common WebSocket paths to probe
+        ws_paths = ["/ws", "/ws/{session_id}", "/socket.io"]
+
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+            for port_info in ws_candidates:
+                port = port_info.port
+
+                # Try WebSocket upgrade on common paths
+                for ws_path in ws_paths:
+                    try:
+                        # Check if endpoint exists (even without upgrade)
+                        # FastAPI WebSocket endpoints return 403 for non-WS requests
+                        test_path = ws_path.replace("{session_id}", "test")
+                        response = await client.get(
+                            f"http://{BACKEND_HOST}:{port}{test_path}",
+                            headers={"Upgrade": "websocket", "Connection": "Upgrade"},
+                        )
+
+                        # 403 or 426 indicates WebSocket endpoint exists
+                        if response.status_code in (403, 426, 400):
+                            discovered.append({
+                                "port": port,
+                                "path": ws_path,
+                                "method": "WS",
+                                "entry_type": "websocket",
+                                "source": "probe",
+                                "title": f"WebSocket - {port_info.service_name}",
+                                "service_name": port_info.service_name,
+                            })
+                            logger.info("sitemap_websocket_found",
+                                       port=port, path=ws_path, service=port_info.service_name)
+
+                    except Exception as e:
+                        logger.debug("sitemap_websocket_probe_failed",
+                                    port=port, path=ws_path, error=str(e))
+
+        logger.info("sitemap_discover_websocket_complete", count=len(discovered))
+        return discovered
+
     async def discover_frontend_pages(self, max_depth: int = 3) -> list[dict[str, Any]]:
         """Crawl frontend to discover pages by following links.
 
@@ -627,7 +748,13 @@ class SitemapService:
         return imported
 
     async def run_discovery(self) -> dict[str, Any]:
-        """Run full discovery: OpenAPI + frontend crawler + Next.js routes + api_capabilities.
+        """Run comprehensive discovery across all service types.
+
+        Discovery methods:
+        - OpenAPI: All ports with /openapi.json (backend, dev-companion, etc.)
+        - Frontend: Crawl pages and parse Next.js app directory
+        - WebSocket: Probe for WS endpoints on applicable ports
+        - API capabilities: Import from legacy api_capabilities table
 
         Returns:
             Summary of discovery results
@@ -635,18 +762,20 @@ class SitemapService:
         logger.info("sitemap_full_discovery_start")
 
         # Run async discoveries in parallel
-        backend_task = asyncio.create_task(self.discover_backend_endpoints())
+        all_openapi_task = asyncio.create_task(self.discover_all_openapi_endpoints())
         frontend_task = asyncio.create_task(self.discover_frontend_pages())
+        websocket_task = asyncio.create_task(self.discover_websocket_endpoints())
 
-        backend_entries = await backend_task
+        all_openapi_entries = await all_openapi_task
         frontend_entries = await frontend_task
+        websocket_entries = await websocket_task
 
         # Run sync discoveries
         nextjs_entries = self.discover_nextjs_routes()
         api_imported = self.import_from_api_capabilities()
 
-        # Save discovered entries
-        all_entries = backend_entries + frontend_entries + nextjs_entries
+        # Combine all entries
+        all_entries = all_openapi_entries + frontend_entries + websocket_entries + nextjs_entries
         saved = 0
 
         with self.conn_mgr.connection() as conn:
@@ -674,8 +803,9 @@ class SitemapService:
             conn.commit()
 
         result = {
-            "backend_discovered": len(backend_entries),
+            "openapi_discovered": len(all_openapi_entries),
             "frontend_discovered": len(frontend_entries),
+            "websocket_discovered": len(websocket_entries),
             "nextjs_discovered": len(nextjs_entries),
             "api_imported": api_imported,
             "total_saved": saved,
