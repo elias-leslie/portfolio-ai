@@ -18,9 +18,8 @@ const getServerUrl = () => {
   if (process.env.NEXT_PUBLIC_DEV_COMPANION_URL) {
     return process.env.NEXT_PUBLIC_DEV_COMPANION_URL;
   }
-  const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-  const host = window.location.hostname;
-  return `${protocol}//${host}:9999`;
+  // Use proxied path through nginx (handles SSL)
+  return `${window.location.origin}/dev-companion`;
 };
 
 export default function DevAssistantPage() {

@@ -92,7 +92,7 @@ export function IndicatorsTrendChart() {
       </div>
 
       <div className="h-40">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height={160}>
           <LineChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
             <XAxis
               dataKey="date"

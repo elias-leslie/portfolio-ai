@@ -142,7 +142,7 @@ export function SentimentTrendChart() {
       </div>
 
       <div className="h-40 relative">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height={160}>
           <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
             {/* Background zones */}
             <ReferenceArea y1={0} y2={25} fill="#ef4444" fillOpacity={0.1} />

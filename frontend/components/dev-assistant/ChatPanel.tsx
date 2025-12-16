@@ -46,11 +46,12 @@ interface ChatPanelProps {
   serverUrl?: string;
 }
 
-// Get default WebSocket URL based on protocol
+// Get default WebSocket URL
+// Use nginx proxy path /dev-companion/ for SSL termination
 const getDefaultWsUrl = () => {
   if (typeof window === 'undefined') return 'ws://localhost:9999';
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${wsProtocol}//${window.location.hostname}:9999`;
+  return `${wsProtocol}//${window.location.host}/dev-companion`;
 };
 
 export default function ChatPanel({ sessionId, serverUrl }: ChatPanelProps) {

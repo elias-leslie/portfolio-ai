@@ -232,11 +232,11 @@ interface DevCompanionSessionsListProps {
   maxHeight?: string;
 }
 
-// Get default server URL based on protocol
+// Get default server URL
+// Use nginx proxy path /dev-companion/ for SSL termination
 const getDefaultServerUrl = () => {
   if (typeof window === 'undefined') return 'http://localhost:9999';
-  const protocol = window.location.protocol;
-  return `${protocol}//${window.location.hostname}:9999`;
+  return `${window.location.origin}/dev-companion`;
 };
 
 export function DevCompanionSessionsList({
