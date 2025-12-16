@@ -28,7 +28,7 @@ from app.api import (
     files,
     # gaps removed - migrated to [DEBT] subtasks on features
     health,
-    ideas,
+    # ideas removed - deprecated in favor of strategy-seeds (FEAT-218)
     indicators,
     layouts,
     maintenance,
@@ -169,7 +169,7 @@ app.include_router(status_stream.router)
 app.include_router(celery_endpoints.router)
 app.include_router(maintenance.router)
 app.include_router(portfolio.router)
-app.include_router(ideas.router)
+# ideas.router removed - deprecated in favor of strategy-seeds (FEAT-218)
 app.include_router(market.router)
 app.include_router(news.router)
 app.include_router(news_profiling.router)
