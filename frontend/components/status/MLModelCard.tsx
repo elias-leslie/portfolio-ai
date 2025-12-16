@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { ExpandableCard } from "@/components/status/ExpandableCard";
+import { apiRequest, post } from "@/lib/api/client";
 
 interface MLModelMetrics {
   modelName: string;
@@ -62,11 +63,8 @@ export function MLModelCard() {
   const fetchStatus = async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/status/ml-model-metrics");
-      if (response.ok) {
-        const data = await response.json();
-        setStatus(data);
-      }
+      const data = await apiRequest<MLModelStatus>("/api/status/ml-model-metrics");
+      setStatus(data);
     } catch (error) {
       console.error("Failed to fetch ML model status:", error);
     } finally {
@@ -85,17 +83,14 @@ export function MLModelCard() {
 
     const poll = setInterval(async () => {
       try {
-        const response = await fetch(
+        const progress = await apiRequest<TrainingProgress>(
           `/api/ml/training-progress/${trainingProgress.sessionId}`,
         );
-        if (response.ok) {
-          const progress: TrainingProgress = await response.json();
-          setTrainingProgress(progress);
-          if (progress.status === "complete" || progress.status === "failed") {
-            setTraining(false);
-            if (progress.status === "complete") {
-              setTimeout(fetchStatus, 2000);
-            }
+        setTrainingProgress(progress);
+        if (progress.status === "complete" || progress.status === "failed") {
+          setTraining(false);
+          if (progress.status === "complete") {
+            setTimeout(fetchStatus, 2000);
           }
         }
       } catch (error) {
@@ -109,30 +104,21 @@ export function MLModelCard() {
   const triggerTraining = async () => {
     try {
       setTraining(true);
-      const response = await fetch("/api/ml/trigger-training", {
-        method: "POST",
+      const data = await post<{ sessionId: string }>("/api/ml/trigger-training");
+      setTrainingProgress({
+        sessionId: data.sessionId,
+        status: "queued",
+        currentStep: "Starting training...",
+        progressPercent: 0,
+        articlesFound: 0,
+        articlesLabeled: 0,
+        articlesTotal: 0,
+        modelVersion: null,
+        accuracy: null,
+        errorMessage: null,
+        startedAt: new Date().toISOString(),
+        completedAt: null,
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        setTrainingProgress({
-          sessionId: data.sessionId,
-          status: "queued",
-          currentStep: "Starting training...",
-          progressPercent: 0,
-          articlesFound: 0,
-          articlesLabeled: 0,
-          articlesTotal: 0,
-          modelVersion: null,
-          accuracy: null,
-          errorMessage: null,
-          startedAt: new Date().toISOString(),
-          completedAt: null,
-        });
-      } else {
-        console.error("Failed to trigger training");
-        setTraining(false);
-      }
     } catch (error) {
       console.error("Failed to trigger training:", error);
       setTraining(false);
@@ -142,7 +128,7 @@ export function MLModelCard() {
   const summary = (() => {
     if (!status?.currentModel) {
       if (!status) return "No trained model yet";
-      return `${status.modelsTrained} models trained • ${status.totalTrainingSamples.toLocaleString()} samples`;
+      return `${status.modelsTrained ?? 0} models trained • ${(status.totalTrainingSamples ?? 0).toLocaleString()} samples`;
     }
     return [
       `v${status.currentModel.modelVersion}`,
