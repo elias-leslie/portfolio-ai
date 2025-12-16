@@ -12,6 +12,7 @@ Endpoints:
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -43,6 +44,13 @@ class RefreshRequest(BaseModel):
     url: str | None = Field(None, description="URL to capture (overrides default)")
 
 
+class ClientEvidence(BaseModel):
+    """Client-side evidence gathered before screenshot."""
+
+    console: dict = Field(default_factory=dict, description="Console errors/warnings")
+    network: dict = Field(default_factory=dict, description="Network failures")
+
+
 class ViewportCaptureRequest(BaseModel):
     """Request to upload a client-side viewport capture."""
 
@@ -55,6 +63,7 @@ class ViewportCaptureRequest(BaseModel):
     scroll_x: int = Field(0, description="Horizontal scroll position")
     scroll_y: int = Field(0, description="Vertical scroll position")
     page_title: str = Field("", description="Page title")
+    client_evidence: ClientEvidence | None = Field(None, description="Client-side console/network evidence")
 
 
 class UserReviewRequest(BaseModel):
@@ -348,21 +357,21 @@ async def viewport_capture(request: ViewportCaptureRequest) -> dict[str, Any]:
                     "x": request.scroll_x,
                     "y": request.scroll_y,
                 },
-                "captureMethod": "client-side-html2canvas",
+                "captureMethod": "client-side-screen-capture-api",
             },
             "console": {
-                "errorCount": 0,
-                "warningCount": 0,
-                "errors": [],
-                "warnings": [],
-                "note": "Console data not available for client-side captures",
+                "errorCount": request.client_evidence.console.get("errorCount", 0) if request.client_evidence else 0,
+                "warningCount": request.client_evidence.console.get("warningCount", 0) if request.client_evidence else 0,
+                "errors": request.client_evidence.console.get("errors", []) if request.client_evidence else [],
+                "warnings": request.client_evidence.console.get("warnings", []) if request.client_evidence else [],
+                "note": "Client-side evidence from visible error elements",
             },
             "network": {
                 "totalRequests": 0,
-                "failedRequests": 0,
-                "failures": [],
+                "failedRequests": request.client_evidence.network.get("failureCount", 0) if request.client_evidence else 0,
+                "failures": request.client_evidence.network.get("failures", []) if request.client_evidence else [],
                 "slowRequests": [],
-                "note": "Network data not available for client-side captures",
+                "note": "Client-side evidence from Performance API",
             },
             "pageState": {
                 "hasContent": True,
@@ -454,4 +463,171 @@ async def get_expired() -> list[dict[str, Any]]:
         return artifact_manager.get_expired_artifacts()
     except Exception as e:
         logger.error("get_expired_failed", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from None
+
+
+# ========================================================================
+# Debug Capture (no DB entry, easy for Claude to find)
+# ========================================================================
+
+DEBUG_CAPTURES_DIR = Path("/home/kasadis/portfolio-ai/data/debug-captures")
+
+
+class DebugCaptureRequest(BaseModel):
+    """Request for debug viewport capture (no DB entry)."""
+
+    screenshot_base64: str = Field(..., description="Base64-encoded PNG screenshot")
+    url: str = Field(..., description="URL of the captured page")
+    page_title: str = Field("", description="Page title")
+    client_evidence: ClientEvidence | None = Field(None, description="Client-side console/network evidence")
+
+
+@router.post("/debug-capture")
+async def debug_capture(request: DebugCaptureRequest) -> dict[str, Any]:
+    """Save a debug viewport capture without creating a feature entry.
+
+    Saves to: data/debug-captures/{timestamp}.png
+    Also maintains: data/debug-captures/latest.png (symlink to most recent)
+
+    This is for quick debugging - Claude can easily find via:
+    - Read /home/kasadis/portfolio-ai/data/debug-captures/latest.png
+    - ls -lt data/debug-captures/ | head
+    """
+    import base64
+    from datetime import datetime, timezone
+
+    try:
+        # Decode base64 screenshot
+        try:
+            screenshot_data = base64.b64decode(request.screenshot_base64)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid base64 screenshot data")
+
+        # Ensure directory exists
+        DEBUG_CAPTURES_DIR.mkdir(parents=True, exist_ok=True)
+
+        # Create timestamped filename
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        screenshot_filename = f"{timestamp}.png"
+        screenshot_path = DEBUG_CAPTURES_DIR / screenshot_filename
+
+        # Save screenshot
+        screenshot_path.write_bytes(screenshot_data)
+
+        # Save evidence.json alongside screenshot
+        import json
+        evidence_filename = f"{timestamp}.json"
+        evidence_path = DEBUG_CAPTURES_DIR / evidence_filename
+        evidence_data = {
+            "metadata": {
+                "url": request.url,
+                "pageTitle": request.page_title,
+                "capturedAt": datetime.now(timezone.utc).isoformat(),
+                "captureMethod": "client-side-screen-capture-api",
+            },
+            "console": {
+                "errorCount": request.client_evidence.console.get("errorCount", 0) if request.client_evidence else 0,
+                "warningCount": request.client_evidence.console.get("warningCount", 0) if request.client_evidence else 0,
+                "errors": request.client_evidence.console.get("errors", []) if request.client_evidence else [],
+                "warnings": request.client_evidence.console.get("warnings", []) if request.client_evidence else [],
+            },
+            "network": {
+                "failedRequests": request.client_evidence.network.get("failureCount", 0) if request.client_evidence else 0,
+                "failures": request.client_evidence.network.get("failures", []) if request.client_evidence else [],
+            },
+        }
+        evidence_path.write_text(json.dumps(evidence_data, indent=2))
+
+        # Update latest.png symlink
+        latest_link = DEBUG_CAPTURES_DIR / "latest.png"
+        if latest_link.is_symlink() or latest_link.exists():
+            latest_link.unlink()
+        latest_link.symlink_to(screenshot_filename)
+
+        # Update latest.json symlink
+        latest_json_link = DEBUG_CAPTURES_DIR / "latest.json"
+        if latest_json_link.is_symlink() or latest_json_link.exists():
+            latest_json_link.unlink()
+        latest_json_link.symlink_to(evidence_filename)
+
+        # Clean up old captures (keep last 20 pairs)
+        all_captures = sorted(DEBUG_CAPTURES_DIR.glob("*.png"))
+        all_captures = [p for p in all_captures if p.name not in ("latest.png",)]
+        if len(all_captures) > 20:
+            for old_capture in all_captures[:-20]:
+                old_capture.unlink()
+                # Also remove matching .json
+                old_json = old_capture.with_suffix(".json")
+                if old_json.exists():
+                    old_json.unlink()
+
+        logger.info(
+            "debug_capture_saved",
+            filename=screenshot_filename,
+            url=request.url,
+            size_kb=len(screenshot_data) // 1024,
+        )
+
+        return {
+            "success": True,
+            "filename": screenshot_filename,
+            "evidence_filename": evidence_filename,
+            "path": str(screenshot_path),
+            "evidence_path": str(evidence_path),
+            "latest_path": str(latest_link),
+            "latest_json_path": str(latest_json_link),
+            "url": request.url,
+            "size_bytes": len(screenshot_data),
+            "evidence": evidence_data,
+            "message": f"Saved to {screenshot_path}. Claude: Read data/debug-captures/latest.png and latest.json",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("debug_capture_failed", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from None
+
+
+@router.get("/debug-captures")
+async def list_debug_captures(limit: int = Query(10, ge=1, le=50)) -> dict[str, Any]:
+    """List recent debug captures.
+
+    Useful for Claude to see what captures are available.
+    """
+    try:
+        if not DEBUG_CAPTURES_DIR.exists():
+            return {"captures": [], "count": 0, "latest": None}
+
+        # Get all PNG files except latest.png
+        captures = []
+        for path in sorted(DEBUG_CAPTURES_DIR.glob("*.png"), reverse=True):
+            if path.name == "latest.png":
+                continue
+            captures.append({
+                "filename": path.name,
+                "path": str(path),
+                "size_bytes": path.stat().st_size,
+                "created_at": datetime.fromtimestamp(
+                    path.stat().st_mtime, tz=timezone.utc
+                ).isoformat(),
+            })
+            if len(captures) >= limit:
+                break
+
+        # Check latest symlink
+        latest_link = DEBUG_CAPTURES_DIR / "latest.png"
+        latest_target = None
+        if latest_link.is_symlink():
+            latest_target = latest_link.resolve().name
+
+        return {
+            "captures": captures,
+            "count": len(captures),
+            "latest": latest_target,
+            "latest_path": str(DEBUG_CAPTURES_DIR / "latest.png"),
+        }
+
+    except Exception as e:
+        logger.error("list_debug_captures_failed", error=str(e))
         raise HTTPException(status_code=500, detail=str(e)) from None

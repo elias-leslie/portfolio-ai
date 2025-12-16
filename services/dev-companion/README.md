@@ -20,12 +20,22 @@ pip install -e .
 
 ## Usage
 
-```bash
-# Start the server
-python -m dev_companion
+Managed via systemd user service (do NOT start manually):
 
-# Or with environment variables
-PORT=9999 WORKING_DIR=/path/to/project python -m dev_companion
+```bash
+# Start/stop/restart
+systemctl --user start portfolio-dev-companion
+systemctl --user stop portfolio-dev-companion
+systemctl --user restart portfolio-dev-companion
+
+# Check status
+systemctl --user status portfolio-dev-companion
+
+# View logs
+journalctl --user -u portfolio-dev-companion -f
+
+# Or use the restart script (restarts all services)
+bash ~/portfolio-ai/scripts/restart.sh
 ```
 
 ## API

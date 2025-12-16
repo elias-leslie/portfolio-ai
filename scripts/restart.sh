@@ -19,6 +19,8 @@ echo ""
 log_time "Cleaning up zombie processes..."
 pkill -9 -f "portfolio-ai/frontend.*next dev" || true
 
+log_time "Restarting redis..."
+systemctl --user restart portfolio-redis.service
 log_time "Restarting backend..."
 systemctl --user restart portfolio-backend.service
 log_time "Restarting celery..."
@@ -55,6 +57,7 @@ echo "✓ Restart complete!"
 echo "================================"
 echo ""
 echo "Service Status (User Mode):"
+echo "  Redis:        $(systemctl --user is-active portfolio-redis.service && echo '✓ Running' || echo '✗ Stopped')"
 echo "  Backend:      $(systemctl --user is-active portfolio-backend.service && echo '✓ Running' || echo '✗ Stopped')"
 echo "  Celery Worker:$(systemctl --user is-active portfolio-celery.service && echo '✓ Running' || echo '✗ Stopped')"
 echo "  Celery Beat:  $(systemctl --user is-active portfolio-celery-beat.service && echo '✓ Running' || echo '✗ Stopped')"

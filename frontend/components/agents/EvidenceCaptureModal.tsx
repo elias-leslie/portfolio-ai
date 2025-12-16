@@ -118,44 +118,51 @@ export function EvidenceCaptureModal({
   pageUrl,
   onCaptured,
 }: EvidenceCaptureModalProps) {
-  const [mode, setMode] = useState<"viewport" | "quick" | "existing">("viewport");
+  const [mode, setMode] = useState<"debug" | "new" | "existing">("debug");
   const [selectedFeature, setSelectedFeature] = useState<string>("");
   const [selectedCriterion, setSelectedCriterion] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
   const [urlMatchOnly, setUrlMatchOnly] = useState(false);
   const [sortField, setSortField] = useState<SortField>("url_match");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
-  const [isCapturingViewport, setIsCapturingViewport] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
+  // New Feature form fields
+  const [newFeatureName, setNewFeatureName] = useState("");
+  const [newFeatureCategory, setNewFeatureCategory] = useState("UI");
 
   const currentPath = extractPath(pageUrl);
 
-  // Viewport capture function - uses Screen Capture API for true pixel capture
-  const captureViewport = useCallback(async () => {
-    setIsCapturingViewport(true);
-    let stream: MediaStream | null = null;
+  // Shared Screen Capture API logic - captures exactly what user sees
+  // Returns base64 PNG or throws error
+  const captureScreenshotBase64 = useCallback(async (): Promise<string> => {
+    // Check if Screen Capture API is available (requires secure context)
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+      const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+      const msg = isLocalhost
+        ? "Screen Capture API not available in this browser"
+        : `Screen Capture requires HTTPS or localhost. To enable for ${window.location.hostname}:\n\n` +
+          "Chrome: chrome://flags/#unsafely-treat-insecure-origin-as-secure\n" +
+          `Add: http://${window.location.host}`;
+      throw new Error(msg);
+    }
+
+    // IMPORTANT: Close the modal BEFORE triggering screen capture
+    // This prevents the modal from appearing in the screenshot
+    onClose();
+
+    // Wait for the modal to be removed from DOM
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    // Request screen capture with preference for current tab
+    const stream = await navigator.mediaDevices.getDisplayMedia({
+      video: {
+        displaySurface: "browser",
+      },
+      // @ts-expect-error - preferCurrentTab is a newer API not in all TypeScript defs
+      preferCurrentTab: true,
+    });
 
     try {
-      // Check if Screen Capture API is available (requires secure context)
-      if (!navigator.mediaDevices?.getDisplayMedia) {
-        const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-        const msg = isLocalhost
-          ? "Screen Capture API not available in this browser"
-          : `Screen Capture requires HTTPS or localhost. To enable for ${window.location.hostname}:\n\n` +
-            "Chrome: chrome://flags/#unsafely-treat-insecure-origin-as-secure\n" +
-            `Add: http://${window.location.host}`;
-        throw new Error(msg);
-      }
-
-      // Request screen capture with preference for current tab
-      // Note: User will see a permission popup (unavoidable without enterprise policy)
-      stream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          displaySurface: "browser",
-        },
-        // @ts-expect-error - preferCurrentTab is a newer API not in all TypeScript defs
-        preferCurrentTab: true,
-      });
-
       const track = stream.getVideoTracks()[0];
 
       // Use ImageCapture API if available, fallback to video element approach
@@ -188,7 +195,6 @@ export function EvidenceCaptureModal({
 
       // Stop the stream immediately after capture
       track.stop();
-      stream = null;
 
       // Convert bitmap to canvas to get base64 PNG
       const canvas = document.createElement("canvas");
@@ -200,17 +206,119 @@ export function EvidenceCaptureModal({
       bitmap.close();
 
       const dataUrl = canvas.toDataURL("image/png");
-      const base64 = dataUrl.split(",")[1];
+      return dataUrl.split(",")[1];
+    } finally {
+      // Always clean up stream
+      stream.getTracks().forEach((t) => t.stop());
+    }
+  }, [onClose]);
 
-      // Generate quick debug feature ID
-      const timestamp = new Date()
-        .toISOString()
-        .replace(/[-:T]/g, "")
-        .slice(0, 12);
-      const featureId = `DBG-${timestamp.slice(4, 8)}-${timestamp.slice(8, 14)}`;
-      const criterionId = "viewport";
+  // Gather client-side console errors and network failures (must be before captureDebug)
+  const gatherClientSideEvidence = useCallback(() => {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+    const networkFailures: Array<{ url: string; status: number; statusText: string }> = [];
 
-      // Send to backend
+    // Get recent performance entries for failed requests
+    if (typeof performance !== "undefined" && performance.getEntriesByType) {
+      const resources = performance.getEntriesByType("resource") as PerformanceResourceTiming[];
+      // Check for resources that took too long or had issues (heuristic)
+      resources.forEach((r) => {
+        // Resources with 0 transferSize but non-zero duration might have failed
+        // This is imperfect but catches some failures
+        if (r.transferSize === 0 && r.duration > 0 && r.responseStatus && r.responseStatus >= 400) {
+          networkFailures.push({
+            url: r.name,
+            status: r.responseStatus || 0,
+            statusText: "Failed",
+          });
+        }
+      });
+    }
+
+    // Check for any error elements on page (error boundaries, etc.)
+    const errorElements = document.querySelectorAll('[data-error], .error, [role="alert"]');
+    errorElements.forEach((el) => {
+      const text = el.textContent?.trim();
+      if (text && text.length < 500) {
+        errors.push(text);
+      }
+    });
+
+    return {
+      console: {
+        errors: errors.slice(0, 10),
+        warnings: warnings.slice(0, 10),
+        errorCount: errors.length,
+        warningCount: warnings.length,
+      },
+      network: {
+        failures: networkFailures.slice(0, 10),
+        failureCount: networkFailures.length,
+      },
+    };
+  }, []);
+
+  // Quick Debug capture - saves to debug folder with evidence (no DB entry)
+  const captureDebug = useCallback(async () => {
+    setIsCapturing(true);
+
+    try {
+      const clientEvidence = gatherClientSideEvidence();
+      const base64 = await captureScreenshotBase64();
+
+      const response = await fetch("/api/artifacts/debug-capture", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          screenshot_base64: base64,
+          url: pageUrl,
+          page_title: document.title,
+          client_evidence: clientEvidence,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to upload screenshot");
+
+      const result = await response.json();
+      toast.success(`Debug captured! Claude: Read data/debug-captures/latest.png`);
+      onCaptured({
+        success: true,
+        version: 1,
+        feature_id: "DEBUG",
+        criterion_id: "debug",
+        evidence: {
+          console: clientEvidence.console,
+          network: clientEvidence.network,
+          metadata: { url: pageUrl, capturedAt: new Date().toISOString() },
+        },
+        ...result,
+      });
+    } catch (error) {
+      console.error("Debug capture failed:", error);
+      if (error instanceof Error && error.name === "NotAllowedError") {
+        toast.error("Screen capture cancelled - permission required");
+      } else if (error instanceof Error && error.message.includes("chrome://flags")) {
+        toast.error(error.message, { duration: 10000 });
+      } else {
+        toast.error(error instanceof Error ? error.message : "Failed to capture");
+      }
+    } finally {
+      setIsCapturing(false);
+    }
+  }, [pageUrl, onCaptured, captureScreenshotBase64, gatherClientSideEvidence]);
+
+  // Feature capture - saves to feature/criterion with DB entry
+  const captureForFeature = useCallback(async (featureId: string, criterionId: string) => {
+    setIsCapturing(true);
+
+    try {
+      // Gather evidence BEFORE screenshot (while page is in current state)
+      const clientEvidence = gatherClientSideEvidence();
+
+      const base64 = await captureScreenshotBase64();
+
+      // Send to viewport-capture endpoint (creates DB entry for feature)
       const response = await fetch("/api/artifacts/viewport-capture", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -224,6 +332,7 @@ export function EvidenceCaptureModal({
           scroll_x: window.scrollX,
           scroll_y: window.scrollY,
           page_title: document.title,
+          client_evidence: clientEvidence,
         }),
       });
 
@@ -232,28 +341,21 @@ export function EvidenceCaptureModal({
       }
 
       const result = await response.json();
-      toast.success(`Viewport captured (v${result.version}) - exactly what you see!`);
+      toast.success(`Evidence captured (v${result.version}) for ${featureId}`);
       onCaptured(result);
-      onClose();
     } catch (error) {
-      console.error("Viewport capture failed:", error);
-      // Check if user cancelled the permission dialog
+      console.error("Feature capture failed:", error);
       if (error instanceof Error && error.name === "NotAllowedError") {
         toast.error("Screen capture cancelled - permission required");
       } else if (error instanceof Error && error.message.includes("chrome://flags")) {
-        // Show the helpful instructions for enabling on non-localhost
         toast.error(error.message, { duration: 10000 });
       } else {
-        toast.error(error instanceof Error ? error.message : "Failed to capture viewport");
-      }
-      // Clean up stream if it exists
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
+        toast.error(error instanceof Error ? error.message : "Failed to capture evidence");
       }
     } finally {
-      setIsCapturingViewport(false);
+      setIsCapturing(false);
     }
-  }, [pageUrl, onCaptured, onClose]);
+  }, [pageUrl, onCaptured, captureScreenshotBase64, gatherClientSideEvidence]);
 
   // Fetch existing features
   const { data: featuresData, isLoading: loadingFeatures } = useQuery<{
@@ -415,30 +517,46 @@ export function EvidenceCaptureModal({
     },
   });
 
-  // Handle capture
+  // Handle capture - ALL modes use Screen Capture API
   const handleCapture = async () => {
-    if (mode === "viewport") {
-      // Use client-side html2canvas capture
-      await captureViewport();
-    } else if (mode === "quick") {
+    if (mode === "debug") {
+      // Quick Debug - no DB entry
+      await captureDebug();
+    } else if (mode === "new") {
+      // New Feature - create feature with user-provided name, then capture
+      if (!newFeatureName.trim()) {
+        toast.error("Please enter a feature name");
+        return;
+      }
       try {
-        const quickResult = await quickFeatureMutation.mutateAsync();
-        await captureMutation.mutateAsync({
-          featureId: quickResult.feature_id,
-          criterionId: quickResult.criterion_id,
+        const response = await fetch("/api/capabilities/features/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: newFeatureName.trim(),
+            category: newFeatureCategory,
+            description: `Evidence capture for ${currentPath}`,
+            acceptance_criteria: [{
+              criterion: `Screenshot of ${currentPath}`,
+              type: "ui",
+              verification: pageUrl,
+            }],
+          }),
         });
-      } catch {
-        // Errors handled by mutation callbacks
+        if (!response.ok) throw new Error("Failed to create feature");
+        const newFeature = await response.json();
+        const criterionId = newFeature.acceptance_criteria?.[0]?.id || "ac-001";
+        await captureForFeature(newFeature.feature_id, criterionId);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Failed to create feature");
       }
     } else {
+      // Existing Feature - use selected feature/criterion
       if (!selectedFeature || !selectedCriterion) {
         toast.error("Please select a feature and criterion");
         return;
       }
-      captureMutation.mutate({
-        featureId: selectedFeature,
-        criterionId: selectedCriterion,
-      });
+      await captureForFeature(selectedFeature, selectedCriterion);
     }
   };
 
@@ -460,7 +578,7 @@ export function EvidenceCaptureModal({
     );
   };
 
-  const isCapturing = isCapturingViewport || quickFeatureMutation.isPending || captureMutation.isPending;
+  const isBusy = isCapturing || quickFeatureMutation.isPending || captureMutation.isPending;
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -483,22 +601,22 @@ export function EvidenceCaptureModal({
           {/* Mode selector */}
           <div className="flex gap-2">
             <Button
-              variant={mode === "viewport" ? "default" : "outline"}
+              variant={mode === "debug" ? "default" : "outline"}
               size="sm"
-              onClick={() => setMode("viewport")}
-              className="flex-1"
-            >
-              <Crosshair className="h-4 w-4 mr-2" />
-              Viewport
-            </Button>
-            <Button
-              variant={mode === "quick" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setMode("quick")}
+              onClick={() => setMode("debug")}
               className="flex-1"
             >
               <Zap className="h-4 w-4 mr-2" />
-              Quick
+              Quick Debug
+            </Button>
+            <Button
+              variant={mode === "new" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setMode("new")}
+              className="flex-1"
+            >
+              <Crosshair className="h-4 w-4 mr-2" />
+              New Feature
             </Button>
             <Button
               variant={mode === "existing" ? "default" : "outline"}
@@ -507,35 +625,57 @@ export function EvidenceCaptureModal({
               className="flex-1"
             >
               <FolderOpen className="h-4 w-4 mr-2" />
-              Feature
+              Existing
             </Button>
           </div>
 
-          {mode === "viewport" ? (
+          {mode === "debug" ? (
             <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm space-y-2">
               <p className="font-medium text-primary">
-                Screen Capture - true pixel capture
+                Quick Debug - no DB entry
               </p>
               <ul className="text-muted-foreground text-xs space-y-1">
-                <li>• Captures actual rendered pixels</li>
-                <li>• Preserves scroll position & all states</li>
-                <li>• Includes expanded sections, tabs, forms</li>
-                <li>• Works with everything visible on screen</li>
+                <li>• Captures exactly what you see on screen</li>
+                <li>• Saves to debug-captures/ with evidence</li>
+                <li>• Claude can read: data/debug-captures/latest.png</li>
+                <li>• Auto-cleanup keeps last 20 captures</li>
               </ul>
               <p className="text-xs text-amber-500/80 mt-2">
                 A permission popup will appear - select this tab to capture.
               </p>
             </div>
-          ) : mode === "quick" ? (
-            <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
-              <p>
-                Creates a debug feature (
-                <code className="text-xs bg-muted px-1 rounded">DBG-*</code>
-                ) and captures evidence immediately.
-              </p>
-              <p className="mt-2">
-                Debug features appear in the Features tab for review.
-              </p>
+          ) : mode === "new" ? (
+            <div className="space-y-3">
+              <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
+                Creates a new feature with your screenshot as evidence.
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="feature-name" className="text-sm">Feature Name</Label>
+                <Input
+                  id="feature-name"
+                  placeholder="e.g., Status Page Services Table"
+                  value={newFeatureName}
+                  onChange={(e) => setNewFeatureName(e.target.value)}
+                  className="h-9"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="feature-category" className="text-sm">Category</Label>
+                <select
+                  id="feature-category"
+                  value={newFeatureCategory}
+                  onChange={(e) => setNewFeatureCategory(e.target.value)}
+                  className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm"
+                >
+                  <option value="UI">UI</option>
+                  <option value="Dashboard">Dashboard</option>
+                  <option value="Status">Status</option>
+                  <option value="Trading">Trading</option>
+                  <option value="Portfolio">Portfolio</option>
+                  <option value="Analytics">Analytics</option>
+                  <option value="Settings">Settings</option>
+                </select>
+              </div>
             </div>
           ) : (
             <div className="space-y-3">
@@ -704,17 +844,18 @@ export function EvidenceCaptureModal({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isCapturing}>
+          <Button variant="outline" onClick={onClose} disabled={isBusy}>
             Cancel
           </Button>
           <Button
             onClick={handleCapture}
             disabled={
-              isCapturing ||
+              isBusy ||
+              (mode === "new" && !newFeatureName.trim()) ||
               (mode === "existing" && (!selectedFeature || !selectedCriterion))
             }
           >
-            {isCapturing ? (
+            {isBusy ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 Capturing...

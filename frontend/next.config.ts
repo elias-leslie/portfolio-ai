@@ -50,6 +50,15 @@ const nextConfig: NextConfig = {
         source: "/api/vision/:path*",
         destination: "http://127.0.0.1:8000/api/vision/:path*",
       },
+      // Portfolio endpoints (need trailing slash)
+      {
+        source: "/api/portfolio",
+        destination: "http://127.0.0.1:8000/api/portfolio/",
+      },
+      {
+        source: "/api/portfolio/",
+        destination: "http://127.0.0.1:8000/api/portfolio/",
+      },
       // General catch-all for all other API routes
       {
         source: "/api/:path*",

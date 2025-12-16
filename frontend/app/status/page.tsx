@@ -1,32 +1,28 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import dynamic from "next/dynamic";
 import {
     RefreshCw,
     Wifi,
     WifiOff,
     Radio,
-    HardDrive,
-    Cpu,
-    MemoryStick,
-    Trash2,
-    ListRestart,
     Clock3,
     Newspaper,
 } from "lucide-react";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { useStatusStream } from "@/lib/hooks/useStatusStream";
+import { useSystemStatus } from "@/lib/hooks/useSystemStatus";
 import { useSystemResources } from "@/lib/hooks/useSystemResources";
 import { useNewsHealth } from "@/lib/hooks/useNewsHealth";
-import { ServiceCard } from "@/components/status/ServiceCard";
-import { ResourceCard } from "@/components/status/ResourceCard";
-import { DatabasePoolCard } from "@/components/status/DatabasePoolCard";
+import { ServiceStatusTable } from "@/components/status/ServiceStatusTable";
+import { SystemMetricsTable } from "@/components/status/SystemMetricsTable";
 import { CeleryTaskTable } from "@/components/status/CeleryTaskTable";
 import { QueueDepthCard } from "@/components/status/QueueDepthCard";
 import { BeatScheduleCard } from "@/components/status/BeatScheduleCard";
@@ -43,11 +39,7 @@ import { ExpandableCard } from "@/components/status/ExpandableCard";
 import { WorkflowHealthCard } from "@/components/status/WorkflowHealthCard";
 import { AgentStatsCard } from "@/components/status/AgentStatsCard";
 import { WorkflowMetricsCard } from "@/components/status/WorkflowMetricsCard";
-import {
-    clearCache,
-    refreshWatchlist,
-    restartService,
-} from "@/lib/api/service-control";
+import { restartService } from "@/lib/api/service-control";
 import {
     fetchDetailedHealth,
     DetailedHealthResponse,
@@ -55,19 +47,50 @@ import {
 import { PageHeader } from "@/components/shared/PageHeader";
 import { SectionCard } from "@/components/shared/SectionCard";
 import { PageContainer } from "@/components/shared/PageContainer";
-import { cn } from "@/lib/utils";
+
+// Storage key for realtime preference
+const REALTIME_STORAGE_KEY = "status.realtimeEnabled";
 
 export default function StatusPage() {
+    // Realtime toggle state - defaults to OFF for better performance
+    const [realtimeEnabled, setRealtimeEnabled] = useState(() => {
+        if (typeof window === "undefined") return false;
+        return localStorage.getItem(REALTIME_STORAGE_KEY) === "true";
+    });
+
+    // Persist realtime preference
+    useEffect(() => {
+        localStorage.setItem(REALTIME_STORAGE_KEY, String(realtimeEnabled));
+    }, [realtimeEnabled]);
+
+    // Use SSE stream when realtime is enabled, otherwise use polling
     const {
-        status: health,
+        status: streamStatus,
         connectionState,
-        isLoading,
-        error,
+        isLoading: streamLoading,
+        error: streamError,
         retryConnection,
     } = useStatusStream();
+
+    // Polling fallback (always runs, but we only use it when realtime is off)
+    const {
+        data: pollingStatus,
+        isLoading: pollingLoading,
+        error: pollingError,
+    } = useSystemStatus();
+
+    // Choose which data source to use
+    const health = realtimeEnabled ? streamStatus : pollingStatus;
+    const isLoading = realtimeEnabled ? streamLoading : pollingLoading;
+    const error = realtimeEnabled ? streamError : pollingError;
+
     const [lastUpdateTimestamp, setLastUpdateTimestamp] = useState<number | null>(null);
     const [isDataStale, setIsDataStale] = useState(false);
-    const { resources, isLoading: resourcesLoading } = useSystemResources(5000); // Refresh every 5 seconds
+
+    // Resources polling - slower when realtime is off
+    const resourcesInterval = realtimeEnabled ? 5000 : 30000;
+    const { resources, isLoading: resourcesLoading } = useSystemResources(resourcesInterval);
+
     const {
         data: newsHealth,
         isLoading: newsHealthLoading,
@@ -94,7 +117,7 @@ export default function StatusPage() {
         };
 
         fetchDetailed();
-        const interval = setInterval(fetchDetailed, 30000); // Refresh every 30 seconds
+        const interval = setInterval(fetchDetailed, 30000);
 
         return () => clearInterval(interval);
     }, []);
@@ -129,76 +152,6 @@ export default function StatusPage() {
     const shouldShowDialog = (storageKey: string) => {
         if (typeof window === "undefined") return true;
         return !localStorage.getItem(storageKey);
-    };
-
-    // Clear cache handler
-    const handleClearCache = async () => {
-        setIsActionLoading(true);
-        try {
-            const result = await clearCache();
-            toast.success(result.message ?? "Price cache cleared");
-        } catch (error) {
-            const message =
-                error instanceof Error ? error.message : "Failed to clear cache";
-            toast.error(`Failed to clear cache: ${message}`);
-            throw error instanceof Error ? error : new Error(message);
-        } finally {
-            setIsActionLoading(false);
-        }
-    };
-
-    // Refresh watchlist handler
-    const handleRefreshWatchlist = async () => {
-        setIsActionLoading(true);
-        try {
-            const result = await refreshWatchlist();
-            toast.success(result.message ?? "Watchlist refresh triggered");
-        } catch (error) {
-            const message =
-                error instanceof Error
-                    ? error.message
-                    : "Failed to refresh watchlist";
-            toast.error(`Failed to refresh watchlist: ${message}`);
-            throw error instanceof Error ? error : new Error(message);
-        } finally {
-            setIsActionLoading(false);
-        }
-    };
-
-    // Clear cache with confirmation
-    const triggerClearCache = () => {
-        const storageKey = "status.confirm.clearCache";
-        if (shouldShowDialog(storageKey)) {
-            setActionDialogConfig({
-                title: "Clear Price Cache",
-                description:
-                    "This will remove all cached price data. The cache will be rebuilt on the next price fetch.",
-                actionLabel: "Clear Cache",
-                onConfirm: handleClearCache,
-                storageKey,
-            });
-            setActionDialogOpen(true);
-        } else {
-            handleClearCache();
-        }
-    };
-
-    // Refresh watchlist with confirmation
-    const triggerRefreshWatchlist = () => {
-        const storageKey = "status.confirm.refreshWatchlist";
-        if (shouldShowDialog(storageKey)) {
-            setActionDialogConfig({
-                title: "Refresh Watchlist",
-                description:
-                    "This will trigger a manual refresh of all watchlist data. This may take a few minutes.",
-                actionLabel: "Refresh Now",
-                onConfirm: handleRefreshWatchlist,
-                storageKey,
-            });
-            setActionDialogOpen(true);
-        } else {
-            handleRefreshWatchlist();
-        }
     };
 
     // Restart service handler
@@ -236,8 +189,15 @@ export default function StatusPage() {
         }
     };
 
-    // Connection state badge
+    // Connection state badge (only shown when realtime is enabled)
     const getConnectionBadge = () => {
+        if (!realtimeEnabled) {
+            return {
+                icon: <RefreshCw className="h-3 w-3" />,
+                text: "Polling",
+                variant: "secondary" as const,
+            };
+        }
         switch (connectionState) {
             case "connected":
                 return {
@@ -267,8 +227,22 @@ export default function StatusPage() {
     };
 
     const connectionBadge = getConnectionBadge();
+
     const headerActions = (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-3">
+            {/* Realtime Toggle */}
+            <div className="flex items-center gap-2">
+                <Switch
+                    id="realtime-toggle"
+                    checked={realtimeEnabled}
+                    onCheckedChange={setRealtimeEnabled}
+                />
+                <Label htmlFor="realtime-toggle" className="cursor-pointer text-sm">
+                    Live updates
+                </Label>
+            </div>
+
+            {/* Connection Badge */}
             <Badge
                 variant={connectionBadge.variant}
                 className="flex items-center gap-1.5"
@@ -276,7 +250,9 @@ export default function StatusPage() {
                 {connectionBadge.icon}
                 {connectionBadge.text}
             </Badge>
-            {(connectionState === "fallback" || connectionState === "disconnected") && (
+
+            {/* Retry button (only when realtime enabled and disconnected) */}
+            {realtimeEnabled && (connectionState === "fallback" || connectionState === "disconnected") && (
                 <Button
                     variant="outline"
                     size="sm"
@@ -287,27 +263,11 @@ export default function StatusPage() {
                     Retry live
                 </Button>
             )}
-            <Button
-                variant="outline"
-                size="sm"
-                onClick={triggerClearCache}
-                disabled={isActionLoading}
-            >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Clear Cache
-            </Button>
-            <Button
-                variant="outline"
-                size="sm"
-                onClick={triggerRefreshWatchlist}
-                disabled={isActionLoading}
-            >
-                <ListRestart className="mr-2 h-4 w-4" />
-                Refresh Watchlist
-            </Button>
         </div>
     );
+
     const connectionBanner = (() => {
+        if (!realtimeEnabled) return null;
         if (connectionState === "disconnected") {
             return {
                 tone: "danger" as const,
@@ -322,7 +282,7 @@ export default function StatusPage() {
                 tone: "warning" as const,
                 title: "Live stream unavailable",
                 description:
-                    "Showing backup polling data (5s interval). Retry the live stream for lower latency.",
+                    "Showing backup polling data (30s interval). Retry the live stream for lower latency.",
                 icon: <Radio className="h-4 w-4 text-accent" />,
             };
         }
@@ -331,19 +291,22 @@ export default function StatusPage() {
                 tone: "warning" as const,
                 title: "No live events detected",
                 description:
-                    "We haven’t received new status events for 10 seconds. Refresh the stream to ensure accuracy.",
+                    "We haven't received new status events for 10 seconds. Refresh the stream to ensure accuracy.",
                 icon: <Clock3 className="h-4 w-4 text-accent" />,
             };
         }
         return null;
     })();
+
     const formatDateTime = (value?: string | null) =>
         value ? new Date(value).toLocaleString() : "—";
+
     const finbertStatus = newsHealth
         ? newsHealth.finbert_available
             ? { label: "FinBERT Available", variant: "default" as const }
             : { label: "FinBERT Unavailable", variant: "destructive" as const }
         : { label: "Loading...", variant: "secondary" as const };
+
     const fallbackRatePercent = (newsHealth?.fallback_rate_24h ?? 0) * 100;
     const fallbackAvgLatency = newsHealth?.fallback_avg_latency_ms_24h ?? null;
     const fallbackP95Latency = newsHealth?.fallback_p95_latency_ms_24h ?? null;
@@ -353,10 +316,9 @@ export default function StatusPage() {
 
     const renderShell = (content: React.ReactNode) => (
         <PageContainer className="space-y-10 py-10">
-            {/* Page Header */}
             <PageHeader
                 title="System Status"
-                description="Real-time monitoring of services, workers, and integrations."
+                description="Monitoring of services, workers, and integrations."
                 actions={headerActions}
             />
             {content}
@@ -387,7 +349,6 @@ export default function StatusPage() {
     }
 
     const services = health.services || {};
-    const serviceEntries = Object.entries(services);
 
     const renderNewsHealthCard = () => {
         const summary = (() => {
@@ -505,7 +466,6 @@ export default function StatusPage() {
         );
     };
 
-
     return renderShell(
         <>
             {connectionBanner && (
@@ -525,7 +485,7 @@ export default function StatusPage() {
                         {connectionBanner.icon}
                         <span>
                             {connectionState === "fallback"
-                                ? "Falling back to polling every 5s."
+                                ? "Falling back to polling every 30s."
                                 : "Live SSE stream disconnected."}
                         </span>
                     </div>
@@ -535,32 +495,27 @@ export default function StatusPage() {
             <SectionCard
                 variant="surface"
                 title="Overview"
-                description="Operational snapshot across services and resources."
+                description="Services and system resources at a glance."
             >
                 <div className="space-y-6">
-                    {serviceEntries.length > 0 ? (
-                        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-                            {serviceEntries.map(([serviceName, status]) => (
-                                <ServiceCard
-                                    key={serviceName}
-                                    serviceName={serviceName}
-                                    status={status}
-                                    onRestart={triggerRestartService}
-                                />
-                            ))}
-                        </div>
-                    ) : (
-                        <Alert>
-                            <AlertTitle>No Services Found</AlertTitle>
-                            <AlertDescription>
-                                No services are currently being monitored. Check your configuration.
-                            </AlertDescription>
-                        </Alert>
-                    )}
-                    <ResourceOverview
-                        resources={resources}
-                        resourcesLoading={resourcesLoading}
+                    {/* Services Table */}
+                    <ServiceStatusTable
+                        services={services}
+                        onRestart={triggerRestartService}
+                        isRestartDisabled={isActionLoading}
                     />
+
+                    {/* System Metrics Table */}
+                    {resources && (
+                        <SystemMetricsTable resources={resources} />
+                    )}
+
+                    {resourcesLoading && !resources && (
+                        <div className="text-center py-4">
+                            <RefreshCw className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
+                            <p className="text-muted-foreground text-sm mt-2">Loading resources...</p>
+                        </div>
+                    )}
                 </div>
             </SectionCard>
 
@@ -646,7 +601,7 @@ export default function StatusPage() {
 
 function StatusSkeleton() {
     return (
-        <SectionCard variant="surface" title="Loading status" description="Fetching live telemetry...">
+        <SectionCard variant="surface" title="Loading status" description="Fetching telemetry...">
             <div className="space-y-4">
                 <div className="h-10 w-48 rounded-lg bg-surface-muted/50 animate-pulse" />
                 <div className="grid gap-4 md:grid-cols-3">
@@ -659,59 +614,5 @@ function StatusSkeleton() {
                 </div>
             </div>
         </SectionCard>
-    );
-}
-
-function ResourceOverview({
-    resources,
-    resourcesLoading,
-}: {
-    resources: ReturnType<typeof useSystemResources>["resources"];
-    resourcesLoading: boolean;
-}) {
-    if (resourcesLoading && !resources) {
-        return (
-            <div className="text-center py-8">
-                <RefreshCw className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
-                <p className="text-muted-foreground mt-2">Loading resource data...</p>
-            </div>
-        );
-    }
-
-    if (!resources) {
-        return null;
-    }
-
-    return (
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
-            <ResourceCard
-                title="Disk Usage"
-                percent={resources.disk.percent_used}
-                status={resources.disk.status}
-                details={`${resources.disk.used_gb.toFixed(1)} GB / ${resources.disk.total_gb.toFixed(1)} GB used`}
-                icon={<HardDrive className="h-5 w-5" />}
-            />
-            <ResourceCard
-                title="Memory Usage"
-                percent={resources.memory.percent_used}
-                status={resources.memory.status}
-                details={`${resources.memory.used_gb.toFixed(1)} GB / ${resources.memory.total_gb.toFixed(1)} GB used`}
-                icon={<MemoryStick className="h-5 w-5" />}
-            />
-            <ResourceCard
-                title="CPU Usage"
-                percent={resources.cpu.percent_used}
-                status={resources.cpu.status}
-                details={`${resources.cpu.cores} cores available`}
-                icon={<Cpu className="h-5 w-5" />}
-            />
-            <DatabasePoolCard
-                poolSize={resources.database_pool.pool_size}
-                checkedOut={resources.database_pool.checked_out}
-                overflow={resources.database_pool.overflow}
-                percent={resources.database_pool.percent_used}
-                status={resources.database_pool.status}
-            />
-        </div>
     );
 }

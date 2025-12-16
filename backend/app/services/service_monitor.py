@@ -110,7 +110,7 @@ def check_backend_api(skip_http_check: bool = False) -> ServiceStatus:
     Returns:
         ServiceStatus for backend API
     """
-    status = get_service_status("Backend API", r"uvicorn.*main:app")
+    status = get_service_status("portfolio-backend", r"uvicorn.*main:app")
 
     if status.status == "running" and not skip_http_check:
         # Additional health check: try to ping /health/simple endpoint (avoid circular dependency)
@@ -150,7 +150,7 @@ def check_celery_worker(skip_inspect: bool = False) -> ServiceStatus:
     Returns:
         ServiceStatus for Celery worker
     """
-    status = get_service_status("Celery Worker", r"celery.*worker")
+    status = get_service_status("portfolio-celery", r"celery.*worker")
 
     if status.status == "running" and not skip_inspect:
         # Additional check: try to inspect worker (SLOW - only for detailed status page)
@@ -180,7 +180,7 @@ def check_celery_beat() -> ServiceStatus:
     Returns:
         ServiceStatus for Celery beat
     """
-    return get_service_status("Celery Beat", r"celery.*beat")
+    return get_service_status("portfolio-celery-beat", r"celery.*beat")
 
 
 def check_frontend() -> ServiceStatus:
@@ -189,13 +189,13 @@ def check_frontend() -> ServiceStatus:
     Returns:
         ServiceStatus for frontend
     """
-    status = get_service_status("Frontend", r"next.*dev")
+    status = get_service_status("portfolio-frontend", r"next.*dev")
 
     if status.status == "running":
         # Additional check: try to connect to port 3000
-        # Use HTTPS with verify=False for self-signed certs
+        # Next.js dev server runs on HTTP (nginx handles HTTPS externally)
         try:
-            response = httpx.get("https://localhost:3000", timeout=2.0, verify=False)
+            response = httpx.get("http://localhost:3000", timeout=2.0)
             if response.status_code not in [200, 304]:
                 status.status = "degraded"
                 status.message = f"Frontend returned {response.status_code}"
@@ -219,7 +219,7 @@ def check_redis() -> ServiceStatus:
     Returns:
         ServiceStatus for Redis
     """
-    status = get_service_status("Redis", r"redis-server")
+    status = get_service_status("portfolio-redis", r"redis-server")
 
     if status.status == "running":
         # Additional check: try redis-cli ping
@@ -246,6 +246,36 @@ def check_redis() -> ServiceStatus:
     return status
 
 
+def check_dev_companion() -> ServiceStatus:
+    """Check dev-companion service status.
+
+    Returns:
+        ServiceStatus for dev-companion
+    """
+    status = get_service_status("portfolio-dev-companion", r"dev-companion")
+
+    if status.status == "running":
+        # Additional check: try to connect to port 9999
+        try:
+            response = httpx.get("http://localhost:9999/health", timeout=2.0)
+            if response.status_code != 200:
+                status.status = "degraded"
+                status.message = f"Dev companion returned {response.status_code}"
+
+        except httpx.TimeoutException:
+            status.status = "degraded"
+            status.message = "Dev companion timeout"
+        except httpx.ConnectError:
+            # Port not responding but process running - might be starting
+            status.status = "degraded"
+            status.message = "Dev companion port not responding"
+        except Exception as e:
+            status.status = "degraded"
+            status.message = f"Dev companion check error: {e!s}"
+
+    return status
+
+
 def get_all_service_statuses(skip_slow_checks: bool = False) -> dict[str, ServiceStatus]:
     """Get status of all monitored services.
 
@@ -254,12 +284,13 @@ def get_all_service_statuses(skip_slow_checks: bool = False) -> dict[str, Servic
                          If False, perform all checks including slow ones (detailed status page).
 
     Returns:
-        Dictionary mapping service name to ServiceStatus
+        Dictionary mapping service key to ServiceStatus
     """
     return {
-        "backend": check_backend_api(skip_http_check=skip_slow_checks),
-        "celery_worker": check_celery_worker(skip_inspect=skip_slow_checks),
-        "celery_beat": check_celery_beat(),
-        "frontend": check_frontend(),
-        "redis": check_redis(),
+        "portfolio-redis": check_redis(),
+        "portfolio-backend": check_backend_api(skip_http_check=skip_slow_checks),
+        "portfolio-celery": check_celery_worker(skip_inspect=skip_slow_checks),
+        "portfolio-celery-beat": check_celery_beat(),
+        "portfolio-frontend": check_frontend(),
+        "portfolio-dev-companion": check_dev_companion(),
     }
