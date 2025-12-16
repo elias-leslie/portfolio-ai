@@ -103,7 +103,7 @@ bd update <id> --notes "Feature: FEAT-XXX"
 
 ### Architecture Coherence
 - **Before ANY new code**: Check for existing implementations (see `.claude/rules/architecture-coherence.md`)
-- Run `/silo_check` for comprehensive architecture audit
+- Run `/audit_it` for comprehensive codebase health audit
 - Consolidate over create - extend existing utilities, don't duplicate
 
 ---

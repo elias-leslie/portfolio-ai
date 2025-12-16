@@ -1,372 +1,290 @@
-# TASK: Design Comprehensive `/audit_it` Command
+# TASK: Implement Unified `/audit_it` Command
 
-**Status**: Ready for exploration
+**Status**: In Progress
 **Priority**: P2
 **Complexity**: Large
 **Created**: 2025-12-16
+**Updated**: 2025-12-16
 
 ---
 
 ## Objective
 
-Design and implement a unified `/audit_it` command that combines and orchestrates:
-- Existing commands: `/data_check`, `/silo_check`, `/clean_it`
-- Existing quality scripts: `quality-report-full.sh` (16 scripts)
-- Existing agents: `code-reviewer`, `security-auditor`, `dependency-manager`, `refactoring-specialist`
-- **NEW tools to add**: `jscpd` (duplication), `radon` (complexity), `pip-audit`, enhanced metrics
+Create a unified `/audit_it` command that **consolidates and replaces** three existing commands:
+- `/data_check` - Data architecture analysis
+- `/silo_check` - Architecture coherence audit
+- `/clean_it` - Dead code cleanup
 
-Goal: Single command that provides a complete codebase health assessment with actionable output.
-
----
-
-## Phase 1: Deep Exploration (MANDATORY)
-
-Launch **5 parallel exploration agents** in "very thorough" mode to understand the full landscape:
-
-### Agent 1: Existing Commands Analysis
-```
-Explore and document:
-- .claude/commands/data_check.md - What it does, how it works, outputs
-- .claude/commands/silo_check.md - What it does, how it works, outputs
-- .claude/commands/clean_it.md - What it does, how it works, outputs
-- .claude/commands/review_files.md - Potential overlap/integration
-- .claude/commands/verify_it.md - Potential overlap/integration
-
-Questions to answer:
-1. What's the overlap between these commands?
-2. What's unique to each?
-3. How do they create/use beads?
-4. What agents do they spawn internally?
-5. What's the typical runtime for each?
-6. What are the dependencies between them?
-```
-
-### Agent 2: Existing Agents Analysis
-```
-Explore and document:
-- .claude/agents/code-reviewer.md - Capabilities, when to use
-- .claude/agents/security-auditor.md - Capabilities, when to use
-- .claude/agents/dependency-manager.md - Capabilities, when to use
-- .claude/agents/refactoring-specialist.md - Capabilities, when to use
-- .claude/agents/pre-implementation-check.md - Potential integration
-
-Questions to answer:
-1. Which agents are already used by existing commands?
-2. Which agents are underutilized but valuable?
-3. What's the agent invocation pattern (Task tool + subagent_type)?
-4. How do agents report findings?
-5. Can agents be run in parallel?
-```
-
-### Agent 3: Code Quality Scripts Analysis
-```
-Explore and document:
-- .claude/skills/code-quality/SKILL.md - Full capabilities
-- All 16 scripts in .claude/skills/code-quality/scripts/
-- quality-report.sh vs quality-report-full.sh differences
-- Exit codes and CI/CD integration patterns
-
-Questions to answer:
-1. What's the total coverage of these scripts?
-2. What gaps exist (duplication detection? complexity metrics?)
-3. How long does quality-report-full.sh take?
-4. What's the output format of each script?
-5. How are thresholds configured?
-```
-
-### Agent 4: External Tools Research
-```
-Research and document integration requirements for:
-
-1. jscpd (JavaScript Copy/Paste Detector)
-   - Installation: npm install -g jscpd
-   - Usage: jscpd backend/ frontend/ --min-lines 10 --reporters json
-   - Output format, thresholds, configuration
-   - Can detect duplication across Python AND TypeScript
-
-2. radon (Python complexity metrics)
-   - Installation: pip install radon
-   - Usage: radon cc backend/app -j (cyclomatic complexity)
-   - Usage: radon mi backend/app -j (maintainability index)
-   - Output format, scoring, thresholds
-
-3. pip-audit (Python dependency vulnerabilities)
-   - Installation: pip install pip-audit
-   - Usage: pip-audit --format json
-   - Integration with existing check-security.sh
-
-4. npm audit (already available)
-   - Usage: npm audit --json
-   - Integration with frontend checks
-
-5. Consider: vulture (dead code), bandit (security), prospector (meta-linter)
-```
-
-### Agent 5: Bead/Task Integration Patterns
-```
-Explore and document:
-- How existing commands create beads (bd create patterns)
-- Bead priority mapping (CRITICAL → P1, HIGH → P2, etc.)
-- Label conventions (complexity, domains, etc.)
-- How /next_it picks up created beads
-- QA issue creation patterns (from /clean_it)
-
-Questions to answer:
-1. What's the ideal bead creation threshold? (Don't create for every finding)
-2. Should audit findings auto-create beads or just report?
-3. How to avoid duplicate beads on repeated runs?
-4. How to track audit history/trends over time?
-```
+The new command provides comprehensive codebase health assessment with actionable output, health scoring, and historical tracking.
 
 ---
 
-## Phase 2: Gap Analysis
+## Key Decisions
 
-After exploration, identify:
-
-### What's Missing Today
-- [ ] Code duplication detection (jscpd needed)
-- [ ] Cyclomatic complexity metrics (radon needed)
-- [ ] Maintainability index tracking (radon needed)
-- [ ] Dependency vulnerability scanning (pip-audit, npm audit)
-- [ ] Unified health score calculation
-- [ ] Historical trend tracking
-- [ ] Single-command orchestration
-
-### What's Redundant/Overlapping
-- [ ] Multiple commands doing similar DB analysis?
-- [ ] Overlapping security checks?
-- [ ] Duplicate DRY violation detection?
-
-### Integration Opportunities
-- [ ] Can quality scripts output feed into agents?
-- [ ] Can agent findings feed into bead creation?
-- [ ] Can cleanup run automatically after analysis?
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Integration | New unified implementation | Cleaner architecture, removes redundancy |
+| Bead creation | HIGH+ severity only | Reduces noise, focuses on actionable items |
+| History | docs/audits/YYYY-MM-DD.md | Git-tracked, diff-able, simple |
 
 ---
 
-## Phase 3: Architecture Design
+## Commands Being Replaced
 
-Design the `/audit_it` command structure:
+### /data_check (Absorbed)
+- Data source analysis (YFinance, Polygon, etc.)
+- Database schema analysis (tables, FKs, indexes)
+- Data ingestion patterns (Celery tasks, schedules)
+- Redundancy and normalization issues
+- **Agents**: 3 parallel (Sources, Schema, Ingestion)
 
-### Proposed Phases
+### /silo_check (Absorbed)
+- Duplicate code detection
+- Service/module boundary analysis
+- Pattern consistency analysis
+- Naming convention audit (--deep mode)
+- Bead creation for findings
+- **Agents**: 4-5 parallel
+
+### /clean_it (Absorbed)
+- Dead code detection (ruff F401/F841)
+- Orphan file detection
+- DRY violation detection
+- Cleanup with confidence levels (HIGH/MEDIUM/LOW)
+- Git checkpoint before mutations
+- **Agents**: None (script-based)
+
+---
+
+## New Capabilities
+
+| Tool | Purpose | Status |
+|------|---------|--------|
+| jscpd | Cross-language code duplication | Needs sudo install |
+| radon | Cyclomatic complexity + maintainability index | Installed |
+| pip-audit | Python dependency vulnerabilities | Installed |
+| npm audit | Frontend dependency vulnerabilities | Available (needs integration) |
+
+---
+
+## Command Structure
+
+### Arguments
 
 ```
-Phase 0: Pre-Flight
-├── Git safety checkpoint
-├── Service health check
-└── Tool availability check (jscpd, radon, etc.)
+/audit_it [options]
 
-Phase 1: Metrics Collection (Parallel - Fast)
-├── jscpd → duplication %
-├── radon cc → complexity scores
+Options:
+  --fix           Auto-apply safe fixes without prompting
+  --dry-run       Report only, no changes
+  --quick         Fast mode: metrics + lint only (skip deep analysis)
+  --deep          Extra thorough: add naming conventions agent
+  --focus <area>  Run specific phase: metrics|lint|data|arch|security|cleanup
+  --no-beads      Don't create beads, report only
+  --json          Machine-readable output
+  --ci            CI mode: exit codes, non-interactive
+```
+
+### Phases
+
+```
+Phase 0: Pre-Flight (Always runs)
+├── Git safety checkpoint (uncommitted changes warning)
+├── Service health check (backend, celery running)
+└── Tool availability check (jscpd, radon, pip-audit)
+
+Phase 1: Metrics Collection (~30 seconds, parallel)
+├── jscpd → duplication % (Python + TypeScript)
+├── radon cc → cyclomatic complexity scores
 ├── radon mi → maintainability index
-├── quality-report-full.sh → existing checks
-└── pip-audit + npm audit → vulnerabilities
+├── quality-report-full.sh → existing 16 checks
+└── pip-audit + npm audit → vulnerability counts
 
-Phase 2: Static Analysis (Parallel - Fast)
-├── ruff check --fix → Python lint
-├── eslint --fix → TypeScript lint
-├── mypy → type errors
-└── tsc --noEmit → TypeScript errors
+Phase 2: Static Analysis (~20 seconds, parallel)
+├── ruff check --fix → Python lint issues
+├── mypy → Python type errors
+├── tsc --noEmit → TypeScript errors
+└── eslint → TypeScript lint issues
 
-Phase 3: Deep Analysis (Agents - Slower)
-├── Agent: Data architecture (from /data_check)
-├── Agent: Architecture coherence (from /silo_check)
-├── Agent: Security review (security-auditor)
-└── Agent: Dependency analysis (dependency-manager)
+Phase 3: Deep Analysis (agents, ~3-5 minutes)
+├── Agent: Data architecture (redundancy, normalization, schema)
+├── Agent: Code architecture (DRY, boundaries, patterns)
+├── Agent: Security review (if vulnerabilities found)
+└── Agent: Naming conventions (--deep only)
 
-Phase 4: Cleanup (Interactive)
-├── Dead code removal (from /clean_it)
-├── Orphan file cleanup
-└── Auto-fixable issues
+Phase 4: Cleanup (~2-3 minutes, interactive unless --fix)
+├── Dead code removal (ruff F401/F841)
+├── Orphan file cleanup (with confidence levels)
+├── DRY violation flagging (creates beads, doesn't auto-fix)
+└── Git checkpoint before any mutations
 
 Phase 5: Reporting
-├── Health score calculation
-├── Prioritized findings
-├── Bead creation (HIGH+ only)
+├── Health score calculation (0-100)
+├── Prioritized findings summary
+├── Bead creation (HIGH+ severity only)
+├── History save to docs/audits/YYYY-MM-DD.md
 └── Next steps recommendations
 ```
 
-### Arguments to Support
+---
 
-```
---fix           Auto-apply safe fixes without prompting
---dry-run       Report only, no changes
---quick         Skip deep agent analysis (phases 1-2 only)
---deep          Extra thorough (add naming convention agent)
---focus <area>  Run specific phase: metrics|lint|data|arch|security|cleanup
---no-beads      Don't create beads, report only
---json          Machine-readable output
---ci            CI mode (exit codes, no interactive)
-```
-
-### Health Score Calculation
+## Health Score Formula
 
 ```python
-# Proposed scoring (100 points total)
+# Total: 100 points
 health_score = (
-    duplication_score(max=15) +      # 0-15 based on duplication %
-    complexity_score(max=15) +        # 0-15 based on avg CC
-    maintainability_score(max=10) +   # 0-10 based on MI
-    lint_score(max=10) +              # 0-10 based on lint issues
-    type_score(max=10) +              # 0-10 based on type coverage
-    security_score(max=15) +          # 0-15 based on vulnerabilities
-    architecture_score(max=15) +      # 0-15 based on silo/DRY findings
-    cleanliness_score(max=10)         # 0-10 based on dead code
+    duplication_score(max=15) +      # 15 points, <2% dup = 15, >10% = 0
+    complexity_score(max=15) +        # 15 points, avg CC <5 = 15, >15 = 0
+    maintainability_score(max=10) +   # 10 points, MI >70 = 10, <40 = 0
+    lint_score(max=10) +              # 10 points, 0 issues = 10, >50 = 0
+    type_score(max=10) +              # 10 points, 0 errors = 10
+    security_score(max=15) +          # 15 points, 0 vulns = 15
+    architecture_score(max=15) +      # 15 points, no silos = 15
+    cleanliness_score(max=10)         # 10 points, no dead code = 10
 )
 
 # Grades
-90-100: Excellent
-80-89:  Good
-70-79:  Acceptable
-60-69:  Needs Attention
-<60:    Critical
+90-100: Excellent (A)
+80-89:  Good (B)
+70-79:  Acceptable (C)
+60-69:  Needs Attention (D)
+<60:    Critical (F)
 ```
 
 ---
 
-## Phase 4: Implementation Plan
+## Implementation Checklist
 
-### Step 1: Install New Tools
-```bash
-# Python tools
-pip install radon pip-audit
+### Phase 1: Tool Installation
+- [x] Install radon in backend venv
+- [x] Install pip-audit in backend venv
+- [x] Add to pyproject.toml [dev] deps
+- [ ] Install jscpd globally (needs sudo)
 
-# Node tools
-npm install -g jscpd
+### Phase 2: Wrapper Scripts
+- [ ] Create check-duplication.sh (jscpd wrapper)
+- [ ] Create check-complexity.sh (radon wrapper)
+- [ ] Create check-vulnerabilities.sh (pip-audit + npm audit)
 
-# Verify installation
-radon --version
-jscpd --version
-pip-audit --version
-```
+### Phase 3: Command File
+- [ ] Create .claude/commands/audit_it.md
+- [ ] Implement all 6 phases
+- [ ] Add argument parsing
+- [ ] Add health score calculation
+- [ ] Add history save logic
 
-### Step 2: Create Integration Scripts
-```bash
-# New scripts to add to .claude/skills/code-quality/scripts/
-check-duplication.sh    # Wrapper for jscpd
-check-complexity.sh     # Wrapper for radon cc
-check-maintainability.sh # Wrapper for radon mi
-check-vulnerabilities.sh # Wrapper for pip-audit + npm audit
-```
+### Phase 4: Cleanup
+- [ ] Delete .claude/commands/data_check.md
+- [ ] Delete .claude/commands/silo_check.md
+- [ ] Delete .claude/commands/clean_it.md
+- [ ] Update CLAUDE.md command table
+- [ ] Update AGENTS.md references
+- [ ] Update architecture-coherence.md references
+- [ ] Update review_files.md references
+- [ ] Update docs/core/COMMAND_REFERENCE.md
 
-### Step 3: Create Command File
-```
-.claude/commands/audit_it.md
-├── Argument parsing
-├── Phase orchestration
-├── Agent spawning
-├── Result aggregation
-├── Health score calculation
-├── Bead creation logic
-└── Report generation
-```
-
-### Step 4: Update Existing Commands
-- `/data_check` - Add flag to run as sub-phase of /audit_it
-- `/silo_check` - Add flag to run as sub-phase of /audit_it
-- `/clean_it` - Add flag to run as sub-phase of /audit_it
-
-### Step 5: Documentation
-- Update CLAUDE.md with /audit_it reference
-- Create docs/commands/audit_it.md with full documentation
-- Add to command table in CLAUDE.md
+### Phase 5: Testing
+- [ ] Test: audit_it (full run)
+- [ ] Test: audit_it --dry-run
+- [ ] Test: audit_it --quick
+- [ ] Test: audit_it --fix
+- [ ] Test: audit_it --focus metrics
 
 ---
 
-## Phase 5: Testing & Validation
+## Files Summary
 
-### Test Scenarios
-1. `audit_it` - Full run, verify all phases execute
-2. `audit_it --dry-run` - Verify no changes made
-3. `audit_it --quick` - Verify only fast phases run
-4. `audit_it --fix` - Verify auto-fixes applied correctly
-5. `audit_it --focus metrics` - Verify single phase works
-6. `audit_it --ci` - Verify CI-appropriate output and exit codes
+### To Create
+| File | Purpose | Lines |
+|------|---------|-------|
+| `.claude/commands/audit_it.md` | Main unified command | ~500 |
+| `.claude/skills/code-quality/scripts/check-duplication.sh` | jscpd wrapper | ~50 |
+| `.claude/skills/code-quality/scripts/check-complexity.sh` | radon wrapper | ~60 |
+| `.claude/skills/code-quality/scripts/check-vulnerabilities.sh` | pip-audit + npm audit | ~80 |
+| `docs/audits/.gitkeep` | History directory | 0 |
 
-### Acceptance Criteria
-- [ ] All 6 phases complete without error
-- [ ] Health score calculated and displayed
-- [ ] Beads created only for HIGH+ severity
-- [ ] No duplicate beads on repeated runs
-- [ ] Runtime < 10 minutes for full audit
-- [ ] Runtime < 2 minutes for --quick mode
-- [ ] Clear, actionable output
+### To Delete
+- `.claude/commands/data_check.md`
+- `.claude/commands/silo_check.md`
+- `.claude/commands/clean_it.md`
 
----
-
-## Questions to Resolve During Exploration
-
-1. **Bead Deduplication**: How to prevent creating duplicate beads if audit is run repeatedly?
-   - Option A: Check existing beads before creating
-   - Option B: Use deterministic bead IDs based on finding hash
-   - Option C: Mark beads with audit date, close old ones
-
-2. **Agent Parallelization**: Can data_check and silo_check agents run simultaneously?
-   - Need to verify no resource conflicts
-   - May need to stagger if both hit same files
-
-3. **Threshold Configuration**: Where should thresholds live?
-   - Option A: Hardcoded in command file
-   - Option B: .claude/config/audit-thresholds.yaml
-   - Option C: Environment variables
-
-4. **Historical Tracking**: Should audit results be persisted?
-   - Option A: Save to docs/audits/YYYY-MM-DD.md
-   - Option B: Save to database table
-   - Option C: Just display, don't persist
-
-5. **Cleanup Automation**: Should cleanup be automatic or interactive?
-   - Recommendation: Interactive by default, --fix for auto
+### To Update
+- `CLAUDE.md` - Command table
+- `AGENTS.md` - /silo_check reference
+- `.claude/rules/architecture-coherence.md` - /silo_check reference
+- `.claude/commands/review_files.md` - /clean_it reference
+- `docs/core/COMMAND_REFERENCE.md` - /data_check docs
+- `backend/pyproject.toml` - Already done
 
 ---
 
-## Deliverables
+## Bead Deduplication Strategy
 
-1. **New Scripts** (in .claude/skills/code-quality/scripts/):
-   - [ ] check-duplication.sh
-   - [ ] check-complexity.sh
-   - [ ] check-maintainability.sh
-   - [ ] check-vulnerabilities.sh
+To avoid duplicate beads on repeated runs:
 
-2. **New Command**:
-   - [ ] .claude/commands/audit_it.md
+1. **Before creating bead**, check existing open beads:
+   ```bash
+   bd list --status open --json | jq -r '.[] | "\(.id) \(.title)"'
+   ```
 
-3. **Documentation**:
-   - [ ] Updated CLAUDE.md
-   - [ ] docs/commands/audit_it.md (detailed guide)
+2. **Match by location hash**: Generate deterministic ID from finding location
+   ```
+   hash = sha256(f"{issue_type}:{file_path}:{line_start}")[:8]
+   title = f"Audit: {description} [{hash}]"
+   ```
 
-4. **Dependencies**:
-   - [ ] radon added to backend/pyproject.toml [dev]
-   - [ ] jscpd documented in package.json or README
+3. **Update if exists**: If bead with same hash exists, update notes instead of creating new
+
+4. **Age out stale beads**: Flag beads not found in latest audit as "may be resolved"
 
 ---
 
-## Execution Instructions
+## History File Format
 
-When working on this task:
+`docs/audits/YYYY-MM-DD.md`:
 
-1. **Start with Phase 1 exploration** - Launch all 5 agents in parallel
-2. **Wait for all agents to complete** before proceeding
-3. **Synthesize findings** into gap analysis
-4. **Present design to user** for approval before implementation
-5. **Implement incrementally** - scripts first, then command, then docs
-6. **Test each phase** before moving to next
-7. **Create bead for any blockers** discovered during implementation
+```markdown
+# Codebase Audit - YYYY-MM-DD HH:MM
+
+## Health Score: 78/100 (C - Acceptable)
+
+### Metrics Summary
+| Metric | Value | Score |
+|--------|-------|-------|
+| Duplication | 3.2% | 12/15 |
+| Avg Complexity | 7.3 | 11/15 |
+| Maintainability | 68.5 | 7/10 |
+| Lint Issues | 12 | 8/10 |
+| Type Errors | 0 | 10/10 |
+| Vulnerabilities | 2 (1 high) | 10/15 |
+| Architecture | 3 issues | 10/15 |
+| Dead Code | 5 files | 8/10 |
+
+### Critical/High Findings
+1. **[CRITICAL]** SQL injection risk in `backend/app/api/search.py:145`
+2. **[HIGH]** Duplicate function `format_date` in 3 locations
+3. **[HIGH]** High vulnerability in `requests` package
+
+### Beads Created
+- portfolio-ai-XXX: Audit: SQL injection risk [a1b2c3d4]
+- portfolio-ai-YYY: Audit: Duplicate format_date [e5f6g7h8]
+
+### Comparison to Previous
+- Health score: 78 (was 75, +3)
+- Duplication: 3.2% (was 4.1%, -0.9%)
+- Vulnerabilities: 2 (was 3, -1)
+```
 
 ---
 
 ## Notes
 
-- This is a LARGE task, expect 4-6 hours of work
-- Can be split into sub-tasks if needed
-- User preference: Single comprehensive command over multiple smaller ones
-- Existing commands should remain functional (backward compatibility)
-- New command should be the "recommended" approach going forward
+- Remaining commands after consolidation: `/next_it`, `/verify_it`, `/test_it`, `/back_it`, `/update_it`, `/review_files`
+- `/audit_it` becomes the recommended first step for codebase health checks
+- Historical archives in tasks/archive/ remain as-is (historical record)
 
 ---
 
-**Version**: 1.0.0
+**Version**: 2.0.0
 **Author**: Claude
 **Last Updated**: 2025-12-16
