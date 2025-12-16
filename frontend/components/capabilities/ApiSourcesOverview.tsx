@@ -225,7 +225,7 @@ export function ApiSourcesOverview() {
 
                   {/* Capabilities */}
                   <div className="flex gap-1">
-                    {provider.capabilities.map((cap) => (
+                    {provider.capabilities?.map((cap) => (
                       <div
                         key={cap}
                         className="flex items-center justify-center w-6 h-6 rounded bg-surface-muted"
@@ -237,9 +237,9 @@ export function ApiSourcesOverview() {
                   </div>
 
                   {/* GAP Coverage */}
-                  {provider.gapCoverage.length > 0 && (
+                  {(provider.gapCoverage?.length ?? 0) > 0 && (
                     <div className="flex gap-1 flex-wrap max-w-[200px]">
-                      {provider.gapCoverage.slice(0, 3).map((gap) => (
+                      {provider.gapCoverage?.slice(0, 3).map((gap) => (
                         <Badge
                           key={gap}
                           variant="outline"
@@ -248,9 +248,9 @@ export function ApiSourcesOverview() {
                           {gap}
                         </Badge>
                       ))}
-                      {provider.gapCoverage.length > 3 && (
+                      {(provider.gapCoverage?.length ?? 0) > 3 && (
                         <Badge variant="outline" className="text-xs">
-                          +{provider.gapCoverage.length - 3}
+                          +{(provider.gapCoverage?.length ?? 0) - 3}
                         </Badge>
                       )}
                     </div>
@@ -282,13 +282,13 @@ export function ApiSourcesOverview() {
                       </div>
 
                       {/* GAP Coverage Details */}
-                      {provider.gapCoverage.length > 0 && (
+                      {(provider.gapCoverage?.length ?? 0) > 0 && (
                         <div>
                           <h4 className="text-sm font-medium text-foreground mb-2">
                             GAP Coverage
                           </h4>
                           <div className="flex flex-wrap gap-2">
-                            {provider.gapCoverage.map((gap) => (
+                            {provider.gapCoverage?.map((gap) => (
                               <Badge
                                 key={gap}
                                 variant="outline"
