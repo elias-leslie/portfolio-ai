@@ -6,26 +6,21 @@ import time
 from datetime import UTC, datetime
 from typing import Literal
 
+from pydantic import BaseModel
+
 from app.logging_config import get_logger
 from app.storage import PortfolioStorage
 
 logger = get_logger(__name__)
 
 
-class CheckResult:
+class CheckResult(BaseModel):
     """Individual health check result."""
 
-    def __init__(
-        self,
-        status: Literal["ok", "degraded", "down"],
-        latency_ms: int | None = None,
-        last_success: datetime | None = None,
-        message: str | None = None,
-    ):
-        self.status = status
-        self.latency_ms = latency_ms
-        self.last_success = last_success
-        self.message = message
+    status: Literal["ok", "degraded", "down"]
+    latency_ms: int | None = None
+    last_success: datetime | None = None
+    message: str | None = None
 
 
 def check_database(storage: PortfolioStorage) -> CheckResult:

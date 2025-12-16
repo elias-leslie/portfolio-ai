@@ -6,6 +6,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from pydantic import BaseModel
+
 from app.logging_config import get_logger
 from app.storage import PortfolioStorage
 from app.utils.quota_helpers import build_quota_info, is_api_key_configured
@@ -13,48 +15,37 @@ from app.utils.quota_helpers import build_quota_info, is_api_key_configured
 logger = get_logger(__name__)
 
 
-class CacheStats:
+class CacheStats(BaseModel):
     """Price cache statistics."""
 
-    def __init__(self, total_cached: int, cache_age_minutes: float | None = None):
-        self.total_cached = total_cached
-        self.cache_age_minutes = cache_age_minutes
+    total_cached: int
+    cache_age_minutes: float | None = None
 
 
-class APIQuotaInfo:
+class APIQuotaInfo(BaseModel):
     """API quota information for external data sources."""
 
-    def __init__(
-        self,
-        source_name: str,
-        configured: bool,
-        rate_limit: str | None = None,
-        daily_limit: str | None = None,
-        estimated_capacity: int | None = None,
-    ):
-        self.source_name = source_name
-        self.configured = configured
-        self.rate_limit = rate_limit
-        self.daily_limit = daily_limit
-        self.estimated_capacity = estimated_capacity
+    source_name: str
+    configured: bool
+    rate_limit: str | None = None
+    daily_limit: str | None = None
+    estimated_capacity: int | None = None
 
 
-class DayBarFreshness:
+class DayBarFreshness(BaseModel):
     """Freshness data for a symbol's day_bars."""
 
-    def __init__(self, symbol: str, last_updated: datetime | None, age_days: int | None):
-        self.symbol = symbol
-        self.last_updated = last_updated
-        self.age_days = age_days
+    symbol: str
+    last_updated: datetime | None = None
+    age_days: int | None = None
 
 
-class APIKeyStatus:
+class APIKeyStatus(BaseModel):
     """API key configuration and validation status."""
 
-    def __init__(self, source: str, configured: bool, env_var: str):
-        self.source = source
-        self.configured = configured
-        self.env_var = env_var
+    source: str
+    configured: bool
+    env_var: str
 
 
 def get_cache_stats(storage: PortfolioStorage) -> CacheStats:

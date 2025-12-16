@@ -5,82 +5,52 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
+from pydantic import BaseModel
+
 from app.logging_config import get_logger
 from app.storage import PortfolioStorage
 
 logger = get_logger(__name__)
 
 
-class SourceHealthCheck:
+class SourceHealthCheck(BaseModel):
     """Health check for individual data source."""
 
-    def __init__(
-        self,
-        status: Literal["ok", "degraded", "down"],
-        last_success: datetime | None = None,
-        success_rate: float | None = None,
-        avg_latency_ms: int | None = None,
-        rate_limit_hits: int = 0,
-        in_cooldown: bool = False,
-        cooldown_remaining_seconds: int = 0,
-    ):
-        self.status = status
-        self.last_success = last_success
-        self.success_rate = success_rate
-        self.avg_latency_ms = avg_latency_ms
-        self.rate_limit_hits = rate_limit_hits
-        self.in_cooldown = in_cooldown
-        self.cooldown_remaining_seconds = cooldown_remaining_seconds
+    status: Literal["ok", "degraded", "down"]
+    last_success: datetime | None = None
+    success_rate: float | None = None
+    avg_latency_ms: int | None = None
+    rate_limit_hits: int = 0
+    in_cooldown: bool = False
+    cooldown_remaining_seconds: int = 0
 
 
-class AgentStats:
+class AgentStats(BaseModel):
     """Agent execution statistics."""
 
-    def __init__(
-        self,
-        total_runs: int,
-        completed_runs: int,
-        failed_runs: int,
-        avg_duration_s: float | None = None,
-        avg_cost_usd: float | None = None,
-    ):
-        self.total_runs = total_runs
-        self.completed_runs = completed_runs
-        self.failed_runs = failed_runs
-        self.avg_duration_s = avg_duration_s
-        self.avg_cost_usd = avg_cost_usd
+    total_runs: int
+    completed_runs: int
+    failed_runs: int
+    avg_duration_s: float | None = None
+    avg_cost_usd: float | None = None
 
 
-class WatchlistStats:
+class WatchlistStats(BaseModel):
     """Watchlist statistics."""
 
-    def __init__(
-        self,
-        total_items: int,
-        last_refresh: datetime | None = None,
-        refresh_age_minutes: float | None = None,
-        items_with_scores: int = 0,
-    ):
-        self.total_items = total_items
-        self.last_refresh = last_refresh
-        self.refresh_age_minutes = refresh_age_minutes
-        self.items_with_scores = items_with_scores
+    total_items: int
+    last_refresh: datetime | None = None
+    refresh_age_minutes: float | None = None
+    items_with_scores: int = 0
 
 
-class CeleryWorkerInfo:
+class CeleryWorkerInfo(BaseModel):
     """Celery worker status information."""
 
-    def __init__(
-        self,
-        active: bool,
-        pool_size: int | None = None,
-        active_tasks: int | None = None,
-        message: str = "",
-    ):
-        self.active = active
-        self.pool_size = pool_size
-        self.active_tasks = active_tasks
-        self.message = message
+    active: bool
+    pool_size: int | None = None
+    active_tasks: int | None = None
+    message: str = ""
 
 
 def _get_news_cache_timestamp(storage: PortfolioStorage) -> datetime | None:
