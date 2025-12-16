@@ -2,6 +2,7 @@
 
 import { Fragment, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/api/client";
 import {
   Table,
   TableBody,
@@ -83,21 +84,13 @@ export function VisionGoalsTab() {
   // Fetch all vision goals
   const { data: goalsData, isLoading: goalsLoading } = useQuery<VisionGoal[]>({
     queryKey: ["vision-goals"],
-    queryFn: async () => {
-      const response = await fetch("/api/vision-goals");
-      if (!response.ok) throw new Error("Failed to fetch vision goals");
-      return response.json();
-    },
+    queryFn: () => apiRequest<VisionGoal[]>("/api/vision-goals"),
   });
 
   // Fetch vision content (mission, principles, roadmap)
   const { data: visionContent, isLoading: contentLoading } = useQuery<VisionContentResponse>({
     queryKey: ["vision-content"],
-    queryFn: async () => {
-      const response = await fetch("/api/vision");
-      if (!response.ok) throw new Error("Failed to fetch vision content");
-      return response.json();
-    },
+    queryFn: () => apiRequest<VisionContentResponse>("/api/vision"),
   });
 
   // Toggle goal expansion
@@ -446,20 +439,18 @@ export function VisionGoalsTab() {
 function ExpandedGoalContent({ code, description }: { code: string; description: string | null }) {
   const { data: goalDetail, isLoading: detailLoading } = useQuery<VisionGoalDetail>({
     queryKey: ["vision-goal", code],
-    queryFn: async () => {
-      const response = await fetch(`/api/vision-goals/${code}`);
-      if (!response.ok) throw new Error("Failed to fetch goal details");
-      return response.json();
-    },
+    queryFn: () => apiRequest<VisionGoalDetail>(`/api/vision-goals/${code}`),
   });
 
   // Fetch goal details (objectives, features, success criteria)
   const { data: goalDetails } = useQuery<GoalDetail[]>({
     queryKey: ["vision-goal-details", code],
     queryFn: async () => {
-      const response = await fetch(`/api/vision-goals/${code}/details`);
-      if (!response.ok) return [];
-      return response.json();
+      try {
+        return await apiRequest<GoalDetail[]>(`/api/vision-goals/${code}/details`);
+      } catch {
+        return [];
+      }
     },
   });
 
