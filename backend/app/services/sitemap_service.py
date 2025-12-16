@@ -947,9 +947,12 @@ class SitemapService:
         method = entry["method"]
 
         # Build URL - substitute path parameters with test values
+        # Any path with {param} gets a generic test value
         test_path = path
-        if "{symbol}" in path:
-            test_path = path.replace("{symbol}", "SPY")
+        has_path_params = "{" in path
+        if has_path_params:
+            # Substitute all path parameters with test values
+            test_path = re.sub(r"\{[^}]+\}", "test-probe-value", path)
 
         host = FRONTEND_HOST if port == self.frontend_port else BACKEND_HOST
         url = f"http://{host}:{port}{test_path}"
@@ -966,6 +969,11 @@ class SitemapService:
         is_mutating = method in ("POST", "PUT", "DELETE", "PATCH")
         skip_reason = should_skip_health_check(path)  # Only for circular-risk endpoints
         probe_pattern = should_probe_check(path)  # Expensive endpoints get probe check
+
+        # Path parameter endpoints should ALWAYS use probe logic
+        # Any response (even 500) proves route exists - we're just calling with test data
+        if has_path_params and not probe_pattern:
+            probe_pattern = "path-param"  # Mark as probe due to path params
 
         # 1. Skip entirely: streaming, mutating, or circular-risk endpoints
         if is_streaming or is_mutating or skip_reason:
@@ -1018,14 +1026,18 @@ class SitemapService:
 
                 if is_probe:
                     # PROBE CHECK: Any response = route exists = not down
-                    # Only 5xx is a real error (server problem)
-                    # 4xx (400, 404, 422) means route exists but needs valid input
-                    if response.status_code >= 500:
+                    # For path-param endpoints: ANY response (even 500) = route exists
+                    #   because 500 with test data just means "invalid ID", not "server broken"
+                    # For expensive endpoints: 5xx is still an error (server problem)
+                    is_path_param_probe = probe_pattern == "path-param"
+
+                    if response.status_code >= 500 and not is_path_param_probe:
+                        # Expensive endpoint returned 5xx = actual server error
                         is_error = True
                         last_error_message = f"HTTP {response.status_code}"
                     else:
                         # Route exists! Record the status for visibility
-                        last_error_message = f"Probe OK ({probe_pattern})"
+                        last_error_message = f"Probe OK ({probe_pattern}) - HTTP {response.status_code}"
                 else:  # noqa: PLR5501 - intentional nesting for clarity
                     # NORMAL CHECK: More strict validation
                     # 5xx = server error
