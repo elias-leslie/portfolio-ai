@@ -33,6 +33,79 @@ HTTP_TIMEOUT = 10  # seconds
 FRONTEND_HOST = "192.168.8.233"  # Network IP for SSR routing
 BACKEND_HOST = "localhost"
 
+# Endpoints to skip during health checks (even for GET requests)
+# These endpoints either:
+# - Trigger external API calls (expensive)
+# - Do heavy computation
+# - Have path parameters without safe test values
+# - Could trigger side effects even on GET
+SKIP_HEALTH_CHECK_PATTERNS: list[str] = [
+    # Market data endpoints - trigger external API calls
+    "/api/market/intelligence",  # Fetches live market data from yfinance/polygon
+    "/api/market/prices",  # Fetches live prices
+    "/api/market/movers",  # Fetches market movers
+    "/api/market/status",  # May fetch external data
+    # Symbol intelligence - potentially expensive
+    "/api/symbols/{symbol}/intelligence",  # Heavy aggregation
+    # Analytics endpoints with symbol params - expensive external fetches
+    "/api/analytics/rvol/",  # Fetches historical data
+    "/api/analytics/peers/",  # Fetches peer data
+    "/api/analytics/short-interest/",  # Fetches short interest
+    "/api/analytics/cash-flow/",  # Fetches financial data
+    "/api/analytics/insider-transactions/",  # Fetches insider data
+    "/api/analytics/institutional-holdings/",  # Fetches holdings data
+    # News endpoints - may trigger external fetches
+    "/api/news/intelligence",  # Fetches news from APIs
+    # Valuation endpoints - expensive calculations
+    "/api/valuation/metrics",
+    # Health endpoints - avoid circular calls
+    "/api/health/detailed",  # This endpoint does heavy checks
+    "/health",  # Skip all health endpoints
+    # Celery endpoints - may interact with worker
+    "/api/celery/",  # Celery inspection can be slow
+    # Backup endpoints - may trigger filesystem operations
+    "/api/backup/status",
+    "/api/backup/latest",
+    # ML endpoints - expensive operations
+    "/api/ml/",
+    # Backtest endpoints - heavy computation
+    "/api/backtest/run",
+]
+
+def should_skip_health_check(path: str) -> str | None:
+    """Check if a path should be skipped during health checks.
+
+    Supports both exact matches and pattern matching with path parameters.
+    Pattern like '/api/symbols/{symbol}/intelligence' matches '/api/symbols/AAPL/intelligence'.
+
+    Args:
+        path: The endpoint path to check
+
+    Returns:
+        Skip reason string if should skip, None otherwise
+    """
+    for pattern in SKIP_HEALTH_CHECK_PATTERNS:
+        # Check for exact match
+        if path == pattern:
+            return f"Skipped (expensive: {pattern})"
+
+        # Check for prefix match (patterns ending with /)
+        if pattern.endswith("/") and path.startswith(pattern):
+            return f"Skipped (expensive: {pattern})"
+
+        # Check for path parameter patterns like {symbol}
+        if "{" in pattern:
+            # Convert pattern to regex: /api/symbols/{symbol}/intelligence -> /api/symbols/[^/]+/intelligence
+            regex_pattern = re.sub(r"\{[^}]+\}", r"[^/]+", pattern)
+            if re.fullmatch(regex_pattern, path):
+                return f"Skipped (expensive: {pattern})"
+
+        # Simple prefix match for patterns without trailing /
+        if not pattern.endswith("/") and path.startswith(pattern + "/"):
+            return f"Skipped (expensive: {pattern})"
+
+    return None
+
 
 @dataclass
 class DiscoveredPort:
@@ -856,13 +929,20 @@ class SitemapService:
 
         # Skip streaming endpoints (SSE, WebSocket) - they never complete
         # Also skip POST/PUT/DELETE - they may trigger side effects
+        # Also skip expensive GET endpoints that trigger external API calls
         is_streaming = "/stream" in path or "/ws" in path.lower() or method == "WS"
         is_mutating = method in ("POST", "PUT", "DELETE", "PATCH")
+        expensive_skip_reason = should_skip_health_check(path)
 
-        if is_streaming or is_mutating:
+        if is_streaming or is_mutating or expensive_skip_reason:
             health_status = "healthy"
             http_status = 0  # Indicates skipped, not actually checked
-            skip_reason = "Skipped (streaming)" if is_streaming else "Skipped (mutating method)"
+            if is_streaming:
+                skip_reason = "Skipped (streaming)"
+            elif is_mutating:
+                skip_reason = "Skipped (mutating method)"
+            else:
+                skip_reason = expensive_skip_reason
             # Update entry and return early
             with self.conn_mgr.connection() as conn:
                 conn.execute("""
