@@ -518,7 +518,7 @@ async def get_cache_status() -> CacheStatusResponse:
         ) from e
 
 
-@router.get("/dry-run-report")
+@router.post("/dry-run-report")
 async def get_dry_run_report(timeout: int = 60) -> DryRunReportResponse:
     """Generate a comprehensive dry-run report for all cleanup tasks.
 
