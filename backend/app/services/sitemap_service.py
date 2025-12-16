@@ -854,11 +854,15 @@ class SitemapService:
         error_details: dict[str, Any] = {}
         last_error_message = None
 
-        # Skip POST/PUT/DELETE - they may trigger side effects (tasks, data changes)
-        # Mark as healthy since route exists (discovered from OpenAPI)
-        if method in ("POST", "PUT", "DELETE", "PATCH"):
+        # Skip streaming endpoints (SSE, WebSocket) - they never complete
+        # Also skip POST/PUT/DELETE - they may trigger side effects
+        is_streaming = "/stream" in path or "/ws" in path.lower() or method == "WS"
+        is_mutating = method in ("POST", "PUT", "DELETE", "PATCH")
+
+        if is_streaming or is_mutating:
             health_status = "healthy"
             http_status = 0  # Indicates skipped, not actually checked
+            skip_reason = "Skipped (streaming)" if is_streaming else "Skipped (mutating method)"
             # Update entry and return early
             with self.conn_mgr.connection() as conn:
                 conn.execute("""
@@ -869,7 +873,8 @@ class SitemapService:
                         last_checked_at = NOW(),
                         updated_at = NOW()
                     WHERE id = %s
-                """, [health_status, http_status, "Skipped (mutating method)", entry_id])
+                """, [health_status, http_status, skip_reason, entry_id])
+                conn.commit()
             return {
                 "success": True,
                 "entry_id": entry_id,
