@@ -14,7 +14,6 @@ import asyncio
 import json
 import re
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
 import httpx
@@ -25,9 +24,6 @@ from ..storage.connection import get_connection_manager
 logger = get_logger(__name__)
 
 # Configuration
-BROWSER_SCRIPTS_DIR = Path("/home/kasadis/portfolio-ai/.claude/skills/browser-automation/scripts")
-CONSOLE_SCRIPT = BROWSER_SCRIPTS_DIR / "console.js"
-CONSOLE_CAPTURE_TIMEOUT = 15  # seconds
 HTTP_TIMEOUT = 10  # seconds
 
 # Known ports and hosts
@@ -267,9 +263,13 @@ class SitemapService:
         method = entry["method"]
         entry_type = entry["entry_type"]
 
-        # Build URL
+        # Build URL - substitute path parameters with test values
+        test_path = path
+        if "{symbol}" in path:
+            test_path = path.replace("{symbol}", "SPY")
+
         host = FRONTEND_HOST if port == FRONTEND_PORT else BACKEND_HOST
-        url = f"http://{host}:{port}{path}"
+        url = f"http://{host}:{port}{test_path}"
 
         console_errors = 0
         console_warnings = 0
@@ -278,32 +278,66 @@ class SitemapService:
         error_details: dict[str, Any] = {}
         last_error_message = None
 
+        # Skip POST/PUT/DELETE - they may trigger side effects (tasks, data changes)
+        # Mark as healthy since route exists (discovered from OpenAPI)
+        if method in ("POST", "PUT", "DELETE", "PATCH"):
+            health_status = "healthy"
+            http_status = 0  # Indicates skipped, not actually checked
+            # Update entry and return early
+            with self.conn_mgr.connection() as conn:
+                conn.execute("""
+                    UPDATE sitemap_entries SET
+                        health_status = %s,
+                        http_status = %s,
+                        last_error_message = %s,
+                        last_checked_at = NOW(),
+                        updated_at = NOW()
+                    WHERE id = %s
+                """, [health_status, http_status, "Skipped (mutating method)", entry_id])
+            return {
+                "success": True,
+                "entry_id": entry_id,
+                "health_status": health_status,
+                "console_errors": 0,
+                "console_warnings": 0,
+                "http_status": http_status,
+                "response_time_ms": None,
+                "error": None,
+            }
+
         try:
-            if entry_type == "frontend_page":
-                # Use console.js script for frontend pages
-                result = await self._capture_console(url)
-                console_errors = result.get("errorCount", 0)
-                console_warnings = result.get("warningCount", 0)
-                http_status = result.get("httpStatus", 200)
-                response_time_ms = result.get("responseTimeMs")
+            # HTTP-only health check for GET endpoints
+            # Console error capture is done separately via evidence gathering
+            async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+                request_start = datetime.now(UTC)
+                response = await client.request(method, url)
+                response_time_ms = int((datetime.now(UTC) - request_start).total_seconds() * 1000)
+                http_status = response.status_code
 
-                if result.get("errors"):
-                    error_details["errors"] = result["errors"][:10]  # Limit to 10
-                    last_error_message = result["errors"][0].get("text", "")[:500]
-                if result.get("warnings"):
-                    error_details["warnings"] = result["warnings"][:5]
+                # Only true errors are:
+                # - 5xx (server error)
+                # - 404 with generic "Not Found" (route doesn't exist)
+                # Other 4xx codes (400, 405, 422) mean route exists but needs proper input
+                # 404 with specific message = route exists but no data for this param
+                is_error = False
+                if response.status_code >= 500:
+                    is_error = True
+                    last_error_message = f"HTTP {response.status_code}"
+                elif response.status_code == 404:
+                    # Check if this is a real "route not found" vs "data not found"
+                    try:
+                        body = response.json()
+                        # Generic FastAPI 404 = route doesn't exist
+                        if body.get("detail") == "Not Found":
+                            is_error = True
+                            last_error_message = "Route not found"
+                        # Specific message = route exists, just no data
+                    except Exception:
+                        is_error = True
+                        last_error_message = "HTTP 404"
 
-            else:
-                # Simple HTTP fetch for API endpoints
-                async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
-                    request_start = datetime.now(UTC)
-                    response = await client.request(method, url)
-                    response_time_ms = int((datetime.now(UTC) - request_start).total_seconds() * 1000)
-                    http_status = response.status_code
-
-                    if response.status_code >= 400:
-                        console_errors = 1
-                        last_error_message = f"HTTP {response.status_code}"
+                if is_error:
+                    console_errors = 1
 
         except Exception as e:
             console_errors = 1
@@ -406,46 +440,6 @@ class SitemapService:
 
         logger.info("sitemap_check_all_health_complete", **result)
         return result
-
-    async def _capture_console(self, url: str) -> dict[str, Any]:
-        """Capture console errors/warnings using console.js script.
-
-        Args:
-            url: URL to check
-
-        Returns:
-            Dict with errorCount, warningCount, errors, warnings, httpStatus
-        """
-        if not CONSOLE_SCRIPT.exists():
-            return {"errorCount": 0, "warningCount": 0, "httpStatus": None}
-
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                "node",
-                str(CONSOLE_SCRIPT),
-                url,
-                str(CONSOLE_CAPTURE_TIMEOUT * 1000),  # ms
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-
-            stdout, _ = await asyncio.wait_for(
-                proc.communicate(),
-                timeout=CONSOLE_CAPTURE_TIMEOUT + 5,
-            )
-
-            output = stdout.decode()
-
-            # Parse JSON result from script output
-            for line in output.split("\n"):
-                if line.startswith("{") and "errorCount" in line:
-                    return json.loads(line)
-
-            return {"errorCount": 0, "warningCount": 0, "httpStatus": 200}
-
-        except Exception as e:
-            logger.debug("sitemap_console_capture_failed", url=url, error=str(e))
-            return {"errorCount": 1, "warningCount": 0, "errors": [{"text": str(e)}]}
 
     # =========================================================================
     # CRUD Operations

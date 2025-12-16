@@ -103,13 +103,12 @@ def get_beat_schedule() -> dict[str, object]:
         # },
         "refresh-news-sentiment": {
             "task": "refresh_news_sentiment",
-            "schedule": 65.0,  # Poll every 65 seconds (5s offset from watchlist)
+            "schedule": 1800.0,  # Poll every 30 minutes (was 65s - too aggressive, caused CPU spikes)
             "args": ["default"],
-            "options": {"expires": 120},
+            "options": {"expires": 1700},  # Slightly less than schedule interval
             # Notes:
+            # - Changed from 65s to 30min to reduce Gemini API load and CPU usage
             # - Task checks: news_refresh_override → default_refresh_minutes → 15 min
-            # - 5-second offset reduces contention with watchlist refresh
-            # - Still allows concurrent execution when both tasks need to run
             # - Uses optimized JOIN query from Issue #5 fix
         },
         # ============================================================================
@@ -522,17 +521,16 @@ def get_beat_schedule() -> dict[str, object]:
         # ============================================================================
         "verify-acceptance-criteria": {
             "task": "verify_all_acceptance_criteria",
-            "schedule": crontab(hour=5, minute=0),  # Daily at 05:00 UTC
-            "options": {"expires": 3600},  # Task expires after 1 hour
+            "schedule": crontab(hour=5, minute=0, day_of_week=0),  # Weekly on Sunday at 05:00 UTC
+            "options": {"expires": 7200},  # 2 hour expiry for thorough check
             # Notes:
-            # - Runs daily at 05:00 UTC (after all data refresh tasks complete)
+            # - Changed from daily to weekly to reduce Playwright/browser load
+            # - On-demand available via POST /api/capabilities/verify-all
             # - Auto-verifies acceptance criteria by type:
             #   * API criteria: Makes HTTP requests, checks status codes
             #   * Test criteria: Runs pytest tests
             #   * UI criteria: Takes screenshots via browser automation
             # - Updates passed/verified_at/verification_output in database
-            # - Records run history in criteria_verification_runs table
-            # - Manual criteria types (backend, quality, db) are skipped
         },
         # Daily gap analysis workflow removed - migrated to feature-based tracking
         # ============================================================================
@@ -963,16 +961,19 @@ def get_beat_schedule() -> dict[str, object]:
         # ============================================================================
         # Dynamic endpoint discovery and health monitoring for all URLs
         # ============================================================================
-        "check-sitemap-health": {
+        "check-sitemap-health-morning": {
             "task": "check_sitemap_health",
-            "schedule": 3600.0,  # Every 1 hour
+            "schedule": crontab(hour=8, minute=0),  # Daily at 08:00 UTC (3 AM ET)
             "options": {"expires": 3000},  # 50-minute expiry
             # Notes:
-            # - Checks HTTP status and console errors for all sitemap entries
-            # - Frontend pages: Uses console.js for console error capture
-            # - API endpoints: Simple HTTP status check
-            # - Updates health_status in sitemap_entries table
-            # - Records history in sitemap_health_history (7-day retention)
+            # - HTTP-only reachability check for all sitemap entries (no Playwright)
+            # - Runs 2x daily (morning + evening) instead of hourly to reduce load
+            # - On-demand available via POST /api/sitemap/check-all
+        },
+        "check-sitemap-health-evening": {
+            "task": "check_sitemap_health",
+            "schedule": crontab(hour=20, minute=0),  # Daily at 20:00 UTC (3 PM ET)
+            "options": {"expires": 3000},
         },
         "discover-sitemap-entries-daily": {
             "task": "discover_sitemap_entries",
@@ -991,5 +992,18 @@ def get_beat_schedule() -> dict[str, object]:
             # - Deletes health history older than 7 days
             # - Keeps sitemap_health_history table size manageable
             # - Can also be triggered manually from Status page maintenance section
+        },
+        # ============================================================================
+        # FILE AUDIT SCAN
+        # ============================================================================
+        "scan-files-daily": {
+            "task": "scan_files",
+            "schedule": crontab(hour=7, minute=30),  # Daily at 07:30 UTC (2:30 AM ET)
+            "options": {"expires": 1800},  # 30-minute expiry
+            # Notes:
+            # - Scans codebase files for audit (LOC, staleness, bloat detection)
+            # - Runs after heavy tasks complete (02:00-07:00 UTC)
+            # - Can also be triggered manually via POST /api/files/scan
+            # - Updates file_audit table with file metrics
         },
     }

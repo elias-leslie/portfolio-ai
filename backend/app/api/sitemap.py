@@ -171,13 +171,19 @@ async def check_entry_health(entry_id: int) -> HealthCheckResponse:
 
 @router.post("/check-all")
 async def check_all_health() -> dict:
-    """Check health of all sitemap entries.
+    """Trigger health check of all sitemap entries.
 
-    This is a manual trigger - normally runs via Celery task hourly.
+    Queues a Celery task to run in background - does not block.
+    The health check spawns Playwright for frontend pages which is resource-intensive.
     """
-    service = SitemapService()
-    result = await service.check_all_health()
-    return {"status": "success", **result}
+    from app.tasks.sitemap_tasks import check_sitemap_health
+
+    task = check_sitemap_health.delay()
+    return {
+        "status": "queued",
+        "task_id": task.id,
+        "message": "Health check queued as background task",
+    }
 
 
 @router.get("/health-summary", response_model=HealthSummaryResponse)
