@@ -14,7 +14,8 @@ import { apiRequest } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 
 interface MarketStatusResponse {
-  status: "open" | "preMarket" | "afterHours" | "closed";
+  // Note: status values are snake_case from backend (string values aren't transformed)
+  status: "open" | "pre_market" | "after_hours" | "closed";
   isOpen: boolean;
   lastTradingDay: string;
   nextTradingDay: string;
@@ -35,12 +36,12 @@ const STATUS_CONFIG = {
     dotColor: "bg-success",
     badgeVariant: "success" as const,
   },
-  preMarket: {
+  pre_market: {
     label: "Pre-Market",
     dotColor: "bg-warning",
     badgeVariant: "warning" as const,
   },
-  afterHours: {
+  after_hours: {
     label: "After Hours",
     dotColor: "bg-warning",
     badgeVariant: "warning" as const,

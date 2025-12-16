@@ -238,11 +238,12 @@ function ActionBadge({ action }: { action: "BUY" | "HOLD" | "SELL" }) {
 }
 
 // Status Badge Component
-function StatusBadge({ status }: { status: "active" | "invalidated" | "flaggedForReview" }) {
+// Note: status values are snake_case from backend (string values aren't transformed)
+function StatusBadge({ status }: { status: "active" | "invalidated" | "flagged_for_review" }) {
     const config = {
         active: { color: "bg-blue-500/10 text-blue-600 border-blue-500/20", label: "Active" },
         invalidated: { color: "bg-gray-500/10 text-gray-600 border-gray-500/20", label: "Invalidated" },
-        flaggedForReview: { color: "bg-orange-500/10 text-orange-600 border-orange-500/20", label: "Flagged" },
+        flagged_for_review: { color: "bg-orange-500/10 text-orange-600 border-orange-500/20", label: "Flagged" },
     };
 
     const { color, label } = config[status];

@@ -41,7 +41,8 @@ export interface Thesis {
     id: string;
     symbol: string;
     version: number;
-    status: "active" | "invalidated" | "flaggedForReview";
+    // Note: status values are snake_case from backend (string values aren't transformed)
+    status: "active" | "invalidated" | "flagged_for_review";
     action: "BUY" | "HOLD" | "SELL";
     coreReasons: CoreReason[];
     keyCatalysts: KeyCatalyst[];
