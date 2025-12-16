@@ -11,6 +11,8 @@ Endpoints:
 - DELETE /api/sitemap/entries/{id} - Remove entry
 - GET /api/sitemap/history-stats - Get history stats for maintenance
 - POST /api/sitemap/cleanup-history - Trigger history cleanup
+- GET /api/sitemap/ports - Get auto-discovered ports from systemd services
+- POST /api/sitemap/ports/refresh - Force refresh port discovery cache
 """
 
 from fastapi import APIRouter, HTTPException, Query
@@ -115,6 +117,24 @@ class CleanupResponse(BaseModel):
     retention_days: int
 
 
+class DiscoveredPortResponse(BaseModel):
+    """Response for a discovered port."""
+
+    port: int
+    service_name: str
+    service_type: str
+    source: str
+    description: str | None
+
+
+class DiscoveredPortsResponse(BaseModel):
+    """Response for all discovered ports."""
+
+    ports: list[DiscoveredPortResponse]
+    backend_port: int
+    frontend_port: int
+
+
 # =========================================================================
 # Endpoints
 # =========================================================================
@@ -176,7 +196,7 @@ async def check_all_health() -> dict:
     Queues a Celery task to run in background - does not block.
     The health check spawns Playwright for frontend pages which is resource-intensive.
     """
-    from app.tasks.sitemap_tasks import check_sitemap_health
+    from app.tasks.sitemap_tasks import check_sitemap_health  # noqa: PLC0415
 
     task = check_sitemap_health.delay()
     return {
@@ -240,3 +260,39 @@ def cleanup_history(days: int = Query(7, ge=1, le=30, description="Days to retai
     service = SitemapService()
     deleted = service.cleanup_old_history(days=days)
     return CleanupResponse(deleted=deleted, retention_days=days)
+
+
+# =========================================================================
+# Port Discovery Endpoints
+# =========================================================================
+
+
+@router.get("/ports", response_model=DiscoveredPortsResponse)
+def get_discovered_ports() -> DiscoveredPortsResponse:
+    """Get all auto-discovered ports from systemd services.
+
+    Discovers portfolio-* services from systemd user services and extracts
+    their port configuration from service files.
+    """
+    service = SitemapService()
+    ports = service.get_discovered_ports()
+    return DiscoveredPortsResponse(
+        ports=ports,  # type: ignore
+        backend_port=service.backend_port,
+        frontend_port=service.frontend_port,
+    )
+
+
+@router.post("/ports/refresh", response_model=DiscoveredPortsResponse)
+def refresh_port_discovery() -> DiscoveredPortsResponse:
+    """Force refresh of port discovery cache.
+
+    Use this after adding/removing/modifying systemd services.
+    """
+    service = SitemapService()
+    ports = service.refresh_port_discovery()
+    return DiscoveredPortsResponse(
+        ports=ports,  # type: ignore
+        backend_port=service.backend_port,
+        frontend_port=service.frontend_port,
+    )
