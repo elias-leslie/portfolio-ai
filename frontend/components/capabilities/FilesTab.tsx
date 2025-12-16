@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { apiRequest, post } from "@/lib/api/client";
 
 // Types
 interface FileSummary {
@@ -86,9 +87,7 @@ type SortDir = "asc" | "desc";
 
 // API functions
 async function fetchSummary(): Promise<FileSummary> {
-  const res = await fetch("/api/files/summary");
-  if (!res.ok) throw new Error("Failed to fetch file summary");
-  return res.json();
+  return apiRequest<FileSummary>("/api/files/summary");
 }
 
 async function fetchChildren(
@@ -104,15 +103,11 @@ async function fetchChildren(
     foldersFirst: String(foldersFirst),
     includeFiles: "true",
   });
-  const res = await fetch(`/api/files/children?${params}`);
-  if (!res.ok) throw new Error("Failed to fetch children");
-  return res.json();
+  return apiRequest<FileNode[]>(`/api/files/children?${params}`);
 }
 
 async function triggerScan(): Promise<{ status: string; message: string }> {
-  const res = await fetch("/api/files/scan", { method: "POST" });
-  if (!res.ok) throw new Error("Failed to trigger scan");
-  return res.json();
+  return post<{ status: string; message: string }>("/api/files/scan");
 }
 
 interface GitCommit {
@@ -133,9 +128,11 @@ interface GitHistory {
 }
 
 async function fetchGitHistory(path: string): Promise<GitHistory> {
-  const res = await fetch(`/api/files/history?path=${encodeURIComponent(path)}&limit=5`);
-  if (!res.ok) return { commits: [], totalCommits: 0, filePath: path, error: "Failed to fetch" };
-  return res.json();
+  try {
+    return await apiRequest<GitHistory>(`/api/files/history?path=${encodeURIComponent(path)}&limit=5`);
+  } catch {
+    return { commits: [], totalCommits: 0, filePath: path, error: "Failed to fetch" };
+  }
 }
 
 interface FilesListResponse {
@@ -163,15 +160,13 @@ async function fetchAllFiles(
     limit: "500",
     offset: "0",
   });
-  const res = await fetch(`/api/files?${params}`);
-  if (!res.ok) throw new Error("Failed to fetch files");
-  const data = await res.json();
+  const data = await apiRequest<FilesListResponse>(`/api/files?${params}`);
   // Transform to match FileNode interface
   return {
     ...data,
-    items: data.items.map((item: Record<string, unknown>) => ({
+    items: data.items.map((item) => ({
       ...item,
-      name: (item.path as string).split("/").pop() || item.path,
+      name: item.path.split("/").pop() || item.path,
       subdirCount: 0,
       directFileCount: 0,
       hasChildren: false,
@@ -180,11 +175,12 @@ async function fetchAllFiles(
 }
 
 // Helper functions
-const formatNumber = (n: number) => n.toLocaleString();
-const formatBytes = (bytes: number) => {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+const formatNumber = (n: number | undefined | null) => (n ?? 0).toLocaleString();
+const formatBytes = (bytes: number | undefined | null) => {
+  const b = bytes ?? 0;
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+  return `${(b / (1024 * 1024)).toFixed(1)} MB`;
 };
 
 const formatDate = (dateStr: string | null) => {

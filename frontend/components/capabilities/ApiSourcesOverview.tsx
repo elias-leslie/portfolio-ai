@@ -216,10 +216,10 @@ export function ApiSourcesOverview() {
                   <div className="text-right">
                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
                       <Clock className="h-3 w-3" />
-                      {formatRateLimit(provider.rateLimits.perMinute, "min")}
+                      {formatRateLimit(provider.rateLimits?.perMinute, "min")}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {formatRateLimit(provider.rateLimits.perDay, "day")}
+                      {formatRateLimit(provider.rateLimits?.perDay, "day")}
                     </div>
                   </div>
 
