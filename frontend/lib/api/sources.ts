@@ -8,7 +8,7 @@
  * - GET /api/sources/routing/{data_type} - Data routing recommendations
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+import { apiRequest } from "./client";
 
 // ========================================================================
 // Types
@@ -108,44 +108,28 @@ export interface GapProvidersResponse {
  * Fetch all API source providers
  */
 export async function fetchSources(): Promise<SourcesResponse> {
-  const response = await fetch(`${API_BASE}/api/sources/`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch sources: ${response.statusText}`);
-  }
-  return response.json();
+  return apiRequest<SourcesResponse>("/api/sources/");
 }
 
 /**
  * Fetch detailed info for a specific provider
  */
 export async function fetchSourceDetail(provider: string): Promise<SourceDetail> {
-  const response = await fetch(`${API_BASE}/api/sources/${provider}`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch source detail: ${response.statusText}`);
-  }
-  return response.json();
+  return apiRequest<SourceDetail>(`/api/sources/${provider}`);
 }
 
 /**
  * Find providers that can address a specific trading gap
  */
 export async function fetchGapProviders(gapId: string): Promise<GapProvidersResponse> {
-  const response = await fetch(`${API_BASE}/api/sources/gap/${gapId}`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch gap providers: ${response.statusText}`);
-  }
-  return response.json();
+  return apiRequest<GapProvidersResponse>(`/api/sources/gap/${gapId}`);
 }
 
 /**
  * Get data routing recommendations for a data type
  */
-export async function fetchDataRouting(dataType: string): Promise<{ data_type: string; routing: DataRouting }> {
-  const response = await fetch(`${API_BASE}/api/sources/routing/${dataType}`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch routing: ${response.statusText}`);
-  }
-  return response.json();
+export async function fetchDataRouting(dataType: string): Promise<{ dataType: string; routing: DataRouting }> {
+  return apiRequest<{ dataType: string; routing: DataRouting }>(`/api/sources/routing/${dataType}`);
 }
 
 /**
