@@ -25,7 +25,7 @@ from app.api import (
     cross_validation,
     db_inspect,
     disagreements,
-    files,
+    # files removed - use SummitFlow for file browsing
     # gaps removed - migrated to [DEBT] subtasks on features
     health,
     # ideas removed - deprecated in favor of strategy-seeds (FEAT-218)
@@ -209,7 +209,7 @@ app.include_router(backup.router)  # Backup management API
 app.include_router(cross_validation.router)  # FEAT-219: Multi-agent cross-validation
 app.include_router(db_inspect.router)  # Database schema inspection for development
 app.include_router(symbols.router)  # Symbol intelligence API for agents
-app.include_router(files.router)  # File audit for codebase complexity
+# files.router removed - use SummitFlow for file browsing
 app.include_router(thesis.router)  # Investment thesis generation and management
 
 

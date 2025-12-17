@@ -24,7 +24,7 @@ import { VisionGoalsTab } from "@/components/capabilities/VisionGoalsTab";
 import { RulesViewer } from "@/components/rules/RulesViewer";
 import { WorkflowCanvas } from "@/components/workflows/WorkflowCanvas";
 // QATab removed - issues disconnected from workflow
-import { FilesTab } from "@/components/capabilities/FilesTab";
+// FilesTab removed - use SummitFlow for file browsing
 import { SitemapTab } from "@/components/capabilities/SitemapTab";
 import {
   RefreshCw,
@@ -39,7 +39,6 @@ import {
   CheckSquare,
   Target,
   GitBranch,
-  FolderTree,
   Map,
 } from "lucide-react";
 import {
@@ -52,7 +51,7 @@ import { fetchHealthSummary as fetchSitemapHealthSummary } from "@/lib/api/sitem
 import { toast } from "sonner";
 import { PageContainer } from "@/components/shared/PageContainer";
 
-type TabValue = "workflows" | "database" | "celery" | "sitemap" | "sources" | "rules" | "files" | "features" | "vision";
+type TabValue = "workflows" | "database" | "celery" | "sitemap" | "sources" | "rules" | "features" | "vision";
 
 function CapabilitiesPageContent() {
   const queryClient = useQueryClient();
@@ -147,7 +146,7 @@ function CapabilitiesPageContent() {
         limit: pageSize,
         offset: page * pageSize,
       }),
-    enabled: activeTab !== "workflows" && activeTab !== "sources" && activeTab !== "rules" && activeTab !== "files" && activeTab !== "features" && activeTab !== "vision" && activeTab !== "sitemap",
+    enabled: activeTab !== "workflows" && activeTab !== "sources" && activeTab !== "rules" && activeTab !== "features" && activeTab !== "vision" && activeTab !== "sitemap",
   });
 
   // Trigger scan mutation
@@ -300,9 +299,9 @@ function CapabilitiesPageContent() {
         }
       />
 
-      {/* Tabs - order: Vision, Features, Workflows, Sources, Rules, Files, DB, Tasks, API */}
+      {/* Tabs - order: Vision, Features, Workflows, Sources, Rules, DB, Tasks, Sitemap */}
       <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as TabValue)}>
-        <TabsList className="grid w-full grid-cols-9">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="vision">
             <Target className="mr-2 h-4 w-4" />
             Vision
@@ -322,10 +321,6 @@ function CapabilitiesPageContent() {
           <TabsTrigger value="rules">
             <BookOpen className="mr-2 h-4 w-4" />
             Rules
-          </TabsTrigger>
-          <TabsTrigger value="files">
-            <FolderTree className="mr-2 h-4 w-4" />
-            Files
           </TabsTrigger>
           <TabsTrigger value="database">
             <Database className="mr-2 h-4 w-4" />
@@ -357,7 +352,7 @@ function CapabilitiesPageContent() {
         </TabsList>
 
         {/* Filters (for capability tabs - not sitemap which has its own filters) */}
-        {activeTab !== "workflows" && activeTab !== "sources" && activeTab !== "rules" && activeTab !== "files" && activeTab !== "features" && activeTab !== "vision" && activeTab !== "sitemap" && (
+        {activeTab !== "workflows" && activeTab !== "sources" && activeTab !== "rules" && activeTab !== "features" && activeTab !== "vision" && activeTab !== "sitemap" && (
           <div className="space-y-3">
             <div className="flex flex-wrap gap-3">
               {/* Search */}
@@ -479,10 +474,7 @@ function CapabilitiesPageContent() {
           <RulesViewer />
         </TabsContent>
 
-        {/* Files Audit Tab */}
-        <TabsContent value="files">
-          <FilesTab />
-        </TabsContent>
+        {/* Files Tab removed - use SummitFlow for file browsing */}
 
         {/* Features Tab */}
         <TabsContent value="features">
@@ -500,7 +492,6 @@ function CapabilitiesPageContent() {
       {activeTab !== "workflows" &&
         activeTab !== "sources" &&
         activeTab !== "rules" &&
-        activeTab !== "files" &&
         activeTab !== "features" &&
         activeTab !== "vision" &&
         activeTab !== "sitemap" &&
