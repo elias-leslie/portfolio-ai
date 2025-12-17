@@ -304,8 +304,8 @@
             "id": "phase-3.4",
             "title": "SummitFlow 3.4: Vision backend",
             "bead_id": "portfolio-ai-5e0",
-            "bead_status": "open",
-            "status": "ready",
+            "bead_status": "closed",
+            "status": "completed",
             "blocked_by": [],
             "source_files": [
                 {
@@ -329,17 +329,17 @@
                 {
                     "id": "3.4.1",
                     "description": "Copy vision_goals_router.py and vision_content_router.py",
-                    "passes": false
+                    "passes": true
                 },
                 {
                     "id": "3.4.2",
                     "description": "Refactor router endpoints to accept project_id",
-                    "passes": false
+                    "passes": true
                 },
                 {
                     "id": "3.4.3",
                     "description": "Verify DB column project_id exists in vision tables",
-                    "passes": false
+                    "passes": true
                 }
             ]
         },
