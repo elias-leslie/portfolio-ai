@@ -90,6 +90,18 @@ else
     ERRORS=$((ERRORS + 1))
 fi
 
+# Check Browser Server (optional, for fast screenshots)
+echo -n "Browser:       "
+if systemctl --user is-active --quiet portfolio-browser.service 2>/dev/null; then
+    if curl -s http://127.0.0.1:9323/health > /dev/null 2>&1; then
+        echo -e "${GREEN}✓ Running (fast screenshots enabled)${NC}"
+    else
+        echo -e "${YELLOW}⚠ Running but not responding${NC}"
+    fi
+else
+    echo -e "${YELLOW}- Not running (screenshots will be slower)${NC}"
+fi
+
 echo ""
 echo "================================"
 
