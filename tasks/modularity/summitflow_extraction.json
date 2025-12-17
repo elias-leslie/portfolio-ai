@@ -241,8 +241,8 @@
             "id": "phase-3.3",
             "title": "SummitFlow 3.3: Artifacts backend",
             "bead_id": "portfolio-ai-p5o",
-            "bead_status": "open",
-            "status": "ready",
+            "bead_status": "closed",
+            "status": "completed",
             "blocked_by": [],
             "source_files": [
                 {
@@ -276,27 +276,27 @@
                 {
                     "id": "3.3.1",
                     "description": "Copy artifact_manager.py to evidence_manager.py",
-                    "passes": false
+                    "passes": true
                 },
                 {
                     "id": "3.3.2",
                     "description": "Refactor evidence_manager: Rename artifacts->evidence, add project_id",
-                    "passes": false
+                    "passes": true
                 },
                 {
                     "id": "3.3.3",
                     "description": "Copy criteria_verifier.py to verification_engine.py",
-                    "passes": false
+                    "passes": true
                 },
                 {
                     "id": "3.3.4",
                     "description": "Refactor verification_engine: Add project_id, fetch base_url from project config",
-                    "passes": false
+                    "passes": true
                 },
                 {
                     "id": "3.3.5",
                     "description": "Extract capability_feature_scanner.py (455 lines) - was missed in 3.2",
-                    "passes": false
+                    "passes": true
                 }
             ]
         },
