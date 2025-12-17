@@ -186,10 +186,10 @@ Focus on investment intelligence
 No distraction from dev tooling maintenance
 Clearer onboarding for contributors
 Part 2: Architecture for the Dev Platform Extraction
-Proposed Name: "DevVision" (or "Loom", "Tapestry", "DevHub")
+Proposed Name: "SummitFlow" (or "Loom", "Tapestry", "DevHub")
 Core Architecture
 ┌─────────────────────────────────────────────────────────────────┐
-│                     DevVision Platform                           │
+│                     SummitFlow Platform                           │
 │                  (Standalone Next.js + FastAPI)                  │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                   │
@@ -259,7 +259,7 @@ Target apps expose /api/dev/meta endpoint:
   "health_check": "/health/dashboard"
 }
 
-DevVision polls this for automated evidence capture configuration
+SummitFlow polls this for automated evidence capture configuration
 3. Evidence Association
 
 Evidence can attach to:
@@ -274,7 +274,7 @@ Rationale: Architectural debt, patterns, tooling issues span solutions
 Optional project_id for project-specific bugs
 5. Commands Become Platform Features
 
-/next_it → DevVision's work allocation engine (queries beads, suggests next task)
+/next_it → SummitFlow's work allocation engine (queries beads, suggests next task)
 /audit_it → Health dashboard endpoint (callable for any registered project)
 /verify_it → Verification orchestration (targets project endpoints)
 /test_it → Evidence capture scheduler
@@ -288,33 +288,33 @@ Continuous: Monitor target app health endpoints
 Stores AI recommendations as beads or vision notes
 Part 3: Migration Path
 Phase 1: Extraction (Complexity: Large, ~2-3 weeks if focused)
-Step 1: Create DevVision repository
+Step 1: Create SummitFlow repository
 
-mkdir devvision
-cd devvision
+mkdir summitflow
+cd summitflow
 # Initialize Next.js + FastAPI structure
 
 Step 2: Extract backend components
 
-Copy: backend/app/api/capabilities/* → devvision/backend/app/api/
+Copy: backend/app/api/capabilities/* → summitflow/backend/app/api/
 Copy: backend/app/services/{artifact_manager,criteria_verifier,capability_*,file_scanner}.py
 Copy: .beads/ directory structure (becomes global)
 Refactor: Add project_id to all tables
 Step 3: Extract frontend components
 
-Move: frontend/app/capabilities/ → devvision/frontend/app/projects/[id]/
-Move: frontend/app/dev-assistant/ → devvision/frontend/app/terminal/
+Move: frontend/app/capabilities/ → summitflow/frontend/app/projects/[id]/
+Move: frontend/app/dev-assistant/ → summitflow/frontend/app/terminal/
 Keep: frontend/app/agent-hub/ in Portfolio AI (domain-specific AI agents)
-Extract: Evidence modals, capture buttons to DevVision
+Extract: Evidence modals, capture buttons to SummitFlow
 Step 4: Migrate commands
 
-.claude/commands/{test_it,verify_it,audit_it,next_it}.md → DevVision skill system
-Become HTTP API calls to DevVision platform
+.claude/commands/{test_it,verify_it,audit_it,next_it}.md → SummitFlow skill system
+Become HTTP API calls to SummitFlow platform
 Step 5: Update Portfolio AI
 
 Implement /api/dev/meta endpoint (exposes structure)
 Remove extracted code
-Add DevVision client library for evidence capture triggers
+Add SummitFlow client library for evidence capture triggers
 Phase 2: Enhancement (Build on the platform)
 Step 1: Web Terminal Integration
 
@@ -363,7 +363,7 @@ Why:
 Your agent patterns are general-purpose
 Could power agents for:
 Portfolio AI (investment research)
-DevVision (code review agents)
+SummitFlow (code review agents)
 Future apps (customer service, research)
 Keep in Portfolio AI:
 
@@ -519,23 +519,23 @@ Consider later
 High complexity
 Less clear boundary
 Wait until proven pattern from dev system extraction
-Final Thought: The "DevVision" Platform is Your Killer App
+Final Thought: The "SummitFlow" Platform is Your Killer App
 You've accidentally built something more valuable than Portfolio AI itself: a meta-development platform that uses AI to manage AI-assisted development.
 
 This is:
 
 Novel: No one has Claude Code + evidence capture + beads + multi-LLM review in one platform
 Marketable: Every software team needs better dev tooling
-Self-improving: Use DevVision to build DevVision (dogfooding)
+Self-improving: Use SummitFlow to build SummitFlow (dogfooding)
 Scalable: Works for solo devs or teams
-Portfolio AI becomes your first reference implementation - proof that DevVision works for complex, production applications.
+Portfolio AI becomes your first reference implementation - proof that SummitFlow works for complex, production applications.
 
 Would you like me to:
 
 Draft a detailed migration plan with specific file moves?
-Design the DevVision database schema?
+Design the SummitFlow database schema?
 Prototype the project registration API?
 Create a feature comparison (current vs. extracted)?
 
 # My response - Cloud agent stopped replying after this
-i'm interested in p1 and p3 and maybe p4 later...create the necessary plans for each. the audience would be me and the version of you installed on my local dev machine that has complete (except sudo) access to resources and development freedom. Instruct yourself at the beginning of each plan to verify existing claims/definitions/research by performing a complete review of the related code/infrastructure/db schema/data/documentation/environment. The local agent should also update the existing plans and associate them with the appropriate beads (splitting beads up accordingly and creating the necessary number of beads and dependencies for complex plans/steps/phases). Additionally, i'm interested in adding an "auto mode" to the DevVision solution that uses concepts from https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents (Which we've adopted partially in our features implementation) as well as the python harness + claude code SDK approach (with oauth, not api, we already have this wired up so it should be pretty straightforward to set this up).
+i'm interested in p1 and p3 and maybe p4 later...create the necessary plans for each. the audience would be me and the version of you installed on my local dev machine that has complete (except sudo) access to resources and development freedom. Instruct yourself at the beginning of each plan to verify existing claims/definitions/research by performing a complete review of the related code/infrastructure/db schema/data/documentation/environment. The local agent should also update the existing plans and associate them with the appropriate beads (splitting beads up accordingly and creating the necessary number of beads and dependencies for complex plans/steps/phases). Additionally, i'm interested in adding an "auto mode" to the SummitFlow solution that uses concepts from https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents (Which we've adopted partially in our features implementation) as well as the python harness + claude code SDK approach (with oauth, not api, we already have this wired up so it should be pretty straightforward to set this up).

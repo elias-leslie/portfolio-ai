@@ -1,4 +1,4 @@
-# DevVision Extraction - Verification & Planning Session
+# SummitFlow Extraction - Verification & Planning Session
 
 ## Context
 
@@ -6,13 +6,13 @@ We reviewed the modularity planning docs in `tasks/modularity/` and identified g
 
 ## Pre-Work Done
 
-1. **Beads Architecture Correction**: Original plan incorrectly proposed migrating beads to PostgreSQL. CORRECTED: Beads stays in each project's `.beads/` directory (JSONL + SQLite). DevVision provides a web UI layer that calls `bd` CLI. See [steveyegge/beads](https://github.com/steveyegge/beads) for design philosophy.
+1. **Beads Architecture Correction**: Original plan incorrectly proposed migrating beads to PostgreSQL. CORRECTED: Beads stays in each project's `.beads/` directory (JSONL + SQLite). SummitFlow provides a web UI layer that calls `bd` CLI. See [steveyegge/beads](https://github.com/steveyegge/beads) for design philosophy.
 
 2. **Scope Decision**: MVP = extraction only (Phases 1-3). Auto Mode and AI Reviews deferred to v1.1.
 
 3. **Evidence Migration**: Migrate last 30 days only (~20MB).
 
-4. **Commands**: Stay in each project, call DevVision API.
+4. **Commands**: Stay in each project, call SummitFlow API.
 
 ---
 
@@ -97,14 +97,14 @@ frontend/components/capabilities/
 ```
 services/dev-companion/           → MOVE (entire service)
 ├── dev_companion/
-│   ├── server.py                 → DevVision backend service
+│   ├── server.py                 → SummitFlow backend service
 │   ├── gemini_process.py         → AI chat backend
 │   └── ...
 ├── pyproject.toml
 └── tests/
 
 frontend/app/dev-assistant/       → MOVE
-└── page.tsx (7K)                 → DevVision frontend page
+└── page.tsx (7K)                 → SummitFlow frontend page
 
 frontend/components/dev-assistant/
 └── ChatPanel.tsx (15K)           → MOVE
@@ -160,7 +160,7 @@ frontend/components/dev-assistant/
 - Tasks tab (Celery tasks)
 - Workflows tab (system capabilities)
 
-**DevVision gets a new `/projects/{id}/dev` page with:**
+**SummitFlow gets a new `/projects/{id}/dev` page with:**
 - Vision tab
 - Features tab
 - Files tab
@@ -204,7 +204,7 @@ head -30 ~/portfolio-ai/backend/app/api/sources.py
 
 ### 3. Update Task File with Categorization
 
-Edit `tasks/modularity/tasks-devvision-extraction.md`:
+Edit `tasks/modularity/tasks-summitflow-extraction.md`:
 
 **Critical Updates:**
 - [ ] Add "Component Categorization" section with tables above
@@ -213,32 +213,32 @@ Edit `tasks/modularity/tasks-devvision-extraction.md`:
 - [ ] Update extraction list to only include dev tooling components
 - [ ] Add note about capabilities_router.py needing to be split (some generic, some domain)
 
-### 4. Create Beads for DevVision Work
+### 4. Create Beads for SummitFlow Work
 
 ```bash
 # Epic
-bd create "Epic: DevVision Platform Extraction" \
+bd create "Epic: SummitFlow Platform Extraction" \
   -t epic -p 1 \
   -l "complexity:large,domains:backend,domains:frontend,domains:database" \
-  -d "Extract dev tooling into standalone platform. MVP = Phases 1-3 (extraction). Auto Mode/AI Reviews = v1.1. See tasks/modularity/tasks-devvision-extraction.md
+  -d "Extract dev tooling into standalone platform. MVP = Phases 1-3 (extraction). Auto Mode/AI Reviews = v1.1. See tasks/modularity/tasks-summitflow-extraction.md
 
 MOVES: Features, Vision, Files, Sitemap, Evidence, Beads UI
 STAYS: Sources, Rules, DB/Celery/Workflows introspection"
 
 # Phase 1 - Foundation
-bd create "DevVision Phase 1: Foundation setup" \
+bd create "SummitFlow Phase 1: Foundation setup" \
   -t task -p 1 \
   -l "complexity:medium,domains:backend,domains:frontend,domains:database" \
-  -d "Create ~/devvision repo, FastAPI+Next.js scaffold, PostgreSQL schema (projects, features, evidence, acceptance_criteria - NO beads table)"
+  -d "Create ~/summitflow repo, FastAPI+Next.js scaffold, PostgreSQL schema (projects, features, evidence, acceptance_criteria - NO beads table)"
 
 # Phase 2 - Backend Extraction
-bd create "DevVision Phase 2: Backend extraction" \
+bd create "SummitFlow Phase 2: Backend extraction" \
   -t task -p 1 \
   -l "complexity:large,domains:backend" \
   -d "Extract: features_router, vision_*_router, notes_router, sitemap, files APIs. Extract: artifact_manager, criteria_verifier, file_scanner, sitemap_service, capability_feature_scanner. Create beads API (bd CLI wrapper). Add project registration."
 
 # Phase 3 - Frontend Extraction
-bd create "DevVision Phase 3: Frontend extraction" \
+bd create "SummitFlow Phase 3: Frontend extraction" \
   -t task -p 1 \
   -l "complexity:large,domains:frontend" \
   -d "Extract: FeaturesTab, VisionGoalsTab, FilesTab, SitemapTab, EvidenceViewerModal. Build Beads UI (CRUD via bd CLI). Create multi-project dashboard. Update capabilities page.tsx to remove extracted tabs."
@@ -250,10 +250,10 @@ bd dep add <phase3-id> <phase2-id> --type blocks
 
 ### 5. Handle Existing P1 Beads
 
-The existing P1 beads (Alert Infrastructure 722, Maintenance uep/8ba) conflict with DevVision work. Options:
-- **Option A**: Defer them, start DevVision now
-- **Option B**: Complete them first (1-2 weeks), then DevVision
-- **Option C**: Work DevVision Phase 1 in parallel (repo setup doesn't conflict)
+The existing P1 beads (Alert Infrastructure 722, Maintenance uep/8ba) conflict with SummitFlow work. Options:
+- **Option A**: Defer them, start SummitFlow now
+- **Option B**: Complete them first (1-2 weeks), then SummitFlow
+- **Option C**: Work SummitFlow Phase 1 in parallel (repo setup doesn't conflict)
 
 Decision needed from user.
 
@@ -264,11 +264,11 @@ Decision needed from user.
 | Decision | Choice |
 |----------|--------|
 | Beads storage | JSONL in each project (no PostgreSQL) |
-| DevVision Beads UI | Calls `bd` CLI via subprocess |
+| SummitFlow Beads UI | Calls `bd` CLI via subprocess |
 | MVP scope | Phases 1-3 only |
 | Auto Mode | Deferred to v1.1 |
 | Evidence migration | Last 30 days only |
-| Commands | Stay in project, call DevVision API |
+| Commands | Stay in project, call SummitFlow API |
 | Rules (.claude/rules/) | All stay in project |
 | Sources tab | STAYS in portfolio-ai (domain-specific) |
 | Rules tab | STAYS in portfolio-ai (trading rules) |
@@ -278,7 +278,7 @@ Decision needed from user.
 
 ## Files to Reference
 
-- `tasks/modularity/tasks-devvision-extraction.md` - Main implementation plan (needs corrections)
+- `tasks/modularity/tasks-summitflow-extraction.md` - Main implementation plan (needs corrections)
 - `tasks/modularity/architecture-roadmap.md` - Executive summary
 - `tasks/modularity/modularity.md` - Original discussion transcript
 - `~/.claude/plans/lucky-beaming-zephyr.md` - Discussion log from previous session
@@ -289,7 +289,7 @@ Decision needed from user.
 
 By end of this session:
 - [ ] Categorization verified via exploration commands
-- [ ] `tasks-devvision-extraction.md` updated with component categorization
+- [ ] `tasks-summitflow-extraction.md` updated with component categorization
 - [ ] Beads architecture section corrected (UI over bd CLI, not PostgreSQL)
 - [ ] Epic + Phase 1-3 beads created with accurate descriptions
 - [ ] Decision made on existing P1 beads

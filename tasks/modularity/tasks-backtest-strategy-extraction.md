@@ -179,14 +179,14 @@ GET  /api/strategies/{id}/backtest
 ## Recommendation: DEFER P4 Until After P1 + P3
 
 **Proposed sequence:**
-1. ✅ **P1: DevVision extraction** - Clear value, immediate ROI
+1. ✅ **P1: SummitFlow extraction** - Clear value, immediate ROI
 2. ✅ **P3: Internal refactoring** - Event-driven architecture, bounded contexts
 3. ⏸️ **Re-evaluate P4** after P1 + P3 complete
 
 **Why defer:**
 - P3's event-driven architecture may solve coupling issues without extraction
 - Bounded contexts (P3) will clarify if backtest/strategy is truly separable
-- DevVision (P1) provides tooling to manage P4 work if we do it later
+- SummitFlow (P1) provides tooling to manage P4 work if we do it later
 - No urgent need (not a bottleneck, no second client waiting)
 
 **When to reconsider P4:**
@@ -358,7 +358,7 @@ The **DataFountain** concept (multi-source data ingestion) is valuable but shoul
 **DEFER P4 (StrategyLab extraction) until after P1 + P3 complete.**
 
 **Rationale:**
-1. P1 (DevVision) has clear, immediate value
+1. P1 (SummitFlow) has clear, immediate value
 2. P3 (refactoring) will clarify boundaries and reduce coupling
 3. P4's value is uncertain (no second client, not a bottleneck)
 4. Can treat backtest/strategy as bounded contexts in P3 instead
@@ -366,7 +366,7 @@ The **DataFountain** concept (multi-source data ingestion) is valuable but shoul
 
 **If we still want P4 later:**
 - Boundaries will be clearer after P3 refactoring
-- DevVision will help manage the extraction work
+- SummitFlow will help manage the extraction work
 - Can extract quickly if we've done P3 properly
 
 ---

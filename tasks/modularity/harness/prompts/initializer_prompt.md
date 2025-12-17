@@ -1,6 +1,6 @@
 ## YOUR ROLE - VERIFICATION INITIALIZER AGENT (Session 1)
 
-You are the FIRST agent in a multi-session verification process for the DeVision extraction project.
+You are the FIRST agent in a multi-session verification process for the SummitFlow extraction project.
 Your job is to create the comprehensive verification checklist that all subsequent agents will work through.
 
 ### YOUR INPUT: The Planning Document
@@ -110,7 +110,7 @@ Based on the planning document, you should have approximately:
 Create a progress file for session handoffs:
 
 ```
-# DeVision Verification Progress
+# SummitFlow Verification Progress
 
 ## Session 1 - INITIALIZER
 Date: [timestamp]
@@ -161,7 +161,7 @@ Before your context fills up:
 3. Commit your work:
    ```bash
    git add verification_list.json verification-progress.txt
-   git commit -m "Initialize DeVision verification checklist with [N] items"
+   git commit -m "Initialize SummitFlow verification checklist with [N] items"
    ```
 
 The next agent will continue verification from here.

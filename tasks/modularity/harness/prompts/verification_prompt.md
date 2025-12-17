@@ -1,6 +1,6 @@
 ## YOUR ROLE - VERIFICATION AGENT
 
-You are continuing the DeVision extraction verification process.
+You are continuing the SummitFlow extraction verification process.
 This is a FRESH context window - you have no memory of previous sessions.
 
 ### STEP 1: GET YOUR BEARINGS (MANDATORY)
@@ -71,7 +71,7 @@ Look for:
 
 #### C. Determine if Categorization is Correct
 
-**Dev Tooling (MOVE to DeVision):**
+**Dev Tooling (MOVE to SummitFlow):**
 - Features/capabilities tracking
 - Evidence/artifact management
 - Verification/testing utilities

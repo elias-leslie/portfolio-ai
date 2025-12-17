@@ -1,4 +1,4 @@
-# Task List: DevVision Platform Extraction (P1)
+# Task List: SummitFlow Platform Extraction (P1)
 
 **PRD**: Architecture Modularity Review - Priority 1
 **Status**: Ready
@@ -54,19 +54,19 @@
 
 6. **Create beads structure**:
    ```bash
-   # Create epic for DevVision extraction
-   bd create "Epic: Extract DevVision platform from Portfolio AI" \
+   # Create epic for SummitFlow extraction
+   bd create "Epic: Extract SummitFlow platform from Portfolio AI" \
      -t epic -p 1 \
      -l "complexity:large,domains:backend,domains:frontend,domains:database" \
-     -d "Extract development tooling into standalone platform. See tasks/tasks-devvision-extraction.md" \
+     -d "Extract development tooling into standalone platform. See tasks/tasks-summitflow-extraction.md" \
      --json
 
    # For EACH major phase below, create a bead linked to epic
    # Example:
-   bd create "Phase 1.1: DevVision repository setup" \
+   bd create "Phase 1.1: SummitFlow repository setup" \
      -t task -p 1 \
      -l "complexity:small,domains:backend,domains:frontend" \
-     -d "Initialize DevVision repo structure. See tasks/tasks-devvision-extraction.md Phase 1.1" \
+     -d "Initialize SummitFlow repo structure. See tasks/tasks-summitflow-extraction.md Phase 1.1" \
      --json
 
    # Link to epic
@@ -77,7 +77,7 @@
 
 ## Summary
 
-**Goal**: Extract development/meta tooling from Portfolio AI into a standalone **DevVision** platform that can manage development for multiple target applications.
+**Goal**: Extract development/meta tooling from Portfolio AI into a standalone **SummitFlow** platform that can manage development for multiple target applications.
 
 **✅ COMPLETE:**
 - (None yet)
@@ -99,7 +99,7 @@
 ### Backend Components (~15-20k LOC)
 ```
 backend/app/
-├── api/capabilities/           → devvision/backend/app/api/projects/
+├── api/capabilities/           → summitflow/backend/app/api/projects/
 │   ├── features_router.py      (1431 lines)
 │   ├── capabilities_router.py  (682 lines)
 │   ├── vision_content_router.py (22106 bytes)
@@ -119,32 +119,32 @@ backend/app/
 ```
 frontend/
 ├── app/
-│   ├── capabilities/           → devvision/frontend/app/projects/[id]/
-│   ├── dev-assistant/          → devvision/frontend/app/terminal/
-│   └── (evidence modals)       → devvision/frontend/components/evidence/
+│   ├── capabilities/           → summitflow/frontend/app/projects/[id]/
+│   ├── dev-assistant/          → summitflow/frontend/app/terminal/
+│   └── (evidence modals)       → summitflow/frontend/components/evidence/
 └── components/
-    └── (capability components) → devvision/frontend/components/
+    └── (capability components) → summitflow/frontend/components/
 ```
 
 ### Infrastructure
 ```
 .claude/
 ├── commands/
-│   ├── test_it.md             → DevVision API endpoint
-│   ├── verify_it.md           → DevVision API endpoint
-│   ├── audit_it.md            → DevVision API endpoint
-│   └── next_it.md             → DevVision work allocator
+│   ├── test_it.md             → SummitFlow API endpoint
+│   ├── verify_it.md           → SummitFlow API endpoint
+│   ├── audit_it.md            → SummitFlow API endpoint
+│   └── next_it.md             → SummitFlow work allocator
 ├── skills/
-│   └── browser-automation/    → DevVision evidence capture
-└── (beads system)             → DevVision global tracker
+│   └── browser-automation/    → SummitFlow evidence capture
+└── (beads system)             → SummitFlow global tracker
 
-automation/                     → DevVision scheduled tasks
-solution_state/                 → DevVision evidence storage
+automation/                     → SummitFlow scheduled tasks
+solution_state/                 → SummitFlow evidence storage
 ```
 
 ### Database Tables
 ```sql
--- Extract these tables to DevVision
+-- Extract these tables to SummitFlow
 CREATE TABLE projects (              -- NEW: target applications
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -167,16 +167,16 @@ ALTER TABLE beads ADD COLUMN project_id TEXT REFERENCES projects(id) NULL;
 
 ---
 
-## Phase 1: DevVision Repository Setup & Foundation
+## Phase 1: SummitFlow Repository Setup & Foundation
 
 ### Phase 1.1: Initialize Repository Structure
 
-**Bead**: Create `Phase 1.1: DevVision repository setup` with `complexity:small`
+**Bead**: Create `Phase 1.1: SummitFlow repository setup` with `complexity:small`
 
 - [ ] Create new repository
   ```bash
-  mkdir ~/devvision
-  cd ~/devvision
+  mkdir ~/summitflow
+  cd ~/summitflow
   git init
   ```
 
@@ -191,7 +191,7 @@ ALTER TABLE beads ADD COLUMN project_id TEXT REFERENCES projects(id) NULL;
 - [ ] Create `backend/pyproject.toml`:
   ```toml
   [project]
-  name = "devvision"
+  name = "summitflow"
   version = "0.1.0"
   dependencies = [
     "fastapi==0.115.0",
@@ -208,7 +208,7 @@ ALTER TABLE beads ADD COLUMN project_id TEXT REFERENCES projects(id) NULL;
 
 - [ ] Frontend structure (Next.js 15 + TypeScript)
   ```bash
-  cd ~/devvision
+  cd ~/summitflow
   npx create-next-app@latest frontend --typescript --tailwind --app --no-src-dir
   cd frontend
   mkdir -p {app/{projects,terminal,chat,beads,capture},components,lib}
@@ -222,18 +222,18 @@ ALTER TABLE beads ADD COLUMN project_id TEXT REFERENCES projects(id) NULL;
 - [ ] Initialize git
   ```bash
   git add .
-  git commit -m "feat: Initialize DevVision repository structure"
+  git commit -m "feat: Initialize SummitFlow repository structure"
   ```
 
 ### Phase 1.2: Database Schema Design
 
-**Bead**: Create `Phase 1.2: DevVision database schema` with `complexity:medium,domains:database`
+**Bead**: Create `Phase 1.2: SummitFlow database schema` with `complexity:medium,domains:database`
 
 - [ ] Create PostgreSQL database
   ```sql
-  CREATE DATABASE devvision;
-  CREATE USER devvision_user WITH PASSWORD 'devvision_password';
-  GRANT ALL PRIVILEGES ON DATABASE devvision TO devvision_user;
+  CREATE DATABASE summitflow;
+  CREATE USER summitflow_user WITH PASSWORD 'summitflow_password';
+  GRANT ALL PRIVILEGES ON DATABASE summitflow TO summitflow_user;
   ```
 
 - [ ] Design core tables (migration `001_core_schema.sql`):
@@ -364,7 +364,7 @@ ALTER TABLE beads ADD COLUMN project_id TEXT REFERENCES projects(id) NULL;
 - [ ] Create migration system (`backend/app/storage/migrations/runner.py`)
 - [ ] Apply initial migration
   ```bash
-  cd ~/devvision/backend
+  cd ~/summitflow/backend
   python -m app.storage.migrations.runner apply
   ```
 
@@ -420,7 +420,7 @@ ALTER TABLE beads ADD COLUMN project_id TEXT REFERENCES projects(id) NULL;
 
   @router.get("/meta")
   async def dev_metadata():
-      """Expose application structure for DevVision discovery."""
+      """Expose application structure for SummitFlow discovery."""
       return {
           "app_name": "Portfolio AI",
           "version": "2.0.0",
@@ -454,8 +454,8 @@ ALTER TABLE beads ADD COLUMN project_id TEXT REFERENCES projects(id) NULL;
   cd ~/portfolio-ai
   bash scripts/restart.sh
 
-  # Start DevVision
-  cd ~/devvision/backend
+  # Start SummitFlow
+  cd ~/summitflow/backend
   uvicorn app.main:app --port 8001 --reload
 
   # Register Portfolio AI as first project
@@ -480,16 +480,16 @@ ALTER TABLE beads ADD COLUMN project_id TEXT REFERENCES projects(id) NULL;
 - [ ] Copy router files:
   ```bash
   cp ~/portfolio-ai/backend/app/api/capabilities/features_router.py \
-     ~/devvision/backend/app/api/features.py
+     ~/summitflow/backend/app/api/features.py
 
   cp ~/portfolio-ai/backend/app/api/capabilities/capabilities_router.py \
-     ~/devvision/backend/app/api/capabilities.py
+     ~/summitflow/backend/app/api/capabilities.py
 
   cp ~/portfolio-ai/backend/app/api/capabilities/vision_content_router.py \
-     ~/devvision/backend/app/api/vision_content.py
+     ~/summitflow/backend/app/api/vision_content.py
 
   cp ~/portfolio-ai/backend/app/api/capabilities/vision_goals_router.py \
-     ~/devvision/backend/app/api/vision_goals.py
+     ~/summitflow/backend/app/api/vision_goals.py
   ```
 
 - [ ] Refactor to add `project_id` scoping:
@@ -527,16 +527,16 @@ ALTER TABLE beads ADD COLUMN project_id TEXT REFERENCES projects(id) NULL;
 - [ ] Copy service files:
   ```bash
   cp ~/portfolio-ai/backend/app/services/artifact_manager.py \
-     ~/devvision/backend/app/services/evidence_manager.py
+     ~/summitflow/backend/app/services/evidence_manager.py
 
   cp ~/portfolio-ai/backend/app/services/criteria_verifier.py \
-     ~/devvision/backend/app/services/verification_engine.py
+     ~/summitflow/backend/app/services/verification_engine.py
 
   cp ~/portfolio-ai/backend/app/services/capability_feature_scanner.py \
-     ~/devvision/backend/app/services/feature_scanner.py
+     ~/summitflow/backend/app/services/feature_scanner.py
 
   cp ~/portfolio-ai/backend/app/services/file_scanner.py \
-     ~/devvision/backend/app/services/codebase_scanner.py
+     ~/summitflow/backend/app/services/codebase_scanner.py
   ```
 
 - [ ] Refactor `evidence_manager.py`:
@@ -562,12 +562,12 @@ ALTER TABLE beads ADD COLUMN project_id TEXT REFERENCES projects(id) NULL;
 
 - [ ] Copy beads CLI tool:
   ```bash
-  cp -r ~/portfolio-ai/.beads ~/devvision/.beads
+  cp -r ~/portfolio-ai/.beads ~/summitflow/.beads
   ```
 
 - [ ] Update beads schema to use PostgreSQL (current: JSONL file):
   ```python
-  # ~/devvision/backend/app/services/beads_service.py
+  # ~/summitflow/backend/app/services/beads_service.py
   class BeadsService:
       """PostgreSQL-backed beads system (replaces JSONL)."""
 
@@ -603,7 +603,7 @@ ALTER TABLE beads ADD COLUMN project_id TEXT REFERENCES projects(id) NULL;
 
 - [ ] Create beads API endpoints:
   ```python
-  # ~/devvision/backend/app/api/beads.py
+  # ~/summitflow/backend/app/api/beads.py
   from fastapi import APIRouter
 
   router = APIRouter(prefix="/api/beads", tags=["beads"])
@@ -650,23 +650,23 @@ ALTER TABLE beads ADD COLUMN project_id TEXT REFERENCES projects(id) NULL;
   with beads_file.open() as f:
       for line in f:
           bead = json.loads(line)
-          # Insert into DevVision database
+          # Insert into SummitFlow database
           # Set project_id = 'portfolio-ai'
   ```
 
 - [ ] Update `bd` CLI to use API instead of JSONL:
   ```bash
-  # ~/devvision/cli/bd
+  # ~/summitflow/cli/bd
   #!/usr/bin/env python3
-  """Beads CLI - talks to DevVision API."""
+  """Beads CLI - talks to SummitFlow API."""
 
   import requests
   import sys
 
-  DEVVISION_URL = os.getenv("DEVVISION_URL", "http://localhost:8001")
+  SUMMITFLOW_URL = os.getenv("SUMMITFLOW_URL", "http://localhost:8001")
 
   def create_bead(args):
-      response = requests.post(f"{DEVVISION_URL}/api/beads", json={
+      response = requests.post(f"{SUMMITFLOW_URL}/api/beads", json={
           "title": args.title,
           "type": args.type,
           "priority": args.priority,
@@ -684,11 +684,11 @@ ALTER TABLE beads ADD COLUMN project_id TEXT REFERENCES projects(id) NULL;
 
 ### Phase 3.1: Multi-Project Dashboard
 
-**Bead**: Create `Phase 3.1: DevVision frontend dashboard` with `complexity:large,domains:frontend`
+**Bead**: Create `Phase 3.1: SummitFlow frontend dashboard` with `complexity:large,domains:frontend`
 
 - [ ] Create project list page (`frontend/app/page.tsx`):
   ```tsx
-  // DevVision home page - list all registered projects
+  // SummitFlow home page - list all registered projects
   import { useQuery } from '@tanstack/react-query';
 
   export default function ProjectsPage() {
@@ -702,7 +702,7 @@ ALTER TABLE beads ADD COLUMN project_id TEXT REFERENCES projects(id) NULL;
 
     return (
       <div>
-        <h1>DevVision - Projects</h1>
+        <h1>SummitFlow - Projects</h1>
         {projects?.map(project => (
           <ProjectCard
             key={project.id}
@@ -728,7 +728,7 @@ ALTER TABLE beads ADD COLUMN project_id TEXT REFERENCES projects(id) NULL;
 - [ ] Copy capabilities UI from portfolio-ai:
   ```bash
   cp -r ~/portfolio-ai/frontend/app/capabilities/* \
-        ~/devvision/frontend/app/projects/[id]/
+        ~/summitflow/frontend/app/projects/[id]/
   ```
 
 - [ ] Refactor all API calls to include `project_id`:
@@ -739,7 +739,7 @@ ALTER TABLE beads ADD COLUMN project_id TEXT REFERENCES projects(id) NULL;
     queryFn: () => fetch('/api/features').then(r => r.json())
   });
 
-  // After (devvision)
+  // After (summitflow)
   const { data: features } = useQuery({
     queryKey: ['features', projectId],
     queryFn: () => fetch(`/api/${projectId}/features`).then(r => r.json())
@@ -772,7 +772,7 @@ ALTER TABLE beads ADD COLUMN project_id TEXT REFERENCES projects(id) NULL;
     return (
       <div className="h-screen flex flex-col">
         <header>
-          <h1>DevVision Terminal</h1>
+          <h1>SummitFlow Terminal</h1>
           <button onClick={() => initializeSession()}>
             Connect to Claude Code
           </button>
@@ -1528,7 +1528,7 @@ ALTER TABLE beads ADD COLUMN project_id TEXT REFERENCES projects(id) NULL;
 
 ---
 
-## Phase 6: Migrate Portfolio AI to Use DevVision
+## Phase 6: Migrate Portfolio AI to Use SummitFlow
 
 ### Phase 6.1: Remove Extracted Code from Portfolio AI
 
@@ -1562,17 +1562,17 @@ ALTER TABLE beads ADD COLUMN project_id TEXT REFERENCES projects(id) NULL;
 
 - [ ] Update imports and remove references
 
-### Phase 6.2: Implement DevVision Client in Portfolio AI
+### Phase 6.2: Implement SummitFlow Client in Portfolio AI
 
-**Bead**: Create `Phase 6.2: DevVision client library` with `complexity:small,domains:backend`
+**Bead**: Create `Phase 6.2: SummitFlow client library` with `complexity:small,domains:backend`
 
 - [ ] Create client library:
   ```python
-  # ~/portfolio-ai/backend/app/clients/devvision.py
+  # ~/portfolio-ai/backend/app/clients/summitflow.py
   import httpx
 
-  class DevVisionClient:
-      """Client for interacting with DevVision platform."""
+  class SummitFlowClient:
+      """Client for interacting with SummitFlow platform."""
 
       def __init__(self, base_url: str = "http://localhost:8001"):
           self.base_url = base_url
@@ -1585,7 +1585,7 @@ ALTER TABLE beads ADD COLUMN project_id TEXT REFERENCES projects(id) NULL;
           url: str,
           evidence_type: str = "screenshot"
       ):
-          """Trigger evidence capture in DevVision."""
+          """Trigger evidence capture in SummitFlow."""
           async with httpx.AsyncClient() as client:
               response = await client.post(
                   f"{self.base_url}/api/evidence/capture",
@@ -1607,7 +1607,7 @@ ALTER TABLE beads ADD COLUMN project_id TEXT REFERENCES projects(id) NULL;
           description: str,
           labels: list[str]
       ):
-          """Create bead in DevVision."""
+          """Create bead in SummitFlow."""
           async with httpx.AsyncClient() as client:
               response = await client.post(
                   f"{self.base_url}/api/beads",
@@ -1626,12 +1626,12 @@ ALTER TABLE beads ADD COLUMN project_id TEXT REFERENCES projects(id) NULL;
 - [ ] Use in Portfolio AI code:
   ```python
   # Example: Auto-create bead when error occurs
-  from app.clients.devvision import DevVisionClient
+  from app.clients.summitflow import SummitFlowClient
 
-  devvision = DevVisionClient()
+  summitflow = SummitFlowClient()
 
   async def handle_data_fetch_error(symbol: str, error: str):
-      await devvision.create_bead(
+      await summitflow.create_bead(
           title=f"Fix: Data fetch failed for {symbol}",
           type="bug",
           priority=2,
@@ -1640,15 +1640,15 @@ ALTER TABLE beads ADD COLUMN project_id TEXT REFERENCES projects(id) NULL;
       )
   ```
 
-### Phase 6.3: Update Commands to Call DevVision
+### Phase 6.3: Update Commands to Call SummitFlow
 
-**Bead**: Create `Phase 6.3: Commands → DevVision API` with `complexity:small,domains:backend`
+**Bead**: Create `Phase 6.3: Commands → SummitFlow API` with `complexity:small,domains:backend`
 
 - [ ] Update `.claude/commands/test_it.md`:
   ```markdown
   # /test_it - UI Regression Testing
 
-  Triggers DevVision's evidence capture system.
+  Triggers SummitFlow's evidence capture system.
 
   ## Implementation
 
@@ -1667,7 +1667,7 @@ ALTER TABLE beads ADD COLUMN project_id TEXT REFERENCES projects(id) NULL;
   ```markdown
   # /verify_it - Feature Verification
 
-  Triggers DevVision's verification engine.
+  Triggers SummitFlow's verification engine.
 
   ```bash
   FEATURE_ID=$1
@@ -1681,7 +1681,7 @@ ALTER TABLE beads ADD COLUMN project_id TEXT REFERENCES projects(id) NULL;
   ```markdown
   # /audit_it - Codebase Health Audit
 
-  Triggers DevVision's audit system.
+  Triggers SummitFlow's audit system.
 
   ```bash
   curl -X POST http://localhost:8001/api/audit/run \
@@ -1699,7 +1699,7 @@ ALTER TABLE beads ADD COLUMN project_id TEXT REFERENCES projects(id) NULL;
 
 ### Phase 7.1: Integration Testing
 
-**Bead**: Create `Phase 7.1: DevVision integration tests` with `complexity:medium,domains:backend`
+**Bead**: Create `Phase 7.1: SummitFlow integration tests` with `complexity:medium,domains:backend`
 
 - [ ] Test project registration flow
 - [ ] Test evidence capture from Portfolio AI
@@ -1709,12 +1709,12 @@ ALTER TABLE beads ADD COLUMN project_id TEXT REFERENCES projects(id) NULL;
 
 ### Phase 7.2: Documentation
 
-**Bead**: Create `Phase 7.2: DevVision documentation` with `complexity:small`
+**Bead**: Create `Phase 7.2: SummitFlow documentation` with `complexity:small`
 
-- [ ] Write `~/devvision/README.md`
-- [ ] Write `~/devvision/ARCHITECTURE.md`
-- [ ] Write `~/devvision/GETTING_STARTED.md`
-- [ ] Update `~/portfolio-ai/CLAUDE.md` to reference DevVision
+- [ ] Write `~/summitflow/README.md`
+- [ ] Write `~/summitflow/ARCHITECTURE.md`
+- [ ] Write `~/summitflow/GETTING_STARTED.md`
+- [ ] Update `~/portfolio-ai/CLAUDE.md` to reference SummitFlow
 - [ ] Document API endpoints
 - [ ] Write migration guide for future projects
 
@@ -1728,7 +1728,7 @@ ALTER TABLE beads ADD COLUMN project_id TEXT REFERENCES projects(id) NULL;
 - [ ] Linting passing (ruff check app/ tests/)
 - [ ] Code coverage ≥80% for new code
 - [ ] Documentation complete
-- [ ] Portfolio AI successfully migrated to use DevVision
+- [ ] Portfolio AI successfully migrated to use SummitFlow
 - [ ] Auto mode tested with real tasks
 - [ ] Scheduled reviews running successfully
 - [ ] All beads closed or transferred
@@ -1752,7 +1752,7 @@ ALTER TABLE beads ADD COLUMN project_id TEXT REFERENCES projects(id) NULL;
 
 ## Success Criteria
 
-**DevVision is production-ready when:**
+**SummitFlow is production-ready when:**
 1. ✅ Manages Portfolio AI development (all beads, features, evidence)
 2. ✅ Auto mode can complete a simple feature end-to-end
 3. ✅ Scheduled reviews create useful beads

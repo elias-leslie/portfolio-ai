@@ -1,12 +1,12 @@
-# DeVision Verification Harness
+# SummitFlow Verification Harness
 
-Autonomous agent harness for verifying the DeVision extraction plan.
+Autonomous agent harness for verifying the SummitFlow extraction plan.
 Based on Anthropic's autonomous-coding pattern.
 
 ## Overview
 
 This harness runs Claude iteratively to verify that each component in the
-DeVision extraction plan is correctly categorized (MOVE vs STAY).
+SummitFlow extraction plan is correctly categorized (MOVE vs STAY).
 
 ## Prerequisites
 
@@ -25,13 +25,13 @@ DeVision extraction plan is correctly categorized (MOVE vs STAY).
 
 ```bash
 # Run verification (unlimited iterations)
-python verify_devvision.py
+python verify_summitflow.py
 
 # Limit iterations for testing
-python verify_devvision.py --max-iterations 3
+python verify_summitflow.py --max-iterations 3
 
 # Use a specific model
-python verify_devvision.py --model claude-opus-4-5-20251101
+python verify_summitflow.py --model claude-opus-4-5-20251101
 ```
 
 ## How It Works
@@ -47,7 +47,7 @@ python verify_devvision.py --model claude-opus-4-5-20251101
 
 ```
 harness/
-├── verify_devvision.py     # Main entry point
+├── verify_summitflow.py     # Main entry point
 ├── agent.py                # Session logic
 ├── client.py               # Claude SDK client setup
 ├── progress.py             # Progress tracking
@@ -71,7 +71,7 @@ This leverages your MAX account subscription.
 
 To resume after interruption:
 ```bash
-python verify_devvision.py
+python verify_summitflow.py
 ```
 
 The harness reads verification_list.json and continues from where it left off.

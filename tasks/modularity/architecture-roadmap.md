@@ -19,14 +19,14 @@ This roadmap defines a **3-phase modularization strategy** to extract standalone
 
 ## Strategic Vision
 
-### Phase 1: DevVision Platform (P1) ⭐⭐⭐⭐⭐
+### Phase 1: SummitFlow Platform (P1) ⭐⭐⭐⭐⭐
 **Priority**: HIGHEST - Do This First
 **Effort**: 3-4 weeks
 **Impact**: Massive
 
-Extract all development/meta tooling into **DevVision** - a standalone platform for AI-assisted software development.
+Extract all development/meta tooling into **SummitFlow** - a standalone platform for AI-assisted software development.
 
-**What is DevVision?**
+**What is SummitFlow?**
 - Multi-project development platform
 - Global beads (work tracking across all projects)
 - Evidence capture system (screenshots, logs, metrics)
@@ -40,15 +40,15 @@ Extract all development/meta tooling into **DevVision** - a standalone platform 
 - Reduces portfolio-ai by ~30% (~40k LOC)
 - Immediately reusable on all future projects
 - Potential commercial product (no one has this combination)
-- Self-improving (use DevVision to build DevVision)
+- Self-improving (use SummitFlow to build SummitFlow)
 - Portfolio AI becomes first reference implementation
 
-**Task Plan**: `tasks/tasks-devvision-extraction.md`
+**Task Plan**: `tasks/tasks-summitflow-extraction.md`
 
 ---
 
 ### Phase 2: Internal Refactoring (P3) ⭐⭐⭐
-**Priority**: High - After DevVision extraction proves the pattern
+**Priority**: High - After SummitFlow extraction proves the pattern
 **Effort**: 2-3 weeks
 **Impact**: High (maintainability, onboarding, velocity)
 
@@ -113,7 +113,7 @@ Extract backtesting and strategy systems into **StrategyLab** - a standalone str
 ### Recommended Sequence
 
 ```
-1. DevVision Extraction (P1)
+1. SummitFlow Extraction (P1)
    ├─ Proves extraction pattern works
    ├─ Immediately usable for ongoing work
    ├─ Reduces cognitive load on portfolio-ai
@@ -121,8 +121,8 @@ Extract backtesting and strategy systems into **StrategyLab** - a standalone str
 
 2. Internal Refactoring (P3)
    ├─ Portfolio-ai now smaller (easier to refactor)
-   ├─ Use DevVision to manage the refactoring work
-   ├─ Validates DevVision's effectiveness
+   ├─ Use SummitFlow to manage the refactoring work
+   ├─ Validates SummitFlow's effectiveness
    └─ Creates clean architecture for future features
 
 3. StrategyLab Extraction (P4) - DEFERRED
@@ -133,7 +133,7 @@ Extract backtesting and strategy systems into **StrategyLab** - a standalone str
 
 ### Why This Order?
 
-**P1 First (DevVision):**
+**P1 First (SummitFlow):**
 - Clearest boundary (dev tooling ≠ investment logic)
 - Highest ROI (use immediately on all projects)
 - Creates tooling to manage P3 work
@@ -141,8 +141,8 @@ Extract backtesting and strategy systems into **StrategyLab** - a standalone str
 
 **P3 Second (Refactoring):**
 - Easier after removing 30% of code
-- Use DevVision to track refactoring beads
-- Proves DevVision handles complex work
+- Use SummitFlow to track refactoring beads
+- Proves SummitFlow handles complex work
 - Prepares for future feature velocity
 
 **P4 Third (StrategyLab):**
@@ -155,7 +155,7 @@ Extract backtesting and strategy systems into **StrategyLab** - a standalone str
 
 ## Auto Mode Integration (P1 Enhancement)
 
-As part of DevVision, implement **Auto Mode** based on:
+As part of SummitFlow, implement **Auto Mode** based on:
 - [Anthropic's Long-Running Agent Patterns](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents)
 - Python harness + Claude Code SDK
 - OAuth integration (already wired up)
@@ -233,20 +233,20 @@ Auto mode will:
 
 ### Getting Started
 
-To start P1 (DevVision extraction):
+To start P1 (SummitFlow extraction):
 
 ```bash
 # 1. Read the task plan
-cat ~/portfolio-ai/tasks/tasks-devvision-extraction.md
+cat ~/portfolio-ai/tasks/tasks-summitflow-extraction.md
 
 # 2. Run verification commands (MANDATORY section)
 # ... (follow instructions in task plan)
 
 # 3. Create epic bead
-bd create "Epic: Extract DevVision platform from Portfolio AI" \
+bd create "Epic: Extract SummitFlow platform from Portfolio AI" \
   -t epic -p 1 \
   -l "complexity:large,domains:backend,domains:frontend,domains:database" \
-  -d "Extract development tooling into standalone platform. See tasks/tasks-devvision-extraction.md" \
+  -d "Extract development tooling into standalone platform. See tasks/tasks-summitflow-extraction.md" \
   --json
 
 # 4. Create phase beads and link to epic
@@ -261,7 +261,7 @@ bd update <phase-1.1-bead-id> --status in_progress
 
 ## Success Metrics
 
-### DevVision (P1)
+### SummitFlow (P1)
 - [ ] Manages Portfolio AI development (all beads, features, evidence)
 - [ ] Auto mode completes simple feature end-to-end (>70% success rate)
 - [ ] Scheduled AI reviews generate actionable beads
@@ -289,7 +289,7 @@ bd update <phase-1.1-bead-id> --status in_progress
 
 ## Risk Mitigation
 
-### Risk: DevVision extraction breaks Portfolio AI
+### Risk: SummitFlow extraction breaks Portfolio AI
 
 **Mitigation:**
 - Extract incrementally (one phase at a time)
@@ -325,9 +325,9 @@ bd update <phase-1.1-bead-id> --status in_progress
 
 **For Local Agent:**
 1. Read all 3 task plans thoroughly
-2. Run verification commands for P1 (DevVision extraction)
+2. Run verification commands for P1 (SummitFlow extraction)
 3. Create bead structure for P1 (epic + phase beads)
-4. Begin Phase 1.1: DevVision repository setup
+4. Begin Phase 1.1: SummitFlow repository setup
 5. Check in with user after each major phase completion
 
 ---
@@ -335,7 +335,7 @@ bd update <phase-1.1-bead-id> --status in_progress
 ## References
 
 **Task Plans:**
-- P1: `tasks/tasks-devvision-extraction.md`
+- P1: `tasks/tasks-summitflow-extraction.md`
 - P3: `tasks/tasks-internal-refactoring.md`
 - P4: `tasks/tasks-backtest-strategy-extraction.md` (DEFERRED)
 - Future: `tasks/tasks-data-ingestion-extraction-FUTURE.md` (DataFountain concept)
