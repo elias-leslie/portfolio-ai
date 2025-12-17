@@ -954,7 +954,8 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
 
         {/* Input */}
         <div className="border-t border-gray-700 p-4">
-          <div className="flex gap-2 items-center">
+          {/* suppressHydrationWarning on container to handle browser extensions (Dashlane) */}
+          <div className="flex gap-2 items-center" suppressHydrationWarning>
             <input
               type="text"
               value={input}
@@ -971,6 +972,7 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
               }
               disabled={!isConnected || isLoading || !!pendingPermission || !currentSessionId}
               className="flex-1 bg-gray-800 border border-gray-600 rounded px-3 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500 disabled:opacity-50 text-sm"
+              suppressHydrationWarning
             />
             {/* Agent & Mode selectors - always visible for quick toggle */}
             <AgentSelector

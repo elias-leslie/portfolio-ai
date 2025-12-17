@@ -51,6 +51,8 @@ function Button({
   return (
     <Comp
       data-slot="button"
+      // Suppress hydration warnings caused by browser extensions (e.g., Dashlane)
+      suppressHydrationWarning
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />

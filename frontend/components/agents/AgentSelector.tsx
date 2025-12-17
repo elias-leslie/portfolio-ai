@@ -70,11 +70,13 @@ export function AgentSelector({
   const config = providerConfig[value];
 
   return (
-    <div className="relative" ref={menuRef}>
+    // suppressHydrationWarning to handle browser extensions (Dashlane) adding attributes
+    <div className="relative" ref={menuRef} suppressHydrationWarning>
       <div className="flex items-center gap-1">
         <button
           onClick={cycleProvider}
           disabled={disabled}
+          suppressHydrationWarning
           className={cn(
             "h-8 w-8 flex items-center justify-center rounded transition-colors",
             config.color,

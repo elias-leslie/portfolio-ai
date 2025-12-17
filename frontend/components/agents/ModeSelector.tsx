@@ -43,6 +43,8 @@ export function ModeSelector({ value, onChange, disabled = false }: ModeSelector
     <button
       onClick={cycleMode}
       disabled={disabled}
+      // suppressHydrationWarning to handle browser extensions (Dashlane)
+      suppressHydrationWarning
       className={cn(
         "h-8 w-8 flex items-center justify-center rounded transition-colors",
         config.color,
