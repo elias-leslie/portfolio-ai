@@ -31,8 +31,6 @@ log_time "Restarting frontend..."
 systemctl --user restart portfolio-frontend.service
 log_time "Restarting dev-companion..."
 systemctl --user restart portfolio-dev-companion.service
-log_time "Restarting browser server..."
-systemctl --user restart portfolio-browser.service 2>/dev/null || log_time "(browser server not installed)"
 
 log_time "Waiting for backend health..."
 for i in {1..10}; do
@@ -65,7 +63,6 @@ echo "  Celery Worker:$(systemctl --user is-active portfolio-celery.service && e
 echo "  Celery Beat:  $(systemctl --user is-active portfolio-celery-beat.service && echo '✓ Running' || echo '✗ Stopped')"
 echo "  Frontend:     $(systemctl --user is-active portfolio-frontend.service && echo '✓ Running' || echo '✗ Stopped')"
 echo "  Dev Companion:$(systemctl --user is-active portfolio-dev-companion.service && echo '✓ Running' || echo '✗ Stopped')"
-echo "  Browser:      $(systemctl --user is-active portfolio-browser.service 2>/dev/null && echo '✓ Running' || echo '- Not installed')"
 echo ""
 echo "Port Status:"
 echo "  Frontend:     $(ss -tlnp | grep -q ':3000' && echo '✓ Port 3000' || echo '✗ Port 3000 not bound')"
