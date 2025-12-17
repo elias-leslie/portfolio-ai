@@ -347,8 +347,9 @@
             "id": "phase-3.5",
             "title": "SummitFlow 3.5: Features frontend",
             "bead_id": "portfolio-ai-exr",
-            "bead_status": "open",
-            "status": "pending",
+            "bead_status": "closed",
+            "status": "done",
+            "completed_at": "2025-12-16",
             "blocked_by": [
                 "phase-3.2",
                 "phase-3.3"
@@ -367,29 +368,41 @@
             ],
             "target_files": [
                 {
-                    "path": "~/summitflow/frontend/app/projects/[id]/features/page.tsx"
+                    "path": "~/summitflow/frontend/components/features/FeaturesTab.tsx"
                 },
                 {
                     "path": "~/summitflow/frontend/components/evidence/EvidenceViewerModal.tsx"
+                },
+                {
+                    "path": "~/summitflow/frontend/components/ui/*.tsx (9 UI components)"
+                },
+                {
+                    "path": "~/summitflow/backend/app/api/evidence.py"
                 }
             ],
             "steps": [
                 {
                     "id": "3.5.1",
                     "description": "Extract EvidenceViewerModal to SummitFlow components",
-                    "passes": false
+                    "passes": true
                 },
                 {
                     "id": "3.5.2",
                     "description": "Extract FeaturesTab to project-scoped Features page",
-                    "passes": false
+                    "passes": true
                 },
                 {
                     "id": "3.5.3",
                     "description": "Update API calls to use SummitFlow features API (project_id scoped)",
-                    "passes": false
+                    "passes": true
+                },
+                {
+                    "id": "3.5.4",
+                    "description": "Created custom phosphor-themed UI components (9 total)",
+                    "passes": true
                 }
-            ]
+            ],
+            "notes": "Added FeaturesTab to project page with tabbed navigation. Created evidence API router. Built 9 custom UI primitives matching SummitFlow phosphor theme."
         },
         {
             "id": "phase-3.6",
