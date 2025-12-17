@@ -1,0 +1,555 @@
+{
+    "project": "summitflow-extraction",
+    "version": "1.1.0",
+    "last_updated": "2025-12-16",
+    "parent_beads": [
+        {
+            "id": "portfolio-ai-xh8",
+            "title": "SummitFlow Phase 3: Features system extraction",
+            "status": "in_progress"
+        }
+    ],
+    "architecture_decisions": {
+        "beads_storage": "JSONL in each project (NO PostgreSQL). SummitFlow provides a web UI layer that calls `bd` CLI.",
+        "mvp_scope": "Phases 1-3 (extraction only). Auto Mode and AI Reviews deferred to v1.1.",
+        "evidence_migration": "Last 30 days only (~20MB).",
+        "commands": "Stay in each project, call SummitFlow API.",
+        "sources_tab": "STAYS in portfolio-ai (domain-specific).",
+        "rules_tab": "STAYS in portfolio-ai (trading rules).",
+        "db_celery_workflows_tabs": "STAY in portfolio-ai (app introspection)."
+    },
+    "component_categorization": {
+        "moves_to_summitflow": [
+            {
+                "component": "VisionGoalsTab.tsx",
+                "loc": "22K",
+                "category": "DEV TOOLING",
+                "reason": "Strategic goals, vision content tracking"
+            },
+            {
+                "component": "FeaturesTab.tsx",
+                "loc": "67K",
+                "category": "DEV TOOLING",
+                "reason": "Feature tracking, acceptance criteria, evidence"
+            },
+            {
+                "component": "FilesTab.tsx",
+                "loc": "39K",
+                "category": "DEV TOOLING",
+                "reason": "Codebase file analysis"
+            },
+            {
+                "component": "SitemapTab.tsx",
+                "loc": "10K",
+                "category": "DEV TOOLING",
+                "reason": "Endpoint discovery"
+            },
+            {
+                "component": "SitemapTreeView.tsx",
+                "loc": "10K",
+                "category": "DEV TOOLING",
+                "reason": "Sitemap visualization"
+            },
+            {
+                "component": "SitemapTableView.tsx",
+                "loc": "7K",
+                "category": "DEV TOOLING",
+                "reason": "Sitemap table"
+            },
+            {
+                "component": "EvidenceViewerModal.tsx",
+                "loc": "28K",
+                "category": "DEV TOOLING",
+                "reason": "Key evidence viewing UI"
+            },
+            {
+                "component": "artifact_manager.py",
+                "loc": 790,
+                "category": "DEV TOOLING",
+                "reason": "Evidence/artifact storage"
+            },
+            {
+                "component": "criteria_verifier.py",
+                "loc": 1125,
+                "category": "DEV TOOLING",
+                "reason": "Feature verification engine"
+            },
+            {
+                "component": "file_scanner.py",
+                "loc": 773,
+                "category": "DEV TOOLING",
+                "reason": "Codebase analysis"
+            },
+            {
+                "component": "sitemap_service.py",
+                "loc": 1456,
+                "category": "DEV TOOLING",
+                "reason": "URL/endpoint discovery"
+            },
+            {
+                "component": "capability_feature_scanner.py",
+                "loc": 455,
+                "category": "DEV TOOLING",
+                "reason": "Feature scanning"
+            },
+            {
+                "component": "features_router.py",
+                "loc": 1431,
+                "category": "DEV TOOLING",
+                "reason": "Feature CRUD, evidence"
+            },
+            {
+                "component": "vision_goals_router.py",
+                "loc": 475,
+                "category": "DEV TOOLING",
+                "reason": "Vision goals"
+            },
+            {
+                "component": "vision_content_router.py",
+                "loc": 621,
+                "category": "DEV TOOLING",
+                "reason": "Vision content"
+            },
+            {
+                "component": "notes_router.py",
+                "loc": 158,
+                "category": "DEV TOOLING",
+                "reason": "Dev notes"
+            },
+            {
+                "component": "sitemap.py",
+                "loc": 350,
+                "category": "DEV TOOLING",
+                "reason": "Sitemap API"
+            },
+            {
+                "component": "files.py",
+                "loc": 230,
+                "category": "DEV TOOLING",
+                "reason": "Files API"
+            }
+        ],
+        "stays_in_portfolio_ai": [
+            {
+                "component": "kams_sources.py",
+                "category": "DOMAIN",
+                "reason": "Market data sources (renamed from sources.py to avoid ambiguity)"
+            },
+            {
+                "component": "ApiSourcesOverview.tsx",
+                "loc": "16K",
+                "category": "DOMAIN",
+                "reason": "Market data sources UI"
+            },
+            {
+                "component": "RulesViewer.tsx",
+                "category": "DOMAIN",
+                "reason": "Trading rules UI"
+            },
+            {
+                "component": "CapabilitiesTable.tsx",
+                "loc": "52K",
+                "category": "DOMAIN",
+                "reason": "DB/Celery/API introspection"
+            },
+            {
+                "component": "WatchlistCoverage.tsx",
+                "loc": "12K",
+                "category": "DOMAIN",
+                "reason": "Watchlist coverage"
+            },
+            {
+                "component": "capability_db_scanner.py",
+                "loc": 550,
+                "category": "DOMAIN",
+                "reason": "Introspects portfolio-ai DB"
+            },
+            {
+                "component": "capability_celery_scanner.py",
+                "loc": 743,
+                "category": "DOMAIN",
+                "reason": "Introspects portfolio-ai Celery"
+            },
+            {
+                "component": "capability_api_scanner.py",
+                "loc": 482,
+                "category": "DOMAIN",
+                "reason": "Introspects portfolio-ai API"
+            }
+        ]
+    },
+    "summary": {
+        "total_phases": 11,
+        "completed_phases": 4,
+        "total_steps": 19,
+        "completed_steps": 0
+    },
+    "phases": [
+        {
+            "id": "phase-1",
+            "title": "Phase 1: Foundation (repo, schema, projects API)",
+            "bead_id": "portfolio-ai-2kp",
+            "bead_status": "closed",
+            "status": "completed",
+            "blocked_by": [],
+            "source_files": [],
+            "target_files": [],
+            "steps": []
+        },
+        {
+            "id": "phase-2",
+            "title": "Phase 2: Sitemap extraction",
+            "bead_id": "portfolio-ai-6lg",
+            "bead_status": "closed",
+            "status": "completed",
+            "blocked_by": [],
+            "source_files": [],
+            "target_files": [],
+            "steps": []
+        },
+        {
+            "id": "phase-3.1",
+            "title": "Phase 3.1: Schema for features/vision/artifacts tables",
+            "bead_id": "portfolio-ai-1n6",
+            "bead_status": "closed",
+            "status": "completed",
+            "blocked_by": [],
+            "source_files": [],
+            "target_files": [],
+            "steps": []
+        },
+        {
+            "id": "phase-3.2",
+            "title": "Phase 3.2: Features backend",
+            "bead_id": "portfolio-ai-a8a",
+            "bead_status": "closed",
+            "status": "completed",
+            "blocked_by": [],
+            "source_files": [
+                {
+                    "path": "backend/app/api/capabilities/features_router.py"
+                }
+            ],
+            "target_files": [
+                {
+                    "path": "~/summitflow/backend/app/api/features.py"
+                }
+            ],
+            "steps": []
+        },
+        {
+            "id": "phase-3.3",
+            "title": "SummitFlow 3.3: Artifacts backend",
+            "bead_id": "portfolio-ai-p5o",
+            "bead_status": "open",
+            "status": "ready",
+            "blocked_by": [],
+            "source_files": [
+                {
+                    "path": "backend/app/services/artifact_manager.py",
+                    "lines": 790,
+                    "category": "DEV TOOLING"
+                },
+                {
+                    "path": "backend/app/services/criteria_verifier.py",
+                    "lines": 1125,
+                    "category": "DEV TOOLING"
+                },
+                {
+                    "path": "backend/app/services/capability_feature_scanner.py",
+                    "lines": 455,
+                    "category": "DEV TOOLING"
+                }
+            ],
+            "target_files": [
+                {
+                    "path": "~/summitflow/backend/app/services/evidence_manager.py"
+                },
+                {
+                    "path": "~/summitflow/backend/app/services/verification_engine.py"
+                },
+                {
+                    "path": "~/summitflow/backend/app/services/feature_scanner.py"
+                }
+            ],
+            "steps": [
+                {
+                    "id": "3.3.1",
+                    "description": "Copy artifact_manager.py to evidence_manager.py",
+                    "passes": false
+                },
+                {
+                    "id": "3.3.2",
+                    "description": "Refactor evidence_manager: Rename artifacts->evidence, add project_id",
+                    "passes": false
+                },
+                {
+                    "id": "3.3.3",
+                    "description": "Copy criteria_verifier.py to verification_engine.py",
+                    "passes": false
+                },
+                {
+                    "id": "3.3.4",
+                    "description": "Refactor verification_engine: Add project_id, fetch base_url from project config",
+                    "passes": false
+                },
+                {
+                    "id": "3.3.5",
+                    "description": "Extract capability_feature_scanner.py (455 lines) - was missed in 3.2",
+                    "passes": false
+                }
+            ]
+        },
+        {
+            "id": "phase-3.4",
+            "title": "SummitFlow 3.4: Vision backend",
+            "bead_id": "portfolio-ai-5e0",
+            "bead_status": "open",
+            "status": "ready",
+            "blocked_by": [],
+            "source_files": [
+                {
+                    "path": "backend/app/api/capabilities/vision_goals_router.py",
+                    "category": "DEV TOOLING"
+                },
+                {
+                    "path": "backend/app/api/capabilities/vision_content_router.py",
+                    "category": "DEV TOOLING"
+                }
+            ],
+            "target_files": [
+                {
+                    "path": "~/summitflow/backend/app/api/vision_goals.py"
+                },
+                {
+                    "path": "~/summitflow/backend/app/api/vision_content.py"
+                }
+            ],
+            "steps": [
+                {
+                    "id": "3.4.1",
+                    "description": "Copy vision_goals_router.py and vision_content_router.py",
+                    "passes": false
+                },
+                {
+                    "id": "3.4.2",
+                    "description": "Refactor router endpoints to accept project_id",
+                    "passes": false
+                },
+                {
+                    "id": "3.4.3",
+                    "description": "Verify DB column project_id exists in vision tables",
+                    "passes": false
+                }
+            ]
+        },
+        {
+            "id": "phase-3.5",
+            "title": "SummitFlow 3.5: Features frontend",
+            "bead_id": "portfolio-ai-exr",
+            "bead_status": "open",
+            "status": "pending",
+            "blocked_by": [
+                "phase-3.2",
+                "phase-3.3"
+            ],
+            "source_files": [
+                {
+                    "path": "frontend/components/capabilities/FeaturesTab.tsx",
+                    "loc": "67K",
+                    "category": "DEV TOOLING"
+                },
+                {
+                    "path": "frontend/components/capabilities/EvidenceViewerModal.tsx",
+                    "loc": "28K",
+                    "category": "DEV TOOLING"
+                }
+            ],
+            "target_files": [
+                {
+                    "path": "~/summitflow/frontend/app/projects/[id]/features/page.tsx"
+                },
+                {
+                    "path": "~/summitflow/frontend/components/evidence/EvidenceViewerModal.tsx"
+                }
+            ],
+            "steps": [
+                {
+                    "id": "3.5.1",
+                    "description": "Extract EvidenceViewerModal to SummitFlow components",
+                    "passes": false
+                },
+                {
+                    "id": "3.5.2",
+                    "description": "Extract FeaturesTab to project-scoped Features page",
+                    "passes": false
+                },
+                {
+                    "id": "3.5.3",
+                    "description": "Update API calls to use SummitFlow features API (project_id scoped)",
+                    "passes": false
+                }
+            ]
+        },
+        {
+            "id": "phase-3.6",
+            "title": "SummitFlow 3.6: Vision frontend",
+            "bead_id": "portfolio-ai-ghg",
+            "bead_status": "open",
+            "status": "pending",
+            "blocked_by": [
+                "phase-3.4"
+            ],
+            "source_files": [
+                {
+                    "path": "frontend/components/capabilities/VisionGoalsTab.tsx",
+                    "loc": "22K",
+                    "category": "DEV TOOLING"
+                }
+            ],
+            "target_files": [
+                {
+                    "path": "~/summitflow/frontend/app/projects/[id]/vision/page.tsx"
+                }
+            ],
+            "steps": [
+                {
+                    "id": "3.6.1",
+                    "description": "Extract VisionGoalsTab to SummitFlow project vision page",
+                    "passes": false
+                },
+                {
+                    "id": "3.6.2",
+                    "description": "Update API calls to use SummitFlow vision API",
+                    "passes": false
+                }
+            ]
+        },
+        {
+            "id": "phase-4",
+            "title": "SummitFlow Phase 4: Files extraction + cleanup",
+            "bead_id": "portfolio-ai-uvi",
+            "bead_status": "open",
+            "status": "pending",
+            "blocked_by": [
+                "phase-3.6",
+                "phase-3.4",
+                "phase-3.5"
+            ],
+            "source_files": [
+                {
+                    "path": "frontend/components/capabilities/FilesTab.tsx",
+                    "category": "DEV TOOLING"
+                },
+                {
+                    "path": "backend/app/services/file_scanner.py",
+                    "category": "DEV TOOLING"
+                },
+                {
+                    "path": "backend/app/api/capabilities/files.py",
+                    "category": "DEV TOOLING"
+                }
+            ],
+            "target_files": [
+                {
+                    "path": "~/summitflow/frontend/app/projects/[id]/files/page.tsx"
+                },
+                {
+                    "path": "~/summitflow/backend/app/services/codebase_scanner.py"
+                }
+            ],
+            "steps": [
+                {
+                    "id": "4.1",
+                    "description": "Extract FilesTab and file_scanner logic",
+                    "passes": false
+                },
+                {
+                    "id": "4.2",
+                    "description": "Verify file scanning works on target repo via path configuration",
+                    "passes": false
+                },
+                {
+                    "id": "4.3",
+                    "description": "Cleanup: Remove extracted components from portfolio-ai",
+                    "passes": false
+                }
+            ]
+        },
+        {
+            "id": "phase-5",
+            "title": "SummitFlow Phase 5: Commands integration",
+            "bead_id": "portfolio-ai-79u",
+            "bead_status": "open",
+            "status": "pending",
+            "blocked_by": [
+                "phase-4"
+            ],
+            "source_files": [
+                {
+                    "path": ".claude/commands/test_it.md"
+                },
+                {
+                    "path": ".claude/commands/verify_it.md"
+                },
+                {
+                    "path": ".claude/commands/audit_it.md"
+                },
+                {
+                    "path": ".claude/commands/next_it.md"
+                }
+            ],
+            "target_files": [
+                {
+                    "path": "~/summitflow/backend/app/api/commands/"
+                }
+            ],
+            "steps": [
+                {
+                    "id": "5.1",
+                    "description": "Update project commands to call SummitFlow API",
+                    "passes": false
+                },
+                {
+                    "id": "5.2",
+                    "description": "Implement command logic in SummitFlow backend",
+                    "passes": false
+                }
+            ]
+        },
+        {
+            "id": "sitemap-ui-polish",
+            "title": "SummitFlow: Sitemap UI polish",
+            "bead_id": "portfolio-ai-gil",
+            "bead_status": "open",
+            "status": "ready",
+            "blocked_by": [],
+            "note": "Use frontend-design skill for consistent styling",
+            "source_files": [],
+            "target_files": [],
+            "steps": [
+                {
+                    "id": "polish-1",
+                    "description": "Apply consistent styling to Sitemap UI",
+                    "passes": false
+                }
+            ]
+        }
+    ],
+    "missing_beads": [],
+    "schema_gaps": [
+        {
+            "component": "capability_feature_scanner.py",
+            "issue": "Listed in phase-3.2 bead but not extracted. Added to Phase 3.3 to remediate."
+        }
+    ],
+    "discrepancies": [
+        "Conflict: tasks-summitflow-extraction.md (lines 568+) proposes PostgreSQL for beads, but NEXT-SESSION-PROMPT.md CORRECTS this to 'JSONL + SQLite in each project' with SummitFlow wrapping the CLI.",
+        "Bead 722 and uep/8ba were marked as conflicting P1 beads in tasks-summitflow-extraction.md but plan seems to proceed with SummitFlow as P1."
+    ],
+    "notes": [
+        "Project renamed from 'DevVision' to 'SummitFlow'.",
+        "Frontend requires frontend-design skill for consistent styling.",
+        "Beads CLI (bd) is NOT migrated - SummitFlow wraps it."
+    ]
+}
