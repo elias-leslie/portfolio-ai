@@ -131,7 +131,7 @@ class AnalyticsResponse(BaseModel):
     num_symbols: int
 
 
-@router.get("/", response_model=PortfolioResponse)
+@router.get("", response_model=PortfolioResponse)
 @cache_response(ttl=30)  # 30 seconds cache
 async def get_portfolio(request: Request, include_paper: bool = False) -> PortfolioResponse:
     """Get all portfolio positions with current values.

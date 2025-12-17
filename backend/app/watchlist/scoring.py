@@ -280,9 +280,11 @@ def _compute_catalyst_component(
         score = max(0.0, min(100.0, score))
 
         # Extract sub-scores for top 3 catalysts
+        # Filter out None values to ensure dict[str, float] contract
         sub_scores = {}
         for i, catalyst in enumerate(active_catalysts[:3], 1):
-            sub_scores[f"catalyst_{i}"] = catalyst.score
+            if catalyst.score is not None:
+                sub_scores[f"catalyst_{i}"] = catalyst.score
 
         metadata: dict[str, str | int | float | bool | None] = {
             "catalyst_count": len(active_catalysts),

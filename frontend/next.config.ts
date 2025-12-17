@@ -1,10 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Don't redirect trailing slashes - let FastAPI middleware normalize them
+  skipTrailingSlashRedirect: true,
   async rewrites() {
     // Use 127.0.0.1 instead of localhost to avoid IPv6 issues
-    // Next.js server will proxy requests to the backend
-    // Note: We handle both with and without trailing slashes to avoid FastAPI redirects
+    // Backend TrailingSlashMiddleware handles slash normalization
     return [
       // Health endpoints (not under /api prefix on backend)
       {
@@ -15,51 +16,8 @@ const nextConfig: NextConfig = {
         source: "/health/:path*",
         destination: "http://127.0.0.1:8000/health/:path*",
       },
-      // Routes that need trailing slash (list endpoints)
-      {
-        source: "/api/capabilities/features",
-        destination: "http://127.0.0.1:8000/api/capabilities/features/",
-      },
-      {
-        source: "/api/capabilities/features/summary",
-        destination: "http://127.0.0.1:8000/api/capabilities/features/summary",
-      },
-      // Vision goals endpoints (need trailing slash)
-      {
-        source: "/api/vision-goals",
-        destination: "http://127.0.0.1:8000/api/vision-goals/",
-      },
-      {
-        source: "/api/vision-goals/:code",
-        destination: "http://127.0.0.1:8000/api/vision-goals/:code",
-      },
-      {
-        source: "/api/vision-goals/:code/details",
-        destination: "http://127.0.0.1:8000/api/vision-goals/:code/details",
-      },
-      // Vision content endpoints (need trailing slash for root)
-      {
-        source: "/api/vision",
-        destination: "http://127.0.0.1:8000/api/vision/",
-      },
-      {
-        source: "/api/vision/",
-        destination: "http://127.0.0.1:8000/api/vision/",
-      },
-      {
-        source: "/api/vision/:path*",
-        destination: "http://127.0.0.1:8000/api/vision/:path*",
-      },
-      // Portfolio endpoints (need trailing slash)
-      {
-        source: "/api/portfolio",
-        destination: "http://127.0.0.1:8000/api/portfolio/",
-      },
-      {
-        source: "/api/portfolio/",
-        destination: "http://127.0.0.1:8000/api/portfolio/",
-      },
-      // General catch-all for all other API routes
+      // General catch-all for all API routes
+      // Backend middleware normalizes trailing slashes
       {
         source: "/api/:path*",
         destination: "http://127.0.0.1:8000/api/:path*",

@@ -16,6 +16,31 @@ from .models import NarrativeBulletsDict, NewsIntelligenceDict, RecentNewsDict
 
 
 # Helper functions
+def _clean_sub_scores(data: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Clean sub_scores dict by removing None values.
+
+    Pydantic expects sub_scores to be dict[str, float] | None, so any
+    None values in the dict will cause validation errors. This can happen
+    when data was stored with None values before validation was added.
+    """
+    if data is None:
+        return None
+
+    # Make a copy to avoid mutating original
+    cleaned = dict(data)
+
+    # Clean sub_scores if present
+    sub_scores = cleaned.get("sub_scores")
+    if isinstance(sub_scores, dict):
+        # Filter out None values
+        cleaned["sub_scores"] = {k: v for k, v in sub_scores.items() if v is not None}
+        # If empty dict, set to None
+        if not cleaned["sub_scores"]:
+            cleaned["sub_scores"] = None
+
+    return cleaned
+
+
 def _build_data_quality_response(data: dict[str, Any] | None) -> DataQualityResponse | None:
     """
     Build DataQualityResponse from dictionary.
@@ -197,16 +222,18 @@ class WatchlistItemResponse(BaseModel):
         # Build score breakdown if score data is present
         current_score = None
         if item.get("score"):
+            # Clean sub_scores in score components to remove None values
+            # that would cause Pydantic validation errors
             current_score = ScoreBreakdownResponse(
-                price=ScoreComponentResponse(**item["score"]["price"]),
-                technical=ScoreComponentResponse(**item["score"]["technical"]),
-                fundamental=ScoreComponentResponse(**item["score"]["fundamental"])
+                price=ScoreComponentResponse(**_clean_sub_scores(item["score"]["price"])),
+                technical=ScoreComponentResponse(**_clean_sub_scores(item["score"]["technical"])),
+                fundamental=ScoreComponentResponse(**_clean_sub_scores(item["score"]["fundamental"]))
                 if item["score"].get("fundamental")
                 else None,
-                catalyst=ScoreComponentResponse(**item["score"]["catalyst"])
+                catalyst=ScoreComponentResponse(**_clean_sub_scores(item["score"]["catalyst"]))
                 if item["score"].get("catalyst")
                 else None,
-                options_flow=ScoreComponentResponse(**item["score"]["options_flow"])
+                options_flow=ScoreComponentResponse(**_clean_sub_scores(item["score"]["options_flow"]))
                 if item["score"].get("options_flow")
                 else None,
                 overall=item["score"]["overall"],

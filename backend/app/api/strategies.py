@@ -109,7 +109,7 @@ class UpdateStrategyStatusRequest(BaseModel):
 # ============================================================================
 
 
-@router.get("/", response_model=dict[str, Any])
+@router.get("", response_model=dict[str, Any])
 async def list_strategies(
     symbol: str | None = Query(None, description="Filter by symbol"),
     status: Literal["testing", "active", "archived"] | None = Query(

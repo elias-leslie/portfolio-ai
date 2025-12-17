@@ -60,6 +60,7 @@ from app.api import (
 from app.api.capabilities.vision_content_router import router as vision_content_router
 from app.api.capabilities.vision_goals_router import router as vision_goals_router
 from app.logging_config import SyslogPrefixFormatter, configure_logging, get_logger
+from app.middleware.trailing_slash import TrailingSlashMiddleware
 from app.storage import get_storage
 from app.storage.credential_loader import load_credentials_from_database
 
@@ -161,6 +162,7 @@ app.add_middleware(
 
 # Add request ID middleware for structured logging
 app.add_middleware(RequestIDMiddleware)
+
 
 # Register routers
 app.include_router(health.router)

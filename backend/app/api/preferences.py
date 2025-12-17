@@ -313,7 +313,7 @@ def _get_or_create_preferences() -> dict[str, str | int | float | bool | datetim
     }
 
 
-@router.get("/", response_model=PreferencesResponse)
+@router.get("", response_model=PreferencesResponse)
 async def get_preferences() -> PreferencesResponse:
     """Get user's risk tolerance and trade preferences."""
     prefs = await run_in_threadpool(_get_or_create_preferences)
@@ -346,7 +346,7 @@ async def get_preferences() -> PreferencesResponse:
     )
 
 
-@router.post("/", response_model=PreferencesResponse)
+@router.post("", response_model=PreferencesResponse)
 async def update_preferences(update: PreferencesUpdate) -> PreferencesResponse:
     """Update user preferences."""
     # Get current preferences

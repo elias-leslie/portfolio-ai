@@ -30,7 +30,7 @@ from .models import CapabilitiesListResponse, CapabilityDetailResponse, ScanTrig
 
 logger = get_logger(__name__)
 
-router = APIRouter()
+router = APIRouter(prefix="")
 
 # System tables that should NEVER be included in cleanup candidates
 # These are infrastructure tables required for the system to function

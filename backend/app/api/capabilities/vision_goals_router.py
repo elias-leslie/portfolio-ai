@@ -62,6 +62,7 @@ class VisionGoalUpdate(BaseModel):
     category: str | None = None
 
 
+@router.get("")
 @router.get("/", response_model=list[VisionGoalWithStats])
 async def get_vision_goals() -> list[VisionGoalWithStats]:
     """Get all vision goals with feature and criteria statistics."""
@@ -328,6 +329,7 @@ async def get_vision_goal_details(code: str) -> list[dict[str, Any]]:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
+@router.post("")
 @router.post("/", response_model=dict[str, Any])
 async def create_vision_goal(goal: VisionGoalCreate) -> dict[str, Any]:
     """Create a new vision goal."""

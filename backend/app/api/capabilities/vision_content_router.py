@@ -59,6 +59,7 @@ class RoadmapStatusUpdate(BaseModel):
     features: list[str] | None = None  # Optional list of feature IDs
 
 
+@router.get("")
 @router.get("/", response_model=dict[str, Any])
 async def get_all_vision_content() -> dict[str, Any]:
     """Get all vision content grouped by type."""

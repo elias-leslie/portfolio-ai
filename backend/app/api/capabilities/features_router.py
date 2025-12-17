@@ -210,7 +210,7 @@ def _feature_to_response(f: dict[str, Any]) -> FeatureResponse:
 
 
 # Endpoints
-@router.get("/", response_model=FeaturesListResponse)
+@router.get("", response_model=FeaturesListResponse)
 async def get_features(
     category: str | None = Query(None, description="Filter by category"),
     health_status: str | None = Query(None, description="Filter by health: active, orphaned"),
@@ -577,7 +577,7 @@ async def get_feature(feature_id: str) -> FeatureResponse:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@router.post("/", response_model=dict[str, Any])
+@router.post("", response_model=dict[str, Any])
 async def create_feature(feature: FeatureCreate) -> dict[str, Any]:
     """Create a new feature.
 

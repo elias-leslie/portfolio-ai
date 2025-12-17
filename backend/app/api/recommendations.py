@@ -169,7 +169,7 @@ def _calculate_signal_status(
 # ============================================================================
 
 
-@router.get("/", response_model=RecommendationsResponse)
+@router.get("", response_model=RecommendationsResponse)
 async def get_recommendations(
     min_strength: int = Query(5, ge=0, le=10, description="Minimum signal strength"),
     limit: int = Query(20, ge=1, le=100, description="Maximum recommendations"),
