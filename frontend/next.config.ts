@@ -16,6 +16,15 @@ const nextConfig: NextConfig = {
         source: "/health/:path*",
         destination: "http://127.0.0.1:8000/health/:path*",
       },
+      // Dev Companion (Agent Hub backend) - port 9999
+      {
+        source: "/dev-companion",
+        destination: "http://127.0.0.1:9999",
+      },
+      {
+        source: "/dev-companion/:path*",
+        destination: "http://127.0.0.1:9999/:path*",
+      },
       // General catch-all for all API routes
       // Backend middleware normalizes trailing slashes
       {
