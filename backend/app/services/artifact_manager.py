@@ -28,7 +28,8 @@ logger = get_logger(__name__)
 
 # Configuration
 ARTIFACTS_BASE_DIR = Path("/home/kasadis/portfolio-ai/data/artifacts")
-BROWSER_SCRIPTS_DIR = Path("/home/kasadis/portfolio-ai/.claude/skills/browser-automation/scripts")
+# Browser scripts canonical location is SummitFlow (the platform)
+BROWSER_SCRIPTS_DIR = Path("/home/kasadis/summitflow/.claude/skills/browser-automation/scripts")
 DEFAULT_EXPIRY_HOURS = 24
 MAX_VERSIONS_TO_KEEP = 5
 CAPTURE_TIMEOUT_SECONDS = 60
