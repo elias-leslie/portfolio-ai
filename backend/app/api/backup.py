@@ -115,8 +115,58 @@ class BackupRequirementCheck(BaseModel):
     warnings: list[str] = Field(default_factory=list, description="Non-blocking warnings")
 
 
-def _read_backup_index() -> dict[str, Any]:
-    """Read and parse the backup index file."""
+def _sync_backup_index() -> bool:
+    """Sync backup index with SMB - self-healing on mismatch."""
+    sync_script = PROJECT_DIR / "scripts" / "lib" / "backup-utils.sh"
+    if not sync_script.exists():
+        logger.warning("sync_script_not_found", path=str(sync_script))
+        return False
+
+    try:
+        result = subprocess.run(
+            ["bash", "-c", f"source {sync_script} && sync_index_from_smb"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            cwd=str(PROJECT_DIR),
+        )
+        if result.returncode == 0:
+            logger.info("backup_index_synced")
+            return True
+        logger.warning("backup_index_sync_failed", stderr=result.stderr[:200] if result.stderr else None)
+        return False
+    except Exception as e:
+        logger.warning("backup_index_sync_error", error=str(e))
+        return False
+
+
+# Track last sync time to avoid excessive SMB calls
+_last_sync_time: datetime | None = None
+_SYNC_INTERVAL_SECONDS = 300  # Sync at most every 5 minutes
+
+
+def _read_backup_index(force_sync: bool = False) -> dict[str, Any]:
+    """Read and parse the backup index file.
+
+    Auto-syncs with SMB if:
+    - force_sync is True
+    - More than 5 minutes since last sync
+    - Index file doesn't exist
+    """
+    global _last_sync_time
+
+    # Determine if we should sync
+    should_sync = force_sync or not BACKUP_INDEX_PATH.exists()
+    if not should_sync and _last_sync_time:
+        time_since_sync = (datetime.now() - _last_sync_time).total_seconds()
+        should_sync = time_since_sync > _SYNC_INTERVAL_SECONDS
+    elif not _last_sync_time:
+        should_sync = True  # First call, sync to ensure consistency
+
+    if should_sync:
+        _sync_backup_index()
+        _last_sync_time = datetime.now()
+
     if not BACKUP_INDEX_PATH.exists():
         return {
             "version": 1,

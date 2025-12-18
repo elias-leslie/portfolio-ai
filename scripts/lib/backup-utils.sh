@@ -424,10 +424,102 @@ backup_checkpoint() {
     fi
 }
 
+# Sync local index with SMB - self-healing function
+# Adds missing backups, removes orphans, preserves existing verification data
+sync_index_from_smb() {
+    log "Syncing backup index with SMB..."
+
+    # Ensure index exists
+    if [ ! -f "$BACKUP_INDEX" ]; then
+        cat > "$BACKUP_INDEX" << EOF
+{
+  "version": 2,
+  "retention": $MAX_BACKUPS,
+  "destination": "//$SMB_HOST/$SMB_SHARE/$SMB_PATH",
+  "backups": [],
+  "last_updated": "$(date -Iseconds)"
+}
+EOF
+    fi
+
+    # Get list from SMB
+    local smb_backups
+    smb_backups=$(smb_list_backups)
+    if [ -z "$smb_backups" ]; then
+        log_warn "No backups found on SMB or connection failed"
+        return 1
+    fi
+
+    # Get list from index
+    local index_backups
+    index_backups=$(jq -r '.backups[].name' "$BACKUP_INDEX" 2>/dev/null)
+
+    local added=0
+    local removed=0
+
+    # Add missing backups (on SMB but not in index)
+    for backup in $smb_backups; do
+        if ! echo "$index_backups" | grep -q "^${backup}$"; then
+            log "Adding missing backup: $backup"
+
+            # Extract timestamp from filename (portfolio-ai-YYYYMMDD-HHMMSS.tar.gz)
+            local ts_part=$(echo "$backup" | sed -n 's/portfolio-ai-\([0-9]*\)-\([0-9]*\)\.tar\.gz/\1-\2/p')
+            local year=${ts_part:0:4}
+            local month=${ts_part:4:2}
+            local day=${ts_part:6:2}
+            local hour=${ts_part:9:2}
+            local min=${ts_part:11:2}
+            local sec=${ts_part:13:2}
+            local timestamp="${year}-${month}-${day}T${hour}:${min}:${sec}-05:00"
+
+            # Get file size from SMB
+            local size
+            size=$(smbclient "//$SMB_HOST/$SMB_SHARE" -A "$CREDENTIALS_FILE" \
+                -c "cd $SMB_PATH; ls $backup" 2>/dev/null | grep "$backup" | awk '{print $3}')
+            size=${size:-0}
+
+            # Add to index (will be sorted later)
+            local temp_file=$(mktemp)
+            jq --arg name "$backup" \
+               --arg ts "$timestamp" \
+               --argjson size "$size" \
+               '.backups += [{"name": $name, "timestamp": $ts, "size_bytes": $size, "db_size_bytes": 0, "status": "ok", "verification": null}]' \
+               "$BACKUP_INDEX" > "$temp_file"
+            mv "$temp_file" "$BACKUP_INDEX"
+            ((added++))
+        fi
+    done
+
+    # Remove orphaned entries (in index but not on SMB)
+    for backup in $index_backups; do
+        if ! echo "$smb_backups" | grep -q "^${backup}$"; then
+            log "Removing orphaned entry: $backup"
+            local temp_file=$(mktemp)
+            jq --arg name "$backup" '.backups = [.backups[] | select(.name != $name)]' \
+               "$BACKUP_INDEX" > "$temp_file"
+            mv "$temp_file" "$BACKUP_INDEX"
+            ((removed++))
+        fi
+    done
+
+    # Sort by timestamp (newest first) and update last_updated
+    local temp_file=$(mktemp)
+    local now_ts=$(date -Iseconds)
+    jq --arg ts "$now_ts" '.backups = (.backups | sort_by(.timestamp) | reverse) | .last_updated = $ts' \
+       "$BACKUP_INDEX" > "$temp_file"
+    mv "$temp_file" "$BACKUP_INDEX"
+
+    if [ $added -gt 0 ] || [ $removed -gt 0 ]; then
+        log_success "Index synced: +$added added, -$removed removed"
+    else
+        log_success "Index already in sync"
+    fi
+}
+
 # Export functions for subshells
 export -f log log_success log_warn log_error log_info
 export -f ensure_smb_credentials test_smb_connection
 export -f smb_upload smb_download smb_delete smb_list_backups
 export -f update_backup_index get_backup_count remove_oldest_from_index
 export -f apply_retention backup_checkpoint
-export -f build_backup_manifest verify_backup
+export -f build_backup_manifest verify_backup sync_index_from_smb
