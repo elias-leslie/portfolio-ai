@@ -107,6 +107,9 @@ show_status() {
 dump_database() {
     local dump_file="$1"
 
+    # Set PGPASSWORD for pg_dump authentication
+    export PGPASSWORD="$DB_PASSWORD"
+
     if [ "$QUICK_MODE" = true ]; then
         log "Quick mode: Using existing daily backup"
         local daily_backup="$PROJECT_DIR/backups/portfolio_ai_daily.sql.gz"
@@ -127,6 +130,9 @@ dump_database() {
             return 1
         fi
     fi
+
+    # Clear password from environment
+    unset PGPASSWORD
 }
 
 # Create archive function (exclusion-based, dynamic)

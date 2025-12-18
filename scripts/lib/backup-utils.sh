@@ -21,9 +21,24 @@ export CREDENTIALS_FILE="$HOME/.smbcredentials"
 export BACKUP_INDEX="$PROJECT_DIR/backup-index.json"
 export MAX_BACKUPS=30
 
-# Database config
+# Database config - load from ~/.env.local if available
+if [ -f "$HOME/.env.local" ]; then
+    # Parse DATABASE_URL from env.local to extract password
+    # Format: postgresql://user:password@host:port/dbname
+    _db_url=$(grep "^PORTFOLIO_DB_URL=" "$HOME/.env.local" | cut -d'=' -f2-)
+    if [ -n "$_db_url" ]; then
+        # Extract components using bash parameter expansion
+        _db_userpass=$(echo "$_db_url" | sed -n 's|postgresql://\([^@]*\)@.*|\1|p')
+        export DB_USER=$(echo "$_db_userpass" | cut -d':' -f1)
+        export DB_PASSWORD=$(echo "$_db_userpass" | cut -d':' -f2)
+        export DB_NAME=$(echo "$_db_url" | sed -n 's|.*/\([^?]*\).*|\1|p')
+    fi
+fi
+
+# Fallback defaults if not loaded from env.local
 export DB_NAME="${DB_NAME:-portfolio_ai}"
 export DB_USER="${DB_USER:-portfolio_app}"
+export DB_PASSWORD="${DB_PASSWORD:-}"
 
 # Exclusions - things that should NEVER be backed up (reproducible/cached/redundant)
 BACKUP_EXCLUDES=(
