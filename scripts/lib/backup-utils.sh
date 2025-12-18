@@ -471,7 +471,14 @@ validate_index() {
 
 # Sync local index with SMB - self-healing function
 # Adds missing backups, removes orphans, preserves existing verification data
+# Usage: sync_index_from_smb [--verify-missing]
+#   --verify-missing: Download and verify backups that lack verification data
 sync_index_from_smb() {
+    local verify_missing=false
+    if [ "$1" = "--verify-missing" ]; then
+        verify_missing=true
+    fi
+
     log "Syncing backup index with SMB..."
 
     # Check if index exists and is valid
@@ -581,6 +588,53 @@ EOF
         log_success "Index synced: +$added added, -$removed removed"
     else
         log_success "Index already in sync"
+    fi
+
+    # Optionally verify backups missing verification data
+    if [ "$verify_missing" = true ]; then
+        log "Checking for backups missing verification..."
+        local missing_verification
+        missing_verification=$(jq -r '.backups[] | select(.verification == null or .verification.total_files == null) | .name' "$BACKUP_INDEX")
+
+        if [ -n "$missing_verification" ]; then
+            local verified=0
+            for backup in $missing_verification; do
+                log "Verifying: $backup"
+                local temp_file="/tmp/$backup"
+
+                # Download
+                if smbclient "//$SMB_HOST/$SMB_SHARE" -A "$CREDENTIALS_FILE" \
+                   -c "cd $SMB_PATH; get $backup $temp_file" &>/dev/null; then
+
+                    # Verify
+                    local verification
+                    verification=$(verify_backup "$temp_file")
+
+                    # Update index
+                    local index_temp=$(mktemp)
+                    if jq --arg name "$backup" --argjson v "$verification" \
+                       '(.backups[] | select(.name == $name)).verification = $v' \
+                       "$BACKUP_INDEX" > "$index_temp" && validate_index "$index_temp"; then
+                        mv "$index_temp" "$BACKUP_INDEX"
+                        ((verified++))
+                        log_success "Verified: $backup ($(echo "$verification" | jq -r '.total_files') files)"
+                    else
+                        rm -f "$index_temp"
+                        log_error "Failed to update verification for $backup"
+                    fi
+
+                    rm -f "$temp_file"
+                else
+                    log_error "Failed to download $backup for verification"
+                fi
+            done
+
+            if [ $verified -gt 0 ]; then
+                log_success "Verified $verified backup(s)"
+            fi
+        else
+            log_success "All backups have verification data"
+        fi
     fi
 }
 
