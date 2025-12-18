@@ -593,8 +593,20 @@ EOF
     # Optionally verify backups missing verification data
     if [ "$verify_missing" = true ]; then
         log "Checking for backups missing verification..."
+
+        # Get current time and calculate 5-minute threshold
+        local now_epoch=$(date +%s)
+        local threshold=$((now_epoch - 300))  # 5 minutes ago
+
+        # Find backups missing verification that are older than 5 minutes
+        # This avoids race conditions with backups still being created
         local missing_verification
-        missing_verification=$(jq -r '.backups[] | select(.verification == null or .verification.total_files == null) | .name' "$BACKUP_INDEX")
+        missing_verification=$(jq -r --argjson threshold "$threshold" '
+            .backups[] |
+            select(.verification == null or .verification.total_files == null) |
+            select((.timestamp | sub("\\.[0-9]+"; "") | strptime("%Y-%m-%dT%H:%M:%S%z") | mktime) < $threshold) |
+            .name
+        ' "$BACKUP_INDEX" 2>/dev/null)
 
         if [ -n "$missing_verification" ]; then
             local verified=0
