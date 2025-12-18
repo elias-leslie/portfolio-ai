@@ -10,21 +10,34 @@ import logging
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+# Load env vars from ~/.env.local FIRST
+_env_file = Path.home() / ".env.local"
+if _env_file.exists():
+    load_dotenv(_env_file)
+
 # Mark test environment FIRST - before any app imports
 # This prevents app/main.py from configuring production logging
 os.environ["PYTEST_RUNNING"] = "1"
 
-import pytest
+import pytest  # noqa: E402
 
-from app.logging_config import configure_logging
-from app.storage.connection import ConnectionManager
+from app.logging_config import configure_logging  # noqa: E402
+from app.storage.connection import ConnectionManager  # noqa: E402
 
 # Configure test database
 # Tests use a separate database to avoid cleaning production data
-TEST_DB_URL = (
-    "postgresql://portfolio_ai_user:REDACTED_PASSWORD@localhost:5432/portfolio_ai_test"
-)
-os.environ["DATABASE_URL"] = TEST_DB_URL
+# Derive test DB URL from production DB URL (same user, different database)
+_prod_db_url = os.environ.get("PORTFOLIO_DB_URL")
+if not _prod_db_url:
+    raise RuntimeError(
+        "PORTFOLIO_DB_URL environment variable is required. "
+        "Create ~/.env.local with PORTFOLIO_DB_URL=postgresql://..."
+    )
+# Replace database name with test database
+TEST_DB_URL = _prod_db_url.replace("/portfolio_ai", "/portfolio_ai_test")
+os.environ["PORTFOLIO_DB_URL"] = TEST_DB_URL
 
 # Configure minimal connection pool for tests
 # PostgreSQL has max_connections=100, and production services have priority

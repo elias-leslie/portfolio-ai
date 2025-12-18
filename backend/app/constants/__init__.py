@@ -8,7 +8,14 @@ to improve maintainability and reduce duplication.
 import os
 from pathlib import Path
 
-from app.constants.symbols import (
+from dotenv import load_dotenv
+
+# Load environment from ~/.env.local
+_env_file = Path.home() / ".env.local"
+if _env_file.exists():
+    load_dotenv(_env_file)
+
+from app.constants.symbols import (  # noqa: E402
     ALL_MARKET_SYMBOLS,
     BENCHMARK_SPY,
     INDEX_DXY,
@@ -24,10 +31,12 @@ from app.constants.symbols import (
 # =============================================================================
 # FILE PATHS & DATABASE
 # =============================================================================
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://portfolio_ai_user:REDACTED_PASSWORD@localhost:5432/portfolio_ai",
-)
+DATABASE_URL = os.environ.get("PORTFOLIO_DB_URL")
+if not DATABASE_URL:
+    raise RuntimeError(
+        "PORTFOLIO_DB_URL environment variable is required. "
+        "Create ~/.env.local with PORTFOLIO_DB_URL=postgresql://..."
+    )
 
 DEFAULT_DB_PATH = Path("data/portfolio-ai.db")
 DEFAULT_CONFIG_DIR = Path("config")

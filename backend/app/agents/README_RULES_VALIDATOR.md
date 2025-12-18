@@ -117,14 +117,14 @@ The weekly optimization review analyzes recent trading performance and suggests 
 ### Monitoring
 ```bash
 # Check recent validation status
-psql -U portfolio_ai_user -d portfolio_ai -c "
+psql -U portfolio_app -d portfolio_ai -c "
 SELECT validation_time, overall_status, summary
 FROM rules_validation_reports
 ORDER BY validation_time DESC LIMIT 5;
 "
 
 # View critical errors only
-psql -U portfolio_ai_user -d portfolio_ai -c "
+psql -U portfolio_app -d portfolio_ai -c "
 SELECT validation_time, summary, validation_errors::text
 FROM rules_validation_reports
 WHERE overall_status = 'critical'

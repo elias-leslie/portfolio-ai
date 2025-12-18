@@ -19,6 +19,9 @@ import polars as pl
 from sqlalchemy import create_engine, pool
 from sqlalchemy.engine import Engine
 
+# Import DATABASE_URL from constants (which handles dotenv loading)
+from app.constants import DATABASE_URL as CONSTANTS_DATABASE_URL
+
 from ..logging_config import get_logger
 
 if TYPE_CHECKING:
@@ -311,10 +314,7 @@ class ConnectionManager:
             >>> mgr = ConnectionManager("postgresql://user:pass@localhost:5432/db")
             >>> mgr = ConnectionManager()  # Uses DATABASE_URL env var
         """
-        self.database_url: str = database_url or os.getenv(
-            "DATABASE_URL",
-            "postgresql://portfolio_ai_user:REDACTED_PASSWORD@localhost:5432/portfolio_ai",
-        )  # type: ignore[assignment]
+        self.database_url: str = database_url or CONSTANTS_DATABASE_URL
 
         # Get pool size settings from environment or use defaults
         # Tests should use smaller values to avoid connection exhaustion

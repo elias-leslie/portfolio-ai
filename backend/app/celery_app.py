@@ -15,16 +15,13 @@ from celery.signals import (
 )
 
 from app.celery_schedules import get_beat_schedule
+
+# Import DATABASE_URL from constants (which handles dotenv loading)
+from app.constants import DATABASE_URL
 from app.logging_config import SyslogPrefixFormatter, _parse_log_level
 
 # Get Redis URL from environment or use default
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
-
-# Get DATABASE_URL for result backend
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://portfolio_ai_user:REDACTED_PASSWORD@localhost:5432/portfolio_ai",
-)
 
 # Create Celery application with Redis broker + PostgreSQL backend
 # Note: Redis is recommended for broker (fast message queue)
