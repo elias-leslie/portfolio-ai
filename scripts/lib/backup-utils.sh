@@ -424,13 +424,69 @@ backup_checkpoint() {
     fi
 }
 
+# Restore backup index from git if corrupted
+restore_index_from_git() {
+    log "Attempting to restore backup-index.json from git..."
+
+    cd "$PROJECT_DIR" || return 1
+
+    # Check if file is in git
+    if ! git ls-files --error-unmatch backup-index.json &>/dev/null; then
+        log_warn "backup-index.json not tracked in git"
+        return 1
+    fi
+
+    # Restore from HEAD
+    if git restore backup-index.json 2>/dev/null; then
+        log_success "Restored backup-index.json from git"
+        return 0
+    else
+        log_error "Failed to restore from git"
+        return 1
+    fi
+}
+
+# Validate that index file is valid JSON with expected structure
+validate_index() {
+    local index_file="${1:-$BACKUP_INDEX}"
+
+    if [ ! -f "$index_file" ]; then
+        return 1
+    fi
+
+    # Check file is not empty
+    if [ ! -s "$index_file" ]; then
+        log_error "Index file is empty"
+        return 1
+    fi
+
+    # Validate JSON structure
+    if ! jq -e '.backups and .retention' "$index_file" &>/dev/null; then
+        log_error "Index file has invalid JSON structure"
+        return 1
+    fi
+
+    return 0
+}
+
 # Sync local index with SMB - self-healing function
 # Adds missing backups, removes orphans, preserves existing verification data
 sync_index_from_smb() {
     log "Syncing backup index with SMB..."
 
-    # Ensure index exists
-    if [ ! -f "$BACKUP_INDEX" ]; then
+    # Check if index exists and is valid
+    if [ -f "$BACKUP_INDEX" ]; then
+        if ! validate_index; then
+            log_warn "Index is corrupted, attempting git restore..."
+            if restore_index_from_git; then
+                log_success "Index restored from git"
+            fi
+        fi
+    fi
+
+    # Ensure index exists (create if still missing after git restore attempt)
+    if [ ! -f "$BACKUP_INDEX" ] || ! validate_index; then
+        log "Creating fresh index..."
         cat > "$BACKUP_INDEX" << EOF
 {
   "version": 2,
@@ -478,15 +534,19 @@ EOF
                 -c "cd $SMB_PATH; ls $backup" 2>/dev/null | grep "$backup" | awk '{print $3}')
             size=${size:-0}
 
-            # Add to index (will be sorted later)
+            # Add to index (will be sorted later) - atomic write
             local temp_file=$(mktemp)
-            jq --arg name "$backup" \
+            if jq --arg name "$backup" \
                --arg ts "$timestamp" \
                --argjson size "$size" \
                '.backups += [{"name": $name, "timestamp": $ts, "size_bytes": $size, "db_size_bytes": 0, "status": "ok", "verification": null}]' \
-               "$BACKUP_INDEX" > "$temp_file"
-            mv "$temp_file" "$BACKUP_INDEX"
-            ((added++))
+               "$BACKUP_INDEX" > "$temp_file" && validate_index "$temp_file"; then
+                mv "$temp_file" "$BACKUP_INDEX"
+                ((added++))
+            else
+                log_error "Failed to add $backup to index"
+                rm -f "$temp_file"
+            fi
         fi
     done
 
@@ -495,19 +555,27 @@ EOF
         if ! echo "$smb_backups" | grep -q "^${backup}$"; then
             log "Removing orphaned entry: $backup"
             local temp_file=$(mktemp)
-            jq --arg name "$backup" '.backups = [.backups[] | select(.name != $name)]' \
-               "$BACKUP_INDEX" > "$temp_file"
-            mv "$temp_file" "$BACKUP_INDEX"
-            ((removed++))
+            if jq --arg name "$backup" '.backups = [.backups[] | select(.name != $name)]' \
+               "$BACKUP_INDEX" > "$temp_file" && validate_index "$temp_file"; then
+                mv "$temp_file" "$BACKUP_INDEX"
+                ((removed++))
+            else
+                log_error "Failed to remove orphan $backup"
+                rm -f "$temp_file"
+            fi
         fi
     done
 
-    # Sort by timestamp (newest first) and update last_updated
+    # Sort by timestamp (newest first) and update last_updated - atomic write
     local temp_file=$(mktemp)
     local now_ts=$(date -Iseconds)
-    jq --arg ts "$now_ts" '.backups = (.backups | sort_by(.timestamp) | reverse) | .last_updated = $ts' \
-       "$BACKUP_INDEX" > "$temp_file"
-    mv "$temp_file" "$BACKUP_INDEX"
+    if jq --arg ts "$now_ts" '.backups = (.backups | sort_by(.timestamp) | reverse) | .last_updated = $ts' \
+       "$BACKUP_INDEX" > "$temp_file" && validate_index "$temp_file"; then
+        mv "$temp_file" "$BACKUP_INDEX"
+    else
+        log_error "Failed to sort/update index"
+        rm -f "$temp_file"
+    fi
 
     if [ $added -gt 0 ] || [ $removed -gt 0 ]; then
         log_success "Index synced: +$added added, -$removed removed"
@@ -522,4 +590,5 @@ export -f ensure_smb_credentials test_smb_connection
 export -f smb_upload smb_download smb_delete smb_list_backups
 export -f update_backup_index get_backup_count remove_oldest_from_index
 export -f apply_retention backup_checkpoint
-export -f build_backup_manifest verify_backup sync_index_from_smb
+export -f build_backup_manifest verify_backup
+export -f validate_index restore_index_from_git sync_index_from_smb
