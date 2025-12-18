@@ -18,14 +18,14 @@ import { CapabilitiesTable } from "@/components/capabilities/CapabilitiesTable";
 // GapsOverview removed - trading requirements now in Features tab as "Data - *" categories
 // CapabilitiesDashboard removed - Vision tab replaces it
 import { ApiSourcesOverview } from "@/components/capabilities/ApiSourcesOverview";
-import { FeaturesTab } from "@/components/capabilities/FeaturesTab";
-import { VisionGoalsTab } from "@/components/capabilities/VisionGoalsTab";
+// FeaturesTab removed - use SummitFlow at https://192.168.8.233:444/projects/portfolio-ai?tab=features
+// VisionGoalsTab removed - use SummitFlow at https://192.168.8.233:444/projects/portfolio-ai?tab=vision
 // LogTab removed - Beads handles session tracking
 import { RulesViewer } from "@/components/rules/RulesViewer";
 import { WorkflowCanvas } from "@/components/workflows/WorkflowCanvas";
 // QATab removed - issues disconnected from workflow
 // FilesTab removed - use SummitFlow for file browsing
-import { SitemapTab } from "@/components/capabilities/SitemapTab";
+// SitemapTab removed - use SummitFlow at https://192.168.8.233:444/projects/portfolio-ai?tab=sitemap
 import {
   RefreshCw,
   Search,
@@ -36,22 +36,19 @@ import {
   X,
   Cloud,
   BookOpen,
-  CheckSquare,
-  Target,
   GitBranch,
-  Map,
+  ExternalLink,
 } from "lucide-react";
 import {
   fetchCapabilities,
   triggerScan,
   type CapabilityType,
 } from "@/lib/api/capabilities";
-import { fetchHealthSummary as fetchSitemapHealthSummary } from "@/lib/api/sitemap";
 // fetchGapSummary removed - trading requirements now in Features tab
 import { toast } from "sonner";
 import { PageContainer } from "@/components/shared/PageContainer";
 
-type TabValue = "workflows" | "database" | "celery" | "sitemap" | "sources" | "rules" | "features" | "vision";
+type TabValue = "workflows" | "database" | "celery" | "sources" | "rules";
 
 function CapabilitiesPageContent() {
   const queryClient = useQueryClient();
@@ -60,7 +57,7 @@ function CapabilitiesPageContent() {
 
   // Get initial values from URL
   const initialHealthFilter = searchParams.get("health") || "all";
-  const initialTab = (searchParams.get("tab") as TabValue) || "vision";
+  const initialTab = (searchParams.get("tab") as TabValue) || "workflows";
 
   // Tab state
   const [activeTab, setActiveTab] = useState<TabValue>(initialTab);
@@ -95,11 +92,6 @@ function CapabilitiesPageContent() {
     },
   });
 
-  // Sitemap health summary for error badge on tab
-  const { data: sitemapSummary } = useQuery({
-    queryKey: ["sitemap", "health-summary"],
-    queryFn: fetchSitemapHealthSummary,
-  });
 
   // Handle health filter change with URL sync
   const handleHealthFilterChange = (value: string) => {
@@ -146,7 +138,7 @@ function CapabilitiesPageContent() {
         limit: pageSize,
         offset: page * pageSize,
       }),
-    enabled: activeTab !== "workflows" && activeTab !== "sources" && activeTab !== "rules" && activeTab !== "features" && activeTab !== "vision" && activeTab !== "sitemap",
+    enabled: activeTab !== "workflows" && activeTab !== "sources" && activeTab !== "rules",
   });
 
   // Trigger scan mutation
@@ -299,17 +291,23 @@ function CapabilitiesPageContent() {
         }
       />
 
-      {/* Tabs - order: Vision, Features, Workflows, Sources, Rules, DB, Tasks, Sitemap */}
+      {/* SummitFlow link for dev tooling */}
+      <div className="mb-4 flex items-center gap-2 rounded-lg border border-phosphor/30 bg-phosphor/5 px-4 py-2 text-sm">
+        <ExternalLink className="h-4 w-4 text-phosphor" />
+        <span className="text-muted-foreground">Dev tooling (Features, Vision, Sitemap, Files, Evidence) moved to</span>
+        <a
+          href="https://192.168.8.233:444/projects/portfolio-ai"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-phosphor hover:underline"
+        >
+          SummitFlow
+        </a>
+      </div>
+
+      {/* Tabs - domain-specific only: Workflows, Sources, Rules, DB, Tasks */}
       <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as TabValue)}>
-        <TabsList className="grid w-full grid-cols-8">
-          <TabsTrigger value="vision">
-            <Target className="mr-2 h-4 w-4" />
-            Vision
-          </TabsTrigger>
-          <TabsTrigger value="features">
-            <CheckSquare className="mr-2 h-4 w-4" />
-            Features
-          </TabsTrigger>
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="workflows">
             <GitBranch className="mr-2 h-4 w-4" />
             Workflows
@@ -336,23 +334,10 @@ function CapabilitiesPageContent() {
               {celeryCount}
             </span>
           </TabsTrigger>
-          <TabsTrigger value="sitemap">
-            <Map className="mr-2 h-4 w-4" />
-            Sitemap
-            {sitemapSummary?.error && sitemapSummary.error > 0 ? (
-              <span className="ml-1 rounded-full bg-loss px-1.5 py-0.5 text-xs text-white">
-                {sitemapSummary.error}
-              </span>
-            ) : (
-              <span className="ml-1 rounded-full bg-surface-muted px-1.5 py-0.5 text-xs">
-                {sitemapSummary?.total || 0}
-              </span>
-            )}
-          </TabsTrigger>
         </TabsList>
 
-        {/* Filters (for capability tabs - not sitemap which has its own filters) */}
-        {activeTab !== "workflows" && activeTab !== "sources" && activeTab !== "rules" && activeTab !== "features" && activeTab !== "vision" && activeTab !== "sitemap" && (
+        {/* Filters (for capability tabs only) */}
+        {activeTab !== "workflows" && activeTab !== "sources" && activeTab !== "rules" && (
           <div className="space-y-3">
             <div className="flex flex-wrap gap-3">
               {/* Search */}
@@ -457,12 +442,8 @@ function CapabilitiesPageContent() {
           <CapabilitiesTable capabilities={filteredCapabilities} />
         </TabsContent>
 
-        {/* Sitemap Tab (replaces API tab) */}
-        <TabsContent value="sitemap">
-          <SitemapTab />
-        </TabsContent>
-
         {/* Tech Debt Tab removed - migrated to [DEBT] subtasks on features */}
+        {/* Sitemap Tab removed - use SummitFlow */}
 
         {/* Data Sources Tab (formerly Sources) */}
         <TabsContent value="sources">
@@ -475,16 +456,8 @@ function CapabilitiesPageContent() {
         </TabsContent>
 
         {/* Files Tab removed - use SummitFlow for file browsing */}
-
-        {/* Features Tab */}
-        <TabsContent value="features">
-          <FeaturesTab />
-        </TabsContent>
-
-        {/* Vision Goals Tab */}
-        <TabsContent value="vision">
-          <VisionGoalsTab />
-        </TabsContent>
+        {/* Features Tab removed - use SummitFlow */}
+        {/* Vision Goals Tab removed - use SummitFlow */}
 
       </Tabs>
 
@@ -492,9 +465,6 @@ function CapabilitiesPageContent() {
       {activeTab !== "workflows" &&
         activeTab !== "sources" &&
         activeTab !== "rules" &&
-        activeTab !== "features" &&
-        activeTab !== "vision" &&
-        activeTab !== "sitemap" &&
         capabilitiesData &&
         capabilitiesData.total > pageSize && (
           <div className="flex items-center justify-between">

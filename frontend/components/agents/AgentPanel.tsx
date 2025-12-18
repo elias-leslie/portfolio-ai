@@ -14,7 +14,6 @@ import { ModeSelector, AgentMode } from './ModeSelector';
 import { TokenSummaryCards } from './TokenSummaryCards';
 import { DevCompanionSessionsList } from './SessionsList';
 import { EvidenceCaptureModal } from './EvidenceCaptureModal';
-import { EvidenceViewerModal } from '../capabilities/EvidenceViewerModal';
 
 // SummitFlow API configuration
 const SUMMITFLOW_API = "/summitflow/api/projects/portfolio-ai";
@@ -169,11 +168,6 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
   const [showStatus, setShowStatus] = useState(false);
   const [showTokenSummary, setShowTokenSummary] = useState(false);
   const [showEvidenceCapture, setShowEvidenceCapture] = useState(false);
-  const [evidenceViewer, setEvidenceViewer] = useState<{
-    open: boolean;
-    featureId: string;
-    criterionId: string;
-  }>({ open: false, featureId: '', criterionId: '' });
 
   // Refs
   const wsRef = useRef<WebSocket | null>(null);
@@ -891,11 +885,11 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
                 key={i}
                 message={msg}
                 onViewEvidence={() => {
-                  setEvidenceViewer({
-                    open: true,
-                    featureId: msg.evidence!.featureId,
-                    criterionId: msg.evidence!.criterionId,
-                  });
+                  // Open SummitFlow evidence viewer
+                  window.open(
+                    `https://192.168.8.233:444/projects/portfolio-ai?tab=evidence`,
+                    '_blank'
+                  );
                 }}
               />
             ) : (
@@ -1045,14 +1039,6 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
             saveEvidenceToServer(currentSessionId, evidenceMsg);
           }
         }}
-      />
-
-      {/* Evidence Viewer Modal */}
-      <EvidenceViewerModal
-        open={evidenceViewer.open}
-        onOpenChange={(open) => setEvidenceViewer((prev) => ({ ...prev, open }))}
-        featureId={evidenceViewer.featureId}
-        criterionId={evidenceViewer.criterionId}
       />
     </>
   );
