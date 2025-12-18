@@ -26,7 +26,6 @@ import { WorkflowCanvas } from "@/components/workflows/WorkflowCanvas";
 // QATab removed - issues disconnected from workflow
 // FilesTab removed - use SummitFlow for file browsing
 import { SitemapTab } from "@/components/capabilities/SitemapTab";
-import { TasksExplorerTab } from "@/components/capabilities/TasksExplorerTab";
 import {
   RefreshCw,
   Search,
@@ -147,7 +146,7 @@ function CapabilitiesPageContent() {
         limit: pageSize,
         offset: page * pageSize,
       }),
-    enabled: activeTab !== "workflows" && activeTab !== "sources" && activeTab !== "rules" && activeTab !== "features" && activeTab !== "vision" && activeTab !== "sitemap" && activeTab !== "celery",
+    enabled: activeTab !== "workflows" && activeTab !== "sources" && activeTab !== "rules" && activeTab !== "features" && activeTab !== "vision" && activeTab !== "sitemap",
   });
 
   // Trigger scan mutation
@@ -453,9 +452,9 @@ function CapabilitiesPageContent() {
           <CapabilitiesTable capabilities={filteredCapabilities} />
         </TabsContent>
 
-        {/* Celery Tasks Tab - Explorer with Details Panel */}
-        <TabsContent value="celery" className="mt-0">
-          <TasksExplorerTab />
+        {/* Celery Tasks Tab */}
+        <TabsContent value="celery">
+          <CapabilitiesTable capabilities={filteredCapabilities} />
         </TabsContent>
 
         {/* Sitemap Tab (replaces API tab) */}
