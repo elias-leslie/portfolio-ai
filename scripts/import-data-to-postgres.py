@@ -35,7 +35,7 @@ def connect_to_postgres() -> PgConnection:
     """Connect to PostgreSQL using DATABASE_URL from environment."""
     database_url = os.getenv(
         "DATABASE_URL",
-        "postgresql://portfolio_ai_user:REDACTED_PASSWORD@localhost:5432/portfolio_ai",
+        "postgresql://portfolio_app:$PGPASSWORD@localhost:5432/portfolio_ai",
     )
     try:
         conn = psycopg2.connect(database_url)

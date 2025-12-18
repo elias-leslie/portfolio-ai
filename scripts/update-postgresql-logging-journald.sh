@@ -38,7 +38,7 @@ log_statement = 'mod'
 log_min_duration_statement = 1000
 
 # Log line prefix: timestamp [PID] user@database
-# Example: 2025-11-09 20:00:00 EST [12345] portfolio_ai_user@portfolio_ai
+# Example: 2025-11-09 20:00:00 EST [12345] portfolio_app@portfolio_ai
 log_line_prefix = '%t [%p] %u@%d '
 
 # JOURNALD SETTINGS: logging_collector must be OFF for journald

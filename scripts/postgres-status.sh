@@ -9,7 +9,7 @@ set -euo pipefail
 
 # Configuration
 DB_NAME="${DB_NAME:-portfolio_ai}"
-DB_USER="${DB_USER:-portfolio_ai_user}"
+DB_USER="${DB_USER:-portfolio_app}"
 
 # Colors for output
 GREEN='\033[0;32m'

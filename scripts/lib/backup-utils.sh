@@ -23,7 +23,7 @@ export MAX_BACKUPS=30
 
 # Database config
 export DB_NAME="${DB_NAME:-portfolio_ai}"
-export DB_USER="${DB_USER:-portfolio_ai_user}"
+export DB_USER="${DB_USER:-portfolio_app}"
 
 # Exclusions - things that should NEVER be backed up (reproducible/cached/redundant)
 BACKUP_EXCLUDES=(

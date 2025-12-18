@@ -51,4 +51,4 @@ systemctl restart postgresql
 echo "PostgreSQL restarted successfully"
 echo ""
 echo "Now run this command to create the extension (no sudo needed):"
-echo "  psql -U portfolio_ai_user -d portfolio_ai -c \"CREATE EXTENSION IF NOT EXISTS pg_stat_statements;\""
+echo "  psql -U portfolio_app -d portfolio_ai -c \"CREATE EXTENSION IF NOT EXISTS pg_stat_statements;\""

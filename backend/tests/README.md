@@ -237,7 +237,7 @@ def mock_http_client():
 
 **Connection:** Configured in `fixtures/conftest.py`
 ```python
-TEST_DB_URL = "postgresql://portfolio_ai_user:REDACTED_PASSWORD@localhost:5432/portfolio_ai_test"
+TEST_DB_URL = "postgresql://portfolio_app:$PGPASSWORD@localhost:5432/portfolio_ai_test"
 ```
 
 ---
@@ -374,7 +374,7 @@ sudo systemctl status postgresql
 ### "Test database doesn't exist"
 **Solution:** Create test database
 ```bash
-sudo -u postgres psql -c "CREATE DATABASE portfolio_ai_test OWNER portfolio_ai_user;"
+sudo -u postgres psql -c "CREATE DATABASE portfolio_ai_test OWNER portfolio_app;"
 ```
 
 ### Tests Pass Individually but Fail Together

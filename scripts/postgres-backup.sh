@@ -10,7 +10,7 @@ set -euo pipefail
 
 # Configuration
 DB_NAME="${DB_NAME:-portfolio_ai}"
-DB_USER="${DB_USER:-portfolio_ai_user}"
+DB_USER="${DB_USER:-portfolio_app}"
 BACKUP_DIR="${1:-$HOME/portfolio-ai/data/backups}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 BACKUP_FILE="$BACKUP_DIR/portfolio_ai_$TIMESTAMP.sql.gz"

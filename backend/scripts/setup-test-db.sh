@@ -15,19 +15,19 @@ sudo -u postgres psql <<EOF
 SELECT 'CREATE DATABASE portfolio_ai_test'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'portfolio_ai_test')\gexec
 
--- Grant privileges to portfolio_ai_user
-GRANT ALL PRIVILEGES ON DATABASE portfolio_ai_test TO portfolio_ai_user;
+-- Grant privileges to portfolio_app
+GRANT ALL PRIVILEGES ON DATABASE portfolio_ai_test TO portfolio_app;
 
 \c portfolio_ai_test
 
 -- Grant schema privileges
-GRANT ALL ON SCHEMA public TO portfolio_ai_user;
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO portfolio_ai_user;
-GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO portfolio_ai_user;
+GRANT ALL ON SCHEMA public TO portfolio_app;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO portfolio_app;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO portfolio_app;
 
 EOF
 
 echo "✅ Test database created: portfolio_ai_test"
 echo ""
 echo "The test database will be automatically used when running tests."
-echo "To manually use it, set: export TEST_DATABASE_URL=postgresql://portfolio_ai_user:REDACTED_PASSWORD@localhost:5432/portfolio_ai_test"
+echo "To manually use it, set: export TEST_DATABASE_URL=postgresql://portfolio_app:$PGPASSWORD@localhost:5432/portfolio_ai_test"

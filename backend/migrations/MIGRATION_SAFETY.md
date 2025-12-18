@@ -304,13 +304,13 @@ Backup location: `portfolio-ai/backups/pre-migration-<version>-<timestamp>.sql`
 
 **Full database:**
 ```bash
-pg_dump -h localhost -U portfolio_ai_user -d portfolio_ai \
+pg_dump -h localhost -U portfolio_app -d portfolio_ai \
   -f backups/full-backup-$(date +%Y%m%d).sql
 ```
 
 **Specific tables only:**
 ```bash
-pg_dump -h localhost -U portfolio_ai_user -d portfolio_ai \
+pg_dump -h localhost -U portfolio_app -d portfolio_ai \
   -t watchlist_items -t watchlist_snapshots \
   -f backups/watchlist-backup-$(date +%Y%m%d).sql
 ```
@@ -333,15 +333,15 @@ head -50 backups/pre-migration-018-*.sql
 bash ~/portfolio-ai/scripts/shutdown.sh
 
 # 2. Restore from backup
-psql -h localhost -U portfolio_ai_user -d portfolio_ai \
+psql -h localhost -U portfolio_app -d portfolio_ai \
   -f backups/pre-migration-018-20251110_143022.sql
 
 # 3. Verify restoration
-psql -h localhost -U portfolio_ai_user -d portfolio_ai -c \
+psql -h localhost -U portfolio_app -d portfolio_ai -c \
   "SELECT COUNT(*) FROM watchlist_items;"
 
 # 4. Remove failed migration from schema_migrations table
-psql -h localhost -U portfolio_ai_user -d portfolio_ai -c \
+psql -h localhost -U portfolio_app -d portfolio_ai -c \
   "DELETE FROM schema_migrations WHERE version = 18;"
 
 # 5. Restart services
@@ -704,7 +704,7 @@ tail -50 /var/log/portfolio-ai/backend-error.log
 
 ```bash
 # 1. Create full database backup
-pg_dump -h <prod-host> -U portfolio_ai_user -d portfolio_ai \
+pg_dump -h <prod-host> -U portfolio_app -d portfolio_ai \
   -f backups/prod-full-backup-$(date +%Y%m%d-%H%M%S).sql
 
 # 2. Stop services (if structural changes)
@@ -717,7 +717,7 @@ python backend/scripts/migrate.py --dry-run --migration <VERSION>
 python backend/scripts/migrate.py --execute --migration <VERSION>
 
 # 5. Verify success
-psql -h <prod-host> -U portfolio_ai_user -d portfolio_ai \
+psql -h <prod-host> -U portfolio_app -d portfolio_ai \
   -c "SELECT version, description, applied_at FROM schema_migrations ORDER BY version DESC LIMIT 5;"
 
 # 6. Restart services

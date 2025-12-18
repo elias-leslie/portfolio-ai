@@ -22,9 +22,9 @@ echo "Backup created: $PG_HBA_CONF.backup-$(date +%Y%m%d)"
 # Using sed to insert after the comment section
 sed -i '/^# TYPE/a\
 # Portfolio AI local development trust rules\
-local   portfolio_ai    portfolio_ai_user                            trust\
-host    portfolio_ai    portfolio_ai_user   127.0.0.1/32            trust\
-host    portfolio_ai    portfolio_ai_user   ::1/128                 trust' "$PG_HBA_CONF"
+local   portfolio_ai    portfolio_app                            trust\
+host    portfolio_ai    portfolio_app   127.0.0.1/32            trust\
+host    portfolio_ai    portfolio_app   ::1/128                 trust' "$PG_HBA_CONF"
 
 echo "Added trust rules to pg_hba.conf"
 
@@ -34,4 +34,4 @@ systemctl reload postgresql
 echo "PostgreSQL reloaded successfully"
 echo ""
 echo "Configuration complete! Test with:"
-echo "  psql -U portfolio_ai_user -d portfolio_ai -c \"SELECT 1;\""
+echo "  psql -U portfolio_app -d portfolio_ai -c \"SELECT 1;\""
