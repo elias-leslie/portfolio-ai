@@ -3,6 +3,9 @@
 import { Fragment, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api/client";
+
+// SummitFlow API configuration
+const SUMMITFLOW_API = "/summitflow/api/projects/portfolio-ai";
 import {
   Table,
   TableBody,
@@ -84,13 +87,13 @@ export function VisionGoalsTab() {
   // Fetch all vision goals
   const { data: goalsData, isLoading: goalsLoading } = useQuery<VisionGoal[]>({
     queryKey: ["vision-goals"],
-    queryFn: () => apiRequest<VisionGoal[]>("/api/vision-goals"),
+    queryFn: () => apiRequest<VisionGoal[]>(`${SUMMITFLOW_API}/vision-goals`),
   });
 
   // Fetch vision content (mission, principles, roadmap)
   const { data: visionContent, isLoading: contentLoading } = useQuery<VisionContentResponse>({
     queryKey: ["vision-content"],
-    queryFn: () => apiRequest<VisionContentResponse>("/api/vision"),
+    queryFn: () => apiRequest<VisionContentResponse>(`${SUMMITFLOW_API}/vision`),
   });
 
   // Toggle goal expansion
@@ -439,7 +442,7 @@ export function VisionGoalsTab() {
 function ExpandedGoalContent({ code, description }: { code: string; description: string | null }) {
   const { data: goalDetail, isLoading: detailLoading } = useQuery<VisionGoalDetail>({
     queryKey: ["vision-goal", code],
-    queryFn: () => apiRequest<VisionGoalDetail>(`/api/vision-goals/${code}`),
+    queryFn: () => apiRequest<VisionGoalDetail>(`${SUMMITFLOW_API}/vision-goals/${code}`),
   });
 
   // Fetch goal details (objectives, features, success criteria)
@@ -447,7 +450,7 @@ function ExpandedGoalContent({ code, description }: { code: string; description:
     queryKey: ["vision-goal-details", code],
     queryFn: async () => {
       try {
-        return await apiRequest<GoalDetail[]>(`/api/vision-goals/${code}/details`);
+        return await apiRequest<GoalDetail[]>(`${SUMMITFLOW_API}/vision-goals/${code}/details`);
       } catch {
         return [];
       }

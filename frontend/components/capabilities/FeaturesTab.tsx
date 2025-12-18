@@ -4,6 +4,9 @@ import { useState, Fragment, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiRequest, post, patch } from "@/lib/api/client";
+
+// SummitFlow API configuration
+const SUMMITFLOW_API = "/summitflow/api/projects/portfolio-ai";
 import {
   Table,
   TableBody,
@@ -287,7 +290,7 @@ export function FeaturesTab() {
   // Toggle task completion
   const toggleTask = async (featureId: string, taskId: string, completed: boolean) => {
     try {
-      await patch(`/api/capabilities/features/${featureId}/tasks/${taskId}`, {
+      await patch(`${SUMMITFLOW_API}/features/${featureId}/tasks/${taskId}`, {
         completed,
         completedBy: "manual",
       });
@@ -308,31 +311,31 @@ export function FeaturesTab() {
 
       // First request to get total count
       params.set("limit", "1");
-      const countData = await apiRequest<FeaturesResponse>(`/api/capabilities/features/?${params}`);
+      const countData = await apiRequest<FeaturesResponse>(`${SUMMITFLOW_API}/features?${params}`);
       const total = countData.total || 200;
 
       // Fetch all features (max 500 per backend API limit)
       params.set("limit", String(Math.min(total, 500)));
-      return apiRequest<FeaturesResponse>(`/api/capabilities/features/?${params}`);
+      return apiRequest<FeaturesResponse>(`${SUMMITFLOW_API}/features?${params}`);
     },
   });
 
   // Fetch summary for counts
   const { data: summaryData } = useQuery<FeaturesSummary>({
     queryKey: ["features-summary"],
-    queryFn: () => apiRequest<FeaturesSummary>("/api/capabilities/features/summary"),
+    queryFn: () => apiRequest<FeaturesSummary>(`${SUMMITFLOW_API}/features/summary`),
   });
 
   // Fetch verification summary for criteria status
   const { data: verificationData } = useQuery<VerificationSummary>({
     queryKey: ["verification-summary"],
-    queryFn: () => apiRequest<VerificationSummary>("/api/capabilities/features/verification-summary"),
+    queryFn: () => apiRequest<VerificationSummary>(`${SUMMITFLOW_API}/features/verification-summary`),
   });
 
   // Fetch vision goals for filter dropdown
   const { data: visionGoalsData } = useQuery<VisionGoal[]>({
     queryKey: ["vision-goals"],
-    queryFn: () => apiRequest<VisionGoal[]>("/api/vision-goals"),
+    queryFn: () => apiRequest<VisionGoal[]>(`${SUMMITFLOW_API}/vision-goals`),
   });
 
   // Verify all criteria function
@@ -340,12 +343,12 @@ export function FeaturesTab() {
     setIsVerifying(true);
     try {
       const params = verifyTypeFilter !== "all" ? `?type_filter=${verifyTypeFilter}` : "";
-      const data = await post<{ taskId: string }>(`/api/capabilities/features/verify-all${params}`);
+      const data = await post<{ taskId: string }>(`${SUMMITFLOW_API}/features/verify-all${params}`);
       toast.success(`Verification queued: ${data.taskId.slice(0, 8)}...`);
       // Poll for completion
       const pollInterval = setInterval(async () => {
         try {
-          await apiRequest<VerificationSummary>("/api/capabilities/features/verification-summary");
+          await apiRequest<VerificationSummary>(`${SUMMITFLOW_API}/features/verification-summary`);
           queryClient.invalidateQueries({ queryKey: ["verification-summary"] });
         } catch { /* ignore polling errors */ }
       }, 5000);

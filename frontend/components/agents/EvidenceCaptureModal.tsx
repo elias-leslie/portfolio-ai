@@ -31,6 +31,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+// SummitFlow API configuration
+const SUMMITFLOW_API = "/summitflow/api/projects/portfolio-ai";
+
 interface AcceptanceCriterion {
   id: string;
   criterion: string;
@@ -267,7 +270,7 @@ export function EvidenceCaptureModal({
       const clientEvidence = gatherClientSideEvidence();
       const base64 = await captureScreenshotBase64();
 
-      const response = await fetch("/api/artifacts/debug-capture", {
+      const response = await fetch(`${SUMMITFLOW_API}/evidence/debug-capture`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -319,7 +322,7 @@ export function EvidenceCaptureModal({
       const base64 = await captureScreenshotBase64();
 
       // Send to viewport-capture endpoint (creates DB entry for feature)
-      const response = await fetch("/api/artifacts/viewport-capture", {
+      const response = await fetch(`${SUMMITFLOW_API}/evidence/viewport-capture`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -363,7 +366,7 @@ export function EvidenceCaptureModal({
   }>({
     queryKey: ["features-for-evidence"],
     queryFn: async () => {
-      const response = await fetch("/api/capabilities/features/?limit=200");
+      const response = await fetch(`${SUMMITFLOW_API}/features?limit=200`);
       if (!response.ok) throw new Error("Failed to fetch features");
       return response.json();
     },
@@ -471,7 +474,7 @@ export function EvidenceCaptureModal({
   // Quick feature mutation
   const quickFeatureMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch("/api/capabilities/features/quick", {
+      const response = await fetch(`${SUMMITFLOW_API}/features/quick`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: pageUrl }),
@@ -490,7 +493,7 @@ export function EvidenceCaptureModal({
       featureId: string;
       criterionId: string;
     }) => {
-      const response = await fetch("/api/artifacts/refresh", {
+      const response = await fetch(`${SUMMITFLOW_API}/evidence/refresh`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -529,7 +532,7 @@ export function EvidenceCaptureModal({
         return;
       }
       try {
-        const response = await fetch("/api/capabilities/features/", {
+        const response = await fetch(`${SUMMITFLOW_API}/features`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

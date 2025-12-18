@@ -16,6 +16,9 @@ import { DevCompanionSessionsList } from './SessionsList';
 import { EvidenceCaptureModal } from './EvidenceCaptureModal';
 import { EvidenceViewerModal } from '../capabilities/EvidenceViewerModal';
 
+// SummitFlow API configuration
+const SUMMITFLOW_API = "/summitflow/api/projects/portfolio-ai";
+
 // Types from ChatPanel
 interface ContentBlock {
   type: 'text' | 'tool_use' | 'tool_result' | 'thinking';
@@ -529,7 +532,7 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
 
     const evidenceLines = evidenceMessages.map((msg) => {
       const e = msg.evidence;
-      const screenshotUrl = `/api/artifacts/${e.featureId}/${e.criterionId}/screenshot`;
+      const screenshotUrl = `${SUMMITFLOW_API}/evidence/${e.featureId}/${e.criterionId}/screenshot`;
       return `[Evidence: ${e.featureId}/${e.criterionId} v${e.version} - ${e.consoleErrors} console errors, ${e.networkFailures} network failures - screenshot: ${screenshotUrl}]`;
     });
 

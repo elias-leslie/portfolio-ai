@@ -1,8 +1,12 @@
 """Celery tasks for artifact lifecycle management.
 
+DEPRECATED: These tasks will be removed when SummitFlow has Celery infrastructure.
+Evidence/artifacts are now managed by SummitFlow (port 8001).
+
 Tasks:
-- refresh_expired_artifacts: Refresh evidence that has expired (>24h old)
-- cleanup_old_versions: Delete artifact versions beyond retention limit
+- refresh_expired_artifacts: DISABLED (SummitFlow manages evidence)
+- cleanup_old_versions: DISABLED (SummitFlow manages evidence)
+- cleanup_debug_captures: Still active (local filesystem cleanup)
 """
 
 from __future__ import annotations
@@ -10,7 +14,6 @@ from __future__ import annotations
 from celery import shared_task
 
 from ..logging_config import get_logger
-from ..services import artifact_manager
 from .maintenance_logging import log_maintenance_complete, log_maintenance_start
 
 logger = get_logger(__name__)
@@ -18,77 +21,18 @@ logger = get_logger(__name__)
 
 @shared_task(name="refresh_expired_artifacts")
 def refresh_expired_artifacts() -> dict[str, int | str]:
-    """Refresh artifacts that have expired and need new evidence capture.
+    """DISABLED: Evidence is now managed by SummitFlow.
 
-    This task runs daily to keep evidence fresh.
-    Expired artifacts are those where expires_at < NOW().
-
-    Returns:
-        Summary dict with count of refreshed artifacts
+    This task is a no-op until SummitFlow has its own Celery infrastructure.
+    See: portfolio-ai-4tg (SummitFlow: Add Celery task infrastructure)
     """
-    logger.info("refresh_expired_artifacts_started")
-
-    expired = artifact_manager.get_expired_artifacts()
-    refreshed = 0
-    failed = 0
-
-    for artifact in expired:
-        try:
-            # Read evidence to get URL
-            evidence = artifact_manager.read_evidence_file(
-                artifact["feature_id"],
-                artifact["criterion_id"],
-                artifact["version"],
-            )
-
-            if not evidence or not evidence.get("metadata", {}).get("url"):
-                logger.warning(
-                    "skip_refresh_no_url",
-                    artifact_id=artifact["artifact_id"],
-                )
-                continue
-
-            url = evidence["metadata"]["url"]
-
-            # Note: This is a sync task, but capture_evidence is async
-            # For now, we'll just mark them as needing refresh
-            # A future improvement would use asyncio.run() or a separate async worker
-            logger.info(
-                "artifact_needs_refresh",
-                artifact_id=artifact["artifact_id"],
-                url=url,
-            )
-
-            # Mark as needing refresh by updating quality_status
-            artifact_manager.update_ai_review(
-                artifact_id=artifact["artifact_id"],
-                quality_status="needs_review",
-                confidence=0.0,
-                ai_evidence="Expired - needs refresh",
-                reviewed_by="celery",
-            )
-
-            refreshed += 1
-
-        except Exception as e:
-            logger.error(
-                "refresh_artifact_failed",
-                artifact_id=artifact.get("artifact_id"),
-                error=str(e),
-            )
-            failed += 1
-
     logger.info(
-        "refresh_expired_artifacts_completed",
-        total=len(expired),
-        refreshed=refreshed,
-        failed=failed,
+        "refresh_expired_artifacts_skipped",
+        reason="Migrated to SummitFlow - awaiting Celery integration",
     )
-
     return {
-        "total_expired": len(expired),
-        "refreshed": refreshed,
-        "failed": failed,
+        "status": "skipped",
+        "reason": "Evidence now managed by SummitFlow",
     }
 
 
@@ -96,51 +40,20 @@ def refresh_expired_artifacts() -> dict[str, int | str]:
 def cleanup_old_versions(
     max_versions: int = 5, dry_run: bool = False
 ) -> dict[str, int | str | bool]:
-    """Delete old artifact versions beyond retention limit.
+    """DISABLED: Evidence is now managed by SummitFlow.
 
-    This task runs daily to manage storage.
-    Keeps only the most recent N versions per feature/criterion.
-
-    Args:
-        max_versions: Maximum versions to keep (default: 5)
-        dry_run: If True, only report what would be deleted
-
-    Returns:
-        Summary dict with deleted count and size
+    This task is a no-op until SummitFlow has its own Celery infrastructure.
+    See: portfolio-ai-4tg (SummitFlow: Add Celery task infrastructure)
     """
-    log_id = log_maintenance_start("cleanup_old_versions", dry_run)
-
     logger.info(
-        "cleanup_old_versions_started",
-        max_versions=max_versions,
-        dry_run=dry_run,
+        "cleanup_old_versions_skipped",
+        reason="Migrated to SummitFlow - awaiting Celery integration",
     )
-
-    try:
-        result = artifact_manager.cleanup_old_versions(
-            max_versions=max_versions,
-            dry_run=dry_run,
-        )
-
-        logger.info(
-            "cleanup_old_versions_completed",
-            deleted_count=result["deleted_count"],
-            deleted_size_bytes=result["deleted_size_bytes"],
-            dry_run=dry_run,
-        )
-
-        log_maintenance_complete(log_id, "cleanup_old_versions", True, dict(result))
-        return result
-
-    except Exception as e:
-        logger.error(
-            "cleanup_old_versions_failed",
-            error=str(e),
-            error_type=type(e).__name__,
-        )
-        error_result = {"error": str(e), "success": False, "dry_run": dry_run}
-        log_maintenance_complete(log_id, "cleanup_old_versions", False, error_result, str(e))
-        return error_result
+    return {
+        "status": "skipped",
+        "reason": "Evidence now managed by SummitFlow",
+        "dry_run": dry_run,
+    }
 
 
 @shared_task(name="cleanup_debug_captures")

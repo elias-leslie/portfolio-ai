@@ -15,7 +15,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.api import (
     agents,
     analytics,
-    artifacts,
+    # artifacts removed - migrated to SummitFlow (portfolio-ai-5rz)
     automation,
     backtest,
     backup,
@@ -57,8 +57,7 @@ from app.api import (
     watchlist,
     workflow_graph,
 )
-from app.api.capabilities.vision_content_router import router as vision_content_router
-from app.api.capabilities.vision_goals_router import router as vision_goals_router
+# vision_content_router, vision_goals_router removed - migrated to SummitFlow (portfolio-ai-5rz)
 from app.logging_config import SyslogPrefixFormatter, configure_logging, get_logger
 from app.middleware.trailing_slash import TrailingSlashMiddleware
 from app.storage import get_storage
@@ -197,11 +196,8 @@ app.include_router(automation.router)  # Manual pipeline triggers
 app.include_router(disagreements.router)  # Task 0003: Multi-LLM disagreement detection
 app.include_router(sources.router)  # Task 0088: API sources registry for agents
 app.include_router(rules.router)  # Trading rules viewer
-app.include_router(artifacts.router)  # UI verification evidence artifacts
-app.include_router(vision_goals_router, prefix="/api")  # Vision goals lookup table
-app.include_router(
-    vision_content_router, prefix="/api"
-)  # Vision content (mission, principles, roadmap)
+# artifacts.router removed - migrated to SummitFlow (portfolio-ai-5rz)
+# vision_goals_router, vision_content_router removed - migrated to SummitFlow (portfolio-ai-5rz)
 app.include_router(workflow_graph.router)  # Workflow visualization graph API
 # solution_map, qa, claude_progress routers removed
 app.include_router(test_feature.router)  # FEAT-123: E2E test feature endpoint

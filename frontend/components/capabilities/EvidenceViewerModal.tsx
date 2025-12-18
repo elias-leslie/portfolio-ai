@@ -29,6 +29,9 @@ import {
   ExternalLink,
 } from "lucide-react";
 
+// SummitFlow API configuration
+const SUMMITFLOW_API = "/summitflow/api/projects/portfolio-ai";
+
 interface Evidence {
   metadata: {
     url: string;
@@ -126,7 +129,7 @@ export function EvidenceViewerModal({
       const params = new URLSearchParams({ includeEvidence: "true" });
       if (selectedVersion) params.set("version", String(selectedVersion));
       const response = await fetch(
-        `/api/artifacts/${featureId}/${criterionId}?${params}`
+        `${SUMMITFLOW_API}/evidence/${featureId}/${criterionId}?${params}`
       );
       if (!response.ok) {
         if (response.status === 404) {
@@ -168,7 +171,7 @@ export function EvidenceViewerModal({
       notes: string;
     }) => {
       const response = await fetch(
-        `/api/artifacts/${data?.artifact.artifactId}/review`,
+        `${SUMMITFLOW_API}/evidence/${data?.artifact.artifactId}/review`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -223,7 +226,7 @@ export function EvidenceViewerModal({
 
     setIsRefreshing(true);
     try {
-      const response = await fetch("/api/artifacts/refresh", {
+      const response = await fetch(`${SUMMITFLOW_API}/evidence/refresh`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
