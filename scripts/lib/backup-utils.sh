@@ -135,6 +135,84 @@ test_smb_connection() {
     fi
 }
 
+# Test SMB connectivity (quiet version - no logging)
+test_smb_connection_quiet() {
+    smbclient "//$SMB_HOST/$SMB_SHARE" -A "$CREDENTIALS_FILE" -c "ls $SMB_PATH" &>/dev/null
+}
+
+# Pending backups directory
+export PENDING_BACKUP_DIR="$HOME/.local/share/backup-pending"
+
+# Upload with retry and local fallback
+# Returns 0 on success, 1 on failure (but backup is saved locally)
+upload_with_retry() {
+    local archive_path="$1"
+    local archive_name="$2"
+    local project_name="${3:-portfolio-ai}"
+    local max_retries="${SMB_MAX_RETRIES:-5}"
+    local initial_delay="${SMB_RETRY_DELAY:-30}"
+
+    local delay=$initial_delay
+    local attempt=1
+
+    while [ $attempt -le $max_retries ]; do
+        if test_smb_connection_quiet; then
+            log "SMB available, uploading..."
+            if smb_upload "$archive_path" "$SMB_PATH" "$archive_name"; then
+                return 0
+            else
+                log_error "Upload failed despite connection"
+            fi
+        fi
+
+        if [ $attempt -lt $max_retries ]; then
+            log_warn "SMB unavailable (attempt $attempt/$max_retries), retrying in ${delay}s..."
+            sleep $delay
+            delay=$((delay * 2))  # Exponential backoff
+            [ $delay -gt 300 ] && delay=300  # Cap at 5 minutes
+        fi
+
+        ((attempt++))
+    done
+
+    # All retries exhausted - save locally
+    log_error "SMB unavailable after $max_retries attempts"
+    save_to_pending "$archive_path" "$archive_name" "$project_name"
+    return 1
+}
+
+# Save backup to pending directory for later upload
+save_to_pending() {
+    local archive_path="$1"
+    local archive_name="$2"
+    local project_name="${3:-portfolio-ai}"
+
+    mkdir -p "$PENDING_BACKUP_DIR"
+
+    local pending_path="$PENDING_BACKUP_DIR/$archive_name"
+
+    if cp "$archive_path" "$pending_path"; then
+        # Create metadata file
+        cat > "${pending_path}.meta" << EOF
+{
+    "project": "$project_name",
+    "archive": "$archive_name",
+    "created_at": "$(date -Iseconds)",
+    "smb_host": "$SMB_HOST",
+    "smb_share": "$SMB_SHARE",
+    "smb_path": "$SMB_PATH",
+    "retry_count": 0
+}
+EOF
+        log_warn "Backup saved to pending: $pending_path"
+        log_info "Run 'backup-pending-upload.sh' when SMB is available"
+        return 0
+    else
+        log_error "Failed to save backup to pending directory"
+        return 1
+    fi
+}
+
 # Upload file via smbclient
 smb_upload() {
     local local_file="$1"
@@ -652,8 +730,9 @@ EOF
 
 # Export functions for subshells
 export -f log log_success log_warn log_error log_info
-export -f ensure_smb_credentials test_smb_connection
+export -f ensure_smb_credentials test_smb_connection test_smb_connection_quiet
 export -f smb_upload smb_download smb_delete smb_list_backups
+export -f upload_with_retry save_to_pending
 export -f update_backup_index get_backup_count remove_oldest_from_index
 export -f apply_retention backup_checkpoint
 export -f build_backup_manifest verify_backup
