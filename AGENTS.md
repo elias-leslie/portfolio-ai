@@ -1,35 +1,30 @@
 # Portfolio-AI Agent Instructions
 
-Before anything else: run `bd onboard` and follow instructions.
-
-## Task Tracking (Beads)
+## Task Tracking (SummitFlow Tasks)
 
 ### Finding Work
 ```bash
-bd ready --json              # Find unblocked work
-bd list --status open --json # All open issues
-bd stale --days 7 --json     # Forgotten issues
+st ready                              # Find unblocked work
+st list --status pending              # All pending tasks
+st list --status pending --json | jq -r '.tasks[] | "\(.id) \(.title)"'
 ```
 
-### Working on Issues
+### Working on Tasks
 ```bash
-bd update <id> --status in_progress --json   # Claim work
-bd close <id> --reason "Completed" --json    # Mark done
-bd sync                                       # MANDATORY at session end
+st update <id> --status running       # Claim work
+st close <id> --reason "Completed"    # Mark done
 ```
 
-### Creating Issues (ENFORCED by pre-push hook)
+### Creating Tasks (Labels REQUIRED)
 ```bash
-# Labels are REQUIRED - pre-push hook blocks if missing!
-bd create "Title" -t feature|bug|task -p 0-4 -d "Description" \
-  --set-labels "complexity:small" --set-labels "domains:backend" --json
+st create "Title" -t task|bug|chore -p 0-4 \
+  -l "complexity:small,domains:backend" \
+  -d "Description"
 
-bd dep add <child> <parent>                  # Link dependencies
-bd create "Found bug" --deps discovered-from:<parent-id> \
-  --set-labels "complexity:small" --set-labels "domains:backend" --json
+st dep add <child> <parent> --type discovered-from  # Link dependencies
 ```
 
-**See `.claude/rules/bead-quality.md` for full requirements.**
+**See `~/.claude/docs/task-reference.md` for full reference.**
 
 ### Complexity Labels (REQUIRED for /next_it efficiency)
 | Label | Criteria | Agent Strategy |
@@ -72,9 +67,9 @@ curl -X POST localhost:8000/api/artifacts/refresh \
   -d '{"feature_id": "FEAT-XXX", "criterion_id": "ac-001", "url": "http://192.168.8.233:3000/page"}'
 ```
 
-### Link Beads Issue to Feature
+### Link Task to Feature
 ```bash
-bd update <id> --notes "Feature: FEAT-XXX"
+st update <id> -d "Feature: FEAT-XXX"
 ```
 
 ### Verification Commands (Keep Using)
@@ -139,35 +134,33 @@ journalctl --user -u portfolio-celery -f
 
 **When you encounter ANY pre-existing bug, error, or issue during your work, you MUST:**
 
-1. **Review ALL open Beads** (do NOT filter by keywords - you might miss matches):
+1. **Review ALL open Tasks** (do NOT filter by keywords - you might miss matches):
    ```bash
-   bd list --status open --json | jq -r '.[] | "\(.id) \(.title)"'
+   st list --status pending --json | jq -r '.tasks[] | "\(.id) \(.title)"'
    ```
-2. **If no bead exists, CREATE + LINK IMMEDIATELY**:
+2. **If no task exists, CREATE + LINK IMMEDIATELY**:
    ```bash
    # Create the bug with complexity and domain labels
-   bd create --title "Fix: <clear description>" \
-     --description "Error: <exact error message>
+   st create "Fix: <clear description>" -t bug -p 2 \
+     -l "complexity:small,domains:backend" \
+     -d "Error: <exact error message>
 
    Location: <file:line>
 
-   Found during: <parent-bead-id> <task name>" \
-     --priority 2 --type bug \
-     --set-labels "complexity:small" --set-labels "domains:backend" \
-     --json
+   Found during: <parent-task-id> <task name>"
 
    # MANDATORY: Link with discovered-from dependency
-   bd dep add <new-id> <parent-bead-id> --type discovered-from
+   st dep add <new-id> <parent-task-id> --type discovered-from
    ```
-3. **If bead exists, UPDATE with new info**: `bd update <id> --notes "Additional context..."`
+3. **If task exists, UPDATE with new info**: `st update <id> -d "Additional context..."`
 
 **This is MANDATORY. Do NOT:**
-- Mention bugs in summaries without creating beads
+- Mention bugs in summaries without creating tasks
 - Say "pre-existing issue, not related to this task" and move on
 - Leave issues undocumented for future discovery
-- Filter beads by keywords (scan the FULL list)
+- Filter tasks by keywords (scan the FULL list)
 
-**Every discovered issue = immediate bead creation + dependency link. No exceptions.**
+**Every discovered issue = immediate task creation + dependency link. No exceptions.**
 
 ---
 
@@ -184,7 +177,7 @@ journalctl --user -u portfolio-celery -f
 | Start work with dirty working tree | Commit previous changes FIRST |
 | Hardcode version numbers | Reference STACK.md |
 | Skip pre-commit (`--no-verify`) | Fix the issues |
-| Note bugs without creating beads | Create bead IMMEDIATELY |
+| Note bugs without creating tasks | Create task IMMEDIATELY |
 
 ---
 
@@ -208,8 +201,8 @@ git status --short
 
 #### 2. Find and Claim Work
 ```bash
-bd ready --json                              # Find work
-bd update <id> --status in_progress --json   # Claim it
+st ready                              # Find work
+st update <id> --status running       # Claim it
 ```
 
 **Critical:** Uncommitted changes break multi-agent coordination. Never start new work on a dirty tree.
@@ -226,7 +219,7 @@ cd backend && .venv/bin/pytest tests/ -x --tb=short -q
 ```
 - If builds/tests broken, file P0 issue before continuing
 
-#### 2. Commit Your Implementation Changes FIRST
+#### 2. Commit Your Implementation Changes
 ```bash
 git add <your-changed-files>
 git commit -m "feat/fix/chore: <title>
@@ -239,31 +232,18 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
 ```
 **IMPORTANT:** Commit message must be 100+ chars with reasoning (pre-commit hook enforces this).
 
-#### 3. Update Beads State (AFTER implementation commit)
+#### 3. Update Task State
 ```bash
-# Close completed issues
-bd close <id> --reason "Completed: <summary>"
+# Close completed tasks
+st close <id> --reason "Completed: <summary>"
 
 # Update in-progress work
-bd update <id> --notes "Progress: <what was done>"
+st update <id> -d "Progress: <what was done>"
 
-# Create beads for discovered bugs (see MANDATORY section above)
+# Create tasks for discovered bugs (see MANDATORY section above)
 ```
 
-#### 4. Commit Beads Changes Separately
-`bd close` and `bd update` modify `.beads/issues.jsonl`. Commit this BEFORE pulling:
-```bash
-git add .beads/issues.jsonl
-git commit -m "chore: Update beads state after <task-id>
-
-Closes/updates beads for: <brief description of what was completed>
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
-```
-
-#### 5. Push to Remote (NON-NEGOTIABLE)
+#### 4. Push to Remote (NON-NEGOTIABLE)
 ```bash
 git pull --rebase && git push
 git status  # MUST show "up to date with origin/main"
@@ -272,20 +252,17 @@ git status  # MUST show "up to date with origin/main"
 - Never say "ready to push when you are"—YOU must push
 - Unpushed work breaks multi-agent coordination
 
-**NOTE:** Skip `bd sync` - it has worktree bugs. The manual commit pattern above is more reliable.
-
-#### 6. Verify Clean State
+#### 5. Verify Clean State
 ```bash
 git status  # Should show: "nothing to commit, working tree clean"
 ```
 
-#### 7. Choose Next Work
-- Run `bd ready --json` to identify next task
+#### 6. Choose Next Work
+- Run `st ready` to identify next task
 - Provide context for next session if needed
 
 **Critical Rules:**
-- Commit implementation BEFORE closing beads (order matters!)
-- Commit beads changes BEFORE `git pull --rebase` (avoids unstaged changes error)
+- Commit implementation BEFORE closing tasks (order matters!)
 - Never stop before pushing—that leaves work stranded locally
 - Lost issues = lost work = unacceptable
 
@@ -306,7 +283,9 @@ git status  # Should show: "nothing to commit, working tree clean"
 
 | Task | Command |
 |------|---------|
-| Find work | `bd ready --json` |
+| Find work | `st ready` |
+| Claim work | `st update <id> --status running` |
+| Complete work | `st close <id> --reason "Done"` |
 | Verify feature | `/verify_it FEAT-XXX` |
 | Restart services | `bash ~/portfolio-ai/scripts/restart.sh` |
 | Check health | `bash ~/portfolio-ai/scripts/status.sh` |
