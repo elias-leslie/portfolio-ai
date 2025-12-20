@@ -29,14 +29,14 @@ class GeminiSession:
         self,
         session_id: str,
         working_dir: str | Path = ".",
-        model: str = "gemini-2.5-flash",
+        model: str = "gemini-3-flash-preview",
     ):
         """Initialize session.
 
         Args:
             session_id: Unique session identifier (our internal ID)
             working_dir: Working directory for this session
-            model: Gemini model to use (gemini-2.5-flash, gemini-2.5-pro)
+            model: Gemini model to use (gemini-3-flash-preview, gemini-3-pro-preview)
         """
         self.session_id = session_id
         self.working_dir = Path(working_dir).resolve()

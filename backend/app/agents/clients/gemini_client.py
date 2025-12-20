@@ -20,11 +20,11 @@ class GeminiCLIClient(LLMClient):
     Uses local Gemini CLI with cached credentials (completely free).
     """
 
-    def __init__(self, model: str = "gemini-2.5-pro") -> None:
+    def __init__(self, model: str = "gemini-3-flash-preview") -> None:
         """Initialize Gemini CLI client.
 
         Args:
-            model: Model to use (gemini-2.5-pro, gemini-2.5-flash, gemini-1.5-pro)
+            model: Model to use (gemini-3-flash-preview, gemini-3-pro-preview)
 
         Raises:
             RuntimeError: If Gemini CLI not found in PATH

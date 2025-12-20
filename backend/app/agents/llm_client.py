@@ -40,8 +40,8 @@ class DualProviderClient(LLMClient):
     def __init__(
         self,
         primary: Literal["claude", "gemini"] = "gemini",
-        claude_model: str = "sonnet",
-        gemini_model: str = "gemini-2.5-pro",
+        claude_model: str = "claude-sonnet-4-5",
+        gemini_model: str = "gemini-3-flash-preview",
     ) -> None:
         """Initialize dual provider client.
 
