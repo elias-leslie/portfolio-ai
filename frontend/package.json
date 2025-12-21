@@ -45,6 +45,7 @@
     "es-toolkit": "^1.43.0",
     "html2canvas": "^1.4.1",
     "lucide-react": "^0.560.0",
+    "motion": "^12.23.26",
     "next": "^16.0.10",
     "playwright": "^1.57.0",
     "react": "^19.2.3",

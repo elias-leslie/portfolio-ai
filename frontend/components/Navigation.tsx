@@ -17,6 +17,7 @@ import {
   Target,
   HardDrive,
   Camera,
+  Info,
 } from "lucide-react";
 
 import { MarketStatusBadge } from "@/components/market/MarketStatusBadge";
@@ -157,6 +158,20 @@ function NavigationContent({ pathname }: { pathname: string }) {
           {/* Utility Items */}
           <div className="flex items-center gap-1 sm:gap-2">
             <div className="flex items-center gap-0.5 rounded-full bg-surface-muted/50 border border-border/50 p-1 shadow-sm backdrop-blur-sm">
+              {/* About - first for discoverability */}
+              <Link
+                href="/about"
+                aria-label="About Portfolio AI"
+                title="About Portfolio AI"
+                className={cn(
+                  "group flex items-center justify-center rounded-full p-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus",
+                  pathname === "/about"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-text-muted hover:bg-surface hover:text-text hover:shadow-sm"
+                )}
+              >
+                <Info className="size-4" aria-hidden suppressHydrationWarning />
+              </Link>
               {/* Agent Hub Button (FEAT-220) */}
               <button
                 onClick={togglePanel}
