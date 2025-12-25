@@ -161,7 +161,7 @@
             "Verify: AgentPanel.tsx reduced by ~100 lines"
           ],
           "priority": "high",
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.2",

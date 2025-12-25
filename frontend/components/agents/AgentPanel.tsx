@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { MessageSquare, X, Plus, Trash2, Settings, Activity, Camera, Eye, Diamond, Star } from 'lucide-react';
 // Note: We use a custom side panel instead of Sheet to allow non-overlay behavior (FEAT-220)
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import { cn, formatRelativeTime } from '@/lib/utils';
 import { toast } from 'sonner';
 import { SettingsModal, useAgentSettings, LLMProvider } from './SettingsModal';
 import { StatusModal } from './StatusModal';
@@ -885,23 +885,6 @@ export function AgentPanelTrigger({ onClick }: { onClick: () => void }) {
       <MessageSquare className="h-6 w-6" />
     </button>
   );
-}
-
-// Helper functions
-function formatRelativeTime(dateStr: string): string {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMins / 60);
-  const diffDays = Math.floor(diffHours / 24);
-
-  if (diffMins < 1) return 'just now';
-  if (diffMins < 60) return `${diffMins} min ago`;
-  if (diffHours < 24) return `${diffHours} hr ago`;
-  if (diffDays === 1) return 'yesterday';
-  if (diffDays < 7) return `${diffDays} days ago`;
-  return date.toLocaleDateString();
 }
 
 function MessageBubble({ message }: { message: ChatMessage }) {

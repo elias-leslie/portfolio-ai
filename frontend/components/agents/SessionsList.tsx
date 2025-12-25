@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { cn } from '@/lib/utils';
+import { cn, formatRelativeTime } from '@/lib/utils';
 import { MessageSquare, Users, RefreshCw, Bot, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ProviderBadge } from './ProviderBadge';
@@ -43,22 +43,6 @@ function formatTokenCount(tokens: number): string {
     return `${(tokens / 1_000).toFixed(1)}K`;
   }
   return tokens.toString();
-}
-
-function formatRelativeTime(dateStr: string): string {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMins / 60);
-  const diffDays = Math.floor(diffHours / 24);
-
-  if (diffMins < 1) return 'just now';
-  if (diffMins < 60) return `${diffMins} min ago`;
-  if (diffHours < 24) return `${diffHours} hr ago`;
-  if (diffDays === 1) return 'yesterday';
-  if (diffDays < 7) return `${diffDays} days ago`;
-  return date.toLocaleDateString();
 }
 
 function SessionTypeBadge({ type }: { type: string }) {
