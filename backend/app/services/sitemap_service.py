@@ -23,6 +23,7 @@ import httpx
 
 from ..logging_config import get_logger
 from ..storage.connection import get_connection_manager
+from ..storage.sitemap_storage import SitemapStorage, get_sitemap_storage
 
 logger = get_logger(__name__)
 
@@ -383,6 +384,7 @@ class SitemapService:
     def __init__(self) -> None:
         self.conn_mgr = get_connection_manager()
         self._port_discovery = PortDiscovery()
+        self._storage = get_sitemap_storage()
 
     @property
     def backend_port(self) -> int:
@@ -1183,7 +1185,7 @@ class SitemapService:
         return result
 
     # =========================================================================
-    # CRUD Operations
+    # CRUD Operations (delegated to storage layer)
     # =========================================================================
 
     def get_entries(
@@ -1194,169 +1196,22 @@ class SitemapService:
         limit: int = 100,
         offset: int = 0,
     ) -> tuple[list[dict[str, Any]], int]:
-        """Get sitemap entries with filtering.
-
-        Args:
-            port: Filter by port
-            health_status: Filter by health status
-            entry_type: Filter by entry type
-            limit: Max results
-            offset: Pagination offset
-
-        Returns:
-            Tuple of (entries list, total count)
-        """
-        conditions = []
-        params: list[Any] = []
-
-        if port is not None:
-            conditions.append("port = %s")
-            params.append(port)
-        if health_status:
-            conditions.append("health_status = %s")
-            params.append(health_status)
-        if entry_type:
-            conditions.append("entry_type = %s")
-            params.append(entry_type)
-
-        where_clause = " AND ".join(conditions) if conditions else "1=1"
-
-        with self.conn_mgr.connection() as conn:
-            # Get total count
-            count_result = conn.execute(
-                f"SELECT COUNT(*) FROM sitemap_entries WHERE {where_clause}",
-                params,
-            )
-            total = count_result.fetchone()[0]
-
-            # Get entries
-            result = conn.execute(
-                f"""
-                SELECT id, port, path, method, entry_type, source, title, parent_path,
-                       health_status, console_errors, console_warnings, http_status,
-                       response_time_ms, last_error_message, artifact_id,
-                       last_checked_at, discovered_at
-                FROM sitemap_entries
-                WHERE {where_clause}
-                ORDER BY port, path
-                LIMIT %s OFFSET %s
-                """,
-                [*params, limit, offset],
-            )
-
-            entries = []
-            for row in result.fetchall():
-                entries.append({
-                    "id": row[0],
-                    "port": row[1],
-                    "path": row[2],
-                    "method": row[3],
-                    "entry_type": row[4],
-                    "source": row[5],
-                    "title": row[6],
-                    "parent_path": row[7],
-                    "health_status": row[8],
-                    "console_errors": row[9],
-                    "console_warnings": row[10],
-                    "http_status": row[11],
-                    "response_time_ms": row[12],
-                    "last_error_message": row[13],
-                    "artifact_id": row[14],
-                    "last_checked_at": row[15].isoformat() if row[15] else None,
-                    "discovered_at": row[16].isoformat() if row[16] else None,
-                })
-
-            return entries, total
+        """Get sitemap entries with filtering. Delegates to storage layer."""
+        return self._storage.get_entries(
+            port=port,
+            health_status=health_status,
+            entry_type=entry_type,
+            limit=limit,
+            offset=offset,
+        )
 
     def get_entry(self, entry_id: int) -> dict[str, Any] | None:
-        """Get single entry by ID.
-
-        Args:
-            entry_id: Entry ID
-
-        Returns:
-            Entry dict or None
-        """
-        with self.conn_mgr.connection() as conn:
-            result = conn.execute("""
-                SELECT id, port, path, method, entry_type, source, title, parent_path,
-                       health_status, console_errors, console_warnings, http_status,
-                       response_time_ms, last_error_message, artifact_id,
-                       last_checked_at, discovered_at
-                FROM sitemap_entries
-                WHERE id = %s
-            """, [entry_id])
-
-            row = result.fetchone()
-            if not row:
-                return None
-
-            return {
-                "id": row[0],
-                "port": row[1],
-                "path": row[2],
-                "method": row[3],
-                "entry_type": row[4],
-                "source": row[5],
-                "title": row[6],
-                "parent_path": row[7],
-                "health_status": row[8],
-                "console_errors": row[9],
-                "console_warnings": row[10],
-                "http_status": row[11],
-                "response_time_ms": row[12],
-                "last_error_message": row[13],
-                "artifact_id": row[14],
-                "last_checked_at": row[15].isoformat() if row[15] else None,
-                "discovered_at": row[16].isoformat() if row[16] else None,
-            }
+        """Get single entry by ID. Delegates to storage layer."""
+        return self._storage.get_entry(entry_id)
 
     def get_health_summary(self) -> dict[str, Any]:
-        """Get aggregate health statistics.
-
-        Returns:
-            Dict with total, healthy, warning, error, unknown counts
-        """
-        with self.conn_mgr.connection() as conn:
-            result = conn.execute("""
-                SELECT
-                    COUNT(*) as total,
-                    COUNT(*) FILTER (WHERE health_status = 'healthy') as healthy,
-                    COUNT(*) FILTER (WHERE health_status = 'warning') as warning,
-                    COUNT(*) FILTER (WHERE health_status = 'error') as error,
-                    COUNT(*) FILTER (WHERE health_status = 'unknown' OR health_status IS NULL) as unknown
-                FROM sitemap_entries
-            """)
-            row = result.fetchone()
-
-            # Get counts by port
-            port_result = conn.execute("""
-                SELECT port,
-                    COUNT(*) FILTER (WHERE health_status = 'healthy') as healthy,
-                    COUNT(*) FILTER (WHERE health_status = 'warning') as warning,
-                    COUNT(*) FILTER (WHERE health_status = 'error') as error,
-                    COUNT(*) FILTER (WHERE health_status = 'unknown' OR health_status IS NULL) as unknown
-                FROM sitemap_entries
-                GROUP BY port
-            """)
-
-            by_port = {}
-            for port_row in port_result.fetchall():
-                by_port[str(port_row[0])] = {
-                    "healthy": port_row[1],
-                    "warning": port_row[2],
-                    "error": port_row[3],
-                    "unknown": port_row[4],
-                }
-
-            return {
-                "total": row[0],
-                "healthy": row[1],
-                "warning": row[2],
-                "error": row[3],
-                "unknown": row[4],
-                "by_port": by_port,
-            }
+        """Get aggregate health statistics. Delegates to storage layer."""
+        return self._storage.get_health_summary()
 
     def register_entry(
         self,
@@ -1365,92 +1220,28 @@ class SitemapService:
         method: str = "GET",
         entry_type: str = "manual",
         title: str | None = None,
-    ) -> dict[str, Any]:
-        """Manually register a new sitemap entry.
-
-        Args:
-            port: Port number
-            path: URL path
-            method: HTTP method
-            entry_type: Entry type
-            title: Optional title
-
-        Returns:
-            Created entry dict
-        """
-        with self.conn_mgr.connection() as conn:
-            result = conn.execute("""
-                INSERT INTO sitemap_entries (port, path, method, entry_type, source, title)
-                VALUES (%s, %s, %s, %s, 'manual', %s)
-                RETURNING id
-            """, [port, path, method, entry_type, title])
-
-            entry_id = result.fetchone()[0]
-            conn.commit()
-
-        return self.get_entry(entry_id)  # type: ignore
+    ) -> dict[str, Any] | None:
+        """Manually register a new sitemap entry. Delegates to storage layer."""
+        return self._storage.register_entry(
+            port=port,
+            path=path,
+            method=method,
+            entry_type=entry_type,
+            title=title,
+        )
 
     def delete_entry(self, entry_id: int) -> bool:
-        """Remove a sitemap entry.
-
-        Args:
-            entry_id: Entry ID to delete
-
-        Returns:
-            True if deleted, False if not found
-        """
-        with self.conn_mgr.connection() as conn:
-            result = conn.execute(
-                "DELETE FROM sitemap_entries WHERE id = %s RETURNING id",
-                [entry_id],
-            )
-            deleted = result.fetchone() is not None
-            conn.commit()
-            return deleted
+        """Remove a sitemap entry. Delegates to storage layer."""
+        return self._storage.delete_entry(entry_id)
 
     # =========================================================================
-    # Maintenance
+    # Maintenance (delegated to storage layer)
     # =========================================================================
 
     def cleanup_old_history(self, days: int = 7) -> int:
-        """Delete health history older than specified days.
-
-        Args:
-            days: Number of days to keep
-
-        Returns:
-            Number of rows deleted
-        """
-        with self.conn_mgr.connection() as conn:
-            result = conn.execute("""
-                DELETE FROM sitemap_health_history
-                WHERE checked_at < NOW() - INTERVAL '%s days'
-                RETURNING id
-            """, [days])
-            deleted = len(result.fetchall())
-            conn.commit()
-
-        logger.info("sitemap_cleanup_history", deleted=deleted, retention_days=days)
-        return deleted
+        """Delete health history older than specified days. Delegates to storage layer."""
+        return self._storage.cleanup_old_history(days)
 
     def get_history_stats(self) -> dict[str, Any]:
-        """Get health history statistics for maintenance UI.
-
-        Returns:
-            Dict with total_rows, oldest_entry, storage_estimate
-        """
-        with self.conn_mgr.connection() as conn:
-            result = conn.execute("""
-                SELECT
-                    COUNT(*) as total_rows,
-                    MIN(checked_at) as oldest_entry,
-                    pg_size_pretty(pg_total_relation_size('sitemap_health_history')) as storage_size
-                FROM sitemap_health_history
-            """)
-            row = result.fetchone()
-
-            return {
-                "total_rows": row[0],
-                "oldest_entry": row[1].isoformat() if row[1] else None,
-                "storage_size": row[2],
-            }
+        """Get health history statistics for maintenance UI. Delegates to storage layer."""
+        return self._storage.get_history_stats()
