@@ -32,7 +32,7 @@
             "Verify: ruff check app/ shows 51 or fewer errors"
           ],
           "priority": "high",
-          "passes": false
+          "passes": true
         },
         {
           "id": "1.2",
