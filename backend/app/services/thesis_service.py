@@ -167,7 +167,7 @@ class ThesisService:
             logger.info("fetching_intelligence", symbol=symbol, url=url)
             response = httpx.get(url, timeout=30.0)
             response.raise_for_status()
-            data = response.json()
+            data: dict[str, Any] = response.json()
 
             if data.get("error"):
                 raise RuntimeError(f"Intelligence API returned error: {data['error']}")
@@ -552,6 +552,8 @@ class ThesisService:
                 claude_validation=claude_validation,
                 gemini_validation=None,  # Not implementing Gemini validation of Claude for now
                 cross_validation_score=cross_val_score,
+                invalidation_reason=None,
+                invalidated_at=None,
                 created_at=now,
                 updated_at=now,
             )
@@ -647,18 +649,20 @@ class ThesisService:
                     snapshot = snapshot_str
 
                 # Handle datetime conversion
-                created_at = row[5]
-                if hasattr(created_at, "isoformat"):
-                    created_at = created_at.isoformat()
+                created_at_val = row[5]
+                if created_at_val is not None and hasattr(created_at_val, "isoformat"):
+                    created_at_str = created_at_val.isoformat()
+                else:
+                    created_at_str = str(created_at_val) if created_at_val else ""
 
                 versions.append(
                     ThesisVersion(
-                        id=row[0],
-                        thesis_id=row[1],
-                        version=row[2],
+                        id=str(row[0]),
+                        thesis_id=str(row[1]),
+                        version=int(row[2]) if row[2] is not None else 0,
                         snapshot=snapshot,
-                        change_reason=row[4],
-                        created_at=created_at,
+                        change_reason=str(row[4]) if row[4] else "",
+                        created_at=created_at_str,
                     )
                 )
 
