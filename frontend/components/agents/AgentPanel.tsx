@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { MessageSquare, X, Plus, Trash2, Settings, Activity, Diamond, Star, Camera, Eye } from 'lucide-react';
+import { MessageSquare, X, Plus, Trash2, Settings, Activity, Camera, Eye, Diamond, Star } from 'lucide-react';
 import { toCamelCaseKeys } from '@/lib/api/client';
 // Note: We use a custom side panel instead of Sheet to allow non-overlay behavior (FEAT-220)
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import { ModeSelector, AgentMode } from './ModeSelector';
 import { TokenSummaryCards } from './TokenSummaryCards';
 import { DevCompanionSessionsList } from './SessionsList';
 import { EvidenceCaptureModal } from './EvidenceCaptureModal';
+import { ProviderBadge } from './ProviderBadge';
 
 // SummitFlow API configuration
 const SUMMITFLOW_API = "/summitflow/api/projects/portfolio-ai";
@@ -83,29 +84,6 @@ interface Session {
   messageCount?: number;
   description?: string | null;
   participants?: string[];
-}
-
-// Provider badge component for session attribution
-function ProviderBadge({ provider, size = 'sm' }: { provider: string | null | undefined; size?: 'sm' | 'xs' }) {
-  if (!provider) return null;
-
-  const iconClass = size === 'xs' ? 'h-3 w-3' : 'h-4 w-4';
-
-  if (provider === 'claude') {
-    return <span title="Claude"><Diamond className={`${iconClass} text-blue-400`} /></span>;
-  }
-  if (provider === 'gemini') {
-    return <span title="Gemini"><Star className={`${iconClass} text-green-400`} /></span>;
-  }
-  if (provider === 'both') {
-    return (
-      <span className="flex -space-x-1" title="Claude + Gemini">
-        <Diamond className={`${iconClass} text-blue-400`} />
-        <Star className={`${iconClass} text-green-400`} />
-      </span>
-    );
-  }
-  return null;
 }
 
 // AgentRole is now handled by ModeSelector

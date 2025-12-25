@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { MessageSquare, Users, RefreshCw, Bot, ChevronRight, Diamond, Star } from 'lucide-react';
+import { MessageSquare, Users, RefreshCw, Bot, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ProviderBadge } from './ProviderBadge';
 
 interface SessionInfo {
   id: string;
@@ -32,29 +33,6 @@ interface DevCompanionSession {
   messageCount?: number;
   description?: string | null;
   participants?: string[];
-}
-
-// Provider badge component for session attribution
-function ProviderBadge({ provider, size = 'sm' }: { provider: string | null | undefined; size?: 'sm' | 'xs' }) {
-  if (!provider) return null;
-
-  const iconClass = size === 'xs' ? 'h-3 w-3' : 'h-4 w-4';
-
-  if (provider === 'claude') {
-    return <span title="Claude"><Diamond className={`${iconClass} text-blue-400`} /></span>;
-  }
-  if (provider === 'gemini') {
-    return <span title="Gemini"><Star className={`${iconClass} text-green-400`} /></span>;
-  }
-  if (provider === 'both') {
-    return (
-      <span className="flex -space-x-1" title="Claude + Gemini">
-        <Diamond className={`${iconClass} text-blue-400`} />
-        <Star className={`${iconClass} text-green-400`} />
-      </span>
-    );
-  }
-  return null;
 }
 
 function formatTokenCount(tokens: number): string {
