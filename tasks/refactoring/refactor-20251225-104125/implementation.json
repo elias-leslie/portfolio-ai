@@ -181,7 +181,7 @@
             "Verify: No duplicate ProviderBadge implementations"
           ],
           "priority": "high",
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.3",
