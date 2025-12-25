@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { MessageSquare, X, Plus, Trash2, Settings, Activity, Camera, Eye, Diamond, Star } from 'lucide-react';
-import { toCamelCaseKeys } from '@/lib/api/client';
 // Note: We use a custom side panel instead of Sheet to allow non-overlay behavior (FEAT-220)
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -15,6 +14,18 @@ import { TokenSummaryCards } from './TokenSummaryCards';
 import { DevCompanionSessionsList } from './SessionsList';
 import { EvidenceCaptureModal } from './EvidenceCaptureModal';
 import { ProviderBadge } from './ProviderBadge';
+import {
+  parseWebSocketMessage,
+  routeMessage,
+  blocksToText,
+  type HandlerContext,
+  type ContentBlock,
+  type StreamMessage,
+  type PermissionRequest,
+  type WebSocketMessage,
+  type EvidenceData,
+  type ChatMessage,
+} from './wsHandlers';
 
 // SummitFlow API configuration
 const SUMMITFLOW_API = "/summitflow/api/projects/portfolio-ai";

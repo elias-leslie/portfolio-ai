@@ -135,7 +135,7 @@
             "Verify: 0 mypy errors for this file"
           ],
           "priority": "high",
-          "passes": false
+          "passes": true
         }
       ]
     },
