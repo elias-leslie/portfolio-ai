@@ -190,7 +190,7 @@
           "files_affected": [
             "frontend/components/agents/AgentPanel.tsx",
             "frontend/components/agents/SessionsList.tsx",
-            "frontend/lib/utils/dateFormatting.ts"
+            "frontend/lib/utils.ts"
           ],
           "steps": [
             "Create or extend frontend/lib/utils/dateFormatting.ts",
@@ -201,7 +201,7 @@
             "Verify: Single source of truth for date formatting"
           ],
           "priority": "medium",
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.4",
