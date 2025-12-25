@@ -126,7 +126,7 @@ def _sync_backup_index() -> bool:
         # Use --verify-missing to auto-verify backups lacking verification data
         result = subprocess.run(
             ["bash", "-c", f"source {sync_script} && sync_index_from_smb --verify-missing"],
-            capture_output=True,
+            check=False, capture_output=True,
             text=True,
             timeout=600,  # 10 min - verification downloads backups
             cwd=str(PROJECT_DIR),

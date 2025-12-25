@@ -57,9 +57,9 @@ from app.api import (
     watchlist,
     workflow_graph,
 )
+
 # vision_content_router, vision_goals_router removed - migrated to SummitFlow (portfolio-ai-5rz)
 from app.logging_config import SyslogPrefixFormatter, configure_logging, get_logger
-from app.middleware.trailing_slash import TrailingSlashMiddleware
 from app.storage import get_storage
 from app.storage.credential_loader import load_credentials_from_database
 
