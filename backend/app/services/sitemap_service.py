@@ -186,7 +186,7 @@ class PortDiscovery:
         Returns:
             List of discovered ports with metadata
         """
-        discovered = []
+        discovered: list[DiscoveredPort] = []
 
         try:
             # List portfolio-* services
@@ -667,7 +667,7 @@ class SitemapService:
             List of discovered route dicts
         """
         logger.info("sitemap_discover_nextjs_start")
-        discovered = []
+        discovered: list[dict[str, Any]] = []
 
         if frontend_dir is None:
             frontend_dir = str(Path.home() / "portfolio-ai" / "frontend")
@@ -793,7 +793,7 @@ class SitemapService:
         Returns:
             List of tab value strings
         """
-        tabs = []
+        tabs: list[str] = []
         try:
             content = page_file.read_text()
 
@@ -986,7 +986,7 @@ class SitemapService:
             elif is_mutating:
                 skip_msg = "Skipped (mutating method)"
             else:
-                skip_msg = skip_reason
+                skip_msg = skip_reason or "Skipped (unknown)"
             # Update entry and return early
             with self.conn_mgr.connection() as conn:
                 conn.execute("""

@@ -82,7 +82,7 @@
             "Verify: sitemap_service.py reduced by ~300 lines"
           ],
           "priority": "high",
-          "passes": false
+          "passes": true
         },
         {
           "id": "2.2",
