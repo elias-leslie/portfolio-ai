@@ -30,60 +30,7 @@ import {
 // SummitFlow API configuration
 const SUMMITFLOW_API = "/summitflow/api/projects/portfolio-ai";
 
-// Types from ChatPanel
-interface ContentBlock {
-  type: 'text' | 'tool_use' | 'tool_result' | 'thinking';
-  text?: string | null;
-  toolName?: string | null;
-  toolInput?: Record<string, unknown> | null;
-  toolUseId?: string | null;
-  isError?: boolean;
-}
-
-interface StreamMessage {
-  type: 'assistant' | 'user' | 'system' | 'result';
-  content: ContentBlock[];
-  model?: string | null;
-  stopReason?: string | null;
-  sessionId?: string | null;
-}
-
-interface PermissionRequest {
-  toolName: string;
-  toolInput: Record<string, unknown>;
-}
-
-interface WebSocketMessage {
-  type: 'stream' | 'done' | 'error' | 'pong' | 'permission_request' | 'interrupt_ack' | 'provider' | 'agent_start' | 'agent_done' | 'discussion_start' | 'discussion_round';
-  data?: StreamMessage;
-  message?: string;
-  toolName?: string;
-  toolInput?: Record<string, unknown>;
-  success?: boolean;
-  name?: string;  // For provider confirmation
-  agent?: 'claude' | 'gemini';  // Which agent is responding (roundtable mode)
-  round?: number;  // Discussion round number
-  reason?: string;  // Reason for discussion (e.g., 'disagreement_detected')
-}
-
-interface EvidenceData {
-  featureId: string;
-  criterionId: string;
-  version: number;
-  consoleErrors: number;
-  networkFailures: number;
-  url: string;
-}
-
-interface ChatMessage {
-  role: 'user' | 'assistant' | 'system' | 'evidence';
-  content: string;
-  blocks?: ContentBlock[];
-  timestamp: Date;
-  agent?: 'claude' | 'gemini';  // Which agent produced this response (roundtable mode)
-  evidence?: EvidenceData;  // Evidence capture data
-}
-
+// Session type (not in wsHandlers as it's specific to AgentPanel)
 interface Session {
   id: string;
   workingDir: string;
@@ -312,125 +259,19 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
     };
 
     ws.onmessage = (event) => {
-      const msg: WebSocketMessage = toCamelCaseKeys(JSON.parse(event.data));
-
-      switch (msg.type) {
-        case 'stream':
-          if (msg.data) {
-            setCurrentResponse(prev => [...prev, ...msg.data!.content]);
-          }
-          break;
-
-        case 'agent_start':
-          // Roundtable: Track which agent is now responding
-          if (msg.agent) {
-            setCurrentRespondingAgent(msg.agent);
-          }
-          break;
-
-        case 'agent_done': {
-          // Roundtable: Save current agent's response with attribution
-          const blocks = currentResponseRef.current;
-          if (blocks.length > 0) {
-            setMessages(prev => [
-              ...prev,
-              {
-                role: 'assistant',
-                content: blocksToText(blocks),
-                blocks: blocks,
-                timestamp: new Date(),
-                agent: msg.agent,  // Attribution for roundtable mode
-              },
-            ]);
-          }
-          setCurrentResponse([]);
-          setCurrentRespondingAgent(null);
-          break;
-        }
-
-        case 'discussion_start':
-          // Roundtable: Show system message that discussion is starting
-          setMessages(prev => [
-            ...prev,
-            {
-              role: 'system',
-              content: `Agents disagree — starting discussion...`,
-              timestamp: new Date(),
-            },
-          ]);
-          break;
-
-        case 'discussion_round':
-          // Roundtable: Show which round we're in
-          if (msg.round) {
-            setMessages(prev => [
-              ...prev,
-              {
-                role: 'system',
-                content: `Discussion round ${msg.round}`,
-                timestamp: new Date(),
-              },
-            ]);
-          }
-          break;
-
-        case 'done': {
-          const blocks = currentResponseRef.current;
-          if (blocks.length > 0) {
-            // Determine agent: roundtable uses currentRespondingAgent, single-mode uses agentProvider
-            const agent = currentRespondingAgent
-              || (agentProvider !== 'both' ? agentProvider : undefined);
-            setMessages(prev => [
-              ...prev,
-              {
-                role: 'assistant',
-                content: blocksToText(blocks),
-                blocks: blocks,
-                timestamp: new Date(),
-                agent,
-              },
-            ]);
-          }
-          setCurrentResponse([]);
-          setCurrentRespondingAgent(null);
-          setIsLoading(false);
-          break;
-        }
-
-        case 'error':
-          setMessages(prev => [
-            ...prev,
-            {
-              role: 'system',
-              content: `Error: ${msg.message}`,
-              timestamp: new Date(),
-            },
-          ]);
-          setIsLoading(false);
-          setPendingPermission(null);
-          setCurrentRespondingAgent(null);
-          break;
-
-        case 'permission_request':
-          if (msg.toolName && msg.toolInput) {
-            setPendingPermission({
-              toolName: msg.toolName,
-              toolInput: msg.toolInput,
-            });
-          }
-          break;
-
-        case 'interrupt_ack':
-          setPendingPermission(null);
-          break;
-
-        case 'provider':
-          // Server confirms which provider is active
-          if (msg.name) {
-            setActiveProvider(msg.name as LLMProvider);
-          }
-          break;
-      }
+      const msg = parseWebSocketMessage(event);
+      const ctx: HandlerContext = {
+        currentResponseRef,
+        currentRespondingAgent,
+        agentProvider,
+        setCurrentResponse,
+        setCurrentRespondingAgent,
+        setMessages,
+        setIsLoading,
+        setPendingPermission,
+        setActiveProvider,
+      };
+      routeMessage(msg, ctx);
     };
 
     wsRef.current = ws;
@@ -1061,17 +902,6 @@ function formatRelativeTime(dateStr: string): string {
   if (diffDays === 1) return 'yesterday';
   if (diffDays < 7) return `${diffDays} days ago`;
   return date.toLocaleDateString();
-}
-
-function blocksToText(blocks: ContentBlock[]): string {
-  return blocks
-    .map(block => {
-      if (block.type === 'text' && block.text) return block.text;
-      if (block.type === 'tool_use') return `[Tool: ${block.toolName}]`;
-      if (block.type === 'tool_result') return `[Result: ${block.text}]`;
-      return '';
-    })
-    .join('');
 }
 
 function MessageBubble({ message }: { message: ChatMessage }) {
