@@ -402,17 +402,6 @@ export function BacktestDetails({
     return: ((parseFloat(String(point.equity)) - initialEquity) / initialEquity) * 100,
   }));
 
-  // Format metrics - convert string to number if needed
-  const formatPercent = (value: string | number | null): number | null => {
-    if (value === null) return null;
-    return typeof value === "string" ? parseFloat(value) : value;
-  };
-
-  const formatCurrency = (value: string | number | null): number | null => {
-    if (value === null) return null;
-    return typeof value === "string" ? parseFloat(value) : value;
-  };
-
   return (
     <div className="space-y-6">
       {/* Run Header */}
@@ -499,33 +488,29 @@ export function BacktestDetails({
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <MetricCard
           label="Total Return"
-          value={formatPercent(run.totalReturnPct)}
+          value={parseToNumber(run.totalReturnPct)}
           format="percent"
         />
         <MetricCard
           label="Sharpe Ratio"
-          value={run.sharpeRatio ? parseFloat(run.sharpeRatio.toString()) : null}
+          value={parseToNumber(run.sharpeRatio)}
           format="number"
         />
         <MetricCard
           label="Win Rate"
-          value={formatPercent(run.winRate)}
+          value={parseToNumber(run.winRate)}
           format="percent"
           isPositive
         />
         <MetricCard
           label="Max Drawdown"
-          value={
-            run.maxDrawdownPct
-              ? -parseFloat(run.maxDrawdownPct.toString())
-              : null
-          }
+          value={run.maxDrawdownPct ? -parseFloat(run.maxDrawdownPct.toString()) : null}
           format="percent"
           isPositive={false}
         />
         <MetricCard
           label="Profit Factor"
-          value={run.profitFactor ? parseFloat(run.profitFactor.toString()) : null}
+          value={parseToNumber(run.profitFactor)}
           format="number"
         />
       </div>
@@ -655,46 +640,26 @@ interface TradesTableProps {
 }
 
 function TradesTable({ trades, sorting, onSortingChange }: TradesTableProps) {
-  // Using standard formatDate from @/lib/utils
-
-  const formatCurrency = (value: number | undefined) => {
-    if (value === undefined || value === null) return "—";
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(value);
-  };
-
-  const formatPercent = (value: number | undefined) => {
-    if (value === undefined || value === null) return "—";
-    return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
-  };
-
   const columns: ColumnDef<BacktestTrade>[] = [
     {
       accessorKey: "entry_date",
       header: "Entry Date",
-      cell: ({ row }) => formatDate(row.original.entryDate as any),
+      cell: ({ row }) => formatDate(row.original.entryDate as unknown as string),
     },
     {
       accessorKey: "entry_price",
       header: "Entry Price",
-      cell: ({ row }) => formatCurrency(parseFloat(row.original.entryPrice.toString())),
+      cell: ({ row }) => formatCurrencyValue(row.original.entryPrice),
     },
     {
       accessorKey: "exit_date",
       header: "Exit Date",
-      cell: ({ row }) => formatDate(row.original.exitDate as any),
+      cell: ({ row }) => formatDate(row.original.exitDate as unknown as string),
     },
     {
       accessorKey: "exit_price",
       header: "Exit Price",
-      cell: ({ row }) =>
-        row.original.exitPrice
-          ? formatCurrency(parseFloat(row.original.exitPrice.toString()))
-          : "—",
+      cell: ({ row }) => formatCurrencyValue(row.original.exitPrice),
     },
     {
       accessorKey: "shares",
@@ -705,12 +670,10 @@ function TradesTable({ trades, sorting, onSortingChange }: TradesTableProps) {
       accessorKey: "pnl_pct",
       header: "P&L %",
       cell: ({ row }) => {
-        const pnl = row.original.pnlPct
-          ? parseFloat(row.original.pnlPct.toString())
-          : null;
+        const pnl = parseToNumber(row.original.pnlPct);
         return pnl !== null ? (
           <span className={pnl >= 0 ? "text-gain font-medium" : "text-loss font-medium"}>
-            {formatPercent(pnl)}
+            {formatPercentValue(pnl)}
           </span>
         ) : (
           "—"
@@ -846,17 +809,6 @@ function RankBadge({ rank }: { rank: number | null }) {
  * Metrics comparison table component
  */
 function MetricsComparisonTable({ metrics }: { metrics: RunMetrics[] }) {
-  const formatPercent = (value: string | null) => {
-    if (value === null) return "—";
-    const num = parseFloat(value);
-    return `${num >= 0 ? "+" : ""}${num.toFixed(2)}%`;
-  };
-
-  const formatNumber = (value: string | null) => {
-    if (value === null) return "—";
-    return parseFloat(value).toFixed(2);
-  };
-
   return (
     <div className="rounded-md border border-border bg-surface/40 overflow-x-auto">
       <Table>
@@ -881,14 +833,14 @@ function MetricsComparisonTable({ metrics }: { metrics: RunMetrics[] }) {
                 parseFloat(m.totalReturnPct || "0") >= 0 ? "text-gain" : "text-loss",
                 "font-medium"
               )}>
-                {formatPercent(m.totalReturnPct)}
+                {formatPercentValue(m.totalReturnPct)}
               </TableCell>
               <TableCell><RankBadge rank={m.returnRank} /></TableCell>
               <TableCell>{formatNumber(m.sharpeRatio)}</TableCell>
               <TableCell><RankBadge rank={m.sharpeRank} /></TableCell>
-              <TableCell className="text-loss">{formatPercent(m.maxDrawdownPct)}</TableCell>
+              <TableCell className="text-loss">{formatPercentValue(m.maxDrawdownPct)}</TableCell>
               <TableCell><RankBadge rank={m.drawdownRank} /></TableCell>
-              <TableCell>{formatPercent(m.winRate)}</TableCell>
+              <TableCell>{formatPercentValue(m.winRate)}</TableCell>
               <TableCell>{m.numTrades ?? "—"}</TableCell>
             </TableRow>
           ))}
