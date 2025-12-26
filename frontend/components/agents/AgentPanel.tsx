@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { MessageSquare, X, Plus, Trash2, Settings, Activity, Camera, Eye, Diamond, Star } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { MessageSquare, Plus, Trash2, Settings, Activity, Camera, Eye, Diamond, Star } from 'lucide-react';
 // Note: We use a custom side panel instead of Sheet to allow non-overlay behavior (FEAT-220)
 import { Button } from '@/components/ui/button';
 import { cn, formatRelativeTime } from '@/lib/utils';
@@ -11,18 +11,14 @@ import { StatusModal } from './StatusModal';
 import { AgentSelector, AgentProvider, RoundtableOrder } from './AgentSelector';
 import { ModeSelector, AgentMode } from './ModeSelector';
 import { TokenSummaryCards } from './TokenSummaryCards';
-import { DevCompanionSessionsList } from './SessionsList';
 import { EvidenceCaptureModal } from './EvidenceCaptureModal';
 import { ProviderBadge } from './ProviderBadge';
 import {
   parseWebSocketMessage,
   routeMessage,
-  blocksToText,
   type HandlerContext,
   type ContentBlock,
-  type StreamMessage,
   type PermissionRequest,
-  type WebSocketMessage,
   type EvidenceData,
   type ChatMessage,
 } from './wsHandlers';

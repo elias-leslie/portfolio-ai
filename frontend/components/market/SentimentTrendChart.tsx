@@ -2,7 +2,6 @@
 
 import { useState, useMemo } from "react";
 import {
-  AreaChart,
   Area,
   XAxis,
   YAxis,
