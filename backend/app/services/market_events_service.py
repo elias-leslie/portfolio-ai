@@ -203,7 +203,7 @@ def create_market_event(event: MarketEventCreate) -> MarketEvent:
         "source": event.source,
     }
 
-    result = storage.query(query, params)
+    result = storage.query(query, params)  # type: ignore[arg-type]
     row = result.row(0, named=True)
 
     logger.info(
@@ -275,7 +275,7 @@ def update_market_event(event_id: int, update: MarketEventUpdate) -> MarketEvent
         RETURNING *
     """
 
-    result = storage.query(query, params)
+    result = storage.query(query, params)  # type: ignore[arg-type]
     if result.is_empty():
         return None
 

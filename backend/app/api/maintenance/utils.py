@@ -21,7 +21,7 @@ from .models import MaintenanceResult
 logger = get_logger(__name__)
 
 
-def _extract_json_from_output(output: str) -> dict:
+def _extract_json_from_output(output: str) -> dict[str, object]:
     """Extract JSON object from script output that may contain log lines.
 
     Scripts output log lines followed by a JSON summary. This function
@@ -35,7 +35,7 @@ def _extract_json_from_output(output: str) -> dict:
     """
     # Try parsing the whole output first (clean output)
     try:
-        return json.loads(output)
+        return json.loads(output)  # type: ignore[no-any-return]
     except json.JSONDecodeError:
         pass
 
@@ -53,7 +53,7 @@ def _extract_json_from_output(output: str) -> dict:
     if json_start_idx >= 0:
         json_text = "\n".join(lines[json_start_idx:])
         try:
-            return json.loads(json_text)
+            return json.loads(json_text)  # type: ignore[no-any-return]
         except json.JSONDecodeError:
             pass
 

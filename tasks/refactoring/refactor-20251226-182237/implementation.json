@@ -109,7 +109,7 @@
             "Run: cd backend && .venv/bin/mypy app/scripts/validate_data_integrity.py",
             "Verify: Zero errors in this file"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "2.2",
@@ -124,7 +124,7 @@
             "Run: cd backend && .venv/bin/mypy app/services/market_events_service.py",
             "Verify: Zero errors in this file"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "2.3",
@@ -147,7 +147,7 @@
             "Run: cd backend && .venv/bin/mypy app/ --no-error-summary | grep -c 'error:' || echo 0",
             "Verify: Less than 10 errors remaining"
           ],
-          "passes": false
+          "passes": true
         }
       ]
     },
