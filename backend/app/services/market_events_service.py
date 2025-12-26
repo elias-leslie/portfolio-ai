@@ -222,6 +222,8 @@ def create_market_event(event: MarketEventCreate) -> MarketEvent:
         prior_value=event.prior_value,
         surprise_pct=surprise_pct,
         impact_score=event.impact_score,
+        spy_change_1h=None,
+        spy_change_1d=None,
         source=event.source,
         created_at=str(row["created_at"]),
     )
