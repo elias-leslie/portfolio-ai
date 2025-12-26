@@ -314,7 +314,11 @@ class ConnectionManager:
             >>> mgr = ConnectionManager("postgresql://user:pass@localhost:5432/db")
             >>> mgr = ConnectionManager()  # Uses DATABASE_URL env var
         """
-        self.database_url: str = database_url or CONSTANTS_DATABASE_URL
+        # CONSTANTS_DATABASE_URL is guaranteed to be str (raises RuntimeError if not set)
+        url = database_url or CONSTANTS_DATABASE_URL
+        if url is None:
+            raise RuntimeError("DATABASE_URL must be set")
+        self.database_url: str = url
 
         # Get pool size settings from environment or use defaults
         # Tests should use smaller values to avoid connection exhaustion

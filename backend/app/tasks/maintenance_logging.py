@@ -41,7 +41,7 @@ def log_maintenance_start(task_name: str, dry_run: bool = False) -> int:
             ).fetchone()
             conn.commit()
 
-            if result:
+            if result and result[0] is not None:
                 return int(result[0])
     except Exception as e:
         logger.warning("maintenance_log_start_failed", task_name=task_name, error=str(e))
