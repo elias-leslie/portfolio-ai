@@ -332,14 +332,14 @@ def cleanup_old_agent_runs_task(
         with storage.connection() as conn:
             if dry_run:
                 # In dry run mode, just count how many would be deleted
-                result = conn.execute(
+                count_row = conn.execute(
                     """
                     SELECT COUNT(*) FROM agent_runs
                     WHERE started_at < %s
                     """,
                     [cutoff_date],
                 ).fetchone()
-                runs_to_delete = result[0] if result else 0
+                runs_to_delete = count_row[0] if count_row else 0
 
                 duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
                 dry_result = {
