@@ -25,6 +25,7 @@ function BacktestPageContent() {
   const { data: runs, isLoading } = useBacktestRuns();
 
   // Auto-select run from query parameter (?runId=xxx)
+  // Only runs on URL/data change, not on selectedRunId change (intentional)
   useEffect(() => {
     const runIdParam = searchParams?.get("runId");
     if (runIdParam && runs && runs.length > 0 && !selectedRunId) {
@@ -40,7 +41,8 @@ function BacktestPageContent() {
         }
       }
     }
-  }, [searchParams, runs, selectedRunId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, runs]);
   const generateBatch = useGenerateStrategiesBatch();
 
   // Handle run selection

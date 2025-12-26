@@ -27,6 +27,7 @@ function StrategiesPageContent() {
   const generateBatch = useGenerateStrategiesBatch();
 
   // Auto-select strategy from query parameter (?id=xxx or ?id=first)
+  // Only runs on URL/data change, not on selectedStrategyId change (intentional)
   useEffect(() => {
     const idParam = searchParams?.get("id");
     const strategies = data?.strategies || [];
@@ -43,7 +44,8 @@ function StrategiesPageContent() {
         }
       }
     }
-  }, [searchParams, data, selectedStrategyId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, data]);
 
   const strategies = data?.strategies || [];
 
