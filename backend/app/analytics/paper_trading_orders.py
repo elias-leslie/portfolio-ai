@@ -7,9 +7,12 @@ including fetching idea details, current prices, and building trade records.
 from __future__ import annotations
 
 import datetime as dt
+import uuid
 from datetime import UTC, datetime
 from typing import cast
 
+from app.analytics.cash_manager import CashManager
+from app.analytics.earnings_filter import should_block_for_earnings
 from app.analytics.trade_calculations import (
     calculate_stop_loss,
     extract_symbol_from_title,
@@ -176,8 +179,6 @@ def create_paper_trade_from_idea(  # noqa: PLR0911
         return None
 
     # Check earnings proximity (GAP-003)
-    from app.analytics.earnings_filter import should_block_for_earnings
-
     if should_block_for_earnings(storage, symbol):
         logger.warning(
             "paper_trade_blocked_earnings",
@@ -267,11 +268,6 @@ def create_paper_trade_from_strategy_signal(
     Returns:
         Dict with paper trade details if successful, None if failed/rejected
     """
-    import uuid
-
-    from app.analytics.cash_manager import CashManager
-    from app.analytics.trade_calculations import calculate_stop_loss
-
     # Generate a unique idea_id for this trade
     idea_id = str(uuid.uuid4())
 

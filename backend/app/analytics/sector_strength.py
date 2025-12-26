@@ -215,8 +215,6 @@ def calculate_sector_relative_strength(
         symbol = row["symbol"]
         row_date = row["date"]
         if isinstance(row_date, str):
-            from datetime import datetime
-
             row_date = datetime.strptime(row_date, "%Y-%m-%d").date()
         prices[symbol][row_date] = float(row["close"])
 

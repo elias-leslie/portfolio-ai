@@ -6,7 +6,7 @@ from datetime import date, datetime, timedelta
 from typing import Any
 
 import yfinance as yf
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from app.api.market_data_sources import (
     calculate_daily_change_pct,
@@ -42,6 +42,7 @@ from app.market import intelligence
 from app.market.fear_greed_stub import get_fear_greed_score
 from app.market.sentiment import calculate_market_health
 from app.middleware.cache import cache_response
+from app.models.market_events import MarketEventCreate, MarketEventUpdate
 from app.models.market_intelligence import (
     FearGreedScore,
     MarketIntelligenceResponse,

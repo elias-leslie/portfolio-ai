@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 
 from app.celery_app import celery_app
 from app.logging_config import get_logger
+from app.storage.connection import get_connection_manager
 
 logger = get_logger(__name__)
 
@@ -202,8 +203,6 @@ async def trigger_full_pipeline(
 @router.get("/status", response_model=PipelineStatusResponse)
 async def get_pipeline_status() -> PipelineStatusResponse:
     """Get current pipeline status and last run times."""
-    from app.storage.connection import get_connection_manager
-
     try:
         conn_mgr = get_connection_manager()
 
