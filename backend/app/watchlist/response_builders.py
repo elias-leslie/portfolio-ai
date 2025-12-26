@@ -16,15 +16,17 @@ from .models import NarrativeBulletsDict, NewsIntelligenceDict, RecentNewsDict
 
 
 # Helper functions
-def _clean_sub_scores(data: dict[str, Any] | None) -> dict[str, Any] | None:
+def _clean_sub_scores(data: dict[str, Any] | None) -> dict[str, Any]:
     """Clean sub_scores dict by removing None values.
 
     Pydantic expects sub_scores to be dict[str, float] | None, so any
     None values in the dict will cause validation errors. This can happen
     when data was stored with None values before validation was added.
+
+    Returns empty dict if input is None, ensuring the result is always spreadable.
     """
     if data is None:
-        return None
+        return {}
 
     # Make a copy to avoid mutating original
     cleaned = dict(data)
