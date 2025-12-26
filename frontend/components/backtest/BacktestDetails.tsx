@@ -45,6 +45,12 @@ import {
 import type { BacktestEquity, BacktestTrade, BacktestComparisonResponse, RunMetrics, MonteCarloResponse } from "@/lib/api/backtest-ui";
 import { TradeDistributionChart } from "./TradeDistributionChart";
 import { MonthlyReturnsHeatmap } from "./MonthlyReturnsHeatmap";
+import {
+  formatPercentValue,
+  formatCurrencyValue,
+  formatNumber,
+  parseToNumber,
+} from "./formatters";
 
 // ============================================================================
 // Types
