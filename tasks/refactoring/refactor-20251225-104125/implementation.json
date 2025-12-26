@@ -297,7 +297,7 @@
             "Verify: 0 errors for this file"
           ],
           "priority": "medium",
-          "passes": false
+          "passes": true
         },
         {
           "id": "5.2",
@@ -311,7 +311,7 @@
             "Verify: 0 errors"
           ],
           "priority": "low",
-          "passes": false
+          "passes": true
         },
         {
           "id": "5.3",
@@ -328,7 +328,7 @@
             "Verify: 0 errors for these files"
           ],
           "priority": "medium",
-          "passes": false
+          "passes": true
         }
       ]
     },
