@@ -1022,8 +1022,8 @@ def cleanup_cache_directories_task(self: Task, dry_run: bool = False) -> dict[st
         for target in cache_targets:
             target_name = str(target["name"])
             target_path: Path = target["path"]  # type: ignore[assignment]
-            pattern = target["pattern"]
-            recursive = target["recursive"]
+            pattern: str | None = target["pattern"]  # type: ignore[assignment]
+            recursive: bool = target["recursive"]  # type: ignore[assignment]
 
             if not target_path.exists():
                 logger.debug("cache_target_not_found", target=target_name, path=str(target_path))
