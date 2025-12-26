@@ -276,7 +276,7 @@
             "Verify: Build succeeds, no reference to quickFeatureMutation"
           ],
           "priority": "low",
-          "passes": false
+          "passes": true
         }
       ]
     },
