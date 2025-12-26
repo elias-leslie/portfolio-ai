@@ -17,7 +17,6 @@ import {
   type WatchlistItemCreate,
   type WatchlistItemUpdate,
   type RefreshResponse,
-  type ScoreHistory,
   type ScoreHistoryResponse,
   type RefreshStatus,
 } from "@/lib/api/watchlist";

@@ -42,7 +42,7 @@ import {
   useCompareBacktests,
   useMonteCarloSimulation,
 } from "@/lib/hooks/useBacktestUI";
-import type { BacktestEquity, BacktestTrade, BacktestComparisonResponse, RunMetrics, MonteCarloResponse } from "@/lib/api/backtest-ui";
+import type { BacktestTrade, BacktestComparisonResponse, RunMetrics, MonteCarloResponse } from "@/lib/api/backtest-ui";
 import { TradeDistributionChart } from "./TradeDistributionChart";
 import { MonthlyReturnsHeatmap } from "./MonthlyReturnsHeatmap";
 import {

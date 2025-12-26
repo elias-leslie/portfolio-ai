@@ -11,7 +11,7 @@ test.describe('Navigation', () => {
   ]
 
   test('can navigate to all pages', async ({ page }) => {
-    for (const { name, path } of pages) {
+    for (const { path } of pages) {
       await page.goto(path)
 
       // Verify URL changed
