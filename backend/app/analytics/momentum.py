@@ -13,7 +13,7 @@ Cross-sectional ranks provide relative strength vs market.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from typing import TYPE_CHECKING
 
 from ..logging_config import get_logger
@@ -87,8 +87,6 @@ def calculate_momentum(
     for row in result.iter_rows(named=True):
         row_date = row["date"]
         if isinstance(row_date, str):
-            from datetime import datetime
-
             row_date = datetime.strptime(row_date, "%Y-%m-%d").date()
         prices[row_date] = float(row["close"])
 

@@ -13,7 +13,7 @@ Relative strength > absolute strength for sector allocation.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from typing import TYPE_CHECKING
 
 from ..constants import BENCHMARK_SPY, SECTOR_ETFS

@@ -1,0 +1,254 @@
+{
+  "_instructions": {
+    "critical": "Only modify 'passes' field. Never change structure.",
+    "workflow": "One task at a time. Full verification. Commit after each."
+  },
+  "meta": {
+    "title": "Portfolio-AI Full Codebase Refactor",
+    "created": "2025-12-26",
+    "baseline": {
+      "ruff_errors": 51,
+      "mypy_errors": 29,
+      "frontend_lint_errors": 817,
+      "frontend_lint_warnings": 71
+    }
+  },
+  "phases": [
+    {
+      "id": 1,
+      "name": "Backend Lint Fixes",
+      "goal": "Zero ruff errors",
+      "tasks": [
+        {
+          "id": "1.1",
+          "category": "backend",
+          "description": "Move top-level imports from inline locations (32 PLC0415 errors)",
+          "files_affected": [
+            "backend/app/api/market.py",
+            "backend/app/api/recommendations.py",
+            "backend/app/api/rules.py",
+            "backend/app/api/portfolio.py",
+            "backend/app/api/automation.py",
+            "backend/app/analytics/momentum.py",
+            "backend/app/analytics/paper_trading_orders.py",
+            "backend/app/analytics/sector_strength.py",
+            "backend/app/services/options_flow_service.py",
+            "backend/app/sources/__init__.py"
+          ],
+          "steps": [
+            "Identify all PLC0415 (import not at top-level) errors",
+            "Move imports to top of each file",
+            "Verify no circular import issues",
+            "Run: cd backend && .venv/bin/ruff check app/ --select PLC0415",
+            "Verify: Zero PLC0415 errors"
+          ],
+          "passes": false
+        },
+        {
+          "id": "1.2",
+          "category": "backend",
+          "description": "Fix global statement usage (10 PLW0603 errors)",
+          "files_affected": [
+            "backend/app/agents/strategy_evolution_agent.py",
+            "backend/app/api/backup.py",
+            "backend/app/rules/loader.py",
+            "backend/app/strategies/optimizer.py",
+            "backend/app/strategies/research_aggregator.py",
+            "backend/app/strategies/storage.py",
+            "backend/app/strategies/strategy_generator.py"
+          ],
+          "steps": [
+            "Review each global statement usage",
+            "Refactor to use class-based singletons or module-level caching patterns",
+            "Run: cd backend && .venv/bin/ruff check app/ --select PLW0603",
+            "Verify: Zero PLW0603 errors"
+          ],
+          "passes": false
+        },
+        {
+          "id": "1.3",
+          "category": "backend",
+          "description": "Fix remaining lint issues (SIM, B904, PLR, RUF)",
+          "files_affected": [
+            "backend/app/api/rules.py",
+            "backend/app/analytics/paper_trading_orders.py",
+            "backend/app/api/recommendations.py",
+            "backend/app/services/market_events_service.py",
+            "backend/app/strategies/optimizer.py",
+            "backend/app/tasks/rules_validation_tasks.py",
+            "backend/app/services/capability_db_scanner.py"
+          ],
+          "steps": [
+            "Fix B904: Add 'from err' or 'from None' to raise statements (2 errors)",
+            "Fix SIM102: Combine nested if statements (2 errors)",
+            "Fix SIM117: Combine nested with statements (2 errors)",
+            "Fix PLR0911: Reduce return statements or add ignore (2 errors)",
+            "Fix RUF012: Add ClassVar annotation (1 error)",
+            "Run: cd backend && .venv/bin/ruff check app/",
+            "Verify: Zero ruff errors total"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Backend Type Fixes",
+      "goal": "Reduce mypy errors to <10",
+      "tasks": [
+        {
+          "id": "2.1",
+          "category": "backend",
+          "description": "Fix validate_data_integrity.py type errors (6 errors)",
+          "files_affected": [
+            "backend/app/scripts/validate_data_integrity.py"
+          ],
+          "steps": [
+            "Fix _cursor attribute access on DatabaseConnection",
+            "Fix Dict entry type mismatches",
+            "Run: cd backend && .venv/bin/mypy app/scripts/validate_data_integrity.py",
+            "Verify: Zero errors in this file"
+          ],
+          "passes": false
+        },
+        {
+          "id": "2.2",
+          "category": "backend",
+          "description": "Fix market_events_service.py type errors (4 errors)",
+          "files_affected": [
+            "backend/app/services/market_events_service.py"
+          ],
+          "steps": [
+            "Fix query() argument type - needs list instead of dict",
+            "Update all 4 query() calls with correct parameter type",
+            "Run: cd backend && .venv/bin/mypy app/services/market_events_service.py",
+            "Verify: Zero errors in this file"
+          ],
+          "passes": false
+        },
+        {
+          "id": "2.3",
+          "category": "backend",
+          "description": "Fix remaining type errors across codebase",
+          "files_affected": [
+            "backend/app/storage/types.py",
+            "backend/app/services/capability_db_scanner.py",
+            "backend/app/tasks/artifact_tasks.py",
+            "backend/app/api/maintenance/utils.py",
+            "backend/app/api/maintenance/history_router.py",
+            "backend/app/sources/market_movers_source.py",
+            "backend/app/tasks/thesis_monitoring_tasks.py",
+            "backend/app/api/market.py",
+            "backend/app/api/sitemap.py"
+          ],
+          "steps": [
+            "Fix each remaining mypy error",
+            "Add type: ignore comments where fixing is impractical",
+            "Run: cd backend && .venv/bin/mypy app/ --no-error-summary | grep -c 'error:' || echo 0",
+            "Verify: Less than 10 errors remaining"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Frontend Lint Fixes",
+      "goal": "Reduce frontend lint errors to <50",
+      "tasks": [
+        {
+          "id": "3.1",
+          "category": "frontend",
+          "description": "Fix unused variables (68 @typescript-eslint/no-unused-vars)",
+          "files_affected": [],
+          "steps": [
+            "Run: cd frontend && npm run lint 2>&1 | grep no-unused-vars",
+            "Remove or prefix unused variables with underscore",
+            "Run: cd frontend && npm run lint 2>&1 | grep -c no-unused-vars || echo 0",
+            "Verify: Zero unused variable errors"
+          ],
+          "passes": false
+        },
+        {
+          "id": "3.2",
+          "category": "frontend",
+          "description": "Fix unescaped entities (9 react/no-unescaped-entities)",
+          "files_affected": [],
+          "steps": [
+            "Run: cd frontend && npm run lint 2>&1 | grep no-unescaped-entities",
+            "Replace apostrophes with &apos; or template literals",
+            "Verify: Zero unescaped entity errors"
+          ],
+          "passes": false
+        },
+        {
+          "id": "3.3",
+          "category": "frontend",
+          "description": "Fix explicit-any and other TypeScript errors",
+          "files_affected": [],
+          "steps": [
+            "Run: cd frontend && npm run lint 2>&1 | grep -E '@typescript-eslint'",
+            "Add proper types or // eslint-disable comments where needed",
+            "Verify: Minimal TypeScript lint errors"
+          ],
+          "passes": false
+        },
+        {
+          "id": "3.4",
+          "category": "frontend",
+          "description": "Address design token violations (batch fix high-impact files)",
+          "files_affected": [],
+          "steps": [
+            "Identify top 5 files with most design token violations",
+            "Replace hardcoded colors with design tokens for those files",
+            "Document remaining violations for future work (tech debt)",
+            "Verify: Build still passes after changes"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Dead Code Removal",
+      "goal": "Remove unused imports and obvious dead code",
+      "tasks": [
+        {
+          "id": "4.1",
+          "category": "backend",
+          "description": "Run ruff autofix for unused imports",
+          "files_affected": [],
+          "steps": [
+            "Run: cd backend && .venv/bin/ruff check app/ --select F401 --fix",
+            "Run: cd backend && .venv/bin/ruff check app/ --select F841 --fix",
+            "Run: cd backend && .venv/bin/pytest tests/ -x --tb=short -q",
+            "Verify: Tests still pass"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Final Verification",
+      "goal": "All checks pass",
+      "tasks": [
+        {
+          "id": "5.1",
+          "category": "verification",
+          "description": "Run full verification suite",
+          "files_affected": [],
+          "steps": [
+            "Run: cd backend && .venv/bin/pytest tests/ -x --tb=short -q",
+            "Run: cd backend && .venv/bin/ruff check app/",
+            "Run: cd backend && .venv/bin/mypy app/ --no-error-summary | grep -c 'error:' || echo 0",
+            "Run: cd frontend && npm run build",
+            "Run: cd frontend && npm run lint 2>&1 | tail -5",
+            "Generate improvement report comparing to baseline"
+          ],
+          "passes": false
+        }
+      ]
+    }
+  ]
+}
