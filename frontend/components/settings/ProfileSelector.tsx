@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Save, Download, Upload, Copy, Trash2, Plus, Check } from "lucide-react";
+import { Save, Download, Upload, Copy, Trash2, Check } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

@@ -66,11 +66,6 @@ export function SentimentTrendChart() {
 
   // Current score (last data point)
   const currentScore = chartData.length > 0 ? chartData[chartData.length - 1].score : null;
-  const currentLabel = chartData.length > 0 ? chartData[chartData.length - 1].label : null;
-
-  // Calculate min/max for range display
-  const minScore = chartData.length > 0 ? Math.min(...chartData.map((d) => d.score)) : 0;
-  const maxScore = chartData.length > 0 ? Math.max(...chartData.map((d) => d.score)) : 100;
 
   // Use shared date formatting and tick calculation
   const formatXAxis = (date: string) => formatChartDate(date, days);
