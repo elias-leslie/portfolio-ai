@@ -59,7 +59,7 @@ def cleanup_old_versions(
 @shared_task(name="cleanup_debug_captures")
 def cleanup_debug_captures(
     max_age_days: int = 7, dry_run: bool = False
-) -> dict[str, int | str | bool]:
+) -> dict[str, object]:
     """Delete old debug capture directories (DBG-* pattern).
 
     These are ad-hoc screenshot captures that don't need long retention.

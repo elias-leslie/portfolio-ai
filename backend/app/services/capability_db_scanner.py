@@ -73,7 +73,7 @@ class DatabaseScanner:
         logger.info("scanning_database_tables")
 
         # Create SQLAlchemy engine for table introspection only
-        engine = create_engine(DATABASE_URL)
+        engine = create_engine(DATABASE_URL)  # type: ignore[arg-type]
         inspector = inspect(engine)
 
         capabilities = []

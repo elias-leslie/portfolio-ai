@@ -82,7 +82,7 @@ def fetch_from_yahooquery(count: int = 10) -> MarketMoversResult | None:
         MarketMoversResult or None if fetch fails
     """
     try:
-        from yahooquery import Screener  # type: ignore[import-not-found]  # noqa: PLC0415
+        from yahooquery import Screener  # type: ignore[import-untyped]  # noqa: PLC0415
 
         s = Screener()
         data = s.get_screeners(["day_gainers", "day_losers", "most_actives"], count=count)

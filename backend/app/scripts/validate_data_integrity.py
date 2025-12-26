@@ -69,7 +69,7 @@ def check_orphaned_watchlist_snapshots(
                 )
                 """
             )
-            fixed_count = conn._cursor.rowcount
+            fixed_count = conn._cursor.rowcount  # type: ignore[attr-defined]
             conn.commit()
             logger.info("fixed_orphaned_watchlist_snapshots", deleted=fixed_count)
         else:
@@ -125,7 +125,7 @@ def check_orphaned_price_cache(conn: DatabaseConnection, fix: bool = False) -> d
                 )
                 """
             )
-            fixed_count = conn._cursor.rowcount
+            fixed_count = conn._cursor.rowcount  # type: ignore[attr-defined]
             conn.commit()
             logger.info("fixed_orphaned_price_cache", deleted=fixed_count)
         else:
@@ -193,7 +193,7 @@ def check_null_timestamps(conn: DatabaseConnection, fix: bool = False) -> dict[s
     Returns:
         Dict with check results
     """
-    issues: list[dict[str, str | int]] = []
+    issues: list[dict[str, str | int | None]] = []
     total_fixed = 0
 
     # Check watchlist_snapshots.fetched_at
@@ -209,7 +209,7 @@ def check_null_timestamps(conn: DatabaseConnection, fix: bool = False) -> dict[s
         fixed = 0
         if fix:
             conn.execute("DELETE FROM watchlist_snapshots WHERE fetched_at IS NULL")
-            fixed = conn._cursor.rowcount
+            fixed = conn._cursor.rowcount  # type: ignore[attr-defined]
             conn.commit()
             total_fixed += fixed
         issues.append(
@@ -234,7 +234,7 @@ def check_null_timestamps(conn: DatabaseConnection, fix: bool = False) -> dict[s
         fixed = 0
         if fix:
             conn.execute("DELETE FROM news_cache WHERE published_at IS NULL")
-            fixed = conn._cursor.rowcount
+            fixed = conn._cursor.rowcount  # type: ignore[attr-defined]
             conn.commit()
             total_fixed += fixed
         issues.append(
@@ -307,7 +307,7 @@ def check_duplicate_watchlist_items(conn: DatabaseConnection, fix: bool = False)
             )
             """
         )
-        fixed_count = conn._cursor.rowcount
+        fixed_count = conn._cursor.rowcount  # type: ignore[attr-defined]
         conn.commit()
         logger.info("fixed_duplicate_watchlist_items", deleted=fixed_count)
     elif duplicates:
