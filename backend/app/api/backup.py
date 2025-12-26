@@ -154,7 +154,7 @@ def _read_backup_index(force_sync: bool = False) -> dict[str, Any]:
     - More than 5 minutes since last sync
     - Index file doesn't exist
     """
-    global _last_sync_time
+    global _last_sync_time  # noqa: PLW0603
 
     # Determine if we should sync
     should_sync = force_sync or not BACKUP_INDEX_PATH.exists()

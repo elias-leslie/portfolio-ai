@@ -336,7 +336,7 @@ def get_rules(version: str = _CURRENT_VERSION) -> TradingRules:
     Returns:
         TradingRules dataclass with all configuration values
     """
-    global _cached_rules, _cache_timestamp
+    global _cached_rules, _cache_timestamp  # noqa: PLW0603
 
     now = time.time()
 
@@ -364,7 +364,7 @@ def reload_rules(version: str = _CURRENT_VERSION) -> TradingRules:
     Returns:
         Freshly loaded TradingRules
     """
-    global _cached_rules, _cache_timestamp
+    global _cached_rules, _cache_timestamp  # noqa: PLW0603
 
     path = _get_rules_path(version)
     logger.info(f"Force reloading trading rules from {path}")

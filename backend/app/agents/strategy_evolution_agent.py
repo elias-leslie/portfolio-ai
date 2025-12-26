@@ -744,7 +744,7 @@ _evolution_agent: StrategyEvolutionAgent | None = None
 
 def get_strategy_evolution_agent() -> StrategyEvolutionAgent:
     """Get singleton instance of strategy evolution agent."""
-    global _evolution_agent
+    global _evolution_agent  # noqa: PLW0603
     if _evolution_agent is None:
         _evolution_agent = StrategyEvolutionAgent()
     return _evolution_agent
