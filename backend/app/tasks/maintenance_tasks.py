@@ -356,14 +356,14 @@ def cleanup_old_agent_runs_task(
                 return dry_result
 
             # Get agent run IDs to delete
-            result = conn.execute(
+            rows = conn.execute(
                 """
                 SELECT id FROM agent_runs
                 WHERE started_at < %s
                 """,
                 [cutoff_date],
             ).fetchall()
-            run_ids = [row[0] for row in result]
+            run_ids = [row[0] for row in rows]
 
             if run_ids:
                 # Delete agent runs (agent_ideas table was dropped in migration 109)
