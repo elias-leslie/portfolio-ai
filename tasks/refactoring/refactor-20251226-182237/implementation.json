@@ -42,7 +42,7 @@
             "Run: cd backend && .venv/bin/ruff check app/ --select PLC0415",
             "Verify: Zero PLC0415 errors"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "1.2",

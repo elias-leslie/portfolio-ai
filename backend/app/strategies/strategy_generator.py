@@ -313,7 +313,7 @@ _generator_instance: StrategyGeneratorAgent | None = None
 
 def get_strategy_generator() -> StrategyGeneratorAgent:
     """Get singleton instance of strategy generator agent."""
-    global _generator_instance
+    global _generator_instance  # noqa: PLW0603
     if _generator_instance is None:
         _generator_instance = StrategyGeneratorAgent()
     return _generator_instance

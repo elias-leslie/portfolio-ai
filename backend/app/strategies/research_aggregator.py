@@ -763,7 +763,7 @@ _aggregator_instance: ResearchAggregationService | None = None
 
 def get_research_aggregator() -> ResearchAggregationService:
     """Get singleton instance of research aggregation service."""
-    global _aggregator_instance
+    global _aggregator_instance  # noqa: PLW0603
     if _aggregator_instance is None:
         _aggregator_instance = ResearchAggregationService()
     return _aggregator_instance

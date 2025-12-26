@@ -492,7 +492,7 @@ _storage_instance: StrategyStorage | None = None
 
 def get_strategy_storage() -> StrategyStorage:
     """Get singleton instance of strategy storage."""
-    global _storage_instance
+    global _storage_instance  # noqa: PLW0603
     if _storage_instance is None:
         _storage_instance = StrategyStorage()
     return _storage_instance

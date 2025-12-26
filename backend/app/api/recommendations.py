@@ -126,7 +126,7 @@ def _calculate_risk_reward(entry: float, stop: float, target: float) -> float:
     return round(reward / risk, 2)
 
 
-def _calculate_signal_status(
+def _calculate_signal_status(  # noqa: PLR0911
     signal_type: str, entry_price: float, current_price: float
 ) -> tuple[float, Literal["valid", "better_entry", "caution", "invalidated"]]:
     """Calculate signal status based on price movement since signal.

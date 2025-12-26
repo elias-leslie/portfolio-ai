@@ -234,7 +234,7 @@ def create_paper_trade_from_idea(  # noqa: PLR0911
         return None
 
 
-def create_paper_trade_from_strategy_signal(
+def create_paper_trade_from_strategy_signal(  # noqa: PLR0911
     storage: PortfolioStorage,
     strategy_id: str,
     symbol: str,

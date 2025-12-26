@@ -731,7 +731,7 @@ _optimizer_instance: StrategyOptimizer | None = None
 
 def get_strategy_optimizer() -> StrategyOptimizer:
     """Get singleton instance of strategy optimizer."""
-    global _optimizer_instance
+    global _optimizer_instance  # noqa: PLW0603
     if _optimizer_instance is None:
         _optimizer_instance = StrategyOptimizer()
     return _optimizer_instance

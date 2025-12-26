@@ -54,12 +54,18 @@ from app.models.market_intelligence import (
     MarketHealthScore as MarketHealthScoreResponse,
 )
 from app.portfolio.price_fetcher import PriceDataFetcher
-from app.services.market_events_service import (  # noqa: I001
+from app.services.market_events_service import (
     create_market_event as svc_create_event,
+)
+from app.services.market_events_service import (
     get_event_type_info,
     get_events_for_chart,
-    get_market_events as svc_get_events,
     get_upcoming_events,
+)
+from app.services.market_events_service import (
+    get_market_events as svc_get_events,
+)
+from app.services.market_events_service import (
     update_market_event as svc_update_event,
 )
 from app.storage import get_storage
