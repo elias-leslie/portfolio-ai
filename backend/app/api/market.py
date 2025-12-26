@@ -54,6 +54,14 @@ from app.models.market_intelligence import (
     MarketHealthScore as MarketHealthScoreResponse,
 )
 from app.portfolio.price_fetcher import PriceDataFetcher
+from app.services.market_events_service import (  # noqa: I001
+    create_market_event as svc_create_event,
+    get_event_type_info,
+    get_events_for_chart,
+    get_market_events as svc_get_events,
+    get_upcoming_events,
+    update_market_event as svc_update_event,
+)
 from app.storage import get_storage
 from app.utils.market_hours import (
     NY_TZ,
@@ -880,8 +888,6 @@ async def get_market_events(
     Returns:
         MarketEventsResponse with list of events
     """
-    from app.services.market_events_service import get_market_events as svc_get_events
-
     # Parse dates
     start = date.fromisoformat(start_date) if start_date else None
     end = date.fromisoformat(end_date) if end_date else None
@@ -915,8 +921,6 @@ async def get_market_events_for_chart(
     Returns:
         List of events with UI metadata
     """
-    from app.services.market_events_service import get_events_for_chart
-
     end = date.today()
     start = end - timedelta(days=days)
 
@@ -937,8 +941,6 @@ async def get_market_event_types() -> dict[str, Any]:
     Returns:
         List of event types with labels, colors, and frequency info
     """
-    from app.services.market_events_service import get_event_type_info
-
     types = get_event_type_info()
     return {
         "types": [t.model_dump() for t in types],
@@ -957,8 +959,6 @@ async def get_upcoming_market_events(
     Returns:
         List of upcoming events
     """
-    from app.services.market_events_service import get_upcoming_events
-
     events = get_upcoming_events(days=days)
     return {
         "events": [e.model_dump() for e in events],
@@ -985,9 +985,6 @@ async def create_market_event(
     Returns:
         Created event with ID
     """
-    from app.models.market_events import MarketEventCreate
-    from app.services.market_events_service import create_market_event as svc_create
-
     event = MarketEventCreate(
         event_type=event_type,
         event_date=event_date,
@@ -1001,7 +998,7 @@ async def create_market_event(
         source=source,
     )
 
-    created = svc_create(event)
+    created = svc_create_event(event)
     return created.model_dump()
 
 
@@ -1019,11 +1016,6 @@ async def update_market_event(
     Returns:
         Updated event or 404 if not found
     """
-    from fastapi import HTTPException
-
-    from app.models.market_events import MarketEventUpdate
-    from app.services.market_events_service import update_market_event as svc_update
-
     update = MarketEventUpdate(
         actual_value=actual_value,
         surprise_pct=surprise_pct,
@@ -1032,7 +1024,7 @@ async def update_market_event(
         spy_change_1d=spy_change_1d,
     )
 
-    updated = svc_update(event_id, update)
+    updated = svc_update_event(event_id, update)
     if not updated:
         raise HTTPException(status_code=404, detail=f"Event {event_id} not found")
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from sqlalchemy import create_engine, inspect
 
@@ -340,7 +340,7 @@ class DatabaseScanner:
 
     # Infrastructure tables that should NOT be marked legacy/suspect based on freshness
     # These tables don't need frequent updates to be considered healthy
-    FRESHNESS_EXEMPT_TABLES = {
+    FRESHNESS_EXEMPT_TABLES: ClassVar[set[str]] = {
         # API credentials - only updated when credentials change
         "source_credentials",
         # Capabilities system - only updated during scans

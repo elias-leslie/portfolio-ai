@@ -562,11 +562,10 @@ class StrategyOptimizer:
                 if r["metrics"]["avg_sharpe"] > 0.0 and r["metrics"]["max_drawdown"] < 0.50
             ]
 
-        if not viable:
+        if not viable and results:
             # Last resort: pick best from all results if we have any
-            if results:
-                logger.warning("No viable strategies found, selecting best available")
-                viable = results
+            logger.warning("No viable strategies found, selecting best available")
+            viable = results
 
         if not viable:
             raise ValueError("No viable strategies found (all failed Sharpe or drawdown filters)")

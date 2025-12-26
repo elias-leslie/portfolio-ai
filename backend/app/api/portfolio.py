@@ -13,6 +13,7 @@ from app.portfolio.analytics import PortfolioAnalytics
 from app.portfolio.manager import PortfolioManager
 from app.portfolio.price_fetcher import PriceDataFetcher
 from app.storage import get_storage
+from app.strategies.storage import get_strategy_storage
 
 logger = get_logger(__name__)
 
@@ -314,8 +315,6 @@ async def create_position(position: PositionCreate) -> PositionResponse:
     # Get strategy name if linked
     strategy_name = None
     if created.strategy_id:
-        from app.strategies.storage import get_strategy_storage
-
         strategy_storage = get_strategy_storage()
         strategy = strategy_storage.get_strategy_by_id(created.strategy_id)
         strategy_name = strategy.name if strategy else None

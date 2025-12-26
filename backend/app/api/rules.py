@@ -5,6 +5,7 @@ GET /api/rules - Returns all trading rules from rules.yaml
 GET /api/rules/export - Export rules in JSON or YAML format
 """
 
+import json
 import logging
 from enum import Enum
 from typing import Any
@@ -214,7 +215,7 @@ def get_trading_rules() -> dict[str, Any]:
         }
     except Exception as e:
         logger.error(f"Failed to load trading rules: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to load trading rules: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Failed to load trading rules: {e!s}") from e
 
 
 @router.get("/api/rules/export")
@@ -245,8 +246,6 @@ def export_trading_rules(format: ExportFormat = ExportFormat.yaml) -> Response:
             filename = f"trading_rules_v{rules_dict['version']}.yaml"
         else:
             # Export as JSON
-            import json
-
             content = json.dumps(rules_dict, indent=2)
             media_type = "application/json"
             filename = f"trading_rules_v{rules_dict['version']}.json"
@@ -260,4 +259,4 @@ def export_trading_rules(format: ExportFormat = ExportFormat.yaml) -> Response:
         raise
     except Exception as e:
         logger.error(f"Failed to export trading rules: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to export trading rules: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Failed to export trading rules: {e!s}") from e

@@ -12,8 +12,12 @@ from typing import Any, Literal, cast
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from app.analytics.paper_trading_orders import create_paper_trade_from_strategy_signal
 from app.logging_config import get_logger
 from app.middleware.cache import invalidate_endpoint_cache
+from app.portfolio.manager import PortfolioManager
+from app.portfolio.price_fetcher import PriceDataFetcher
+from app.storage import get_storage
 from app.storage.connection import get_connection_manager
 
 logger = get_logger(__name__)
@@ -260,9 +264,6 @@ async def get_recommendations(
             rows = conn.execute(query, params).fetchall()
 
         # Fetch real-time prices for all symbols
-        from app.portfolio.price_fetcher import PriceDataFetcher
-        from app.storage import get_storage
-
         # Extract symbols and ensure they're all strings
         symbols: list[str] = []
         for row in rows:
@@ -522,9 +523,6 @@ async def paper_trade_recommendation(
     Returns:
         Paper trade details
     """
-    from app.analytics.paper_trading_orders import create_paper_trade_from_strategy_signal
-    from app.storage import get_storage
-
     try:
         conn_mgr = get_connection_manager()
         storage = get_storage()
@@ -609,9 +607,6 @@ async def track_in_portfolio(
     Returns:
         Created position details
     """
-    from app.portfolio.manager import PortfolioManager
-    from app.storage import get_storage
-
     try:
         conn_mgr = get_connection_manager()
         storage = get_storage()
@@ -642,8 +637,6 @@ async def track_in_portfolio(
                 )
 
         # Get real-time price for cost basis
-        from app.portfolio.price_fetcher import PriceDataFetcher
-
         price_fetcher = PriceDataFetcher(storage)
         try:
             price_data = price_fetcher.fetch_price_data([symbol])

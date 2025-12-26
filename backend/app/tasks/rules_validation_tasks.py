@@ -135,20 +135,19 @@ def daily_rules_validation() -> dict[str, Any]:
             )
 
             # Store critical alert in maintenance_log
-            with get_connection_manager().connection() as conn:
-                with conn._conn.cursor() as cur:
-                    cur.execute(
-                        """
-                        INSERT INTO maintenance_log (task_name, status, message)
-                        VALUES (%s, %s, %s)
-                        """,
-                        (
-                            "daily_rules_validation",
-                            "critical_failure",
-                            f"Rules validation failed: {report.summary}",
-                        ),
-                    )
-                    conn._conn.commit()
+            with get_connection_manager().connection() as conn, conn._conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO maintenance_log (task_name, status, message)
+                    VALUES (%s, %s, %s)
+                    """,
+                    (
+                        "daily_rules_validation",
+                        "critical_failure",
+                        f"Rules validation failed: {report.summary}",
+                    ),
+                )
+                conn._conn.commit()
 
         return {
             "status": report.overall_status,
@@ -288,45 +287,44 @@ def _get_recent_performance_data() -> dict[str, Any]:
         Performance metrics for last 30 days
     """
     try:
-        with get_connection_manager().connection() as conn:
-            with conn._conn.cursor() as cur:
-                # Get recent paper trade performance
-                cur.execute(
-                    """
-                    SELECT
-                        COUNT(*) as total_trades,
-                        SUM(CASE WHEN profit_loss > 0 THEN 1 ELSE 0 END)::float / COUNT(*) as win_rate,
-                        AVG(profit_loss) as avg_pnl,
-                        STDDEV(profit_loss) as std_pnl,
-                        MAX(drawdown_from_peak) as max_drawdown
-                    FROM paper_trade_transactions
-                    WHERE created_at >= NOW() - INTERVAL '30 days'
-                        AND status = 'closed'
-                    """
-                )
-                trade_stats = cur.fetchone()
+        with get_connection_manager().connection() as conn, conn._conn.cursor() as cur:
+            # Get recent paper trade performance
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*) as total_trades,
+                    SUM(CASE WHEN profit_loss > 0 THEN 1 ELSE 0 END)::float / COUNT(*) as win_rate,
+                    AVG(profit_loss) as avg_pnl,
+                    STDDEV(profit_loss) as std_pnl,
+                    MAX(drawdown_from_peak) as max_drawdown
+                FROM paper_trade_transactions
+                WHERE created_at >= NOW() - INTERVAL '30 days'
+                    AND status = 'closed'
+                """
+            )
+            trade_stats = cur.fetchone()
 
-                # Get signal classification stats
-                cur.execute(
-                    """
-                    SELECT
-                        signal_classification,
-                        COUNT(*) as signal_count,
-                        AVG(overall_score) as avg_score
-                    FROM watchlist_snapshots_core
-                    WHERE snapshot_time >= NOW() - INTERVAL '30 days'
-                        AND signal_classification IS NOT NULL
-                    GROUP BY signal_classification
-                    ORDER BY signal_classification
-                    """
-                )
-                signal_stats = cur.fetchall()
+            # Get signal classification stats
+            cur.execute(
+                """
+                SELECT
+                    signal_classification,
+                    COUNT(*) as signal_count,
+                    AVG(overall_score) as avg_score
+                FROM watchlist_snapshots_core
+                WHERE snapshot_time >= NOW() - INTERVAL '30 days'
+                    AND signal_classification IS NOT NULL
+                GROUP BY signal_classification
+                ORDER BY signal_classification
+                """
+            )
+            signal_stats = cur.fetchall()
 
-                return {
-                    "period_days": 30,
-                    "trade_stats": (dict(trade_stats) if trade_stats else {}),
-                    "signal_stats": [dict(row) for row in signal_stats],
-                }
+            return {
+                "period_days": 30,
+                "trade_stats": (dict(trade_stats) if trade_stats else {}),
+                "signal_stats": [dict(row) for row in signal_stats],
+            }
 
     except Exception as e:
         logger.error(f"Failed to fetch performance data: {e}", exc_info=True)

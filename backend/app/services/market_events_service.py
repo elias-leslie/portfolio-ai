@@ -166,11 +166,14 @@ def create_market_event(event: MarketEventCreate) -> MarketEvent:
 
     # Calculate surprise_pct if both values provided
     surprise_pct = None
-    if event.actual_value is not None and event.expected_value is not None:
-        if event.expected_value != 0:
-            surprise_pct = (
-                (event.actual_value - event.expected_value) / abs(event.expected_value)
-            ) * 100
+    if (
+        event.actual_value is not None
+        and event.expected_value is not None
+        and event.expected_value != 0
+    ):
+        surprise_pct = (
+            (event.actual_value - event.expected_value) / abs(event.expected_value)
+        ) * 100
 
     query = """
         INSERT INTO market_events (

@@ -6,6 +6,7 @@ Data comes from options_market_metrics table, populated by options_pipeline.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import date
 from typing import TYPE_CHECKING
@@ -92,8 +93,6 @@ def get_latest_options_flow(storage: PortfolioStorage) -> OptionsFlowData | None
     # Parse sector weights from JSON
     sector_weights = row.get("sector_weights", {}) or {}
     if isinstance(sector_weights, str):
-        import json
-
         sector_weights = json.loads(sector_weights)
 
     return OptionsFlowData(

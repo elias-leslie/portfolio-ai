@@ -32,13 +32,13 @@ def initialize_data_sources() -> list[BaseSource]:
         5. Finnhub
         6. AlphaVantage
     """
-    # Import here to avoid circular imports
-    from .alphavantage_source import AlphaVantageSource
-    from .finnhub_source import FinnhubSource
-    from .fmp_source import FMPSource
-    from .polygon_source import PolygonSource
-    from .twelvedata_source import TwelveDataSource
-    from .yfinance_source import YFinanceSource
+    # Import here to avoid circular imports (lazy loading pattern)
+    from .alphavantage_source import AlphaVantageSource  # noqa: PLC0415
+    from .finnhub_source import FinnhubSource  # noqa: PLC0415
+    from .fmp_source import FMPSource  # noqa: PLC0415
+    from .polygon_source import PolygonSource  # noqa: PLC0415
+    from .twelvedata_source import TwelveDataSource  # noqa: PLC0415
+    from .yfinance_source import YFinanceSource  # noqa: PLC0415
 
     sources: list[BaseSource] = []
     source_names: list[str] = []
