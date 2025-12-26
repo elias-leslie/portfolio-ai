@@ -262,7 +262,7 @@
             "Verify: Unused vars warnings reduced by 20+"
           ],
           "priority": "medium",
-          "passes": false
+          "passes": true
         },
         {
           "id": "4.2",

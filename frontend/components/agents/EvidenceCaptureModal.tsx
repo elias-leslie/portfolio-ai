@@ -471,19 +471,6 @@ export function EvidenceCaptureModal({
     }
   }, [selectedFeatureData, selectedCriterion]);
 
-  // Quick feature mutation
-  const quickFeatureMutation = useMutation({
-    mutationFn: async () => {
-      const response = await fetch(`${SUMMITFLOW_API}/features/quick`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: pageUrl }),
-      });
-      if (!response.ok) throw new Error("Failed to create quick feature");
-      return response.json();
-    },
-  });
-
   // Evidence capture mutation
   const captureMutation = useMutation({
     mutationFn: async ({
@@ -581,7 +568,7 @@ export function EvidenceCaptureModal({
     );
   };
 
-  const isBusy = isCapturing || quickFeatureMutation.isPending || captureMutation.isPending;
+  const isBusy = isCapturing || captureMutation.isPending;
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
