@@ -13,7 +13,6 @@ from __future__ import annotations
 import asyncio
 import json
 import re
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -22,11 +21,9 @@ import httpx
 
 from ..logging_config import get_logger
 from ..storage.connection import get_connection_manager
-from ..storage.sitemap_storage import SitemapStorage, get_sitemap_storage
+from ..storage.sitemap_storage import get_sitemap_storage
 from ..utils.port_discovery import (
-    DiscoveredPort,
     PortDiscovery,
-    get_discovered_ports,
     get_port_for_service,
 )
 
