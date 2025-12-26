@@ -34,14 +34,8 @@ export function useStatusStream(): UseStatusStreamResult {
   const eventSourceRef = useRef<EventSource | null>(null);
 
   // Fallback polling (only used when SSE fails)
+  // Note: pollingData.data is returned directly when useFallback is true (line 114)
   const pollingData = useSystemStatus();
-
-  // Use polling data when in fallback mode
-  useEffect(() => {
-    if (useFallback && pollingData.data) {
-      setStatus(pollingData.data);
-    }
-  }, [useFallback, pollingData.data]);
 
   // Cleanup function
   const cleanup = useCallback(() => {
