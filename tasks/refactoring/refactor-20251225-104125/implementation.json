@@ -240,7 +240,7 @@
             "Verify: Single formatting source"
           ],
           "priority": "medium",
-          "passes": false
+          "passes": true
         }
       ]
     },
