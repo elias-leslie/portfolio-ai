@@ -306,123 +306,106 @@ export function UnifiedMaintenanceCard() {
     }
   };
 
-  // Database maintenance handlers with confirmation dialogs
+  // Database maintenance handlers - consolidated with factory pattern
   const shouldShowDialog = (storageKey: string, isLiveOperation: boolean) => {
     if (typeof window === "undefined") return true;
     if (isLiveOperation) return true;
     return !localStorage.getItem(storageKey);
   };
 
-  const handleCleanupNews = async () => {
-    setTriggeringTask("cleanup_news");
-    try {
-      const result = await cleanupOldNews(dryRun);
-      toast.success(`Cleanup ${result.status}: ${result.summary?.deleted || 0} articles ${dryRun ? "would be" : ""} deleted`);
-      await fetchAllData();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed";
-      toast.error(`Cleanup failed: ${message}`);
-    } finally {
-      setTriggeringTask(null);
-    }
+  // Factory for creating database task triggers with backup checks and dialogs
+  interface TaskTriggerConfig {
+    taskId: string;
+    storageKey: string;
+    title: string;
+    dryDescription: string;
+    liveDescription: string;
+    dryActionLabel: string;
+    liveActionLabel: string;
+    apiCall: (isDryRun: boolean) => Promise<{ status: string; summary?: Record<string, unknown> | null }>;
+    formatSuccess: (result: { status: string; summary?: Record<string, unknown> | null }, isDryRun: boolean) => string;
+  }
+
+  const createTaskTrigger = (config: TaskTriggerConfig) => {
+    const execute = async () => {
+      setTriggeringTask(config.taskId);
+      try {
+        const result = await config.apiCall(dryRun);
+        toast.success(config.formatSuccess(result, dryRun));
+        await fetchAllData();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed";
+        toast.error(`${config.title} failed: ${message}`);
+      } finally {
+        setTriggeringTask(null);
+      }
+    };
+
+    const trigger = () => {
+      if (!dryRun && backupCheck && !backupCheck.canProceed) {
+        toast.error(`Cannot run: ${backupCheck.blockingReason}`);
+        return;
+      }
+      if (shouldShowDialog(config.storageKey, !dryRun)) {
+        setActionDialogConfig({
+          title: config.title,
+          description: dryRun ? config.dryDescription : config.liveDescription,
+          actionLabel: dryRun ? config.dryActionLabel : config.liveActionLabel,
+          onConfirm: execute,
+          storageKey: dryRun ? config.storageKey : undefined,
+        });
+        setActionDialogOpen(true);
+      } else {
+        execute();
+      }
+    };
+
+    return { trigger, execute };
   };
 
-  const triggerCleanupNews = () => {
-    if (!dryRun && backupCheck && !backupCheck.canProceed) {
-      toast.error(`Cannot run: ${backupCheck.blockingReason}`);
-      return;
-    }
-    const storageKey = "status.confirm.cleanupNews";
-    if (shouldShowDialog(storageKey, !dryRun)) {
-      setActionDialogConfig({
-        title: "Cleanup Old News",
-        description: dryRun
-          ? "Preview articles older than 90 days that would be deleted."
-          : "⚠️ DESTRUCTIVE: Permanently delete news articles older than 90 days.",
-        actionLabel: dryRun ? "Preview" : "Delete",
-        onConfirm: handleCleanupNews,
-        storageKey: dryRun ? storageKey : undefined,
-      });
-      setActionDialogOpen(true);
-    } else {
-      handleCleanupNews();
-    }
-  };
+  const cleanupNewsTask = createTaskTrigger({
+    taskId: "cleanup_news",
+    storageKey: "status.confirm.cleanupNews",
+    title: "Cleanup Old News",
+    dryDescription: "Preview articles older than 90 days that would be deleted.",
+    liveDescription: "⚠️ DESTRUCTIVE: Permanently delete news articles older than 90 days.",
+    dryActionLabel: "Preview",
+    liveActionLabel: "Delete",
+    apiCall: cleanupOldNews,
+    formatSuccess: (result, isDryRun) =>
+      `Cleanup ${result.status}: ${result.summary?.deleted || 0} articles ${isDryRun ? "would be" : ""} deleted`,
+  });
 
-  const handleVacuumDatabase = async () => {
-    setTriggeringTask("vacuum_database");
-    try {
-      const result = await vacuumDatabase(dryRun);
-      toast.success(`Vacuum ${result.status}: ${result.summary?.totalReclaimedMb || 0} MB ${dryRun ? "could be" : ""} reclaimed`);
-      await fetchAllData();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed";
-      toast.error(`Vacuum failed: ${message}`);
-    } finally {
-      setTriggeringTask(null);
-    }
-  };
+  const vacuumDatabaseTask = createTaskTrigger({
+    taskId: "vacuum_database",
+    storageKey: "status.confirm.vacuumDatabase",
+    title: "Vacuum Database",
+    dryDescription: "Analyze tables and show potential space savings.",
+    liveDescription: "Optimize all database tables using VACUUM ANALYZE.",
+    dryActionLabel: "Analyze",
+    liveActionLabel: "Vacuum",
+    apiCall: vacuumDatabase,
+    formatSuccess: (result, isDryRun) =>
+      `Vacuum ${result.status}: ${result.summary?.totalReclaimedMb || 0} MB ${isDryRun ? "could be" : ""} reclaimed`,
+  });
 
-  const triggerVacuumDatabase = () => {
-    if (!dryRun && backupCheck && !backupCheck.canProceed) {
-      toast.error(`Cannot run: ${backupCheck.blockingReason}`);
-      return;
-    }
-    const storageKey = "status.confirm.vacuumDatabase";
-    if (shouldShowDialog(storageKey, !dryRun)) {
-      setActionDialogConfig({
-        title: "Vacuum Database",
-        description: dryRun
-          ? "Analyze tables and show potential space savings."
-          : "Optimize all database tables using VACUUM ANALYZE.",
-        actionLabel: dryRun ? "Analyze" : "Vacuum",
-        onConfirm: handleVacuumDatabase,
-        storageKey: dryRun ? storageKey : undefined,
-      });
-      setActionDialogOpen(true);
-    } else {
-      handleVacuumDatabase();
-    }
-  };
-
-  const handleValidateIntegrity = async () => {
-    setTriggeringTask("validate_integrity");
-    try {
-      const result = await validateIntegrity(dryRun);
+  const validateIntegrityTask = createTaskTrigger({
+    taskId: "validate_integrity",
+    storageKey: "status.confirm.validateIntegrity",
+    title: "Validate Integrity",
+    dryDescription: "Check for orphaned records and consistency issues.",
+    liveDescription: "⚠️ Check and attempt to fix integrity issues.",
+    dryActionLabel: "Check",
+    liveActionLabel: "Fix",
+    apiCall: validateIntegrity,
+    formatSuccess: (result, isDryRun) => {
       const summary = result.summary as Record<string, unknown> | null;
       const totalErrors = typeof summary?.totalErrors === "number" ? summary.totalErrors : 0;
       const totalWarnings = typeof summary?.totalWarnings === "number" ? summary.totalWarnings : 0;
-      toast.success(`Validation ${result.status}: ${totalErrors} errors, ${totalWarnings} warnings`);
-      await fetchAllData();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed";
-      toast.error(`Validation failed: ${message}`);
-    } finally {
-      setTriggeringTask(null);
-    }
-  };
-
-  const triggerValidateIntegrity = () => {
-    if (!dryRun && backupCheck && !backupCheck.canProceed) {
-      toast.error(`Cannot run: ${backupCheck.blockingReason}`);
-      return;
-    }
-    const storageKey = "status.confirm.validateIntegrity";
-    if (shouldShowDialog(storageKey, !dryRun)) {
-      setActionDialogConfig({
-        title: "Validate Integrity",
-        description: dryRun
-          ? "Check for orphaned records and consistency issues."
-          : "⚠️ Check and attempt to fix integrity issues.",
-        actionLabel: dryRun ? "Check" : "Fix",
-        onConfirm: handleValidateIntegrity,
-        storageKey: dryRun ? storageKey : undefined,
-      });
-      setActionDialogOpen(true);
-    } else {
-      handleValidateIntegrity();
-    }
-  };
+      const mode = isDryRun ? "Check" : "Validation";
+      return `${mode} ${result.status}: ${totalErrors} errors, ${totalWarnings} warnings`;
+    },
+  });
 
   // Run all tasks
   const handleRunAll = async () => {
@@ -437,10 +420,10 @@ export function UnifiedMaintenanceCard() {
     for (const task of fileCleanupTasks) {
       await handleFileCleanupTrigger(task);
     }
-    // Database tasks
-    await handleCleanupNews();
-    await handleVacuumDatabase();
-    await handleValidateIntegrity();
+    // Database tasks - use execute() for batch run (bypasses dialog)
+    await cleanupNewsTask.execute();
+    await vacuumDatabaseTask.execute();
+    await validateIntegrityTask.execute();
     toast.success("All maintenance tasks completed");
   };
 
@@ -728,7 +711,7 @@ export function UnifiedMaintenanceCard() {
                     ]}
                     badge={{ text: "90 days retention" }}
                     lastRun={cleanupNews || null}
-                    onTrigger={triggerCleanupNews}
+                    onTrigger={cleanupNewsTask.trigger}
                     isTriggering={triggeringTask === "cleanup_news"}
                     disabled={liveBlocked}
                   />
@@ -748,7 +731,7 @@ export function UnifiedMaintenanceCard() {
                     ]}
                     badge={{ text: "Weekly" }}
                     lastRun={vacuumDb || null}
-                    onTrigger={triggerVacuumDatabase}
+                    onTrigger={vacuumDatabaseTask.trigger}
                     isTriggering={triggeringTask === "vacuum_database"}
                     disabled={liveBlocked}
                   />
@@ -772,7 +755,7 @@ export function UnifiedMaintenanceCard() {
                     ]}
                     badge={{ text: "Daily" }}
                     lastRun={validateIntegrity || null}
-                    onTrigger={triggerValidateIntegrity}
+                    onTrigger={validateIntegrityTask.trigger}
                     isTriggering={triggeringTask === "validate_integrity"}
                     disabled={liveBlocked}
                   />
