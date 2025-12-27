@@ -131,7 +131,7 @@
             "Run: cd frontend && npm run lint 2>&1 | grep -c 'SettingsModal.tsx' || echo 0",
             "Verify: Zero violations in this file"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "2.5",
@@ -145,7 +145,7 @@
             "Run: cd frontend && npm run lint 2>&1 | grep -c 'TokenSummaryCards.tsx' || echo 0",
             "Verify: Zero violations in this file"
           ],
-          "passes": false
+          "passes": true
         }
       ]
     },
@@ -166,7 +166,7 @@
             "Run: cd frontend && npm run lint 2>&1 | grep -c 'DatabasePoolCard.tsx' || echo 0",
             "Verify: Zero violations in this file"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.2",
@@ -180,7 +180,7 @@
             "Run: cd frontend && npm run lint 2>&1 | grep -c 'MaintenanceTable.tsx' || echo 0",
             "Verify: Zero violations in this file"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.3",
@@ -194,7 +194,7 @@
             "Run: cd frontend && npm run lint 2>&1 | grep -c 'SystemMetricsTable.tsx' || echo 0",
             "Verify: Zero violations in this file"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.4",
@@ -208,7 +208,7 @@
             "Run: cd frontend && npm run lint 2>&1 | grep -c 'ResourceCard.tsx' || echo 0",
             "Verify: Zero violations in this file"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.5",
@@ -222,7 +222,7 @@
             "Run: cd frontend && npm run lint 2>&1 | grep -c 'WorkflowHealthCard.tsx' || echo 0",
             "Verify: Zero violations in this file"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.6",
@@ -236,7 +236,7 @@
             "Run: cd frontend && npm run lint 2>&1 | grep -c 'UnifiedMaintenanceCard.tsx' || echo 0",
             "Verify: Zero violations in this file"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.7",
@@ -250,7 +250,7 @@
             "Run: cd frontend && npm run lint 2>&1 | grep -c 'DataFreshnessCard.tsx' || echo 0",
             "Verify: Zero violations in this file"
           ],
-          "passes": false
+          "passes": true
         }
       ]
     },
