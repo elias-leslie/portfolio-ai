@@ -247,7 +247,7 @@ export function MaintenanceTable() {
         id: "models",
         name: "ML Model Versions",
         category: "file",
-        icon: <Brain className="h-4 w-4 text-purple-500" />,
+        icon: <Brain className="h-4 w-4 text-accent" />,
         sizeMb: fileCleanup.models.sizeMb,
         fileCount: fileCleanup.models.fileCount,
         schedule: fileCleanup.models.schedule,
@@ -262,7 +262,7 @@ export function MaintenanceTable() {
         id: "solution_state",
         name: "Test Artifacts",
         category: "file",
-        icon: <TestTube className="h-4 w-4 text-green-500" />,
+        icon: <TestTube className="h-4 w-4 text-status-success" />,
         sizeMb: fileCleanup.solutionState.sizeMb,
         fileCount: fileCleanup.solutionState.fileCount,
         schedule: fileCleanup.solutionState.schedule,
@@ -281,7 +281,7 @@ export function MaintenanceTable() {
         id: "dev_caches",
         name: "Dev Caches",
         category: "cache",
-        icon: <Zap className="h-4 w-4 text-yellow-500" />,
+        icon: <Zap className="h-4 w-4 text-status-warning" />,
         sizeMb: cacheStatus.totalSizeMb,
         fileCount: cacheStatus.totalFileCount,
         schedule: "Manual",
@@ -299,7 +299,7 @@ export function MaintenanceTable() {
       id: "agent_runs",
       name: "Old Agent Runs",
       category: "data",
-      icon: <Users className="h-4 w-4 text-indigo-500" />,
+      icon: <Users className="h-4 w-4 text-accent" />,
       sizeMb: null,
       fileCount: null,
       schedule: "Weekly Sun 04:15",
@@ -314,7 +314,7 @@ export function MaintenanceTable() {
       id: "orphaned_data",
       name: "Orphaned Data",
       category: "data",
-      icon: <ServerCrash className="h-4 w-4 text-red-500" />,
+      icon: <ServerCrash className="h-4 w-4 text-status-error" />,
       sizeMb: null,
       fileCount: null,
       schedule: "Weekly Sun 04:30",
@@ -329,7 +329,7 @@ export function MaintenanceTable() {
       id: "temp_files",
       name: "Temp Files",
       category: "data",
-      icon: <FileX className="h-4 w-4 text-gray-500" />,
+      icon: <FileX className="h-4 w-4 text-text-muted" />,
       sizeMb: null,
       fileCount: null,
       schedule: "Daily 02:15",
@@ -344,7 +344,7 @@ export function MaintenanceTable() {
       id: "evidence",
       name: "Evidence Artifacts",
       category: "data",
-      icon: <Camera className="h-4 w-4 text-cyan-500" />,
+      icon: <Camera className="h-4 w-4 text-status-info" />,
       sizeMb: null,
       fileCount: null,
       schedule: "Daily 06:00",
@@ -359,7 +359,7 @@ export function MaintenanceTable() {
       id: "debug_captures",
       name: "Debug Captures",
       category: "data",
-      icon: <Camera className="h-4 w-4 text-gray-400" />,
+      icon: <Camera className="h-4 w-4 text-text-muted" />,
       sizeMb: null,
       fileCount: null,
       schedule: "Daily 06:00",
@@ -376,7 +376,7 @@ export function MaintenanceTable() {
       id: "cleanup_news",
       name: "Old News",
       category: "database",
-      icon: <Trash2 className="h-4 w-4 text-orange-500" />,
+      icon: <Trash2 className="h-4 w-4 text-status-warning" />,
       sizeMb: null,
       fileCount: null,
       schedule: "Daily 03:00",
@@ -392,7 +392,7 @@ export function MaintenanceTable() {
       id: "vacuum_db",
       name: "Vacuum Database",
       category: "database",
-      icon: <Database className="h-4 w-4 text-blue-500" />,
+      icon: <Database className="h-4 w-4 text-status-info" />,
       sizeMb: null,
       fileCount: null,
       schedule: "Weekly Sun 05:30",
@@ -408,7 +408,7 @@ export function MaintenanceTable() {
       id: "validate_integrity",
       name: "Validate Integrity",
       category: "database",
-      icon: <CheckCircle2 className="h-4 w-4 text-green-500" />,
+      icon: <CheckCircle2 className="h-4 w-4 text-status-success" />,
       sizeMb: null,
       fileCount: null,
       schedule: "Daily 04:00",
@@ -426,7 +426,7 @@ export function MaintenanceTable() {
       id: "rotate_logs",
       name: "Rotate Logs",
       category: "system",
-      icon: <RotateCcw className="h-4 w-4 text-slate-500" />,
+      icon: <RotateCcw className="h-4 w-4 text-text-muted" />,
       sizeMb: null,
       fileCount: null,
       schedule: "Daily 01:00",
@@ -745,11 +745,11 @@ export function MaintenanceTable() {
     if (!lastRun) return null;
     switch (lastRun.status) {
       case "success":
-        return <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />;
+        return <CheckCircle2 className="h-3.5 w-3.5 text-status-success" />;
       case "error":
-        return <AlertCircle className="h-3.5 w-3.5 text-red-500" />;
+        return <AlertCircle className="h-3.5 w-3.5 text-status-error" />;
       case "running":
-        return <RefreshCw className="h-3.5 w-3.5 animate-spin text-blue-500" />;
+        return <RefreshCw className="h-3.5 w-3.5 animate-spin text-status-info" />;
       default:
         return null;
     }
@@ -757,11 +757,11 @@ export function MaintenanceTable() {
 
   const getCategoryBadge = (category: TaskCategory) => {
     const colors: Record<TaskCategory, string> = {
-      file: "bg-orange-500/20 text-orange-400",
-      cache: "bg-yellow-500/20 text-yellow-400",
-      data: "bg-blue-500/20 text-blue-400",
-      database: "bg-purple-500/20 text-purple-400",
-      system: "bg-slate-500/20 text-slate-400",
+      file: "bg-status-warning/20 text-status-warning",
+      cache: "bg-status-warning/20 text-status-warning",
+      data: "bg-status-info/20 text-status-info",
+      database: "bg-accent/20 text-accent",
+      system: "bg-surface-muted text-text-muted",
     };
     const labels: Record<TaskCategory, string> = {
       file: "File",
@@ -813,7 +813,7 @@ export function MaintenanceTable() {
                     Checking...
                   </Badge>
                 ) : canRunLive ? (
-                  <Badge variant="default" className="flex items-center gap-1 bg-green-600">
+                  <Badge variant="default" className="flex items-center gap-1 bg-status-success">
                     <ShieldCheck className="h-3 w-3" />
                     Backup OK
                   </Badge>
