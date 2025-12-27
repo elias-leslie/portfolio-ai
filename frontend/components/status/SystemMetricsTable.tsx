@@ -28,11 +28,11 @@ export function SystemMetricsTable({ resources }: SystemMetricsTableProps) {
   const getStatusIcon = (status: "ok" | "warning" | "critical") => {
     switch (status) {
       case "ok":
-        return <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />;
+        return <CheckCircle2 className="h-3.5 w-3.5 text-status-success" />;
       case "warning":
-        return <AlertTriangle className="h-3.5 w-3.5 text-yellow-500" />;
+        return <AlertTriangle className="h-3.5 w-3.5 text-status-warning" />;
       case "critical":
-        return <XCircle className="h-3.5 w-3.5 text-red-500" />;
+        return <XCircle className="h-3.5 w-3.5 text-status-error" />;
     }
   };
 
@@ -43,9 +43,9 @@ export function SystemMetricsTable({ resources }: SystemMetricsTableProps) {
       critical: "destructive",
     };
     const colors: Record<string, string> = {
-      ok: "bg-green-600",
-      warning: "bg-yellow-600",
-      critical: "bg-red-600",
+      ok: "bg-status-success",
+      warning: "bg-status-warning",
+      critical: "bg-status-error",
     };
     return (
       <Badge
@@ -68,9 +68,9 @@ export function SystemMetricsTable({ resources }: SystemMetricsTableProps) {
     status: "ok" | "warning" | "critical";
   }) => {
     const colors: Record<string, string> = {
-      ok: "bg-green-500",
-      warning: "bg-yellow-500",
-      critical: "bg-red-500",
+      ok: "bg-status-success",
+      warning: "bg-status-warning",
+      critical: "bg-status-error",
     };
     return (
       <div className="w-20 h-2 bg-muted rounded-full overflow-hidden">
@@ -86,7 +86,7 @@ export function SystemMetricsTable({ resources }: SystemMetricsTableProps) {
     {
       id: "disk",
       name: "Disk",
-      icon: <HardDrive className="h-4 w-4 text-blue-500" />,
+      icon: <HardDrive className="h-4 w-4 text-status-info" />,
       percent: resources.disk?.percentUsed ?? 0,
       status: resources.disk?.status ?? "ok",
       usage: `${(resources.disk?.usedGb ?? 0).toFixed(1)} GB`,
@@ -95,7 +95,7 @@ export function SystemMetricsTable({ resources }: SystemMetricsTableProps) {
     {
       id: "memory",
       name: "Memory",
-      icon: <MemoryStick className="h-4 w-4 text-purple-500" />,
+      icon: <MemoryStick className="h-4 w-4 text-accent" />,
       percent: resources.memory?.percentUsed ?? 0,
       status: resources.memory?.status ?? "ok",
       usage: `${(resources.memory?.usedGb ?? 0).toFixed(1)} GB`,
@@ -104,7 +104,7 @@ export function SystemMetricsTable({ resources }: SystemMetricsTableProps) {
     {
       id: "cpu",
       name: "CPU",
-      icon: <Cpu className="h-4 w-4 text-orange-500" />,
+      icon: <Cpu className="h-4 w-4 text-status-warning" />,
       percent: resources.cpu?.percentUsed ?? 0,
       status: resources.cpu?.status ?? "ok",
       usage: `${resources.cpu?.cores ?? 0} cores`,
@@ -113,7 +113,7 @@ export function SystemMetricsTable({ resources }: SystemMetricsTableProps) {
     {
       id: "db_pool",
       name: "DB Pool",
-      icon: <Database className="h-4 w-4 text-cyan-500" />,
+      icon: <Database className="h-4 w-4 text-status-info" />,
       percent: resources.databasePool?.percentUsed ?? 0,
       status: resources.databasePool?.status ?? "ok",
       usage: `${resources.databasePool?.checkedOut ?? 0} active`,
@@ -133,18 +133,18 @@ export function SystemMetricsTable({ resources }: SystemMetricsTableProps) {
       <div className="flex items-center gap-4 text-sm">
         <span className="text-muted-foreground">Resources:</span>
         <span className="flex items-center gap-1.5">
-          <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+          <CheckCircle2 className="h-3.5 w-3.5 text-status-success" />
           {okCount} ok
         </span>
         {warningCount > 0 && (
           <span className="flex items-center gap-1.5">
-            <AlertTriangle className="h-3.5 w-3.5 text-yellow-500" />
+            <AlertTriangle className="h-3.5 w-3.5 text-status-warning" />
             {warningCount} warning
           </span>
         )}
         {criticalCount > 0 && (
           <span className="flex items-center gap-1.5">
-            <XCircle className="h-3.5 w-3.5 text-red-500" />
+            <XCircle className="h-3.5 w-3.5 text-status-error" />
             {criticalCount} critical
           </span>
         )}
@@ -185,7 +185,7 @@ export function SystemMetricsTable({ resources }: SystemMetricsTableProps) {
                 {metric.usage}
                 {metric.total && ` / ${metric.total}`}
                 {metric.overflow !== undefined && metric.overflow > 0 && (
-                  <span className="text-yellow-500 ml-1">
+                  <span className="text-status-warning ml-1">
                     (+{metric.overflow} overflow)
                   </span>
                 )}
