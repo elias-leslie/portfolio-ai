@@ -53,11 +53,17 @@ export function useStatusStream(): UseStatusStreamResult {
     setError(null);
   }, []);
 
+  // Sync connection state with fallback mode
+  useEffect(() => {
+    if (useFallback) {
+      setConnectionState("fallback");
+    }
+  }, [useFallback]);
+
   // Setup EventSource connection
   useEffect(() => {
     // Don't connect if we're in fallback mode
     if (useFallback) {
-      setConnectionState("fallback");
       return;
     }
 
@@ -92,7 +98,7 @@ export function useStatusStream(): UseStatusStreamResult {
       // After MAX_FAILURES, switch to fallback
       if (newFailCount >= MAX_FAILURES) {
         setUseFallback(true);
-        setConnectionState("fallback");
+        // Note: connectionState will be set to "fallback" by the sync effect
         cleanup();
       } else {
         // EventSource will automatically retry

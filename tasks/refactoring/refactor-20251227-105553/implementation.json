@@ -69,7 +69,7 @@
             "Fix line 255: Handle None case for ** unpacking",
             "Verify: mypy app/api/sitemap.py passes"
           ],
-          "passes": false
+          "passes": true
         }
       ]
     },

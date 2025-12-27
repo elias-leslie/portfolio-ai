@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { TrendingUp, DollarSign, Target, Plus, Sparkles, ExternalLink, Wallet, PieChart, RotateCcw } from "lucide-react";
 import Link from "next/link";
@@ -20,17 +20,12 @@ import { ConfirmActionDialog } from "@/components/shared/ConfirmActionDialog";
 
 function TradingPageContent() {
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState<"open" | "closed">("open");
+  // Initialize tab from URL param, default to "open"
+  const tabParam = searchParams?.get("tab");
+  const initialTab = tabParam === "open" || tabParam === "closed" ? tabParam : "open";
+  const [activeTab, setActiveTab] = useState<"open" | "closed">(initialTab);
   const [isNewOrderOpen, setIsNewOrderOpen] = useState(false);
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
-
-  // Auto-select tab from query parameter (?tab=open or ?tab=closed)
-  useEffect(() => {
-    const tabParam = searchParams?.get("tab");
-    if (tabParam === "open" || tabParam === "closed") {
-      setActiveTab(tabParam);
-    }
-  }, [searchParams]);
 
   // Fetch data with real-time updates
   const { data: openTrades, isLoading: openLoading } = usePaperTrades({

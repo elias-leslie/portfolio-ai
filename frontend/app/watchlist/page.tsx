@@ -25,30 +25,25 @@ type StyleFilter = "all" | "Index" | "Trend" | "Value" | "Swing" | "Event";
 type SignalFilter = "all" | "BUY" | "HOLD" | "AVOID";
 type RiskFilter = "all" | "Low" | "Medium-Low" | "Medium" | "High";
 
+// Helper to safely read from localStorage (handles SSR)
+function getStoredFilter<T extends string>(key: string, validValues: T[], defaultValue: T): T {
+  if (typeof window === "undefined") return defaultValue;
+  const saved = localStorage.getItem(key);
+  return saved && validValues.includes(saved as T) ? (saved as T) : defaultValue;
+}
+
 export default function WatchlistPage() {
   const [addSymbolOpen, setAddSymbolOpen] = useState(false);
-  const [styleFilter, setStyleFilter] = useState<StyleFilter>("all");
-  const [signalFilter, setSignalFilter] = useState<SignalFilter>("all");
-  const [riskFilter, setRiskFilter] = useState<RiskFilter>("all");
+  const [styleFilter, setStyleFilter] = useState<StyleFilter>(() =>
+    getStoredFilter("watchlist-style-filter", ["all", "Index", "Trend", "Value", "Swing", "Event"], "all")
+  );
+  const [signalFilter, setSignalFilter] = useState<SignalFilter>(() =>
+    getStoredFilter("watchlist-signal-filter", ["all", "BUY", "HOLD", "AVOID"], "all")
+  );
+  const [riskFilter, setRiskFilter] = useState<RiskFilter>(() =>
+    getStoredFilter("watchlist-risk-filter", ["all", "Low", "Medium-Low", "Medium", "High"], "all")
+  );
   const [searchQuery, setSearchQuery] = useState("");
-  const [_isHydrated, _setIsHydrated] = useState(false);
-
-  // Load saved filters from localStorage after hydration
-  useEffect(() => {
-    const savedStyle = localStorage.getItem("watchlist-style-filter");
-    if (savedStyle && ["all", "Index", "Trend", "Value", "Swing", "Event"].includes(savedStyle)) {
-      setStyleFilter(savedStyle as StyleFilter);
-    }
-    const savedSignal = localStorage.getItem("watchlist-signal-filter");
-    if (savedSignal && ["all", "BUY", "HOLD", "AVOID"].includes(savedSignal)) {
-      setSignalFilter(savedSignal as SignalFilter);
-    }
-    const savedRisk = localStorage.getItem("watchlist-risk-filter");
-    if (savedRisk && ["all", "Low", "Medium-Low", "Medium", "High"].includes(savedRisk)) {
-      setRiskFilter(savedRisk as RiskFilter);
-    }
-    _setIsHydrated(true);
-  }, []);
 
   const { data: watchlistData, isLoading, error } = useWatchlist();
   const refreshMutation = useRefreshWatchlist();
