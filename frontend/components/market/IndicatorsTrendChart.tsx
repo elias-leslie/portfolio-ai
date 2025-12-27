@@ -9,7 +9,6 @@ import {
   Tooltip,
   ResponsiveContainer,
   ReferenceLine,
-  Legend,
 } from "recharts";
 import { useIndicatorHistory, useMarketStatus } from "@/lib/hooks/useMarketIntelligence";
 import { TimeframeSelector, Timeframe, timeframeToDays, formatChartDate, calculateTickInterval } from "./TimeframeSelector";

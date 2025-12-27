@@ -2,12 +2,12 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { Brain, Plus, Sparkles } from "lucide-react";
+import { Brain, Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useStrategies, useGenerateStrategiesBatch } from "@/lib/hooks/useStrategies";
 import { StrategiesTable } from "@/components/strategies/StrategiesTable";
 import { StrategyDetailModal } from "@/components/strategies/StrategyDetailModal";

@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { cn, formatRelativeTime } from '@/lib/utils';
 import { MessageSquare, Users, RefreshCw, Bot, ChevronRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { ProviderBadge } from './ProviderBadge';
 
 interface SessionInfo {
