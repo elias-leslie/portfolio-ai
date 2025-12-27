@@ -90,7 +90,7 @@ export function ProfileSelector({
       setShowSaveDialog(false);
       setSaveName("");
       setSaveDescription("");
-    } catch (error) {
+    } catch {
       toast.error("Failed to save profile");
     }
   };
@@ -103,7 +103,7 @@ export function ProfileSelector({
       onProfileLoad(profile.profileData);
       await activateProfile.mutateAsync({ profileId, userId });
       toast.success(`Profile "${profile.name}" loaded`);
-    } catch (error) {
+    } catch {
       toast.error("Failed to load profile");
     }
   };
@@ -126,7 +126,7 @@ export function ProfileSelector({
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       toast.success("Profile exported");
-    } catch (error) {
+    } catch {
       toast.error("Failed to export profile");
     }
   };
@@ -148,7 +148,7 @@ export function ProfileSelector({
       toast.success("Profile imported successfully");
       setShowImportDialog(false);
       setImportData("");
-    } catch (error) {
+    } catch {
       toast.error("Failed to import profile. Check the JSON format.");
     }
   };
@@ -169,7 +169,7 @@ export function ProfileSelector({
       setShowDuplicateDialog(false);
       setDuplicateProfileId(null);
       setDuplicateName("");
-    } catch (error) {
+    } catch {
       toast.error("Failed to duplicate profile");
     }
   };
@@ -188,7 +188,7 @@ export function ProfileSelector({
       toast.success("Profile deleted");
       setShowDeleteDialog(false);
       setDeleteProfileId(null);
-    } catch (error) {
+    } catch {
       toast.error("Failed to delete profile");
     }
   };

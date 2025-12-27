@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Award, TrendingUp, AlertTriangle, RefreshCw } from "lucide-react";
+import { Award, AlertTriangle, RefreshCw } from "lucide-react";
 import { ExpandableCard } from "@/components/status/ExpandableCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
