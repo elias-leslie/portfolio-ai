@@ -81,11 +81,11 @@ function MaintenanceItem({
   const getStatusIcon = (status?: string) => {
     switch (status) {
       case "success":
-        return <CheckCircle2 className="h-3 w-3 text-green-500" />;
+        return <CheckCircle2 className="h-3 w-3 text-status-success" />;
       case "error":
-        return <AlertCircle className="h-3 w-3 text-red-500" />;
+        return <AlertCircle className="h-3 w-3 text-status-error" />;
       case "running":
-        return <RefreshCw className="h-3 w-3 animate-spin text-blue-500" />;
+        return <RefreshCw className="h-3 w-3 animate-spin text-status-info" />;
       default:
         return null;
     }
@@ -492,7 +492,7 @@ export function UnifiedMaintenanceCard() {
                     Checking...
                   </Badge>
                 ) : canRunLive ? (
-                  <Badge variant="default" className="flex items-center gap-1 bg-green-600">
+                  <Badge variant="default" className="flex items-center gap-1 bg-status-success">
                     <ShieldCheck className="h-3 w-3" />
                     Backup OK
                   </Badge>
@@ -566,7 +566,7 @@ export function UnifiedMaintenanceCard() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <MaintenanceItem
                 title="Application Logs"
-                icon={<FileText className="h-5 w-5 text-orange-500" />}
+                icon={<FileText className="h-5 w-5 text-status-warning" />}
                 metrics={[
                   { label: "Size", value: formatSize(fileCleanup?.logs?.sizeMb || 0) },
                   { label: "Files", value: String(fileCleanup?.logs?.fileCount || 0) },
@@ -578,7 +578,7 @@ export function UnifiedMaintenanceCard() {
               />
               <MaintenanceItem
                 title="Database Backups"
-                icon={<Database className="h-5 w-5 text-blue-500" />}
+                icon={<Database className="h-5 w-5 text-status-info" />}
                 metrics={[
                   { label: "Size", value: formatSize(fileCleanup?.backups?.sizeMb || 0) },
                   { label: "Files", value: String(fileCleanup?.backups?.fileCount || 0) },
@@ -590,7 +590,7 @@ export function UnifiedMaintenanceCard() {
               />
               <MaintenanceItem
                 title="ML Model Versions"
-                icon={<Brain className="h-5 w-5 text-purple-500" />}
+                icon={<Brain className="h-5 w-5 text-accent" />}
                 metrics={[
                   { label: "Size", value: formatSize(fileCleanup?.models?.sizeMb || 0) },
                   { label: "Files", value: String(fileCleanup?.models?.fileCount || 0) },
@@ -602,7 +602,7 @@ export function UnifiedMaintenanceCard() {
               />
               <MaintenanceItem
                 title="Test Artifacts"
-                icon={<TestTube className="h-5 w-5 text-green-500" />}
+                icon={<TestTube className="h-5 w-5 text-status-success" />}
                 metrics={[
                   { label: "Size", value: formatSize(fileCleanup?.solutionState?.sizeMb || 0) },
                   { label: "Files", value: String(fileCleanup?.solutionState?.fileCount || 0) },
@@ -620,7 +620,7 @@ export function UnifiedMaintenanceCard() {
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <Zap className="h-5 w-5 text-yellow-500" />
+                    <Zap className="h-5 w-5 text-status-warning" />
                     <span className="font-medium">Development Caches</span>
                     <Badge variant="outline" className="text-xs">Manual only</Badge>
                   </div>
@@ -673,7 +673,7 @@ export function UnifiedMaintenanceCard() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <MaintenanceItem
                 title="Old Agent Runs"
-                icon={<Users className="h-5 w-5 text-indigo-500" />}
+                icon={<Users className="h-5 w-5 text-accent" />}
                 metrics={[
                   { label: "Retention", value: "30 days" },
                 ]}
@@ -684,7 +684,7 @@ export function UnifiedMaintenanceCard() {
               />
               <MaintenanceItem
                 title="Orphaned Data"
-                icon={<ServerCrash className="h-5 w-5 text-red-500" />}
+                icon={<ServerCrash className="h-5 w-5 text-status-error" />}
                 metrics={[
                   { label: "Type", value: "Integrity fix" },
                 ]}
@@ -695,7 +695,7 @@ export function UnifiedMaintenanceCard() {
               />
               <MaintenanceItem
                 title="Temp Files"
-                icon={<FileX className="h-5 w-5 text-gray-500" />}
+                icon={<FileX className="h-5 w-5 text-text-muted" />}
                 metrics={[
                   { label: "Retention", value: "24 hours" },
                 ]}
@@ -706,7 +706,7 @@ export function UnifiedMaintenanceCard() {
               />
               <MaintenanceItem
                 title="Evidence Artifacts"
-                icon={<Camera className="h-5 w-5 text-cyan-500" />}
+                icon={<Camera className="h-5 w-5 text-status-info" />}
                 metrics={[
                   { label: "Keep", value: "5 versions" },
                 ]}
@@ -725,7 +725,7 @@ export function UnifiedMaintenanceCard() {
                 return (
                   <MaintenanceItem
                     title="Cleanup News"
-                    icon={<Trash2 className="h-5 w-5 text-orange-500" />}
+                    icon={<Trash2 className="h-5 w-5 text-status-warning" />}
                     metrics={[
                       {
                         label: "Deleted",
@@ -745,7 +745,7 @@ export function UnifiedMaintenanceCard() {
                 return (
                   <MaintenanceItem
                     title="Vacuum Database"
-                    icon={<Database className="h-5 w-5 text-blue-500" />}
+                    icon={<Database className="h-5 w-5 text-status-info" />}
                     metrics={[
                       {
                         label: "Reclaimed",
@@ -765,7 +765,7 @@ export function UnifiedMaintenanceCard() {
                 return (
                   <MaintenanceItem
                     title="Validate Integrity"
-                    icon={<CheckCircle2 className="h-5 w-5 text-green-500" />}
+                    icon={<CheckCircle2 className="h-5 w-5 text-status-success" />}
                     metrics={[
                       {
                         label: "Errors",

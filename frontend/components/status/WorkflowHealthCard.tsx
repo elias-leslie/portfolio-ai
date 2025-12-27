@@ -29,33 +29,33 @@ export function WorkflowHealthCard({ workflowHealth }: WorkflowHealthCardProps) 
   const getStatusColor = (status: string) => {
     switch (status) {
       case "healthy":
-        return "bg-green-600";
+        return "bg-status-success";
       case "warning":
-        return "bg-yellow-600";
+        return "bg-status-warning";
       case "critical":
-        return "bg-red-600";
+        return "bg-status-error";
       default:
-        return "bg-gray-500";
+        return "bg-surface-muted";
     }
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "healthy":
-        return <CheckCircle2 className="h-4 w-4 text-green-600" />;
+        return <CheckCircle2 className="h-4 w-4 text-status-success" />;
       case "warning":
-        return <AlertCircle className="h-4 w-4 text-yellow-600" />;
+        return <AlertCircle className="h-4 w-4 text-status-warning" />;
       case "critical":
-        return <XCircle className="h-4 w-4 text-red-600" />;
+        return <XCircle className="h-4 w-4 text-status-error" />;
       default:
-        return <AlertCircle className="h-4 w-4 text-gray-500" />;
+        return <AlertCircle className="h-4 w-4 text-text-muted" />;
     }
   };
 
   const getSuccessRateColor = (rate: number) => {
-    if (rate >= 80) return "text-green-600";
-    if (rate >= 50) return "text-yellow-600";
-    return "text-red-600";
+    if (rate >= 80) return "text-status-success";
+    if (rate >= 50) return "text-status-warning";
+    return "text-status-error";
   };
 
   return (
@@ -94,7 +94,7 @@ export function WorkflowHealthCard({ workflowHealth }: WorkflowHealthCardProps) 
           {/* Successful Workflows */}
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              <CheckCircle2 className="h-4 w-4 text-status-success" />
               <p className="text-sm font-medium">Successful</p>
             </div>
             <div className="flex items-center gap-2">
@@ -109,7 +109,7 @@ export function WorkflowHealthCard({ workflowHealth }: WorkflowHealthCardProps) 
           {workflowHealth.failedWorkflows > 0 && (
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <XCircle className="h-4 w-4 text-red-600" />
+                <XCircle className="h-4 w-4 text-status-error" />
                 <p className="text-sm font-medium">Failed</p>
               </div>
               <div className="flex items-center gap-2">
@@ -125,7 +125,7 @@ export function WorkflowHealthCard({ workflowHealth }: WorkflowHealthCardProps) 
           {workflowHealth.blockedWorkflows > 0 && (
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 text-yellow-600" />
+                <AlertCircle className="h-4 w-4 text-status-warning" />
                 <p className="text-sm font-medium">Blocked</p>
               </div>
               <div className="flex items-center gap-2">
@@ -158,7 +158,7 @@ export function WorkflowHealthCard({ workflowHealth }: WorkflowHealthCardProps) 
           {/* Failures by Type */}
           {Object.keys(workflowHealth.failuresByType).length > 0 && (
             <div className="space-y-1 col-span-2 border-t pt-3">
-              <p className="text-sm font-medium text-red-600">Failures by Type:</p>
+              <p className="text-sm font-medium text-status-error">Failures by Type:</p>
               <div className="flex flex-wrap gap-2">
                 {Object.entries(workflowHealth.failuresByType).map(([type, count]) => (
                   <Badge key={type} variant="destructive" className="text-xs">
@@ -172,7 +172,7 @@ export function WorkflowHealthCard({ workflowHealth }: WorkflowHealthCardProps) 
           {/* Blocked by Type */}
           {Object.keys(workflowHealth.blockedByType).length > 0 && (
             <div className="space-y-1 col-span-2 border-t pt-3">
-              <p className="text-sm font-medium text-yellow-600">Blocked by Type:</p>
+              <p className="text-sm font-medium text-status-warning">Blocked by Type:</p>
               <div className="flex flex-wrap gap-2">
                 {Object.entries(workflowHealth.blockedByType).map(([type, count]) => (
                   <Badge key={type} variant="warning" className="text-xs">

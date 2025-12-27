@@ -47,15 +47,15 @@ export function DataFreshnessCard({ freshness }: DataFreshnessCardProps) {
 
     const getStatusIcon = (ageDays?: number) => {
         if (ageDays === undefined || ageDays === null) {
-            return <XCircle className="h-4 w-4 text-gray-500" />;
+            return <XCircle className="h-4 w-4 text-text-muted" />;
         }
         if (ageDays <= 1) {
-            return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+            return <CheckCircle2 className="h-4 w-4 text-status-success" />;
         }
         if (ageDays <= 7) {
-            return <AlertCircle className="h-4 w-4 text-yellow-500" />;
+            return <AlertCircle className="h-4 w-4 text-status-warning" />;
         }
-        return <XCircle className="h-4 w-4 text-red-500" />;
+        return <XCircle className="h-4 w-4 text-status-error" />;
     };
 
     const getStatusBadge = (ageDays?: number) => {
@@ -63,10 +63,10 @@ export function DataFreshnessCard({ freshness }: DataFreshnessCardProps) {
             return <Badge variant="outline">No Data</Badge>;
         }
         if (ageDays <= 1) {
-            return <Badge className="bg-green-500 text-white">Fresh</Badge>;
+            return <Badge className="bg-status-success text-white">Fresh</Badge>;
         }
         if (ageDays <= 7) {
-            return <Badge className="bg-yellow-500 text-white">Stale</Badge>;
+            return <Badge className="bg-status-warning text-white">Stale</Badge>;
         }
         return <Badge variant="destructive">Very Stale</Badge>;
     };
