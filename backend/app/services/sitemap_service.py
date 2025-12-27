@@ -202,6 +202,45 @@ def _interpret_response(
     return False, None
 
 
+def _extract_openapi_endpoints(
+    openapi: dict[str, Any], port: int, service_name: str | None = None
+) -> list[dict[str, Any]]:
+    """Extract endpoint entries from an OpenAPI specification.
+
+    Args:
+        openapi: Parsed OpenAPI JSON
+        port: Port number for the endpoints
+        service_name: Optional service name to include
+
+    Returns:
+        List of endpoint dicts ready for sitemap_entries
+    """
+    endpoints = []
+    paths = openapi.get("paths", {})
+
+    for path, methods in paths.items():
+        for method, details in methods.items():
+            if method.upper() not in ("GET", "POST", "PUT", "DELETE", "PATCH"):
+                continue
+            # Skip health/docs endpoints
+            if any(x in path for x in ["/health", "/docs", "/openapi", "/redoc"]):
+                continue
+
+            entry = {
+                "port": port,
+                "path": path,
+                "method": method.upper(),
+                "entry_type": "api_endpoint",
+                "source": "openapi",
+                "title": details.get("summary") or details.get("operationId"),
+            }
+            if service_name:
+                entry["service_name"] = service_name
+            endpoints.append(entry)
+
+    return endpoints
+
+
 class SitemapService:
     """Discovers and monitors sitemap entries."""
 
@@ -267,23 +306,7 @@ class SitemapService:
                 response.raise_for_status()
                 openapi = response.json()
 
-            paths = openapi.get("paths", {})
-            for path, methods in paths.items():
-                for method, details in methods.items():
-                    if method.upper() in ("GET", "POST", "PUT", "DELETE", "PATCH"):
-                        # Skip health/docs endpoints
-                        if any(x in path for x in ["/health", "/docs", "/openapi", "/redoc"]):
-                            continue
-
-                        discovered.append({
-                            "port": backend_port,
-                            "path": path,
-                            "method": method.upper(),
-                            "entry_type": "api_endpoint",
-                            "source": "openapi",
-                            "title": details.get("summary") or details.get("operationId"),
-                        })
-
+            discovered = _extract_openapi_endpoints(openapi, backend_port)
             logger.info("sitemap_discover_backend_complete", count=len(discovered))
 
         except Exception as e:
@@ -324,29 +347,13 @@ class SitemapService:
                         continue
 
                     openapi = response.json()
-                    paths = openapi.get("paths", {})
-
-                    port_discovered = 0
-                    for path, methods in paths.items():
-                        for method, details in methods.items():
-                            if method.upper() in ("GET", "POST", "PUT", "DELETE", "PATCH"):
-                                # Skip health/docs endpoints
-                                if any(x in path for x in ["/health", "/docs", "/openapi", "/redoc"]):
-                                    continue
-
-                                all_discovered.append({
-                                    "port": port,
-                                    "path": path,
-                                    "method": method.upper(),
-                                    "entry_type": "api_endpoint",
-                                    "source": "openapi",
-                                    "title": details.get("summary") or details.get("operationId"),
-                                    "service_name": port_info.service_name,
-                                })
-                                port_discovered += 1
+                    port_endpoints = _extract_openapi_endpoints(
+                        openapi, port, port_info.service_name
+                    )
+                    all_discovered.extend(port_endpoints)
 
                     logger.info("sitemap_openapi_port_complete",
-                               port=port, service=port_info.service_name, count=port_discovered)
+                               port=port, service=port_info.service_name, count=len(port_endpoints))
 
                 except Exception as e:
                     logger.debug("sitemap_openapi_port_failed", port=port, error=str(e))

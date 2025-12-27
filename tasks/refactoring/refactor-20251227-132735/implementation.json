@@ -163,7 +163,7 @@
             "Reduce check_entry_health from 219 to ~80 lines",
             "Run: cd backend && .venv/bin/pytest tests/ -x --tb=short -q"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "4.2",
