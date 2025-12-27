@@ -10,6 +10,12 @@
       "design_token_violations": 444,
       "files_affected": 53
     },
+    "result": {
+      "design_token_violations": 224,
+      "reduction_pct": 49.5,
+      "files_fixed": 18,
+      "completed_at": "2025-12-27T04:50:00Z"
+    },
     "token_mapping": {
       "bg-gray-900": "bg-bg",
       "bg-gray-800": "bg-surface",
