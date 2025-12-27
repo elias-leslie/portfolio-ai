@@ -108,7 +108,7 @@
             "Remove unused 'result' variables",
             "Verify: npm run lint shows fewer warnings"
           ],
-          "passes": false
+          "passes": true
         }
       ]
     },
