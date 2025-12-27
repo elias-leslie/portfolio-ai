@@ -116,9 +116,9 @@ export function DataFreshnessCard({ freshness }: DataFreshnessCardProps) {
                         <span>Day Bars Data Freshness</span>
                     </div>
                     <div className="flex items-center gap-2">
-                        <Badge className="bg-green-500 text-white">{fresh.length} Fresh</Badge>
+                        <Badge className="bg-status-success text-white">{fresh.length} Fresh</Badge>
                         {stale.length > 0 && (
-                            <Badge className="bg-yellow-500 text-white">{stale.length} Stale</Badge>
+                            <Badge className="bg-status-warning text-white">{stale.length} Stale</Badge>
                         )}
                         {veryStale.length > 0 && (
                             <Badge variant="destructive">{veryStale.length} Very Stale</Badge>
@@ -147,7 +147,7 @@ export function DataFreshnessCard({ freshness }: DataFreshnessCardProps) {
                             {/* Very stale first */}
                             {veryStale.length > 0 && (
                                 <>
-                                    <div className="text-sm font-semibold text-red-600">
+                                    <div className="text-sm font-semibold text-status-error">
                                         Very Stale (&gt;7 days)
                                     </div>
                                     {veryStale
@@ -159,7 +159,7 @@ export function DataFreshnessCard({ freshness }: DataFreshnessCardProps) {
                             {/* Stale second */}
                             {stale.length > 0 && (
                                 <>
-                                    <div className="text-sm font-semibold text-yellow-600 mt-4">
+                                    <div className="text-sm font-semibold text-status-warning mt-4">
                                         Stale (1-7 days)
                                     </div>
                                     {stale
@@ -171,7 +171,7 @@ export function DataFreshnessCard({ freshness }: DataFreshnessCardProps) {
                             {/* Fresh last */}
                             {fresh.length > 0 && (
                                 <>
-                                    <div className="text-sm font-semibold text-green-600 mt-4">
+                                    <div className="text-sm font-semibold text-status-success mt-4">
                                         Fresh (≤1 day)
                                     </div>
                                     {fresh
