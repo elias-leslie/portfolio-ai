@@ -22,18 +22,18 @@ const providers: AgentProvider[] = ['claude', 'gemini', 'both'];
 const providerConfig = {
   claude: {
     tooltip: 'Claude - Click to switch',
-    color: 'text-blue-400 hover:text-blue-300',
-    bgColor: 'hover:bg-blue-900/30',
+    color: 'text-accent hover:text-accent',
+    bgColor: 'hover:bg-accent/20',
   },
   gemini: {
     tooltip: 'Gemini - Click to switch',
-    color: 'text-green-400 hover:text-green-300',
-    bgColor: 'hover:bg-green-900/30',
+    color: 'text-gain hover:text-gain',
+    bgColor: 'hover:bg-gain/20',
   },
   both: {
     tooltip: 'Roundtable - Click to switch',
-    color: 'text-purple-400 hover:text-purple-300',
-    bgColor: 'hover:bg-purple-900/30',
+    color: 'text-primary hover:text-primary',
+    bgColor: 'hover:bg-primary/20',
   },
 };
 
@@ -87,8 +87,8 @@ export function AgentSelector({
         >
           {value === 'both' ? (
             <span className="flex items-center -space-x-1">
-              <Diamond className="h-3 w-3 text-blue-400" />
-              <Star className="h-3 w-3 text-green-400" />
+              <Diamond className="h-3 w-3 text-accent" />
+              <Star className="h-3 w-3 text-gain" />
             </span>
           ) : value === 'claude' ? (
             <Diamond className="h-4 w-4" />
@@ -101,7 +101,7 @@ export function AgentSelector({
         {value === 'both' && onRoundtableOrderChange && (
           <button
             onClick={() => setShowOrderMenu(!showOrderMenu)}
-            className="h-6 w-6 flex items-center justify-center rounded text-gray-400 hover:text-gray-200 hover:bg-gray-700/50 transition-colors"
+            className="h-6 w-6 flex items-center justify-center rounded text-text-muted hover:text-text hover:bg-surface/50 transition-colors"
             title="Change response order"
           >
             <ChevronUp className="h-3 w-3" />
@@ -111,7 +111,7 @@ export function AgentSelector({
 
       {/* Order selection dropdown - drops UP to avoid expanding window */}
       {showOrderMenu && value === 'both' && onRoundtableOrderChange && (
-        <div className="absolute bottom-full left-0 mb-1 w-48 bg-gray-800 border border-gray-700 rounded-md shadow-lg z-50">
+        <div className="absolute bottom-full left-0 mb-1 w-48 bg-surface border border-border rounded-md shadow-lg z-50">
           <div className="py-1">
             <button
               onClick={() => {
@@ -119,11 +119,11 @@ export function AgentSelector({
                 setShowOrderMenu(false);
               }}
               className={cn(
-                "w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-gray-700 transition-colors",
-                roundtableOrder === 'claude-first' ? "text-blue-400" : "text-gray-300"
+                "w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-surface-muted transition-colors",
+                roundtableOrder === 'claude-first' ? "text-accent" : "text-text"
               )}
             >
-              <Diamond className="h-3 w-3 text-blue-400" />
+              <Diamond className="h-3 w-3 text-accent" />
               Claude first
               {roundtableOrder === 'claude-first' && <span className="ml-auto text-xs">✓</span>}
             </button>
@@ -133,19 +133,19 @@ export function AgentSelector({
                 setShowOrderMenu(false);
               }}
               className={cn(
-                "w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-gray-700 transition-colors",
-                roundtableOrder === 'gemini-first' ? "text-green-400" : "text-gray-300"
+                "w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-surface-muted transition-colors",
+                roundtableOrder === 'gemini-first' ? "text-gain" : "text-text"
               )}
             >
-              <Star className="h-3 w-3 text-green-400" />
+              <Star className="h-3 w-3 text-gain" />
               Gemini first
               {roundtableOrder === 'gemini-first' && <span className="ml-auto text-xs">✓</span>}
             </button>
           </div>
           {/* Max turns selector */}
           {onMaxTurnsChange && (
-            <div className="border-t border-gray-700 px-3 py-2">
-              <label className="text-xs text-gray-400 block mb-1">Max turns</label>
+            <div className="border-t border-border px-3 py-2">
+              <label className="text-xs text-text-muted block mb-1">Max turns</label>
               <div className="flex items-center gap-2">
                 {[3, 5, 10, 20, 50].map((turns) => (
                   <button
@@ -154,8 +154,8 @@ export function AgentSelector({
                     className={cn(
                       "px-2 py-1 text-xs rounded transition-colors",
                       maxTurns === turns
-                        ? "bg-purple-600 text-white"
-                        : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-surface-muted text-text hover:bg-surface-elev"
                     )}
                   >
                     {turns}
