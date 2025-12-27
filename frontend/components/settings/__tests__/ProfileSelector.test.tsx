@@ -1,8 +1,9 @@
 import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { ProfileSelector } from "../ProfileSelector";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
+import type { PreferencesResponse } from "@/lib/api/preferences";
 
 // Mock hooks
 vi.mock("@/lib/hooks/useSettingsProfiles", () => ({
@@ -25,13 +26,27 @@ vi.mock("sonner", () => ({
   },
 }));
 
-const mockPreferences = {
-  id: 1,
-  userId: 1,
-  emailNotifications: true,
-  alertsEnabled: true,
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
+const mockPreferences: PreferencesResponse = {
+  riskTolerance: 5,
+  allowLong: true,
+  allowShort: false,
+  allowOptions: false,
+  allowCrypto: false,
+  allowFutures: false,
+  maxPositionSizePct: 10,
+  defaultRefreshMinutes: 5,
+  watchlistRefreshOverride: null,
+  portfolioRefreshOverride: null,
+  newsRefreshOverride: null,
+  newsLookbackHours: 24,
+  newsMaxArticles: 50,
+  frontendPollInterval: 30,
+  watchlistRefreshMinutes: 5,
+  watchlistAutoExpand: false,
+  watchlistPriceWeight: 0.5,
+  watchlistTechnicalWeight: 0.5,
+  displayTimezone: "America/New_York",
+  watchlistShowNews: true,
 };
 
 function createWrapper() {
@@ -53,7 +68,7 @@ describe("ProfileSelector", () => {
 
   it("renders loading state", async () => {
     const { useProfiles } = await import("@/lib/hooks/useSettingsProfiles");
-    (useProfiles as unknown as vi.Mock).mockReturnValue({
+    (useProfiles as unknown as Mock).mockReturnValue({
       data: [],
       isLoading: true,
     });
@@ -72,7 +87,7 @@ describe("ProfileSelector", () => {
 
   it("renders Settings Profiles label", async () => {
     const { useProfiles } = await import("@/lib/hooks/useSettingsProfiles");
-    (useProfiles as unknown as vi.Mock).mockReturnValue({
+    (useProfiles as unknown as Mock).mockReturnValue({
       data: [],
       isLoading: false,
     });
@@ -90,7 +105,7 @@ describe("ProfileSelector", () => {
 
   it("renders Import button", async () => {
     const { useProfiles } = await import("@/lib/hooks/useSettingsProfiles");
-    (useProfiles as unknown as vi.Mock).mockReturnValue({
+    (useProfiles as unknown as Mock).mockReturnValue({
       data: [],
       isLoading: false,
     });
@@ -108,7 +123,7 @@ describe("ProfileSelector", () => {
 
   it("renders Save As button", async () => {
     const { useProfiles } = await import("@/lib/hooks/useSettingsProfiles");
-    (useProfiles as unknown as vi.Mock).mockReturnValue({
+    (useProfiles as unknown as Mock).mockReturnValue({
       data: [],
       isLoading: false,
     });
@@ -126,7 +141,7 @@ describe("ProfileSelector", () => {
 
   it("renders profile selector dropdown", async () => {
     const { useProfiles } = await import("@/lib/hooks/useSettingsProfiles");
-    (useProfiles as unknown as vi.Mock).mockReturnValue({
+    (useProfiles as unknown as Mock).mockReturnValue({
       data: [],
       isLoading: false,
     });
@@ -144,7 +159,7 @@ describe("ProfileSelector", () => {
 
   it("renders description text", async () => {
     const { useProfiles } = await import("@/lib/hooks/useSettingsProfiles");
-    (useProfiles as unknown as vi.Mock).mockReturnValue({
+    (useProfiles as unknown as Mock).mockReturnValue({
       data: [],
       isLoading: false,
     });
@@ -164,7 +179,7 @@ describe("ProfileSelector", () => {
 
   it("displays active profile when available", async () => {
     const { useProfiles } = await import("@/lib/hooks/useSettingsProfiles");
-    (useProfiles as unknown as vi.Mock).mockReturnValue({
+    (useProfiles as unknown as Mock).mockReturnValue({
       data: [
         {
           id: 1,

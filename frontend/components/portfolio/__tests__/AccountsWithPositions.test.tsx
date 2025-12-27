@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, type Mock } from "vitest";
 import { AccountsWithPositions } from "../AccountsWithPositions";
 import {
   useAccounts,
@@ -17,11 +17,11 @@ vi.mock("@/lib/hooks/usePortfolio", () => ({
   useUpdatePosition: vi.fn(),
 }));
 
-const mockUseAccounts = useAccounts as unknown as vi.Mock;
-const mockUsePortfolio = usePortfolio as unknown as vi.Mock;
-const mockUseDeleteAccount = useDeleteAccount as unknown as vi.Mock;
-const mockUseDeletePosition = useDeletePosition as unknown as vi.Mock;
-const mockUseUpdatePosition = useUpdatePosition as unknown as vi.Mock;
+const mockUseAccounts = useAccounts as unknown as Mock;
+const mockUsePortfolio = usePortfolio as unknown as Mock;
+const mockUseDeleteAccount = useDeleteAccount as unknown as Mock;
+const mockUseDeletePosition = useDeletePosition as unknown as Mock;
+const mockUseUpdatePosition = useUpdatePosition as unknown as Mock;
 
 describe("AccountsWithPositions", () => {
   beforeEach(() => {

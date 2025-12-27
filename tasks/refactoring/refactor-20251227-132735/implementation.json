@@ -1,0 +1,267 @@
+{
+  "_instructions": {
+    "critical": "Only modify 'passes' field. Never change structure.",
+    "workflow": "One task at a time. Full verification. Commit after each."
+  },
+  "meta": {
+    "title": "High-Priority Bloat Reduction - Round 1",
+    "created": "2025-12-27",
+    "baseline": {
+      "high_priority_targets": 50,
+      "total_complexity": 4632.82,
+      "frontend_lint_warnings": 14,
+      "test_type_errors": true
+    },
+    "targets": {
+      "backend/app/api/symbols.py": "858 lines, 8 funcs, complexity 13.58 - Extract data fetchers",
+      "backend/app/services/sitemap_service.py": "1013 lines, 19 funcs, complexity 12.23 - Extract health check logic",
+      "frontend/components/agents/AgentPanel.tsx": "1025 lines, 43 funcs - Extract hooks and components",
+      "frontend/components/status/MaintenanceTable.tsx": "1072 lines, 32 funcs - Extract hooks",
+      "frontend/components/status/UnifiedMaintenanceCard.tsx": "872 lines, 32 funcs - Extract task handlers"
+    }
+  },
+  "phases": [
+    {
+      "id": 1,
+      "name": "Test File TypeScript Fixes",
+      "goal": "Fix TypeScript errors in test files blocking builds",
+      "tasks": [
+        {
+          "id": "1.1",
+          "category": "frontend",
+          "description": "Fix vi namespace errors in portfolio test files",
+          "files_affected": [
+            "frontend/components/portfolio/__tests__/AccountsCard.test.tsx",
+            "frontend/components/portfolio/__tests__/AccountsWithPositions.test.tsx"
+          ],
+          "steps": [
+            "Add 'import { vi } from \"vitest\"' to AccountsCard.test.tsx",
+            "Add 'import { vi } from \"vitest\"' to AccountsWithPositions.test.tsx",
+            "Verify: npx tsc --noEmit shows no vi namespace errors"
+          ],
+          "passes": false
+        },
+        {
+          "id": "1.2",
+          "category": "frontend",
+          "description": "Fix ProfileSelector.test.tsx type errors",
+          "files_affected": [
+            "frontend/components/settings/__tests__/ProfileSelector.test.tsx"
+          ],
+          "steps": [
+            "Add 'import { vi } from \"vitest\"' for vi namespace",
+            "Add missing PreferencesResponse fields to mock objects",
+            "Verify: npx tsc --noEmit shows fewer errors"
+          ],
+          "passes": false
+        },
+        {
+          "id": "1.3",
+          "category": "frontend",
+          "description": "Fix StrategiesTable.test.tsx type errors",
+          "files_affected": [
+            "frontend/components/strategies/__tests__/StrategiesTable.test.tsx"
+          ],
+          "steps": [
+            "Add missing StrategyListItem fields to mock data",
+            "Verify: npx tsc --noEmit shows no StrategiesTable errors"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Frontend Lint Warning Cleanup",
+      "goal": "Reduce 14 warnings to near zero",
+      "tasks": [
+        {
+          "id": "2.1",
+          "category": "frontend",
+          "description": "Fix unused variables in components",
+          "files_affected": [
+            "frontend/components/shared/UnifiedNewsIntelligenceCard.tsx",
+            "frontend/components/status/MaintenanceStatus.tsx"
+          ],
+          "steps": [
+            "Remove unused _impactSummary and _actionableInsight or use them",
+            "Remove unused result variable in MaintenanceStatus.tsx",
+            "Verify: npm run lint shows fewer warnings"
+          ],
+          "passes": false
+        },
+        {
+          "id": "2.2",
+          "category": "frontend",
+          "description": "Fix useEffect dependency warning in MaintenanceStatus",
+          "files_affected": [
+            "frontend/components/status/MaintenanceStatus.tsx"
+          ],
+          "steps": [
+            "Add fetchAllData to useEffect dependency array or wrap it properly",
+            "Verify: npm run lint shows no exhaustive-deps warnings for this file"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Backend Modularization - symbols.py",
+      "goal": "Reduce symbols.py from 858 to ~500 lines by extracting utilities",
+      "tasks": [
+        {
+          "id": "3.1",
+          "category": "backend",
+          "description": "Extract row-to-dict utility to storage layer",
+          "files_affected": [
+            "backend/app/storage/helpers.py",
+            "backend/app/api/symbols.py"
+          ],
+          "steps": [
+            "Create backend/app/storage/helpers.py with rows_to_dicts() utility",
+            "Replace 7 dict(zip()) patterns in symbols.py with the utility",
+            "Run: cd backend && .venv/bin/ruff check app/api/symbols.py",
+            "Run: cd backend && .venv/bin/pytest tests/ -x --tb=short -q"
+          ],
+          "passes": false
+        },
+        {
+          "id": "3.2",
+          "category": "backend",
+          "description": "Extract _build_response sections to helper functions",
+          "files_affected": [
+            "backend/app/api/symbols.py"
+          ],
+          "steps": [
+            "Extract _build_scores_section() - 30 lines",
+            "Extract _build_portfolio_section() - 36 lines",
+            "Extract _build_paper_trades_section() - 27 lines",
+            "Reduce _build_response from 250 lines to ~100 lines",
+            "Run: cd backend && .venv/bin/pytest tests/ -x --tb=short -q"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Backend Modularization - sitemap_service.py",
+      "goal": "Reduce sitemap_service.py check_entry_health from 219 to ~80 lines",
+      "tasks": [
+        {
+          "id": "4.1",
+          "category": "backend",
+          "description": "Extract health check helper methods",
+          "files_affected": [
+            "backend/app/services/sitemap_service.py"
+          ],
+          "steps": [
+            "Extract _should_skip_entry() helper (~15 lines)",
+            "Extract _execute_http_check() helper (~35 lines)",
+            "Extract _interpret_response_status() helper (~25 lines)",
+            "Reduce check_entry_health from 219 to ~80 lines",
+            "Run: cd backend && .venv/bin/pytest tests/ -x --tb=short -q"
+          ],
+          "passes": false
+        },
+        {
+          "id": "4.2",
+          "category": "backend",
+          "description": "Consolidate OpenAPI discovery duplication",
+          "files_affected": [
+            "backend/app/services/sitemap_service.py"
+          ],
+          "steps": [
+            "Extract _extract_openapi_endpoints() shared helper",
+            "Refactor discover_backend_endpoints() to use helper",
+            "Refactor discover_all_openapi_endpoints() to use helper",
+            "Eliminate ~30 lines of duplication",
+            "Run: cd backend && .venv/bin/pytest tests/ -x --tb=short -q"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Frontend Component Modularization",
+      "goal": "Reduce largest frontend components by extracting reusable hooks",
+      "tasks": [
+        {
+          "id": "5.1",
+          "category": "frontend",
+          "description": "Extract useMaintenanceData hook from MaintenanceTable",
+          "files_affected": [
+            "frontend/lib/hooks/useMaintenanceData.ts",
+            "frontend/components/status/MaintenanceTable.tsx"
+          ],
+          "steps": [
+            "Create frontend/lib/hooks/useMaintenanceData.ts",
+            "Move 6 parallel API calls + 3 state setters to hook",
+            "Update MaintenanceTable to use the hook",
+            "Run: npm run lint && npm run build"
+          ],
+          "passes": false
+        },
+        {
+          "id": "5.2",
+          "category": "frontend",
+          "description": "Extract useMaintenanceBackupCheck hook",
+          "files_affected": [
+            "frontend/lib/hooks/useMaintenanceBackupCheck.ts",
+            "frontend/components/status/MaintenanceTable.tsx",
+            "frontend/components/status/UnifiedMaintenanceCard.tsx"
+          ],
+          "steps": [
+            "Create frontend/lib/hooks/useMaintenanceBackupCheck.ts",
+            "Move backup check logic (shared between MaintenanceTable and UnifiedMaintenanceCard)",
+            "Update both components to use the shared hook",
+            "Run: npm run lint && npm run build"
+          ],
+          "passes": false
+        },
+        {
+          "id": "5.3",
+          "category": "frontend",
+          "description": "Consolidate task trigger handlers in UnifiedMaintenanceCard",
+          "files_affected": [
+            "frontend/components/status/UnifiedMaintenanceCard.tsx"
+          ],
+          "steps": [
+            "Create createTaskTrigger() factory function",
+            "Replace 3 nearly-identical trigger handlers with factory",
+            "Reduce ~100 lines of duplication to ~40 lines",
+            "Run: npm run lint && npm run build"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Final Verification",
+      "goal": "All checks pass, reduced complexity",
+      "tasks": [
+        {
+          "id": "6.1",
+          "category": "verification",
+          "description": "Run full verification suite",
+          "files_affected": [],
+          "steps": [
+            "Run: cd backend && .venv/bin/pytest tests/ -x --tb=short -q",
+            "Run: cd backend && .venv/bin/ruff check app/",
+            "Run: cd backend && .venv/bin/mypy app/ --no-error-summary",
+            "Run: cd frontend && npm run build",
+            "Run: cd frontend && npm run lint",
+            "Run: npx tsc --noEmit (expect fewer errors)",
+            "Run: bash ~/portfolio-ai/scripts/restart.sh && sleep 3",
+            "Run: curl -sf http://localhost:8000/api/health",
+            "Compare: curl -s http://localhost:8001/api/projects/portfolio-ai/explorer/refactor-targets | jq '.summary'"
+          ],
+          "passes": false
+        }
+      ]
+    }
+  ]
+}

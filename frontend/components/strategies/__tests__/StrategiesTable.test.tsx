@@ -1,19 +1,22 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { StrategiesTable } from "../StrategiesTable";
+import type { StrategyListItem } from "@/lib/api/strategies";
 
-const mockStrategies = [
+const mockStrategies: StrategyListItem[] = [
   {
     id: "strategy-1",
     symbol: "AAPL",
     name: "Apple Momentum Strategy",
     strategyType: "momentum",
     status: "active",
+    version: 1,
     expectedSharpe: 1.5,
-    liveSharpe: 1.2,
-    winRate: 0.65,
-    totalTrades: 25,
+    liveSharpeRatio: 1.2,
+    liveWinRate: 0.65,
+    tradesCount: 25,
     createdAt: new Date().toISOString(),
+    activationDate: new Date().toISOString(),
   },
   {
     id: "strategy-2",
@@ -21,11 +24,13 @@ const mockStrategies = [
     name: "Google Value Play",
     strategyType: "value",
     status: "testing",
+    version: 1,
     expectedSharpe: 1.8,
-    liveSharpe: null,
-    winRate: null,
-    totalTrades: 0,
+    liveSharpeRatio: null,
+    liveWinRate: null,
+    tradesCount: 0,
     createdAt: new Date().toISOString(),
+    activationDate: null,
   },
 ];
 

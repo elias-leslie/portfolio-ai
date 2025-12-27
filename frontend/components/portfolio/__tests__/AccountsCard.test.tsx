@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { AccountsCard } from "../AccountsCard";
 import { useAccounts, useDeleteAccount } from "@/lib/hooks/usePortfolio";
 
@@ -8,8 +8,8 @@ vi.mock("@/lib/hooks/usePortfolio", () => ({
   useDeleteAccount: vi.fn(),
 }));
 
-const mockUseAccounts = useAccounts as unknown as vi.Mock;
-const mockUseDeleteAccount = useDeleteAccount as unknown as vi.Mock;
+const mockUseAccounts = useAccounts as unknown as Mock;
+const mockUseDeleteAccount = useDeleteAccount as unknown as Mock;
 
 describe("AccountsCard", () => {
   beforeEach(() => {
