@@ -40,9 +40,9 @@ export function APIKeysCard({ apiKeys }: APIKeysCardProps) {
                         >
                             <div className="flex items-center gap-3 flex-1">
                                 {key.configured ? (
-                                    <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+                                    <CheckCircle2 className="h-4 w-4 text-gain flex-shrink-0" />
                                 ) : (
-                                    <XCircle className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                                    <XCircle className="h-4 w-4 text-text-muted flex-shrink-0" />
                                 )}
                                 <div className="flex-1">
                                     <div className="font-medium capitalize">

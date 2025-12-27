@@ -213,7 +213,7 @@ export function FileCleanupCard() {
 
           <CleanupCategory
             title="Database Backups"
-            icon={<Database className="h-5 w-5 text-blue-500" />}
+            icon={<Database className="h-5 w-5 text-accent" />}
             info={status?.backups ?? null}
             taskName="cleanup_old_backups_task"
             onTrigger={handleTrigger}
@@ -233,7 +233,7 @@ export function FileCleanupCard() {
 
           <CleanupCategory
             title="Test Artifacts"
-            icon={<TestTube className="h-5 w-5 text-green-500" />}
+            icon={<TestTube className="h-5 w-5 text-gain" />}
             info={status?.solutionState ?? null}
             taskName="cleanup_solution_state_task"
             onTrigger={handleTrigger}

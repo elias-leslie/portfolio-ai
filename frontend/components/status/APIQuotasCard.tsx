@@ -41,9 +41,9 @@ export function APIQuotasCard({ health }: APIQuotasCardProps) {
             >
               <div className="flex flex-1 items-center gap-3">
                 {quota.configured ? (
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  <CheckCircle2 className="h-4 w-4 text-gain" />
                 ) : (
-                  <XCircle className="h-4 w-4 text-gray-400" />
+                  <XCircle className="h-4 w-4 text-text-muted" />
                 )}
                 <div className="flex-1">
                   <div className="font-medium capitalize">
@@ -61,7 +61,7 @@ export function APIQuotasCard({ health }: APIQuotasCardProps) {
               </div>
               <div>
                 {quota.configured ? (
-                  <Badge className="bg-green-500 text-white">Active</Badge>
+                  <Badge className="bg-gain text-white">Active</Badge>
                 ) : (
                   <Badge variant="outline">Not Configured</Badge>
                 )}
