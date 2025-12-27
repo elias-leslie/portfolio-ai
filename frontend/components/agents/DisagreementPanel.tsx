@@ -27,11 +27,11 @@ interface DisagreementPanelProps {
 }
 
 const REASON_LABELS: Record<DisagreementReason, { label: string; color: string }> = {
-  factual: { label: 'Factual Error', color: 'bg-red-500/20 text-red-400 border-red-500/30' },
-  logical: { label: 'Logic Issue', color: 'bg-orange-500/20 text-orange-400 border-orange-500/30' },
-  risk_assessment: { label: 'Risk Assessment', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' },
-  confidence: { label: 'Confidence Gap', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
-  other: { label: 'Other', color: 'bg-gray-500/20 text-gray-400 border-gray-500/30' },
+  factual: { label: 'Factual Error', color: 'bg-loss/20 text-loss border-loss/30' },
+  logical: { label: 'Logic Issue', color: 'bg-warning/20 text-warning border-warning/30' },
+  risk_assessment: { label: 'Risk Assessment', color: 'bg-warning/20 text-warning border-warning/30' },
+  confidence: { label: 'Confidence Gap', color: 'bg-accent/20 text-accent border-accent/30' },
+  other: { label: 'Other', color: 'bg-neutral/20 text-text-muted border-neutral/30' },
 };
 
 const RESOLUTION_OPTIONS: { type: ResolutionType; label: string; description: string; icon: React.ReactNode }[] = [
@@ -102,7 +102,7 @@ export function DisagreementPanel({
   return (
     <div className={cn('space-y-4', className)}>
       {/* Header */}
-      <div className="flex items-center gap-2 text-amber-400">
+      <div className="flex items-center gap-2 text-warning">
         <AlertTriangle className="h-5 w-5" />
         <span className="font-semibold">Agent Disagreement Detected</span>
       </div>
@@ -122,41 +122,41 @@ export function DisagreementPanel({
       {/* Side-by-side Comparison */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Generator Output */}
-        <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+        <div className="bg-surface/50 rounded-lg p-4 border border-border">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Badge variant="secondary" className="capitalize">
                 {generatorProvider}
               </Badge>
-              <span className="text-xs text-gray-400">Generator</span>
+              <span className="text-xs text-text-muted">Generator</span>
             </div>
             {generatorConfidence !== null && (
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-text-muted">
                 {(generatorConfidence * 100).toFixed(0)}% confident
               </span>
             )}
           </div>
-          <div className="text-sm whitespace-pre-wrap text-gray-200 max-h-48 overflow-y-auto">
+          <div className="text-sm whitespace-pre-wrap text-text max-h-48 overflow-y-auto">
             {generatorOutput}
           </div>
         </div>
 
         {/* Validator Review */}
-        <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+        <div className="bg-surface/50 rounded-lg p-4 border border-border">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Badge variant="secondary" className="capitalize">
                 {validatorProvider}
               </Badge>
-              <span className="text-xs text-gray-400">Validator</span>
+              <span className="text-xs text-text-muted">Validator</span>
             </div>
             {validatorConfidence !== null && (
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-text-muted">
                 {(validatorConfidence * 100).toFixed(0)}% confident
               </span>
             )}
           </div>
-          <div className="text-sm whitespace-pre-wrap text-gray-200 max-h-48 overflow-y-auto">
+          <div className="text-sm whitespace-pre-wrap text-text max-h-48 overflow-y-auto">
             {validatorReview}
           </div>
         </div>
@@ -164,9 +164,9 @@ export function DisagreementPanel({
 
       {/* Disagreement Details */}
       {disagreementDetails && (
-        <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
-          <p className="text-sm font-medium text-amber-400 mb-2">Specific Issues:</p>
-          <div className="text-sm text-gray-300 whitespace-pre-wrap">
+        <div className="bg-warning/10 border border-warning/30 rounded-lg p-4">
+          <p className="text-sm font-medium text-warning mb-2">Specific Issues:</p>
+          <div className="text-sm text-text whitespace-pre-wrap">
             {disagreementDetails}
           </div>
         </div>
@@ -174,7 +174,7 @@ export function DisagreementPanel({
 
       {/* Resolution Options */}
       <div className="space-y-3">
-        <p className="text-sm font-medium text-gray-300">Choose Resolution:</p>
+        <p className="text-sm font-medium text-text">Choose Resolution:</p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
           {RESOLUTION_OPTIONS.map((option) => (
             <button
@@ -183,8 +183,8 @@ export function DisagreementPanel({
               className={cn(
                 'p-3 rounded-lg border text-left transition-all',
                 selectedResolution === option.type
-                  ? 'bg-blue-600/20 border-blue-500 text-blue-300'
-                  : 'bg-gray-800/50 border-gray-700 text-gray-400 hover:border-gray-600'
+                  ? 'bg-primary/20 border-primary text-primary'
+                  : 'bg-surface/50 border-border text-text-muted hover:border-border'
               )}
             >
               <div className="flex items-center gap-2 mb-1">
@@ -200,24 +200,24 @@ export function DisagreementPanel({
       {/* Hybrid Editor */}
       {showHybridEditor && (
         <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-300">
+          <label className="text-sm font-medium text-text">
             Edit Combined Output:
           </label>
           <Textarea
             value={hybridOutput}
             onChange={(e) => setHybridOutput(e.target.value)}
-            className="min-h-[120px] bg-gray-800 border-gray-700 text-gray-100"
+            className="min-h-[120px] bg-surface border-border text-text"
             placeholder="Combine the best parts of both outputs..."
           />
         </div>
       )}
 
       {/* Action Buttons */}
-      <div className="flex items-center gap-3 pt-2 border-t border-gray-700">
+      <div className="flex items-center gap-3 pt-2 border-t border-border">
         <Button
           onClick={handleResolve}
           disabled={!selectedResolution || resolving}
-          className="bg-blue-600 hover:bg-blue-700"
+          className="bg-primary hover:bg-primary/90"
         >
           {resolving ? (
             <>Resolving...</>
