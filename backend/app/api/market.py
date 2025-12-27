@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 import yfinance as yf
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -42,7 +42,7 @@ from app.market import intelligence
 from app.market.fear_greed_stub import get_fear_greed_score
 from app.market.sentiment import calculate_market_health
 from app.middleware.cache import cache_response
-from app.models.market_events import MarketEventCreate, MarketEventUpdate
+from app.models.market_events import MarketEventCreate, MarketEventType, MarketEventUpdate
 from app.models.market_intelligence import (
     FearGreedScore,
     MarketIntelligenceResponse,
@@ -899,7 +899,9 @@ async def get_market_events(
     end = date.fromisoformat(end_date) if end_date else None
 
     # Parse event types
-    types_list = event_types.split(",") if event_types else None
+    types_list = (
+        cast(list[MarketEventType], event_types.split(",")) if event_types else None
+    )
 
     response = svc_get_events(
         start_date=start,
@@ -992,7 +994,7 @@ async def create_market_event(
         Created event with ID
     """
     event = MarketEventCreate(
-        event_type=event_type,
+        event_type=cast(MarketEventType, event_type),
         event_date=event_date,
         event_time=event_time,
         title=title,

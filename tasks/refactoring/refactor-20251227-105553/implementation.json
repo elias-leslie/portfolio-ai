@@ -45,7 +45,7 @@
             "Fix lines 351, 452: Add None checks before calling .isoformat()",
             "Verify: mypy app/tasks/thesis_monitoring_tasks.py passes"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "1.3",
