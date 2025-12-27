@@ -63,10 +63,10 @@ export function DataFreshnessCard({ freshness }: DataFreshnessCardProps) {
             return <Badge variant="outline">No Data</Badge>;
         }
         if (ageDays <= 1) {
-            return <Badge className="bg-status-success text-white">Fresh</Badge>;
+            return <Badge className="bg-status-success text-text-inverted">Fresh</Badge>;
         }
         if (ageDays <= 7) {
-            return <Badge className="bg-status-warning text-white">Stale</Badge>;
+            return <Badge className="bg-status-warning text-text-inverted">Stale</Badge>;
         }
         return <Badge variant="destructive">Very Stale</Badge>;
     };
@@ -116,9 +116,9 @@ export function DataFreshnessCard({ freshness }: DataFreshnessCardProps) {
                         <span>Day Bars Data Freshness</span>
                     </div>
                     <div className="flex items-center gap-2">
-                        <Badge className="bg-status-success text-white">{fresh.length} Fresh</Badge>
+                        <Badge className="bg-status-success text-text-inverted">{fresh.length} Fresh</Badge>
                         {stale.length > 0 && (
-                            <Badge className="bg-status-warning text-white">{stale.length} Stale</Badge>
+                            <Badge className="bg-status-warning text-text-inverted">{stale.length} Stale</Badge>
                         )}
                         {veryStale.length > 0 && (
                             <Badge variant="destructive">{veryStale.length} Very Stale</Badge>

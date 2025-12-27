@@ -112,9 +112,9 @@ function renderSection(
     tone === "destructive"
       ? <Badge variant="destructive">{rows.length}</Badge>
       : tone === "warning"
-        ? <Badge className="bg-status-warning text-white">{rows.length}</Badge>
+        ? <Badge className="bg-status-warning text-text-inverted">{rows.length}</Badge>
         : tone === "success"
-          ? <Badge className="bg-status-success text-white">{rows.length}</Badge>
+          ? <Badge className="bg-status-success text-text-inverted">{rows.length}</Badge>
           : <Badge variant="outline">{rows.length}</Badge>;
 
   return (
@@ -177,9 +177,9 @@ function TableRow({ table }: { table: TableFreshnessStatus }) {
 function statusBadge(status: string) {
   switch (status) {
     case "fresh":
-      return <Badge className="bg-status-success text-white">Fresh</Badge>;
+      return <Badge className="bg-status-success text-text-inverted">Fresh</Badge>;
     case "stale":
-      return <Badge className="bg-status-warning text-white">Stale</Badge>;
+      return <Badge className="bg-status-warning text-text-inverted">Stale</Badge>;
     case "critical":
       return <Badge variant="destructive">Critical</Badge>;
     case "error":

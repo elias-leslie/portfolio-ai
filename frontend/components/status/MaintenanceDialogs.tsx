@@ -84,7 +84,7 @@ export function TaskResultDisplay({ result }: { result: Record<string, unknown> 
                   </thead>
                   <tbody>
                     {arr.map((item, i) => (
-                      <tr key={i} className="border-b border-border/20 last:border-0 hover:bg-white/5">
+                      <tr key={i} className="border-b border-border/20 last:border-0 hover:bg-surface-muted/20">
                         {columns.map(col => (
                           <td key={col} className="p-2 font-mono text-muted-foreground">
                             {typeof item[col] === "number"
@@ -171,7 +171,7 @@ export function BatchResultsDialog({
                     : "border-status-success/50 bg-status-success/5"
                 }`}
               >
-                <summary className="flex items-center gap-2 p-3 cursor-pointer select-none hover:bg-white/5">
+                <summary className="flex items-center gap-2 p-3 cursor-pointer select-none hover:bg-surface-muted/20">
                   {result.status === "success" ? (
                     <CheckCircle2 className="h-5 w-5 text-status-success flex-shrink-0" />
                   ) : result.status === "error" ? (
@@ -187,13 +187,13 @@ export function BatchResultsDialog({
                     {result.status}
                   </Badge>
                   {result.error && (
-                    <span className="text-red-400 text-xs ml-2 truncate">{result.error.slice(0, 50)}...</span>
+                    <span className="text-status-error text-xs ml-2 truncate">{result.error.slice(0, 50)}...</span>
                   )}
                 </summary>
 
                 <div className="px-4 pb-4">
                   {result.error && (
-                    <div className="text-red-400 text-sm mb-2 font-mono">
+                    <div className="text-status-error text-sm mb-2 font-mono">
                       Error: {result.error}
                     </div>
                   )}

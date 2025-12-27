@@ -93,7 +93,7 @@ function formatValue(value: unknown): string {
 function getScoreBarColor(score: number): string {
     if (score >= 70) return "bg-gain";
     if (score >= 50) return "bg-primary";
-    if (score >= 30) return "bg-yellow-500";
+    if (score >= 30) return "bg-warning";
     return "bg-loss";
 }
 
