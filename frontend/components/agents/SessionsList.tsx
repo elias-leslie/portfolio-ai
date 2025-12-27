@@ -46,11 +46,11 @@ function formatTokenCount(tokens: number): string {
 
 function SessionTypeBadge({ type }: { type: string }) {
   const config = {
-    userSingleAgent: { icon: MessageSquare, label: 'User Chat', color: 'text-blue-400 bg-blue-900/30' },
-    userMultiAgent: { icon: Users, label: 'Roundtable', color: 'text-purple-400 bg-purple-900/30' },
-    agentAgentValidation: { icon: RefreshCw, label: 'Validation', color: 'text-amber-400 bg-amber-900/30' },
-    agentAutonomous: { icon: Bot, label: 'Automated', color: 'text-green-400 bg-green-900/30' },
-  }[type] || { icon: Bot, label: type, color: 'text-gray-400 bg-gray-700' };
+    userSingleAgent: { icon: MessageSquare, label: 'User Chat', color: 'text-accent bg-accent/20' },
+    userMultiAgent: { icon: Users, label: 'Roundtable', color: 'text-primary bg-primary/20' },
+    agentAgentValidation: { icon: RefreshCw, label: 'Validation', color: 'text-warning bg-warning/20' },
+    agentAutonomous: { icon: Bot, label: 'Automated', color: 'text-gain bg-gain/20' },
+  }[type] || { icon: Bot, label: type, color: 'text-text-muted bg-surface-muted' };
 
   const Icon = config.icon;
 
@@ -101,7 +101,7 @@ export function SessionsList({
 
   if (isLoading) {
     return (
-      <div className="p-4 text-center text-gray-500 text-sm">
+      <div className="p-4 text-center text-text-muted text-sm">
         Loading sessions...
       </div>
     );
@@ -109,7 +109,7 @@ export function SessionsList({
 
   if (error) {
     return (
-      <div className="p-4 text-center text-red-400 text-sm">
+      <div className="p-4 text-center text-loss text-sm">
         {error}
       </div>
     );
@@ -117,7 +117,7 @@ export function SessionsList({
 
   if (sessions.length === 0) {
     return (
-      <div className="p-4 text-center text-gray-500 text-sm">
+      <div className="p-4 text-center text-text-muted text-sm">
         No agent sessions yet
       </div>
     );
@@ -129,7 +129,7 @@ export function SessionsList({
         <div
           key={session.id}
           className={cn(
-            "p-3 border-b border-gray-700 hover:bg-gray-800/50 cursor-pointer transition-colors",
+            "p-3 border-b border-border hover:bg-surface/50 cursor-pointer transition-colors",
             onSelectSession && "group"
           )}
           onClick={() => onSelectSession?.(session)}
@@ -138,46 +138,46 @@ export function SessionsList({
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <SessionTypeBadge type={session.sessionType} />
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-text-muted">
                   {formatRelativeTime(session.startedAt)}
                 </span>
               </div>
-              <div className="text-sm text-gray-300 font-medium truncate">
+              <div className="text-sm text-text font-medium truncate">
                 {session.agentType}
               </div>
               {session.summary && (
-                <div className="text-xs text-gray-500 truncate mt-0.5">
+                <div className="text-xs text-text-muted truncate mt-0.5">
                   {session.summary}
                 </div>
               )}
             </div>
             <div className="flex flex-col items-end gap-1">
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-text-muted">
                 {formatTokenCount(session.tokenCount)} tok
               </span>
               {session.provider && (
                 <span className={cn(
                   "text-[10px] px-1.5 py-0.5 rounded",
                   session.provider.includes('gemini')
-                    ? "bg-green-900/30 text-green-400"
-                    : "bg-blue-900/30 text-blue-400"
+                    ? "bg-gain/20 text-gain"
+                    : "bg-accent/20 text-accent"
                 )}>
                   {session.provider}
                 </span>
               )}
               {onSelectSession && (
-                <ChevronRight className="h-4 w-4 text-gray-600 group-hover:text-gray-400 transition-colors" />
+                <ChevronRight className="h-4 w-4 text-text-muted group-hover:text-text transition-colors" />
               )}
             </div>
           </div>
           <div className="flex items-center gap-2 mt-1">
             <span className={cn(
               "w-1.5 h-1.5 rounded-full",
-              session.status === 'completed' ? "bg-green-500" :
-              session.status === 'running' ? "bg-blue-500 animate-pulse" :
-              session.status === 'error' ? "bg-red-500" : "bg-gray-500"
+              session.status === 'completed' ? "bg-gain" :
+              session.status === 'running' ? "bg-accent animate-pulse" :
+              session.status === 'error' ? "bg-loss" : "bg-neutral"
             )} />
-            <span className="text-[10px] text-gray-600">{session.status}</span>
+            <span className="text-[10px] text-text-muted">{session.status}</span>
           </div>
         </div>
       ))}
@@ -235,7 +235,7 @@ export function DevCompanionSessionsList({
 
   if (isLoading) {
     return (
-      <div className="p-4 text-center text-gray-500 text-sm">
+      <div className="p-4 text-center text-text-muted text-sm">
         Loading sessions...
       </div>
     );
@@ -243,7 +243,7 @@ export function DevCompanionSessionsList({
 
   if (error) {
     return (
-      <div className="p-4 text-center text-red-400 text-sm">
+      <div className="p-4 text-center text-loss text-sm">
         {error}
       </div>
     );
@@ -251,7 +251,7 @@ export function DevCompanionSessionsList({
 
   if (sessions.length === 0) {
     return (
-      <div className="p-4 text-center text-gray-500 text-sm">
+      <div className="p-4 text-center text-text-muted text-sm">
         No sessions yet
       </div>
     );
@@ -263,7 +263,7 @@ export function DevCompanionSessionsList({
         <div
           key={session.id}
           className={cn(
-            "p-3 border-b border-gray-700 hover:bg-gray-800/50 cursor-pointer transition-colors",
+            "p-3 border-b border-border hover:bg-surface/50 cursor-pointer transition-colors",
             onSelectSession && "group"
           )}
           onClick={() => onSelectSession?.(session)}
@@ -272,22 +272,22 @@ export function DevCompanionSessionsList({
             <div className="flex-1 min-w-0">
               {/* Session ID + Provider Badge */}
               <div className="flex items-center gap-2 mb-1">
-                <span className="font-mono text-sm text-gray-300">
+                <span className="font-mono text-sm text-text">
                   {session.id.slice(0, 8)}
                 </span>
                 <ProviderBadge provider={session.originalProvider} size="xs" />
                 {session.isActive && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-gain animate-pulse" />
                 )}
               </div>
               {/* Description or "No messages yet" */}
-              <div className="text-xs text-gray-400 truncate">
+              <div className="text-xs text-text-muted truncate">
                 {session.description || (session.messageCount ? 'No description' : '(No messages yet)')}
               </div>
               {/* Participants row */}
               {session.participants && session.participants.length > 0 && (
                 <div className="flex items-center gap-1 mt-1">
-                  <span className="text-[10px] text-gray-600">Participants:</span>
+                  <span className="text-[10px] text-text-muted">Participants:</span>
                   {session.participants.map((p) => (
                     <ProviderBadge key={p} provider={p} size="xs" />
                   ))}
@@ -297,16 +297,16 @@ export function DevCompanionSessionsList({
             <div className="flex flex-col items-end gap-1 text-right">
               {/* Message count */}
               {session.messageCount != null && session.messageCount > 0 && (
-                <span className="text-xs text-gray-400">
+                <span className="text-xs text-text-muted">
                   {session.messageCount} msgs
                 </span>
               )}
               {/* Relative time */}
-              <span className="text-[10px] text-gray-500">
+              <span className="text-[10px] text-text-muted">
                 {formatRelativeTime(session.updatedAt)}
               </span>
               {/* Created date */}
-              <span className="text-[10px] text-gray-600">
+              <span className="text-[10px] text-text-muted">
                 {new Date(session.createdAt).toLocaleDateString(undefined, {
                   month: 'short',
                   day: 'numeric',
@@ -315,7 +315,7 @@ export function DevCompanionSessionsList({
                 })}
               </span>
               {onSelectSession && (
-                <ChevronRight className="h-4 w-4 text-gray-600 group-hover:text-gray-400 transition-colors" />
+                <ChevronRight className="h-4 w-4 text-text-muted group-hover:text-text transition-colors" />
               )}
             </div>
           </div>
