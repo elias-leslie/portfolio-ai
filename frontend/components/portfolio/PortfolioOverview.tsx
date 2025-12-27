@@ -103,8 +103,8 @@ export function PortfolioOverview() {
 
         <Card className="group p-6 transition-all hover:scale-[1.02] hover:shadow-lg">
           <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-purple-500/10 p-3">
-              <Gauge className="h-5 w-5 text-purple-500" />
+            <div className="rounded-lg bg-accent/10 p-3">
+              <Gauge className="h-5 w-5 text-accent" />
             </div>
             <div className="flex-1">
               <div className="text-sm font-medium text-text-muted">

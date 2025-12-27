@@ -48,7 +48,7 @@ function TokenCard({ days, data, isLoading }: TokenCardProps) {
               <div key={provider} className="flex justify-between text-xs">
                 <span className={cn(
                   "capitalize",
-                  provider === 'gemini' ? "text-green-400" : "text-blue-400"
+                  provider === 'gemini' ? "text-status-success" : "text-status-info"
                 )}>
                   {provider}
                 </span>

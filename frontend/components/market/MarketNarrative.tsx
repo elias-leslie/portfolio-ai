@@ -95,7 +95,7 @@ export function MarketNarrative({
               "px-3 py-1 rounded-full font-bold text-sm",
               "bg-gradient-to-r",
               getSentimentColor(healthScore),
-              "text-white shadow-sm"
+              "text-text-inverted shadow-sm"
             )}
           >
             {healthScore}/100
@@ -111,7 +111,7 @@ export function MarketNarrative({
               "px-3 py-1 rounded-full font-bold text-sm",
               "bg-gradient-to-r",
               getSentimentColor(fearGreedScore),
-              "text-white shadow-sm"
+              "text-text-inverted shadow-sm"
             )}
           >
             {fearGreedScore}/100
