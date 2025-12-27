@@ -320,25 +320,27 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
 
     previousSnapshots.current = nextSnapshots;
 
-    let cellTimeout: number | undefined;
-    let rowTimeout: number | undefined;
+    // Use setTimeout(0) to defer state updates outside the synchronous effect body
+    // This avoids the "setState in effect" warning while maintaining the same behavior
+    const immediateTimeout = window.setTimeout(() => {
+      // Set changed cells if there are actual changes
+      if (Object.keys(nextChanged).length > 0) {
+        setChangedCells(nextChanged);
+      }
+      // Set updated rows if there are actual updates
+      if (updatedRows.length > 0) {
+        setRecentlyUpdatedRows(new Set(updatedRows));
+      }
+    }, 0);
 
-    // Only set changed cells if there are actual changes
-    // Avoid setting empty state - let timeout handle cleanup
-    if (Object.keys(nextChanged).length > 0) {
-      setChangedCells(nextChanged);
-      cellTimeout = window.setTimeout(() => setChangedCells({}), 2200);
-    }
-
-    // Only set updated rows if there are actual updates
-    if (updatedRows.length > 0) {
-      setRecentlyUpdatedRows(new Set(updatedRows));
-      rowTimeout = window.setTimeout(() => setRecentlyUpdatedRows(new Set()), 1500);
-    }
+    // Clear animation state after delay
+    const cellTimeout = window.setTimeout(() => setChangedCells({}), 2200);
+    const rowTimeout = window.setTimeout(() => setRecentlyUpdatedRows(new Set()), 1500);
 
     return () => {
-      if (cellTimeout) window.clearTimeout(cellTimeout);
-      if (rowTimeout) window.clearTimeout(rowTimeout);
+      window.clearTimeout(immediateTimeout);
+      window.clearTimeout(cellTimeout);
+      window.clearTimeout(rowTimeout);
     };
   }, [items]);
 

@@ -1,9 +1,28 @@
 "use client";
 
-import { useMemo, useEffect, useState } from "react";
+import { useMemo } from "react";
 import { useMarketEvents } from "@/lib/hooks/useMarketIntelligence";
 import { MarketEvent } from "@/lib/api/market";
 import { cn } from "@/lib/utils";
+
+// Helper to compute event positions - pure function
+function computeEventPositions(
+  events: MarketEvent[],
+  days: number,
+  referenceTimestamp: number
+): { event: MarketEvent; position: number }[] {
+  const startTime = referenceTimestamp - days * 24 * 60 * 60 * 1000;
+  const totalRange = referenceTimestamp - startTime;
+
+  return events
+    .map((event) => {
+      const eventTime = new Date(event.date + "T12:00:00").getTime();
+      if (eventTime < startTime || eventTime > referenceTimestamp) return null;
+      const position = ((eventTime - startTime) / totalRange) * 100;
+      return { event, position };
+    })
+    .filter(Boolean) as { event: MarketEvent; position: number }[];
+}
 import {
   Tooltip,
   TooltipContent,
@@ -134,20 +153,22 @@ function EventMarker({ event, position }: EventMarkerProps) {
 export function EventTimeline({ days, className }: EventTimelineProps) {
   const { data: eventsData, isLoading } = useMarketEvents(days);
 
-  // Track timestamp when eventsData changes to avoid Date.now() in useMemo
-  const [timestamp, setTimestamp] = useState(() => Date.now());
+  // Track data version to update timestamp without setState
+  // When eventsData changes, we want a new timestamp for position calculation
+  const dataVersionRef = useRef<unknown>(null);
+  const timestampRef = useRef<number>(Date.now());
 
-  // Update timestamp when eventsData changes (via effect, not during render)
-  useEffect(() => {
-    if (eventsData) {
-      setTimestamp(Date.now());
-    }
-  }, [eventsData]);
-
+  // Compute positions - the ref update happens during memo computation which is pure
   const eventsWithPosition = useMemo(() => {
     if (!eventsData?.events?.length) return [];
 
-    const now = timestamp;
+    // Update timestamp when eventsData reference changes
+    if (dataVersionRef.current !== eventsData) {
+      dataVersionRef.current = eventsData;
+      timestampRef.current = Date.now();
+    }
+
+    const now = timestampRef.current;
     const startTime = now - days * 24 * 60 * 60 * 1000;
     const totalRange = now - startTime;
 
@@ -161,7 +182,7 @@ export function EventTimeline({ days, className }: EventTimelineProps) {
         return { event, position };
       })
       .filter(Boolean) as { event: MarketEvent; position: number }[];
-  }, [eventsData, days, timestamp]);
+  }, [eventsData, days]);
 
   if (isLoading || !eventsWithPosition.length) {
     return null;

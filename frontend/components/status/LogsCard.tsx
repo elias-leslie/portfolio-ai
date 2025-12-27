@@ -112,15 +112,17 @@ export function LogsCard() {
         },
     });
 
+    // Extract logs for stable dependency - React Compiler optimization
+    const logs = data?.logs;
     const sortedLogs = useMemo(() => {
-        if (!data?.logs) return [];
+        if (!logs) return [];
         // Use toSorted to avoid mutating and ensure stable reference
-        return [...data.logs].toSorted((a, b) => {
+        return [...logs].toSorted((a, b) => {
             const timeA = new Date(a.timestamp).getTime();
             const timeB = new Date(b.timestamp).getTime();
             return sortOrder === "asc" ? timeA - timeB : timeB - timeA;
         });
-    }, [data?.logs, sortOrder]);
+    }, [logs, sortOrder]);
 
     const logCounts = useMemo(() => {
         return data?.levelCounts || {
