@@ -6,11 +6,6 @@ import { usePathname } from 'next/navigation';
 // Channel name for cross-window communication
 const AGENT_CHANNEL = 'portfolio-ai-agent-hub';
 
-interface PageContext {
-  path: string;
-  data?: Record<string, unknown>;
-}
-
 interface AgentContextValue {
   isOpen: boolean;
   openPanel: () => void;

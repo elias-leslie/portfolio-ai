@@ -15,14 +15,6 @@ function formatVolume(volume: number | null): string {
   return volume.toString();
 }
 
-function formatMarketCap(cap: number | null): string {
-  if (!cap) return "-";
-  if (cap >= 1_000_000_000_000) return `$${(cap / 1_000_000_000_000).toFixed(1)}T`;
-  if (cap >= 1_000_000_000) return `$${(cap / 1_000_000_000).toFixed(1)}B`;
-  if (cap >= 1_000_000) return `$${(cap / 1_000_000).toFixed(0)}M`;
-  return `$${cap.toLocaleString()}`;
-}
-
 function formatRvol(rvol: number | null): string {
   if (rvol === null || rvol === undefined) return "-";
   return `${rvol.toFixed(1)}x`;

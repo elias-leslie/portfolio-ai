@@ -1,7 +1,6 @@
 "use client";
 
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   LineChart,
   Line,
@@ -13,9 +12,8 @@ import {
   BarChart,
   Bar,
 } from "recharts";
-import { ArrowUpIcon, ArrowDownIcon, TrendingUp, TrendingDown } from "lucide-react";
+import { ArrowUpIcon, ArrowDownIcon, TrendingUp } from "lucide-react";
 import { format } from "date-fns";
-import { cn } from "@/lib/utils";
 
 // ============================================================================
 // Types
