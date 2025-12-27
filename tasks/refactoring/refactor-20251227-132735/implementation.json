@@ -88,7 +88,7 @@
             "Remove unused result variable in MaintenanceStatus.tsx",
             "Verify: npm run lint shows fewer warnings"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "2.2",
@@ -101,7 +101,7 @@
             "Add fetchAllData to useEffect dependency array or wrap it properly",
             "Verify: npm run lint shows no exhaustive-deps warnings for this file"
           ],
-          "passes": false
+          "passes": true
         }
       ]
     },
