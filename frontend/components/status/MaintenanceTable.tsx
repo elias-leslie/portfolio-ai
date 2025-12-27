@@ -127,40 +127,6 @@ export function MaintenanceTable() {
   const [batchResults, setBatchResults] = useState<BatchResult[]>([]);
   const [isRunningAll, setIsRunningAll] = useState(false);
 
-  // Check backup when dry-run is toggled off
-  useEffect(() => {
-    if (!dryRun) {
-      checkBackupStatus();
-    } else {
-      setBackupCheck(null);
-    }
-  }, [dryRun]);
-
-  const checkBackupStatus = async () => {
-    setIsCheckingBackup(true);
-    try {
-      const check = await checkBackupRequirements(24, true);
-      setBackupCheck(check);
-      if (!check.canProceed) {
-        toast.warning(`Backup check: ${check.blockingReason || "Requirements not met"}`);
-      }
-    } catch {
-      toast.error("Could not verify backup status");
-      setBackupCheck({
-        backupExists: false,
-        backupRecent: false,
-        backupVerified: false,
-        backupName: null,
-        backupAgeHours: null,
-        canProceed: false,
-        blockingReason: "Could not verify backup status",
-        warnings: [],
-      });
-    } finally {
-      setIsCheckingBackup(false);
-    }
-  };
-
   const handleRefresh = () => {
     fetchAllData();
   };
