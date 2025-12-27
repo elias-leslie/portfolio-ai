@@ -442,8 +442,8 @@ export function UnifiedNewsIntelligenceCard({
                   ? article.source.trim()
                   : formatVendorLabel(article.vendor);
 
-                const impactSummary = article.impactSummary;
-                const actionableInsight = article.actionableInsight;
+                const _impactSummary = article.impactSummary;
+                const _actionableInsight = article.actionableInsight;
                 const displayHeadline = article.headline;
 
                 // Generate unique key

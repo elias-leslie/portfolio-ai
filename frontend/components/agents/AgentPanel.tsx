@@ -64,16 +64,16 @@ const getServerUrl = () => {
   return `${window.location.origin}/dev-companion`;
 };
 
-export function AgentPanel({ open, onOpenChange, pageContext, standalone = false }: AgentPanelProps) {
+export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, standalone = false }: AgentPanelProps) {
   // Settings (includes llmProvider)
-  const settings = useAgentSettings();
+  const _settings = useAgentSettings();
 
   // Server/connection state
   const [serverUrl, setServerUrl] = useState<string | null>(null);
   const [wsUrl, setWsUrl] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
-  const [activeProvider, setActiveProvider] = useState<LLMProvider>('claude');
+  const [_activeProvider, setActiveProvider] = useState<LLMProvider>('claude');
 
   // Session state
   const [sessions, setSessions] = useState<Session[]>([]);

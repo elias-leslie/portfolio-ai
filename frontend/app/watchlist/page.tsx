@@ -31,7 +31,7 @@ export default function WatchlistPage() {
   const [signalFilter, setSignalFilter] = useState<SignalFilter>("all");
   const [riskFilter, setRiskFilter] = useState<RiskFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [isHydrated, setIsHydrated] = useState(false);
+  const [_isHydrated, _setIsHydrated] = useState(false);
 
   // Load saved filters from localStorage after hydration
   useEffect(() => {
@@ -47,7 +47,7 @@ export default function WatchlistPage() {
     if (savedRisk && ["all", "Low", "Medium-Low", "Medium", "High"].includes(savedRisk)) {
       setRiskFilter(savedRisk as RiskFilter);
     }
-    setIsHydrated(true);
+    _setIsHydrated(true);
   }, []);
 
   const { data: watchlistData, isLoading, error } = useWatchlist();
