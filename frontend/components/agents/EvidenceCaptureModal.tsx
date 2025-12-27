@@ -630,7 +630,7 @@ export function EvidenceCaptureModal({
                 <li>• Claude can read: data/debug-captures/latest.png</li>
                 <li>• Auto-cleanup keeps last 20 captures</li>
               </ul>
-              <p className="text-xs text-amber-500/80 mt-2">
+              <p className="text-xs text-warning/80 mt-2">
                 A permission popup will appear - select this tab to capture.
               </p>
             </div>
