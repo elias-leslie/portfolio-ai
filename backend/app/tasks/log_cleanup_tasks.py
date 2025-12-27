@@ -35,6 +35,24 @@ logger = get_logger(__name__)
 # Helper functions (pure logic, no Celery)
 
 
+def _build_error_result(
+    task_id: str,
+    error: Exception,
+    duration_seconds: float,
+    dry_run: bool | None = None,
+) -> dict[str, Any]:
+    """Build standardized error result dict for cleanup tasks."""
+    result: dict[str, Any] = {
+        "task_id": task_id,
+        "error": str(error),
+        "success": False,
+        "duration_seconds": round(duration_seconds, 2),
+    }
+    if dry_run is not None:
+        result["dry_run"] = dry_run
+    return result
+
+
 def _check_disk_space_impl() -> dict[str, Any]:
     """Check disk space usage and alert if >85%.
 
@@ -194,13 +212,7 @@ def rotate_logs_task(
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
         )
-        error_result = {
-            "task_id": task_id,
-            "dry_run": dry_run,
-            "error": str(e),
-            "success": False,
-            "duration_seconds": round(duration, 2),
-        }
+        error_result = _build_error_result(task_id, e, duration, dry_run=dry_run)
         log_maintenance_complete(log_id, "rotate_logs_task", False, error_result, str(e))
         return error_result
 
@@ -312,13 +324,7 @@ def cleanup_old_logs_task(
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
         )
-        error_result = {
-            "task_id": task_id,
-            "dry_run": dry_run,
-            "error": str(e),
-            "success": False,
-            "duration_seconds": round(duration, 2),
-        }
+        error_result = _build_error_result(task_id, e, duration, dry_run=dry_run)
         log_maintenance_complete(log_id, "cleanup_old_logs_task", False, error_result, str(e))
         return error_result
 
@@ -426,13 +432,7 @@ def cleanup_temp_files_task(
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
         )
-        error_result = {
-            "task_id": task_id,
-            "dry_run": dry_run,
-            "error": str(e),
-            "success": False,
-            "duration_seconds": round(duration, 2),
-        }
+        error_result = _build_error_result(task_id, e, duration, dry_run=dry_run)
         log_maintenance_complete(log_id, "cleanup_temp_files_task", False, error_result, str(e))
         return error_result
 
@@ -471,12 +471,7 @@ def check_disk_space_task(self: Task) -> dict[str, int | str | float | list[dict
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
         )
-        return {
-            "task_id": task_id,
-            "error": str(e),
-            "success": False,
-            "duration_seconds": round(duration, 2),
-        }
+        return _build_error_result(task_id, e, duration)
 
 
 @celery_app.task(name="cleanup_old_backups_task", bind=True)
@@ -596,13 +591,7 @@ def cleanup_old_backups_task(
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
         )
-        error_result = {
-            "task_id": task_id,
-            "dry_run": dry_run,
-            "error": str(e),
-            "success": False,
-            "duration_seconds": round(duration, 2),
-        }
+        error_result = _build_error_result(task_id, e, duration, dry_run=dry_run)
         log_maintenance_complete(log_id, "cleanup_old_backups_task", False, error_result, str(e))
         return error_result
 
@@ -736,13 +725,7 @@ def cleanup_old_models_task(
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
         )
-        error_result = {
-            "task_id": task_id,
-            "dry_run": dry_run,
-            "error": str(e),
-            "success": False,
-            "duration_seconds": round(duration, 2),
-        }
+        error_result = _build_error_result(task_id, e, duration, dry_run=dry_run)
         log_maintenance_complete(log_id, "cleanup_old_models_task", False, error_result, str(e))
         return error_result
 
@@ -870,13 +853,7 @@ def cleanup_solution_state_task(
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
         )
-        error_result = {
-            "task_id": task_id,
-            "dry_run": dry_run,
-            "error": str(e),
-            "success": False,
-            "duration_seconds": round(duration, 2),
-        }
+        error_result = _build_error_result(task_id, e, duration, dry_run=dry_run)
         log_maintenance_complete(log_id, "cleanup_solution_state_task", False, error_result, str(e))
         return error_result
 
@@ -1072,12 +1049,6 @@ def cleanup_cache_directories_task(self: Task, dry_run: bool = False) -> dict[st
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
         )
-        error_result = {
-            "task_id": task_id,
-            "dry_run": dry_run,
-            "error": str(e),
-            "success": False,
-            "duration_seconds": round(duration, 2),
-        }
+        error_result = _build_error_result(task_id, e, duration, dry_run=dry_run)
         log_maintenance_complete(log_id, "cleanup_cache_directories_task", False, error_result, str(e))
         return error_result

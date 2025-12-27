@@ -130,7 +130,7 @@
             "Replace 7 duplicate INSERT INTO maintenance_stats blocks with helper call",
             "Verify: Run ruff check app/tasks/log_cleanup_tasks.py"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.2",
