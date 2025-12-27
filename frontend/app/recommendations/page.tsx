@@ -31,7 +31,7 @@ import type { TradeRecommendation } from "@/lib/api/recommendations";
 function SignalBadge({ type, strength }: { type: string; strength: number }) {
   if (type === "BUY") {
     return (
-      <Badge className="bg-green-500/90 text-white">
+      <Badge className="bg-gain text-text-inverted">
         <TrendingUp className="mr-1 h-3 w-3" />
         BUY {strength}/10
       </Badge>
@@ -39,7 +39,7 @@ function SignalBadge({ type, strength }: { type: string; strength: number }) {
   }
   if (type === "SELL") {
     return (
-      <Badge className="bg-red-500/90 text-white">
+      <Badge className="bg-loss text-text-inverted">
         <TrendingDown className="mr-1 h-3 w-3" />
         SELL {strength}/10
       </Badge>
@@ -56,14 +56,14 @@ function SignalStatusBadge({ status }: { status: string }) {
   switch (status) {
     case "better_entry":
       return (
-        <Badge className="bg-emerald-500/90 text-white">
+        <Badge className="bg-gain text-text-inverted">
           <Sparkles className="mr-1 h-3 w-3" />
           Better Entry
         </Badge>
       );
     case "caution":
       return (
-        <Badge className="bg-amber-500/90 text-white">
+        <Badge className="bg-warning text-text-inverted">
           <AlertTriangle className="mr-1 h-3 w-3" />
           Caution
         </Badge>
@@ -77,21 +77,21 @@ function ValidationBadge({ validationType }: { validationType: "thesis" | "backt
   switch (validationType) {
     case "thesis":
       return (
-        <Badge className="bg-purple-500/90 text-white" title="Event-Driven: Validated by investment thesis">
+        <Badge className="bg-primary text-primary-foreground" title="Event-Driven: Validated by investment thesis">
           <FileText className="mr-1 h-3 w-3" />
           Thesis
         </Badge>
       );
     case "backtest":
       return (
-        <Badge className="bg-blue-500/90 text-white" title="Technical: Validated by backtest (Sharpe >= 1.0)">
+        <Badge className="bg-accent text-accent-foreground" title="Technical: Validated by backtest (Sharpe >= 1.0)">
           <BarChart3 className="mr-1 h-3 w-3" />
           Technical
         </Badge>
       );
     case "both":
       return (
-        <Badge className="bg-yellow-500/90 text-white" title="Highest confidence: Both thesis AND backtest validated">
+        <Badge className="bg-warning text-text-inverted" title="Highest confidence: Both thesis AND backtest validated">
           <Star className="mr-1 h-3 w-3" />
           Both
         </Badge>
@@ -149,7 +149,7 @@ function RecommendationCard({
           </div>
           <div className="text-right">
             <p className="text-xs text-text-muted">Since Signal</p>
-            <p className={`text-lg font-bold ${priceChange >= 0 ? "text-green-600" : "text-red-600"}`}>
+            <p className={`text-lg font-bold ${priceChange >= 0 ? "text-gain" : "text-loss"}`}>
               {priceChange >= 0 ? "+" : ""}{priceChangePct.toFixed(2)}%
             </p>
           </div>
@@ -157,26 +157,26 @@ function RecommendationCard({
 
         {/* Price Levels */}
         <div className="grid grid-cols-3 gap-4 text-center">
-          <div className="rounded-lg bg-red-50 p-3 dark:bg-red-950/30">
-            <p className="text-xs font-medium text-red-600 dark:text-red-400">Stop Loss</p>
-            <p className="text-lg font-bold text-red-700 dark:text-red-300">
+          <div className="rounded-lg bg-loss/10 p-3">
+            <p className="text-xs font-medium text-loss">Stop Loss</p>
+            <p className="text-lg font-bold text-loss-strong">
               ${rec.stopLoss.toFixed(2)}
             </p>
-            <p className="text-xs text-red-500">-{potentialLossPct.toFixed(1)}%</p>
+            <p className="text-xs text-loss">-{potentialLossPct.toFixed(1)}%</p>
           </div>
-          <div className="rounded-lg bg-blue-50 p-3 dark:bg-blue-950/30">
-            <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Signal Price</p>
-            <p className="text-lg font-bold text-blue-700 dark:text-blue-300">
+          <div className="rounded-lg bg-accent/10 p-3">
+            <p className="text-xs font-medium text-accent">Signal Price</p>
+            <p className="text-lg font-bold text-accent">
               ${rec.entryPrice.toFixed(2)}
             </p>
-            <p className="text-xs text-blue-500">{rec.signalDate}</p>
+            <p className="text-xs text-accent">{rec.signalDate}</p>
           </div>
-          <div className="rounded-lg bg-green-50 p-3 dark:bg-green-950/30">
-            <p className="text-xs font-medium text-green-600 dark:text-green-400">Target</p>
-            <p className="text-lg font-bold text-green-700 dark:text-green-300">
+          <div className="rounded-lg bg-gain/10 p-3">
+            <p className="text-xs font-medium text-gain">Target</p>
+            <p className="text-lg font-bold text-gain-strong">
               ${rec.targetPrice.toFixed(2)}
             </p>
-            <p className="text-xs text-green-500">+{potentialGainPct.toFixed(1)}%</p>
+            <p className="text-xs text-gain">+{potentialGainPct.toFixed(1)}%</p>
           </div>
         </div>
 
