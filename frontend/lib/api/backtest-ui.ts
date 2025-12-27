@@ -6,7 +6,6 @@
  */
 
 import { apiRequest } from "./client";
-import type { BacktestEquity } from "./backtest";
 
 // Re-export core backtest types and functions
 export type {

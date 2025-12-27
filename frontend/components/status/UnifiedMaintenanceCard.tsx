@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
 import { Card } from "@/components/ui/card";
 import {
   FolderOpen,
@@ -22,12 +21,9 @@ import {
   ShieldCheck,
   ShieldAlert,
   HardDrive,
-  Download,
   Calendar,
   Clock,
   Zap,
-  Cpu,
-  MemoryStick,
   Camera,
   Users,
   ServerCrash,
@@ -48,7 +44,6 @@ import {
   checkBackupRequirements,
   getCacheStatus,
   type FileCleanupStatusResponse,
-  type FileCleanupInfo,
   type MaintenanceResult,
   type LastRunSummary,
   type DiskSpaceResponse,

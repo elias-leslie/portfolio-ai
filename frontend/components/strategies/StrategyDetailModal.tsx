@@ -1,6 +1,5 @@
 "use client";
 
-import { formatDistanceToNow } from "date-fns";
 import {
   Dialog,
   DialogContent,
@@ -17,7 +16,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChevronDown, Archive, CheckCircle, TrendingUp, TrendingDown } from "lucide-react";
+import { ChevronDown, Archive, CheckCircle } from "lucide-react";
 import { useState } from "react";
 import { useStrategy, useUpdateStrategyStatus } from "@/lib/hooks/useStrategies";
 import { SeedEvolution } from "./SeedEvolution";
