@@ -11,15 +11,9 @@ import {
   closePaperTrade,
   createPaperTrade,
   resetPaperAccount,
-  type PaperTrade,
-  type PaperTradesListResponse,
-  type PaperTradeSummary,
   type CloseTradeRequest,
-  type CloseTradeResponse,
   type CreateTradeRequest,
-  type CreateTradeResponse,
   type ResetAccountRequest,
-  type ResetAccountResponse,
 } from "@/lib/api/paper-trades";
 
 // ============================================================================
