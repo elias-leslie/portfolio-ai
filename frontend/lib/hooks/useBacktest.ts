@@ -10,9 +10,6 @@ import {
   fetchBacktestEquity,
   startBacktest,
   deleteBacktestRun,
-  type BacktestRun,
-  type BacktestResult,
-  type BacktestEquity,
   type StartBacktestRequest,
   type StartBacktestResponse,
 } from "@/lib/api/backtest";

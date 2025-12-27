@@ -74,8 +74,8 @@ function TradingPageContent() {
     return sum + (current - entry) * shares;
   }, 0) || 0;
 
-  // Calculate total realized P&L (from closed trades)
-  const realizedPnl = summary ? (summary.totalPortfolioValue || 0) - (summary.startingBalance || 100000) - unrealizedPnl : 0;
+  // Calculate total realized P&L (from closed trades) - reserved for future use
+  const _realizedPnl = summary ? (summary.totalPortfolioValue || 0) - (summary.startingBalance || 100000) - unrealizedPnl : 0;
 
   // Calculate wins and losses count
   const winsCount = Math.round((summary?.winRate || 0) / 100 * (summary?.totalClosed || 0));

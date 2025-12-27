@@ -100,7 +100,7 @@ export default function StatusPage() {
 
     // Fetch detailed health info (day_bars, celery worker, API keys, disk)
     const [detailedHealth, setDetailedHealth] = useState<DetailedHealthResponse | null>(null);
-    const [detailedLoading, setDetailedLoading] = useState(false);
+    const [_detailedLoading, setDetailedLoading] = useState(false);
 
     // Fetch detailed health on mount and periodically
     useEffect(() => {
