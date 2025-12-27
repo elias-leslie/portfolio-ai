@@ -104,13 +104,13 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col bg-gray-900 text-gray-100 border-gray-700">
-        <DialogHeader className="border-b border-gray-700 pb-4">
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col bg-bg text-text border-border">
+        <DialogHeader className="border-b border-border pb-4">
           <DialogTitle>Agent Settings</DialogTitle>
         </DialogHeader>
 
         {/* Tabs */}
-        <div className="flex gap-1 border-b border-gray-700 -mx-6 px-6">
+        <div className="flex gap-1 border-b border-border -mx-6 px-6">
           {tabs.map(tab => (
             <button
               key={tab.id}
@@ -119,7 +119,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                 "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
                 activeTab === tab.id
                   ? "border-blue-500 text-blue-400"
-                  : "border-transparent text-gray-400 hover:text-gray-200"
+                  : "border-transparent text-text-muted hover:text-text"
               )}
             >
               {tab.label}
@@ -132,24 +132,24 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
           {activeTab === 'prompts' && (
             <>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-text-muted mb-2">
                   Dev Mode System Prompt
                 </label>
                 <textarea
                   value={settings.devSystemPrompt}
                   onChange={(e) => handleChange('devSystemPrompt', e.target.value)}
-                  className="w-full h-40 bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-blue-500"
+                  className="w-full h-40 bg-surface border border-border rounded px-3 py-2 text-sm text-text focus:outline-none focus:border-blue-500"
                   placeholder="Instructions for code assistance..."
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-text-muted mb-2">
                   Financial Advisor System Prompt
                 </label>
                 <textarea
                   value={settings.financialSystemPrompt}
                   onChange={(e) => handleChange('financialSystemPrompt', e.target.value)}
-                  className="w-full h-40 bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-blue-500"
+                  className="w-full h-40 bg-surface border border-border rounded px-3 py-2 text-sm text-text focus:outline-none focus:border-blue-500"
                   placeholder="Instructions for financial analysis..."
                 />
               </div>
@@ -158,7 +158,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
           {activeTab === 'cross-validation' && (
             <>
-              <p className="text-sm text-gray-400 mb-4">
+              <p className="text-sm text-text-muted mb-4">
                 Cross-validation uses multiple LLMs to verify outputs before applying changes.
               </p>
               <div className="space-y-4">
@@ -167,7 +167,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                     type="checkbox"
                     checked={settings.crossValidationEnabled}
                     onChange={(e) => handleChange('crossValidationEnabled', e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-600 focus:ring-blue-500"
+                    className="w-4 h-4 rounded border-border bg-surface text-blue-600 focus:ring-blue-500"
                   />
                   <span className="text-sm">Enable cross-validation</span>
                 </label>
@@ -177,7 +177,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                     type="checkbox"
                     checked={settings.requireHumanReview}
                     onChange={(e) => handleChange('requireHumanReview', e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-600 focus:ring-blue-500"
+                    className="w-4 h-4 rounded border-border bg-surface text-blue-600 focus:ring-blue-500"
                   />
                   <span className="text-sm">Require human review before applying</span>
                 </label>
@@ -187,7 +187,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                     type="checkbox"
                     checked={settings.fullAutoMode}
                     onChange={(e) => handleChange('fullAutoMode', e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-600 focus:ring-blue-500"
+                    className="w-4 h-4 rounded border-border bg-surface text-blue-600 focus:ring-blue-500"
                   />
                   <span className="text-sm">Full auto mode (apply validated changes automatically)</span>
                 </label>
@@ -197,13 +197,13 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                     type="checkbox"
                     checked={settings.notifyOnDisagreement}
                     onChange={(e) => handleChange('notifyOnDisagreement', e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-600 focus:ring-blue-500"
+                    className="w-4 h-4 rounded border-border bg-surface text-blue-600 focus:ring-blue-500"
                   />
                   <span className="text-sm">Notify when agents disagree</span>
                 </label>
 
                 <div>
-                  <label className="block text-sm text-gray-300 mb-2">
+                  <label className="block text-sm text-text-muted mb-2">
                     Auto-apply threshold: {settings.autoApplyThreshold}
                   </label>
                   <input
@@ -215,7 +215,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                     onChange={(e) => handleChange('autoApplyThreshold', parseFloat(e.target.value))}
                     className="w-full"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-text-muted mt-1">
                     Confidence threshold for auto-applying changes in full auto mode
                   </p>
                 </div>
@@ -226,12 +226,12 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
         </div>
 
         {/* Footer */}
-        <div className="flex justify-between items-center border-t border-gray-700 pt-4 -mx-6 px-6">
+        <div className="flex justify-between items-center border-t border-border pt-4 -mx-6 px-6">
           <Button
             variant="ghost"
             size="sm"
             onClick={handleReset}
-            className="text-gray-400"
+            className="text-text-muted"
           >
             <RotateCcw className="h-4 w-4 mr-2" />
             Reset to Defaults
