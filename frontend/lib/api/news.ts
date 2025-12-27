@@ -1,7 +1,6 @@
 import { apiRequest } from "./client";
 import type {
     NewsSentimentDetail,
-    RecentNewsPayload,
     SentimentArticle,
 } from "./watchlist";
 
@@ -11,7 +10,7 @@ export interface NewsBundle {
     articles: SentimentArticle[];
 }
 
-export interface MarketNewsResponse extends NewsBundle {}
+export type MarketNewsResponse = NewsBundle;
 
 export interface WatchlistNewsResponse {
     accountId: string;

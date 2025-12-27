@@ -66,7 +66,7 @@ export interface SymbolGaps {
 
 export interface WatchlistGaps {
   watchlistSymbols: string[];
-  symbolCoverage: Record<string, any>;
+  symbolCoverage: Record<string, unknown>;
   aggregateGaps: Array<{
     capability: string;
     description: string;
