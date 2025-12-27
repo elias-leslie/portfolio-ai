@@ -23,11 +23,11 @@ export function ResourceCard({
   const getStatusColor = () => {
     switch (status) {
       case "critical":
-        return "bg-red-500";
+        return "bg-loss";
       case "warning":
-        return "bg-yellow-500";
+        return "bg-warning";
       case "ok":
-        return "bg-green-500";
+        return "bg-gain";
       default:
         return "bg-surface-muted";
     }
@@ -37,11 +37,11 @@ export function ResourceCard({
   const getBadgeColor = () => {
     switch (status) {
       case "critical":
-        return "bg-red-100 text-red-800";
+        return "bg-loss/10 text-loss";
       case "warning":
-        return "bg-yellow-100 text-yellow-800";
+        return "bg-warning/10 text-warning";
       case "ok":
-        return "bg-green-100 text-green-800";
+        return "bg-gain/10 text-gain";
       default:
         return "bg-surface text-text";
     }

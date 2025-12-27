@@ -94,7 +94,7 @@ export function DisagreementAlert({
           {/* Gemini */}
           <div className="rounded bg-surface/50 p-2">
             <div className="flex items-center gap-1.5 mb-1">
-              <div className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+              <div className="h-1.5 w-1.5 rounded-full bg-accent" />
               <span className="text-xs font-medium text-text">Gemini</span>
             </div>
             <p className="text-xs text-text-muted line-clamp-3">
@@ -105,7 +105,7 @@ export function DisagreementAlert({
           {/* Claude */}
           <div className="rounded bg-surface/50 p-2">
             <div className="flex items-center gap-1.5 mb-1">
-              <div className="h-1.5 w-1.5 rounded-full bg-orange-500" />
+              <div className="h-1.5 w-1.5 rounded-full bg-warning" />
               <span className="text-xs font-medium text-text">Claude</span>
             </div>
             <p className="text-xs text-text-muted line-clamp-3">

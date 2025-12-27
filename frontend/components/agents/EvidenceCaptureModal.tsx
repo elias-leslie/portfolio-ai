@@ -750,7 +750,7 @@ export function EvidenceCaptureModal({
                           "w-full grid grid-cols-[1fr_2fr_1fr_60px_50px] gap-2 px-3 py-2 text-xs text-left",
                           "hover:bg-muted/50 border-b border-border/50 transition-colors",
                           selectedFeature === feature.featureId &&
-                            "bg-blue-500/10 hover:bg-blue-500/20"
+                            "bg-accent/10 hover:bg-accent/20"
                         )}
                         onClick={() => {
                           setSelectedFeature(feature.featureId);
@@ -765,7 +765,7 @@ export function EvidenceCaptureModal({
                         <span className="text-center">{feature.uiCount}</span>
                         <span className="text-center">
                           {feature.urlMatch && (
-                            <Link2 className="h-3.5 w-3.5 text-green-500 mx-auto" />
+                            <Link2 className="h-3.5 w-3.5 text-gain mx-auto" />
                           )}
                         </span>
                       </button>
@@ -793,24 +793,24 @@ export function EvidenceCaptureModal({
                             "w-full flex items-start gap-2 px-3 py-2 text-left text-xs",
                             "hover:bg-muted/50 transition-colors",
                             selectedCriterion === criterion.id &&
-                              "bg-blue-500/10 hover:bg-blue-500/20"
+                              "bg-accent/10 hover:bg-accent/20"
                           )}
                           onClick={() => setSelectedCriterion(criterion.id)}
                         >
                           <span
                             className={cn(
                               "font-mono shrink-0 mt-0.5",
-                              selectedCriterion === criterion.id && "text-blue-400"
+                              selectedCriterion === criterion.id && "text-accent"
                             )}
                           >
                             {criterion.id}
                           </span>
                           <span className="flex-1 line-clamp-2">{criterion.criterion}</span>
                           {isMatching && (
-                            <Link2 className="h-3.5 w-3.5 text-green-500 shrink-0 mt-0.5" />
+                            <Link2 className="h-3.5 w-3.5 text-gain shrink-0 mt-0.5" />
                           )}
                           {selectedCriterion === criterion.id && (
-                            <CheckCircle2 className="h-3.5 w-3.5 text-blue-400 shrink-0 mt-0.5" />
+                            <CheckCircle2 className="h-3.5 w-3.5 text-accent shrink-0 mt-0.5" />
                           )}
                         </button>
                       );
@@ -824,7 +824,7 @@ export function EvidenceCaptureModal({
                 {filteredFeatures.length} features
                 {urlMatchOnly && ` (${processedFeatures.filter((f) => f.urlMatch).length} URL matches)`}
                 {selectedFeature && selectedCriterion && (
-                  <span className="ml-2 text-blue-400">
+                  <span className="ml-2 text-accent">
                     → {selectedFeature} / {selectedCriterion}
                   </span>
                 )}
