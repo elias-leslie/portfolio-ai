@@ -457,12 +457,6 @@ export function UnifiedMaintenanceCard() {
     return "Ready";
   };
 
-  const getDiskStatusVariant = (percentage: number): "default" | "secondary" | "destructive" => {
-    if (percentage > 85) return "destructive";
-    if (percentage > 70) return "secondary";
-    return "default";
-  };
-
   const canRunLive = !dryRun && backupCheck?.canProceed === true;
   const liveBlocked = !dryRun && backupCheck !== null && !backupCheck.canProceed;
 
