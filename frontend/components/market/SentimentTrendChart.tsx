@@ -108,7 +108,7 @@ export function SentimentTrendChart() {
         <div className="font-medium mb-1">{dateStr}</div>
         {fgValue && (
           <div className="flex justify-between gap-4">
-            <span className="text-purple-400">Fear & Greed:</span>
+            <span className="text-purple-500">Fear & Greed:</span>
             <span className="font-semibold">{fgValue.value} ({fgValue.payload.label})</span>
           </div>
         )}

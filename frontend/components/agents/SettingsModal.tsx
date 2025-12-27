@@ -118,7 +118,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
               className={cn(
                 "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
                 activeTab === tab.id
-                  ? "border-blue-500 text-blue-400"
+                  ? "border-accent text-accent"
                   : "border-transparent text-text-muted hover:text-text"
               )}
             >
@@ -138,7 +138,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                 <textarea
                   value={settings.devSystemPrompt}
                   onChange={(e) => handleChange('devSystemPrompt', e.target.value)}
-                  className="w-full h-40 bg-surface border border-border rounded px-3 py-2 text-sm text-text focus:outline-none focus:border-blue-500"
+                  className="w-full h-40 bg-surface border border-border rounded px-3 py-2 text-sm text-text focus:outline-none focus:border-accent"
                   placeholder="Instructions for code assistance..."
                 />
               </div>
@@ -149,7 +149,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                 <textarea
                   value={settings.financialSystemPrompt}
                   onChange={(e) => handleChange('financialSystemPrompt', e.target.value)}
-                  className="w-full h-40 bg-surface border border-border rounded px-3 py-2 text-sm text-text focus:outline-none focus:border-blue-500"
+                  className="w-full h-40 bg-surface border border-border rounded px-3 py-2 text-sm text-text focus:outline-none focus:border-accent"
                   placeholder="Instructions for financial analysis..."
                 />
               </div>
@@ -167,7 +167,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                     type="checkbox"
                     checked={settings.crossValidationEnabled}
                     onChange={(e) => handleChange('crossValidationEnabled', e.target.checked)}
-                    className="w-4 h-4 rounded border-border bg-surface text-blue-600 focus:ring-blue-500"
+                    className="w-4 h-4 rounded border-border bg-surface text-accent focus:ring-accent"
                   />
                   <span className="text-sm">Enable cross-validation</span>
                 </label>
@@ -177,7 +177,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                     type="checkbox"
                     checked={settings.requireHumanReview}
                     onChange={(e) => handleChange('requireHumanReview', e.target.checked)}
-                    className="w-4 h-4 rounded border-border bg-surface text-blue-600 focus:ring-blue-500"
+                    className="w-4 h-4 rounded border-border bg-surface text-accent focus:ring-accent"
                   />
                   <span className="text-sm">Require human review before applying</span>
                 </label>
@@ -187,7 +187,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                     type="checkbox"
                     checked={settings.fullAutoMode}
                     onChange={(e) => handleChange('fullAutoMode', e.target.checked)}
-                    className="w-4 h-4 rounded border-border bg-surface text-blue-600 focus:ring-blue-500"
+                    className="w-4 h-4 rounded border-border bg-surface text-accent focus:ring-accent"
                   />
                   <span className="text-sm">Full auto mode (apply validated changes automatically)</span>
                 </label>
@@ -197,7 +197,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                     type="checkbox"
                     checked={settings.notifyOnDisagreement}
                     onChange={(e) => handleChange('notifyOnDisagreement', e.target.checked)}
-                    className="w-4 h-4 rounded border-border bg-surface text-blue-600 focus:ring-blue-500"
+                    className="w-4 h-4 rounded border-border bg-surface text-accent focus:ring-accent"
                   />
                   <span className="text-sm">Notify when agents disagree</span>
                 </label>

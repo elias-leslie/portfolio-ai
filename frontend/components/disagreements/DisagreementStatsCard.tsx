@@ -32,12 +32,12 @@ export function DisagreementStatsCard({ stats, className }: DisagreementStatsCar
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-text">LLM Consensus Metrics</h3>
         {meetsTarget ? (
-          <div className="flex items-center gap-1 text-green-500">
+          <div className="flex items-center gap-1 text-gain">
             <CheckCircle className="h-4 w-4" />
             <span className="text-sm">Target Met</span>
           </div>
         ) : (
-          <div className="flex items-center gap-1 text-yellow-500">
+          <div className="flex items-center gap-1 text-warning">
             <AlertTriangle className="h-4 w-4" />
             <span className="text-sm">Below Target</span>
           </div>
@@ -48,19 +48,19 @@ export function DisagreementStatsCard({ stats, className }: DisagreementStatsCar
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         {/* Agreement Rate */}
         <div className="text-center">
-          <div className="text-2xl font-bold text-green-500">{agreementPercent}%</div>
+          <div className="text-2xl font-bold text-gain">{agreementPercent}%</div>
           <div className="text-sm text-text-muted">Agreement</div>
         </div>
 
         {/* Minor Disagreements */}
         <div className="text-center">
-          <div className="text-2xl font-bold text-yellow-500">{minorPercent}%</div>
+          <div className="text-2xl font-bold text-warning">{minorPercent}%</div>
           <div className="text-sm text-text-muted">Minor</div>
         </div>
 
         {/* Major Disagreements */}
         <div className="text-center">
-          <div className="text-2xl font-bold text-red-500">{majorPercent}%</div>
+          <div className="text-2xl font-bold text-loss">{majorPercent}%</div>
           <div className="text-sm text-text-muted">Major</div>
         </div>
 
@@ -69,10 +69,10 @@ export function DisagreementStatsCard({ stats, className }: DisagreementStatsCar
           <div className="flex items-center justify-center gap-1">
             <span className="text-2xl font-bold text-text">{avgScore}%</span>
             {trendDirection === "improving" && (
-              <TrendingUp className="h-4 w-4 text-green-500" />
+              <TrendingUp className="h-4 w-4 text-gain" />
             )}
             {trendDirection === "declining" && (
-              <TrendingDown className="h-4 w-4 text-red-500" />
+              <TrendingDown className="h-4 w-4 text-loss" />
             )}
           </div>
           <div className="text-sm text-text-muted">Avg Score</div>

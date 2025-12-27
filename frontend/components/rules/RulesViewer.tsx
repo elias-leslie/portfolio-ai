@@ -188,9 +188,9 @@ export function RulesViewer() {
                         <div
                           className={`text-base font-semibold ${
                             catalyst.impact > 0
-                              ? "text-green-500"
+                              ? "text-gain"
                               : catalyst.impact < 0
-                              ? "text-red-500"
+                              ? "text-loss"
                               : "text-muted-foreground"
                           }`}
                         >
@@ -267,19 +267,19 @@ export function RulesViewer() {
       {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="rounded-lg border border-border bg-surface p-4">
-          <div className="text-2xl font-bold text-green-500">
+          <div className="text-2xl font-bold text-gain">
             {(rules.positionSizing.defaultRiskPercent * 100).toFixed(1)}%
           </div>
           <div className="text-sm text-muted-foreground">Default Risk/Trade</div>
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
-          <div className="text-2xl font-bold text-red-500">
+          <div className="text-2xl font-bold text-loss">
             {rules.riskManagement.portfolioDrawdownHaltPct.toFixed(0)}%
           </div>
           <div className="text-sm text-muted-foreground">Drawdown Halt</div>
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
-          <div className="text-2xl font-bold text-blue-500">
+          <div className="text-2xl font-bold text-accent">
             {rules.watchlistManagement.maxWatchlistSize}
           </div>
           <div className="text-sm text-muted-foreground">Max Watchlist</div>
