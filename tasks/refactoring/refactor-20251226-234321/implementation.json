@@ -91,7 +91,7 @@
             "Replace all hardcoded Tailwind colors with design tokens",
             "Verify: Zero violations in these files"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.2",
@@ -106,7 +106,7 @@
             "Replace all hardcoded Tailwind colors with design tokens",
             "Verify: Zero violations in these files"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.3",
@@ -119,7 +119,7 @@
             "Replace all hardcoded Tailwind colors with design tokens",
             "Verify: Zero violations in this file"
           ],
-          "passes": false
+          "passes": true
         }
       ]
     },
@@ -144,7 +144,7 @@
             "Replace all hardcoded Tailwind colors with design tokens",
             "Verify: Zero violations in these files"
           ],
-          "passes": false
+          "passes": true
         }
       ]
     },
@@ -172,7 +172,7 @@
             "Replace all hardcoded Tailwind colors with design tokens",
             "Verify: Zero violations in these files"
           ],
-          "passes": false
+          "passes": true
         }
       ]
     },
@@ -191,7 +191,7 @@
             "Run: cd frontend && npm run lint 2>&1 | grep -c 'no-restricted-syntax' || echo 0",
             "Verify: 0 design token violations"
           ],
-          "passes": false
+          "passes": true
         }
       ]
     }
