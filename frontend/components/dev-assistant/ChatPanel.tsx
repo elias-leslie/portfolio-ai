@@ -136,8 +136,8 @@ export default function ChatPanel({ sessionId, serverUrl }: ChatPanelProps) {
       setIsConnected(false);
       console.log('WebSocket disconnected:', event.code, event.reason);
       wsRef.current = null;
-      // Attempt reconnect after 3 seconds
-      reconnectTimeoutRef.current = setTimeout(connect, 3000);
+      // Attempt reconnect after 3 seconds (arrow wrapper avoids forward reference)
+      reconnectTimeoutRef.current = setTimeout(() => connect(), 3000);
     };
 
     ws.onerror = () => {
@@ -147,6 +147,8 @@ export default function ChatPanel({ sessionId, serverUrl }: ChatPanelProps) {
 
     ws.onmessage = (event) => {
       const msg: WebSocketMessage = toCamelCaseKeys(JSON.parse(event.data));
+      // Capture timestamp once at event time (avoids render-time object creation)
+      const eventTime = new Date();
 
       switch (msg.type) {
         case 'stream':
@@ -166,7 +168,7 @@ export default function ChatPanel({ sessionId, serverUrl }: ChatPanelProps) {
                 role: 'assistant',
                 content: blocksToText(blocks),
                 blocks: blocks,
-                timestamp: new Date(),
+                timestamp: eventTime,
               },
             ]);
           }
@@ -180,7 +182,7 @@ export default function ChatPanel({ sessionId, serverUrl }: ChatPanelProps) {
             {
               role: 'system',
               content: `Error: ${msg.message}`,
-              timestamp: new Date(),
+              timestamp: eventTime,
             },
           ]);
           setIsLoading(false);
@@ -190,9 +192,10 @@ export default function ChatPanel({ sessionId, serverUrl }: ChatPanelProps) {
         case 'permission_request':
           // Show permission prompt to user
           if (msg.toolName && msg.toolInput) {
+            // Deep copy to prevent external mutation
             setPendingPermission({
               toolName: msg.toolName,
-              toolInput: msg.toolInput,
+              toolInput: JSON.parse(JSON.stringify(msg.toolInput)),
             });
           }
           break;

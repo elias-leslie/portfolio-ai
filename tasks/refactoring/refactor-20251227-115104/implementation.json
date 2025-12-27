@@ -1,0 +1,197 @@
+{
+  "_instructions": {
+    "critical": "Only modify 'passes' field. Never change structure.",
+    "workflow": "One task at a time. Full verification. Commit after each."
+  },
+  "meta": {
+    "title": "Portfolio-AI React Compiler Errors + Unused Variables Cleanup",
+    "created": "2025-12-27",
+    "baseline": {
+      "lint_errors": 12,
+      "lint_warnings": 35,
+      "files_with_issues": 12
+    },
+    "targets": {
+      "SettingsModal.tsx": "2 setState in effect errors - use lazy initialization",
+      "ChatPanel.tsx": "6 errors - forward reference, render-time objects, mutable refs",
+      "UnifiedMaintenanceCard.tsx": "3 errors - memoization issues",
+      "useStatusStream.ts": "1 setState in effect - derive state instead"
+    }
+  },
+  "phases": [
+    {
+      "id": 1,
+      "name": "React Compiler Errors - Critical",
+      "goal": "Fix all 12 React compiler errors",
+      "tasks": [
+        {
+          "id": "1.1",
+          "category": "frontend",
+          "description": "Fix SettingsModal.tsx setState in effect (lines 82, 267)",
+          "files_affected": ["frontend/components/agents/SettingsModal.tsx"],
+          "steps": [
+            "Line 82: Replace useState(DEFAULT_SETTINGS) with useState(() => loadSettings())",
+            "Remove the useEffect that calls setSettings(loadSettings()) at line 80-83",
+            "Line 267 (useAgentSettings hook): Same fix - lazy initialization",
+            "Keep the storage listener effect but remove the initial setSettings call",
+            "Verify: npm run lint shows fewer errors"
+          ],
+          "passes": true
+        },
+        {
+          "id": "1.2",
+          "category": "frontend",
+          "description": "Fix useStatusStream.ts setState in effect (line 59)",
+          "files_affected": ["frontend/lib/hooks/useStatusStream.ts"],
+          "steps": [
+            "Rename connectionState to internalConnectionState (exclude 'fallback' type)",
+            "Derive connectionState: useFallback ? 'fallback' : internalConnectionState",
+            "Remove the sync effect at lines 57-61",
+            "Update all setConnectionState calls to setInternalConnectionState",
+            "Verify: npm run lint shows fewer errors"
+          ],
+          "passes": true
+        },
+        {
+          "id": "1.3",
+          "category": "frontend",
+          "description": "Fix ChatPanel.tsx forward reference error (line 140)",
+          "files_affected": ["frontend/components/dev-assistant/ChatPanel.tsx"],
+          "steps": [
+            "Line 140: setTimeout(connect, 3000) references connect before declaration",
+            "Move the connect useCallback definition BEFORE the ws.onclose that uses it",
+            "Or wrap in arrow function: setTimeout(() => connect(), 3000)",
+            "Verify: npm run lint shows fewer errors"
+          ],
+          "passes": false
+        },
+        {
+          "id": "1.4",
+          "category": "frontend",
+          "description": "Fix ChatPanel.tsx render-time object creation (lines 165, 194, 219, 230)",
+          "files_affected": ["frontend/components/dev-assistant/ChatPanel.tsx"],
+          "steps": [
+            "Capture timestamp BEFORE state updates: const now = new Date()",
+            "Line 165: Use pre-computed timestamp in message object",
+            "Line 194: Deep copy toolInput: JSON.parse(JSON.stringify(msg.toolInput))",
+            "Verify all setState calls use immutable/pre-computed values",
+            "Verify: npm run lint shows fewer errors"
+          ],
+          "passes": false
+        },
+        {
+          "id": "1.5",
+          "category": "frontend",
+          "description": "Fix UnifiedMaintenanceCard.tsx memoization issues",
+          "files_affected": ["frontend/components/status/UnifiedMaintenanceCard.tsx"],
+          "steps": [
+            "Line 460: Remove unused getDiskStatusVariant function",
+            "Verify the actual lint errors at lines 90, 115, 288",
+            "If setState in effect: apply same lazy initialization pattern",
+            "Verify: npm run lint shows fewer errors"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Unused Variables Cleanup",
+      "goal": "Fix all 35 unused variable warnings",
+      "tasks": [
+        {
+          "id": "2.1",
+          "category": "frontend",
+          "description": "Fix unused variables in page components",
+          "files_affected": [
+            "frontend/app/status/page.tsx",
+            "frontend/app/trading/page.tsx"
+          ],
+          "steps": [
+            "status/page.tsx:103 - Remove or use _detailedLoading",
+            "trading/page.tsx:73 - Remove or use _realizedPnl",
+            "Verify: npm run lint shows fewer warnings"
+          ],
+          "passes": false
+        },
+        {
+          "id": "2.2",
+          "category": "frontend",
+          "description": "Fix unused variables in Navigation and backtest components",
+          "files_affected": [
+            "frontend/components/Navigation.tsx",
+            "frontend/components/backtest/BacktestDetails.tsx"
+          ],
+          "steps": [
+            "Navigation.tsx:233 - Remove unused 'result' variable",
+            "BacktestDetails.tsx:698 - incompatible library warning (may need to skip)",
+            "Verify: npm run lint shows fewer warnings"
+          ],
+          "passes": false
+        },
+        {
+          "id": "2.3",
+          "category": "frontend",
+          "description": "Fix unused variables in watchlist components",
+          "files_affected": [
+            "frontend/app/watchlist/page.tsx",
+            "frontend/components/watchlist/WatchlistCard.tsx"
+          ],
+          "steps": [
+            "watchlist/page.tsx - Remove unused variables (multiple)",
+            "WatchlistCard.tsx - Remove priceStale, techStale if unused",
+            "Verify: npm run lint shows fewer warnings"
+          ],
+          "passes": false
+        },
+        {
+          "id": "2.4",
+          "category": "frontend",
+          "description": "Fix unused imports in hook files",
+          "files_affected": [
+            "frontend/lib/hooks/useBacktestUI.ts",
+            "frontend/lib/hooks/usePaperTrades.ts"
+          ],
+          "steps": [
+            "useBacktestUI.ts:9 - Remove BacktestComparisonResponse, MonteCarloResponse",
+            "usePaperTrades.ts - Remove 6 unused type imports",
+            "Verify: npm run lint shows fewer warnings"
+          ],
+          "passes": false
+        },
+        {
+          "id": "2.5",
+          "category": "frontend",
+          "description": "Fix unused variables in test setup",
+          "files_affected": ["frontend/tests/setup.ts"],
+          "steps": [
+            "Lines 31, 33, 37 - Rename unused params to _ prefix or remove",
+            "Verify: npm run lint shows fewer warnings"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Final Verification",
+      "goal": "All checks pass, error count reduced",
+      "tasks": [
+        {
+          "id": "3.1",
+          "category": "verification",
+          "description": "Run full verification suite",
+          "files_affected": [],
+          "steps": [
+            "Run: cd frontend && npm run build",
+            "Run: cd frontend && npm run lint 2>&1 | grep -c 'error' (expect <5)",
+            "Run: cd backend && .venv/bin/pytest tests/ -x --tb=short -q",
+            "Verify: bash ~/portfolio-ai/scripts/restart.sh succeeds",
+            "Verify: curl -sf http://localhost:8000/api/health returns healthy"
+          ],
+          "passes": false
+        }
+      ]
+    }
+  ]
+}
