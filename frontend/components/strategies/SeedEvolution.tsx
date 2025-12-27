@@ -10,6 +10,7 @@ import {
   Target,
   TrendingUp,
   ArrowRight,
+  CheckCircle,
 } from "lucide-react";
 import { useStrategyEvolution } from "@/lib/hooks/useStrategies";
 

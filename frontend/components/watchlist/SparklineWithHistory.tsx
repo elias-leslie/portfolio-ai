@@ -42,10 +42,10 @@ export function SparklineWithHistory({
     Swing: 10,
     Event: 5,
   };
-  const desiredDays = recommendedStyle ? styleToDays[recommendedStyle] || 7 : 7;
+  const _desiredDays = recommendedStyle ? styleToDays[recommendedStyle] || 7 : 7;
 
   const { data: historyResponse, isLoading, error } = useScoreHistory(itemId);
-  // TODO: When backend supports days parameter, use: useScoreHistory(itemId, desiredDays)
+  // TODO: When backend supports days parameter, use: useScoreHistory(itemId, _desiredDays)
 
   // Loading state
   if (isLoading) {
