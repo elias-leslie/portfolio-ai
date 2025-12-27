@@ -161,6 +161,30 @@ function MetricCard({ label, value, format: formatType = "number", trend }: Metr
 // ============================================================================
 
 export function PaperTradePerformance({ trades, isLoading }: PaperTradePerformanceProps) {
+  // Hooks must be called unconditionally before any early returns
+  // Cumulative return chart data - wrapped in useMemo to avoid render-time mutation
+  const chartData = useMemo(() => {
+    if (trades.length === 0) return [];
+
+    const closedTrades = trades
+      .filter((t) => t.status !== "open" && t.exitDate)
+      .sort((a, b) => new Date(a.exitDate!).getTime() - new Date(b.exitDate!).getTime());
+
+    // Use reduce to build cumulative data without mutation
+    return closedTrades.reduce<{ date: string; return: number }[]>((acc, trade) => {
+      const prevTotal = acc.length > 0 ? acc[acc.length - 1].return : 0;
+      acc.push({
+        date: trade.exitDate!,
+        return: prevTotal + (trade.returnPct ?? 0),
+      });
+      return acc;
+    }, []);
+  }, [trades]);
+
+  // Calculate metrics (pure functions, no hooks)
+  const metrics = useMemo(() => calculateMetrics(trades), [trades]);
+  const featureContributions = useMemo(() => calculateFeatureContributions(trades), [trades]);
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -181,26 +205,6 @@ export function PaperTradePerformance({ trades, isLoading }: PaperTradePerforman
       </Card>
     );
   }
-
-  const metrics = calculateMetrics(trades);
-  const featureContributions = calculateFeatureContributions(trades);
-
-  // Cumulative return chart data - wrapped in useMemo to avoid render-time mutation
-  const chartData = useMemo(() => {
-    const closedTrades = trades
-      .filter((t) => t.status !== "open" && t.exitDate)
-      .sort((a, b) => new Date(a.exitDate!).getTime() - new Date(b.exitDate!).getTime());
-
-    // Use reduce to build cumulative data without mutation
-    return closedTrades.reduce<{ date: string; return: number }[]>((acc, trade) => {
-      const prevTotal = acc.length > 0 ? acc[acc.length - 1].return : 0;
-      acc.push({
-        date: trade.exitDate!,
-        return: prevTotal + (trade.returnPct ?? 0),
-      });
-      return acc;
-    }, []);
-  }, [trades]);
 
   return (
     <div className="space-y-6">

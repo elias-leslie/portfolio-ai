@@ -282,11 +282,14 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
     return `${formatted} ${tzAbbr}`;
   };
 
+  // Track change detection for cell flash animations
+  // Uses refs to avoid synchronous setState in effect body
   useEffect(() => {
+    // Handle empty items - clear refs only, no setState needed
+    // The render will use current state which may be stale but harmless
     if (!items.length) {
       previousSnapshots.current = new Map();
-      setChangedCells({});
-      setRecentlyUpdatedRows(new Set());
+      // Let the animation timeouts clear themselves naturally
       return;
     }
 
@@ -320,18 +323,17 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
     let cellTimeout: number | undefined;
     let rowTimeout: number | undefined;
 
+    // Only set changed cells if there are actual changes
+    // Avoid setting empty state - let timeout handle cleanup
     if (Object.keys(nextChanged).length > 0) {
       setChangedCells(nextChanged);
       cellTimeout = window.setTimeout(() => setChangedCells({}), 2200);
-    } else {
-      setChangedCells({});
     }
 
+    // Only set updated rows if there are actual updates
     if (updatedRows.length > 0) {
       setRecentlyUpdatedRows(new Set(updatedRows));
       rowTimeout = window.setTimeout(() => setRecentlyUpdatedRows(new Set()), 1500);
-    } else {
-      setRecentlyUpdatedRows(new Set());
     }
 
     return () => {

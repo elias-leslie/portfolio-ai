@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { useMarketEvents } from "@/lib/hooks/useMarketIntelligence";
 import { MarketEvent } from "@/lib/api/market";
 import { cn } from "@/lib/utils";
@@ -134,17 +134,20 @@ function EventMarker({ event, position }: EventMarkerProps) {
 export function EventTimeline({ days, className }: EventTimelineProps) {
   const { data: eventsData, isLoading } = useMarketEvents(days);
 
-  // Cache timestamp to avoid impure Date.now() in useMemo
-  // Reset when eventsData changes (new data fetch)
-  const timestampRef = useRef<number>(Date.now());
-  if (eventsData) {
-    timestampRef.current = Date.now();
-  }
+  // Track timestamp when eventsData changes to avoid Date.now() in useMemo
+  const [timestamp, setTimestamp] = useState(() => Date.now());
+
+  // Update timestamp when eventsData changes (via effect, not during render)
+  useEffect(() => {
+    if (eventsData) {
+      setTimestamp(Date.now());
+    }
+  }, [eventsData]);
 
   const eventsWithPosition = useMemo(() => {
     if (!eventsData?.events?.length) return [];
 
-    const now = timestampRef.current;
+    const now = timestamp;
     const startTime = now - days * 24 * 60 * 60 * 1000;
     const totalRange = now - startTime;
 
@@ -158,7 +161,7 @@ export function EventTimeline({ days, className }: EventTimelineProps) {
         return { event, position };
       })
       .filter(Boolean) as { event: MarketEvent; position: number }[];
-  }, [eventsData, days]);
+  }, [eventsData, days, timestamp]);
 
   if (isLoading || !eventsWithPosition.length) {
     return null;
