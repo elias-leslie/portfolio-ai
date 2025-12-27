@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from app.logging_config import get_logger
 from app.storage import get_storage
+from app.storage.helpers import row_to_dict, rows_to_dicts
 from app.watchlist.watchlist_service import WatchlistService
 
 logger = get_logger(__name__)
@@ -325,8 +326,7 @@ def _get_portfolio_data(symbol: str) -> dict[str, Any]:
             )
             pos_row = pos_result.fetchone()
             if pos_row and pos_result.description:
-                pos_cols = [desc[0] for desc in pos_result.description]
-                position = dict(zip(pos_cols, pos_row, strict=True))
+                position = row_to_dict(pos_row, pos_result.description)
 
             # Get portfolio summary
             summary_result = conn.execute(
@@ -340,8 +340,7 @@ def _get_portfolio_data(symbol: str) -> dict[str, Any]:
             )
             sum_row = summary_result.fetchone()
             if sum_row and summary_result.description:
-                sum_cols = [desc[0] for desc in summary_result.description]
-                summary = dict(zip(sum_cols, sum_row, strict=True))
+                summary = row_to_dict(sum_row, summary_result.description)
     except Exception as e:
         logger.warning(f"Failed to get portfolio data for {symbol}: {e}")
 
@@ -369,8 +368,7 @@ def _get_paper_trades_data(symbol: str) -> dict[str, Any]:
             )
             rows = result.fetchall()
             if rows and result.description:
-                cols = [desc[0] for desc in result.description]
-                trades = [dict(zip(cols, r, strict=True)) for r in rows]
+                trades = rows_to_dicts(rows, result.description)
     except Exception as e:
         logger.warning(f"Failed to get paper trades data for {symbol}: {e}")
 
@@ -413,8 +411,7 @@ def _get_strategies_data(symbol: str) -> dict[str, Any]:
             )
             rows = result.fetchall()
             if rows and result.description:
-                cols = [desc[0] for desc in result.description]
-                strategies = [dict(zip(cols, r, strict=True)) for r in rows]
+                strategies = rows_to_dicts(rows, result.description)
     except Exception as e:
         logger.warning(f"Failed to get strategies data for {symbol}: {e}")
 
@@ -442,8 +439,7 @@ def _get_news_data(symbol: str) -> dict[str, Any]:
             )
             row = result.fetchone()
             if row and result.description:
-                cols = [desc[0] for desc in result.description]
-                return dict(zip(cols, row, strict=True))
+                return row_to_dict(row, result.description)
     except Exception as e:
         logger.warning(f"Failed to get news data for {symbol}: {e}")
     return {}
@@ -467,8 +463,7 @@ def _get_market_data() -> dict[str, Any]:
             )
             fg_row = fg_result.fetchone()
             if fg_row and fg_result.description:
-                fg_cols = [desc[0] for desc in fg_result.description]
-                fear_greed = dict(zip(fg_cols, fg_row, strict=True))
+                fear_greed = row_to_dict(fg_row, fg_result.description)
     except Exception as e:
         logger.warning(f"Failed to get fear/greed data: {e}")
 
@@ -488,9 +483,7 @@ def _get_market_data() -> dict[str, Any]:
             )
             rows = ind_result.fetchall()
             if rows and ind_result.description:
-                cols = [desc[0] for desc in ind_result.description]
-                for row in rows:
-                    r = dict(zip(cols, row, strict=True))
+                for r in rows_to_dicts(rows, ind_result.description):
                     if r["symbol"] not in indicators:
                         indicators[r["symbol"]] = r
     except Exception as e:
