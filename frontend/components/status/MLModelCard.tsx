@@ -212,7 +212,7 @@ export function MLModelCard() {
             {trainingProgress.currentStep}
           </p>
           {trainingProgress.errorMessage && (
-            <p className="text-xs text-red-500">
+            <p className="text-xs text-status-error">
               Error: {trainingProgress.errorMessage}
             </p>
           )}
@@ -340,9 +340,9 @@ function renderMetricRow(
 }
 
 function getAccuracyBadge(accuracy: number) {
-  if (accuracy >= 0.8) return <Badge className="bg-green-500 text-white">Excellent</Badge>;
-  if (accuracy >= 0.7) return <Badge className="bg-blue-500 text-white">Good</Badge>;
-  if (accuracy >= 0.6) return <Badge className="bg-yellow-500 text-white">Fair</Badge>;
+  if (accuracy >= 0.8) return <Badge className="bg-status-success text-white">Excellent</Badge>;
+  if (accuracy >= 0.7) return <Badge className="bg-status-info text-white">Good</Badge>;
+  if (accuracy >= 0.6) return <Badge className="bg-status-warning text-white">Fair</Badge>;
   return <Badge variant="destructive">Poor</Badge>;
 }
 
@@ -364,7 +364,7 @@ function getMetricTrend(current: number, previous?: number) {
 
   const rising = current > previous;
   const Icon = rising ? TrendingUp : TrendingDown;
-  const tone = rising ? "text-green-500" : "text-red-500";
+  const tone = rising ? "text-status-success" : "text-status-error";
 
   return (
     <span className={`flex items-center text-xs ${tone}`}>

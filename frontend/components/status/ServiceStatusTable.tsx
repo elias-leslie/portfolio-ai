@@ -53,11 +53,11 @@ export function ServiceStatusTable({
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "running":
-        return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+        return <CheckCircle2 className="h-4 w-4 text-status-success" />;
       case "degraded":
-        return <AlertCircle className="h-4 w-4 text-yellow-500" />;
+        return <AlertCircle className="h-4 w-4 text-status-warning" />;
       case "down":
-        return <XCircle className="h-4 w-4 text-red-500" />;
+        return <XCircle className="h-4 w-4 text-status-error" />;
       default:
         return <Server className="h-4 w-4 text-muted-foreground" />;
     }
@@ -70,9 +70,9 @@ export function ServiceStatusTable({
       down: "destructive",
     };
     const colors: Record<string, string> = {
-      running: "bg-green-600",
-      degraded: "bg-yellow-600",
-      down: "bg-red-600",
+      running: "bg-status-success",
+      degraded: "bg-status-warning",
+      down: "bg-status-error",
     };
     return (
       <Badge
@@ -99,18 +99,18 @@ export function ServiceStatusTable({
       <div className="flex items-center gap-4 text-sm">
         <span className="text-muted-foreground">Services:</span>
         <span className="flex items-center gap-1.5">
-          <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+          <CheckCircle2 className="h-3.5 w-3.5 text-status-success" />
           {runningCount} running
         </span>
         {degradedCount > 0 && (
           <span className="flex items-center gap-1.5">
-            <AlertCircle className="h-3.5 w-3.5 text-yellow-500" />
+            <AlertCircle className="h-3.5 w-3.5 text-status-warning" />
             {degradedCount} degraded
           </span>
         )}
         {downCount > 0 && (
           <span className="flex items-center gap-1.5">
-            <XCircle className="h-3.5 w-3.5 text-red-500" />
+            <XCircle className="h-3.5 w-3.5 text-status-error" />
             {downCount} down
           </span>
         )}
