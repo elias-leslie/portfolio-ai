@@ -255,8 +255,8 @@ export function CeleryTaskTable() {
                           )}
                           {task.result && (
                             <div>
-                              <span className="font-semibold text-green-600 dark:text-green-400 uppercase text-xs">Result</span>
-                              <pre className="bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 p-2 rounded mt-1 overflow-x-auto text-xs font-mono text-foreground">
+                              <span className="font-semibold text-status-success uppercase text-xs">Result</span>
+                              <pre className="bg-status-success/10 border border-status-success/20 p-2 rounded mt-1 overflow-x-auto text-xs font-mono text-foreground">
                                 {task.result}
                               </pre>
                             </div>
