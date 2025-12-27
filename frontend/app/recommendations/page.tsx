@@ -119,7 +119,7 @@ function RecommendationCard({
   const priceChangePct = (priceChange / rec.entryPrice) * 100;
 
   return (
-    <Card className={`transition-shadow hover:shadow-lg ${rec.signalStatus === "caution" ? "border-amber-300 dark:border-amber-700" : ""}`}>
+    <Card className={`transition-shadow hover:shadow-lg ${rec.signalStatus === "caution" ? "border-warning" : ""}`}>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div>
@@ -420,7 +420,7 @@ export default function RecommendationsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-text-muted">Active Picks</p>
-                <p className="text-3xl font-bold text-green-600">
+                <p className="text-3xl font-bold text-gain">
                   {summary?.buySignals || 0}
                 </p>
               </div>
@@ -452,7 +452,7 @@ export default function RecommendationsPage() {
                   ${(summary?.totalPositionSize || 0).toLocaleString()}
                 </p>
               </div>
-              <DollarSign className="h-8 w-8 text-green-600" />
+              <DollarSign className="h-8 w-8 text-gain" />
             </div>
           </CardContent>
         </Card>
@@ -511,10 +511,10 @@ export default function RecommendationsPage() {
           ))}
         </div>
       ) : error ? (
-        <Card className="border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/20">
+        <Card className="border-loss/30 bg-loss/10">
           <CardContent className="flex items-center gap-3 py-6">
-            <AlertCircle className="h-5 w-5 text-red-600" />
-            <p className="text-red-600">
+            <AlertCircle className="h-5 w-5 text-loss" />
+            <p className="text-loss">
               Failed to load recommendations: {error instanceof Error ? error.message : "Unknown error"}
             </p>
           </CardContent>
