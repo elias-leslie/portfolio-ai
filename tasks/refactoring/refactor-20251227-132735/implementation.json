@@ -124,7 +124,7 @@
             "Run: cd backend && .venv/bin/ruff check app/api/symbols.py",
             "Run: cd backend && .venv/bin/pytest tests/ -x --tb=short -q"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.2",

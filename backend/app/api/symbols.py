@@ -496,6 +496,107 @@ def _get_market_data() -> dict[str, Any]:
     }
 
 
+def _build_scores_section(watchlist: dict[str, Any]) -> ScoresSection:
+    """Build the scores section from watchlist data."""
+    pillars = {}
+    pillar_weights = {
+        "price": 0.22,
+        "technical": 0.22,
+        "fundamental": 0.26,
+        "catalyst": 0.17,
+        "options_flow": 0.08,
+        "performance": 0.05,
+    }
+    for pillar, weight in pillar_weights.items():
+        score_key = f"{pillar}_score"
+        pillars[pillar] = PillarScore(
+            score=watchlist.get(score_key),
+            weight=weight,
+            sub_scores=watchlist.get(f"{pillar}_sub_scores"),
+            metadata=watchlist.get(f"{pillar}_metadata"),
+            stale=watchlist.get(f"{pillar}_stale", False) or False,
+        )
+
+    return ScoresSection(
+        overall=watchlist.get("overall_score"),
+        signal_type=watchlist.get("signal_type"),
+        signal_strength=watchlist.get("signal_strength"),
+        pillars=pillars,
+        data_quality={
+            "overall_pct": watchlist.get("data_quality_overall_pct"),
+            "pillars": watchlist.get("data_quality_pillars"),
+        },
+    )
+
+
+def _build_portfolio_section(
+    position: dict[str, Any] | None, summary: dict[str, Any] | None
+) -> PortfolioSection:
+    """Build the portfolio section from position and summary data."""
+    if position:
+        current_price = position.get("current_price") or position.get("cost_basis") or 0
+        current_value = position.get("shares", 0) * current_price
+        cost_total = position.get("shares", 0) * position.get("cost_basis", 0)
+        gain = current_value - cost_total
+        gain_pct = (gain / cost_total * 100) if cost_total else 0
+        total_value = (summary.get("total_value") if summary else None) or current_value
+
+        return PortfolioSection(
+            held=True,
+            position=PositionInfo(
+                shares=position.get("shares", 0),
+                cost_basis=position.get("cost_basis", 0),
+                current_value=current_value,
+                gain=gain,
+                gain_pct=gain_pct,
+                weight_pct=(current_value / total_value * 100) if total_value else 0,
+            ),
+            context=PortfolioContext(
+                total_value=total_value,
+                num_holdings=summary.get("num_holdings", 0) if summary else 0,
+            ),
+        )
+
+    return PortfolioSection(
+        held=False,
+        context=PortfolioContext(
+            total_value=(summary.get("total_value") or 0) if summary else 0,
+            num_holdings=(summary.get("num_holdings") or 0) if summary else 0,
+        )
+        if summary
+        else None,
+    )
+
+
+def _build_paper_trades_section(paper_trades: dict[str, Any]) -> PaperTradesSection:
+    """Build the paper trades section from paper trades data."""
+    open_pos = paper_trades.get("open_trade")
+    closed = paper_trades.get("closed_trades") or []
+
+    return PaperTradesSection(
+        open_position=PaperTradeInfo(
+            entry_price=open_pos.get("entry_price", 0),
+            return_pct=open_pos.get("current_return_pct"),
+            holding_days=open_pos.get("holding_days"),
+            status="open",
+        )
+        if open_pos
+        else None,
+        closed_trades=[
+            PaperTradeInfo(
+                entry_price=t.get("entry_price", 0),
+                exit_price=t.get("exit_price"),
+                return_pct=t.get("realized_return_pct"),
+                holding_days=t.get("holding_days"),
+                status="closed",
+            )
+            for t in closed[:5]
+        ],
+        win_rate=paper_trades.get("win_rate"),
+        avg_return=paper_trades.get("avg_return"),
+    )
+
+
 def _generate_recommendation(
     watchlist: dict[str, Any] | None,
     portfolio: dict[str, Any] | None,
@@ -589,35 +690,7 @@ def _build_response(
 
     # Scores section
     if watchlist:
-        pillars = {}
-        pillar_weights = {
-            "price": 0.22,
-            "technical": 0.22,
-            "fundamental": 0.26,
-            "catalyst": 0.17,
-            "options_flow": 0.08,
-            "performance": 0.05,
-        }
-        for pillar, weight in pillar_weights.items():
-            score_key = f"{pillar}_score"
-            pillars[pillar] = PillarScore(
-                score=watchlist.get(score_key),
-                weight=weight,
-                sub_scores=watchlist.get(f"{pillar}_sub_scores"),
-                metadata=watchlist.get(f"{pillar}_metadata"),
-                stale=watchlist.get(f"{pillar}_stale", False) or False,
-            )
-
-        response.scores = ScoresSection(
-            overall=watchlist.get("overall_score"),
-            signal_type=watchlist.get("signal_type"),
-            signal_strength=watchlist.get("signal_strength"),
-            pillars=pillars,
-            data_quality={
-                "overall_pct": watchlist.get("data_quality_overall_pct"),
-                "pillars": watchlist.get("data_quality_pillars"),
-            },
-        )
+        response.scores = _build_scores_section(watchlist)
 
         response.signal = SignalSection(
             type=watchlist.get("signal_type"),
@@ -705,67 +778,11 @@ def _build_response(
     # Portfolio section
     pos = portfolio.get("position") if portfolio else None
     summary = portfolio.get("summary") if portfolio else None
-    if pos:
-        current_price = pos.get("current_price") or pos.get("cost_basis") or 0
-        current_value = pos.get("shares", 0) * current_price
-        cost_total = pos.get("shares", 0) * pos.get("cost_basis", 0)
-        gain = current_value - cost_total
-        gain_pct = (gain / cost_total * 100) if cost_total else 0
-        total_value = (summary.get("total_value") if summary else None) or current_value
-
-        response.portfolio = PortfolioSection(
-            held=True,
-            position=PositionInfo(
-                shares=pos.get("shares", 0),
-                cost_basis=pos.get("cost_basis", 0),
-                current_value=current_value,
-                gain=gain,
-                gain_pct=gain_pct,
-                weight_pct=(current_value / total_value * 100) if total_value else 0,
-            ),
-            context=PortfolioContext(
-                total_value=total_value,
-                num_holdings=summary.get("num_holdings", 0) if summary else 0,
-            ),
-        )
-    else:
-        response.portfolio = PortfolioSection(
-            held=False,
-            context=PortfolioContext(
-                total_value=(summary.get("total_value") or 0) if summary else 0,
-                num_holdings=(summary.get("num_holdings") or 0) if summary else 0,
-            )
-            if summary
-            else None,
-        )
+    response.portfolio = _build_portfolio_section(pos, summary)
 
     # Paper trades section
     if paper_trades:
-        open_pos = paper_trades.get("open_trade")
-        closed = paper_trades.get("closed_trades") or []
-
-        response.paper_trades = PaperTradesSection(
-            open_position=PaperTradeInfo(
-                entry_price=open_pos.get("entry_price", 0),
-                return_pct=open_pos.get("current_return_pct"),
-                holding_days=open_pos.get("holding_days"),
-                status="open",
-            )
-            if open_pos
-            else None,
-            closed_trades=[
-                PaperTradeInfo(
-                    entry_price=t.get("entry_price", 0),
-                    exit_price=t.get("exit_price"),
-                    return_pct=t.get("realized_return_pct"),
-                    holding_days=t.get("holding_days"),
-                    status="closed",
-                )
-                for t in closed[:5]
-            ],
-            win_rate=paper_trades.get("win_rate"),
-            avg_return=paper_trades.get("avg_return"),
-        )
+        response.paper_trades = _build_paper_trades_section(paper_trades)
 
     # Strategies section
     if strategies and strategies.get("strategies"):
