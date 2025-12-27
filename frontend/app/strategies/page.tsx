@@ -95,9 +95,9 @@ function StrategiesPageContent() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-text-muted">Active</p>
-                <p className="text-3xl font-bold text-green-600">{activeCount}</p>
+                <p className="text-3xl font-bold text-gain">{activeCount}</p>
               </div>
-              <Badge variant="default" className="bg-green-500">
+              <Badge variant="default" className="bg-gain">
                 Live
               </Badge>
             </div>
@@ -109,9 +109,9 @@ function StrategiesPageContent() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-text-muted">Testing</p>
-                <p className="text-3xl font-bold text-yellow-600">{testingCount}</p>
+                <p className="text-3xl font-bold text-warning">{testingCount}</p>
               </div>
-              <Badge variant="outline" className="border-yellow-500 text-yellow-600">
+              <Badge variant="outline" className="border-warning text-warning">
                 Paper
               </Badge>
             </div>

@@ -17,14 +17,14 @@ const modeConfig = {
   financial: {
     icon: BarChart3,
     tooltip: 'Financial Mode - Click to switch',
-    color: 'text-emerald-400 hover:text-emerald-300',
-    bgColor: 'hover:bg-emerald-900/30',
+    color: 'text-gain hover:text-gain/80',
+    bgColor: 'hover:bg-gain/10',
   },
   dev: {
     icon: Laptop,
     tooltip: 'Dev Mode - Click to switch',
-    color: 'text-sky-400 hover:text-sky-300',
-    bgColor: 'hover:bg-sky-900/30',
+    color: 'text-accent hover:text-accent/80',
+    bgColor: 'hover:bg-accent/10',
   },
 };
 
