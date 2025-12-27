@@ -6,7 +6,7 @@ import { MessageSquare, Plus, Trash2, Settings, Activity, Camera, Eye, Diamond, 
 import { Button } from '@/components/ui/button';
 import { cn, formatRelativeTime } from '@/lib/utils';
 import { toast } from 'sonner';
-import { SettingsModal, useAgentSettings, LLMProvider } from './SettingsModal';
+import { SettingsModal, LLMProvider } from './SettingsModal';
 import { StatusModal } from './StatusModal';
 import { AgentSelector, AgentProvider, RoundtableOrder } from './AgentSelector';
 import { ModeSelector, AgentMode } from './ModeSelector';
@@ -65,15 +65,15 @@ const getServerUrl = () => {
 };
 
 export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, standalone = false }: AgentPanelProps) {
-  // Settings (includes llmProvider)
-  const _settings = useAgentSettings();
+  // Note: _onOpenChange is received from callers but not used internally yet
+  void _onOpenChange;
 
   // Server/connection state
   const [serverUrl, setServerUrl] = useState<string | null>(null);
   const [wsUrl, setWsUrl] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
-  const [_activeProvider, setActiveProvider] = useState<LLMProvider>('claude');
+  const [, setActiveProvider] = useState<LLMProvider>('claude');
 
   // Session state
   const [sessions, setSessions] = useState<Session[]>([]);

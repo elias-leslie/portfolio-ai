@@ -84,15 +84,15 @@
           "description": "Fix setState in useEffect errors",
           "files_affected": [
             "frontend/lib/hooks/useStatusStream.ts",
-            "frontend/components/watchlist/WatchlistTable.tsx",
-            "frontend/app/agent-hub/page.tsx"
+            "frontend/app/trading/page.tsx",
+            "frontend/app/watchlist/page.tsx"
           ],
           "steps": [
             "Fix useStatusStream.ts:60 - avoid setState in effect",
             "Fix other setState-in-effect violations",
             "Verify: npm run lint shows fewer errors"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "2.2",
