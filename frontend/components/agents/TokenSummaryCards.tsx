@@ -30,19 +30,19 @@ interface TokenCardProps {
 
 function TokenCard({ days, data, isLoading }: TokenCardProps) {
   return (
-    <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700 flex-1">
-      <div className="text-xs text-gray-400 mb-1">{days} Days</div>
+    <div className="bg-surface/50 rounded-lg p-3 border border-border flex-1">
+      <div className="text-xs text-text-muted mb-1">{days} Days</div>
       {isLoading ? (
         <div className="animate-pulse">
-          <div className="h-6 bg-gray-700 rounded w-16 mb-2" />
-          <div className="h-3 bg-gray-700 rounded w-24" />
+          <div className="h-6 bg-surface-muted rounded w-16 mb-2" />
+          <div className="h-3 bg-surface-muted rounded w-24" />
         </div>
       ) : data ? (
         <>
-          <div className="text-xl font-bold text-gray-100">
+          <div className="text-xl font-bold text-text">
             {formatTokenCount(data.totalTokens)}
           </div>
-          <div className="text-[10px] text-gray-500">tokens</div>
+          <div className="text-[10px] text-text-muted">tokens</div>
           <div className="mt-2 space-y-1">
             {Object.entries(data.byProvider).map(([provider, tokens]) => (
               <div key={provider} className="flex justify-between text-xs">
@@ -52,13 +52,13 @@ function TokenCard({ days, data, isLoading }: TokenCardProps) {
                 )}>
                   {provider}
                 </span>
-                <span className="text-gray-400">{formatTokenCount(tokens)}</span>
+                <span className="text-text-muted">{formatTokenCount(tokens)}</span>
               </div>
             ))}
           </div>
         </>
       ) : (
-        <div className="text-gray-500 text-sm">No data</div>
+        <div className="text-text-muted text-sm">No data</div>
       )}
     </div>
   );
@@ -101,7 +101,7 @@ export function TokenSummaryCards({ serverUrl = '' }: TokenSummaryCardsProps) {
   }, [serverUrl]);
 
   return (
-    <div className="flex gap-2 p-2 border-b border-gray-700">
+    <div className="flex gap-2 p-2 border-b border-border">
       <TokenCard days={7} data={data7d} isLoading={isLoading} />
       <TokenCard days={14} data={data14d} isLoading={isLoading} />
       <TokenCard days={30} data={data30d} isLoading={isLoading} />
