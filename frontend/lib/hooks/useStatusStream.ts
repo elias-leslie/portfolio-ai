@@ -27,14 +27,21 @@ const SSE_URL = `${process.env.NEXT_PUBLIC_API_URL || ""}/api/status/stream`;
  */
 export function useStatusStream(): UseStatusStreamResult {
   const [status, setStatus] = useState<HealthResponse | undefined>();
-  const [connectionState, setConnectionState] = useState<ConnectionState>("connecting");
+  // Internal state excludes "fallback" - that's derived from useFallback
+  const [internalConnectionState, setInternalConnectionState] = useState<
+    Exclude<ConnectionState, "fallback">
+  >("connecting");
   const [error, setError] = useState<Error | null>(null);
   const [failCount, setFailCount] = useState(0);
   const [useFallback, setUseFallback] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
 
+  // Derive connectionState from useFallback (avoids setState-in-effect)
+  const connectionState: ConnectionState = useFallback
+    ? "fallback"
+    : internalConnectionState;
+
   // Fallback polling (only used when SSE fails)
-  // Note: pollingData.data is returned directly when useFallback is true (line 114)
   const pollingData = useSystemStatus();
 
   // Cleanup function
@@ -49,16 +56,9 @@ export function useStatusStream(): UseStatusStreamResult {
   const retryConnection = useCallback(() => {
     setFailCount(0);
     setUseFallback(false);
-    setConnectionState("connecting");
+    setInternalConnectionState("connecting");
     setError(null);
   }, []);
-
-  // Sync connection state with fallback mode
-  useEffect(() => {
-    if (useFallback) {
-      setConnectionState("fallback");
-    }
-  }, [useFallback]);
 
   // Setup EventSource connection
   useEffect(() => {
@@ -73,7 +73,7 @@ export function useStatusStream(): UseStatusStreamResult {
 
     // Connection opened
     eventSource.onopen = () => {
-      setConnectionState("connected");
+      setInternalConnectionState("connected");
       setError(null);
       setFailCount(0); // Reset fail count on successful connection
     };
@@ -91,18 +91,18 @@ export function useStatusStream(): UseStatusStreamResult {
 
     // Error occurred
     eventSource.onerror = () => {
-      setConnectionState("disconnected");
+      setInternalConnectionState("disconnected");
       const newFailCount = failCount + 1;
       setFailCount(newFailCount);
 
       // After MAX_FAILURES, switch to fallback
       if (newFailCount >= MAX_FAILURES) {
         setUseFallback(true);
-        // Note: connectionState will be set to "fallback" by the sync effect
+        // connectionState is derived from useFallback
         cleanup();
       } else {
         // EventSource will automatically retry
-        setConnectionState("connecting");
+        setInternalConnectionState("connecting");
       }
     };
 
