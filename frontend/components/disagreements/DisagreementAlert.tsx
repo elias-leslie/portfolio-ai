@@ -29,9 +29,9 @@ export function DisagreementAlert({
   if (isDismissed) return null;
 
   const isMajor = severity === "major";
-  const bgColor = isMajor ? "bg-red-500/10" : "bg-yellow-500/10";
-  const borderColor = isMajor ? "border-red-500/30" : "border-yellow-500/30";
-  const textColor = isMajor ? "text-red-500" : "text-yellow-500";
+  const bgColor = isMajor ? "bg-loss/10" : "bg-warning/10";
+  const borderColor = isMajor ? "border-loss/30" : "border-warning/30";
+  const textColor = isMajor ? "text-loss" : "text-warning";
   const agreementPercent = Math.round(agreementScore * 100);
 
   const handleDismiss = () => {

@@ -59,28 +59,28 @@ export function WorkflowMetricsCard({ metrics }: WorkflowMetricsCardProps) {
         <div className="grid grid-cols-3 gap-4">
           <div className="text-center">
             <div className="flex items-center justify-center gap-2 mb-2">
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              <CheckCircle2 className="h-4 w-4 text-gain" />
               <p className="text-sm font-medium">Complete</p>
             </div>
-            <p className="text-2xl font-bold text-green-600">
+            <p className="text-2xl font-bold text-gain">
               {metrics.totalByStatus.complete || 0}
             </p>
           </div>
           <div className="text-center">
             <div className="flex items-center justify-center gap-2 mb-2">
-              <XCircle className="h-4 w-4 text-red-600" />
+              <XCircle className="h-4 w-4 text-loss" />
               <p className="text-sm font-medium">Failed</p>
             </div>
-            <p className="text-2xl font-bold text-red-600">
+            <p className="text-2xl font-bold text-loss">
               {metrics.totalByStatus.failed || 0}
             </p>
           </div>
           <div className="text-center">
             <div className="flex items-center justify-center gap-2 mb-2">
-              <AlertCircle className="h-4 w-4 text-yellow-600" />
+              <AlertCircle className="h-4 w-4 text-warning" />
               <p className="text-sm font-medium">Blocked</p>
             </div>
-            <p className="text-2xl font-bold text-yellow-600">
+            <p className="text-2xl font-bold text-warning">
               {metrics.totalByStatus.blocked || 0}
             </p>
           </div>
@@ -94,9 +94,9 @@ export function WorkflowMetricsCard({ metrics }: WorkflowMetricsCardProps) {
               {metrics.successRate.toFixed(1)}%
             </p>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-2.5">
+          <div className="w-full bg-surface-muted rounded-full h-2.5">
             <div
-              className="bg-green-600 h-2.5 rounded-full"
+              className="bg-gain h-2.5 rounded-full"
               style={{ width: `${metrics.successRate}%` }}
             ></div>
           </div>

@@ -231,18 +231,18 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
 
   // Get data quality color based on percentage
   const getDataQualityColor = (pct: number): string => {
-    if (pct >= 80) return "text-gain"; // Green
-    if (pct >= 60) return "text-yellow-600 dark:text-yellow-500"; // Yellow
-    if (pct >= 40) return "text-orange-600 dark:text-orange-500"; // Orange
-    return "text-loss"; // Red
+    if (pct >= 80) return "text-gain";
+    if (pct >= 60) return "text-warning";
+    if (pct >= 40) return "text-neutral";
+    return "text-loss";
   };
 
   // Get data quality background color
   const getDataQualityBgColor = (pct: number): string => {
-    if (pct >= 80) return "bg-green-50 dark:bg-green-950/20";
-    if (pct >= 60) return "bg-yellow-50 dark:bg-yellow-950/20";
-    if (pct >= 40) return "bg-orange-50 dark:bg-orange-950/20";
-    return "bg-red-50 dark:bg-red-950/20";
+    if (pct >= 80) return "bg-gain/10";
+    if (pct >= 60) return "bg-warning/10";
+    if (pct >= 40) return "bg-neutral/10";
+    return "bg-loss/10";
   };
 
   // Format pillar status
@@ -454,7 +454,7 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                   className={cn(
                     "cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus",
                     isExpanded && "bg-surface-muted/40",
-                    highlightedSymbol === item.symbol && "bg-blue-50 dark:bg-blue-950/30 animate-pulse"
+                    highlightedSymbol === item.symbol && "bg-accent/10 animate-pulse"
                   )}
                   role="button"
                   tabIndex={0}
@@ -490,7 +490,7 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                       {portfolioSymbols.has(item.symbol.toUpperCase()) && (
                         <Badge
                           variant="outline"
-                          className="gap-1 text-xs px-1.5 py-0 h-5 bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300"
+                          className="gap-1 text-xs px-1.5 py-0 h-5 bg-accent/10 border-accent/30 text-accent"
                         >
                           <Briefcase className="h-3 w-3" />
                           <span>Portfolio</span>
@@ -571,7 +571,7 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                           <div
                             className={cn(
                               "h-full transition-all",
-                              overall >= 80 ? "bg-gain" : overall >= 60 ? "bg-yellow-500" : overall >= 40 ? "bg-neutral" : "bg-loss"
+                              overall >= 80 ? "bg-gain" : overall >= 60 ? "bg-warning" : overall >= 40 ? "bg-neutral" : "bg-loss"
                             )}
                             style={{ width: `${overall}%` }}
                           />

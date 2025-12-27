@@ -392,7 +392,7 @@ export function LogsCard() {
                 )}
 
                 {!isLoading && (
-                    <ScrollArea className="h-[600px] w-full rounded-md border bg-gray-950 p-4">
+                    <ScrollArea className="h-[600px] w-full rounded-md border bg-bg p-4">
                         {sortedLogs.length === 0 ? (
                             <div className="text-sm text-muted-foreground text-center py-8">
                                 {levelFilter || serviceFilter
@@ -407,8 +407,8 @@ export function LogsCard() {
                                         className={`font-mono text-xs ${getLevelColor(log.level)}`}
                                     >
                                         <div>
-                                            <span className="text-gray-400">[{formatTimestamp(log.timestamp)}]</span>{" "}
-                                            <span className="text-gray-500">[{SERVICE_DISPLAY_NAMES[log.service] || log.service}]</span>{" "}
+                                            <span className="text-text-muted">[{formatTimestamp(log.timestamp)}]</span>{" "}
+                                            <span className="text-text-muted/70">[{SERVICE_DISPLAY_NAMES[log.service] || log.service}]</span>{" "}
                                             <span className={getLevelColor(log.level)}>[{log.level}]</span>
                                         </div>
                                         <pre className="whitespace-pre-wrap break-words ml-4 mt-0.5">{log.message}</pre>
@@ -426,17 +426,17 @@ export function LogsCard() {
 function getLevelColor(level: string): string {
     switch (level) {
         case "CRITICAL":
-            return "text-red-600 font-bold";
+            return "text-loss font-bold";
         case "ERROR":
-            return "text-red-400";
+            return "text-loss";
         case "WARN":
-            return "text-yellow-400";
+            return "text-warning";
         case "INFO":
-            return "text-blue-400";
+            return "text-accent";
         case "DEBUG":
-            return "text-gray-400";
+            return "text-text-muted";
         default:
-            return "text-gray-300";
+            return "text-text-muted";
     }
 }
 

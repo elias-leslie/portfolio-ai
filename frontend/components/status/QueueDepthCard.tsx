@@ -9,17 +9,17 @@ export function QueueDepthCard() {
   const { data, refetch, isLoading, isFetching } = useQueueDepth();
 
   const getStatusColor = (depth: number) => {
-    if (depth === 0) return "text-green-500";
-    if (depth < 50) return "text-blue-500";
-    if (depth < 100) return "text-yellow-500";
-    return "text-red-500";
+    if (depth === 0) return "text-gain";
+    if (depth < 50) return "text-accent";
+    if (depth < 100) return "text-warning";
+    return "text-loss";
   };
 
   const getStatusIcon = (depth: number) => {
-    if (depth === 0) return <CheckCircle className="h-5 w-5 text-green-500" />;
-    if (depth < 50) return <CheckCircle className="h-5 w-5 text-blue-500" />;
-    if (depth < 100) return <AlertTriangle className="h-5 w-5 text-yellow-500" />;
-    return <AlertCircle className="h-5 w-5 text-red-500" />;
+    if (depth === 0) return <CheckCircle className="h-5 w-5 text-gain" />;
+    if (depth < 50) return <CheckCircle className="h-5 w-5 text-accent" />;
+    if (depth < 100) return <AlertTriangle className="h-5 w-5 text-warning" />;
+    return <AlertCircle className="h-5 w-5 text-loss" />;
   };
 
   const getStatusMessage = (depth: number, consumers: number) => {
