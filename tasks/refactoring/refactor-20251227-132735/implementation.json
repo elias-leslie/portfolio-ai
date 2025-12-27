@@ -179,7 +179,7 @@
             "Eliminate ~30 lines of duplication",
             "Run: cd backend && .venv/bin/pytest tests/ -x --tb=short -q"
           ],
-          "passes": false
+          "passes": true
         }
       ]
     },

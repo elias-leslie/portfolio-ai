@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -45,26 +45,15 @@ import { ExpandableCard } from "@/components/status/ExpandableCard";
 import { ServiceActionDialog } from "./ServiceActionDialog";
 import { TaskResultDisplay, BatchResultsDialog, type BatchResult } from "./MaintenanceDialogs";
 import {
-  getFileCleanupStatus,
   triggerMaintenanceTask,
   cleanupOldNews,
   vacuumDatabase,
   validateIntegrity,
-  getMaintenanceLastRun,
-  getMaintenanceDiskSpace,
-  getMaintenanceDatabaseSize,
-  getMaintenanceSchedule,
   checkBackupRequirements,
-  getCacheStatus,
-  type FileCleanupStatusResponse,
   type MaintenanceResult,
-  type LastRunSummary,
-  type DiskSpaceResponse,
-  type DatabaseSizeResponse,
-  type MaintenanceScheduleResponse,
   type BackupRequirementCheck,
-  type CacheStatusResponse,
 } from "@/lib/api/maintenance";
+import { useMaintenanceData } from "@/lib/hooks/useMaintenanceData";
 import { toast } from "sonner";
 
 // Task category types
@@ -93,18 +82,21 @@ type SortKey = "name" | "category" | "sizeMb" | "fileCount" | "schedule" | "last
 type SortDirection = "asc" | "desc";
 
 export function MaintenanceTable() {
-  // State for all data sources
-  const [fileCleanup, setFileCleanup] = useState<FileCleanupStatusResponse | null>(null);
-  const [lastRunSummary, setLastRunSummary] = useState<LastRunSummary | null>(null);
-  const [diskSpace, setDiskSpace] = useState<DiskSpaceResponse | null>(null);
-  const [dbSize, setDbSize] = useState<DatabaseSizeResponse | null>(null);
-  const [schedule, setSchedule] = useState<MaintenanceScheduleResponse | null>(null);
-  const [backupCheck, setBackupCheck] = useState<BackupRequirementCheck | null>(null);
-  const [cacheStatus, setCacheStatus] = useState<CacheStatusResponse | null>(null);
+  // Use the maintenance data hook
+  const {
+    fileCleanup,
+    lastRunSummary,
+    diskSpace,
+    dbSize,
+    schedule,
+    cacheStatus,
+    isLoading,
+    isRefreshing,
+    refresh: fetchAllData,
+  } = useMaintenanceData();
 
-  // UI state
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  // Additional local state
+  const [backupCheck, setBackupCheck] = useState<BackupRequirementCheck | null>(null);
   const [triggeringTask, setTriggeringTask] = useState<string | null>(null);
   const [dryRun, setDryRun] = useState(true);
   const [isCheckingBackup, setIsCheckingBackup] = useState(false);
@@ -134,36 +126,6 @@ export function MaintenanceTable() {
   const [batchResultsOpen, setBatchResultsOpen] = useState(false);
   const [batchResults, setBatchResults] = useState<BatchResult[]>([]);
   const [isRunningAll, setIsRunningAll] = useState(false);
-
-  // Fetch all data
-  const fetchAllData = useCallback(async () => {
-    try {
-      const [fileData, lastRun, diskData, dbData, scheduleData, cacheData] = await Promise.all([
-        getFileCleanupStatus(),
-        getMaintenanceLastRun(),
-        getMaintenanceDiskSpace(),
-        getMaintenanceDatabaseSize(),
-        getMaintenanceSchedule(),
-        getCacheStatus(),
-      ]);
-      setFileCleanup(fileData);
-      setLastRunSummary(lastRun);
-      setDiskSpace(diskData);
-      setDbSize(dbData);
-      setSchedule(scheduleData);
-      setCacheStatus(cacheData);
-    } catch (error) {
-      console.error("Failed to fetch maintenance data:", error);
-      toast.error("Failed to load maintenance data");
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchAllData();
-  }, [fetchAllData]);
 
   // Check backup when dry-run is toggled off
   useEffect(() => {
@@ -200,7 +162,6 @@ export function MaintenanceTable() {
   };
 
   const handleRefresh = () => {
-    setIsRefreshing(true);
     fetchAllData();
   };
 
