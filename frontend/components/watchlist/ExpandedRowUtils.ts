@@ -112,19 +112,19 @@ export function getSignalDisplay(signalType: "BUY" | "HOLD" | "AVOID") {
         case "BUY":
             return {
                 icon: "🟢",
-                color: "bg-green-500/10 text-green-600 border-green-500/20",
+                color: "bg-status-success/10 text-status-success border-status-success/20",
                 label: "BUY",
             };
         case "HOLD":
             return {
                 icon: "🟡",
-                color: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
+                color: "bg-status-warning/10 text-status-warning border-status-warning/20",
                 label: "HOLD",
             };
         case "AVOID":
             return {
                 icon: "🔴",
-                color: "bg-red-500/10 text-red-600 border-red-500/20",
+                color: "bg-status-error/10 text-status-error border-status-error/20",
                 label: "AVOID",
             };
     }
