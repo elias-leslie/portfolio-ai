@@ -34,15 +34,15 @@ export function LogViewer({ lines, isLoading, error }: LogViewerProps) {
   // Syntax highlighting for log levels
   const getLineStyle = (line: string): string => {
     if (line.includes("ERROR") || line.includes("[error]")) {
-      return "text-red-400";
+      return "text-loss";
     }
     if (line.includes("WARN") || line.includes("[warn]")) {
-      return "text-yellow-400";
+      return "text-warning";
     }
     if (line.includes("INFO") || line.includes("[info]")) {
-      return "text-blue-400";
+      return "text-accent";
     }
-    return "text-gray-300";
+    return "text-text-muted";
   };
 
   if (error) {
@@ -98,7 +98,7 @@ export function LogViewer({ lines, isLoading, error }: LogViewerProps) {
         </Button>
       </div>
 
-      <ScrollArea className="h-[400px] w-full rounded-md border bg-gray-950 p-4">
+      <ScrollArea className="h-[400px] w-full rounded-md border bg-bg p-4">
         <div ref={scrollRef} className="space-y-1">
           {lines.length === 0 ? (
             <div className="text-sm text-muted-foreground">No logs available</div>

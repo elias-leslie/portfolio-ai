@@ -114,13 +114,13 @@ export function SentimentTrendChart() {
         )}
         {newsValue && newsValue.payload.newsRaw !== null && newsValue.payload.newsRaw !== undefined && (
           <div className="flex justify-between gap-4">
-            <span className="text-cyan-400">News Sentiment:</span>
+            <span className="text-cyan-500">News Sentiment:</span>
             <span className="font-semibold">{newsValue.payload.newsRaw > 0 ? "+" : ""}{(newsValue.payload.newsRaw * 100).toFixed(0)}%</span>
           </div>
         )}
         {pcValue && pcValue.payload.pcRatioRaw !== null && pcValue.payload.pcRatioRaw !== undefined && (
           <div className="flex justify-between gap-4">
-            <span className="text-orange-400">Put/Call Ratio:</span>
+            <span className="text-orange-500">Put/Call Ratio:</span>
             <span className="font-semibold">{pcValue.payload.pcRatioRaw.toFixed(2)}</span>
           </div>
         )}
@@ -215,7 +215,7 @@ export function SentimentTrendChart() {
             </span>
             {latestNewsSentiment !== null && latestNewsSentiment !== undefined && (
               <span className="flex items-center gap-1">
-                <span className="w-3 h-0.5 bg-cyan-400 rounded"></span>
+                <span className="w-3 h-0.5 bg-cyan-500 rounded"></span>
                 <span>News: <span className="font-semibold text-text">{latestNewsSentiment > 0 ? "+" : ""}{(latestNewsSentiment * 100).toFixed(0)}%</span></span>
               </span>
             )}

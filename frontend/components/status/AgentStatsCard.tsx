@@ -43,9 +43,9 @@ export function AgentStatsCard({ stats }: AgentStatsCardProps) {
     : telemetry ? telemetry.successRate.toFixed(1) : "0.0";
 
   const getSuccessRateColor = (rate: number) => {
-    if (rate >= 80) return "text-green-600";
-    if (rate >= 50) return "text-yellow-600";
-    return "text-red-600";
+    if (rate >= 80) return "text-gain";
+    if (rate >= 50) return "text-warning";
+    return "text-loss";
   };
 
   const rate = parseFloat(successRate);
@@ -83,7 +83,7 @@ export function AgentStatsCard({ stats }: AgentStatsCardProps) {
           {/* Completed Runs */}
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              <CheckCircle2 className="h-4 w-4 text-gain" />
               <p className="text-sm font-medium">Completed</p>
             </div>
             <div className="flex items-center gap-2">
@@ -97,7 +97,7 @@ export function AgentStatsCard({ stats }: AgentStatsCardProps) {
           {/* Failed Runs */}
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <XCircle className="h-4 w-4 text-red-600" />
+              <XCircle className="h-4 w-4 text-loss" />
               <p className="text-sm font-medium">Failed</p>
             </div>
             <div className="flex items-center gap-2">

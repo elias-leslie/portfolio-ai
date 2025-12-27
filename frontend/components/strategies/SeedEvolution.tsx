@@ -28,10 +28,10 @@ const statusIcons = {
 };
 
 const statusColors = {
-  pending: "bg-yellow-100 text-yellow-800",
-  processing: "bg-blue-100 text-blue-800",
-  converted: "bg-green-100 text-green-800",
-  rejected: "bg-red-100 text-red-800",
+  pending: "bg-warning/10 text-warning",
+  processing: "bg-accent/10 text-accent",
+  converted: "bg-gain/10 text-gain",
+  rejected: "bg-loss/10 text-loss",
 };
 
 export function SeedEvolution({ strategyId }: SeedEvolutionProps) {
@@ -150,7 +150,7 @@ export function SeedEvolution({ strategyId }: SeedEvolutionProps) {
         {evolution.seed && (
           <div className="rounded-lg border bg-muted/30 p-3">
             <div className="mb-2 flex items-center gap-2">
-              <Lightbulb className="h-4 w-4 text-yellow-500" />
+              <Lightbulb className="h-4 w-4 text-warning" />
               <span className="text-sm font-medium">Seed Origin</span>
               <Badge variant="outline" className={statusColors.converted}>
                 Confidence: {evolution.seed.confidence}/10
