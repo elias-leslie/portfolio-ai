@@ -91,7 +91,7 @@ export function AddSymbolModal({
       setProgress({ current: i + 1, total: valid.length });
 
       try {
-        await new Promise<void>((resolve, reject) => {
+        await new Promise<void>((resolve, _reject) => {
           addSymbol.mutate(
             {
               symbol,

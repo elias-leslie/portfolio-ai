@@ -15,7 +15,7 @@ interface ReadinessIndicatorProps {
 export function ReadinessIndicator({
   readinessScore,
   confidenceLevel,
-  symbol,
+  symbol: _symbol,
   compact = false,
 }: ReadinessIndicatorProps) {
   // Don't show if no data

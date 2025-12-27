@@ -218,17 +218,6 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
     return "viz-0";
   };
 
-  const getNewsBadgeVariant = (score: number): "gain" | "loss" | "neutral" => {
-    if (score > 0.1) return "gain";
-    if (score < -0.1) return "loss";
-    return "neutral";
-  };
-
-  const formatNewsScore = (score: number): string => {
-    const rounded = score.toFixed(2);
-    return score >= 0 ? `+${rounded}` : rounded;
-  };
-
   // Get data quality color based on percentage
   const getDataQualityColor = (pct: number): string => {
     if (pct >= 80) return "text-gain";
@@ -440,10 +429,6 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
             const isExpanded = expandedId === item.id;
             const hasScore = !!item.currentScore;
             const overall = item.currentScore?.overall ?? 0;
-            const priceScore = item.currentScore?.price.score ?? 0;
-            const techScore = item.currentScore?.technical.score ?? 0;
-            const priceStale = item.currentScore?.price.stale ?? false;
-            const techStale = item.currentScore?.technical.stale ?? false;
 
             return (
               <Fragment key={item.id}>

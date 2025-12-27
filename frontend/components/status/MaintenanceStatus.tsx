@@ -142,12 +142,6 @@ function DiskSpaceCard({ disks, isLoading }: { disks: DiskSpaceInfo[] | null; is
     );
   }
 
-  const getProgressColor = (percent: number) => {
-    if (percent >= 85) return "bg-status-error";
-    if (percent >= 70) return "bg-status-warning";
-    return "bg-status-success";
-  };
-
   const getStatusText = (status: string) => {
     switch (status) {
       case "critical":
