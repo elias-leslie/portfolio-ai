@@ -57,7 +57,7 @@
             "Fix line 995: Cast event_type to proper Literal type",
             "Verify: mypy app/api/market.py passes"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "1.4",

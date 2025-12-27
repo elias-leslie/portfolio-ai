@@ -16,6 +16,8 @@ Endpoints:
 - POST /api/sitemap/ports/refresh - Force refresh port discovery cache
 """
 
+from typing import Any
+
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
@@ -96,7 +98,7 @@ class NextJsDiscoveryResponse(BaseModel):
     """Response from Next.js route discovery."""
 
     routes_discovered: int
-    routes: list[dict]
+    routes: list[dict[str, Any]]
 
 
 class HealthCheckResponse(BaseModel):
@@ -216,7 +218,7 @@ async def check_entry_health(entry_id: int) -> HealthCheckResponse:
 
 
 @router.post("/check-all")
-async def check_all_health() -> dict:
+async def check_all_health() -> dict[str, Any]:
     """Trigger health check of all sitemap entries.
 
     Queues a Celery task to run in background - does not block.
@@ -252,13 +254,15 @@ def register_entry(request: RegisterRequest) -> SitemapEntry:
             entry_type=request.entry_type,
             title=request.title,
         )
+        if entry is None:
+            raise HTTPException(status_code=400, detail="Failed to register entry")
         return SitemapEntry(**entry)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.delete("/entries/{entry_id}")
-def delete_entry(entry_id: int) -> dict:
+def delete_entry(entry_id: int) -> dict[str, Any]:
     """Delete a sitemap entry."""
     service = SitemapService()
     deleted = service.delete_entry(entry_id)
