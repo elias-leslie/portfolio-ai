@@ -111,7 +111,7 @@ export function WatchlistDailyReport() {
               </h3>
               <p className={cn(
                 "text-sm",
-                report.isStale ? "text-yellow-500" : "text-text-muted"
+                report.isStale ? "text-status-warning" : "text-text-muted"
               )}>
                 {report.isStale ? `⚠ Stale (${timeLabel})` : timeLabel}
               </p>
@@ -121,13 +121,13 @@ export function WatchlistDailyReport() {
             {hasActivity && !isExpanded && (
               <div className="flex items-center gap-2 text-sm text-text-muted">
                 {report.symbolsAdded.length > 0 && (
-                  <span className="text-green-500">+{report.symbolsAdded.length}</span>
+                  <span className="text-status-success">+{report.symbolsAdded.length}</span>
                 )}
                 {report.symbolsRemoved.length > 0 && (
-                  <span className="text-red-500">-{report.symbolsRemoved.length}</span>
+                  <span className="text-status-error">-{report.symbolsRemoved.length}</span>
                 )}
                 {report.scoreChanges.length > 0 && (
-                  <span className="text-blue-500">~{report.scoreChanges.length}</span>
+                  <span className="text-status-info">~{report.scoreChanges.length}</span>
                 )}
               </div>
             )}
@@ -153,18 +153,18 @@ export function WatchlistDailyReport() {
           {report.symbolsAdded.length > 0 && (
             <div>
               <h4 className="text-sm font-medium text-text mb-2 flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-green-500" />
+                <TrendingUp className="h-4 w-4 text-status-success" />
                 Symbols Added ({report.symbolsAdded.length})
               </h4>
               <div className="flex flex-wrap gap-2">
                 {report.symbolsAdded.map((item) => (
                   <div
                     key={item.symbol}
-                    className="inline-flex items-center gap-1.5 rounded-md bg-green-500/10 px-2.5 py-1 text-xs font-medium text-green-500"
+                    className="inline-flex items-center gap-1.5 rounded-md bg-status-success/10 px-2.5 py-1 text-xs font-medium text-status-success"
                   >
                     <span>{item.symbol}</span>
                     {item.source && item.source !== "manual" && (
-                      <span className="text-green-500/60">({item.source})</span>
+                      <span className="text-status-success/60">({item.source})</span>
                     )}
                   </div>
                 ))}
@@ -176,14 +176,14 @@ export function WatchlistDailyReport() {
           {report.symbolsRemoved.length > 0 && (
             <div>
               <h4 className="text-sm font-medium text-text mb-2 flex items-center gap-2">
-                <TrendingDown className="h-4 w-4 text-red-500" />
+                <TrendingDown className="h-4 w-4 text-status-error" />
                 Symbols Removed ({report.symbolsRemoved.length})
               </h4>
               <div className="flex flex-wrap gap-2">
                 {report.symbolsRemoved.map((item) => (
                   <div
                     key={item.symbol}
-                    className="inline-flex items-center gap-1.5 rounded-md bg-red-500/10 px-2.5 py-1 text-xs font-medium text-red-500"
+                    className="inline-flex items-center gap-1.5 rounded-md bg-status-error/10 px-2.5 py-1 text-xs font-medium text-status-error"
                   >
                     {item.symbol}
                   </div>
@@ -216,13 +216,13 @@ export function WatchlistDailyReport() {
                         <span className="text-text-muted">→</span>
                         <span className={cn(
                           "font-medium",
-                          isPositive ? "text-green-500" : "text-red-500"
+                          isPositive ? "text-status-success" : "text-status-error"
                         )}>
                           {change.newScore.toFixed(1)}
                         </span>
                         <span className={cn(
                           "text-xs font-medium",
-                          isPositive ? "text-green-500" : "text-red-500"
+                          isPositive ? "text-status-success" : "text-status-error"
                         )}>
                           ({isPositive ? "+" : ""}{change.changePct.toFixed(1)}%)
                         </span>

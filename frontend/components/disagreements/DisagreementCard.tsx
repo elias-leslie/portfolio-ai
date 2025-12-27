@@ -13,23 +13,23 @@ interface DisagreementCardProps {
 const severityConfig = {
   none: {
     icon: CheckCircle,
-    color: "text-green-500",
-    bgColor: "bg-green-500/10",
-    borderColor: "border-green-500/20",
+    color: "text-status-success",
+    bgColor: "bg-status-success/10",
+    borderColor: "border-status-success/20",
     label: "Agreement",
   },
   minor: {
     icon: MinusCircle,
-    color: "text-yellow-500",
-    bgColor: "bg-yellow-500/10",
-    borderColor: "border-yellow-500/20",
+    color: "text-status-warning",
+    bgColor: "bg-status-warning/10",
+    borderColor: "border-status-warning/20",
     label: "Minor Disagreement",
   },
   major: {
     icon: AlertTriangle,
-    color: "text-red-500",
-    bgColor: "bg-red-500/10",
-    borderColor: "border-red-500/20",
+    color: "text-status-error",
+    bgColor: "bg-status-error/10",
+    borderColor: "border-status-error/20",
     label: "Major Disagreement",
   },
 };
@@ -88,7 +88,7 @@ export function DisagreementCard({ item, className }: DisagreementCardProps) {
           {/* Gemini Review */}
           <div className="rounded-lg bg-surface/50 p-3">
             <div className="flex items-center gap-2 mb-2">
-              <div className="h-2 w-2 rounded-full bg-blue-500" />
+              <div className="h-2 w-2 rounded-full bg-status-info" />
               <span className="text-sm font-medium text-text">Gemini</span>
             </div>
             <p className="text-sm text-text-muted">
@@ -99,7 +99,7 @@ export function DisagreementCard({ item, className }: DisagreementCardProps) {
           {/* Claude Review */}
           <div className="rounded-lg bg-surface/50 p-3">
             <div className="flex items-center gap-2 mb-2">
-              <div className="h-2 w-2 rounded-full bg-orange-500" />
+              <div className="h-2 w-2 rounded-full bg-status-warning" />
               <span className="text-sm font-medium text-text">Claude</span>
             </div>
             <p className="text-sm text-text-muted">
