@@ -88,16 +88,16 @@ export function ApiSourcesOverview() {
   // Get tier badge color
   const getTierColor = (tier: string) => {
     return tier === "FREE"
-      ? "bg-green-500/10 text-green-500 border-green-500/20"
-      : "bg-purple-500/10 text-purple-500 border-purple-500/20";
+      ? "bg-status-success/10 text-status-success border-status-success/20"
+      : "bg-accent/10 text-accent border-accent/20";
   };
 
   // Get priority badge
   const getPriorityBadge = (priority: number) => {
-    if (priority === 1) return { label: "Primary", color: "bg-blue-500/10 text-blue-500" };
-    if (priority <= 10) return { label: "High", color: "bg-green-500/10 text-green-500" };
-    if (priority <= 20) return { label: "Medium", color: "bg-yellow-500/10 text-yellow-500" };
-    return { label: "Backup", color: "bg-gray-500/10 text-gray-500" };
+    if (priority === 1) return { label: "Primary", color: "bg-status-info/10 text-status-info" };
+    if (priority <= 10) return { label: "High", color: "bg-status-success/10 text-status-success" };
+    if (priority <= 20) return { label: "Medium", color: "bg-status-warning/10 text-status-warning" };
+    return { label: "Backup", color: "bg-surface-muted text-text-muted" };
   };
 
   // Format rate limit
@@ -136,13 +136,13 @@ export function ApiSourcesOverview() {
           <div className="text-sm text-muted-foreground">Total Providers</div>
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
-          <div className="text-2xl font-bold text-green-500">
+          <div className="text-2xl font-bold text-status-success">
             {sourcesData.providers.filter((p) => p.tier === "FREE").length}
           </div>
           <div className="text-sm text-muted-foreground">FREE Tier</div>
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
-          <div className="text-2xl font-bold text-blue-500">
+          <div className="text-2xl font-bold text-status-info">
             {new Set(sourcesData.providers.flatMap((p) => p.gapCoverage)).size}
           </div>
           <div className="text-sm text-muted-foreground">GAPs Covered</div>
@@ -199,7 +199,7 @@ export function ApiSourcesOverview() {
                           <Key className="h-3 w-3" /> API Key Required
                         </span>
                       ) : (
-                        <span className="flex items-center gap-1 text-green-500">
+                        <span className="flex items-center gap-1 text-status-success">
                           <CheckCircle2 className="h-3 w-3" /> No API Key Needed
                         </span>
                       )}

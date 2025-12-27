@@ -22,7 +22,7 @@ function getDisplay(score: number): DisplayConfig {
     return {
       emoji: "😱",
       label: "Extreme Greed",
-      colorClass: "text-green-600 dark:text-green-400",
+      colorClass: "text-status-success",
       badgeVariant: "success",
     };
   }
@@ -30,7 +30,7 @@ function getDisplay(score: number): DisplayConfig {
     return {
       emoji: "😃",
       label: "Greed",
-      colorClass: "text-green-500 dark:text-green-500",
+      colorClass: "text-status-success",
       badgeVariant: "success",
     };
   }
@@ -38,7 +38,7 @@ function getDisplay(score: number): DisplayConfig {
     return {
       emoji: "😐",
       label: "Neutral",
-      colorClass: "text-gray-500 dark:text-gray-400",
+      colorClass: "text-text-muted",
       badgeVariant: "secondary",
     };
   }
@@ -46,14 +46,14 @@ function getDisplay(score: number): DisplayConfig {
     return {
       emoji: "😟",
       label: "Fear",
-      colorClass: "text-amber-600 dark:text-amber-400",
+      colorClass: "text-status-warning",
       badgeVariant: "warning",
     };
   }
   return {
     emoji: "😨",
     label: "Extreme Fear",
-    colorClass: "text-red-600 dark:text-red-400",
+    colorClass: "text-status-error",
     badgeVariant: "error",
   };
 }
@@ -143,16 +143,16 @@ export function FearGreedGauge() {
               <div className="flex items-center gap-2">
                 {trendUp && (
                   <>
-                    <ArrowUpIcon className="h-4 w-4 text-green-600" />
-                    <span className="text-sm text-green-600 font-medium">
+                    <ArrowUpIcon className="h-4 w-4 text-status-success" />
+                    <span className="text-sm text-status-success font-medium">
                       +{reading.scoreChange.toFixed(1)} from yesterday
                     </span>
                   </>
                 )}
                 {trendDown && (
                   <>
-                    <ArrowDownIcon className="h-4 w-4 text-red-600" />
-                    <span className="text-sm text-red-600 font-medium">
+                    <ArrowDownIcon className="h-4 w-4 text-status-error" />
+                    <span className="text-sm text-status-error font-medium">
                       {reading.scoreChange.toFixed(1)} from yesterday
                     </span>
                   </>
