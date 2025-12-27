@@ -144,6 +144,64 @@ def should_probe_check(path: str) -> str | None:
     return None
 
 
+def _should_skip_entry(
+    path: str, method: str, has_path_params: bool
+) -> tuple[bool, str | None, str | None]:
+    """Determine if an entry should be skipped or probed.
+
+    Returns:
+        Tuple of (should_skip, skip_message, probe_pattern)
+    """
+    is_streaming = "/stream" in path or "/ws" in path.lower() or method == "WS"
+    is_mutating = method in ("POST", "PUT", "DELETE", "PATCH")
+    skip_reason = should_skip_health_check(path)
+    probe_pattern = should_probe_check(path)
+
+    # Path parameter endpoints should ALWAYS use probe logic
+    if has_path_params and not probe_pattern:
+        probe_pattern = "path-param"
+
+    # Determine skip status and message
+    if is_streaming:
+        return True, "Skipped (streaming)", None
+    if is_mutating:
+        return True, "Skipped (mutating method)", None
+    if skip_reason:
+        return True, skip_reason, None
+
+    return False, None, probe_pattern
+
+
+def _interpret_response(
+    response: httpx.Response, is_probe: bool, probe_pattern: str | None
+) -> tuple[bool, str | None]:
+    """Interpret HTTP response to determine if it's an error.
+
+    Returns:
+        Tuple of (is_error, error_message)
+    """
+    if is_probe:
+        # PROBE CHECK: Any response = route exists = not down
+        is_path_param_probe = probe_pattern == "path-param"
+        if response.status_code >= 500 and not is_path_param_probe:
+            return True, f"HTTP {response.status_code}"
+        return False, f"Probe OK ({probe_pattern}) - HTTP {response.status_code}"
+
+    # NORMAL CHECK: More strict validation
+    if response.status_code >= 500:
+        return True, f"HTTP {response.status_code}"
+
+    if response.status_code == 404:
+        try:
+            body = response.json()
+            if body.get("detail") == "Not Found":
+                return True, "Route not found"
+        except Exception:
+            return True, "HTTP 404"
+
+    return False, None
+
+
 class SitemapService:
     """Discovers and monitors sitemap entries."""
 
@@ -733,26 +791,12 @@ class SitemapService:
         last_error_message = None
 
         # Determine check type based on endpoint characteristics
-        is_streaming = "/stream" in path or "/ws" in path.lower() or method == "WS"
-        is_mutating = method in ("POST", "PUT", "DELETE", "PATCH")
-        skip_reason = should_skip_health_check(path)  # Only for circular-risk endpoints
-        probe_pattern = should_probe_check(path)  # Expensive endpoints get probe check
-
-        # Path parameter endpoints should ALWAYS use probe logic
-        # Any response (even 500) proves route exists - we're just calling with test data
-        if has_path_params and not probe_pattern:
-            probe_pattern = "path-param"  # Mark as probe due to path params
+        should_skip, skip_msg, probe_pattern = _should_skip_entry(path, method, has_path_params)
 
         # 1. Skip entirely: streaming, mutating, or circular-risk endpoints
-        if is_streaming or is_mutating or skip_reason:
+        if should_skip:
             health_status = "healthy"
             http_status = 0  # Indicates skipped, not actually checked
-            if is_streaming:
-                skip_msg = "Skipped (streaming)"
-            elif is_mutating:
-                skip_msg = "Skipped (mutating method)"
-            else:
-                skip_msg = skip_reason or "Skipped (unknown)"
             # Update entry and return early
             with self.conn_mgr.connection() as conn:
                 conn.execute("""
@@ -789,43 +833,8 @@ class SitemapService:
                 response_time_ms = int((datetime.now(UTC) - request_start).total_seconds() * 1000)
                 http_status = response.status_code
 
-                # Determine if this is an error
-                is_error = False
-
-                if is_probe:
-                    # PROBE CHECK: Any response = route exists = not down
-                    # For path-param endpoints: ANY response (even 500) = route exists
-                    #   because 500 with test data just means "invalid ID", not "server broken"
-                    # For expensive endpoints: 5xx is still an error (server problem)
-                    is_path_param_probe = probe_pattern == "path-param"
-
-                    if response.status_code >= 500 and not is_path_param_probe:
-                        # Expensive endpoint returned 5xx = actual server error
-                        is_error = True
-                        last_error_message = f"HTTP {response.status_code}"
-                    else:
-                        # Route exists! Record the status for visibility
-                        last_error_message = f"Probe OK ({probe_pattern}) - HTTP {response.status_code}"
-                else:  # noqa: PLR5501 - intentional nesting for clarity
-                    # NORMAL CHECK: More strict validation
-                    # 5xx = server error
-                    # 404 with generic "Not Found" = route doesn't exist
-                    if response.status_code >= 500:
-                        is_error = True
-                        last_error_message = f"HTTP {response.status_code}"
-                    elif response.status_code == 404:
-                        # Check if this is a real "route not found" vs "data not found"
-                        try:
-                            body = response.json()
-                            # Generic FastAPI 404 = route doesn't exist
-                            if body.get("detail") == "Not Found":
-                                is_error = True
-                                last_error_message = "Route not found"
-                            # Specific message = route exists, just no data
-                        except Exception:
-                            is_error = True
-                            last_error_message = "HTTP 404"
-
+                # Determine if this is an error using helper
+                is_error, last_error_message = _interpret_response(response, is_probe, probe_pattern)
                 if is_error:
                     console_errors = 1
 

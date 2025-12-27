@@ -140,7 +140,7 @@
             "Reduce _build_response from 250 lines to ~100 lines",
             "Run: cd backend && .venv/bin/pytest tests/ -x --tb=short -q"
           ],
-          "passes": false
+          "passes": true
         }
       ]
     },
