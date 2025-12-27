@@ -35,6 +35,25 @@ import {
 import type { PreferencesResponse } from "@/lib/api/preferences";
 import { cn } from "@/lib/utils";
 
+// Wrapper component extracted to avoid recreation during render
+function ProfileSelectorWrapper({
+  variant,
+  className,
+  children,
+}: {
+  variant: "card" | "plain";
+  className?: string;
+  children: ReactNode;
+}) {
+  return variant === "card" ? (
+    <Card className={className}>
+      <CardContent className="space-y-4 pt-6">{children}</CardContent>
+    </Card>
+  ) : (
+    <div className={cn("space-y-4", className)}>{children}</div>
+  );
+}
+
 interface ProfileSelectorProps {
   currentPreferences: PreferencesResponse;
   onProfileLoad: (preferences: PreferencesResponse) => void;
@@ -205,29 +224,20 @@ export function ProfileSelector({
     setShowDeleteDialog(true);
   };
 
-  const Wrapper = ({ children }: { children: ReactNode }) =>
-    variant === "card" ? (
-      <Card className={className}>
-        <CardContent className="space-y-4 pt-6">{children}</CardContent>
-      </Card>
-    ) : (
-      <div className={cn("space-y-4", className)}>{children}</div>
-    );
-
   if (isLoading) {
     return (
-      <Wrapper>
+      <ProfileSelectorWrapper variant={variant} className={className}>
         <div className="animate-pulse space-y-3">
           <div className="h-4 w-32 rounded bg-surface-muted" />
           <div className="h-10 rounded bg-surface-muted" />
         </div>
-      </Wrapper>
+      </ProfileSelectorWrapper>
     );
   }
 
   return (
     <>
-      <Wrapper>
+      <ProfileSelectorWrapper variant={variant} className={className}>
           <div className="flex items-center justify-between">
             <Label>Settings Profiles</Label>
             <div className="flex gap-2">
@@ -325,7 +335,7 @@ export function ProfileSelector({
             store all your preferences including risk tolerance, weights, and display
             settings.
           </p>
-      </Wrapper>
+      </ProfileSelectorWrapper>
 
       {/* Save Profile Dialog */}
       <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>

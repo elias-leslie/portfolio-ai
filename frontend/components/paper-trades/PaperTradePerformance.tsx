@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import {
   LineChart,
@@ -184,19 +185,22 @@ export function PaperTradePerformance({ trades, isLoading }: PaperTradePerforman
   const metrics = calculateMetrics(trades);
   const featureContributions = calculateFeatureContributions(trades);
 
-  // Cumulative return chart data
-  const closedTrades = trades
-    .filter((t) => t.status !== "open" && t.exitDate)
-    .sort((a, b) => new Date(a.exitDate!).getTime() - new Date(b.exitDate!).getTime());
+  // Cumulative return chart data - wrapped in useMemo to avoid render-time mutation
+  const chartData = useMemo(() => {
+    const closedTrades = trades
+      .filter((t) => t.status !== "open" && t.exitDate)
+      .sort((a, b) => new Date(a.exitDate!).getTime() - new Date(b.exitDate!).getTime());
 
-  let cumulative = 0;
-  const chartData = closedTrades.map((trade) => {
-    cumulative += trade.returnPct ?? 0;
-    return {
-      date: trade.exitDate!,
-      return: cumulative,
-    };
-  });
+    // Use reduce to build cumulative data without mutation
+    return closedTrades.reduce<{ date: string; return: number }[]>((acc, trade) => {
+      const prevTotal = acc.length > 0 ? acc[acc.length - 1].return : 0;
+      acc.push({
+        date: trade.exitDate!,
+        return: prevTotal + (trade.returnPct ?? 0),
+      });
+      return acc;
+    }, []);
+  }, [trades]);
 
   return (
     <div className="space-y-6">

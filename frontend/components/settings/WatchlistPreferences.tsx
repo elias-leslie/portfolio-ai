@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
     Card,
     CardContent,
@@ -85,37 +85,51 @@ export function WatchlistPreferences({
     const [showTechnicalSubWeights, setShowTechnicalSubWeights] = useState(false);
     const [showFundamentalSubWeights, setShowFundamentalSubWeights] = useState(false);
 
-    // Update local state when preferences change
+    // Track preferences version to detect external changes
+    // When preferences change externally (e.g., profile load), we reinitialize
+    const preferencesKey = JSON.stringify({
+        defaultRefreshMinutes: preferences.defaultRefreshMinutes,
+        watchlistRefreshOverride: preferences.watchlistRefreshOverride,
+        newsRefreshOverride: preferences.newsRefreshOverride,
+        newsLookbackHours: preferences.newsLookbackHours,
+        newsMaxArticles: preferences.newsMaxArticles,
+        watchlistAutoExpand: preferences.watchlistAutoExpand,
+        watchlistPriceWeight: preferences.watchlistPriceWeight,
+        watchlistTechnicalWeight: preferences.watchlistTechnicalWeight,
+        watchlistShowNews: preferences.watchlistShowNews,
+        watchlistScoreWeights: preferences.watchlistScoreWeights,
+        technicalSubWeights: preferences.technicalSubWeights,
+        fundamentalSubWeights: preferences.fundamentalSubWeights,
+    });
+
+    // Reinitialize local state when external preferences change (profile switch)
+    // This uses useEffect but sets state only on external change, not on every render
+    const lastPreferencesKey = useRef(preferencesKey);
+    if (lastPreferencesKey.current !== preferencesKey) {
+        lastPreferencesKey.current = preferencesKey;
+        // React allows setState during render if it's conditional on props changing
+        // This is the "derive state from props" pattern
+    }
+
+    // Synchronize when preferences object identity changes (profile switch)
     useEffect(() => {
+        // Only sync if we detect the preferences changed externally
         setDefaultRefreshMinutes(preferences.defaultRefreshMinutes);
-        setUseWatchlistOverride(
-            preferences.watchlistRefreshOverride !== null,
-        );
-        setWatchlistOverride(
-            preferences.watchlistRefreshOverride ??
-                preferences.defaultRefreshMinutes,
-        );
+        setUseWatchlistOverride(preferences.watchlistRefreshOverride !== null);
+        setWatchlistOverride(preferences.watchlistRefreshOverride ?? preferences.defaultRefreshMinutes);
         setUseNewsOverride(preferences.newsRefreshOverride !== null);
-        setNewsOverride(
-            preferences.newsRefreshOverride ??
-                preferences.defaultRefreshMinutes,
-        );
+        setNewsOverride(preferences.newsRefreshOverride ?? preferences.defaultRefreshMinutes);
         setNewsLookbackHours(preferences.newsLookbackHours);
         setNewsMaxArticles(preferences.newsMaxArticles);
         setAutoExpand(preferences.watchlistAutoExpand);
         setPriceWeight(preferences.watchlistPriceWeight);
         setTechnicalWeight(preferences.watchlistTechnicalWeight);
         setShowNews(preferences.watchlistShowNews);
-        setScoreWeights(
-            preferences.watchlistScoreWeights ?? { price: 33, technical: 33, fundamental: 34 }
-        );
-        setTechnicalSubWeights(
-            preferences.technicalSubWeights ?? { rsi14: 33, trend: 34, macd: 33 }
-        );
-        setFundamentalSubWeights(
-            preferences.fundamentalSubWeights ?? { valuation: 30, growth: 35, health: 25, sentiment: 10 }
-        );
-    }, [preferences]);
+        setScoreWeights(preferences.watchlistScoreWeights ?? { price: 33, technical: 33, fundamental: 34 });
+        setTechnicalSubWeights(preferences.technicalSubWeights ?? { rsi14: 33, trend: 34, macd: 33 });
+        setFundamentalSubWeights(preferences.fundamentalSubWeights ?? { valuation: 30, growth: 35, health: 25, sentiment: 10 });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [preferencesKey]); // Depend on the key, not the full object
 
     const hasChanges = () => {
         const currentOverride = useWatchlistOverride ? watchlistOverride : null;

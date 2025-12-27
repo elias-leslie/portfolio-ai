@@ -114,13 +114,12 @@ export function LogsCard() {
 
     const sortedLogs = useMemo(() => {
         if (!data?.logs) return [];
-        const logs = [...data.logs];
-        logs.sort((a, b) => {
+        // Use toSorted to avoid mutating and ensure stable reference
+        return [...data.logs].toSorted((a, b) => {
             const timeA = new Date(a.timestamp).getTime();
             const timeB = new Date(b.timestamp).getTime();
             return sortOrder === "asc" ? timeA - timeB : timeB - timeA;
         });
-        return logs;
     }, [data?.logs, sortOrder]);
 
     const logCounts = useMemo(() => {
