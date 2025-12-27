@@ -1,0 +1,441 @@
+{
+  "_instructions": {
+    "critical": "Only modify 'passes' field. Never change structure.",
+    "workflow": "One task at a time. Full verification. Commit after each."
+  },
+  "meta": {
+    "title": "Portfolio-AI Design Token Migration Phase 2",
+    "created": "2025-12-26",
+    "baseline": {
+      "design_token_violations": 444,
+      "files_affected": 53
+    },
+    "token_mapping": {
+      "bg-gray-900": "bg-bg",
+      "bg-gray-800": "bg-surface",
+      "bg-gray-700": "bg-surface-muted",
+      "bg-gray-600": "bg-surface-elev",
+      "bg-white": "bg-bg (dark mode)",
+      "bg-black": "bg-bg",
+      "text-gray-100": "text-text",
+      "text-gray-200": "text-text",
+      "text-gray-300": "text-text-muted",
+      "text-gray-400": "text-text-muted",
+      "text-gray-500": "text-text-muted",
+      "text-gray-600": "text-text-muted",
+      "text-white": "text-text",
+      "border-gray-700": "border-border",
+      "border-gray-600": "border-border",
+      "border-gray-500": "border-border",
+      "divide-gray-700": "divide-border",
+      "hover:bg-gray-700": "hover:bg-surface-muted",
+      "hover:bg-gray-600": "hover:bg-surface-elev"
+    }
+  },
+  "phases": [
+    {
+      "id": 1,
+      "name": "High-Impact Status Components",
+      "goal": "Fix status components with 10+ violations (173 violations total)",
+      "tasks": [
+        {
+          "id": "1.1",
+          "category": "frontend",
+          "description": "Fix MaintenanceTable.tsx (23 violations)",
+          "files_affected": ["frontend/components/status/MaintenanceTable.tsx"],
+          "steps": [
+            "Replace all hardcoded Tailwind colors with design tokens",
+            "Verify: Zero violations in this file"
+          ],
+          "passes": false
+        },
+        {
+          "id": "1.2",
+          "category": "frontend",
+          "description": "Fix SystemMetricsTable.tsx (17 violations)",
+          "files_affected": ["frontend/components/status/SystemMetricsTable.tsx"],
+          "steps": [
+            "Replace all hardcoded Tailwind colors with design tokens",
+            "Verify: Zero violations in this file"
+          ],
+          "passes": false
+        },
+        {
+          "id": "1.3",
+          "category": "frontend",
+          "description": "Fix UnifiedMaintenanceCard.tsx (16 violations)",
+          "files_affected": ["frontend/components/status/UnifiedMaintenanceCard.tsx"],
+          "steps": [
+            "Replace all hardcoded Tailwind colors with design tokens",
+            "Verify: Zero violations in this file"
+          ],
+          "passes": false
+        },
+        {
+          "id": "1.4",
+          "category": "frontend",
+          "description": "Fix WorkflowHealthCard.tsx (16 violations)",
+          "files_affected": ["frontend/components/status/WorkflowHealthCard.tsx"],
+          "steps": [
+            "Replace all hardcoded Tailwind colors with design tokens",
+            "Verify: Zero violations in this file"
+          ],
+          "passes": false
+        },
+        {
+          "id": "1.5",
+          "category": "frontend",
+          "description": "Fix DataFreshnessCard.tsx (15 violations)",
+          "files_affected": ["frontend/components/status/DataFreshnessCard.tsx"],
+          "steps": [
+            "Replace all hardcoded Tailwind colors with design tokens",
+            "Verify: Zero violations in this file"
+          ],
+          "passes": false
+        },
+        {
+          "id": "1.6",
+          "category": "frontend",
+          "description": "Fix MaintenanceStatus.tsx (13 violations)",
+          "files_affected": ["frontend/components/status/MaintenanceStatus.tsx"],
+          "steps": [
+            "Replace all hardcoded Tailwind colors with design tokens",
+            "Verify: Zero violations in this file"
+          ],
+          "passes": false
+        },
+        {
+          "id": "1.7",
+          "category": "frontend",
+          "description": "Fix DataSourcesCard.tsx (12 violations)",
+          "files_affected": ["frontend/components/status/DataSourcesCard.tsx"],
+          "steps": [
+            "Replace all hardcoded Tailwind colors with design tokens",
+            "Verify: Zero violations in this file"
+          ],
+          "passes": false
+        },
+        {
+          "id": "1.8",
+          "category": "frontend",
+          "description": "Fix TableFreshnessCard.tsx (12 violations)",
+          "files_affected": ["frontend/components/status/TableFreshnessCard.tsx"],
+          "steps": [
+            "Replace all hardcoded Tailwind colors with design tokens",
+            "Verify: Zero violations in this file"
+          ],
+          "passes": false
+        },
+        {
+          "id": "1.9",
+          "category": "frontend",
+          "description": "Fix MaintenanceDialogs.tsx (11 violations)",
+          "files_affected": ["frontend/components/status/MaintenanceDialogs.tsx"],
+          "steps": [
+            "Replace all hardcoded Tailwind colors with design tokens",
+            "Verify: Zero violations in this file"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "High-Impact Other Components",
+      "goal": "Fix non-status components with 10+ violations (88 violations total)",
+      "tasks": [
+        {
+          "id": "2.1",
+          "category": "frontend",
+          "description": "Fix ThesisSection.tsx (20 violations)",
+          "files_affected": ["frontend/components/watchlist/ThesisSection.tsx"],
+          "steps": [
+            "Replace all hardcoded Tailwind colors with design tokens",
+            "Verify: Zero violations in this file"
+          ],
+          "passes": false
+        },
+        {
+          "id": "2.2",
+          "category": "frontend",
+          "description": "Fix StrategyDetailModal.tsx (15 violations)",
+          "files_affected": ["frontend/components/strategies/StrategyDetailModal.tsx"],
+          "steps": [
+            "Replace all hardcoded Tailwind colors with design tokens",
+            "Verify: Zero violations in this file"
+          ],
+          "passes": false
+        },
+        {
+          "id": "2.3",
+          "category": "frontend",
+          "description": "Fix MonthlyReturnsHeatmap.tsx (14 violations)",
+          "files_affected": ["frontend/components/backtest/MonthlyReturnsHeatmap.tsx"],
+          "steps": [
+            "Replace all hardcoded Tailwind colors with design tokens",
+            "Verify: Zero violations in this file"
+          ],
+          "passes": false
+        },
+        {
+          "id": "2.4",
+          "category": "frontend",
+          "description": "Fix WatchlistDailyReport.tsx (13 violations)",
+          "files_affected": ["frontend/components/watchlist/WatchlistDailyReport.tsx"],
+          "steps": [
+            "Replace all hardcoded Tailwind colors with design tokens",
+            "Verify: Zero violations in this file"
+          ],
+          "passes": false
+        },
+        {
+          "id": "2.5",
+          "category": "frontend",
+          "description": "Fix DisagreementCard.tsx (11 violations)",
+          "files_affected": ["frontend/components/disagreements/DisagreementCard.tsx"],
+          "steps": [
+            "Replace all hardcoded Tailwind colors with design tokens",
+            "Verify: Zero violations in this file"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Medium-Impact Status Components",
+      "goal": "Fix status components with 5-9 violations (83 violations total)",
+      "tasks": [
+        {
+          "id": "3.1",
+          "category": "frontend",
+          "description": "Fix CeleryTaskTable.tsx, MLModelCard.tsx, ServiceStatusTable.tsx (27 violations)",
+          "files_affected": [
+            "frontend/components/status/CeleryTaskTable.tsx",
+            "frontend/components/status/MLModelCard.tsx",
+            "frontend/components/status/ServiceStatusTable.tsx"
+          ],
+          "steps": [
+            "Replace all hardcoded Tailwind colors with design tokens in each file",
+            "Verify: Zero violations in these files"
+          ],
+          "passes": false
+        },
+        {
+          "id": "3.2",
+          "category": "frontend",
+          "description": "Fix QueueDepthCard.tsx, WorkflowMetricsCard.tsx (16 violations)",
+          "files_affected": [
+            "frontend/components/status/QueueDepthCard.tsx",
+            "frontend/components/status/WorkflowMetricsCard.tsx"
+          ],
+          "steps": [
+            "Replace all hardcoded Tailwind colors with design tokens",
+            "Verify: Zero violations in these files"
+          ],
+          "passes": false
+        },
+        {
+          "id": "3.3",
+          "category": "frontend",
+          "description": "Fix DatabasePoolCard.tsx, MaintenanceCard.tsx, ResourceCard.tsx (21 violations)",
+          "files_affected": [
+            "frontend/components/status/DatabasePoolCard.tsx",
+            "frontend/components/status/MaintenanceCard.tsx",
+            "frontend/components/status/ResourceCard.tsx"
+          ],
+          "steps": [
+            "Replace all hardcoded Tailwind colors with design tokens",
+            "Verify: Zero violations in these files"
+          ],
+          "passes": false
+        },
+        {
+          "id": "3.4",
+          "category": "frontend",
+          "description": "Fix SourceQualityCard.tsx, AgentStatsCard.tsx, LogViewer.tsx (16 violations)",
+          "files_affected": [
+            "frontend/components/status/SourceQualityCard.tsx",
+            "frontend/components/status/AgentStatsCard.tsx",
+            "frontend/components/status/LogViewer.tsx"
+          ],
+          "steps": [
+            "Replace all hardcoded Tailwind colors with design tokens",
+            "Verify: Zero violations in these files"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Medium-Impact Other Components",
+      "goal": "Fix non-status components with 5-9 violations (71 violations total)",
+      "tasks": [
+        {
+          "id": "4.1",
+          "category": "frontend",
+          "description": "Fix ApiSourcesOverview.tsx, FearGreedGauge.tsx (18 violations)",
+          "files_affected": [
+            "frontend/components/capabilities/ApiSourcesOverview.tsx",
+            "frontend/components/market/FearGreedGauge.tsx"
+          ],
+          "steps": [
+            "Replace all hardcoded Tailwind colors with design tokens",
+            "Verify: Zero violations in these files"
+          ],
+          "passes": false
+        },
+        {
+          "id": "4.2",
+          "category": "frontend",
+          "description": "Fix EvidenceCaptureModal.tsx, DisagreementAlert.tsx (16 violations)",
+          "files_affected": [
+            "frontend/components/agents/EvidenceCaptureModal.tsx",
+            "frontend/components/disagreements/DisagreementAlert.tsx"
+          ],
+          "steps": [
+            "Replace all hardcoded Tailwind colors with design tokens",
+            "Verify: Zero violations in these files"
+          ],
+          "passes": false
+        },
+        {
+          "id": "4.3",
+          "category": "frontend",
+          "description": "Fix StrategiesTable.tsx, DisagreementStatsCard.tsx, MarketNarrative.tsx (22 violations)",
+          "files_affected": [
+            "frontend/components/strategies/StrategiesTable.tsx",
+            "frontend/components/disagreements/DisagreementStatsCard.tsx",
+            "frontend/components/market/MarketNarrative.tsx"
+          ],
+          "steps": [
+            "Replace all hardcoded Tailwind colors with design tokens",
+            "Verify: Zero violations in these files"
+          ],
+          "passes": false
+        },
+        {
+          "id": "4.4",
+          "category": "frontend",
+          "description": "Fix ReadinessIndicator.tsx, RulesViewer.tsx, WatchlistTable.tsx (19 violations)",
+          "files_affected": [
+            "frontend/components/watchlist/ReadinessIndicator.tsx",
+            "frontend/components/rules/RulesViewer.tsx",
+            "frontend/components/watchlist/WatchlistTable.tsx"
+          ],
+          "steps": [
+            "Replace all hardcoded Tailwind colors with design tokens",
+            "Verify: Zero violations in these files"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Low-Impact Components",
+      "goal": "Fix remaining components with 1-4 violations (29 violations total)",
+      "tasks": [
+        {
+          "id": "5.1",
+          "category": "frontend",
+          "description": "Fix status small files: APIKeysCard, APIQuotasCard, FileCleanupCard, ServiceCard (16 violations)",
+          "files_affected": [
+            "frontend/components/status/APIKeysCard.tsx",
+            "frontend/components/status/APIQuotasCard.tsx",
+            "frontend/components/status/FileCleanupCard.tsx",
+            "frontend/components/status/ServiceCard.tsx"
+          ],
+          "steps": [
+            "Replace all hardcoded Tailwind colors with design tokens",
+            "Verify: Zero violations in these files"
+          ],
+          "passes": false
+        },
+        {
+          "id": "5.2",
+          "category": "frontend",
+          "description": "Fix strategies/page.tsx, ModeSelector.tsx, SeedEvolution.tsx (13 violations)",
+          "files_affected": [
+            "frontend/app/strategies/page.tsx",
+            "frontend/components/agents/ModeSelector.tsx",
+            "frontend/components/strategies/SeedEvolution.tsx"
+          ],
+          "steps": [
+            "Replace all hardcoded Tailwind colors with design tokens",
+            "Verify: Zero violations in these files"
+          ],
+          "passes": false
+        },
+        {
+          "id": "5.3",
+          "category": "frontend",
+          "description": "Fix market components: SectorRotationSummary, SentimentTrendChart (6 violations)",
+          "files_affected": [
+            "frontend/components/market/SectorRotationSummary.tsx",
+            "frontend/components/market/SentimentTrendChart.tsx"
+          ],
+          "steps": [
+            "Replace all hardcoded Tailwind colors with design tokens",
+            "Verify: Zero violations in these files"
+          ],
+          "passes": false
+        },
+        {
+          "id": "5.4",
+          "category": "frontend",
+          "description": "Fix portfolio components: AssetAllocation, PositionTable, PortfolioOverview (8 violations)",
+          "files_affected": [
+            "frontend/components/portfolio/AssetAllocation.tsx",
+            "frontend/components/portfolio/PositionTable.tsx",
+            "frontend/components/portfolio/PortfolioOverview.tsx"
+          ],
+          "steps": [
+            "Replace all hardcoded Tailwind colors with design tokens",
+            "Verify: Zero violations in these files"
+          ],
+          "passes": false
+        },
+        {
+          "id": "5.5",
+          "category": "frontend",
+          "description": "Fix remaining: PipelineControls, ExpandedRowUtils, TokenSummaryCards, sheet.tsx, etc (12 violations)",
+          "files_affected": [
+            "frontend/components/trading/PipelineControls.tsx",
+            "frontend/components/watchlist/ExpandedRowUtils.ts",
+            "frontend/components/agents/TokenSummaryCards.tsx",
+            "frontend/components/ui/sheet.tsx",
+            "frontend/components/watchlist/ExpandedRowScoreBreakdown.tsx",
+            "frontend/app/agent-hub/page.tsx"
+          ],
+          "steps": [
+            "Replace all hardcoded Tailwind colors with design tokens",
+            "Verify: Zero violations in these files"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Final Verification",
+      "goal": "Verify all checks pass and record improvement",
+      "tasks": [
+        {
+          "id": "6.1",
+          "category": "verification",
+          "description": "Run full verification suite",
+          "files_affected": [],
+          "steps": [
+            "Run: cd frontend && npm run build",
+            "Run: cd frontend && npm run lint 2>&1 | grep -c 'no-restricted-syntax' || echo 0",
+            "Compare: Target is 0 violations (from 444)",
+            "Generate improvement report"
+          ],
+          "passes": false
+        }
+      ]
+    }
+  ]
+}
