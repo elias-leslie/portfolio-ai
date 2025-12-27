@@ -32,7 +32,7 @@ describe("StrategyDetailModal", () => {
 
   it("renders loading state", async () => {
     const { useStrategy } = await import("@/lib/hooks/useStrategies");
-    (useStrategy as unknown as vi.Mock).mockReturnValue({
+    (useStrategy as unknown as Mock).mockReturnValue({
       data: null,
       isLoading: true,
     });
@@ -51,7 +51,7 @@ describe("StrategyDetailModal", () => {
 
   it("does not render content when closed", async () => {
     const { useStrategy } = await import("@/lib/hooks/useStrategies");
-    (useStrategy as unknown as vi.Mock).mockReturnValue({
+    (useStrategy as unknown as Mock).mockReturnValue({
       data: null,
       isLoading: false,
     });
@@ -71,7 +71,7 @@ describe("StrategyDetailModal", () => {
 
   it("calls useStrategy with correct strategyId", async () => {
     const { useStrategy } = await import("@/lib/hooks/useStrategies");
-    const mockUseStrategy = useStrategy as unknown as vi.Mock;
+    const mockUseStrategy = useStrategy as unknown as Mock;
     mockUseStrategy.mockReturnValue({
       data: null,
       isLoading: false,
@@ -91,7 +91,7 @@ describe("StrategyDetailModal", () => {
 
   it("calls useStrategy with null when strategyId is null", async () => {
     const { useStrategy } = await import("@/lib/hooks/useStrategies");
-    const mockUseStrategy = useStrategy as unknown as vi.Mock;
+    const mockUseStrategy = useStrategy as unknown as Mock;
     mockUseStrategy.mockReturnValue({
       data: null,
       isLoading: false,
