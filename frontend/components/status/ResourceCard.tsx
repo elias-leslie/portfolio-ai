@@ -29,7 +29,7 @@ export function ResourceCard({
       case "ok":
         return "bg-green-500";
       default:
-        return "bg-gray-500";
+        return "bg-surface-muted";
     }
   };
 
@@ -43,7 +43,7 @@ export function ResourceCard({
       case "ok":
         return "bg-green-100 text-green-800";
       default:
-        return "bg-gray-100 text-gray-800";
+        return "bg-surface text-text";
     }
   };
 
@@ -51,23 +51,23 @@ export function ResourceCard({
   const showWarning = status !== "ok";
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+    <div className="bg-surface rounded-lg shadow p-6">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          {icon && <div className="text-gray-600 dark:text-gray-400">{icon}</div>}
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+          {icon && <div className="text-text-muted">{icon}</div>}
+          <h3 className="text-lg font-semibold text-text">
             {title}
           </h3>
         </div>
         {showWarning && (
-          <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+          <AlertTriangle className="h-5 w-5 text-yellow-500" />
         )}
       </div>
 
       {/* Progress bar */}
       <div className="mb-3">
         <div className="flex justify-between items-center mb-1">
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          <span className="text-sm font-medium text-text-muted">
             {percent.toFixed(1)}%
           </span>
           <span
@@ -76,7 +76,7 @@ export function ResourceCard({
             {status}
           </span>
         </div>
-        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+        <div className="w-full bg-surface-muted rounded-full h-3">
           <div
             className={`h-3 rounded-full transition-all duration-300 ${getStatusColor()}`}
             style={{ width: `${Math.min(percent, 100)}%` }}
@@ -85,7 +85,7 @@ export function ResourceCard({
       </div>
 
       {/* Details */}
-      <p className="text-sm text-gray-600 dark:text-gray-400">{details}</p>
+      <p className="text-sm text-text-muted">{details}</p>
     </div>
   );
 }
