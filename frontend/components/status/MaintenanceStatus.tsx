@@ -446,7 +446,7 @@ function TaskTriggerSection({
             </Badge>
           )}
           {lastRun.status === "error" && lastRun.errorMessage && (
-            <div className="text-xs text-red-500 bg-red-50 dark:bg-red-950 p-2 rounded">
+            <div className="text-xs text-loss bg-loss/10 p-2 rounded">
               {lastRun.errorMessage}
             </div>
           )}

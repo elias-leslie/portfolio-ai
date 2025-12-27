@@ -102,8 +102,9 @@ export function DisagreementStatsCard({ stats, className }: DisagreementStatsCar
                   style={{
                     height: `${height}%`,
                     backgroundColor: hasDisagreements
-                      ? "rgb(234 179 8 / 0.5)"
-                      : "rgb(34 197 94 / 0.5)",
+                      ? "var(--color-warning)"
+                      : "var(--color-gain)",
+                    opacity: 0.5,
                   }}
                   title={`${day.date}: ${day.reviews} reviews, ${day.disagreements} disagreements`}
                 />

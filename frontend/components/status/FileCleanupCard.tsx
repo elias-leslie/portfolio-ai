@@ -203,7 +203,7 @@ export function FileCleanupCard() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <CleanupCategory
             title="Application Logs"
-            icon={<FileText className="h-5 w-5 text-orange-500" />}
+            icon={<FileText className="h-5 w-5 text-warning" />}
             info={status?.logs ?? null}
             taskName="cleanup_old_logs_task"
             onTrigger={handleTrigger}

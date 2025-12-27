@@ -34,17 +34,17 @@ export function ServiceCard({ serviceName, status, onRestart }: ServiceCardProps
       case "running":
         return {
           variant: "default",
-          icon: <CheckCircle2 className="h-4 w-4 text-green-500" />,
+          icon: <CheckCircle2 className="h-4 w-4 text-gain" />,
         };
       case "degraded":
         return {
           variant: "secondary",
-          icon: <AlertCircle className="h-4 w-4 text-yellow-500" />,
+          icon: <AlertCircle className="h-4 w-4 text-warning" />,
         };
       case "down":
         return {
           variant: "destructive",
-          icon: <AlertCircle className="h-4 w-4 text-red-500" />,
+          icon: <AlertCircle className="h-4 w-4 text-loss" />,
         };
       default:
         return {
@@ -98,7 +98,7 @@ export function ServiceCard({ serviceName, status, onRestart }: ServiceCardProps
 
         {/* Status message */}
         {status.message && (
-          <div className="text-sm text-muted-foreground border-l-2 border-yellow-500 pl-3">
+          <div className="text-sm text-muted-foreground border-l-2 border-warning pl-3">
             {status.message}
           </div>
         )}
