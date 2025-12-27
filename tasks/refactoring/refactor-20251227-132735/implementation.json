@@ -202,7 +202,7 @@
             "Update MaintenanceTable to use the hook",
             "Run: npm run lint && npm run build"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "5.2",

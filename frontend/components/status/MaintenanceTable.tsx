@@ -49,11 +49,10 @@ import {
   cleanupOldNews,
   vacuumDatabase,
   validateIntegrity,
-  checkBackupRequirements,
   type MaintenanceResult,
-  type BackupRequirementCheck,
 } from "@/lib/api/maintenance";
 import { useMaintenanceData } from "@/lib/hooks/useMaintenanceData";
+import { useMaintenanceBackupCheck } from "@/lib/hooks/useMaintenanceBackupCheck";
 import { toast } from "sonner";
 
 // Task category types
@@ -96,10 +95,11 @@ export function MaintenanceTable() {
   } = useMaintenanceData();
 
   // Additional local state
-  const [backupCheck, setBackupCheck] = useState<BackupRequirementCheck | null>(null);
   const [triggeringTask, setTriggeringTask] = useState<string | null>(null);
   const [dryRun, setDryRun] = useState(true);
-  const [isCheckingBackup, setIsCheckingBackup] = useState(false);
+
+  // Backup check hook
+  const { backupCheck, isCheckingBackup } = useMaintenanceBackupCheck(dryRun);
   const [categoryFilter, setCategoryFilter] = useState<TaskCategory | "all">("all");
   const [sortKey, setSortKey] = useState<SortKey>("category");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
