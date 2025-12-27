@@ -110,12 +110,12 @@ export function StatusModal({ open, onOpenChange }: StatusModalProps) {
         )}
 
         {/* Recent Runs */}
-        <div className="flex-1 overflow-y-auto border-t border-gray-700 pt-3 mt-2">
-          <h4 className="text-xs text-gray-400 mb-2">Recent Runs</h4>
+        <div className="flex-1 overflow-y-auto border-t border-border pt-3 mt-2">
+          <h4 className="text-xs text-text-muted mb-2">Recent Runs</h4>
           {historyLoading ? (
             <div className="space-y-2">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-10 w-full animate-pulse bg-gray-800 rounded" />
+                <div key={i} className="h-10 w-full animate-pulse bg-surface rounded" />
               ))}
             </div>
           ) : (
@@ -123,27 +123,27 @@ export function StatusModal({ open, onOpenChange }: StatusModalProps) {
               {historyData?.runs.map((run) => (
                 <div
                   key={run.id}
-                  className="flex items-center justify-between p-2 bg-gray-800/30 rounded text-xs"
+                  className="flex items-center justify-between p-2 bg-surface/30 rounded text-xs"
                 >
                   <div className="flex items-center gap-2">
                     {run.status === 'completed' ? (
-                      <CheckCircle2 className="h-3 w-3 text-green-400" />
+                      <CheckCircle2 className="h-3 w-3 text-gain" />
                     ) : (
-                      <XCircle className="h-3 w-3 text-red-400" />
+                      <XCircle className="h-3 w-3 text-loss" />
                     )}
-                    <span className="text-gray-300">{run.agentType}</span>
+                    <span className="text-text">{run.agentType}</span>
                     <Badge variant="secondary" className="text-[10px] px-1 py-0">
                       {run.provider ?? 'unknown'}
                     </Badge>
                   </div>
-                  <div className="flex gap-3 text-gray-500">
+                  <div className="flex gap-3 text-text-muted">
                     <span>{run.durationMs ? formatDuration(run.durationMs) : '-'}</span>
                     <span>{formatDate(run.startedAt)}</span>
                   </div>
                 </div>
               ))}
               {historyData?.runs.length === 0 && (
-                <p className="text-gray-500 text-center py-4 text-xs">No runs yet</p>
+                <p className="text-text-muted text-center py-4 text-xs">No runs yet</p>
               )}
             </div>
           )}
@@ -169,20 +169,20 @@ function MetricCard({
 }) {
   if (loading) {
     return (
-      <div className="p-3 bg-gray-800 rounded-lg">
-        <div className="h-4 w-20 animate-pulse bg-gray-700 rounded mb-2" />
-        <div className="h-6 w-16 animate-pulse bg-gray-700 rounded" />
+      <div className="p-3 bg-surface rounded-lg">
+        <div className="h-4 w-20 animate-pulse bg-surface-muted rounded mb-2" />
+        <div className="h-6 w-16 animate-pulse bg-surface-muted rounded" />
       </div>
     );
   }
 
   return (
-    <div className="p-3 bg-gray-800 rounded-lg">
+    <div className="p-3 bg-surface rounded-lg">
       <div className="flex items-center gap-2 mb-1">
         {icon}
-        <span className="text-xs text-gray-400">{title}</span>
+        <span className="text-xs text-text-muted">{title}</span>
       </div>
-      <div className={cn("text-lg font-semibold", valueColor || "text-gray-100")}>
+      <div className={cn("text-lg font-semibold", valueColor || "text-text")}>
         {value}
       </div>
     </div>
