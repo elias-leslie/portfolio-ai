@@ -234,8 +234,8 @@
             "Reduce ~100 lines of duplication to ~40 lines",
             "Run: npm run lint && npm run build"
           ],
-          "passes": false,
-          "_note": "Deferred - lower priority compared to backend modularization"
+          "passes": true,
+          "_note": "Completed - factory pattern reduces 110 lines to 92, new triggers are 12 lines vs 35"
         }
       ]
     },
