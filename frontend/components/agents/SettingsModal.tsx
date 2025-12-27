@@ -73,14 +73,10 @@ interface SettingsModalProps {
 type SettingsTab = 'prompts' | 'cross-validation';
 
 export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
-  const [settings, setSettings] = useState<AgentSettings>(DEFAULT_SETTINGS);
+  // Lazy initialization avoids setState-in-effect anti-pattern
+  const [settings, setSettings] = useState<AgentSettings>(() => loadSettings());
   const [activeTab, setActiveTab] = useState<SettingsTab>('prompts');
   const [isDirty, setIsDirty] = useState(false);
-
-  // Load settings on mount
-  useEffect(() => {
-    setSettings(loadSettings());
-  }, []);
 
   const handleChange = <K extends keyof AgentSettings>(key: K, value: AgentSettings[K]) => {
     setSettings(prev => ({ ...prev, [key]: value }));
@@ -261,12 +257,11 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
 // Hook to access settings
 export function useAgentSettings() {
-  const [settings, setSettings] = useState<AgentSettings>(DEFAULT_SETTINGS);
+  // Lazy initialization avoids setState-in-effect anti-pattern
+  const [settings, setSettings] = useState<AgentSettings>(() => loadSettings());
 
+  // Listen for cross-tab storage changes only
   useEffect(() => {
-    setSettings(loadSettings());
-
-    // Listen for storage changes
     const handleStorage = (e: StorageEvent) => {
       if (e.key === STORAGE_KEY && e.newValue) {
         try {
