@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Database,
   HardDrive,
@@ -491,22 +491,22 @@ export function MaintenanceStatus() {
     storageKey?: string;
   } | null>(null);
 
-  // Fetch all data on mount
-  useEffect(() => {
-    fetchAllData();
-    // Refresh every 30 seconds
-    const interval = setInterval(fetchAllData, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const fetchAllData = async () => {
+  const fetchAllData = useCallback(async () => {
     await Promise.all([
       fetchLastRunData(),
       fetchDiskSpace(),
       fetchDatabaseSize(),
       fetchScheduledTasks(),
     ]);
-  };
+  }, []);
+
+  // Fetch all data on mount
+  useEffect(() => {
+    fetchAllData();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchAllData, 30000);
+    return () => clearInterval(interval);
+  }, [fetchAllData]);
 
   const fetchLastRunData = async () => {
     setIsFetching(true);
@@ -598,7 +598,7 @@ export function MaintenanceStatus() {
         throw new Error(`Failed to trigger ${taskName}`);
       }
 
-      const result = await response.json();
+      await response.json(); // Consume response body
       toast.success(`${taskName} triggered successfully`);
       await fetchLastRunData();
     } catch (error) {
