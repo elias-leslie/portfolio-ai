@@ -108,19 +108,19 @@ export function SentimentTrendChart() {
         <div className="font-medium mb-1">{dateStr}</div>
         {fgValue && (
           <div className="flex justify-between gap-4">
-            <span className="text-purple-500">Fear & Greed:</span>
+            <span className="text-chart-purple">Fear & Greed:</span>
             <span className="font-semibold">{fgValue.value} ({fgValue.payload.label})</span>
           </div>
         )}
         {newsValue && newsValue.payload.newsRaw !== null && newsValue.payload.newsRaw !== undefined && (
           <div className="flex justify-between gap-4">
-            <span className="text-cyan-500">News Sentiment:</span>
+            <span className="text-chart-cyan">News Sentiment:</span>
             <span className="font-semibold">{newsValue.payload.newsRaw > 0 ? "+" : ""}{(newsValue.payload.newsRaw * 100).toFixed(0)}%</span>
           </div>
         )}
         {pcValue && pcValue.payload.pcRatioRaw !== null && pcValue.payload.pcRatioRaw !== undefined && (
           <div className="flex justify-between gap-4">
-            <span className="text-orange-500">Put/Call Ratio:</span>
+            <span className="text-chart-orange">Put/Call Ratio:</span>
             <span className="font-semibold">{pcValue.payload.pcRatioRaw.toFixed(2)}</span>
           </div>
         )}
@@ -210,18 +210,18 @@ export function SentimentTrendChart() {
         <div className="flex items-center justify-between text-xs text-text-muted">
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1">
-              <span className="w-3 h-0.5 bg-purple-500 rounded"></span>
+              <span className="w-3 h-0.5 bg-chart-purple rounded"></span>
               <span>Fear & Greed: <span className="font-semibold text-text">{currentScore}</span></span>
             </span>
             {latestNewsSentiment !== null && latestNewsSentiment !== undefined && (
               <span className="flex items-center gap-1">
-                <span className="w-3 h-0.5 bg-cyan-500 rounded"></span>
+                <span className="w-3 h-0.5 bg-chart-cyan rounded"></span>
                 <span>News: <span className="font-semibold text-text">{latestNewsSentiment > 0 ? "+" : ""}{(latestNewsSentiment * 100).toFixed(0)}%</span></span>
               </span>
             )}
             {latestPcRatio !== null && latestPcRatio !== undefined && (
               <span className="flex items-center gap-1">
-                <span className="w-3 h-0.5 bg-orange-500 rounded border-dashed"></span>
+                <span className="w-3 h-0.5 bg-chart-orange rounded border-dashed"></span>
                 <span>P/C: <span className="font-semibold text-text">{latestPcRatio.toFixed(2)}</span></span>
               </span>
             )}
