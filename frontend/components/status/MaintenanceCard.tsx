@@ -129,13 +129,13 @@ function TaskSection({
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Errors:</span>
-            <span className="font-mono text-red-500">
+            <span className="font-mono text-loss">
               {String(summary.totalErrors ?? 0)}
             </span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Warnings:</span>
-            <span className="font-mono text-yellow-500">
+            <span className="font-mono text-warning">
               {String(summary.totalWarnings ?? 0)}
             </span>
           </div>
@@ -190,7 +190,7 @@ function TaskSection({
           )}
           {lastRun.status === "success" && renderSummary(lastRun.summary)}
           {lastRun.status === "error" && lastRun.errorMessage && (
-            <div className="text-sm text-red-500 bg-red-50 dark:bg-red-950 p-2 rounded">
+            <div className="text-sm text-loss bg-loss/10 p-2 rounded">
               {lastRun.errorMessage}
             </div>
           )}
@@ -487,7 +487,7 @@ export function MaintenanceCard() {
                     Checking backup...
                   </Badge>
                 ) : backupCheck?.canProceed ? (
-                  <Badge variant="default" className="flex items-center gap-1 bg-green-600">
+                  <Badge variant="default" className="flex items-center gap-1 bg-gain">
                     <ShieldCheck className="h-3 w-3" />
                     Backup OK
                   </Badge>
@@ -515,7 +515,7 @@ export function MaintenanceCard() {
           <TaskSection
             title="Cleanup Old News"
             description="Remove news articles older than 90 days"
-            icon={<Trash2 className="h-5 w-5 text-orange-500" />}
+            icon={<Trash2 className="h-5 w-5 text-warning" />}
             lastRun={lastRunSummary?.tasks?.cleanupOldNewsTask || lastRunSummary?.tasks?.cleanupNews || null}
             onTrigger={triggerCleanupNews}
             isLoading={isLoading}
@@ -524,7 +524,7 @@ export function MaintenanceCard() {
           <TaskSection
             title="Vacuum Database"
             description="Optimize tables and reclaim disk space"
-            icon={<Database className="h-5 w-5 text-blue-500" />}
+            icon={<Database className="h-5 w-5 text-accent" />}
             lastRun={lastRunSummary?.tasks?.vacuumDatabaseTask || lastRunSummary?.tasks?.vacuumDatabase || null}
             onTrigger={triggerVacuumDatabase}
             isLoading={isLoading}
@@ -533,7 +533,7 @@ export function MaintenanceCard() {
           <TaskSection
             title="Validate Data Integrity"
             description="Check for orphaned records and consistency issues"
-            icon={<CheckCircle2 className="h-5 w-5 text-green-500" />}
+            icon={<CheckCircle2 className="h-5 w-5 text-gain" />}
             lastRun={lastRunSummary?.tasks?.validateIntegrityTask || lastRunSummary?.tasks?.validateIntegrity || null}
             onTrigger={triggerValidateIntegrity}
             isLoading={isLoading}

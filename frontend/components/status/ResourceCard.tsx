@@ -60,7 +60,7 @@ export function ResourceCard({
           </h3>
         </div>
         {showWarning && (
-          <AlertTriangle className="h-5 w-5 text-yellow-500" />
+          <AlertTriangle className="h-5 w-5 text-warning" />
         )}
       </div>
 

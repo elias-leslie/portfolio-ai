@@ -50,11 +50,11 @@ export function MarketNarrative({
   };
 
   const getSentimentColor = (score: number) => {
-    if (score >= 75) return "from-green-500 to-green-400";
-    if (score >= 60) return "from-green-400 to-yellow-400";
-    if (score >= 40) return "from-yellow-500 to-yellow-400";
-    if (score >= 25) return "from-orange-500 to-red-500";
-    return "from-red-600 to-red-500";
+    if (score >= 75) return "from-gain to-gain/80";
+    if (score >= 60) return "from-gain/80 to-warning";
+    if (score >= 40) return "from-warning to-warning/80";
+    if (score >= 25) return "from-warning to-loss";
+    return "from-loss to-loss/80";
   };
 
   return (
