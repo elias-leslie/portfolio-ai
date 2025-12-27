@@ -428,97 +428,76 @@ def weekly_strategy_generation() -> dict[str, Any]:
     from app.agents.workflows.strategy_research_workflow import strategy_research_workflow
 
     try:
-        with get_connection_manager().connection() as conn:
-            strategy_storage = get_strategy_storage()
+        strategy_storage = get_strategy_storage()
 
-            # Get top 20 watchlist symbols ordered by highest overall score
-            # Uses latest snapshot per symbol to get current scores
-            top_symbols = conn.execute(
-                """
-                WITH latest_scores AS (
-                    SELECT DISTINCT ON (wi.symbol)
-                        wi.symbol,
-                        ws.overall_score
-                    FROM watchlist_items wi
-                    LEFT JOIN watchlist_snapshots_v ws ON wi.id = ws.item_id
-                    ORDER BY wi.symbol, ws.fetched_at DESC
-                )
-                SELECT symbol
-                FROM latest_scores
-                ORDER BY overall_score DESC NULLS LAST
-                LIMIT 20
-                """
-            ).fetchall()
+        # Get top 20 watchlist symbols ordered by highest overall score
+        top_symbols = strategy_storage.get_top_watchlist_symbols(limit=20)
 
-            if not top_symbols:
-                logger.info("No watchlist symbols found")
-                return {
-                    "status": "completed",
-                    "symbols_evaluated": 0,
-                    "strategies_generated": 0,
-                    "details": [],
-                }
-
-            logger.info(f"Evaluating {len(top_symbols)} top watchlist symbols")
-
-            results = []
-            generated_count = 0
-
-            for row in top_symbols:
-                # Convert tuple to dict-like access
-                symbol_value = row[0] if isinstance(row, tuple) else row["symbol"]
-                symbol = str(symbol_value)
-
-                # Check if active strategy already exists
-                existing = strategy_storage.get_active_strategy(symbol)
-                if existing:
-                    logger.info(f"Skipping {symbol}: active strategy exists ({existing.name})")
-                    continue
-
-                # Generate new strategy
-                try:
-                    logger.info(f"Generating strategy for {symbol}")
-                    result = asyncio.run(
-                        strategy_research_workflow(symbol=symbol, force_regenerate=False)
-                    )
-
-                    if result["status"] == "completed":
-                        generated_count += 1
-                        results.append(
-                            f"Generated strategy for {symbol}: {result.get('strategy_id', 'unknown')}"
-                        )
-                        logger.info(
-                            "Strategy generated successfully",
-                            symbol=symbol,
-                            strategy_id=result.get("strategy_id"),
-                        )
-                    else:
-                        results.append(
-                            f"Skipped {symbol}: {result.get('message', 'unknown reason')}"
-                        )
-                        logger.info(
-                            "Strategy generation skipped/blocked",
-                            symbol=symbol,
-                            status=result["status"],
-                            message=result.get("message"),
-                        )
-
-                except Exception as e:
-                    logger.exception("Strategy generation failed", symbol=symbol, error=str(e))
-                    results.append(f"Error for {symbol}: {str(e)[:100]}")
-
-            logger.info(
-                "Weekly strategy generation complete",
-                symbols_evaluated=len(top_symbols),
-                strategies_generated=generated_count,
-            )
-
+        if not top_symbols:
+            logger.info("No watchlist symbols found")
             return {
                 "status": "completed",
-                "symbols_evaluated": len(top_symbols),
-                "strategies_generated": generated_count,
-                "details": results,
+                "symbols_evaluated": 0,
+                "strategies_generated": 0,
+                "details": [],
             }
+
+        logger.info(f"Evaluating {len(top_symbols)} top watchlist symbols")
+
+        results = []
+        generated_count = 0
+
+        for symbol in top_symbols:
+            # Check if active strategy already exists
+            existing = strategy_storage.get_active_strategy(symbol)
+            if existing:
+                logger.info(f"Skipping {symbol}: active strategy exists ({existing.name})")
+                continue
+
+            # Generate new strategy
+            try:
+                logger.info(f"Generating strategy for {symbol}")
+                result = asyncio.run(
+                    strategy_research_workflow(symbol=symbol, force_regenerate=False)
+                )
+
+                if result["status"] == "completed":
+                    generated_count += 1
+                    results.append(
+                        f"Generated strategy for {symbol}: {result.get('strategy_id', 'unknown')}"
+                    )
+                    logger.info(
+                        "Strategy generated successfully",
+                        symbol=symbol,
+                        strategy_id=result.get("strategy_id"),
+                    )
+                else:
+                    results.append(
+                        f"Skipped {symbol}: {result.get('message', 'unknown reason')}"
+                    )
+                    logger.info(
+                        "Strategy generation skipped/blocked",
+                        symbol=symbol,
+                        status=result["status"],
+                        message=result.get("message"),
+                    )
+
+            except Exception as e:
+                logger.exception("Strategy generation failed", symbol=symbol, error=str(e))
+                results.append(f"Error for {symbol}: {str(e)[:100]}")
+
+        logger.info(
+            "Weekly strategy generation complete",
+            symbols_evaluated=len(top_symbols),
+            strategies_generated=generated_count,
+        )
+
+        return {
+            "status": "completed",
+            "symbols_evaluated": len(top_symbols),
+            "strategies_generated": generated_count,
+            "details": results,
+        }
 
     except Exception as e:
         logger.exception("Weekly strategy generation failed", error=str(e))
@@ -842,90 +821,71 @@ def trigger_strategies_for_top_watchlist(
             }
 
         remaining_budget = max_per_day - current_count
+        strategy_storage = get_strategy_storage()
 
-        with get_connection_manager().connection() as conn:
-            strategy_storage = get_strategy_storage()
+        # Get top N watchlist symbols by composite score (require non-null scores)
+        top_symbols = strategy_storage.get_top_watchlist_symbols(
+            limit=top_n, require_score=True
+        )
 
-            # Get top N watchlist symbols by composite score
-            top_symbols = conn.execute(
-                """
-                WITH latest_scores AS (
-                    SELECT DISTINCT ON (wi.symbol)
-                        wi.symbol,
-                        ws.overall_score
-                    FROM watchlist_items wi
-                    LEFT JOIN watchlist_snapshots_v ws ON wi.id = ws.item_id
-                    ORDER BY wi.symbol, ws.fetched_at DESC
+        if not top_symbols:
+            logger.info("trigger_strategies_no_watchlist_symbols")
+            return {"status": "completed", "generated": 0, "reason": "No watchlist symbols"}
+
+        generated_count = 0
+        results = []
+
+        for symbol in top_symbols:
+            if generated_count >= remaining_budget:
+                break
+
+            # Check if active strategy exists
+            existing = strategy_storage.get_active_strategy(symbol)
+            if existing:
+                logger.debug(f"Skipping {symbol}: active strategy exists")
+                continue
+
+            # Generate strategy
+            try:
+                logger.info(f"Auto-generating strategy for {symbol}")
+                result = asyncio.run(
+                    strategy_research_workflow(symbol=symbol, force_regenerate=False)
                 )
-                SELECT symbol, overall_score
-                FROM latest_scores
-                WHERE overall_score IS NOT NULL
-                ORDER BY overall_score DESC
-                LIMIT %s
-                """,
-                (top_n,),
-            ).fetchall()
 
-            if not top_symbols:
-                logger.info("trigger_strategies_no_watchlist_symbols")
-                return {"status": "completed", "generated": 0, "reason": "No watchlist symbols"}
-
-            generated_count = 0
-            results = []
-
-            for row in top_symbols:
-                if generated_count >= remaining_budget:
-                    break
-
-                symbol = str(row[0])
-
-                # Check if active strategy exists
-                existing = strategy_storage.get_active_strategy(symbol)
-                if existing:
-                    logger.debug(f"Skipping {symbol}: active strategy exists")
-                    continue
-
-                # Generate strategy
-                try:
-                    logger.info(f"Auto-generating strategy for {symbol}")
-                    result = asyncio.run(
-                        strategy_research_workflow(symbol=symbol, force_regenerate=False)
-                    )
-
-                    if result["status"] == "completed":
-                        generated_count += 1
-                        # Increment Redis counter
-                        r.incr(rate_key)
-                        r.expire(rate_key, 86400)  # Expire after 24 hours
-                        results.append(f"Generated for {symbol}: {result.get('strategy_id')}")
-                        logger.info(
-                            "strategy_auto_generated",
-                            symbol=symbol,
-                            strategy_id=result.get("strategy_id"),
-                        )
-                    else:
-                        results.append(f"Skipped {symbol}: {result.get('message', 'blocked')}")
-
-                except Exception as e:
-                    logger.warning(
-                        "strategy_auto_generation_failed",
+                if result["status"] == "completed":
+                    generated_count += 1
+                    # Increment Redis counter
+                    r.incr(rate_key)
+                    r.expire(rate_key, 86400)  # Expire after 24 hours
+                    results.append(f"Generated for {symbol}: {result.get('strategy_id')}")
+                    logger.info(
+                        "strategy_auto_generated",
                         symbol=symbol,
-                        error=str(e),
+                        strategy_id=result.get("strategy_id"),
                     )
-                    results.append(f"Error for {symbol}: {str(e)[:50]}")
+                else:
+                    results.append(f"Skipped {symbol}: {result.get('message', 'blocked')}")
 
-            logger.info(
-                "trigger_strategies_for_top_watchlist_completed",
-                generated=generated_count,
-                remaining_budget=remaining_budget - generated_count,
-            )
+            except Exception as e:
+                logger.warning(
+                    "strategy_auto_generation_failed",
+                    symbol=symbol,
+                    error=str(e),
+                )
+                results.append(f"Error for {symbol}: {str(e)[:50]}")
 
-            return {
-                "status": "completed",
-                "generated": generated_count,
-                "checked": len(top_symbols),
-                "details": results,
-            }
+        logger.info(
+            "trigger_strategies_for_top_watchlist_completed",
+            generated=generated_count,
+            remaining_budget=remaining_budget - generated_count,
+        )
+
+        return {
+            "status": "completed",
+            "generated": generated_count,
+            "checked": len(top_symbols),
+            "details": results,
+        }
 
     except Exception as e:
         logger.exception("trigger_strategies_for_top_watchlist_failed", error=str(e))

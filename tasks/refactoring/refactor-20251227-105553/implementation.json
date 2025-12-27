@@ -143,7 +143,7 @@
             "Replace 6+ duplicate result-building blocks",
             "Verify: File reduced by 80+ lines"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.3",

@@ -178,6 +178,49 @@ class StrategyStorage:
 
         return self._row_to_strategy_definition(self._convert_row(rows[0]))
 
+    def get_top_watchlist_symbols(
+        self,
+        limit: int = 20,
+        require_score: bool = False,
+        include_score: bool = False,
+    ) -> list[tuple[str, ...]] | list[str]:
+        """Get top watchlist symbols ordered by overall score.
+
+        Args:
+            limit: Maximum number of symbols to return
+            require_score: If True, only return symbols with non-null scores
+            include_score: If True, return tuples of (symbol, score)
+
+        Returns:
+            List of symbols or (symbol, score) tuples
+        """
+        score_condition = "WHERE overall_score IS NOT NULL" if require_score else ""
+        select_cols = "symbol, overall_score" if include_score else "symbol"
+
+        with self.conn.connection() as conn:
+            rows = conn.execute(
+                f"""
+                WITH latest_scores AS (
+                    SELECT DISTINCT ON (wi.symbol)
+                        wi.symbol,
+                        ws.overall_score
+                    FROM watchlist_items wi
+                    LEFT JOIN watchlist_snapshots_v ws ON wi.id = ws.item_id
+                    ORDER BY wi.symbol, ws.fetched_at DESC
+                )
+                SELECT {select_cols}
+                FROM latest_scores
+                {score_condition}
+                ORDER BY overall_score DESC NULLS LAST
+                LIMIT %s
+                """,
+                (limit,),
+            ).fetchall()
+
+        if include_score:
+            return rows
+        return [str(row[0]) for row in rows]
+
     def list_strategies(
         self,
         symbol: str | None = None,
