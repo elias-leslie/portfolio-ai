@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, PlusCircle, Search } from "lucide-react";
 import { WatchlistTable } from "@/components/watchlist/WatchlistTable";
