@@ -112,9 +112,9 @@ function renderSection(
     tone === "destructive"
       ? <Badge variant="destructive">{rows.length}</Badge>
       : tone === "warning"
-        ? <Badge className="bg-yellow-500 text-white">{rows.length}</Badge>
+        ? <Badge className="bg-status-warning text-white">{rows.length}</Badge>
         : tone === "success"
-          ? <Badge className="bg-green-500 text-white">{rows.length}</Badge>
+          ? <Badge className="bg-status-success text-white">{rows.length}</Badge>
           : <Badge variant="outline">{rows.length}</Badge>;
 
   return (
@@ -139,13 +139,13 @@ function renderSection(
 function toneIcon(tone: "destructive" | "warning" | "success" | "muted") {
   switch (tone) {
     case "destructive":
-      return <XCircle className="h-4 w-4 text-red-500" />;
+      return <XCircle className="h-4 w-4 text-status-error" />;
     case "warning":
-      return <AlertCircle className="h-4 w-4 text-yellow-500" />;
+      return <AlertCircle className="h-4 w-4 text-status-warning" />;
     case "success":
-      return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+      return <CheckCircle2 className="h-4 w-4 text-status-success" />;
     default:
-      return <AlertCircle className="h-4 w-4 text-gray-500" />;
+      return <AlertCircle className="h-4 w-4 text-text-muted" />;
   }
 }
 
@@ -177,9 +177,9 @@ function TableRow({ table }: { table: TableFreshnessStatus }) {
 function statusBadge(status: string) {
   switch (status) {
     case "fresh":
-      return <Badge className="bg-green-500 text-white">Fresh</Badge>;
+      return <Badge className="bg-status-success text-white">Fresh</Badge>;
     case "stale":
-      return <Badge className="bg-yellow-500 text-white">Stale</Badge>;
+      return <Badge className="bg-status-warning text-white">Stale</Badge>;
     case "critical":
       return <Badge variant="destructive">Critical</Badge>;
     case "error":

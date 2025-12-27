@@ -79,7 +79,7 @@ const formatDateTime = (dateStr: string | null) => {
 function StatusBadge({ status, isRunning }: { status: string; isRunning?: boolean }) {
   if (isRunning) {
     return (
-      <Badge className="flex items-center gap-1 bg-blue-500 text-white animate-pulse">
+      <Badge className="flex items-center gap-1 bg-status-info text-white animate-pulse">
         <RefreshCw className="h-3 w-3 animate-spin" />
         Running
       </Badge>
@@ -89,14 +89,14 @@ function StatusBadge({ status, isRunning }: { status: string; isRunning?: boolea
   switch (status) {
     case "success":
       return (
-        <Badge className="flex items-center gap-1 bg-green-500 text-white">
+        <Badge className="flex items-center gap-1 bg-status-success text-white">
           <CheckCircle2 className="h-3 w-3" />
           Success
         </Badge>
       );
     case "error":
       return (
-        <Badge className="flex items-center gap-1 bg-red-500 text-white">
+        <Badge className="flex items-center gap-1 bg-status-error text-white">
           <AlertCircle className="h-3 w-3" />
           Error
         </Badge>
@@ -143,9 +143,9 @@ function DiskSpaceCard({ disks, isLoading }: { disks: DiskSpaceInfo[] | null; is
   }
 
   const getProgressColor = (percent: number) => {
-    if (percent >= 85) return "bg-red-500";
-    if (percent >= 70) return "bg-yellow-500";
-    return "bg-green-500";
+    if (percent >= 85) return "bg-status-error";
+    if (percent >= 70) return "bg-status-warning";
+    return "bg-status-success";
   };
 
   const getStatusText = (status: string) => {
@@ -652,7 +652,7 @@ export function MaintenanceStatus() {
           <TaskTriggerSection
             title="Cleanup Old News"
             description="Remove news articles older than 90 days"
-            icon={<AlertCircle className="h-5 w-5 text-orange-500 flex-shrink-0" />}
+            icon={<AlertCircle className="h-5 w-5 text-status-warning flex-shrink-0" />}
             lastRun={lastRunSummary?.tasks?.cleanupOldNewsTask || lastRunSummary?.tasks?.cleanupNews || null}
             onTrigger={() =>
               triggerTask("cleanup_news", "Cleanup News", () =>
@@ -665,7 +665,7 @@ export function MaintenanceStatus() {
           <TaskTriggerSection
             title="Vacuum Database"
             description="Optimize tables and reclaim disk space"
-            icon={<Database className="h-5 w-5 text-blue-500 flex-shrink-0" />}
+            icon={<Database className="h-5 w-5 text-status-info flex-shrink-0" />}
             lastRun={lastRunSummary?.tasks?.vacuumDatabaseTask || lastRunSummary?.tasks?.vacuumDatabase || null}
             onTrigger={() =>
               triggerTask("vacuum_database", "Vacuum Database", () =>
@@ -678,7 +678,7 @@ export function MaintenanceStatus() {
           <TaskTriggerSection
             title="Validate Data Integrity"
             description="Check for orphaned records and consistency issues"
-            icon={<CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />}
+            icon={<CheckCircle2 className="h-5 w-5 text-status-success flex-shrink-0" />}
             lastRun={lastRunSummary?.tasks?.validateIntegrityTask || lastRunSummary?.tasks?.validateIntegrity || null}
             onTrigger={() =>
               triggerTask("validate_integrity", "Validate Integrity", () =>

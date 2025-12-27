@@ -99,7 +99,7 @@ function SourceGroup({
     tone === "destructive" ? (
       <Badge variant="destructive">{count}</Badge>
     ) : (
-      <Badge className="bg-green-500 text-white">{count}</Badge>
+      <Badge className="bg-status-success text-white">{count}</Badge>
     );
 
   return (
@@ -136,13 +136,13 @@ function renderSourceRow(sourceName: string, sourceHealth: SourceHealth) {
             )}
           </div>
           {sourceHealth.inCooldown && (
-            <div className="mt-1 flex items-center gap-1 text-xs text-yellow-600">
+            <div className="mt-1 flex items-center gap-1 text-xs text-status-warning">
               <AlertCircle className="h-3 w-3" />
               In cooldown ({sourceHealth.cooldownRemainingSeconds}s remaining)
             </div>
           )}
           {sourceHealth.rateLimitHits > 0 && (
-            <div className="mt-1 text-xs text-orange-600">
+            <div className="mt-1 text-xs text-status-warning">
               Rate limit hits: {sourceHealth.rateLimitHits}
             </div>
           )}
@@ -156,22 +156,22 @@ function renderSourceRow(sourceName: string, sourceHealth: SourceHealth) {
 function getStatusIcon(status: string) {
   switch (status) {
     case "ok":
-      return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+      return <CheckCircle2 className="h-4 w-4 text-status-success" />;
     case "degraded":
-      return <AlertCircle className="h-4 w-4 text-yellow-500" />;
+      return <AlertCircle className="h-4 w-4 text-status-warning" />;
     case "down":
-      return <XCircle className="h-4 w-4 text-red-500" />;
+      return <XCircle className="h-4 w-4 text-status-error" />;
     default:
-      return <AlertCircle className="h-4 w-4 text-gray-500" />;
+      return <AlertCircle className="h-4 w-4 text-text-muted" />;
   }
 }
 
 function getStatusBadge(status: string) {
   switch (status) {
     case "ok":
-      return <Badge className="bg-green-500 text-white">Healthy</Badge>;
+      return <Badge className="bg-status-success text-white">Healthy</Badge>;
     case "degraded":
-      return <Badge className="bg-yellow-500 text-white">Degraded</Badge>;
+      return <Badge className="bg-status-warning text-white">Degraded</Badge>;
     case "down":
       return <Badge variant="destructive">Down</Badge>;
     default:
