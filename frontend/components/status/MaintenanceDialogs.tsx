@@ -165,24 +165,24 @@ export function BatchResultsDialog({
                 key={idx}
                 className={`border rounded-lg ${
                   result.status === "error"
-                    ? "border-red-500/50 bg-red-500/5"
+                    ? "border-status-error/50 bg-status-error/5"
                     : result.status === "timeout"
-                    ? "border-yellow-500/50 bg-yellow-500/5"
-                    : "border-green-500/50 bg-green-500/5"
+                    ? "border-status-warning/50 bg-status-warning/5"
+                    : "border-status-success/50 bg-status-success/5"
                 }`}
               >
                 <summary className="flex items-center gap-2 p-3 cursor-pointer select-none hover:bg-white/5">
                   {result.status === "success" ? (
-                    <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
+                    <CheckCircle2 className="h-5 w-5 text-status-success flex-shrink-0" />
                   ) : result.status === "error" ? (
-                    <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
+                    <AlertCircle className="h-5 w-5 text-status-error flex-shrink-0" />
                   ) : (
-                    <Loader2 className="h-5 w-5 text-yellow-500 flex-shrink-0" />
+                    <Loader2 className="h-5 w-5 text-status-warning flex-shrink-0" />
                   )}
                   <span className="font-semibold">{result.taskName}</span>
                   <Badge
                     variant={result.status === "success" ? "default" : "destructive"}
-                    className={result.status === "success" ? "bg-green-600" : ""}
+                    className={result.status === "success" ? "bg-status-success" : ""}
                   >
                     {result.status}
                   </Badge>
