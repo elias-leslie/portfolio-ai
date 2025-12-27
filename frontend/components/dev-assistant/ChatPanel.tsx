@@ -287,22 +287,22 @@ export default function ChatPanel({ sessionId, serverUrl }: ChatPanelProps) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-gray-900 text-gray-100">
+    <div className="flex flex-col h-full bg-bg text-text">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-700">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border">
         <div className="flex items-center gap-2">
-          <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-          <span className="text-sm text-gray-400">
+          <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-gain' : 'bg-loss'}`} />
+          <span className="text-sm text-text-muted">
             Session: {sessionId}
           </span>
           {connectionError && (
-            <span className="text-xs text-red-400" title={connectionError}>
+            <span className="text-xs text-loss" title={connectionError}>
               (reconnecting...)
             </span>
           )}
         </div>
         {isLoading && (
-          <span className="text-sm text-blue-400 animate-pulse">Claude is thinking...</span>
+          <span className="text-sm text-primary animate-pulse">Claude is thinking...</span>
         )}
       </div>
 
@@ -314,7 +314,7 @@ export default function ChatPanel({ sessionId, serverUrl }: ChatPanelProps) {
 
         {/* Current streaming response */}
         {currentResponse.length > 0 && (
-          <div className="text-gray-300">
+          <div className="text-text">
             {currentResponse.map((block, i) => (
               <ContentBlockView key={i} block={block} />
             ))}
@@ -326,19 +326,19 @@ export default function ChatPanel({ sessionId, serverUrl }: ChatPanelProps) {
 
       {/* Permission Request Modal */}
       {pendingPermission && (
-        <div className="border-t border-yellow-600 bg-yellow-900/30 p-4">
+        <div className="border-t border-warning bg-warning/30 p-4">
           <div className="flex items-start gap-3">
             <div className="flex-shrink-0 text-2xl">&#9888;</div>
             <div className="flex-1">
-              <h4 className="font-semibold text-yellow-200 mb-2">
+              <h4 className="font-semibold text-warning mb-2">
                 Permission Required
               </h4>
-              <p className="text-sm text-yellow-100 mb-2">
+              <p className="text-sm text-warning mb-2">
                 Claude wants to use: <span className="font-mono font-bold">{pendingPermission.toolName}</span>
               </p>
               {pendingPermission.toolInput && Object.keys(pendingPermission.toolInput).length > 0 && (
-                <div className="bg-gray-800/50 rounded p-2 mb-3 max-h-32 overflow-y-auto">
-                  <pre className="text-xs text-gray-300 whitespace-pre-wrap font-mono">
+                <div className="bg-surface/50 rounded p-2 mb-3 max-h-32 overflow-y-auto">
+                  <pre className="text-xs text-text whitespace-pre-wrap font-mono">
                     {JSON.stringify(pendingPermission.toolInput, null, 2)}
                   </pre>
                 </div>
@@ -346,13 +346,13 @@ export default function ChatPanel({ sessionId, serverUrl }: ChatPanelProps) {
               <div className="flex gap-2">
                 <button
                   onClick={() => handlePermissionResponse(true)}
-                  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-medium"
+                  className="px-4 py-2 bg-gain text-text-inverted rounded hover:bg-gain-strong font-medium"
                 >
                   Allow
                 </button>
                 <button
                   onClick={() => handlePermissionResponse(false)}
-                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-medium"
+                  className="px-4 py-2 bg-loss text-text-inverted rounded hover:bg-loss-strong font-medium"
                 >
                   Deny
                 </button>
@@ -363,7 +363,7 @@ export default function ChatPanel({ sessionId, serverUrl }: ChatPanelProps) {
       )}
 
       {/* Input */}
-      <div className="border-t border-gray-700 p-4">
+      <div className="border-t border-border p-4">
         <div className="flex gap-2">
           <input
             type="text"
@@ -372,12 +372,12 @@ export default function ChatPanel({ sessionId, serverUrl }: ChatPanelProps) {
             onKeyPress={handleKeyPress}
             placeholder={pendingPermission ? "Waiting for permission response..." : isConnected ? "Type a message..." : "Connecting..."}
             disabled={!isConnected || isLoading || !!pendingPermission}
-            className="flex-1 bg-gray-800 border border-gray-600 rounded px-3 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500 disabled:opacity-50"
+            className="flex-1 bg-surface border border-border-subtle rounded px-3 py-2 text-text placeholder-text-muted focus:outline-none focus:border-primary disabled:opacity-50"
           />
           {isLoading ? (
             <button
               onClick={stopResponse}
-              className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+              className="px-4 py-2 bg-loss text-text-inverted rounded hover:bg-loss-strong"
             >
               Stop
             </button>
@@ -385,7 +385,7 @@ export default function ChatPanel({ sessionId, serverUrl }: ChatPanelProps) {
             <button
               onClick={sendMessage}
               disabled={!isConnected || !input.trim() || !!pendingPermission}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/80 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Send
             </button>
@@ -418,10 +418,10 @@ function MessageBubble({ message }: { message: ChatMessage }) {
       <div
         className={`max-w-[80%] rounded-lg px-4 py-2 ${
           isUser
-            ? 'bg-blue-600 text-white'
+            ? 'bg-primary text-primary-foreground'
             : isSystem
-            ? 'bg-yellow-900/50 text-yellow-200 border border-yellow-700'
-            : 'bg-gray-800 text-gray-100'
+            ? 'bg-warning/50 text-warning border border-warning'
+            : 'bg-surface text-text'
         }`}
       >
         {message.blocks ? (
@@ -445,13 +445,13 @@ function ContentBlockView({ block }: { block: ContentBlock }) {
 
     case 'tool_use':
       return (
-        <div className="my-2 p-2 bg-gray-700/50 rounded border border-gray-600 animate-pulse">
-          <div className="text-xs text-blue-400 mb-1 flex items-center gap-2">
-            <span className="inline-block w-2 h-2 bg-blue-400 rounded-full animate-ping" />
+        <div className="my-2 p-2 bg-surface-muted/50 rounded border border-border animate-pulse">
+          <div className="text-xs text-primary mb-1 flex items-center gap-2">
+            <span className="inline-block w-2 h-2 bg-primary rounded-full animate-ping" />
             Running: {block.toolName}
           </div>
           {block.toolInput && (
-            <pre className="text-xs text-gray-400 overflow-x-auto max-h-20">
+            <pre className="text-xs text-text-muted overflow-x-auto max-h-20">
               {typeof block.toolInput === 'object'
                 ? JSON.stringify(block.toolInput, null, 2).slice(0, 200)
                 : String(block.toolInput).slice(0, 200)}
@@ -462,17 +462,17 @@ function ContentBlockView({ block }: { block: ContentBlock }) {
 
     case 'tool_result':
       return (
-        <div className={`my-2 p-2 rounded border ${block.isError ? 'bg-red-900/30 border-red-700' : 'bg-gray-700/30 border-gray-600'}`}>
-          <div className="text-xs text-gray-400 mb-1">Result:</div>
+        <div className={`my-2 p-2 rounded border ${block.isError ? 'bg-loss/30 border-loss' : 'bg-surface-muted/30 border-border'}`}>
+          <div className="text-xs text-text-muted mb-1">Result:</div>
           <pre className="text-xs overflow-x-auto whitespace-pre-wrap">{block.text}</pre>
         </div>
       );
 
     case 'thinking':
       return (
-        <div className="my-2 p-2 bg-purple-900/30 rounded border border-purple-700">
-          <div className="text-xs text-purple-400 mb-1">Thinking...</div>
-          <div className="text-xs text-gray-400 italic">{block.text}</div>
+        <div className="my-2 p-2 bg-accent/30 rounded border border-accent">
+          <div className="text-xs text-accent mb-1">Thinking...</div>
+          <div className="text-xs text-text-muted italic">{block.text}</div>
         </div>
       );
 

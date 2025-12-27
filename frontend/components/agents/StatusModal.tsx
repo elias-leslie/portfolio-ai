@@ -19,8 +19,8 @@ export function StatusModal({ open, onOpenChange }: StatusModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden flex flex-col bg-gray-900 text-gray-100 border-gray-700">
-        <DialogHeader className="border-b border-gray-700 pb-4">
+      <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden flex flex-col bg-bg text-text border-border">
+        <DialogHeader className="border-b border-border pb-4">
           <DialogTitle>Agent Status</DialogTitle>
         </DialogHeader>
 
@@ -33,8 +33,8 @@ export function StatusModal({ open, onOpenChange }: StatusModalProps) {
               className={cn(
                 "px-3 py-1 rounded-md text-xs transition-colors",
                 days === d
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-surface text-text-muted hover:bg-surface-muted"
               )}
             >
               {d}d
@@ -47,57 +47,57 @@ export function StatusModal({ open, onOpenChange }: StatusModalProps) {
           <MetricCard
             title="Total Runs"
             value={summary?.totalRuns ?? 0}
-            icon={<Activity className="h-4 w-4 text-blue-400" />}
+            icon={<Activity className="h-4 w-4 text-primary" />}
             loading={summaryLoading}
           />
           <MetricCard
             title="Success Rate"
             value={`${summary?.successRate?.toFixed(1) ?? 0}%`}
-            icon={<CheckCircle2 className="h-4 w-4 text-green-400" />}
+            icon={<CheckCircle2 className="h-4 w-4 text-gain" />}
             loading={summaryLoading}
             valueColor={
               (summary?.successRate ?? 0) >= 90
-                ? "text-green-400"
+                ? "text-gain"
                 : (summary?.successRate ?? 0) >= 70
-                ? "text-yellow-400"
-                : "text-red-400"
+                ? "text-warning"
+                : "text-loss"
             }
           />
           <MetricCard
             title="Total Tokens"
             value={formatNumber(summary?.totalTokens ?? 0)}
-            icon={<Cpu className="h-4 w-4 text-purple-400" />}
+            icon={<Cpu className="h-4 w-4 text-accent" />}
             loading={summaryLoading}
           />
           <MetricCard
             title="Avg Duration"
             value={formatDuration(summary?.avgDurationMs ?? 0)}
-            icon={<Clock className="h-4 w-4 text-orange-400" />}
+            icon={<Clock className="h-4 w-4 text-warning" />}
             loading={summaryLoading}
           />
         </div>
 
         {/* Provider breakdown */}
         {!summaryLoading && summary?.byProvider && summary.byProvider.length > 0 && (
-          <div className="border-t border-gray-700 pt-3">
-            <h4 className="text-xs text-gray-400 mb-2">By Provider</h4>
+          <div className="border-t border-border pt-3">
+            <h4 className="text-xs text-text-muted mb-2">By Provider</h4>
             <div className="space-y-2">
               {summary.byProvider.map((provider) => (
                 <div
                   key={provider.provider}
-                  className="flex items-center justify-between p-2 bg-gray-800/50 rounded text-xs"
+                  className="flex items-center justify-between p-2 bg-surface/50 rounded text-xs"
                 >
                   <Badge variant="outline" className="capitalize text-xs">
                     {provider.provider}
                   </Badge>
-                  <div className="flex gap-4 text-gray-400">
+                  <div className="flex gap-4 text-text-muted">
                     <span>{provider.totalRuns} runs</span>
                     <span className={
                       provider.successRate >= 90
-                        ? "text-green-400"
+                        ? "text-gain"
                         : provider.successRate >= 70
-                        ? "text-yellow-400"
-                        : "text-red-400"
+                        ? "text-warning"
+                        : "text-loss"
                     }>
                       {provider.successRate.toFixed(0)}%
                     </span>

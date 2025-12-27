@@ -451,9 +451,9 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
   // Standalone mode: full-page content for popup window
   // Panel mode: fixed side panel attached to right
   const wrapperClasses = standalone
-    ? "h-full w-full flex flex-col bg-gray-900 text-gray-100"
+    ? "h-full w-full flex flex-col bg-bg text-text"
     : cn(
-        "fixed top-16 right-0 z-40 h-[calc(100vh-4rem)] w-[500px] flex flex-col bg-gray-900 text-gray-100 border-l border-gray-700 shadow-2xl",
+        "fixed top-16 right-0 z-40 h-[calc(100vh-4rem)] w-[500px] flex flex-col bg-bg text-text border-l border-border shadow-2xl",
         "transition-transform duration-300 ease-in-out",
         open ? "translate-x-0" : "translate-x-full"
       );
@@ -463,13 +463,13 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
       {/* Side Panel or Standalone Content (FEAT-220) */}
       <div className={wrapperClasses}>
         {/* Header - FEAT-223: 5 icons layout */}
-        <div className="p-4 border-b border-gray-700 space-y-2">
+        <div className="p-4 border-b border-border space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-semibold text-gray-100">Agent Hub</h2>
+              <h2 className="text-lg font-semibold text-text">Agent Hub</h2>
               <span className={cn(
                 "w-2 h-2 rounded-full",
-                isConnected ? "bg-green-500" : "bg-red-500"
+                isConnected ? "bg-gain" : "bg-loss"
               )} />
             </div>
             {/* Header Icons: Evidence, Status, Settings */}
@@ -480,7 +480,7 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
                 size="sm"
                 onClick={() => setShowEvidenceCapture(true)}
                 disabled={!pageContext?.path}
-                className="h-8 w-8 p-0 text-gray-400 hover:text-gray-100 disabled:opacity-50"
+                className="h-8 w-8 p-0 text-text-muted hover:text-text disabled:opacity-50"
                 title={pageContext?.path ? "Capture page evidence" : "No page context"}
               >
                 <Camera className="h-4 w-4" />
@@ -490,7 +490,7 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowStatus(true)}
-                className="h-8 w-8 p-0 text-gray-400 hover:text-gray-100"
+                className="h-8 w-8 p-0 text-text-muted hover:text-text"
                 title="Status"
               >
                 <Activity className="h-4 w-4" />
@@ -500,7 +500,7 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowSettings(true)}
-                className="h-8 w-8 p-0 text-gray-400 hover:text-gray-100"
+                className="h-8 w-8 p-0 text-text-muted hover:text-text"
                 title="Settings"
               >
                 <Settings className="h-4 w-4" />
@@ -509,12 +509,12 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
           </div>
           {/* Page context indicator */}
           <div className="flex items-center gap-2 text-xs">
-            <span className="text-gray-500">Tracking:</span>
+            <span className="text-text-muted">Tracking:</span>
             <span className={cn(
               "font-mono px-1.5 py-0.5 rounded",
               pageContext?.path
-                ? "bg-blue-500/20 text-blue-300"
-                : "bg-gray-700 text-gray-500"
+                ? "bg-primary-surface text-primary"
+                : "bg-surface-muted text-text-muted"
             )}>
               {pageContext?.path || "No page"}
             </span>
@@ -531,16 +531,16 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
                   setShowTokenSummary(false);
                 }}
                 className={cn(
-                  "h-7 px-2 text-gray-400 hover:text-gray-100 text-xs",
-                  showSessions && "bg-gray-700 text-gray-100"
+                  "h-7 px-2 text-text-muted hover:text-text text-xs",
+                  showSessions && "bg-surface-muted text-text"
                 )}
                 title="Sessions"
               >
                 <MessageSquare className="h-3.5 w-3.5 mr-1" />
                 Sessions
               </Button>
-              <span className="text-gray-600">|</span>
-              <span className="text-gray-500 text-xs flex items-center gap-1">
+              <span className="text-border">|</span>
+              <span className="text-text-muted text-xs flex items-center gap-1">
                 {currentSessionId ? `${currentSessionId.slice(0, 8)}...` : 'No session'}
                 {/* Show original provider badge if session has one */}
                 {(() => {
@@ -558,7 +558,7 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
                 const originalProvider = currentSession?.originalProvider;
                 if (originalProvider && originalProvider !== 'both' && originalProvider !== agentProvider) {
                   return (
-                    <span className="text-xs text-gray-500 flex items-center gap-1">
+                    <span className="text-xs text-text-muted flex items-center gap-1">
                       Started with: <ProviderBadge provider={originalProvider} size="xs" />
                     </span>
                   );
@@ -569,10 +569,10 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
                 <span className={cn(
                   "text-xs px-1.5 py-0.5 rounded font-medium",
                   agentProvider === 'both'
-                    ? "bg-purple-600/30 text-purple-300 border border-purple-600"
+                    ? "bg-accent/30 text-accent border border-accent"
                     : agentProvider === 'gemini'
-                      ? "bg-green-600/30 text-green-300 border border-green-600"
-                      : "bg-blue-600/30 text-blue-300 border border-blue-600"
+                      ? "bg-gain/30 text-gain border border-gain"
+                      : "bg-primary/30 text-primary border border-primary"
                 )}>
                   {agentProvider === 'both'
                     ? 'Claude + Gemini'
@@ -591,35 +591,35 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
 
         {/* Sessions Panel (unified: create/delete + history) */}
         {showSessions && (
-          <div className="border-b border-gray-700 bg-gray-800/30">
-            <div className="p-2 flex items-center justify-between border-b border-gray-700">
-              <span className="text-xs text-gray-400 font-medium">Sessions</span>
+          <div className="border-b border-border bg-surface/30">
+            <div className="p-2 flex items-center justify-between border-b border-border">
+              <span className="text-xs text-text-muted font-medium">Sessions</span>
               <div className="flex items-center gap-2">
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setShowTokenSummary(!showTokenSummary)}
-                  className="h-6 px-2 text-xs text-gray-400 hover:text-gray-100"
+                  className="h-6 px-2 text-xs text-text-muted hover:text-text"
                 >
                   {showTokenSummary ? 'Hide Tokens' : 'Show Tokens'}
                 </Button>
-                <Button size="sm" variant="ghost" onClick={createSession} className="h-6 px-2 text-xs text-green-400 hover:text-green-300">
+                <Button size="sm" variant="ghost" onClick={createSession} className="h-6 px-2 text-xs text-gain hover:text-gain-strong">
                   <Plus className="h-3 w-3 mr-1" /> New
                 </Button>
               </div>
             </div>
             {isLoadingSessions ? (
-              <div className="p-4 text-center text-gray-500 text-sm">Loading...</div>
+              <div className="p-4 text-center text-text-muted text-sm">Loading...</div>
             ) : sessions.length === 0 ? (
-              <div className="p-4 text-center text-gray-500 text-sm">No sessions yet</div>
+              <div className="p-4 text-center text-text-muted text-sm">No sessions yet</div>
             ) : (
               <div className="overflow-y-auto" style={{ maxHeight: '250px' }}>
                 {sessions.map(session => (
                   <div
                     key={session.id}
                     className={cn(
-                      "p-3 border-b border-gray-700 hover:bg-gray-800/50 cursor-pointer transition-colors",
-                      currentSessionId === session.id && "bg-gray-700"
+                      "p-3 border-b border-border hover:bg-surface/50 cursor-pointer transition-colors",
+                      currentSessionId === session.id && "bg-surface-muted"
                     )}
                     onClick={() => {
                       setCurrentSessionId(session.id);
@@ -632,21 +632,21 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
                         <div className="flex items-center gap-2 mb-1">
                           <span className={cn(
                             "w-2 h-2 rounded-full",
-                            session.isActive ? "bg-green-500" : "bg-gray-600"
+                            session.isActive ? "bg-gain" : "bg-border"
                           )} />
-                          <span className="font-mono text-sm text-gray-300">
+                          <span className="font-mono text-sm text-text">
                             {session.id.slice(0, 8)}
                           </span>
                           <ProviderBadge provider={session.originalProvider} size="xs" />
                         </div>
                         {/* Description or placeholder */}
-                        <div className="text-xs text-gray-400 truncate">
+                        <div className="text-xs text-text-muted truncate">
                           {session.description || (session.messageCount ? 'No description' : '(No messages yet)')}
                         </div>
                         {/* Participants row */}
                         {session.participants && session.participants.length > 0 && (
                           <div className="flex items-center gap-1 mt-1">
-                            <span className="text-[10px] text-gray-600">Participants:</span>
+                            <span className="text-[10px] text-border">Participants:</span>
                             {session.participants.map((p) => (
                               <ProviderBadge key={p} provider={p} size="xs" />
                             ))}
@@ -656,12 +656,12 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
                       <div className="flex flex-col items-end gap-1 text-right">
                         {/* Message count */}
                         {session.messageCount != null && session.messageCount > 0 && (
-                          <span className="text-xs text-gray-400">
+                          <span className="text-xs text-text-muted">
                             {session.messageCount} msgs
                           </span>
                         )}
                         {/* Relative time */}
-                        <span className="text-[10px] text-gray-500">
+                        <span className="text-[10px] text-text-muted">
                           {formatRelativeTime(session.updatedAt)}
                         </span>
                         {/* Delete button */}
@@ -672,7 +672,7 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
                             e.stopPropagation();
                             deleteSession(session.id);
                           }}
-                          className="h-6 w-6 p-0 text-gray-500 hover:text-red-400"
+                          className="h-6 w-6 p-0 text-text-muted hover:text-loss"
                         >
                           <Trash2 className="h-3 w-3" />
                         </Button>
@@ -687,7 +687,7 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
 
         {/* Connection Error */}
         {connectionError && !isConnected && (
-          <div className="p-3 bg-red-900/30 border-b border-red-700 text-red-200 text-sm">
+          <div className="p-3 bg-loss/30 border-b border-loss text-loss text-sm">
             {connectionError}
             <Button
               variant="ghost"
@@ -724,7 +724,7 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
           ))}
 
           {currentResponse.length > 0 && (
-            <div className="text-gray-300">
+            <div className="text-text">
               {/* Show which agent is currently responding in roundtable mode */}
               {currentRespondingAgent && (
                 <span
@@ -732,8 +732,8 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
                   title={currentRespondingAgent === 'claude' ? 'Claude' : 'Gemini'}
                 >
                   {currentRespondingAgent === 'claude'
-                    ? <Diamond className="h-4 w-4 text-blue-400 inline" />
-                    : <Star className="h-4 w-4 text-green-400 inline" />}
+                    ? <Diamond className="h-4 w-4 text-primary inline" />
+                    : <Star className="h-4 w-4 text-gain inline" />}
                 </span>
               )}
               {currentResponse.map((block, i) => (
@@ -747,23 +747,23 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
 
         {/* Permission Request */}
         {pendingPermission && (
-          <div className="border-t border-yellow-600 bg-yellow-900/30 p-4">
+          <div className="border-t border-warning bg-warning/30 p-4">
             <div className="flex items-start gap-3">
               <div className="flex-shrink-0 text-xl">⚠</div>
               <div className="flex-1">
-                <h4 className="font-semibold text-yellow-200 mb-2">Permission Required</h4>
-                <p className="text-sm text-yellow-100 mb-2">
+                <h4 className="font-semibold text-warning mb-2">Permission Required</h4>
+                <p className="text-sm text-warning mb-2">
                   Claude wants to use: <span className="font-mono font-bold">{pendingPermission.toolName}</span>
                 </p>
                 {pendingPermission.toolInput && Object.keys(pendingPermission.toolInput).length > 0 && (
-                  <div className="bg-gray-800/50 rounded p-2 mb-3 max-h-24 overflow-y-auto">
-                    <pre className="text-xs text-gray-300 whitespace-pre-wrap font-mono">
+                  <div className="bg-surface/50 rounded p-2 mb-3 max-h-24 overflow-y-auto">
+                    <pre className="text-xs text-text whitespace-pre-wrap font-mono">
                       {JSON.stringify(pendingPermission.toolInput, null, 2)}
                     </pre>
                   </div>
                 )}
                 <div className="flex gap-2">
-                  <Button onClick={() => handlePermissionResponse(true)} size="sm" className="bg-green-600 hover:bg-green-700">
+                  <Button onClick={() => handlePermissionResponse(true)} size="sm" className="bg-gain hover:bg-gain-strong">
                     Allow
                   </Button>
                   <Button onClick={() => handlePermissionResponse(false)} size="sm" variant="destructive">
@@ -776,7 +776,7 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
         )}
 
         {/* Input */}
-        <div className="border-t border-gray-700 p-4">
+        <div className="border-t border-border p-4">
           {/* suppressHydrationWarning on container to handle browser extensions (Dashlane) */}
           <div className="flex gap-2 items-center" suppressHydrationWarning>
             <input
@@ -794,7 +794,7 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
                   : "Connecting..."
               }
               disabled={!isConnected || isLoading || !!pendingPermission || !currentSessionId}
-              className="flex-1 bg-gray-800 border border-gray-600 rounded px-3 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500 disabled:opacity-50 text-sm"
+              className="flex-1 bg-surface border border-border-subtle rounded px-3 py-2 text-text placeholder-text-muted focus:outline-none focus:border-primary disabled:opacity-50 text-sm"
               suppressHydrationWarning
             />
             {/* Agent & Mode selectors - always visible for quick toggle */}
@@ -875,7 +875,7 @@ export function AgentPanelTrigger({ onClick }: { onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="fixed bottom-6 right-6 z-40 w-14 h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg flex items-center justify-center transition-transform hover:scale-105"
+      className="fixed bottom-6 right-6 z-40 w-14 h-14 bg-primary hover:bg-primary/80 text-primary-foreground rounded-full shadow-lg flex items-center justify-center transition-transform hover:scale-105"
       title="Open Agent Hub"
     >
       <MessageSquare className="h-6 w-6" />
@@ -893,10 +893,10 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         className={cn(
           "max-w-[85%] rounded-lg px-3 py-2 text-sm",
           isUser
-            ? 'bg-blue-600 text-white'
+            ? 'bg-primary text-primary-foreground'
             : isSystem
-            ? 'bg-yellow-900/50 text-yellow-200 border border-yellow-700'
-            : 'bg-gray-800 text-gray-100'
+            ? 'bg-warning/50 text-warning border border-warning'
+            : 'bg-surface text-text'
         )}
       >
         {/* Agent attribution icon */}
@@ -906,8 +906,8 @@ function MessageBubble({ message }: { message: ChatMessage }) {
             title={message.agent === 'claude' ? 'Claude' : 'Gemini'}
           >
             {message.agent === 'claude'
-              ? <Diamond className="h-4 w-4 text-blue-400 inline" />
-              : <Star className="h-4 w-4 text-green-400 inline" />}
+              ? <Diamond className="h-4 w-4 text-primary inline" />
+              : <Star className="h-4 w-4 text-gain inline" />}
           </span>
         )}
         {message.blocks ? (
@@ -938,35 +938,35 @@ function EvidenceMessageBubble({
       <div
         className={cn(
           "max-w-[85%] rounded-lg px-3 py-2 text-sm cursor-pointer transition-colors",
-          "bg-gray-800 hover:bg-gray-700 border",
-          hasErrors ? "border-red-500/50" : "border-blue-500/50"
+          "bg-surface hover:bg-surface-muted border",
+          hasErrors ? "border-loss/50" : "border-primary/50"
         )}
         onClick={onViewEvidence}
       >
         <div className="flex items-center gap-2 mb-1">
-          <Camera className="h-4 w-4 text-blue-400" />
+          <Camera className="h-4 w-4 text-primary" />
           <span className="font-medium">Evidence Captured</span>
-          <span className="text-xs text-gray-500">v{evidence.version}</span>
+          <span className="text-xs text-text-muted">v{evidence.version}</span>
         </div>
-        <div className="text-xs text-gray-400 mb-2">
+        <div className="text-xs text-text-muted mb-2">
           {evidence.featureId} / {evidence.criterionId}
         </div>
         <div className="flex items-center gap-3 text-xs">
           {evidence.consoleErrors > 0 && (
-            <span className="text-red-400">
+            <span className="text-loss">
               {evidence.consoleErrors} console error{evidence.consoleErrors !== 1 ? 's' : ''}
             </span>
           )}
           {evidence.networkFailures > 0 && (
-            <span className="text-red-400">
+            <span className="text-loss">
               {evidence.networkFailures} network failure{evidence.networkFailures !== 1 ? 's' : ''}
             </span>
           )}
           {!hasErrors && (
-            <span className="text-green-400">No issues detected</span>
+            <span className="text-gain">No issues detected</span>
           )}
         </div>
-        <div className="flex items-center gap-1 mt-2 text-xs text-blue-400">
+        <div className="flex items-center gap-1 mt-2 text-xs text-primary">
           <Eye className="h-3 w-3" />
           Click to view evidence
         </div>
@@ -985,13 +985,13 @@ function ContentBlockView({ block }: { block: ContentBlock }) {
 
     case 'tool_use':
       return (
-        <div className="my-2 p-2 bg-gray-700/50 rounded border border-gray-600 animate-pulse">
-          <div className="text-xs text-blue-400 mb-1 flex items-center gap-2">
-            <span className="inline-block w-2 h-2 bg-blue-400 rounded-full animate-ping" />
+        <div className="my-2 p-2 bg-surface-muted/50 rounded border border-border animate-pulse">
+          <div className="text-xs text-primary mb-1 flex items-center gap-2">
+            <span className="inline-block w-2 h-2 bg-primary rounded-full animate-ping" />
             Running: {block.toolName}
           </div>
           {block.toolInput && (
-            <pre className="text-xs text-gray-400 overflow-x-auto max-h-16">
+            <pre className="text-xs text-text-muted overflow-x-auto max-h-16">
               {typeof block.toolInput === 'object'
                 ? JSON.stringify(block.toolInput, null, 2).slice(0, 150)
                 : String(block.toolInput).slice(0, 150)}
@@ -1004,18 +1004,18 @@ function ContentBlockView({ block }: { block: ContentBlock }) {
       return (
         <div className={cn(
           "my-2 p-2 rounded border",
-          block.isError ? 'bg-red-900/30 border-red-700' : 'bg-gray-700/30 border-gray-600'
+          block.isError ? 'bg-loss/30 border-loss' : 'bg-surface-muted/30 border-border'
         )}>
-          <div className="text-xs text-gray-400 mb-1">Result:</div>
+          <div className="text-xs text-text-muted mb-1">Result:</div>
           <pre className="text-xs overflow-x-auto whitespace-pre-wrap">{block.text}</pre>
         </div>
       );
 
     case 'thinking':
       return (
-        <div className="my-2 p-2 bg-purple-900/30 rounded border border-purple-700">
-          <div className="text-xs text-purple-400 mb-1">Thinking...</div>
-          <div className="text-xs text-gray-400 italic">{block.text}</div>
+        <div className="my-2 p-2 bg-accent/30 rounded border border-accent">
+          <div className="text-xs text-accent mb-1">Thinking...</div>
+          <div className="text-xs text-text-muted italic">{block.text}</div>
         </div>
       );
 
