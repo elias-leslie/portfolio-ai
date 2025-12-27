@@ -589,7 +589,7 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                       (() => {
                         const riskConfig: Record<string, { label: string; icon: string; color: string }> = {
                           "Low": { label: "Low", icon: "✓", color: "text-gain" },
-                          "Medium-Low": { label: "Med-Low", icon: "⚠", color: "text-yellow-500" },
+                          "Medium-Low": { label: "Med-Low", icon: "⚠", color: "text-warning" },
                           "Medium": { label: "Medium", icon: "⚠", color: "text-neutral" },
                           "High": { label: "High", icon: "⚠⚠", color: "text-loss" }
                         };

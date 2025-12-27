@@ -223,7 +223,7 @@ export function FileCleanupCard() {
 
           <CleanupCategory
             title="ML Model Versions"
-            icon={<Brain className="h-5 w-5 text-purple-500" />}
+            icon={<Brain className="h-5 w-5 text-accent" />}
             info={status?.models ?? null}
             taskName="cleanup_old_models_task"
             onTrigger={handleTrigger}

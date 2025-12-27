@@ -22,7 +22,7 @@ interface StrategiesTableProps {
 const strategyTypeColors: Record<string, string> = {
   momentum: "bg-accent/10 text-accent",
   value: "bg-gain/10 text-gain",
-  event: "bg-purple-500/10 text-purple-500",
+  event: "bg-accent/10 text-accent",
   reversal: "bg-warning/10 text-warning",
   defensive: "bg-surface-muted text-text-muted",
 };

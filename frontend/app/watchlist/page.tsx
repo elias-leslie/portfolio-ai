@@ -275,9 +275,9 @@ export default function WatchlistPage() {
               ))}
             </div>
           ) : (
-            <div className="rounded-lg border border-green-500/20 bg-green-500/5 p-4">
+            <div className="rounded-lg border border-status-success/20 bg-status-success/5 p-4">
               <div className="flex items-center gap-2 text-sm text-text-muted">
-                <span className="text-green-500">✓</span>
+                <span className="text-status-success">✓</span>
                 <span>No LLM disagreements detected in last 7 days</span>
               </div>
             </div>
