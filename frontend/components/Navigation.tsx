@@ -230,7 +230,7 @@ function NavigationContent({ pathname }: { pathname: string }) {
         open={showEvidenceCapture}
         onClose={() => setShowEvidenceCapture(false)}
         pageUrl={currentPageUrl}
-        onCaptured={(result) => {
+        onCaptured={(_result) => {
           // Evidence captured - modal handles the toast
           setShowEvidenceCapture(false);
         }}

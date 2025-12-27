@@ -63,7 +63,7 @@
             "Or wrap in arrow function: setTimeout(() => connect(), 3000)",
             "Verify: npm run lint shows fewer errors"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "1.4",
@@ -77,7 +77,7 @@
             "Verify all setState calls use immutable/pre-computed values",
             "Verify: npm run lint shows fewer errors"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "1.5",
@@ -90,7 +90,8 @@
             "If setState in effect: apply same lazy initialization pattern",
             "Verify: npm run lint shows fewer errors"
           ],
-          "passes": false
+          "passes": true,
+          "note": "Original errors were misidentified - only warning for unused function"
         }
       ]
     },

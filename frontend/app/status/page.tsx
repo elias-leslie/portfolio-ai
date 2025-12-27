@@ -100,19 +100,15 @@ export default function StatusPage() {
 
     // Fetch detailed health info (day_bars, celery worker, API keys, disk)
     const [detailedHealth, setDetailedHealth] = useState<DetailedHealthResponse | null>(null);
-    const [_detailedLoading, setDetailedLoading] = useState(false);
 
     // Fetch detailed health on mount and periodically
     useEffect(() => {
         const fetchDetailed = async () => {
-            setDetailedLoading(true);
             try {
                 const data = await fetchDetailedHealth();
                 setDetailedHealth(data);
             } catch (err) {
                 console.error("Failed to fetch detailed health:", err);
-            } finally {
-                setDetailedLoading(false);
             }
         };
 

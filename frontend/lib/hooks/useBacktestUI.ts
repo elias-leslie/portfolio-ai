@@ -6,7 +6,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { compareBacktests, runMonteCarlo, type BacktestComparisonResponse, type MonteCarloResponse, type MonteCarloRequest } from "@/lib/api/backtest-ui";
+import { compareBacktests, runMonteCarlo, type MonteCarloRequest } from "@/lib/api/backtest-ui";
 
 // Re-export core backtest hooks
 export {
