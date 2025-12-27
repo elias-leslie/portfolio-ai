@@ -70,7 +70,7 @@ export function APIQuotasCard({ health }: APIQuotasCardProps) {
           ))}
       </div>
       <p className="mt-4 text-xs text-muted-foreground">
-        Sources marked as "Not Configured" will be skipped. Configure their environment variables and restart services to activate them.
+        Sources marked as &quot;Not Configured&quot; will be skipped. Configure their environment variables and restart services to activate them.
       </p>
     </ExpandableCard>
   );

@@ -39,6 +39,27 @@ interface TaskSectionProps {
   isLoading: boolean;
 }
 
+// Maintenance summary discriminated union types
+interface CleanupSummary {
+  deleted: number;
+  cutoffDate?: string;
+}
+
+interface VacuumSummary {
+  tables_processed: number;
+  tablesProcessed: number;
+  totalReclaimedMb: number;
+}
+
+interface IntegritySummary {
+  checks_run: number;
+  checksRun: number;
+  totalErrors?: number;
+  totalWarnings?: number;
+}
+
+type MaintenanceSummary = CleanupSummary | VacuumSummary | IntegritySummary;
+
 function TaskSection({
   title,
   description,
@@ -80,7 +101,7 @@ function TaskSection({
     }
   };
 
-  const renderSummary = (summary: Record<string, any> | null) => {
+  const renderSummary = (summary: MaintenanceSummary | null) => {
     if (!summary) return null;
 
     // Cleanup News summary

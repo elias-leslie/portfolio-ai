@@ -69,7 +69,7 @@ export function APIKeysCard({ apiKeys }: APIKeysCardProps) {
                 <p className="font-medium mb-1">Note:</p>
                 <p>
                     API keys are configured via environment variables. Sources marked as
-                    "Not Configured" will not be used for data fetching. Set the environment
+                    &quot;Not Configured&quot; will not be used for data fetching. Set the environment
                     variable and restart services to activate a source.
                 </p>
             </div>

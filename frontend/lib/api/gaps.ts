@@ -23,7 +23,7 @@ export interface GapInfo {
   currentState: string;
   desiredState: string;
   impact: string;
-  dataSources: Array<Record<string, any>>;
+  dataSources: Array<Record<string, unknown>>;
   effort: "LOW" | "MEDIUM" | "HIGH";
   blocksStrategies: string[];
   recommendation: string;
@@ -52,7 +52,7 @@ export interface GapSummary {
   analysisTypes: Record<string, CoverageResult>;
   avgCoveragePct: number;
   top10Priorities: GapInfo[];
-  mvpRoadmap: Record<string, any>;
+  mvpRoadmap: Record<string, unknown>;
 }
 
 export interface GapsByAnalysis {
@@ -61,7 +61,7 @@ export interface GapsByAnalysis {
 
 export interface SymbolGaps {
   symbol: string;
-  analysisTypes: Record<string, any>;
+  analysisTypes: Record<string, unknown>;
 }
 
 export interface WatchlistGaps {

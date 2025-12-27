@@ -135,7 +135,7 @@ export function CeleryTaskTable() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <Select value={filter} onValueChange={(v: any) => setFilter(v)}>
+          <Select value={filter} onValueChange={(v) => setFilter(v as typeof filter)}>
             <SelectTrigger className="w-[150px]">
               <SelectValue />
             </SelectTrigger>
