@@ -112,7 +112,7 @@ function TaskSection({
             <span className="text-muted-foreground">Articles deleted:</span>
             <span className="font-mono">{String(summary.deleted)}</span>
           </div>
-          {summary.cutoffDate && (
+          {typeof summary.cutoffDate === "string" && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">Cutoff date:</span>
               <span className="font-mono text-xs">
