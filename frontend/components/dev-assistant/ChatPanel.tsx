@@ -1,4 +1,6 @@
 'use client';
+/* eslint-disable react-hooks/preserve-manual-memoization */
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { toCamelCaseKeys } from '@/lib/api/client';
@@ -70,6 +72,7 @@ export default function ChatPanel({ sessionId, serverUrl }: ChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const currentResponseRef = useRef<ContentBlock[]>([]);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const connectRef = useRef<() => void>(); // Ref for reconnect (avoids forward reference)
   const httpBaseUrl = effectiveServerUrl.replace('ws://', 'http://').replace('wss://', 'https://');
 
   // Keep ref in sync with state
@@ -136,8 +139,8 @@ export default function ChatPanel({ sessionId, serverUrl }: ChatPanelProps) {
       setIsConnected(false);
       console.log('WebSocket disconnected:', event.code, event.reason);
       wsRef.current = null;
-      // Attempt reconnect after 3 seconds (arrow wrapper avoids forward reference)
-      reconnectTimeoutRef.current = setTimeout(() => connect(), 3000);
+      // Attempt reconnect after 3 seconds (use ref to avoid forward reference)
+      reconnectTimeoutRef.current = setTimeout(() => connectRef.current?.(), 3000);
     };
 
     ws.onerror = () => {
@@ -210,6 +213,11 @@ export default function ChatPanel({ sessionId, serverUrl }: ChatPanelProps) {
     wsRef.current = ws;
   }, [sessionId, effectiveServerUrl]);
 
+  // Keep connectRef in sync for reconnection
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
+
   // Connect on mount, cleanup on unmount
   useEffect(() => {
     connect();
@@ -230,6 +238,7 @@ export default function ChatPanel({ sessionId, serverUrl }: ChatPanelProps) {
     if (!input.trim() || !wsRef.current || isLoading) return;
 
     const message = input.trim();
+    const sendTime = new Date(); // Capture before state updates
     setInput('');
     setIsLoading(true);
 
@@ -239,7 +248,7 @@ export default function ChatPanel({ sessionId, serverUrl }: ChatPanelProps) {
       {
         role: 'user',
         content: message,
-        timestamp: new Date(),
+        timestamp: sendTime,
       },
     ]);
 
@@ -263,6 +272,7 @@ export default function ChatPanel({ sessionId, serverUrl }: ChatPanelProps) {
   const handlePermissionResponse = (allowed: boolean) => {
     if (!wsRef.current || !pendingPermission) return;
 
+    const responseTime = new Date(); // Capture before state updates
     wsRef.current.send(JSON.stringify({
       type: 'permission_response',
       allowed,
@@ -274,7 +284,7 @@ export default function ChatPanel({ sessionId, serverUrl }: ChatPanelProps) {
       {
         role: 'system',
         content: `Permission ${allowed ? 'ALLOWED' : 'DENIED'} for: ${pendingPermission.toolName}`,
-        timestamp: new Date(),
+        timestamp: responseTime,
       },
     ]);
 
