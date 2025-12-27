@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException
 
 from ...logging_config import get_logger
 from .database import get_history_from_db, get_last_run_from_db, row_to_maintenance_result
-from .models import LastRunSummary, MaintenanceHistory
+from .models import LastRunSummary, MaintenanceHistory, MaintenanceResult
 
 logger = get_logger(__name__)
 
@@ -38,10 +38,10 @@ async def get_last_run() -> LastRunSummary:
         result = get_last_run_from_db()
 
         # Build response - all tasks, dynamic
-        tasks = {}
+        tasks: dict[str, MaintenanceResult | None] = {}
         for row in result:
             task_result = row_to_maintenance_result(row)
-            task_name = row[1]  # task_name column
+            task_name: str = row[1]  # task_name column
             tasks[task_name] = task_result
 
         return LastRunSummary(tasks=tasks)

@@ -1,0 +1,273 @@
+{
+  "_instructions": {
+    "critical": "Only modify 'passes' field. Never change structure.",
+    "workflow": "One task at a time. Full verification. Commit after each."
+  },
+  "meta": {
+    "title": "Portfolio-AI Full Codebase Refactor (Modularization + Type Safety)",
+    "created": "2025-12-27",
+    "baseline": {
+      "mypy_errors": 9,
+      "frontend_lint_errors": 14,
+      "backend_files_over_1000_lines": 4,
+      "frontend_files_over_1000_lines": 2
+    },
+    "targets": {
+      "log_cleanup_tasks.py": "1143 lines - duplicate patterns, maintenance helpers",
+      "strategy_monitoring_tasks.py": "1054 lines - service extraction, query consolidation",
+      "MaintenanceTable.tsx": "1073 lines - component extraction, custom hooks",
+      "AgentPanel.tsx": "1025 lines - hook extraction, dead code removal"
+    }
+  },
+  "phases": [
+    {
+      "id": 1,
+      "name": "Type Safety (mypy errors)",
+      "goal": "Fix all 9 mypy type errors",
+      "tasks": [
+        {
+          "id": "1.1",
+          "category": "backend",
+          "description": "Fix history_router.py type error",
+          "files_affected": ["backend/app/api/maintenance/history_router.py"],
+          "steps": [
+            "Fix line 47: dict[Any, MaintenanceResult] should be dict[str, MaintenanceResult | None]",
+            "Verify: mypy app/api/maintenance/history_router.py passes"
+          ],
+          "passes": false
+        },
+        {
+          "id": "1.2",
+          "category": "backend",
+          "description": "Fix thesis_monitoring_tasks.py type errors",
+          "files_affected": ["backend/app/tasks/thesis_monitoring_tasks.py"],
+          "steps": [
+            "Fix lines 351, 452: Add None checks before calling .isoformat()",
+            "Verify: mypy app/tasks/thesis_monitoring_tasks.py passes"
+          ],
+          "passes": false
+        },
+        {
+          "id": "1.3",
+          "category": "backend",
+          "description": "Fix market.py type errors",
+          "files_affected": ["backend/app/api/market.py"],
+          "steps": [
+            "Fix line 907: Cast event_types to proper Literal type",
+            "Fix line 995: Cast event_type to proper Literal type",
+            "Verify: mypy app/api/market.py passes"
+          ],
+          "passes": false
+        },
+        {
+          "id": "1.4",
+          "category": "backend",
+          "description": "Fix sitemap.py type errors",
+          "files_affected": ["backend/app/api/sitemap.py"],
+          "steps": [
+            "Fix lines 99, 219, 261: Add type parameters to dict",
+            "Fix line 255: Handle None case for ** unpacking",
+            "Verify: mypy app/api/sitemap.py passes"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Frontend Lint Errors",
+      "goal": "Fix critical frontend lint errors",
+      "tasks": [
+        {
+          "id": "2.1",
+          "category": "frontend",
+          "description": "Fix setState in useEffect errors",
+          "files_affected": [
+            "frontend/lib/hooks/useStatusStream.ts",
+            "frontend/components/watchlist/WatchlistTable.tsx",
+            "frontend/app/agent-hub/page.tsx"
+          ],
+          "steps": [
+            "Fix useStatusStream.ts:60 - avoid setState in effect",
+            "Fix other setState-in-effect violations",
+            "Verify: npm run lint shows fewer errors"
+          ],
+          "passes": false
+        },
+        {
+          "id": "2.2",
+          "category": "frontend",
+          "description": "Fix unused variable warnings",
+          "files_affected": [
+            "frontend/components/agents/AgentPanel.tsx",
+            "frontend/components/status/MaintenanceTable.tsx",
+            "frontend/components/portfolio/AccountsWithPositions.tsx"
+          ],
+          "steps": [
+            "Remove or use _detailedLoading, _realizedPnl, _isHydrated, _onOpenChange, _settings, _activeProvider",
+            "Remove unused 'result' variables",
+            "Verify: npm run lint shows fewer warnings"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Backend Dead Code & Bloat Removal",
+      "goal": "Remove unused code, consolidate duplicate patterns",
+      "tasks": [
+        {
+          "id": "3.1",
+          "category": "backend",
+          "description": "Extract maintenance metric helper to log_cleanup_tasks.py",
+          "files_affected": [
+            "backend/app/tasks/log_cleanup_tasks.py",
+            "backend/app/tasks/maintenance_logging.py"
+          ],
+          "steps": [
+            "Add record_maintenance_metric() function to maintenance_logging.py",
+            "Replace 7 duplicate INSERT INTO maintenance_stats blocks with helper call",
+            "Verify: Run ruff check app/tasks/log_cleanup_tasks.py"
+          ],
+          "passes": false
+        },
+        {
+          "id": "3.2",
+          "category": "backend",
+          "description": "Extract error/success result builders in log_cleanup_tasks.py",
+          "files_affected": ["backend/app/tasks/log_cleanup_tasks.py"],
+          "steps": [
+            "Create _build_error_result() helper for standardized error returns",
+            "Create _build_success_result() helper for standardized success returns",
+            "Replace 6+ duplicate result-building blocks",
+            "Verify: File reduced by 80+ lines"
+          ],
+          "passes": false
+        },
+        {
+          "id": "3.3",
+          "category": "backend",
+          "description": "Consolidate strategy_monitoring_tasks.py queries",
+          "files_affected": [
+            "backend/app/tasks/strategy_monitoring_tasks.py",
+            "backend/app/strategies/storage.py"
+          ],
+          "steps": [
+            "Extract 'top watchlist symbols' query to StrategyStorage.get_top_watchlist_symbols()",
+            "Replace 3 duplicate query instances with single method call",
+            "Verify: Run pytest tests/unit -x --tb=short -q"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Frontend Component Modularization",
+      "goal": "Break down oversized components into focused modules",
+      "tasks": [
+        {
+          "id": "4.1",
+          "category": "frontend",
+          "description": "Extract AgentPanel dead code and simplify",
+          "files_affected": ["frontend/components/agents/AgentPanel.tsx"],
+          "steps": [
+            "Remove unused _settings, _activeProvider, _onOpenChange variables",
+            "Remove or use the dead import references",
+            "Verify: Component still works, lint passes"
+          ],
+          "passes": false
+        },
+        {
+          "id": "4.2",
+          "category": "frontend",
+          "description": "Extract MaintenanceTable formatters to hook",
+          "files_affected": [
+            "frontend/components/status/MaintenanceTable.tsx",
+            "frontend/lib/hooks/useMaintenanceFormatters.ts"
+          ],
+          "steps": [
+            "Create useMaintenanceFormatters.ts hook with formatSize, formatLastRun, getStatusIcon, getCategoryBadge",
+            "Replace inline implementations with hook usage",
+            "Verify: Component still works"
+          ],
+          "passes": false
+        },
+        {
+          "id": "4.3",
+          "category": "frontend",
+          "description": "Extract MaintenanceTable task definitions to constant",
+          "files_affected": ["frontend/components/status/MaintenanceTable.tsx"],
+          "steps": [
+            "Extract 14 taskList.push() blocks to TASK_DEFINITIONS constant",
+            "Create buildTaskList() factory function",
+            "Verify: MaintenanceTable reduced by 150+ lines"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Backend Service Layer Extraction",
+      "goal": "Extract business logic from API handlers to service layer",
+      "tasks": [
+        {
+          "id": "5.1",
+          "category": "backend",
+          "description": "Create market_utils.py for duplicate type helpers",
+          "files_affected": [
+            "backend/app/api/market.py",
+            "backend/app/utils/market_utils.py"
+          ],
+          "steps": [
+            "Create market_utils.py with format_date_or_none() helper",
+            "Replace 4+ duplicate date formatting patterns",
+            "Verify: market.py reduced by 25+ lines"
+          ],
+          "passes": false
+        },
+        {
+          "id": "5.2",
+          "category": "backend",
+          "description": "Extract corporate actions queries to service",
+          "files_affected": [
+            "backend/app/api/market.py",
+            "backend/app/services/corporate_actions_service.py"
+          ],
+          "steps": [
+            "Create corporate_actions_service.py with get_actions() and get_summary()",
+            "Move query logic from market.py lines 742-809 to service",
+            "Update endpoints to use service",
+            "Verify: pytest tests/ -x --tb=short -q passes"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Final Verification",
+      "goal": "All checks pass, no regressions",
+      "tasks": [
+        {
+          "id": "6.1",
+          "category": "verification",
+          "description": "Run full verification suite",
+          "files_affected": [],
+          "steps": [
+            "Run: cd backend && .venv/bin/mypy app/ --no-error-summary 2>&1 | grep -c 'error:' (expect 0)",
+            "Run: cd backend && .venv/bin/ruff check app/",
+            "Run: cd backend && .venv/bin/pytest tests/ -x --tb=short -q",
+            "Run: cd frontend && npm run build",
+            "Run: cd frontend && npm run lint 2>&1 | grep -c 'error' (expect <5)",
+            "Verify: bash ~/portfolio-ai/scripts/restart.sh succeeds",
+            "Verify: curl -sf http://localhost:8000/api/health returns healthy"
+          ],
+          "passes": false
+        }
+      ]
+    }
+  ]
+}
