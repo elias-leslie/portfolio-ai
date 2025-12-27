@@ -28,22 +28,22 @@ interface StrategyDetailModalProps {
 }
 
 const statusColors: Record<string, string> = {
-  testing: "bg-yellow-100 text-yellow-800",
-  active: "bg-green-100 text-green-800",
-  archived: "bg-gray-100 text-gray-500",
+  testing: "bg-status-warning/10 text-status-warning",
+  active: "bg-status-success/10 text-status-success",
+  archived: "bg-surface-muted text-text-muted",
 };
 
 const pillarColors: Record<string, string> = {
-  EXCELLENT: "text-green-600",
-  GOOD: "text-green-500",
-  FAIR: "text-yellow-500",
-  POOR: "text-red-500",
-  bullish: "text-green-600",
-  neutral: "text-gray-500",
-  bearish: "text-red-500",
-  improving: "text-green-600",
-  stable: "text-gray-500",
-  declining: "text-red-500",
+  EXCELLENT: "text-status-success",
+  GOOD: "text-status-success",
+  FAIR: "text-status-warning",
+  POOR: "text-status-error",
+  bullish: "text-status-success",
+  neutral: "text-text-muted",
+  bearish: "text-status-error",
+  improving: "text-status-success",
+  stable: "text-text-muted",
+  declining: "text-status-error",
 };
 
 export function StrategyDetailModal({
@@ -259,7 +259,7 @@ export function StrategyDetailModal({
                             <span>
                               Sharpe:{" "}
                               <span
-                                className={(metric.sharpe ?? 0) > 1 ? "text-green-600" : "text-yellow-600"}
+                                className={(metric.sharpe ?? 0) > 1 ? "text-status-success" : "text-status-warning"}
                               >
                                 {metric.sharpe?.toFixed(2) ?? "-"}
                               </span>

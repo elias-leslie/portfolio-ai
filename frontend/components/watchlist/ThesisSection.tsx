@@ -222,9 +222,9 @@ export function ThesisSection({ symbol, userTimezone }: ThesisSectionProps) {
 // Action Badge Component
 function ActionBadge({ action }: { action: "BUY" | "HOLD" | "SELL" }) {
     const config = {
-        BUY: { color: "bg-green-500/10 text-green-600 border-green-500/20", icon: "📈" },
-        HOLD: { color: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20", icon: "⏸️" },
-        SELL: { color: "bg-red-500/10 text-red-600 border-red-500/20", icon: "📉" },
+        BUY: { color: "bg-status-success/10 text-status-success border-status-success/20", icon: "📈" },
+        HOLD: { color: "bg-status-warning/10 text-status-warning border-status-warning/20", icon: "⏸️" },
+        SELL: { color: "bg-status-error/10 text-status-error border-status-error/20", icon: "📉" },
     };
 
     const { color, icon } = config[action];
@@ -241,9 +241,9 @@ function ActionBadge({ action }: { action: "BUY" | "HOLD" | "SELL" }) {
 // Note: status values are snake_case from backend (string values aren't transformed)
 function StatusBadge({ status }: { status: "active" | "invalidated" | "flagged_for_review" }) {
     const config = {
-        active: { color: "bg-blue-500/10 text-blue-600 border-blue-500/20", label: "Active" },
-        invalidated: { color: "bg-gray-500/10 text-gray-600 border-gray-500/20", label: "Invalidated" },
-        flagged_for_review: { color: "bg-orange-500/10 text-orange-600 border-orange-500/20", label: "Flagged" },
+        active: { color: "bg-status-info/10 text-status-info border-status-info/20", label: "Active" },
+        invalidated: { color: "bg-surface-muted text-text-muted border-border", label: "Invalidated" },
+        flagged_for_review: { color: "bg-status-warning/10 text-status-warning border-status-warning/20", label: "Flagged" },
     };
 
     const { color, label } = config[status];
@@ -317,9 +317,9 @@ function KeyCatalystsSection({
 // Impact Badge Component
 function ImpactBadge({ impact }: { impact: "positive" | "negative" | "neutral" }) {
     const config = {
-        positive: { color: "bg-green-500/10 text-green-600 border-green-500/20", icon: "+" },
-        negative: { color: "bg-red-500/10 text-red-600 border-red-500/20", icon: "-" },
-        neutral: { color: "bg-gray-500/10 text-gray-600 border-gray-500/20", icon: "~" },
+        positive: { color: "bg-status-success/10 text-status-success border-status-success/20", icon: "+" },
+        negative: { color: "bg-status-error/10 text-status-error border-status-error/20", icon: "-" },
+        neutral: { color: "bg-surface-muted text-text-muted border-border", icon: "~" },
     };
 
     const { color, icon } = config[impact];
@@ -360,9 +360,9 @@ function RisksSection({ risks }: { risks: Risk[] }) {
 // Severity Badge Component
 function SeverityBadge({ severity }: { severity: "high" | "medium" | "low" }) {
     const config = {
-        high: { color: "bg-red-500/10 text-red-600 border-red-500/20", label: "High" },
-        medium: { color: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20", label: "Med" },
-        low: { color: "bg-blue-500/10 text-blue-600 border-blue-500/20", label: "Low" },
+        high: { color: "bg-status-error/10 text-status-error border-status-error/20", label: "High" },
+        medium: { color: "bg-status-warning/10 text-status-warning border-status-warning/20", label: "Med" },
+        low: { color: "bg-status-info/10 text-status-info border-status-info/20", label: "Low" },
     };
 
     const { color, label } = config[severity];
@@ -443,8 +443,8 @@ function ClaudeValidationSection({
                         variant="outline"
                         className={
                             validation.approved
-                                ? "bg-green-500/10 text-green-600 border-green-500/20"
-                                : "bg-red-500/10 text-red-600 border-red-500/20"
+                                ? "bg-status-success/10 text-status-success border-status-success/20"
+                                : "bg-status-error/10 text-status-error border-status-error/20"
                         }
                     >
                         {validation.approved ? "Approved" : "Not Approved"}
@@ -517,8 +517,8 @@ function VersionHistorySection({
 
 // Utility Functions
 function getConfidenceColor(confidence: number): string {
-    if (confidence >= 0.8) return "bg-green-500";
-    if (confidence >= 0.6) return "bg-blue-500";
-    if (confidence >= 0.4) return "bg-yellow-500";
-    return "bg-red-500";
+    if (confidence >= 0.8) return "bg-status-success";
+    if (confidence >= 0.6) return "bg-status-info";
+    if (confidence >= 0.4) return "bg-status-warning";
+    return "bg-status-error";
 }

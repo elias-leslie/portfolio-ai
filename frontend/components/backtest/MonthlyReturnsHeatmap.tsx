@@ -70,14 +70,14 @@ function calculateMonthlyReturns(equityCurve: EquityPoint[]): MonthlyReturn[] {
 }
 
 function getColorClass(returnPct: number): string {
-  if (returnPct >= 10) return "bg-green-600 text-white";
-  if (returnPct >= 5) return "bg-green-500 text-white";
-  if (returnPct >= 2) return "bg-green-400 text-white";
-  if (returnPct >= 0) return "bg-green-200 text-green-900";
-  if (returnPct >= -2) return "bg-red-200 text-red-900";
-  if (returnPct >= -5) return "bg-red-400 text-white";
-  if (returnPct >= -10) return "bg-red-500 text-white";
-  return "bg-red-600 text-white";
+  if (returnPct >= 10) return "bg-status-success text-white";
+  if (returnPct >= 5) return "bg-status-success/80 text-white";
+  if (returnPct >= 2) return "bg-status-success/60 text-white";
+  if (returnPct >= 0) return "bg-status-success/20 text-status-success";
+  if (returnPct >= -2) return "bg-status-error/20 text-status-error";
+  if (returnPct >= -5) return "bg-status-error/60 text-white";
+  if (returnPct >= -10) return "bg-status-error/80 text-white";
+  return "bg-status-error text-white";
 }
 
 export function MonthlyReturnsHeatmap({ equityCurve }: MonthlyReturnsHeatmapProps) {
