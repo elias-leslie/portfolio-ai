@@ -73,7 +73,7 @@ export function BacktestRunsList({
     return (
       <SectionCard variant="surface">
         <div className="p-4 text-center text-sm text-text-muted">
-          No backtests yet. Click "New Backtest" to start.
+          No backtests yet. Click &quot;New Backtest&quot; to start.
         </div>
       </SectionCard>
     );

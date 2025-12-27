@@ -116,7 +116,7 @@ export function SectorRotationSummary({
       {/* Footer explanation */}
       <div className="pt-3 border-t border-border">
         <p className="text-xs text-text-muted">
-          Sectors ranked by today's performance. Leading = top 33%, Lagging = bottom 33%.
+          Sectors ranked by today&apos;s performance. Leading = top 33%, Lagging = bottom 33%.
         </p>
       </div>
     </div>

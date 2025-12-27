@@ -144,7 +144,7 @@ export function SourceQualityCard() {
           <div className="text-center py-8 text-muted-foreground">
             <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
             <p>No profiling data available</p>
-            <p className="text-sm">Click "Run Profiling" to generate quality metrics</p>
+            <p className="text-sm">Click &quot;Run Profiling&quot; to generate quality metrics</p>
             </div>
           ) : (
             <div className="space-y-3">
