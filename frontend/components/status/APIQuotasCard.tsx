@@ -61,7 +61,7 @@ export function APIQuotasCard({ health }: APIQuotasCardProps) {
               </div>
               <div>
                 {quota.configured ? (
-                  <Badge className="bg-gain text-white">Active</Badge>
+                  <Badge className="bg-gain text-text-inverted">Active</Badge>
                 ) : (
                   <Badge variant="outline">Not Configured</Badge>
                 )}

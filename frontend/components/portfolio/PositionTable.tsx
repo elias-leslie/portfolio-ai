@@ -142,7 +142,7 @@ export function PositionTable() {
       cell: ({ row }) => (
         <Link
           href={`/watchlist?symbol=${row.getValue("symbol")}`}
-          className="font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline transition-colors"
+          className="font-medium text-accent hover:text-accent/80 hover:underline transition-colors"
         >
           {row.getValue("symbol")}
         </Link>

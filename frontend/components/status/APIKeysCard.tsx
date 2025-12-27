@@ -55,7 +55,7 @@ export function APIKeysCard({ apiKeys }: APIKeysCardProps) {
                             </div>
                             <div>
                                 {key.configured ? (
-                                    <Badge className="bg-gain text-white">
+                                    <Badge className="bg-gain text-text-inverted">
                                         Active
                                     </Badge>
                                 ) : (

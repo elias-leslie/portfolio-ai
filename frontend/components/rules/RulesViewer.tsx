@@ -285,7 +285,7 @@ export function RulesViewer() {
           <div className="text-sm text-muted-foreground">Max Watchlist</div>
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
-          <div className="text-2xl font-bold text-purple-500">
+          <div className="text-2xl font-bold text-accent">
             {Object.keys(rules.catalystImpacts).length}
           </div>
           <div className="text-sm text-muted-foreground">Catalyst Events</div>

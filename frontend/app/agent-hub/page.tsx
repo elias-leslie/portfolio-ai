@@ -43,7 +43,7 @@ export default function AgentHubPage() {
   }, []);
 
   return (
-    <div className="h-screen w-full bg-gray-900 text-gray-100">
+    <div className="h-screen w-full bg-bg text-text">
       <AgentHubContent pageContext={pageContext} />
     </div>
   );
