@@ -20,8 +20,11 @@ from typing import TYPE_CHECKING, Any
 
 from app.celery_app import celery_app
 from app.logging_config import get_logger
-from app.storage.connection import get_connection_manager
-from app.tasks.maintenance_logging import log_maintenance_complete, log_maintenance_start
+from app.tasks.maintenance_logging import (
+    log_maintenance_complete,
+    log_maintenance_start,
+    record_maintenance_metric,
+)
 
 if TYPE_CHECKING:
     from celery import Task
@@ -77,21 +80,12 @@ def _check_disk_space_impl() -> dict[str, Any]:
                 logger.warning("disk_space_alert", **alert)
 
             # Store metric in maintenance_stats
-            storage = get_connection_manager()
-            with storage.connection() as conn:
-                conn.execute(
-                    """
-                    INSERT INTO maintenance_stats (metric_name, metric_value, metric_unit, metadata)
-                    VALUES (%s, %s, %s, %s)
-                    """,
-                    [
-                        f"disk_space_used_percentage_{name}",
-                        used_percentage,
-                        "percentage",
-                        f'{{"partition": "{path}"}}',
-                    ],
-                )
-                conn.commit()
+            record_maintenance_metric(
+                f"disk_space_used_percentage_{name}",
+                used_percentage,
+                "percentage",
+                f'{{"partition": "{path}"}}',
+            )
 
         except Exception as partition_error:
             logger.error(
@@ -288,16 +282,7 @@ def cleanup_old_logs_task(
 
         # Store metric in maintenance_stats (only if not dry run)
         if bytes_freed > 0 and not dry_run:
-            storage = get_connection_manager()
-            with storage.connection() as conn:
-                conn.execute(
-                    """
-                    INSERT INTO maintenance_stats (metric_name, metric_value, metric_unit)
-                    VALUES (%s, %s, %s)
-                    """,
-                    ["log_cleanup_bytes_freed", bytes_freed, "bytes"],
-                )
-                conn.commit()
+            record_maintenance_metric("log_cleanup_bytes_freed", bytes_freed, "bytes")
 
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
 
@@ -411,16 +396,7 @@ def cleanup_temp_files_task(
 
         # Store metric in maintenance_stats (only if not dry run)
         if bytes_freed > 0 and not dry_run:
-            storage = get_connection_manager()
-            with storage.connection() as conn:
-                conn.execute(
-                    """
-                    INSERT INTO maintenance_stats (metric_name, metric_value, metric_unit)
-                    VALUES (%s, %s, %s)
-                    """,
-                    ["temp_cleanup_bytes_freed", bytes_freed, "bytes"],
-                )
-                conn.commit()
+            record_maintenance_metric("temp_cleanup_bytes_freed", bytes_freed, "bytes")
 
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
 
@@ -589,16 +565,7 @@ def cleanup_old_backups_task(
 
         # Store metric in maintenance_stats (only if not dry run)
         if bytes_freed > 0 and not dry_run:
-            storage = get_connection_manager()
-            with storage.connection() as conn:
-                conn.execute(
-                    """
-                    INSERT INTO maintenance_stats (metric_name, metric_value, metric_unit)
-                    VALUES (%s, %s, %s)
-                    """,
-                    ["backup_cleanup_bytes_freed", bytes_freed, "bytes"],
-                )
-                conn.commit()
+            record_maintenance_metric("backup_cleanup_bytes_freed", bytes_freed, "bytes")
 
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
 
@@ -738,16 +705,7 @@ def cleanup_old_models_task(
 
         # Store metric in maintenance_stats (only if not dry run)
         if bytes_freed > 0 and not dry_run:
-            storage = get_connection_manager()
-            with storage.connection() as conn:
-                conn.execute(
-                    """
-                    INSERT INTO maintenance_stats (metric_name, metric_value, metric_unit)
-                    VALUES (%s, %s, %s)
-                    """,
-                    ["model_cleanup_bytes_freed", bytes_freed, "bytes"],
-                )
-                conn.commit()
+            record_maintenance_metric("model_cleanup_bytes_freed", bytes_freed, "bytes")
 
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
 
@@ -882,16 +840,7 @@ def cleanup_solution_state_task(
 
         # Store metric in maintenance_stats (only if not dry run)
         if bytes_freed > 0 and not dry_run:
-            storage = get_connection_manager()
-            with storage.connection() as conn:
-                conn.execute(
-                    """
-                    INSERT INTO maintenance_stats (metric_name, metric_value, metric_unit)
-                    VALUES (%s, %s, %s)
-                    """,
-                    ["solution_state_cleanup_bytes_freed", bytes_freed, "bytes"],
-                )
-                conn.commit()
+            record_maintenance_metric("solution_state_cleanup_bytes_freed", bytes_freed, "bytes")
 
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
 
@@ -1091,16 +1040,7 @@ def cleanup_cache_directories_task(self: Task, dry_run: bool = False) -> dict[st
 
         # Store metric in maintenance_stats (only if not dry run)
         if bytes_freed > 0 and not dry_run:
-            storage = get_connection_manager()
-            with storage.connection() as conn:
-                conn.execute(
-                    """
-                    INSERT INTO maintenance_stats (metric_name, metric_value, metric_unit)
-                    VALUES (%s, %s, %s)
-                    """,
-                    ["cache_cleanup_bytes_freed", bytes_freed, "bytes"],
-                )
-                conn.commit()
+            record_maintenance_metric("cache_cleanup_bytes_freed", bytes_freed, "bytes")
 
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
 

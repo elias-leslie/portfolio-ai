@@ -49,6 +49,48 @@ def log_maintenance_start(task_name: str, dry_run: bool = False) -> int:
     return 0  # Return 0 if logging fails - task should still proceed
 
 
+def record_maintenance_metric(
+    metric_name: str,
+    metric_value: float | int,
+    metric_unit: str,
+    metadata: str | None = None,
+) -> None:
+    """Record a maintenance metric to maintenance_stats table.
+
+    Args:
+        metric_name: Name of the metric (e.g., 'log_cleanup_bytes_freed')
+        metric_value: Numeric value of the metric
+        metric_unit: Unit of measurement (e.g., 'bytes', 'percentage', 'count')
+        metadata: Optional JSON string with additional context
+    """
+    conn_mgr = get_connection_manager()
+    try:
+        with conn_mgr.connection() as conn:
+            if metadata:
+                conn.execute(
+                    """
+                    INSERT INTO maintenance_stats (metric_name, metric_value, metric_unit, metadata)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    [metric_name, metric_value, metric_unit, metadata],
+                )
+            else:
+                conn.execute(
+                    """
+                    INSERT INTO maintenance_stats (metric_name, metric_value, metric_unit)
+                    VALUES (%s, %s, %s)
+                    """,
+                    [metric_name, metric_value, metric_unit],
+                )
+            conn.commit()
+    except Exception as e:
+        logger.warning(
+            "maintenance_metric_record_failed",
+            metric_name=metric_name,
+            error=str(e),
+        )
+
+
 def log_maintenance_complete(
     log_id: int,
     task_name: str,
