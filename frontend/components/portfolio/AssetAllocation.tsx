@@ -29,9 +29,9 @@ export function AssetAllocation({ topPerformers }: AssetAllocationProps) {
     const colors = [
       "bg-primary",
       "bg-accent",
-      "bg-purple-500",
-      "bg-blue-500",
-      "bg-green-500",
+      "bg-status-warning",
+      "bg-status-info",
+      "bg-status-success",
     ];
     return colors[index % colors.length];
   };

@@ -324,8 +324,8 @@ export function PositionTable() {
             {table.getRowModel().rows.map((row) => {
               const gain = row.original.gain ?? 0;
               const bgClass = gain >= 0
-                ? "bg-green-50/30 dark:bg-green-950/10 hover:bg-green-50/50 dark:hover:bg-green-950/20"
-                : "bg-red-50/30 dark:bg-red-950/10 hover:bg-red-50/50 dark:hover:bg-red-950/20";
+                ? "bg-gain/10 hover:bg-gain/20"
+                : "bg-loss/10 hover:bg-loss/20";
 
               return (
                 <TableRow key={row.id} className={bgClass}>

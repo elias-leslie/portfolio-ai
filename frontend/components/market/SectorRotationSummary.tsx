@@ -27,10 +27,10 @@ export interface SectorRotationSummaryProps {
 function SectorBadge({ sector }: { sector: SectorInfo }) {
   const signalColor =
     sector.signal === "Leading"
-      ? "text-green-500"
+      ? "text-gain"
       : sector.signal === "Lagging"
-      ? "text-red-500"
-      : "text-yellow-500";
+      ? "text-loss"
+      : "text-warning";
 
   return (
     <div className="flex items-center justify-between gap-2">

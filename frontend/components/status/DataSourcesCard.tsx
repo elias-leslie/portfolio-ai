@@ -99,7 +99,7 @@ function SourceGroup({
     tone === "destructive" ? (
       <Badge variant="destructive">{count}</Badge>
     ) : (
-      <Badge className="bg-status-success text-white">{count}</Badge>
+      <Badge className="bg-status-success text-text-inverted">{count}</Badge>
     );
 
   return (
@@ -169,9 +169,9 @@ function getStatusIcon(status: string) {
 function getStatusBadge(status: string) {
   switch (status) {
     case "ok":
-      return <Badge className="bg-status-success text-white">Healthy</Badge>;
+      return <Badge className="bg-status-success text-text-inverted">Healthy</Badge>;
     case "degraded":
-      return <Badge className="bg-status-warning text-white">Degraded</Badge>;
+      return <Badge className="bg-status-warning text-text-inverted">Degraded</Badge>;
     case "down":
       return <Badge variant="destructive">Down</Badge>;
     default:

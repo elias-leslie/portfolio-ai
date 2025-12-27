@@ -340,9 +340,9 @@ function renderMetricRow(
 }
 
 function getAccuracyBadge(accuracy: number) {
-  if (accuracy >= 0.8) return <Badge className="bg-status-success text-white">Excellent</Badge>;
-  if (accuracy >= 0.7) return <Badge className="bg-status-info text-white">Good</Badge>;
-  if (accuracy >= 0.6) return <Badge className="bg-status-warning text-white">Fair</Badge>;
+  if (accuracy >= 0.8) return <Badge className="bg-status-success text-text-inverted">Excellent</Badge>;
+  if (accuracy >= 0.7) return <Badge className="bg-status-info text-text-inverted">Good</Badge>;
+  if (accuracy >= 0.6) return <Badge className="bg-status-warning text-text-inverted">Fair</Badge>;
   return <Badge variant="destructive">Poor</Badge>;
 }
 

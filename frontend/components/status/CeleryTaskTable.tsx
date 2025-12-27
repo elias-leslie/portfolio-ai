@@ -42,19 +42,19 @@ export function CeleryTaskTable() {
     switch (status.toUpperCase()) {
       case "ACTIVE":
         return (
-          <Badge className="bg-status-info text-white animate-pulse">
+          <Badge className="bg-status-info text-text-inverted animate-pulse">
             Active
           </Badge>
         );
       case "PENDING":
         return (
-          <Badge variant="secondary" className="bg-status-warning text-white">
+          <Badge variant="secondary" className="bg-status-warning text-text-inverted">
             Pending
           </Badge>
         );
       case "SUCCESS":
         return (
-          <Badge variant="default" className="bg-status-success text-white">
+          <Badge variant="default" className="bg-status-success text-text-inverted">
             Completed
           </Badge>
         );

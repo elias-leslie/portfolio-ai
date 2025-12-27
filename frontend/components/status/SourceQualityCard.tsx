@@ -66,11 +66,11 @@ export function SourceQualityCard() {
 
   const getQualityBadge = (score: number) => {
     if (score >= 0.8) {
-      return <Badge className="bg-gain text-white">Excellent</Badge>;
+      return <Badge className="bg-gain text-text-inverted">Excellent</Badge>;
     } else if (score >= 0.6) {
-      return <Badge className="bg-accent text-white">Good</Badge>;
+      return <Badge className="bg-accent text-text-inverted">Good</Badge>;
     } else if (score >= 0.4) {
-      return <Badge className="bg-warning text-white">Fair</Badge>;
+      return <Badge className="bg-warning text-text-inverted">Fair</Badge>;
     } else {
       return <Badge variant="destructive">Poor</Badge>;
     }

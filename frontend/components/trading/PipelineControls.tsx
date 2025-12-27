@@ -86,7 +86,7 @@ export function PipelineControls() {
               {/* Stage 1: Strategy Research + Backtest */}
               <div className="border rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <RefreshCw className="h-4 w-4 text-blue-500" />
+                  <RefreshCw className="h-4 w-4 text-status-info" />
                   <span className="font-medium">1. Research + Backtest</span>
                 </div>
                 <p className="text-sm text-text-muted mb-3">
@@ -106,7 +106,7 @@ export function PipelineControls() {
               {/* Stage 2: Signal Generation */}
               <div className="border rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <TrendingUp className="h-4 w-4 text-green-500" />
+                  <TrendingUp className="h-4 w-4 text-status-success" />
                   <span className="font-medium">2. Signal Generation</span>
                 </div>
                 <p className="text-sm text-text-muted mb-3">
@@ -126,7 +126,7 @@ export function PipelineControls() {
               {/* Stage 3: Auto Paper Trading */}
               <div className="border rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <Play className="h-4 w-4 text-purple-500" />
+                  <Play className="h-4 w-4 text-accent" />
                   <span className="font-medium">3. Auto Paper Trade</span>
                 </div>
                 <p className="text-sm text-text-muted mb-3">

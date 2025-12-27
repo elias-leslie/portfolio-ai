@@ -67,7 +67,7 @@
             "Replace all hardcoded Tailwind colors with design tokens",
             "Verify: Zero violations in these files"
           ],
-          "passes": false
+          "passes": true
         }
       ]
     },
