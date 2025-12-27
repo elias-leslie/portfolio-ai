@@ -102,9 +102,9 @@ export default function DevAssistantPage() {
 
   if (!serverUrl || isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-900 text-gray-100">
+      <div className="flex items-center justify-center h-screen bg-bg text-text">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4" />
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4" />
           <p>Connecting to Dev Companion...</p>
         </div>
       </div>
@@ -113,12 +113,12 @@ export default function DevAssistantPage() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-900 text-gray-100">
+      <div className="flex items-center justify-center h-screen bg-bg text-text">
         <div className="text-center max-w-md">
-          <div className="text-red-500 text-4xl mb-4">!</div>
+          <div className="text-loss text-4xl mb-4">!</div>
           <h1 className="text-xl font-bold mb-2">Connection Error</h1>
-          <p className="text-gray-400 mb-4">{error}</p>
-          <p className="text-sm text-gray-500 mb-4">
+          <p className="text-text-muted mb-4">{error}</p>
+          <p className="text-sm text-text-muted mb-4">
             Make sure the Dev Companion server is running on port 9999.
           </p>
           <button
@@ -127,7 +127,7 @@ export default function DevAssistantPage() {
               setIsLoading(true);
               fetchSessions();
             }}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
           >
             Retry
           </button>
@@ -137,18 +137,18 @@ export default function DevAssistantPage() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-900">
+    <div className="flex h-screen bg-bg">
       {/* Sidebar - Sessions */}
-      <div className="w-64 border-r border-gray-700 flex flex-col">
-        <div className="p-4 border-b border-gray-700">
-          <h1 className="text-lg font-bold text-gray-100">Dev Assistant</h1>
-          <p className="text-xs text-gray-500">Powered by Claude Code</p>
+      <div className="w-64 border-r border-border flex flex-col">
+        <div className="p-4 border-b border-border">
+          <h1 className="text-lg font-bold text-text">Dev Assistant</h1>
+          <p className="text-xs text-text-muted">Powered by Claude Code</p>
         </div>
 
         <div className="p-2">
           <button
             onClick={createSession}
-            className="w-full px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+            className="w-full px-3 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 text-sm"
           >
             + New Session
           </button>
@@ -160,40 +160,40 @@ export default function DevAssistantPage() {
               key={session.id}
               className={`px-3 py-2 cursor-pointer border-l-2 ${
                 currentSessionId === session.id
-                  ? 'bg-gray-800 border-blue-500'
-                  : 'border-transparent hover:bg-gray-800/50'
+                  ? 'bg-surface border-primary'
+                  : 'border-transparent hover:bg-surface/50'
               }`}
               onClick={() => setCurrentSessionId(session.id)}
             >
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-300 font-mono">{session.id}</span>
+                <span className="text-sm text-text font-mono">{session.id}</span>
                 <div className="flex items-center gap-1">
                   {session.isActive && (
-                    <span className="w-2 h-2 rounded-full bg-green-500" title="Active" />
+                    <span className="w-2 h-2 rounded-full bg-gain" title="Active" />
                   )}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       deleteSession(session.id);
                     }}
-                    className="text-gray-500 hover:text-red-400 text-xs"
+                    className="text-text-muted hover:text-loss text-xs"
                     title="Delete session"
                   >
                     x
                   </button>
                 </div>
               </div>
-              <div className="text-xs text-gray-500 truncate" title={session.workingDir}>
+              <div className="text-xs text-text-muted truncate" title={session.workingDir}>
                 {session.workingDir.split('/').pop()}
               </div>
-              <div className="text-xs text-gray-600">
+              <div className="text-xs text-text-muted">
                 {new Date(session.updatedAt).toLocaleDateString()}
               </div>
             </div>
           ))}
 
           {sessions.length === 0 && (
-            <div className="px-3 py-4 text-center text-gray-500 text-sm">
+            <div className="px-3 py-4 text-center text-text-muted text-sm">
               No sessions yet. Create one to start.
             </div>
           )}
@@ -205,12 +205,12 @@ export default function DevAssistantPage() {
         {currentSessionId && wsUrl ? (
           <ChatPanel sessionId={currentSessionId} serverUrl={wsUrl} />
         ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-500">
+          <div className="flex-1 flex items-center justify-center text-text-muted">
             <div className="text-center">
               <p className="mb-4">No session selected</p>
               <button
                 onClick={createSession}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
               >
                 Create New Session
               </button>
