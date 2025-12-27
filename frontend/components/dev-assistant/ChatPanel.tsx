@@ -72,7 +72,7 @@ export default function ChatPanel({ sessionId, serverUrl }: ChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const currentResponseRef = useRef<ContentBlock[]>([]);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const connectRef = useRef<() => void>(); // Ref for reconnect (avoids forward reference)
+  const connectRef = useRef<(() => void) | undefined>(undefined); // Ref for reconnect (avoids forward reference)
   const httpBaseUrl = effectiveServerUrl.replace('ws://', 'http://').replace('wss://', 'https://');
 
   // Keep ref in sync with state
