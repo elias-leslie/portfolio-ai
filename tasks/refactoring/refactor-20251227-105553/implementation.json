@@ -34,7 +34,7 @@
             "Fix line 47: dict[Any, MaintenanceResult] should be dict[str, MaintenanceResult | None]",
             "Verify: mypy app/api/maintenance/history_router.py passes"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "1.2",

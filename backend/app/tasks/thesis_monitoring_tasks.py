@@ -349,7 +349,7 @@ def process_invalidated_theses_task(self: Any) -> dict[str, Any]:
                 removals_today += 1
                 invalidated_at_str = (
                     invalidated_at.isoformat()
-                    if hasattr(invalidated_at, "isoformat")
+                    if isinstance(invalidated_at, datetime)
                     else str(invalidated_at) if invalidated_at else None
                 )
                 results["removed"].append({
@@ -450,7 +450,7 @@ def archive_strategies_for_invalidated_theses_task(self: Any) -> dict[str, Any]:
 
                     invalidated_at_str = (
                         invalidated_at.isoformat()
-                        if hasattr(invalidated_at, "isoformat")
+                        if isinstance(invalidated_at, datetime)
                         else str(invalidated_at) if invalidated_at else None
                     )
                     log_thesis_action(
