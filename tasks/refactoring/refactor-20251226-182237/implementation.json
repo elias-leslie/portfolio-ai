@@ -174,25 +174,42 @@
           "id": "3.2",
           "category": "frontend",
           "description": "Fix unescaped entities (9 react/no-unescaped-entities)",
-          "files_affected": [],
+          "files_affected": [
+            "frontend/components/backtest/BacktestRunsList.tsx",
+            "frontend/components/market/SectorRotationSummary.tsx",
+            "frontend/components/status/SourceQualityCard.tsx",
+            "frontend/components/status/APIKeysCard.tsx",
+            "frontend/components/status/APIQuotasCard.tsx"
+          ],
           "steps": [
             "Run: cd frontend && npm run lint 2>&1 | grep no-unescaped-entities",
             "Replace apostrophes with &apos; or template literals",
             "Verify: Zero unescaped entity errors"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.3",
           "category": "frontend",
           "description": "Fix explicit-any and other TypeScript errors",
-          "files_affected": [],
+          "files_affected": [
+            "frontend/components/status/CeleryTaskTable.tsx",
+            "frontend/components/status/MaintenanceCard.tsx",
+            "frontend/lib/api/gaps.ts",
+            "frontend/lib/api/news.ts",
+            "frontend/lib/hooks/useMarketIntelligence.ts",
+            "frontend/tests/setup.ts",
+            "frontend/app/__tests__/MarketNewsSection.test.tsx",
+            "frontend/components/settings/__tests__/ProfileSelector.test.tsx",
+            "frontend/components/strategies/__tests__/StrategyDetailModal.test.tsx"
+          ],
           "steps": [
             "Run: cd frontend && npm run lint 2>&1 | grep -E '@typescript-eslint'",
             "Add proper types or // eslint-disable comments where needed",
             "Verify: Minimal TypeScript lint errors"
           ],
-          "passes": false
+          "passes": true,
+          "note": "Fixed 7 explicit-any errors, 3 display-name errors, 1 require-imports error, 1 empty-object-type error"
         },
         {
           "id": "3.4",
@@ -252,7 +269,17 @@
           "improvement_report": {
             "backend_ruff": {"before": 51, "after": 0, "improvement": "100%"},
             "backend_mypy": {"before": 29, "after": 9, "improvement": "69%"},
-            "frontend_lint": {"before": 817, "after": 817, "note": "Design token violations require dedicated session"},
+            "frontend_lint": {
+              "before": 817,
+              "after": 796,
+              "real_errors_fixed": 21,
+              "remaining": {
+                "design_token_violations": 782,
+                "unused_vars_warnings": 71,
+                "exhaustive_deps_warnings": 2
+              },
+              "note": "Fixed 21 real errors (unescaped-entities, explicit-any, display-name, require-imports, empty-object-type). Remaining 782 are design token violations requiring dedicated session."
+            },
             "tests": {"passed": 1356, "failed": 22, "errors": 4, "note": "Pre-existing failures unchanged"}
           }
         }

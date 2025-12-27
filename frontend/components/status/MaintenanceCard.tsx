@@ -101,7 +101,7 @@ function TaskSection({
     }
   };
 
-  const renderSummary = (summary: MaintenanceSummary | null) => {
+  const renderSummary = (summary: Record<string, unknown> | null) => {
     if (!summary) return null;
 
     // Cleanup News summary
@@ -110,13 +110,13 @@ function TaskSection({
         <div className="text-sm space-y-1">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Articles deleted:</span>
-            <span className="font-mono">{summary.deleted}</span>
+            <span className="font-mono">{String(summary.deleted)}</span>
           </div>
           {summary.cutoffDate && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">Cutoff date:</span>
               <span className="font-mono text-xs">
-                {new Date(summary.cutoffDate).toLocaleDateString()}
+                {new Date(String(summary.cutoffDate)).toLocaleDateString()}
               </span>
             </div>
           )}
@@ -130,11 +130,11 @@ function TaskSection({
         <div className="text-sm space-y-1">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Tables processed:</span>
-            <span className="font-mono">{summary.tablesProcessed}</span>
+            <span className="font-mono">{String(summary.tablesProcessed)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Space reclaimed:</span>
-            <span className="font-mono">{summary.totalReclaimedMb} MB</span>
+            <span className="font-mono">{String(summary.totalReclaimedMb)} MB</span>
           </div>
         </div>
       );
@@ -146,18 +146,18 @@ function TaskSection({
         <div className="text-sm space-y-1">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Checks run:</span>
-            <span className="font-mono">{summary.checksRun}</span>
+            <span className="font-mono">{String(summary.checksRun)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Errors:</span>
             <span className="font-mono text-red-500">
-              {summary.totalErrors || 0}
+              {String(summary.totalErrors ?? 0)}
             </span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Warnings:</span>
             <span className="font-mono text-yellow-500">
-              {summary.totalWarnings || 0}
+              {String(summary.totalWarnings ?? 0)}
             </span>
           </div>
         </div>

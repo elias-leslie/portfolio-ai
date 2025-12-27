@@ -11,6 +11,7 @@ import {
   fetchSectorHistory,
   fetchMarketMovers,
   fetchMarketStatus,
+  fetchMarketEventsForChart,
   type MarketIntelligenceResponse,
   type FearGreedHistoryResponse,
   type NewsSentimentHistoryResponse,
@@ -18,6 +19,7 @@ import {
   type SectorHistoryResponse,
   type MarketMoversResponse,
   type MarketStatusResponse,
+  type MarketEventsChartResponse,
 } from "../api/market";
 
 /**
@@ -136,8 +138,7 @@ export function useMarketStatus(): UseQueryResult<MarketStatusResponse> {
  */
 export function useMarketEvents(
   days: number = 365
-): UseQueryResult<import("../api/market").MarketEventsChartResponse> {
-  const { fetchMarketEventsForChart } = require("../api/market");
+): UseQueryResult<MarketEventsChartResponse> {
   return useQuery({
     queryKey: ["market", "events", days],
     queryFn: () => fetchMarketEventsForChart(days),
