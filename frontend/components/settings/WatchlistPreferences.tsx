@@ -231,11 +231,6 @@ export function WatchlistPreferences({
         );
     };
 
-    const handleEqualWeights = () => {
-        setPriceWeight(50);
-        setTechnicalWeight(50);
-    };
-
     const handleEqualMainWeights = () => {
         setScoreWeights({ price: 33, technical: 33, fundamental: 34 });
     };

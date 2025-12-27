@@ -10,22 +10,12 @@ import {
   Target,
   TrendingUp,
   ArrowRight,
-  CheckCircle,
-  XCircle,
-  Clock,
 } from "lucide-react";
 import { useStrategyEvolution } from "@/lib/hooks/useStrategies";
 
 interface SeedEvolutionProps {
   strategyId: string;
 }
-
-const statusIcons = {
-  pending: Clock,
-  processing: FlaskConical,
-  converted: CheckCircle,
-  rejected: XCircle,
-};
 
 const statusColors = {
   pending: "bg-warning/10 text-warning",

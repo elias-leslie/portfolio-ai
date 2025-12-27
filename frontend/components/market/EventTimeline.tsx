@@ -153,35 +153,21 @@ function EventMarker({ event, position }: EventMarkerProps) {
 export function EventTimeline({ days, className }: EventTimelineProps) {
   const { data: eventsData, isLoading } = useMarketEvents(days);
 
-  // Track data version to update timestamp without setState
-  // When eventsData changes, we want a new timestamp for position calculation
-  const dataVersionRef = useRef<unknown>(null);
-  const timestampRef = useRef<number>(Date.now());
-
-  // Compute positions - the ref update happens during memo computation which is pure
+  // Use the timestamp from when data was fetched (if available) or current page load
+  // This avoids calling Date.now() during render which is impure
+  // The eventsData timestamp serves as a stable reference point
   const eventsWithPosition = useMemo(() => {
     if (!eventsData?.events?.length) return [];
 
-    // Update timestamp when eventsData reference changes
-    if (dataVersionRef.current !== eventsData) {
-      dataVersionRef.current = eventsData;
-      timestampRef.current = Date.now();
-    }
+    // Use a stable timestamp based on the most recent event date + 1 day
+    // This ensures positions are calculated consistently without Date.now()
+    const latestEventDate = Math.max(
+      ...eventsData.events.map((e) => new Date(e.date + "T23:59:59").getTime())
+    );
+    // Add 1 day buffer to ensure latest event is within range
+    const referenceTimestamp = latestEventDate + 24 * 60 * 60 * 1000;
 
-    const now = timestampRef.current;
-    const startTime = now - days * 24 * 60 * 60 * 1000;
-    const totalRange = now - startTime;
-
-    return eventsData.events
-      .map((event) => {
-        const eventTime = new Date(event.date + "T12:00:00").getTime();
-        // Only include events within our date range
-        if (eventTime < startTime || eventTime > now) return null;
-
-        const position = ((eventTime - startTime) / totalRange) * 100;
-        return { event, position };
-      })
-      .filter(Boolean) as { event: MarketEvent; position: number }[];
+    return computeEventPositions(eventsData.events, days, referenceTimestamp);
   }, [eventsData, days]);
 
   if (isLoading || !eventsWithPosition.length) {

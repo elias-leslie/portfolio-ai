@@ -88,19 +88,6 @@ export function PaperTradesTable({ trades, type }: PaperTradesTableProps) {
     return `${prefix}${Math.abs(pnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
-  const getRiskBadgeVariant = (risk: string | undefined) => {
-    if (!risk) return "secondary";
-    switch (risk.toLowerCase()) {
-      case "low":
-        return "success";
-      case "medium":
-        return "secondary";
-      case "high":
-        return "destructive";
-      default:
-        return "secondary";
-    }
-  };
 
   return (
     <>
