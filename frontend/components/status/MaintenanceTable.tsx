@@ -585,7 +585,6 @@ export function MaintenanceTable() {
 
   // Trigger task with appropriate handler
   const triggerTask = (task: MaintenanceTask) => {
-    const canRunLive = !dryRun && backupCheck?.canProceed === true;
     const liveBlocked = !dryRun && backupCheck !== null && !backupCheck.canProceed;
 
     if (liveBlocked && task.isDbTask) {

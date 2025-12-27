@@ -158,7 +158,7 @@
             "Replace 3 duplicate query instances with single method call",
             "Verify: Run pytest tests/unit -x --tb=short -q"
           ],
-          "passes": false
+          "passes": true
         }
       ]
     },

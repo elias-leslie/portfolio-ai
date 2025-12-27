@@ -271,7 +271,7 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
     };
 
     wsRef.current = ws;
-  }, [wsUrl, currentSessionId, open, agentProvider, roundtableOrder, maxTurns]);
+  }, [wsUrl, currentSessionId, open, agentProvider, roundtableOrder, maxTurns, currentRespondingAgent]);
 
   // Connect/disconnect based on panel state
   useEffect(() => {
