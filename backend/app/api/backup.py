@@ -126,7 +126,8 @@ def _sync_backup_index() -> bool:
         # Use --verify-missing to auto-verify backups lacking verification data
         result = subprocess.run(
             ["bash", "-c", f"source {sync_script} && sync_index_from_smb --verify-missing"],
-            check=False, capture_output=True,
+            check=False,
+            capture_output=True,
             text=True,
             timeout=600,  # 10 min - verification downloads backups
             cwd=str(PROJECT_DIR),
@@ -134,7 +135,9 @@ def _sync_backup_index() -> bool:
         if result.returncode == 0:
             logger.info("backup_index_synced")
             return True
-        logger.warning("backup_index_sync_failed", stderr=result.stderr[:200] if result.stderr else None)
+        logger.warning(
+            "backup_index_sync_failed", stderr=result.stderr[:200] if result.stderr else None
+        )
         return False
     except Exception as e:
         logger.warning("backup_index_sync_error", error=str(e))
@@ -462,11 +465,15 @@ async def check_backup_requirements(
     if latest_ts:
         try:
             backup_time = datetime.fromisoformat(latest_ts.replace("Z", "+00:00"))
-            backup_age_hours = (datetime.now(backup_time.tzinfo or None) - backup_time).total_seconds() / 3600
+            backup_age_hours = (
+                datetime.now(backup_time.tzinfo or None) - backup_time
+            ).total_seconds() / 3600
             backup_recent = backup_age_hours <= max_age_hours
 
             if not backup_recent:
-                warnings.append(f"Backup is {backup_age_hours:.1f} hours old (limit: {max_age_hours}h)")
+                warnings.append(
+                    f"Backup is {backup_age_hours:.1f} hours old (limit: {max_age_hours}h)"
+                )
         except Exception:
             warnings.append("Could not parse backup timestamp")
 

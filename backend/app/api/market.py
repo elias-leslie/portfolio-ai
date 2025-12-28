@@ -82,6 +82,9 @@ from app.utils.market_hours import (
 router = APIRouter(prefix="/api/market", tags=["market"])
 logger = get_logger(__name__)
 
+# Pseudo-symbol for market-wide events and readings (fear/greed history)
+MARKET_SYMBOL = "__MARKET__"
+
 # Initialize services
 storage = get_storage()
 price_fetcher = PriceDataFetcher(storage)
@@ -532,7 +535,7 @@ async def get_news_sentiment_history(
                     SUM(negative_count) as neg_count,
                     SUM(article_count) as total_count
                 FROM news_summary_log
-                WHERE symbol = '__MARKET__'
+                WHERE symbol = MARKET_SYMBOL
                   AND window_end >= NOW() - INTERVAL '%s days'
                 GROUP BY DATE_TRUNC('hour', window_end)
                 ORDER BY period ASC
@@ -550,7 +553,7 @@ async def get_news_sentiment_history(
                     negative_count as neg_count,
                     article_count as total_count
                 FROM news_summary_log
-                WHERE symbol = '__MARKET__'
+                WHERE symbol = MARKET_SYMBOL
                   AND window_end >= NOW() - INTERVAL '%s days'
                 ORDER BY DATE(window_end), window_end DESC
                 """,

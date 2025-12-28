@@ -57,11 +57,13 @@ def log_thesis_action(
                 datetime.now(UTC),
                 datetime.now(UTC),
                 "success",
-                json.dumps({
-                    "symbol": symbol,
-                    "action": action,
-                    **details,
-                }),
+                json.dumps(
+                    {
+                        "symbol": symbol,
+                        "action": action,
+                        **details,
+                    }
+                ),
             ),
         )
         conn.commit()
@@ -130,9 +132,7 @@ def monitor_thesis_health_task(self: Any) -> dict[str, Any]:
     try:
         # Get all active theses
         with conn_mgr.connection() as conn:
-            result = conn.execute(
-                "SELECT symbol FROM watchlist_thesis WHERE status = 'active'"
-            )
+            result = conn.execute("SELECT symbol FROM watchlist_thesis WHERE status = 'active'")
             symbols = [str(row[0]) for row in result.fetchall()]
 
         logger.info("thesis_health_check_started", active_theses=len(symbols))
@@ -154,8 +154,7 @@ def monitor_thesis_health_task(self: Any) -> dict[str, Any]:
                 # Critical triggers: signal change, low cross-val → invalidate
                 # Non-critical: sentiment shift → flag for review
                 is_critical = any(
-                    "Signal changed" in t or "cross-validation" in t.lower()
-                    for t in triggers
+                    "Signal changed" in t or "cross-validation" in t.lower() for t in triggers
                 )
 
                 if is_critical:
@@ -175,11 +174,13 @@ def monitor_thesis_health_task(self: Any) -> dict[str, Any]:
                         },
                     )
 
-                    results["details"].append({
-                        "symbol": symbol,
-                        "action": "invalidated",
-                        "triggers": triggers,
-                    })
+                    results["details"].append(
+                        {
+                            "symbol": symbol,
+                            "action": "invalidated",
+                            "triggers": triggers,
+                        }
+                    )
                 else:
                     # Flag for review (update status to flagged_for_review)
                     with conn_mgr.connection() as conn:
@@ -207,11 +208,13 @@ def monitor_thesis_health_task(self: Any) -> dict[str, Any]:
                         },
                     )
 
-                    results["details"].append({
-                        "symbol": symbol,
-                        "action": "flagged",
-                        "triggers": triggers,
-                    })
+                    results["details"].append(
+                        {
+                            "symbol": symbol,
+                            "action": "flagged",
+                            "triggers": triggers,
+                        }
+                    )
 
         logger.info(
             "thesis_health_check_completed",
@@ -299,10 +302,12 @@ def process_invalidated_theses_task(self: Any) -> dict[str, Any]:
 
             # Check portfolio exclusion
             if symbol in portfolio_symbols:
-                results["skipped_portfolio"].append({
-                    "symbol": symbol,
-                    "reason": "In portfolio, not removed",
-                })
+                results["skipped_portfolio"].append(
+                    {
+                        "symbol": symbol,
+                        "reason": "In portfolio, not removed",
+                    }
+                )
                 logger.info(
                     "thesis_removal_skipped",
                     symbol=symbol,
@@ -312,10 +317,12 @@ def process_invalidated_theses_task(self: Any) -> dict[str, Any]:
 
             # Check if auto-removal is enabled
             if not auto_remove:
-                results["skipped_disabled"].append({
-                    "symbol": symbol,
-                    "reason": "auto_remove_on_invalidation=false",
-                })
+                results["skipped_disabled"].append(
+                    {
+                        "symbol": symbol,
+                        "reason": "auto_remove_on_invalidation=false",
+                    }
+                )
                 logger.info(
                     "thesis_removal_skipped",
                     symbol=symbol,
@@ -325,10 +332,12 @@ def process_invalidated_theses_task(self: Any) -> dict[str, Any]:
 
             # Check daily removal limit
             if removals_today >= max_removals:
-                results["skipped_disabled"].append({
-                    "symbol": symbol,
-                    "reason": f"daily_limit_reached ({max_removals})",
-                })
+                results["skipped_disabled"].append(
+                    {
+                        "symbol": symbol,
+                        "reason": f"daily_limit_reached ({max_removals})",
+                    }
+                )
                 logger.info(
                     "thesis_removal_skipped",
                     symbol=symbol,
@@ -350,13 +359,17 @@ def process_invalidated_theses_task(self: Any) -> dict[str, Any]:
                 invalidated_at_str = (
                     invalidated_at.isoformat()
                     if isinstance(invalidated_at, datetime)
-                    else str(invalidated_at) if invalidated_at else None
+                    else str(invalidated_at)
+                    if invalidated_at
+                    else None
                 )
-                results["removed"].append({
-                    "symbol": symbol,
-                    "reason": reason,
-                    "invalidated_at": invalidated_at_str,
-                })
+                results["removed"].append(
+                    {
+                        "symbol": symbol,
+                        "reason": reason,
+                        "invalidated_at": invalidated_at_str,
+                    }
+                )
 
                 log_thesis_action(
                     "process_invalidated_theses",
@@ -451,7 +464,9 @@ def archive_strategies_for_invalidated_theses_task(self: Any) -> dict[str, Any]:
                     invalidated_at_str = (
                         invalidated_at.isoformat()
                         if isinstance(invalidated_at, datetime)
-                        else str(invalidated_at) if invalidated_at else None
+                        else str(invalidated_at)
+                        if invalidated_at
+                        else None
                     )
                     log_thesis_action(
                         "archive_strategies_for_invalidated_theses",
@@ -465,11 +480,13 @@ def archive_strategies_for_invalidated_theses_task(self: Any) -> dict[str, Any]:
                         },
                     )
 
-                    results["details"].append({
-                        "symbol": symbol,
-                        "strategy_id": strategy_id,
-                        "strategy_name": strategy_name,
-                    })
+                    results["details"].append(
+                        {
+                            "symbol": symbol,
+                            "strategy_id": strategy_id,
+                            "strategy_name": strategy_name,
+                        }
+                    )
 
                     logger.info(
                         "strategy_archived_for_thesis",

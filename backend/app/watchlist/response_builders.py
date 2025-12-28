@@ -229,13 +229,17 @@ class WatchlistItemResponse(BaseModel):
             current_score = ScoreBreakdownResponse(
                 price=ScoreComponentResponse(**_clean_sub_scores(item["score"]["price"])),
                 technical=ScoreComponentResponse(**_clean_sub_scores(item["score"]["technical"])),
-                fundamental=ScoreComponentResponse(**_clean_sub_scores(item["score"]["fundamental"]))
+                fundamental=ScoreComponentResponse(
+                    **_clean_sub_scores(item["score"]["fundamental"])
+                )
                 if item["score"].get("fundamental")
                 else None,
                 catalyst=ScoreComponentResponse(**_clean_sub_scores(item["score"]["catalyst"]))
                 if item["score"].get("catalyst")
                 else None,
-                options_flow=ScoreComponentResponse(**_clean_sub_scores(item["score"]["options_flow"]))
+                options_flow=ScoreComponentResponse(
+                    **_clean_sub_scores(item["score"]["options_flow"])
+                )
                 if item["score"].get("options_flow")
                 else None,
                 overall=item["score"]["overall"],

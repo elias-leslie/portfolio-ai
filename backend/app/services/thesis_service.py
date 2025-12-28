@@ -308,9 +308,7 @@ class ThesisService:
                 issues=["Validation process encountered an error"],
             )
 
-    def _calculate_cross_validation_score(
-        self, claude_validation: ThesisValidation
-    ) -> float:
+    def _calculate_cross_validation_score(self, claude_validation: ThesisValidation) -> float:
         """Calculate cross-validation score based on Claude's validation.
 
         Args:
@@ -509,17 +507,13 @@ class ThesisService:
 
             # Parse thesis components
             try:
-                core_reasons = [
-                    ThesisReason(**r) for r in thesis_data.get("core_reasons", [])
-                ]
+                core_reasons = [ThesisReason(**r) for r in thesis_data.get("core_reasons", [])]
             except ValidationError as e:
                 logger.warning("core_reasons_parse_failed", error=str(e))
                 core_reasons = []
 
             try:
-                key_catalysts = [
-                    ThesisCatalyst(**c) for c in thesis_data.get("key_catalysts", [])
-                ]
+                key_catalysts = [ThesisCatalyst(**c) for c in thesis_data.get("key_catalysts", [])]
             except ValidationError as e:
                 logger.warning("key_catalysts_parse_failed", error=str(e))
                 key_catalysts = []
@@ -752,9 +746,7 @@ class ThesisService:
 
             # Trigger 3: Low cross-validation score
             if thesis.cross_validation_score and thesis.cross_validation_score < 0.5:
-                triggers.append(
-                    f"Low cross-validation score: {thesis.cross_validation_score:.2f}"
-                )
+                triggers.append(f"Low cross-validation score: {thesis.cross_validation_score:.2f}")
 
             # Trigger 4: News sentiment shift
             news = intelligence.get("news") or {}

@@ -207,9 +207,7 @@ def vacuum_database_task(
 
 
 @celery_app.task(name="cleanup_old_news_task", bind=True)
-def cleanup_old_news_task(
-    self: Task, days: int = 90, dry_run: bool = False
-) -> dict[str, Any]:
+def cleanup_old_news_task(self: Task, days: int = 90, dry_run: bool = False) -> dict[str, Any]:
     """Delete news articles older than specified days.
 
     Args:

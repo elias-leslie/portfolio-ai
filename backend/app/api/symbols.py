@@ -379,7 +379,9 @@ def _get_paper_trades_data(symbol: str) -> dict[str, Any]:
     wins = [t for t in closed if float(t.get("realized_return_pct") or 0) > 0]
     win_rate = (len(wins) / len(closed) * 100) if closed else None
     avg_return = (
-        sum(float(t.get("realized_return_pct") or 0) for t in closed) / len(closed) if closed else None
+        sum(float(t.get("realized_return_pct") or 0) for t in closed) / len(closed)
+        if closed
+        else None
     )
 
     return {

@@ -25,6 +25,7 @@ import {
   getScoreBadgeVariant,
   getDataQualityColor,
   getDataQualityBgColor,
+  getRiskLevelConfig,
 } from "@/components/watchlist/ExpandedRowUtils";
 import { Button } from "@/components/ui/button";
 import {
@@ -504,13 +505,7 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                   >
                     {item.riskLevel ? (
                       (() => {
-                        const riskConfig: Record<string, { label: string; icon: string; color: string }> = {
-                          "Low": { label: "Low", icon: "✓", color: "text-gain" },
-                          "Medium-Low": { label: "Med-Low", icon: "⚠", color: "text-warning" },
-                          "Medium": { label: "Medium", icon: "⚠", color: "text-neutral" },
-                          "High": { label: "High", icon: "⚠⚠", color: "text-loss" }
-                        };
-                        const config = riskConfig[item.riskLevel] || { label: item.riskLevel, icon: "", color: "text-text-muted" };
+                        const config = getRiskLevelConfig(item.riskLevel);
                         return (
                           <div className={cn("text-xs font-medium", config.color)}>
                             {config.icon} {config.label}

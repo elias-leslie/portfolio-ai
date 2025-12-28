@@ -69,6 +69,17 @@ from celery.schedules import crontab
 
 from app.constants import ALL_MARKET_SYMBOLS
 
+# Schedule intervals (seconds)
+POLL_INTERVAL_60_SEC = 60.0  # Standard polling interval for user-configurable tasks
+POLL_INTERVAL_30_MIN = 1800.0  # 30 minutes - reduced polling for API-heavy tasks
+POLL_INTERVAL_12_HOURS = 43200.0  # 12 hours - for daily-ish tasks
+
+# Task expiry times (seconds)
+EXPIRY_2_MIN = 120  # Quick tasks that should be dropped if delayed
+EXPIRY_28_MIN = 1700  # Slightly less than 30-min schedule
+EXPIRY_30_MIN = 1800  # 30-minute expiry for moderate tasks
+EXPIRY_1_HOUR = 3600  # Longer-running tasks
+
 
 def get_beat_schedule() -> dict[str, dict[str, Any]]:
     """Get Celery Beat schedule configuration.
@@ -85,9 +96,9 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         # ============================================================================
         "refresh-watchlist-scores": {
             "task": "refresh_watchlist_scores",
-            "schedule": 60.0,  # Poll every 60 seconds (Beat check interval)
+            "schedule": POLL_INTERVAL_60_SEC,
             "args": ["default"],  # account_id
-            "options": {"expires": 120},  # Task expires after 2 minutes if not picked up
+            "options": {"expires": EXPIRY_2_MIN},
             # Notes:
             # - Task checks: watchlist_refresh_override → default_refresh_minutes → 15 min
             # - Skips execution if not enough time elapsed since last refresh
@@ -105,9 +116,9 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         # },
         "refresh-news-sentiment": {
             "task": "refresh_news_sentiment",
-            "schedule": 1800.0,  # Poll every 30 minutes (was 65s - too aggressive, caused CPU spikes)
+            "schedule": POLL_INTERVAL_30_MIN,  # Was 65s - too aggressive, caused CPU spikes
             "args": ["default"],
-            "options": {"expires": 1700},  # Slightly less than schedule interval
+            "options": {"expires": EXPIRY_28_MIN},  # Slightly less than schedule interval
             # Notes:
             # - Changed from 65s to 30min to reduce Gemini API load and CPU usage
             # - Task checks: news_refresh_override → default_refresh_minutes → 15 min
@@ -121,16 +132,16 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "update-paper-trades-daily": {
             "task": "update_paper_trades_task",
             "schedule": crontab(hour=21, minute=30),  # Daily at 21:30 UTC (4:30 PM ET)
-            "options": {"expires": 3600},  # Task expires after 1 hour
+            "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Runs daily at 21:30 UTC (4:30 PM ET, market close + 30 min)
             # - Not configurable by user (business logic requirement)
         },
         "profile-news-sources": {
             "task": "profile_news_sources",
-            "schedule": 43200.0,  # Every 12 hours (configurable via user preferences)
+            "schedule": POLL_INTERVAL_12_HOURS,  # Configurable via user preferences
             "args": ["default"],  # user_id
-            "options": {"expires": 3600},  # Task expires after 1 hour
+            "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Task checks: news_profiling_interval_hours preference (default 12h)
             # - Calculates 6 quality metrics per vendor (duplicate, diversity, confidence, freshness, user_feedback, quality)
@@ -141,7 +152,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
             "task": "refresh_daily_ohlcv",
             "schedule": crontab(hour=2, minute=0),  # Daily at 02:00 UTC
             "args": [ALL_MARKET_SYMBOLS],  # From app.constants - SPY + indices + sector ETFs
-            "options": {"expires": 3600},  # Task expires after 1 hour
+            "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Runs daily at 02:00 UTC
             # - Ensures SPY + market indicators + sector ETFs fresh for market intelligence
@@ -151,7 +162,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "refresh-watchlist-ohlcv": {
             "task": "refresh_watchlist_ohlcv",
             "schedule": crontab(hour=2, minute=15),  # Daily at 02:15 UTC (after market indicators)
-            "options": {"expires": 3600},  # Task expires after 1 hour
+            "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Runs daily at 02:15 UTC (15 min after refresh-daily-ohlcv)
             # - Automatically fetches all symbols from watchlist_items table
@@ -180,7 +191,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
                 None,
                 50,
             ],  # backfill_technical_indicators(symbols=None, batch_size=50) - auto-discovers all symbols
-            "options": {"expires": 3600},  # Task expires after 1 hour
+            "options": {"expires": EXPIRY_1_HOUR},  # Task expires after 1 hour
             # Notes:
             # - Changed from update_technical_indicators to backfill_technical_indicators
             # - Runs daily at 02:30 UTC (after OHLCV refresh at 02:00)
@@ -193,7 +204,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
             "task": "populate_fear_greed_inputs",
             "schedule": crontab(hour=2, minute=45),  # Daily at 02:45 UTC
             "args": [7],  # Update last 7 days
-            "options": {"expires": 3600},  # Task expires after 1 hour
+            "options": {"expires": EXPIRY_1_HOUR},  # Task expires after 1 hour
             # Notes:
             # - Runs daily at 02:45 UTC (after indicators update at 02:30)
             # - Replaces manual update_fear_greed_inputs.py script
@@ -208,7 +219,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
             "task": "calculate_fear_greed",
             "schedule": crontab(hour=3, minute=0),  # Daily at 03:00 UTC
             "args": [None],  # Calculate for latest available date
-            "options": {"expires": 3600},  # Task expires after 1 hour
+            "options": {"expires": EXPIRY_1_HOUR},  # Task expires after 1 hour
             # Notes:
             # - Runs daily at 03:00 UTC (after populate-fear-greed-inputs completes at 02:45)
             # - Calculates Fear & Greed Index from inputs table
@@ -222,7 +233,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
             "task": "refresh_daily_ohlcv",
             "schedule": crontab(hour=15, minute=0),  # Daily at 15:00 UTC (10:00 AM ET)
             "args": [ALL_MARKET_SYMBOLS],
-            "options": {"expires": 3600},
+            "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Early morning refresh to show TODAY's date on dashboard ASAP
             # - 30 min after market open - enough for initial price discovery
@@ -232,7 +243,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
             "task": "populate_fear_greed_inputs",
             "schedule": crontab(hour=15, minute=15),  # Daily at 15:15 UTC (10:15 AM ET)
             "args": [7],
-            "options": {"expires": 3600},
+            "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Early Fear & Greed update with morning market data
             # - Runs after morning OHLCV refresh completes
@@ -241,7 +252,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
             "task": "calculate_fear_greed",
             "schedule": crontab(hour=15, minute=30),  # Daily at 15:30 UTC (10:30 AM ET)
             "args": [None],
-            "options": {"expires": 3600},
+            "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Early Fear & Greed calculation
             # - Dashboard shows "today's" data by 10:30 AM ET
@@ -251,7 +262,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
             "task": "refresh_daily_ohlcv",
             "schedule": crontab(hour=17, minute=0),  # Daily at 17:00 UTC (12:00 PM ET, midday)
             "args": [ALL_MARKET_SYMBOLS],  # Same symbols as morning refresh
-            "options": {"expires": 3600},
+            "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Midday refresh to get TODAY's market data during trading hours
             # - Morning refresh (02:00 UTC) only gets previous day's close
@@ -262,7 +273,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
             "task": "populate_fear_greed_inputs",
             "schedule": crontab(hour=17, minute=15),  # Daily at 17:15 UTC (12:15 PM ET)
             "args": [7],
-            "options": {"expires": 3600},
+            "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Midday Fear & Greed update with intraday market data
             # - Runs after midday OHLCV refresh completes
@@ -272,7 +283,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
             "task": "calculate_fear_greed",
             "schedule": crontab(hour=17, minute=30),  # Daily at 17:30 UTC (12:30 PM ET)
             "args": [None],
-            "options": {"expires": 3600},
+            "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Midday Fear & Greed calculation with fresh inputs
             # - Invalidates Redis cache for immediate fresh data
@@ -281,7 +292,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
             "task": "populate_fear_greed_inputs",
             "schedule": crontab(hour=21, minute=45),  # Daily at 21:45 UTC (4:45 PM ET, after close)
             "args": [7],
-            "options": {"expires": 3600},
+            "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Runs after market close (16:00 ET) to catch final closing data
             # - Ensures Fear & Greed reflects end-of-day market conditions
@@ -290,7 +301,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
             "task": "calculate_fear_greed",
             "schedule": crontab(hour=22, minute=0),  # Daily at 22:00 UTC (5:00 PM ET)
             "args": [None],
-            "options": {"expires": 3600},
+            "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Calculates F&G with end-of-day data
             # - Invalidates Redis cache for immediate fresh data
@@ -298,7 +309,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "maintain-historical-market-data": {
             "task": "maintain_historical_market_data",
             "schedule": crontab(hour=4, minute=15),  # Daily at 04:15 UTC
-            "options": {"expires": 3600},  # Task expires after 1 hour
+            "options": {"expires": EXPIRY_1_HOUR},  # Task expires after 1 hour
             # Notes:
             # - Runs daily at 04:15 UTC (after yfinance reference data at 04:00)
             # - Maintains 1260 trading days (5 years) for backtesting across market cycles
@@ -311,7 +322,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "refresh-yfinance-reference": {
             "task": "refresh_yfinance_reference_data",
             "schedule": crontab(hour=4, minute=0),  # Daily at 04:00 UTC
-            "options": {"expires": 3600},  # Task expires after 1 hour
+            "options": {"expires": EXPIRY_1_HOUR},  # Task expires after 1 hour
             # Notes:
             # - Runs daily at 04:00 UTC
             # - Fetches reference data (including valuation metrics) from yfinance
@@ -322,7 +333,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "parse-valuation-metrics": {
             "task": "parse_valuation_metrics",
             "schedule": crontab(hour=4, minute=30),  # Daily at 04:30 UTC (after fetch)
-            "options": {"expires": 3600},  # Task expires after 1 hour
+            "options": {"expires": EXPIRY_1_HOUR},  # Task expires after 1 hour
             # Notes:
             # - Runs daily at 04:30 UTC (30 minutes after yfinance reference fetch)
             # - Extracts valuation metrics from JSON payloads in reference_cache
@@ -332,7 +343,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "refresh-alphavantage-reference-backup": {
             "task": "refresh_alphavantage_reference_backup",
             "schedule": crontab(hour=4, minute=45),  # Daily at 04:45 UTC (after yfinance + parsing)
-            "options": {"expires": 3600},  # Task expires after 1 hour
+            "options": {"expires": EXPIRY_1_HOUR},  # Task expires after 1 hour
             # Notes:
             # - Runs daily at 04:45 UTC (after yfinance refresh at 04:00 and parsing at 04:30)
             # - Fetches Alpha Vantage OVERVIEW data as backup for symbols with missing/stale yfinance data
@@ -357,7 +368,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "refresh-analyst-revisions-daily": {
             "task": "refresh_analyst_revisions",
             "schedule": crontab(hour=7, minute=0),  # Daily at 07:00 UTC
-            "options": {"expires": 3600},  # Task expires after 1 hour
+            "options": {"expires": EXPIRY_1_HOUR},  # Task expires after 1 hour
             # Notes:
             # - Runs daily at 07:00 UTC (GAP-005: analyst estimate revisions)
             # - Fetches EPS/revenue estimates from FMP API
@@ -380,7 +391,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "refresh-risk-metrics-daily": {
             "task": "refresh_risk_metrics",
             "schedule": crontab(hour=5, minute=30),  # Daily at 05:30 UTC
-            "options": {"expires": 3600},  # Task expires after 1 hour
+            "options": {"expires": EXPIRY_1_HOUR},  # Task expires after 1 hour
             # Notes:
             # - Runs daily at 05:30 UTC (GAP-027, GAP-022)
             # - Calculates VaR/CVaR (historical simulation method)
@@ -417,7 +428,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "ingest-macro-indicators-daily": {
             "task": "app.tasks.ingestion.fundamental_ingestion.ingest_macro_indicators",
             "schedule": crontab(hour=6, minute=30),  # Daily at 06:30 UTC
-            "options": {"expires": 3600},  # Task expires after 1 hour
+            "options": {"expires": EXPIRY_1_HOUR},  # Task expires after 1 hour
             # Notes:
             # - Runs daily at 06:30 UTC
             # - Fetches and stores (GAP-034, 035, 036):
@@ -430,7 +441,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "fetch-options-activity-daily": {
             "task": "fetch_options_activity_metrics",
             "schedule": crontab(hour=21, minute=15),  # Daily at 21:15 UTC (4:15 PM ET)
-            "options": {"expires": 3600},  # Task expires after 1 hour
+            "options": {"expires": EXPIRY_1_HOUR},  # Task expires after 1 hour
             # Notes:
             # - Runs daily at 21:15 UTC (4:15 PM ET, after market close at 4:00 PM)
             # - Scrapes CBOE Most Active Options page
@@ -445,7 +456,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "fetch-putcall-ratio-market-open": {
             "task": "fetch_putcall_ratio",
             "schedule": crontab(hour=14, minute=30),  # Daily at 14:30 UTC (9:30 AM ET)
-            "options": {"expires": 3600},  # Task expires after 1 hour
+            "options": {"expires": EXPIRY_1_HOUR},  # Task expires after 1 hour
             # Notes:
             # - Runs at market open to capture overnight sentiment
             # - Uses yfinance options chains (SPY+QQQ+IWM aggregate)
@@ -455,7 +466,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "fetch-putcall-ratio-market-close": {
             "task": "fetch_putcall_ratio",
             "schedule": crontab(hour=21, minute=30),  # Daily at 21:30 UTC (4:30 PM ET)
-            "options": {"expires": 3600},  # Task expires after 1 hour
+            "options": {"expires": EXPIRY_1_HOUR},  # Task expires after 1 hour
             # Notes:
             # - Runs after market close to capture final daily sentiment
             # - Uses yfinance options chains (SPY+QQQ+IWM aggregate)
@@ -465,7 +476,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "scan-system-capabilities": {
             "task": "scan_system_capabilities",
             "schedule": crontab(hour=3, minute=0),  # Daily at 03:00 UTC
-            "options": {"expires": 1800},  # Task expires after 30 minutes
+            "options": {"expires": EXPIRY_30_MIN},  # Task expires after 30 minutes
             # Notes:
             # - Runs daily at 03:00 UTC (after data refresh tasks complete)
             # - Auto-discovers all system capabilities:
@@ -482,7 +493,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "scan-feature-capabilities": {
             "task": "scan_feature_capabilities",
             "schedule": crontab(hour=3, minute=5),  # Daily at 03:05 UTC
-            "options": {"expires": 1800},  # Task expires after 30 minutes
+            "options": {"expires": EXPIRY_30_MIN},  # Task expires after 30 minutes
             # Notes:
             # - Runs daily at 03:05 UTC (5 minutes after system capability scan)
             # - Scans feature_capabilities and feature_tasks tables
@@ -501,7 +512,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "daily-qa-scan": {
             "task": "tasks.daily_qa_scan",
             "schedule": crontab(hour=4, minute=30),  # Daily at 04:30 UTC
-            "options": {"expires": 3600},  # Task expires after 1 hour
+            "options": {"expires": EXPIRY_1_HOUR},  # Task expires after 1 hour
             # Notes:
             # - Runs daily at 04:30 UTC (after capability scans complete at 03:00-03:05)
             # - Scans for 6 issue categories:
@@ -544,12 +555,12 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "run-discovery-agent-daily": {
             "task": "run_discovery_agent",
             "schedule": crontab(hour=3, minute=30),  # Daily at 03:30 UTC
-            "options": {"expires": 1800},  # 30-minute expiry
+            "options": {"expires": EXPIRY_30_MIN},  # 30-minute expiry
         },
         "run-portfolio-analyzer-daily": {
             "task": "run_portfolio_analyzer",
             "schedule": crontab(hour=3, minute=30),  # Daily at 03:30 UTC
-            "options": {"expires": 1800},  # 30-minute expiry
+            "options": {"expires": EXPIRY_30_MIN},  # 30-minute expiry
         },
         # ============================================================================
         # AUTOMATED MAINTENANCE TASKS
@@ -559,12 +570,12 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "maintain-data-freshness": {
             "task": "maintain_data_freshness",
             "schedule": crontab(hour="*/2"),  # Every 2 hours
-            "options": {"expires": 3600},  # 1-hour expiry
+            "options": {"expires": EXPIRY_1_HOUR},  # 1-hour expiry
         },
         "check-all-data-freshness": {
             "task": "check_all_data_freshness",
             "schedule": crontab(minute=0, hour="*/2"),  # Every 2 hours
-            "options": {"expires": 3600},  # 1-hour expiry
+            "options": {"expires": EXPIRY_1_HOUR},  # 1-hour expiry
             # Notes:
             # - Runs every 2 hours to monitor all critical tables
             # - Checks: day_bars, technical_indicators, fear_greed_inputs,
@@ -577,7 +588,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
             "task": "cleanup_old_logs_task",
             "schedule": crontab(hour=2, minute=0),  # Daily at 02:00 UTC
             "args": [7],  # Delete logs older than 7 days
-            "options": {"expires": 3600},
+            "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Runs daily at 02:00 UTC (before market data tasks)
             # - Deletes rotated log files (.log.TIMESTAMP) older than 7 days
@@ -588,7 +599,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
             "task": "cleanup_temp_files_task",
             "schedule": crontab(hour=2, minute=15),  # Daily at 02:15 UTC
             "args": [24],  # Delete temp files older than 24 hours
-            "options": {"expires": 3600},
+            "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Runs daily at 02:15 UTC (15 min after log cleanup)
             # - Deletes temporary files matching patterns (portfolio-ai-*, celery-*, tmpfile*, *.tmp)
@@ -610,7 +621,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
             "task": "cleanup_old_news_task",
             "schedule": crontab(day_of_week=0, hour=4, minute=0),  # Sunday 04:00 UTC
             "args": [90],  # Delete news older than 90 days
-            "options": {"expires": 3600},
+            "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Runs weekly on Sunday at 04:00 UTC (after database vacuum)
             # - Deletes news articles from news_cache older than 90 days
@@ -621,7 +632,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
             "task": "cleanup_old_agent_runs_task",
             "schedule": crontab(day_of_week=0, hour=4, minute=15),  # Sunday 04:15 UTC
             "args": [30],  # Delete agent runs older than 30 days
-            "options": {"expires": 3600},
+            "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Runs weekly on Sunday at 04:15 UTC (after news cleanup)
             # - Deletes agent runs and associated ideas older than 30 days
@@ -631,7 +642,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "cleanup-orphaned-data-weekly": {
             "task": "cleanup_orphaned_data_task",
             "schedule": crontab(day_of_week=0, hour=4, minute=30),  # Sunday 04:30 UTC
-            "options": {"expires": 3600},
+            "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Runs weekly on Sunday at 04:30 UTC (after agent run cleanup)
             # - Removes orphaned records (ideas without runs, insights without capabilities)
@@ -642,7 +653,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
             "task": "cleanup_old_backups_task",
             "schedule": crontab(day_of_week=0, hour=4, minute=45),  # Sunday 04:45 UTC
             "args": [5],  # Keep 5 most recent backups
-            "options": {"expires": 3600},
+            "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Runs weekly on Sunday at 04:45 UTC (after orphaned data cleanup)
             # - Deletes old SQL backups from backups/ directory
@@ -653,7 +664,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
             "task": "cleanup_old_models_task",
             "schedule": crontab(day_of_week=0, hour=5, minute=0),  # Sunday 05:00 UTC
             "args": [3],  # Keep 3 most recent versions per model
-            "options": {"expires": 3600},
+            "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Runs weekly on Sunday at 05:00 UTC
             # - Deletes old ML model versions from backend/models/
@@ -665,7 +676,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
             "task": "cleanup_solution_state_task",
             "schedule": crontab(day_of_week=0, hour=5, minute=15),  # Sunday 05:15 UTC
             "args": [14],  # Keep 14 days of test artifacts
-            "options": {"expires": 3600},
+            "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Runs weekly on Sunday at 05:15 UTC
             # - Deletes old test artifacts from solution_state/
@@ -708,7 +719,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "refresh-sec-cik-cache-weekly": {
             "task": "refresh_sec_cik_cache",
             "schedule": crontab(hour=6, minute=0, day_of_week=0),  # Weekly on Sunday at 06:00 UTC
-            "options": {"expires": 3600},
+            "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Fetches ticker→CIK mapping from SEC EDGAR
             # - Enables SEC filing lookups for all symbols
@@ -726,7 +737,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "evaluate-strategy-performance": {
             "task": "app.tasks.strategy_monitoring_tasks.evaluate_strategy_performance",
             "schedule": crontab(hour=4, minute=0),  # Daily at 04:00 UTC
-            "options": {"expires": 3600},
+            "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Evaluates all active strategies daily
             # - Calculates 30-day rolling metrics (Sharpe, win rate, drawdown)
@@ -736,7 +747,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "auto-promote-strategies": {
             "task": "app.tasks.strategy_monitoring_tasks.auto_promote_strategies",
             "schedule": crontab(hour=4, minute=15),  # Daily at 04:15 UTC (after evaluation)
-            "options": {"expires": 3600},
+            "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Auto-promotes testing strategies to active after validation
             # - Criteria: 3+ days old, expected Sharpe >= 1.0, no blocking issues
@@ -768,7 +779,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "daily-strategy-refresh": {
             "task": "app.tasks.strategy_monitoring_tasks.daily_strategy_refresh",
             "schedule": crontab(hour=5, minute=15),  # Daily at 05:15 UTC
-            "options": {"expires": 3600},
+            "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Runs daily to catch new symbols and replace underperformers
             # - Generates max 5 strategies per day (cost control)
@@ -778,7 +789,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "generate-daily-strategy-signals": {
             "task": "app.tasks.strategy_signal_tasks.generate_daily_strategy_signals",
             "schedule": crontab(hour=21, minute=30),  # Daily at 21:30 UTC (after US market close)
-            "options": {"expires": 3600},
+            "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Generates trading signals for all active strategies
             # - Evaluates current market data against strategy parameters
@@ -788,7 +799,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "auto-paper-trade-from-signals": {
             "task": "app.tasks.strategy_signal_tasks.auto_paper_trade_from_signals",
             "schedule": crontab(hour=21, minute=45),  # Daily at 21:45 UTC (after signals)
-            "options": {"expires": 3600},
+            "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Creates paper trades from BUY signals with strength >= 5
             # - Skips if open position already exists for strategy+symbol
@@ -801,7 +812,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "update-portfolio-covariance-daily": {
             "task": "update_portfolio_covariance",
             "schedule": crontab(hour=5, minute=30),  # Daily at 05:30 UTC
-            "options": {"expires": 3600},
+            "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Runs daily at 05:30 UTC (after OHLCV data refresh completes)
             # - Calculates pairwise covariance matrix for all watchlist/portfolio symbols
@@ -816,7 +827,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "save-portfolio-snapshots-daily": {
             "task": "save_portfolio_snapshots",
             "schedule": crontab(hour=21, minute=30),  # Daily at 21:30 UTC (4:30 PM ET)
-            "options": {"expires": 1800},
+            "options": {"expires": EXPIRY_30_MIN},
             # Notes:
             # - Runs daily at 21:30 UTC (30 min after market close at 4 PM ET)
             # - Saves equity snapshots for all portfolio accounts
@@ -833,7 +844,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "discover-watchlist-candidates-daily": {
             "task": "discover_watchlist_candidates",
             "schedule": crontab(hour=8, minute=0),  # Daily at 08:00 UTC (3 AM ET)
-            "options": {"expires": 1800},
+            "options": {"expires": EXPIRY_30_MIN},
             # Notes:
             # - Discovers high-potential symbols from top gainers, volume spikes, news
             # - Scoring: gainers (0-4), volume (0-4), news mentions (0-4) = 0-12
@@ -844,7 +855,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "trim-underperforming-watchlist-daily": {
             "task": "trim_underperforming_watchlist",
             "schedule": crontab(hour=8, minute=30),  # Daily at 08:30 UTC (30 min after discovery)
-            "options": {"expires": 1800},
+            "options": {"expires": EXPIRY_30_MIN},
             # Notes:
             # - Removes underperforming symbols after minimum hold period
             # - Criteria: avg_score < 4.0 AND days_watched >= 7
@@ -855,7 +866,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "generate-watchlist-daily-report": {
             "task": "generate_daily_watchlist_report",
             "schedule": crontab(hour=9, minute=0),  # Daily at 09:00 UTC (after discovery and trim)
-            "options": {"expires": 1800},
+            "options": {"expires": EXPIRY_30_MIN},
             # Notes:
             # - Generates daily summary of watchlist changes
             # - Tracks: symbols added, symbols removed, significant score changes (>10 points)
@@ -881,7 +892,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "weekly-optimization-review": {
             "task": "weekly_optimization_review",
             "schedule": crontab(hour=3, minute=0, day_of_week=1),  # Monday 03:00 UTC
-            "options": {"expires": 1800},
+            "options": {"expires": EXPIRY_30_MIN},
             # Notes:
             # - Analyzes recent trading performance vs rules configuration
             # - Identifies unused rules and threshold tuning opportunities
@@ -894,7 +905,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "refresh-expired-artifacts": {
             "task": "refresh_expired_artifacts",
             "schedule": crontab(hour=5, minute=30),  # Daily at 05:30 UTC
-            "options": {"expires": 3600},
+            "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Marks expired UI verification artifacts as needing refresh
             # - Runs daily during low-activity hours
@@ -903,7 +914,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "cleanup-old-artifact-versions": {
             "task": "cleanup_old_versions",
             "schedule": crontab(hour=6, minute=0),  # Daily at 06:00 UTC
-            "options": {"expires": 3600},
+            "options": {"expires": EXPIRY_1_HOUR},
             "kwargs": {"max_versions": 5, "dry_run": False},
             # Notes:
             # - Deletes old artifact versions beyond retention limit
@@ -913,7 +924,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "cleanup-debug-captures": {
             "task": "cleanup_debug_captures",
             "schedule": crontab(hour=6, minute=15),  # Daily at 06:15 UTC
-            "options": {"expires": 3600},
+            "options": {"expires": EXPIRY_1_HOUR},
             "kwargs": {"max_age_days": 7, "dry_run": False},
             # Notes:
             # - Deletes DBG-* debug capture directories older than 7 days
@@ -929,7 +940,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "monitor-thesis-health-daily": {
             "task": "monitor_thesis_health",
             "schedule": crontab(hour=3, minute=0),  # Daily at 03:00 UTC
-            "options": {"expires": 1800},  # 30-minute expiry
+            "options": {"expires": EXPIRY_30_MIN},  # 30-minute expiry
             # Notes:
             # - Evaluates invalidation triggers for all active theses
             # - Critical triggers (signal change, low cross-val): Invalidate thesis
@@ -940,7 +951,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "process-invalidated-theses-daily": {
             "task": "process_invalidated_theses",
             "schedule": crontab(hour=3, minute=15),  # Daily at 03:15 UTC (after health check)
-            "options": {"expires": 1800},
+            "options": {"expires": EXPIRY_30_MIN},
             # Notes:
             # - Processes recently invalidated theses (last 24 hours)
             # - Respects rules.yaml: auto_remove_on_invalidation (true/false)
@@ -951,7 +962,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "archive-strategies-for-invalidated-theses": {
             "task": "archive_strategies_for_invalidated_theses",
             "schedule": crontab(hour=3, minute=30),  # Daily at 03:30 UTC (after processing)
-            "options": {"expires": 1800},
+            "options": {"expires": EXPIRY_30_MIN},
             # Notes:
             # - Archives all active strategies for invalidated thesis symbols
             # - Design: Thesis invalidation TRIGGERS strategy archival (not vice versa)
@@ -980,7 +991,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "discover-sitemap-entries-daily": {
             "task": "discover_sitemap_entries",
             "schedule": crontab(hour=3, minute=30),  # Daily at 03:30 UTC
-            "options": {"expires": 1800},  # 30-minute expiry
+            "options": {"expires": EXPIRY_30_MIN},  # 30-minute expiry
             # Notes:
             # - Discovers new endpoints from OpenAPI (/openapi.json) and frontend crawler
             # - Imports from existing api_capabilities table
@@ -1001,7 +1012,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "scan-files-daily": {
             "task": "scan_files",
             "schedule": crontab(hour=7, minute=30),  # Daily at 07:30 UTC (2:30 AM ET)
-            "options": {"expires": 1800},  # 30-minute expiry
+            "options": {"expires": EXPIRY_30_MIN},  # 30-minute expiry
             # Notes:
             # - Scans codebase files for audit (LOC, staleness, bloat detection)
             # - Runs after heavy tasks complete (02:00-07:00 UTC)

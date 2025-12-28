@@ -23,9 +23,7 @@ class TrailingSlashMiddleware(BaseHTTPMiddleware):
     - Paths that would become empty are not modified
     """
 
-    async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         # Get the path
         path = request.scope.get("path", "")
 

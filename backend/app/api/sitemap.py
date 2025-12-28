@@ -285,7 +285,9 @@ def get_history_stats() -> HistoryStatsResponse:
 
 
 @router.post("/cleanup-history", response_model=CleanupResponse)
-def cleanup_history(days: int = Query(7, ge=1, le=30, description="Days to retain")) -> CleanupResponse:
+def cleanup_history(
+    days: int = Query(7, ge=1, le=30, description="Days to retain"),
+) -> CleanupResponse:
     """Manually trigger cleanup of old health history."""
     service = SitemapService()
     deleted = service.cleanup_old_history(days=days)

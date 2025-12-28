@@ -121,9 +121,7 @@ def _check_disk_space_impl() -> dict[str, Any]:
 
 
 @celery_app.task(name="rotate_logs_task", bind=True)
-def rotate_logs_task(
-    self: Task, dry_run: bool = False
-) -> dict[str, int | str | float | bool]:
+def rotate_logs_task(self: Task, dry_run: bool = False) -> dict[str, int | str | float | bool]:
     """Rotate logs in /tmp and /var/log/portfolio-ai directories.
 
     Args:
@@ -163,11 +161,13 @@ def rotate_logs_task(
                     # Check if file size > 10MB
                     if file_size > 10 * 1024 * 1024:
                         if dry_run:
-                            would_rotate.append({
-                                "file": str(log_file),
-                                "size_bytes": file_size,
-                                "size_mb": round(file_size / (1024 * 1024), 2),
-                            })
+                            would_rotate.append(
+                                {
+                                    "file": str(log_file),
+                                    "size_bytes": file_size,
+                                    "size_mb": round(file_size / (1024 * 1024), 2),
+                                }
+                            )
                             files_rotated += 1
                         else:
                             # Rotate: rename to .log.1, .log.2, etc.
@@ -199,7 +199,9 @@ def rotate_logs_task(
         if dry_run and would_rotate:
             result["would_rotate"] = would_rotate
 
-        logger.info("rotate_logs_completed", **{k: v for k, v in result.items() if k != "would_rotate"})
+        logger.info(
+            "rotate_logs_completed", **{k: v for k, v in result.items() if k != "would_rotate"}
+        )
         log_maintenance_complete(log_id, "rotate_logs_task", True, result)
         return result
 
@@ -218,9 +220,7 @@ def rotate_logs_task(
 
 
 @celery_app.task(name="cleanup_old_logs_task", bind=True)
-def cleanup_old_logs_task(
-    self: Task, days: int = 7, dry_run: bool = False
-) -> dict[str, Any]:
+def cleanup_old_logs_task(self: Task, days: int = 7, dry_run: bool = False) -> dict[str, Any]:
     """Delete log files older than specified days.
 
     Args:
@@ -269,11 +269,13 @@ def cleanup_old_logs_task(
                         age_days = (cutoff_time.timestamp() - mtime) / 86400 + days
 
                         if dry_run:
-                            would_delete.append({
-                                "file": str(log_file),
-                                "size_bytes": file_size,
-                                "age_days": round(age_days, 1),
-                            })
+                            would_delete.append(
+                                {
+                                    "file": str(log_file),
+                                    "size_bytes": file_size,
+                                    "age_days": round(age_days, 1),
+                                }
+                            )
                             files_deleted += 1
                             bytes_freed += file_size
                         else:
@@ -311,7 +313,9 @@ def cleanup_old_logs_task(
         if dry_run and would_delete:
             result["would_delete"] = would_delete
 
-        logger.info("cleanup_old_logs_completed", **{k: v for k, v in result.items() if k != "would_delete"})
+        logger.info(
+            "cleanup_old_logs_completed", **{k: v for k, v in result.items() if k != "would_delete"}
+        )
         log_maintenance_complete(log_id, "cleanup_old_logs_task", True, result)
         return result
 
@@ -330,9 +334,7 @@ def cleanup_old_logs_task(
 
 
 @celery_app.task(name="cleanup_temp_files_task", bind=True)
-def cleanup_temp_files_task(
-    self: Task, hours: int = 24, dry_run: bool = False
-) -> dict[str, Any]:
+def cleanup_temp_files_task(self: Task, hours: int = 24, dry_run: bool = False) -> dict[str, Any]:
     """Delete temporary files older than specified hours.
 
     Args:
@@ -382,11 +384,13 @@ def cleanup_temp_files_task(
                         age_hours = (cutoff_time.timestamp() - mtime) / 3600 + hours
 
                         if dry_run:
-                            would_delete.append({
-                                "file": str(temp_file),
-                                "size_bytes": file_size,
-                                "age_hours": round(age_hours, 1),
-                            })
+                            would_delete.append(
+                                {
+                                    "file": str(temp_file),
+                                    "size_bytes": file_size,
+                                    "age_hours": round(age_hours, 1),
+                                }
+                            )
                             files_deleted += 1
                             bytes_freed += file_size
                         else:
@@ -419,7 +423,10 @@ def cleanup_temp_files_task(
         if dry_run and would_delete:
             result["would_delete"] = would_delete
 
-        logger.info("cleanup_temp_files_completed", **{k: v for k, v in result.items() if k != "would_delete"})
+        logger.info(
+            "cleanup_temp_files_completed",
+            **{k: v for k, v in result.items() if k != "would_delete"},
+        )
         log_maintenance_complete(log_id, "cleanup_temp_files_task", True, result)
         return result
 
@@ -491,7 +498,9 @@ def cleanup_old_backups_task(
     start_time = dt.datetime.now(dt.UTC)
     log_id = log_maintenance_start("cleanup_old_backups_task", dry_run)
 
-    logger.info("cleanup_old_backups_started", task_id=task_id, keep_count=keep_count, dry_run=dry_run)
+    logger.info(
+        "cleanup_old_backups_started", task_id=task_id, keep_count=keep_count, dry_run=dry_run
+    )
 
     try:
         files_deleted = 0
@@ -535,11 +544,13 @@ def cleanup_old_backups_task(
                 age_days = (now - mtime) / 86400
 
                 if dry_run:
-                    would_delete.append({
-                        "file": str(file_path),
-                        "size_bytes": file_size,
-                        "age_days": round(age_days, 1),
-                    })
+                    would_delete.append(
+                        {
+                            "file": str(file_path),
+                            "size_bytes": file_size,
+                            "age_days": round(age_days, 1),
+                        }
+                    )
                     files_deleted += 1
                     bytes_freed += file_size
                 else:
@@ -578,7 +589,10 @@ def cleanup_old_backups_task(
         if dry_run and would_delete:
             result["would_delete"] = would_delete
 
-        logger.info("cleanup_old_backups_completed", **{k: v for k, v in result.items() if k != "would_delete"})
+        logger.info(
+            "cleanup_old_backups_completed",
+            **{k: v for k, v in result.items() if k != "would_delete"},
+        )
         log_maintenance_complete(log_id, "cleanup_old_backups_task", True, result)
         return result
 
@@ -613,7 +627,9 @@ def cleanup_old_models_task(
     start_time = dt.datetime.now(dt.UTC)
     log_id = log_maintenance_start("cleanup_old_models_task", dry_run)
 
-    logger.info("cleanup_old_models_started", task_id=task_id, keep_count=keep_count, dry_run=dry_run)
+    logger.info(
+        "cleanup_old_models_started", task_id=task_id, keep_count=keep_count, dry_run=dry_run
+    )
 
     try:
         files_deleted = 0
@@ -666,12 +682,14 @@ def cleanup_old_models_task(
             for file_path, date_str, file_size in versions[keep_count:]:
                 try:
                     if dry_run:
-                        would_delete.append({
-                            "file": str(file_path),
-                            "model_name": model_name,
-                            "version_date": date_str,
-                            "size_bytes": file_size,
-                        })
+                        would_delete.append(
+                            {
+                                "file": str(file_path),
+                                "model_name": model_name,
+                                "version_date": date_str,
+                                "size_bytes": file_size,
+                            }
+                        )
                         files_deleted += 1
                         bytes_freed += file_size
                     else:
@@ -712,7 +730,10 @@ def cleanup_old_models_task(
         if dry_run and would_delete:
             result["would_delete"] = would_delete
 
-        logger.info("cleanup_old_models_completed", **{k: v for k, v in result.items() if k != "would_delete"})
+        logger.info(
+            "cleanup_old_models_completed",
+            **{k: v for k, v in result.items() if k != "would_delete"},
+        )
         log_maintenance_complete(log_id, "cleanup_old_models_task", True, result)
         return result
 
@@ -747,7 +768,9 @@ def cleanup_solution_state_task(
     start_time = dt.datetime.now(dt.UTC)
     log_id = log_maintenance_start("cleanup_solution_state_task", dry_run)
 
-    logger.info("cleanup_solution_state_started", task_id=task_id, keep_days=keep_days, dry_run=dry_run)
+    logger.info(
+        "cleanup_solution_state_started", task_id=task_id, keep_days=keep_days, dry_run=dry_run
+    )
 
     try:
         directories_deleted = 0
@@ -797,11 +820,13 @@ def cleanup_solution_state_task(
                     age_days = (now - mtime) / 86400
 
                     if dry_run:
-                        would_delete.append({
-                            "directory": str(entry),
-                            "size_bytes": dir_size,
-                            "age_days": round(age_days, 1),
-                        })
+                        would_delete.append(
+                            {
+                                "directory": str(entry),
+                                "size_bytes": dir_size,
+                                "age_days": round(age_days, 1),
+                            }
+                        )
                         directories_deleted += 1
                         bytes_freed += dir_size
                     else:
@@ -840,7 +865,10 @@ def cleanup_solution_state_task(
         if dry_run and would_delete:
             result["would_delete"] = would_delete
 
-        logger.info("cleanup_solution_state_completed", **{k: v for k, v in result.items() if k != "would_delete"})
+        logger.info(
+            "cleanup_solution_state_completed",
+            **{k: v for k, v in result.items() if k != "would_delete"},
+        )
         log_maintenance_complete(log_id, "cleanup_solution_state_task", True, result)
         return result
 
@@ -972,23 +1000,27 @@ def cleanup_cache_directories_task(self: Task, dry_run: bool = False) -> dict[st
                     file_count = sum(1 for f in cache_dir.rglob("*") if f.is_file())
 
                     if dry_run:
-                        details.append({
-                            "name": target_name,
-                            "path": str(cache_dir),
-                            "size_bytes": dir_size,
-                            "file_count": file_count,
-                            "action": "would_delete",
-                        })
+                        details.append(
+                            {
+                                "name": target_name,
+                                "path": str(cache_dir),
+                                "size_bytes": dir_size,
+                                "file_count": file_count,
+                                "action": "would_delete",
+                            }
+                        )
                     else:
                         # Delete directory
                         shutil.rmtree(cache_dir)
-                        details.append({
-                            "name": target_name,
-                            "path": str(cache_dir),
-                            "size_bytes": dir_size,
-                            "file_count": file_count,
-                            "action": "deleted",
-                        })
+                        details.append(
+                            {
+                                "name": target_name,
+                                "path": str(cache_dir),
+                                "size_bytes": dir_size,
+                                "file_count": file_count,
+                                "action": "deleted",
+                            }
+                        )
                         logger.info(
                             "cache_directory_cleaned",
                             name=target_name,
@@ -1008,12 +1040,14 @@ def cleanup_cache_directories_task(self: Task, dry_run: bool = False) -> dict[st
                     path=str(target_path),
                     error=str(target_error),
                 )
-                details.append({
-                    "name": target_name,
-                    "path": str(target_path),
-                    "action": "error",
-                    "error": str(target_error),
-                })
+                details.append(
+                    {
+                        "name": target_name,
+                        "path": str(target_path),
+                        "action": "error",
+                        "error": str(target_error),
+                    }
+                )
 
         # Store metric in maintenance_stats (only if not dry run)
         if bytes_freed > 0 and not dry_run:
@@ -1050,5 +1084,7 @@ def cleanup_cache_directories_task(self: Task, dry_run: bool = False) -> dict[st
             duration_seconds=round(duration, 2),
         )
         error_result = _build_error_result(task_id, e, duration, dry_run=dry_run)
-        log_maintenance_complete(log_id, "cleanup_cache_directories_task", False, error_result, str(e))
+        log_maintenance_complete(
+            log_id, "cleanup_cache_directories_task", False, error_result, str(e)
+        )
         return error_result

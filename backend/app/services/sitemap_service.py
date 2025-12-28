@@ -38,7 +38,9 @@ BACKEND_HOST = "localhost"
 
 # Timeouts for health checks
 HEALTH_CHECK_TIMEOUT_NORMAL = 10  # seconds for normal endpoints
-HEALTH_CHECK_TIMEOUT_PROBE = 5  # seconds for lightweight probe checks (enough to verify route exists)
+HEALTH_CHECK_TIMEOUT_PROBE = (
+    5  # seconds for lightweight probe checks (enough to verify route exists)
+)
 
 # Endpoints that need lightweight "probe" checks instead of full execution
 # These are checked with short timeout and ANY response (even 4xx) = route exists
@@ -331,12 +333,14 @@ class SitemapService:
 
         # Ports to check for OpenAPI (backend types and websocket services)
         openapi_candidates = [
-            p for p in ports.values()
-            if p.service_type in ("backend", "websocket", "unknown")
+            p for p in ports.values() if p.service_type in ("backend", "websocket", "unknown")
         ]
 
-        logger.info("sitemap_openapi_candidates", count=len(openapi_candidates),
-                    ports=[p.port for p in openapi_candidates])
+        logger.info(
+            "sitemap_openapi_candidates",
+            count=len(openapi_candidates),
+            ports=[p.port for p in openapi_candidates],
+        )
 
         async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
             for port_info in openapi_candidates:
@@ -352,8 +356,12 @@ class SitemapService:
                     )
                     all_discovered.extend(port_endpoints)
 
-                    logger.info("sitemap_openapi_port_complete",
-                               port=port, service=port_info.service_name, count=len(port_endpoints))
+                    logger.info(
+                        "sitemap_openapi_port_complete",
+                        port=port,
+                        service=port_info.service_name,
+                        count=len(port_endpoints),
+                    )
 
                 except Exception as e:
                     logger.debug("sitemap_openapi_port_failed", port=port, error=str(e))
@@ -376,8 +384,7 @@ class SitemapService:
         # Get ports that might have WebSocket
         ports = self._port_discovery.get_all_ports()
         ws_candidates = [
-            p for p in ports.values()
-            if p.service_type in ("websocket", "backend", "unknown")
+            p for p in ports.values() if p.service_type in ("websocket", "backend", "unknown")
         ]
 
         # Common WebSocket paths to probe
@@ -400,21 +407,28 @@ class SitemapService:
 
                         # 403 or 426 indicates WebSocket endpoint exists
                         if response.status_code in (403, 426, 400):
-                            discovered.append({
-                                "port": port,
-                                "path": ws_path,
-                                "method": "WS",
-                                "entry_type": "websocket",
-                                "source": "probe",
-                                "title": f"WebSocket - {port_info.service_name}",
-                                "service_name": port_info.service_name,
-                            })
-                            logger.info("sitemap_websocket_found",
-                                       port=port, path=ws_path, service=port_info.service_name)
+                            discovered.append(
+                                {
+                                    "port": port,
+                                    "path": ws_path,
+                                    "method": "WS",
+                                    "entry_type": "websocket",
+                                    "source": "probe",
+                                    "title": f"WebSocket - {port_info.service_name}",
+                                    "service_name": port_info.service_name,
+                                }
+                            )
+                            logger.info(
+                                "sitemap_websocket_found",
+                                port=port,
+                                path=ws_path,
+                                service=port_info.service_name,
+                            )
 
                     except Exception as e:
-                        logger.debug("sitemap_websocket_probe_failed",
-                                    port=port, path=ws_path, error=str(e))
+                        logger.debug(
+                            "sitemap_websocket_probe_failed", port=port, path=ws_path, error=str(e)
+                        )
 
         logger.info("sitemap_discover_websocket_complete", count=len(discovered))
         return discovered
@@ -449,25 +463,37 @@ class SitemapService:
                     if response.status_code == 200:
                         # Get page title from HTML
                         title = None
-                        title_match = re.search(r"<title>([^<]+)</title>", response.text, re.IGNORECASE)
+                        title_match = re.search(
+                            r"<title>([^<]+)</title>", response.text, re.IGNORECASE
+                        )
                         if title_match:
                             title = title_match.group(1).strip()
 
-                        discovered.append({
-                            "port": frontend_port,
-                            "path": path,
-                            "method": "GET",
-                            "entry_type": "frontend_page",
-                            "source": "crawler",
-                            "title": title,
-                        })
+                        discovered.append(
+                            {
+                                "port": frontend_port,
+                                "path": path,
+                                "method": "GET",
+                                "entry_type": "frontend_page",
+                                "source": "crawler",
+                                "title": title,
+                            }
+                        )
 
                         # Extract internal links for crawling
                         if depth < max_depth:
                             links = re.findall(r'href=["\']([^"\']+)["\']', response.text)
                             for link in links:
                                 # Only follow internal links, skip static assets and API calls
-                                skip_patterns = ["/api/", "/_next/", "/static/", ".js", ".css", ".png", ".jpg"]
+                                skip_patterns = [
+                                    "/api/",
+                                    "/_next/",
+                                    "/static/",
+                                    ".js",
+                                    ".css",
+                                    ".png",
+                                    ".jpg",
+                                ]
                                 if (
                                     link.startswith("/")
                                     and not link.startswith("//")
@@ -542,27 +568,31 @@ class SitemapService:
                 tab_values = self._extract_tab_values(page_file)
 
                 # Add base route
-                discovered.append({
-                    "port": self.frontend_port,
-                    "path": route,
-                    "method": "GET",
-                    "entry_type": "frontend_page",
-                    "source": "nextjs_app",
-                    "title": title,
-                    "has_dynamic_segment": "{" in route,
-                })
-
-                # Add tab variations as separate entries
-                for tab in tab_values:
-                    discovered.append({
+                discovered.append(
+                    {
                         "port": self.frontend_port,
-                        "path": f"{route}?tab={tab}",
+                        "path": route,
                         "method": "GET",
                         "entry_type": "frontend_page",
                         "source": "nextjs_app",
-                        "title": f"{title} - {tab.title()}" if title else tab.title(),
-                        "parent_path": route,
-                    })
+                        "title": title,
+                        "has_dynamic_segment": "{" in route,
+                    }
+                )
+
+                # Add tab variations as separate entries
+                for tab in tab_values:
+                    discovered.append(
+                        {
+                            "port": self.frontend_port,
+                            "path": f"{route}?tab={tab}",
+                            "method": "GET",
+                            "entry_type": "frontend_page",
+                            "source": "nextjs_app",
+                            "title": f"{title} - {tab.title()}" if title else tab.title(),
+                            "parent_path": route,
+                        }
+                    )
 
             except Exception as e:
                 logger.debug("sitemap_nextjs_parse_failed", file=str(page_file), error=str(e))
@@ -633,7 +663,7 @@ class SitemapService:
                 return tabs
 
             # Look for TabValue type definition (e.g. type TabValue = "x" | "y")
-            tabvalue_match = re.search(r'type\s+TabValue\s*=\s*([^;]+);', content)
+            tabvalue_match = re.search(r"type\s+TabValue\s*=\s*([^;]+);", content)
             if tabvalue_match:
                 values_str = tabvalue_match.group(1)
                 # Extract quoted strings
@@ -671,13 +701,23 @@ class SitemapService:
             for row in api_caps:
                 endpoint_path, http_method, category, function_name = row
                 try:
-                    conn.execute("""
+                    conn.execute(
+                        """
                         INSERT INTO sitemap_entries (port, path, method, entry_type, source, title)
                         VALUES (%s, %s, %s, %s, %s, %s)
                         ON CONFLICT (port, path, method) DO UPDATE SET
                             title = EXCLUDED.title,
                             updated_at = NOW()
-                    """, [self.backend_port, endpoint_path, http_method, "api_endpoint", "api_scanner", function_name or category])
+                    """,
+                        [
+                            self.backend_port,
+                            endpoint_path,
+                            http_method,
+                            "api_endpoint",
+                            "api_scanner",
+                            function_name or category,
+                        ],
+                    )
                     imported += 1
                 except Exception as e:
                     logger.debug("sitemap_import_row_failed", path=endpoint_path, error=str(e))
@@ -721,21 +761,24 @@ class SitemapService:
         with self.conn_mgr.connection() as conn:
             for entry in all_entries:
                 try:
-                    conn.execute("""
+                    conn.execute(
+                        """
                         INSERT INTO sitemap_entries (port, path, method, entry_type, source, title, discovered_at)
                         VALUES (%s, %s, %s, %s, %s, %s, NOW())
                         ON CONFLICT (port, path, method) DO UPDATE SET
                             title = COALESCE(EXCLUDED.title, sitemap_entries.title),
                             source = EXCLUDED.source,
                             updated_at = NOW()
-                    """, [
-                        entry["port"],
-                        entry["path"],
-                        entry["method"],
-                        entry["entry_type"],
-                        entry["source"],
-                        entry.get("title"),
-                    ])
+                    """,
+                        [
+                            entry["port"],
+                            entry["path"],
+                            entry["method"],
+                            entry["entry_type"],
+                            entry["source"],
+                            entry.get("title"),
+                        ],
+                    )
                     saved += 1
                 except Exception as e:
                     logger.debug("sitemap_save_entry_failed", path=entry["path"], error=str(e))
@@ -806,7 +849,8 @@ class SitemapService:
             http_status = 0  # Indicates skipped, not actually checked
             # Update entry and return early
             with self.conn_mgr.connection() as conn:
-                conn.execute("""
+                conn.execute(
+                    """
                     UPDATE sitemap_entries SET
                         health_status = %s,
                         http_status = %s,
@@ -814,7 +858,9 @@ class SitemapService:
                         last_checked_at = NOW(),
                         updated_at = NOW()
                     WHERE id = %s
-                """, [health_status, http_status, skip_msg, entry_id])
+                """,
+                    [health_status, http_status, skip_msg, entry_id],
+                )
                 conn.commit()
             return {
                 "success": True,
@@ -841,7 +887,9 @@ class SitemapService:
                 http_status = response.status_code
 
                 # Determine if this is an error using helper
-                is_error, last_error_message = _interpret_response(response, is_probe, probe_pattern)
+                is_error, last_error_message = _interpret_response(
+                    response, is_probe, probe_pattern
+                )
                 if is_error:
                     console_errors = 1
 
@@ -879,7 +927,8 @@ class SitemapService:
 
         # Update sitemap_entries
         with self.conn_mgr.connection() as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 UPDATE sitemap_entries SET
                     health_status = %s,
                     console_errors = %s,
@@ -890,32 +939,37 @@ class SitemapService:
                     last_checked_at = NOW(),
                     updated_at = NOW()
                 WHERE id = %s
-            """, [
-                health_status,
-                console_errors,
-                console_warnings,
-                http_status,
-                response_time_ms,
-                last_error_message,
-                entry_id,
-            ])
+            """,
+                [
+                    health_status,
+                    console_errors,
+                    console_warnings,
+                    http_status,
+                    response_time_ms,
+                    last_error_message,
+                    entry_id,
+                ],
+            )
 
             # Insert into history
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO sitemap_health_history
                     (sitemap_entry_id, checked_at, health_status, console_errors, console_warnings,
                      http_status, response_time_ms, error_details)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """, [
-                entry_id,
-                datetime.now(UTC),
-                health_status,
-                console_errors,
-                console_warnings,
-                http_status,
-                response_time_ms,
-                json.dumps(error_details) if error_details else None,
-            ])
+            """,
+                [
+                    entry_id,
+                    datetime.now(UTC),
+                    health_status,
+                    console_errors,
+                    console_warnings,
+                    http_status,
+                    response_time_ms,
+                    json.dumps(error_details) if error_details else None,
+                ],
+            )
 
             conn.commit()
 

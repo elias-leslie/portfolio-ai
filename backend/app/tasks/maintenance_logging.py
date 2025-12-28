@@ -130,7 +130,9 @@ def log_maintenance_complete(
                 )
                 conn.commit()
         except Exception as e:
-            logger.warning("maintenance_log_complete_insert_failed", task_name=task_name, error=str(e))
+            logger.warning(
+                "maintenance_log_complete_insert_failed", task_name=task_name, error=str(e)
+            )
         return
 
     conn_mgr = get_connection_manager()
@@ -155,4 +157,6 @@ def log_maintenance_complete(
             )
             conn.commit()
     except Exception as e:
-        logger.warning("maintenance_log_complete_failed", log_id=log_id, task_name=task_name, error=str(e))
+        logger.warning(
+            "maintenance_log_complete_failed", log_id=log_id, task_name=task_name, error=str(e)
+        )

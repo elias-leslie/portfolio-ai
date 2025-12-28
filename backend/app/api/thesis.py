@@ -65,9 +65,7 @@ async def get_thesis(symbol: str) -> ThesisResponse:
 
     except Exception as e:
         logger.exception(f"Error getting thesis for {symbol}", error=str(e))
-        raise HTTPException(
-            status_code=500, detail=f"Failed to get thesis: {e!s}"
-        ) from e
+        raise HTTPException(status_code=500, detail=f"Failed to get thesis: {e!s}") from e
 
 
 @router.post("/{symbol}/generate", response_model=ThesisResponse)
@@ -109,9 +107,7 @@ async def generate_thesis(
         raise
     except Exception as e:
         logger.exception(f"Error generating thesis for {symbol}", error=str(e))
-        raise HTTPException(
-            status_code=500, detail=f"Failed to generate thesis: {e!s}"
-        ) from e
+        raise HTTPException(status_code=500, detail=f"Failed to generate thesis: {e!s}") from e
 
 
 @router.post("/{symbol}/invalidate", response_model=ThesisResponse)
@@ -131,9 +127,7 @@ async def invalidate_thesis(
     try:
         invalidation_reason = reason.get("reason")
         if not invalidation_reason:
-            raise HTTPException(
-                status_code=400, detail="Missing 'reason' field in request body"
-            )
+            raise HTTPException(status_code=400, detail="Missing 'reason' field in request body")
 
         service = _get_thesis_service()
         thesis = await run_in_threadpool(
@@ -165,9 +159,7 @@ async def invalidate_thesis(
         raise
     except Exception as e:
         logger.exception(f"Error invalidating thesis for {symbol}", error=str(e))
-        raise HTTPException(
-            status_code=500, detail=f"Failed to invalidate thesis: {e!s}"
-        ) from e
+        raise HTTPException(status_code=500, detail=f"Failed to invalidate thesis: {e!s}") from e
 
 
 @router.get("/{symbol}/versions", response_model=list[ThesisVersion])
@@ -196,9 +188,7 @@ async def get_thesis_versions(
 
     except Exception as e:
         logger.exception(f"Error getting thesis versions for {symbol}", error=str(e))
-        raise HTTPException(
-            status_code=500, detail=f"Failed to get versions: {e!s}"
-        ) from e
+        raise HTTPException(status_code=500, detail=f"Failed to get versions: {e!s}") from e
 
 
 @router.get("/{symbol}/check-invalidation", response_model=dict[str, list[str] | bool])
@@ -221,9 +211,7 @@ async def check_invalidation_triggers(symbol: str) -> dict[str, list[str] | bool
         return {"triggered": len(triggers) > 0, "reasons": triggers}
 
     except Exception as e:
-        logger.exception(
-            f"Error checking invalidation triggers for {symbol}", error=str(e)
-        )
+        logger.exception(f"Error checking invalidation triggers for {symbol}", error=str(e))
         raise HTTPException(
             status_code=500, detail=f"Failed to check invalidation triggers: {e!s}"
         ) from e

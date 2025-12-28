@@ -149,3 +149,20 @@ export function getSignalDisplay(signalType: "BUY" | "HOLD" | "AVOID") {
             };
     }
 }
+
+/**
+ * Risk level display configuration
+ */
+export const RISK_LEVELS: Record<string, { label: string; icon: string; color: string }> = {
+    "Low": { label: "Low", icon: "✓", color: "text-gain" },
+    "Medium-Low": { label: "Med-Low", icon: "⚠", color: "text-warning" },
+    "Medium": { label: "Medium", icon: "⚠", color: "text-neutral" },
+    "High": { label: "High", icon: "⚠⚠", color: "text-loss" },
+};
+
+/**
+ * Get risk level display configuration
+ */
+export function getRiskLevelConfig(riskLevel: string): { label: string; icon: string; color: string } {
+    return RISK_LEVELS[riskLevel] || { label: riskLevel, icon: "", color: "text-text-muted" };
+}

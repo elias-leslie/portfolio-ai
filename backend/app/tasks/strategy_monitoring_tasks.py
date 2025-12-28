@@ -472,9 +472,7 @@ def weekly_strategy_generation() -> dict[str, Any]:
                         strategy_id=result.get("strategy_id"),
                     )
                 else:
-                    results.append(
-                        f"Skipped {symbol}: {result.get('message', 'unknown reason')}"
-                    )
+                    results.append(f"Skipped {symbol}: {result.get('message', 'unknown reason')}")
                     logger.info(
                         "Strategy generation skipped/blocked",
                         symbol=symbol,
@@ -824,9 +822,7 @@ def trigger_strategies_for_top_watchlist(
         strategy_storage = get_strategy_storage()
 
         # Get top N watchlist symbols by composite score (require non-null scores)
-        top_symbols = strategy_storage.get_top_watchlist_symbols(
-            limit=top_n, require_score=True
-        )
+        top_symbols = strategy_storage.get_top_watchlist_symbols(limit=top_n, require_score=True)
 
         if not top_symbols:
             logger.info("trigger_strategies_no_watchlist_symbols")

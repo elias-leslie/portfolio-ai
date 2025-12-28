@@ -80,6 +80,7 @@ class DryRunReportResponse(TypedDict):
     total_would_delete: int
     total_would_free_mb: float
 
+
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/maintenance", tags=["maintenance"])
@@ -447,54 +448,72 @@ async def get_cache_status() -> CacheStatusResponse:
 
         # Python __pycache__ (backend)
         backend_pycache_size, backend_pycache_count = _count_pycache_recursive(backend_root)
-        directories.append({
-            "name": "Python Bytecode (backend)",
-            "path": str(backend_root / "__pycache__"),
-            "size_mb": backend_pycache_size,
-            "file_count": backend_pycache_count,
-            "description": "Compiled Python files, regenerate on import",
-        })
+        directories.append(
+            {
+                "name": "Python Bytecode (backend)",
+                "path": str(backend_root / "__pycache__"),
+                "size_mb": backend_pycache_size,
+                "file_count": backend_pycache_count,
+                "description": "Compiled Python files, regenerate on import",
+            }
+        )
 
         # Python __pycache__ (services)
         services_path = project_root / "services"
         services_pycache_size, services_pycache_count = _count_pycache_recursive(services_path)
-        directories.append({
-            "name": "Python Bytecode (services)",
-            "path": str(services_path / "__pycache__"),
-            "size_mb": services_pycache_size,
-            "file_count": services_pycache_count,
-            "description": "Compiled Python files, regenerate on import",
-        })
+        directories.append(
+            {
+                "name": "Python Bytecode (services)",
+                "path": str(services_path / "__pycache__"),
+                "size_mb": services_pycache_size,
+                "file_count": services_pycache_count,
+                "description": "Compiled Python files, regenerate on import",
+            }
+        )
 
         # Ruff cache
         ruff_path = backend_root / ".ruff_cache"
-        directories.append(_get_cache_dir_info(
-            ruff_path, "Ruff Linter Cache", "Ruff analysis cache, regenerates on lint"
-        ))
+        directories.append(
+            _get_cache_dir_info(
+                ruff_path, "Ruff Linter Cache", "Ruff analysis cache, regenerates on lint"
+            )
+        )
 
         # Pytest cache
         pytest_path = backend_root / ".pytest_cache"
-        directories.append(_get_cache_dir_info(
-            pytest_path, "Pytest Cache", "Test execution cache, regenerates on test run"
-        ))
+        directories.append(
+            _get_cache_dir_info(
+                pytest_path, "Pytest Cache", "Test execution cache, regenerates on test run"
+            )
+        )
 
         # Mypy cache
         mypy_path = backend_root / ".mypy_cache"
-        directories.append(_get_cache_dir_info(
-            mypy_path, "Mypy Cache", "Type check cache, regenerates on mypy run"
-        ))
+        directories.append(
+            _get_cache_dir_info(
+                mypy_path, "Mypy Cache", "Type check cache, regenerates on mypy run"
+            )
+        )
 
         # Next.js cache (only .next/cache, not server)
         nextjs_cache_path = project_root / "frontend" / ".next" / "cache"
-        directories.append(_get_cache_dir_info(
-            nextjs_cache_path, "Next.js Build Cache", "Webpack/build cache, regenerates on build"
-        ))
+        directories.append(
+            _get_cache_dir_info(
+                nextjs_cache_path,
+                "Next.js Build Cache",
+                "Webpack/build cache, regenerates on build",
+            )
+        )
 
         # Claude memory backups
         claude_memory_path = project_root / ".claude" / "backups" / "memory"
-        directories.append(_get_cache_dir_info(
-            claude_memory_path, "Claude Memory Backups", "Transient Claude memory, not essential"
-        ))
+        directories.append(
+            _get_cache_dir_info(
+                claude_memory_path,
+                "Claude Memory Backups",
+                "Transient Claude memory, not essential",
+            )
+        )
 
         # Calculate totals
         total_size = sum(d["size_mb"] for d in directories)
@@ -559,7 +578,9 @@ async def get_dry_run_report(timeout: int = 60) -> DryRunReportResponse:
         categories: dict[str, DryRunCategoryReport] = {}
         errors: list[str] = []
 
-        def run_task_dry_run(task_info: tuple[str, str, str]) -> tuple[str, dict[str, Any] | None, str | None]:
+        def run_task_dry_run(
+            task_info: tuple[str, str, str],
+        ) -> tuple[str, dict[str, Any] | None, str | None]:
             """Run a single task in dry-run mode and return result."""
             task_name, category, _retention = task_info
             try:
@@ -588,32 +609,54 @@ async def get_dry_run_report(timeout: int = 60) -> DryRunReportResponse:
                         # Extract counts and sizes from result
                         # Different tasks use different field names
                         count_field = next(
-                            (f for f in ["files_deleted", "directories_deleted", "directories_cleaned",
-                                        "rows_deleted", "runs_deleted", "deleted_count", "files_rotated",
-                                        "rows_to_delete", "runs_to_delete", "orphaned_insights_to_delete"]
-                             if f in result),
-                            None
+                            (
+                                f
+                                for f in [
+                                    "files_deleted",
+                                    "directories_deleted",
+                                    "directories_cleaned",
+                                    "rows_deleted",
+                                    "runs_deleted",
+                                    "deleted_count",
+                                    "files_rotated",
+                                    "rows_to_delete",
+                                    "runs_to_delete",
+                                    "orphaned_insights_to_delete",
+                                ]
+                                if f in result
+                            ),
+                            None,
                         )
                         count = result.get(count_field, 0) if count_field else 0
 
                         bytes_field = next(
-                            (f for f in ["bytes_freed", "deleted_size_bytes"]
-                             if f in result),
-                            None
+                            (f for f in ["bytes_freed", "deleted_size_bytes"] if f in result), None
                         )
                         bytes_freed = result.get(bytes_field, 0) if bytes_field else 0
 
                         # Build file list from would_delete/would_rotate if present
                         files: list[DryRunFileInfo] = []
-                        would_items = result.get("would_delete") or result.get("would_rotate") or result.get("details") or []
+                        would_items = (
+                            result.get("would_delete")
+                            or result.get("would_rotate")
+                            or result.get("details")
+                            or []
+                        )
                         for item in would_items[:50]:  # Limit to 50 items
                             if isinstance(item, dict):
-                                files.append({
-                                    "file": item.get("file") or item.get("directory") or item.get("path", "unknown"),
-                                    "size_bytes": item.get("size_bytes", 0),
-                                    "age_days": item.get("age_days", 0.0) or item.get("age_hours", 0.0) / 24.0,
-                                    "reason": item.get("reason") or item.get("action") or "age/count exceeded",
-                                })
+                                files.append(
+                                    {
+                                        "file": item.get("file")
+                                        or item.get("directory")
+                                        or item.get("path", "unknown"),
+                                        "size_bytes": item.get("size_bytes", 0),
+                                        "age_days": item.get("age_days", 0.0)
+                                        or item.get("age_hours", 0.0) / 24.0,
+                                        "reason": item.get("reason")
+                                        or item.get("action")
+                                        or "age/count exceeded",
+                                    }
+                                )
 
                         categories[category] = {
                             "category": category,
