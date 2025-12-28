@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { MessageSquare, Plus, Trash2, Settings, Activity, Camera, Eye, Diamond, Star } from 'lucide-react';
 // Note: We use a custom side panel instead of Sheet to allow non-overlay behavior (FEAT-220)
 import { Button } from '@/components/ui/button';
@@ -107,6 +107,12 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
   const currentResponseRef = useRef<ContentBlock[]>([]);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const intentionalCloseRef = useRef(false); // Prevent reconnect on provider switch
+
+  // Memoize current session lookup to avoid duplicate finds in render
+  const currentSession = useMemo(
+    () => sessions.find(s => s.id === currentSessionId),
+    [sessions, currentSessionId]
+  );
 
   // Initialize URLs on client
   useEffect(() => {
@@ -543,28 +549,20 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
               <span className="text-text-muted text-xs flex items-center gap-1">
                 {currentSessionId ? `${currentSessionId.slice(0, 8)}...` : 'No session'}
                 {/* Show original provider badge if session has one */}
-                {(() => {
-                  const currentSession = sessions.find(s => s.id === currentSessionId);
-                  return currentSession?.originalProvider && (
-                    <ProviderBadge provider={currentSession.originalProvider} size="xs" />
-                  );
-                })()}
+                {currentSession?.originalProvider && (
+                  <ProviderBadge provider={currentSession.originalProvider} size="xs" />
+                )}
               </span>
             </div>
             <div className="flex items-center gap-2">
               {/* Show "Started with: X" if current agent differs from original */}
-              {(() => {
-                const currentSession = sessions.find(s => s.id === currentSessionId);
-                const originalProvider = currentSession?.originalProvider;
-                if (originalProvider && originalProvider !== 'both' && originalProvider !== agentProvider) {
-                  return (
-                    <span className="text-xs text-text-muted flex items-center gap-1">
-                      Started with: <ProviderBadge provider={originalProvider} size="xs" />
-                    </span>
-                  );
-                }
-                return null;
-              })()}
+              {currentSession?.originalProvider &&
+               currentSession.originalProvider !== 'both' &&
+               currentSession.originalProvider !== agentProvider && (
+                <span className="text-xs text-text-muted flex items-center gap-1">
+                  Started with: <ProviderBadge provider={currentSession.originalProvider} size="xs" />
+                </span>
+              )}
               {isConnected && (
                 <span className={cn(
                   "text-xs px-1.5 py-0.5 rounded font-medium",

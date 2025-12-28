@@ -189,13 +189,12 @@
             "frontend/components/watchlist/WatchlistTable.tsx"
           ],
           "steps": [
-            "Extract repeated sortable header button pattern (appears 5x at line 356+)",
-            "Create inline SortableHeader component or extract to separate file",
-            "Replace duplicate buttons with <SortableHeader field='symbol' label='Symbol' />",
-            "Run: cd frontend && npm run lint && npm run build",
-            "Verify: No duplicate header button code"
+            "Created renderSortableHeader() function (not component - avoids React rules violation)",
+            "Replaced 5 duplicate 11-line header buttons with single-line function calls",
+            "Saved ~50 lines of duplicate code",
+            "npm run lint: 0 errors (11 pre-existing warnings)"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.7",
@@ -205,13 +204,13 @@
             "frontend/components/agents/AgentPanel.tsx"
           ],
           "steps": [
-            "Session lookup sessions.find(s => s.id === currentSessionId) duplicated at lines 546-567",
-            "Extract to useCurrentSession() hook or memoized variable",
-            "Replace duplicate lookups with single reference",
-            "Run: cd frontend && npm run lint && npm run build",
-            "Verify: Single source of truth for current session"
+            "Added useMemo for currentSession at line 112",
+            "Removed 2 duplicate IIFE lookups (lines 552-557, 562-573)",
+            "Replaced with direct usage of memoized currentSession",
+            "Simplified JSX from IIFEs to inline conditionals",
+            "npm run lint: 0 errors"
           ],
-          "passes": false
+          "passes": true
         }
       ]
     },
