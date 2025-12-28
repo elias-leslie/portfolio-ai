@@ -123,6 +123,19 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
     }
   };
 
+  // Render sortable header button (using render function pattern to avoid component-in-render)
+  const renderSortableHeader = (field: SortField, label: string) => (
+    <button
+      onClick={() => handleSort(field)}
+      className="flex items-center gap-1 font-medium hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+    >
+      {label}
+      {sortField === field && (
+        <span className="text-xs">{sortDirection === "asc" ? "↑" : "↓"}</span>
+      )}
+    </button>
+  );
+
   // Sort items
   const sortedItems = [...items].sort((a, b) => {
     let aVal: string | number = "";
@@ -210,34 +223,6 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
       onConfirm={confirmDeleteSymbol}
     />
   );
-
-  // Get score badge variant based on score value
-  const getScoreBadgeVariant = (
-    score: number,
-  ): "viz-0" | "viz-1" | "viz-2" | "viz-3" | "viz-4" | "viz-5" => {
-    if (score >= 80) return "viz-5";
-    if (score >= 60) return "viz-4";
-    if (score >= 40) return "viz-3";
-    if (score >= 20) return "viz-2";
-    if (score >= 10) return "viz-1";
-    return "viz-0";
-  };
-
-  // Get data quality color based on percentage
-  const getDataQualityColor = (pct: number): string => {
-    if (pct >= 80) return "text-gain";
-    if (pct >= 60) return "text-warning";
-    if (pct >= 40) return "text-neutral";
-    return "text-loss";
-  };
-
-  // Get data quality background color
-  const getDataQualityBgColor = (pct: number): string => {
-    if (pct >= 80) return "bg-gain/10";
-    if (pct >= 60) return "bg-warning/10";
-    if (pct >= 40) return "bg-neutral/10";
-    return "bg-loss/10";
-  };
 
   // Format pillar status
   const formatPillarStatus = (status: string): string => {
@@ -357,75 +342,13 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
         <TableHeader>
           <TableRow>
             <TableHead className="w-[40px]" />
-            <TableHead>
-              <button
-                onClick={() => handleSort("symbol")}
-                className="flex items-center gap-1 font-medium hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-              >
-                Symbol
-                {sortField === "symbol" && (
-                  <span className="text-xs">
-                    {sortDirection === "asc" ? "↑" : "↓"}
-                  </span>
-                )}
-              </button>
-            </TableHead>
-            <TableHead>
-              <button
-                onClick={() => handleSort("price")}
-                className="flex items-center gap-1 font-medium hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-              >
-                Price
-                {sortField === "price" && (
-                  <span className="text-xs">
-                    {sortDirection === "asc" ? "↑" : "↓"}
-                  </span>
-                )}
-              </button>
-            </TableHead>
-            <TableHead>
-              <button
-                onClick={() => handleSort("overall")}
-                className="flex items-center gap-1 font-medium hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-              >
-                Score
-                {sortField === "overall" && (
-                  <span className="text-xs">
-                    {sortDirection === "asc" ? "↑" : "↓"}
-                  </span>
-                )}
-              </button>
-            </TableHead>
-            <TableHead>
-              <button
-                onClick={() => handleSort("risk")}
-                className="flex items-center gap-1 font-medium hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-              >
-                Risk
-                {sortField === "risk" && (
-                  <span className="text-xs">
-                    {sortDirection === "asc" ? "↑" : "↓"}
-                  </span>
-                )}
-              </button>
-            </TableHead>
-            <TableHead>
-              <span className="font-medium">DQ</span>
-            </TableHead>
+            <TableHead>{renderSortableHeader("symbol", "Symbol")}</TableHead>
+            <TableHead>{renderSortableHeader("price", "Price")}</TableHead>
+            <TableHead>{renderSortableHeader("overall", "Score")}</TableHead>
+            <TableHead>{renderSortableHeader("risk", "Risk")}</TableHead>
+            <TableHead><span className="font-medium">DQ</span></TableHead>
             <TableHead>Score Trend</TableHead>
-            <TableHead>
-              <button
-                onClick={() => handleSort("updated")}
-                className="flex items-center gap-1 font-medium hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-              >
-                Updated
-                {sortField === "updated" && (
-                  <span className="text-xs">
-                    {sortDirection === "asc" ? "↑" : "↓"}
-                  </span>
-                )}
-              </button>
-            </TableHead>
+            <TableHead>{renderSortableHeader("updated", "Updated")}</TableHead>
             <TableHead className="w-[60px]" />
           </TableRow>
         </TableHeader>
