@@ -227,27 +227,39 @@
             "frontend/components/agents/AgentPanel.tsx"
           ],
           "steps": [
-            "DEFERRED: High-risk refactor - WebSocket handlers have complex reconnection logic",
-            "Would require extensive testing of connection edge cases",
-            "Current connect() function works correctly",
-            "Recommend separate dedicated ticket for WebSocket refactoring"
+            "INVESTIGATION: connect() callback is ~70 lines with ws.onmessage handler",
+            "INVESTIGATION: Has reconnection logic with intentionalCloseRef and reconnectTimeoutRef",
+            "INVESTIGATION: HandlerContext is created inline with setMessages, setCurrentResponse dependencies",
+            "NEXT: Read lines 200-280 of AgentPanel.tsx to map exact extraction boundaries",
+            "NEXT: Create setupWebSocketMessageHandler(ws, context) helper function",
+            "NEXT: Create createHandlerContext() factory that captures state setters",
+            "NEXT: Test WebSocket connection/disconnection/reconnection flow",
+            "Run: cd frontend && npm run lint && npm run build",
+            "Verify: connect() reduced to ~30 lines, message handling isolated"
           ],
-          "passes": true
+          "passes": false
         },
         {
           "id": "4.2",
           "category": "frontend",
           "description": "Extract change detection hook from WatchlistTable.tsx",
           "files_affected": [
-            "frontend/components/watchlist/WatchlistTable.tsx"
+            "frontend/components/watchlist/WatchlistTable.tsx",
+            "frontend/lib/hooks/useWatchlistChangeDetection.ts"
           ],
           "steps": [
-            "DEFERRED: High complexity - 60 lines with nested timeouts/refs",
-            "Custom hook extraction requires careful state management testing",
-            "Animation timing and ref handling needs validation",
-            "Recommend separate dedicated ticket for hook extraction"
+            "INVESTIGATION: useEffect at lines 276-340 is 60 lines with nested setTimeout",
+            "INVESTIGATION: Manages previousSnapshots ref, changedCells state, recentlyUpdatedRows state",
+            "INVESTIGATION: Uses 2-second highlight timeout and 5-second update flash timeout",
+            "NEXT: Read lines 270-350 to understand full state dependencies",
+            "NEXT: Create frontend/lib/hooks/useWatchlistChangeDetection.ts",
+            "NEXT: Hook signature: useWatchlistChangeDetection(items: WatchlistItem[]) returns { changedCells, recentlyUpdatedRows }",
+            "NEXT: Move previousSnapshots ref into hook",
+            "NEXT: Update WatchlistTable.tsx to use the hook",
+            "Run: cd frontend && npm run lint && npm run build",
+            "Verify: Main component effect reduced to single hook call"
           ],
-          "passes": true
+          "passes": false
         },
         {
           "id": "4.3",
@@ -258,12 +270,18 @@
             "frontend/lib/utils/sortWatchlist.ts"
           ],
           "steps": [
-            "DEFERRED: Requires new utility file + WatchlistItem type import",
-            "45 lines of switch statement - readable as-is",
-            "Low value vs effort for separate file + tests",
-            "Can be done when WatchlistTable is next modified"
+            "INVESTIGATION: sortedItems logic at lines 140-184 is 45 lines with switch statement",
+            "INVESTIGATION: Handles 7 sort fields: symbol, overall, price, technical, news, risk, updated",
+            "INVESTIGATION: Uses localeCompare for strings, numeric comparison for numbers",
+            "NEXT: Create frontend/lib/utils/sortWatchlist.ts",
+            "NEXT: Define SortField and SortDirection types (already exist in component)",
+            "NEXT: Export sortWatchlistItems(items: WatchlistItem[], field: SortField, direction: SortDirection): WatchlistItem[]",
+            "NEXT: Import WatchlistItem type from @/lib/api/watchlist",
+            "NEXT: Update WatchlistTable.tsx to use imported utility",
+            "Run: cd frontend && npm run lint && npm run build",
+            "Verify: Sorting logic is testable and reusable"
           ],
-          "passes": true
+          "passes": false
         },
         {
           "id": "4.4",
@@ -273,12 +291,18 @@
             "backend/app/api/watchlist.py"
           ],
           "steps": [
-            "DEFERRED: 213-line function decomposition is significant refactor",
-            "Nested functions have closure dependencies",
-            "Would need comprehensive review test coverage",
-            "Recommend separate dedicated ticket for this decomposition"
+            "INVESTIGATION: review_strategy_signal is 213 lines (lines 600-813)",
+            "INVESTIGATION: Contains nested _store_provider_review() at lines 688-726 - uses storage, item_id closures",
+            "INVESTIGATION: Contains nested _review_to_dict() at lines 757+ - pure transformation function",
+            "INVESTIGATION: _fetch_signal_data pattern could extract lines 642-681",
+            "NEXT: Read full function to map all nested function dependencies",
+            "NEXT: Promote _review_to_dict to module level (no closure deps, pure function)",
+            "NEXT: Promote _store_provider_review to module level with explicit params",
+            "NEXT: Extract _fetch_signal_data helper for data retrieval",
+            "NEXT: Run: cd backend && .venv/bin/pytest tests/ -k review -x --tb=short",
+            "Verify: Function reduced to <50 lines, nested functions eliminated"
           ],
-          "passes": true
+          "passes": false
         }
       ]
     },
