@@ -307,15 +307,13 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
     options_activity = None
     options_data = get_options_activity_metrics(storage)
     if options_data:
-        # Type narrowing for mypy
-        near_term = options_data["near_term_pct"]
-        concentration = options_data["concentration_pct"]
-        assert isinstance(near_term, (int, float))
-        assert isinstance(concentration, (int, float))
+        # Type narrowing with cast (avoid runtime assertions)
+        near_term = cast(float, options_data["near_term_pct"])
+        concentration = cast(float, options_data["concentration_pct"])
         options_activity = OptionsActivityMetrics(
-            near_term_pct=float(near_term),
+            near_term_pct=near_term,
             near_term_signal=str(options_data["near_term_signal"]),
-            concentration_pct=float(concentration),
+            concentration_pct=concentration,
             concentration_signal=str(options_data["concentration_signal"]),
             top_sectors=options_data["top_sectors"],  # type: ignore[arg-type]
             last_updated=str(options_data["last_updated"]),

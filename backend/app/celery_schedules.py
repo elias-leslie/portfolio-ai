@@ -63,12 +63,14 @@ The system is market-hours aware to prevent thrashing on weekends/holidays:
    - Used by frontend MarketStatusBadge component in navigation
 """
 
+from typing import Any
+
 from celery.schedules import crontab
 
 from app.constants import ALL_MARKET_SYMBOLS
 
 
-def get_beat_schedule() -> dict[str, object]:
+def get_beat_schedule() -> dict[str, dict[str, Any]]:
     """Get Celery Beat schedule configuration.
 
     Returns:
