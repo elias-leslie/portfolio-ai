@@ -13,9 +13,9 @@ from fastapi.responses import JSONResponse
 from app.agents.multi_reviewer import DualReviewResult, MultiReviewer, ProviderReview
 from app.agents.strategy_reviewer import StrategyReviewer
 from app.logging_config import get_logger
-from app.middleware.cache import cache_response, invalidate_endpoint_cache
+from app.middleware.cache import cache_response
 from app.storage import get_storage
-from app.utils.watchlist_cache import invalidate_watchlist_cache
+from app.utils.watchlist_cache import invalidate_all_watchlist_caches
 from app.watchlist._service.helpers import parse_json_field, safe_json_loads
 from app.watchlist.background_tasks import schedule_new_symbol_tasks, schedule_refresh_tasks
 from app.watchlist.history import build_score_timeline
@@ -184,11 +184,8 @@ async def create_watchlist_item(data: WatchlistItemCreate) -> WatchlistItemRespo
             )
             conn.commit()
 
-        # Invalidate watchlist symbols cache (Issue #4 fix)
-        invalidate_watchlist_cache()
-
-        # Invalidate response cache for watchlist endpoint
-        invalidate_endpoint_cache("/api/watchlist", method="GET")
+        # Invalidate all watchlist caches (Redis symbols + HTTP response)
+        invalidate_all_watchlist_caches()
 
         logger.info("Watchlist item created", item_id=item_id, symbol=symbol)
 
@@ -392,11 +389,8 @@ async def delete_watchlist_item(item_id: str) -> None:
             )
             conn.commit()
 
-        # Invalidate watchlist symbols cache (Issue #4 fix)
-        invalidate_watchlist_cache()
-
-        # Invalidate response cache for watchlist endpoint
-        invalidate_endpoint_cache("/api/watchlist", method="GET")
+        # Invalidate all watchlist caches (Redis symbols + HTTP response)
+        invalidate_all_watchlist_caches()
 
         logger.info("Watchlist item deleted", item_id=item_id)
     except HTTPException:

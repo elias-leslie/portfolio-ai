@@ -186,3 +186,19 @@ def invalidate_watchlist_cache(account_id: str | None = None) -> None:
             error=str(e),
             cache_key=cache_key,
         )
+
+
+def invalidate_all_watchlist_caches() -> None:
+    """Invalidate both Redis and HTTP response caches for watchlist.
+
+    Call this when watchlist items are added, updated, or removed.
+    Consolidates both cache invalidations into a single call.
+    """
+    # Lazy import to avoid circular dependency
+    from app.middleware.cache import invalidate_endpoint_cache  # noqa: PLC0415
+
+    # Invalidate Redis cache for watchlist symbols
+    invalidate_watchlist_cache()
+
+    # Invalidate HTTP response cache for watchlist endpoint
+    invalidate_endpoint_cache("/api/watchlist", method="GET")

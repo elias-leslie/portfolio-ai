@@ -899,9 +899,7 @@ async def get_market_events(
     end = date.fromisoformat(end_date) if end_date else None
 
     # Parse event types
-    types_list = (
-        cast(list[MarketEventType], event_types.split(",")) if event_types else None
-    )
+    types_list = cast(list[MarketEventType], event_types.split(",")) if event_types else None
 
     response = svc_get_events(
         start_date=start,
