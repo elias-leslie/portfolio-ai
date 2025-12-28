@@ -54,7 +54,7 @@ class Agent(ABC):
         storage: PortfolioStorage,
         llm_client: LLMClient | None = None,
         anthropic_client: Anthropic | None = None,
-        model: str = "claude-3-5-sonnet-20241022",
+        model: str = "claude-sonnet-4-5",
     ) -> None:
         """Initialize agent.
 

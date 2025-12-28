@@ -57,7 +57,7 @@ scan_config:
   # CLI auto-detected from PATH or CLAUDE_CLI_PATH environment variable
   ai_analysis:
     enabled: true  # Set to false to skip Phase 2
-    model: "claude-sonnet-4.5"  # Maps to CLI model flag (sonnet/opus)
+    model: "claude-sonnet-4-5"  # Maps to CLI model flag (sonnet/opus)
     confidence_threshold: 0.70  # Only store insights with confidence >= 0.70
     include_logs: true
     log_lookback_hours: 24
