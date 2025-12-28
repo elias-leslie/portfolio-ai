@@ -712,10 +712,8 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
                 message={msg}
                 onViewEvidence={() => {
                   // Open SummitFlow evidence viewer
-                  window.open(
-                    `https://192.168.8.233:444/projects/portfolio-ai?tab=evidence`,
-                    '_blank'
-                  );
+                  const baseUrl = process.env.NEXT_PUBLIC_SUMMITFLOW_URL || 'https://dev.summitflow.dev';
+                  window.open(`${baseUrl}/projects/portfolio-ai?tab=evidence`, '_blank');
                 }}
               />
             ) : (
