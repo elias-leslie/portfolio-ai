@@ -244,18 +244,14 @@
             "frontend/lib/hooks/useWatchlistChangeDetection.ts"
           ],
           "steps": [
-            "INVESTIGATION: useEffect at lines 276-340 is 60 lines with nested setTimeout",
-            "INVESTIGATION: Manages previousSnapshots ref, changedCells state, recentlyUpdatedRows state",
-            "INVESTIGATION: Uses 2-second highlight timeout and 5-second update flash timeout",
-            "NEXT: Read lines 270-350 to understand full state dependencies",
-            "NEXT: Create frontend/lib/hooks/useWatchlistChangeDetection.ts",
-            "NEXT: Hook signature: useWatchlistChangeDetection(items: WatchlistItem[]) returns { changedCells, recentlyUpdatedRows }",
-            "NEXT: Move previousSnapshots ref into hook",
-            "NEXT: Update WatchlistTable.tsx to use the hook",
-            "Run: cd frontend && npm run lint && npm run build",
-            "Verify: Main component effect reduced to single hook call"
+            "Created useWatchlistChangeDetection hook in frontend/lib/hooks/useWatchlistChangeDetection.ts",
+            "Hook encapsulates: previousSnapshots ref, changedCells state, recentlyUpdatedRows state, buildSnapshot function",
+            "Returns { changedCells, recentlyUpdatedRows } for component to use",
+            "Removed 60 lines from WatchlistTable.tsx, replaced with single hook call",
+            "npm run lint: 0 errors, tsc --noEmit: passes",
+            "Commit: 2b08a6f7"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "4.3",

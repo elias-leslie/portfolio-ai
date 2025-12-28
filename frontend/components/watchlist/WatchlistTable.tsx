@@ -43,6 +43,11 @@ import {
 import { usePreferences } from "@/lib/hooks/usePreferences";
 import { usePortfolio } from "@/lib/hooks/usePortfolio";
 import { useWatchlistChangeDetection } from "@/lib/hooks/useWatchlistChangeDetection";
+import {
+  sortWatchlistItems,
+  type SortField,
+  type SortDirection,
+} from "@/lib/utils/sortWatchlist";
 import type { WatchlistItem } from "@/lib/api/watchlist";
 import { cn } from "@/lib/utils";
 import { ConfirmActionDialog } from "@/components/shared/ConfirmActionDialog";
@@ -50,9 +55,6 @@ import { ConfirmActionDialog } from "@/components/shared/ConfirmActionDialog";
 interface WatchlistTableProps {
   items: WatchlistItem[];
 }
-
-type SortField = "symbol" | "overall" | "price" | "technical" | "news" | "updated" | "risk";
-type SortDirection = "asc" | "desc";
 
 export function WatchlistTable({ items }: WatchlistTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
