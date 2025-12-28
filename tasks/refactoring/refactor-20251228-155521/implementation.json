@@ -1,0 +1,445 @@
+{
+  "_instructions": {
+    "critical": "Only modify 'passes' field. Never change structure.",
+    "workflow": "One task at a time. Full verification. Commit after each."
+  },
+  "meta": {
+    "title": "Full Codebase Refactor - December 2025",
+    "created": "2025-12-28",
+    "targets_analyzed": 5,
+    "high_priority_files": [
+      "frontend/components/agents/AgentPanel.tsx",
+      "backend/app/api/market.py",
+      "backend/app/celery_schedules.py",
+      "backend/app/api/watchlist.py",
+      "frontend/components/watchlist/WatchlistTable.tsx"
+    ]
+  },
+  "phases": [
+    {
+      "id": 1,
+      "name": "Dead Code & Bloat Removal",
+      "goal": "Delete unused code first - reduce noise before analysis",
+      "tasks": [
+        {
+          "id": "1.1",
+          "category": "frontend",
+          "description": "Remove unused state/props from AgentPanel.tsx",
+          "files_affected": [
+            "frontend/components/agents/AgentPanel.tsx"
+          ],
+          "steps": [
+            "SKIPPED: Analysis was incorrect - all identified items are actually used correctly",
+            "_onOpenChange is intentionally voided with void keyword (proper unused-vars handling)",
+            "setActiveProvider IS used - passed to HandlerContext at line 268",
+            "currentSessionId IS used inside callback at line 133 (dependency is correct)",
+            "Verified: npm run lint shows 0 errors for AgentPanel.tsx"
+          ],
+          "passes": true
+        },
+        {
+          "id": "1.2",
+          "category": "backend",
+          "description": "Remove debug logging from watchlist delete endpoint",
+          "files_affected": [
+            "backend/app/api/watchlist.py"
+          ],
+          "steps": [
+            "Removed 3 DEBUG comments and excessive logging (item_id type, query result, all items dump)",
+            "Keep only essential error handling",
+            "Run: cd backend && .venv/bin/ruff check app/api/watchlist.py - PASSED",
+            "Commit: 300deb21"
+          ],
+          "passes": true
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Security Audit",
+      "goal": "Zero critical security issues before refactoring",
+      "tasks": [
+        {
+          "id": "2.1",
+          "category": "security",
+          "description": "Fix unsafe JSON parsing in watchlist.py",
+          "files_affected": [
+            "backend/app/api/watchlist.py"
+          ],
+          "steps": [
+            "Line 679: Replace json.loads(snapshot_row.get('current_score', '{}')) with safe parsing",
+            "Use existing parse_json_field() helper from watchlist/_service/helpers.py",
+            "Run: cd backend && .venv/bin/pytest tests/ -k watchlist -x --tb=short",
+            "Verify: No unhandled JSON parse errors possible"
+          ],
+          "passes": false
+        },
+        {
+          "id": "2.2",
+          "category": "security",
+          "description": "Remove hardcoded IP address from AgentPanel.tsx",
+          "files_affected": [
+            "frontend/components/agents/AgentPanel.tsx"
+          ],
+          "steps": [
+            "Line 715: Replace hardcoded 192.168.8.233:444 with environment variable",
+            "Add NEXT_PUBLIC_EVIDENCE_VIEWER_URL to .env.example",
+            "Update code to use process.env.NEXT_PUBLIC_EVIDENCE_VIEWER_URL",
+            "Run: cd frontend && npm run build",
+            "Verify: No hardcoded IP addresses in component"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "DRY Consolidation",
+      "goal": "Eliminate duplicate code - extract to shared utils",
+      "tasks": [
+        {
+          "id": "3.1",
+          "category": "backend",
+          "description": "Consolidate fragmented imports in market.py",
+          "files_affected": [
+            "backend/app/api/market.py"
+          ],
+          "steps": [
+            "Consolidate 2 separate market_intelligence imports (lines 46-53) into single block",
+            "Consolidate 4 separate market_events_service imports (lines 57-60) into single block",
+            "Run: cd backend && .venv/bin/ruff check app/api/market.py --fix",
+            "Run: cd backend && .venv/bin/ruff format app/api/market.py",
+            "Verify: Imports are clean and organized"
+          ],
+          "passes": false
+        },
+        {
+          "id": "3.2",
+          "category": "backend",
+          "description": "Extract indicator enrichment pattern in market.py",
+          "files_affected": [
+            "backend/app/api/market.py"
+          ],
+          "steps": [
+            "Create helper function _enrich_price_indicator(storage, key, symbol, data, actual_data_dates, health_score_data)",
+            "Replace 4 duplicate enrichment blocks (vix, sp500, tnx, dxy) at lines 254-286",
+            "Use loop: for key, symbol, data in [(vix,...), (sp500,...), ...]",
+            "Run: cd backend && .venv/bin/pytest tests/ -k market -x --tb=short",
+            "Verify: All tests pass, no duplicate code blocks"
+          ],
+          "passes": false
+        },
+        {
+          "id": "3.3",
+          "category": "backend",
+          "description": "Extract cache invalidation helper in watchlist.py",
+          "files_affected": [
+            "backend/app/api/watchlist.py"
+          ],
+          "steps": [
+            "Create invalidate_watchlist_caches() helper function",
+            "Replace duplicate cache invalidation at lines 198-202 and 421-425",
+            "Run: cd backend && .venv/bin/ruff check app/api/watchlist.py",
+            "Verify: Single source of truth for cache invalidation"
+          ],
+          "passes": false
+        },
+        {
+          "id": "3.4",
+          "category": "backend",
+          "description": "Consolidate JSON parsing helpers in watchlist.py",
+          "files_affected": [
+            "backend/app/api/watchlist.py",
+            "backend/app/watchlist/_service/helpers.py"
+          ],
+          "steps": [
+            "Use existing parse_json_field() from helpers.py for lines 111-125 in get_daily_report()",
+            "Use same helper for get_score_history() (lines 488-489)",
+            "Verify parse_json_field is imported correctly",
+            "Run: cd backend && .venv/bin/pytest tests/ -k watchlist -x --tb=short",
+            "Verify: No inline JSON parsing with try/except"
+          ],
+          "passes": false
+        },
+        {
+          "id": "3.5",
+          "category": "frontend",
+          "description": "Extract color threshold utilities in WatchlistTable.tsx",
+          "files_affected": [
+            "frontend/components/watchlist/WatchlistTable.tsx",
+            "frontend/lib/utils/colorThresholds.ts"
+          ],
+          "steps": [
+            "Create frontend/lib/utils/colorThresholds.ts",
+            "Extract getScoreBadgeVariant, getDataQualityColor, getDataQualityBgColor (lines 210-235)",
+            "Consolidate into single scoreToVariant() and thresholdToColor() utilities",
+            "Update WatchlistTable.tsx to import from new file",
+            "Run: cd frontend && npm run lint && npm run build",
+            "Verify: Color logic is centralized and reusable"
+          ],
+          "passes": false
+        },
+        {
+          "id": "3.6",
+          "category": "frontend",
+          "description": "Extract SortableHeader component for WatchlistTable.tsx",
+          "files_affected": [
+            "frontend/components/watchlist/WatchlistTable.tsx"
+          ],
+          "steps": [
+            "Extract repeated sortable header button pattern (appears 5x at line 356+)",
+            "Create inline SortableHeader component or extract to separate file",
+            "Replace duplicate buttons with <SortableHeader field='symbol' label='Symbol' />",
+            "Run: cd frontend && npm run lint && npm run build",
+            "Verify: No duplicate header button code"
+          ],
+          "passes": false
+        },
+        {
+          "id": "3.7",
+          "category": "frontend",
+          "description": "Extract session lookup logic in AgentPanel.tsx",
+          "files_affected": [
+            "frontend/components/agents/AgentPanel.tsx"
+          ],
+          "steps": [
+            "Session lookup sessions.find(s => s.id === currentSessionId) duplicated at lines 546-567",
+            "Extract to useCurrentSession() hook or memoized variable",
+            "Replace duplicate lookups with single reference",
+            "Run: cd frontend && npm run lint && npm run build",
+            "Verify: Single source of truth for current session"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Function Extraction",
+      "goal": "Break down oversized functions - all functions < 30 lines",
+      "tasks": [
+        {
+          "id": "4.1",
+          "category": "frontend",
+          "description": "Extract WebSocket message handler from AgentPanel.tsx connect()",
+          "files_affected": [
+            "frontend/components/agents/AgentPanel.tsx"
+          ],
+          "steps": [
+            "Extract ws.onmessage handler (lines 257-271) to setupWebSocketMessageHandler()",
+            "Extract HandlerContext creation into factory function",
+            "Reduce connect() callback from 70+ lines to ~30 lines",
+            "Run: cd frontend && npm run lint && npm run build",
+            "Verify: connect() is readable, message handling is isolated"
+          ],
+          "passes": false
+        },
+        {
+          "id": "4.2",
+          "category": "frontend",
+          "description": "Extract change detection hook from WatchlistTable.tsx",
+          "files_affected": [
+            "frontend/components/watchlist/WatchlistTable.tsx"
+          ],
+          "steps": [
+            "Extract change detection useEffect (lines 276-340, 60 lines with nested timeouts)",
+            "Create useWatchlistChangeDetection(items) custom hook",
+            "Hook manages snapshots, timeouts, changedCells, recentlyUpdatedRows state",
+            "Run: cd frontend && npm run lint && npm run build",
+            "Verify: Main component effect reduced to hook call"
+          ],
+          "passes": false
+        },
+        {
+          "id": "4.3",
+          "category": "frontend",
+          "description": "Extract sorting logic from WatchlistTable.tsx",
+          "files_affected": [
+            "frontend/components/watchlist/WatchlistTable.tsx",
+            "frontend/lib/utils/sortWatchlist.ts"
+          ],
+          "steps": [
+            "Extract sortedItems logic (lines 122-170, 45 lines with switch statement)",
+            "Create sortWatchlistItems(items, field, direction) utility",
+            "Move to frontend/lib/utils/sortWatchlist.ts",
+            "Update WatchlistTable.tsx to use imported utility",
+            "Run: cd frontend && npm run lint && npm run build",
+            "Verify: Sorting logic is testable and reusable"
+          ],
+          "passes": false
+        },
+        {
+          "id": "4.4",
+          "category": "backend",
+          "description": "Decompose review_strategy_signal in watchlist.py",
+          "files_affected": [
+            "backend/app/api/watchlist.py"
+          ],
+          "steps": [
+            "Promote nested _store_provider_review() to module-level helper (lines 688-726)",
+            "Promote nested _review_to_dict() to module-level or response_builders.py (lines 757+)",
+            "Extract _fetch_signal_data() helper (lines 642-681)",
+            "Reduce review_strategy_signal from 213 lines to <50 lines",
+            "Run: cd backend && .venv/bin/pytest tests/ -k review -x --tb=short",
+            "Verify: Function is readable, nested functions are gone"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Type Safety",
+      "goal": "Improve type annotations",
+      "tasks": [
+        {
+          "id": "5.1",
+          "category": "backend",
+          "description": "Fix return type annotation in celery_schedules.py",
+          "files_affected": [
+            "backend/app/celery_schedules.py"
+          ],
+          "steps": [
+            "Change return type from dict[str, object] to dict[str, dict[str, Any]]",
+            "Add: from typing import Any if not present",
+            "Run: cd backend && .venv/bin/pyright app/celery_schedules.py",
+            "Verify: No type errors, better IDE autocomplete"
+          ],
+          "passes": false
+        },
+        {
+          "id": "5.2",
+          "category": "backend",
+          "description": "Replace runtime assertions with type narrowing in market.py",
+          "files_affected": [
+            "backend/app/api/market.py"
+          ],
+          "steps": [
+            "Line 313: Replace assert isinstance(near_term, (int, float)) with cast()",
+            "Line 314: Replace assert isinstance(concentration, (int, float)) with cast()",
+            "Import cast from typing",
+            "Run: cd backend && .venv/bin/pyright app/api/market.py",
+            "Verify: No runtime assertions for type checking"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Code Quality",
+      "goal": "Extract constants, improve naming",
+      "tasks": [
+        {
+          "id": "6.1",
+          "category": "backend",
+          "description": "Extract magic numbers in celery_schedules.py",
+          "files_affected": [
+            "backend/app/celery_schedules.py"
+          ],
+          "steps": [
+            "Add module-level constants: POLL_INTERVAL_60_SEC = 60.0, EXPIRY_2_MIN = 120, etc.",
+            "Replace hardcoded 60.0, 1800.0, 3600, 7200 throughout file",
+            "Run: cd backend && .venv/bin/ruff check app/celery_schedules.py",
+            "Verify: No magic numbers, clear intent"
+          ],
+          "passes": false
+        },
+        {
+          "id": "6.2",
+          "category": "backend",
+          "description": "Extract MARKET_SYMBOL constant in market.py",
+          "files_affected": [
+            "backend/app/api/market.py"
+          ],
+          "steps": [
+            "Add constant: MARKET_SYMBOL = '__MARKET__' at module top",
+            "Replace hardcoded '__MARKET__' at lines 537, 555, and any other occurrences",
+            "Run: cd backend && .venv/bin/ruff check app/api/market.py",
+            "Verify: No hardcoded symbol values"
+          ],
+          "passes": false
+        },
+        {
+          "id": "6.3",
+          "category": "frontend",
+          "description": "Extract risk config to constants in WatchlistTable.tsx",
+          "files_affected": [
+            "frontend/components/watchlist/WatchlistTable.tsx",
+            "frontend/lib/constants/riskLevels.ts"
+          ],
+          "steps": [
+            "Move riskConfig object (line 579) to frontend/lib/constants/riskLevels.ts",
+            "Export RISK_LEVELS constant with typed structure",
+            "Update WatchlistTable.tsx to import from constants",
+            "Run: cd frontend && npm run lint && npm run build",
+            "Verify: Risk levels are configurable constants"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Lint Compliance",
+      "goal": "Zero ruff/eslint errors",
+      "tasks": [
+        {
+          "id": "7.1",
+          "category": "backend",
+          "description": "Run full backend lint and fix",
+          "files_affected": [
+            "backend/app/**/*.py"
+          ],
+          "steps": [
+            "Run: cd backend && .venv/bin/ruff check app/ --fix",
+            "Run: cd backend && .venv/bin/ruff format app/",
+            "Run: cd backend && .venv/bin/pyright app/",
+            "Fix any remaining errors manually",
+            "Verify: Zero lint errors"
+          ],
+          "passes": false
+        },
+        {
+          "id": "7.2",
+          "category": "frontend",
+          "description": "Run full frontend lint and fix",
+          "files_affected": [
+            "frontend/**/*.tsx",
+            "frontend/**/*.ts"
+          ],
+          "steps": [
+            "Run: cd frontend && npm run lint -- --fix",
+            "Run: cd frontend && npx tsc --noEmit",
+            "Fix any remaining errors manually",
+            "Verify: Zero lint/type errors"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "Final Verification",
+      "goal": "All checks pass, complexity targets met",
+      "tasks": [
+        {
+          "id": "8.1",
+          "category": "verification",
+          "description": "Run full test suite and complexity check",
+          "files_affected": [],
+          "steps": [
+            "Run: cd backend && .venv/bin/pytest -x --tb=short -q",
+            "Run: cd backend && .venv/bin/pyright app/",
+            "Run: cd frontend && npm run build",
+            "Run: cd frontend && npm run lint",
+            "Run: bash ~/portfolio-ai/scripts/restart.sh && sleep 3",
+            "Run: curl -s http://localhost:8001/api/projects/portfolio-ai/explorer/refactor-targets | jq '.summary'",
+            "Verify: high_priority_count reduced from initial 70"
+          ],
+          "passes": false
+        }
+      ]
+    }
+  ]
+}

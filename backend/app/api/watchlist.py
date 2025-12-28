@@ -32,6 +32,7 @@ from app.watchlist.response_builders import (
     WatchlistListResponse,
     build_watchlist_item_responses,
 )
+from app.watchlist._service.helpers import parse_json_field
 from app.watchlist.service import (
     _get_redis_client,
 )
@@ -661,7 +662,7 @@ async def review_strategy_signal(item_id: str, dual: bool = True) -> dict[str, o
             "recommended_style": snapshot_row.get("recommended_style"),
             "risk_level": snapshot_row.get("risk_level"),
             "rationale": snapshot_row.get("rationale"),
-            "current_score": json.loads(snapshot_row.get("current_score", "{}")),
+            "current_score": parse_json_field(snapshot_row.get("current_score")) or {},
             "news_sentiment_score": snapshot_row.get("news_sentiment_score"),
         }
 
