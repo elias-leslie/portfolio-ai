@@ -376,9 +376,6 @@ async def delete_watchlist_item(item_id: str) -> None:
         item_id: Watchlist item ID
     """
     try:
-        # DEBUG: Log the incoming delete request
-        logger.info("DELETE request received", item_id=item_id, item_id_type=type(item_id).__name__)
-
         # Check if exists
         items_df = storage.query(
             """
@@ -387,19 +384,7 @@ async def delete_watchlist_item(item_id: str) -> None:
             [item_id],
         )
 
-        # DEBUG: Log what we found
-        logger.info(
-            "Database query result", found=not items_df.is_empty(), result_count=len(items_df)
-        )
-
         if items_df.is_empty():
-            # DEBUG: Log all existing items to compare
-            all_items = storage.query("SELECT id, symbol FROM watchlist_items")
-            logger.error(
-                "Item not found - listing all items",
-                requested_id=item_id,
-                all_items=all_items.to_dicts() if not all_items.is_empty() else [],
-            )
             raise HTTPException(status_code=404, detail="Watchlist item not found")
 
         # Delete snapshots first (foreign key), then delete item
