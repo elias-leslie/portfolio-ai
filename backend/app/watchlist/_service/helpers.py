@@ -79,6 +79,28 @@ def parse_json_field(value: str | dict[str, Any] | None) -> dict[str, Any] | Non
     return value if isinstance(value, dict) else None
 
 
+def safe_json_loads(value: str | list[Any] | dict[str, Any] | None, default: Any = None) -> Any:
+    """Safely parse JSON from string or pass through if already parsed.
+
+    Args:
+        value: Field value (might be string, list, dict, or None)
+        default: Default value if parsing fails (defaults to None)
+
+    Returns:
+        Parsed JSON value or default if parsing fails
+    """
+    if value is None:
+        return default
+    if isinstance(value, (list, dict)):
+        return value
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except (json.JSONDecodeError, TypeError):
+            return default
+    return default
+
+
 def format_timestamp(ts: object) -> str | object:
     """Format timestamp to ISO string if it has isoformat method."""
     if hasattr(ts, "isoformat"):
@@ -90,4 +112,5 @@ __all__ = [
     "_calculate_price_change",
     "format_timestamp",
     "parse_json_field",
+    "safe_json_loads",
 ]

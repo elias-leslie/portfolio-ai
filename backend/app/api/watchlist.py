@@ -16,6 +16,7 @@ from app.logging_config import get_logger
 from app.middleware.cache import cache_response, invalidate_endpoint_cache
 from app.storage import get_storage
 from app.utils.watchlist_cache import invalidate_watchlist_cache
+from app.watchlist._service.helpers import parse_json_field, safe_json_loads
 from app.watchlist.background_tasks import schedule_new_symbol_tasks, schedule_refresh_tasks
 from app.watchlist.history import build_score_timeline
 from app.watchlist.models import WatchlistSnapshot
@@ -32,7 +33,6 @@ from app.watchlist.response_builders import (
     WatchlistListResponse,
     build_watchlist_item_responses,
 )
-from app.watchlist._service.helpers import parse_json_field
 from app.watchlist.service import (
     _get_redis_client,
 )
@@ -108,22 +108,10 @@ async def get_daily_report() -> dict[str, object]:
 
         report_row = report_df.to_dicts()[0]
 
-        # Parse JSON fields
-        symbols_added = (
-            json.loads(report_row["symbols_added"])
-            if isinstance(report_row["symbols_added"], str)
-            else report_row["symbols_added"]
-        )
-        symbols_removed = (
-            json.loads(report_row["symbols_removed"])
-            if isinstance(report_row["symbols_removed"], str)
-            else report_row["symbols_removed"]
-        )
-        score_changes = (
-            json.loads(report_row["score_changes"])
-            if isinstance(report_row["score_changes"], str)
-            else report_row["score_changes"]
-        )
+        # Parse JSON fields with safe parsing
+        symbols_added = safe_json_loads(report_row["symbols_added"], [])
+        symbols_removed = safe_json_loads(report_row["symbols_removed"], [])
+        score_changes = safe_json_loads(report_row["score_changes"], [])
 
         # Check if report is stale (>48 hours old)
         generated_at = report_row["generated_at"]
@@ -253,7 +241,7 @@ async def get_refresh_status() -> RefreshStatusResponse:
                 percent_complete=None,
             )
 
-        status_data = json.loads(str(status_json))
+        status_data = safe_json_loads(str(status_json), {})
         started_at_str = status_data.get("started_at")
         total_items = status_data.get("total_items", 0)
         processed_items = status_data.get("processed_items", 0)
@@ -468,11 +456,8 @@ async def get_score_history(item_id: str, days: int = 10) -> ScoreHistoryRespons
         # Convert to WatchlistSnapshot objects
         snapshots = []
         for row in snapshots_df.to_dicts():
-            # Parse raw_metrics if it's a string (from JSON column)
-            # Handle NULL values by defaulting to empty dict
-            raw_metrics = row.get("raw_metrics") or {}
-            if isinstance(raw_metrics, str):
-                raw_metrics = json.loads(raw_metrics)
+            # Parse raw_metrics safely (JSON column might be string or dict)
+            raw_metrics = safe_json_loads(row.get("raw_metrics"), {})
 
             snapshot = WatchlistSnapshot(
                 item_id=row["item_id"],
