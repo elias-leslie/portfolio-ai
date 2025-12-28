@@ -121,52 +121,7 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
     </button>
   );
 
-  // Sort items
-  const sortedItems = [...items].sort((a, b) => {
-    let aVal: string | number = "";
-    let bVal: string | number = "";
-
-    switch (sortField) {
-      case "symbol":
-        aVal = a.symbol;
-        bVal = b.symbol;
-        break;
-      case "overall":
-        aVal = a.currentScore?.overall ?? -1;
-        bVal = b.currentScore?.overall ?? -1;
-        break;
-      case "price":
-        aVal = a.currentScore?.price.score ?? -1;
-        bVal = b.currentScore?.price.score ?? -1;
-        break;
-      case "technical":
-        aVal = a.currentScore?.technical.score ?? -1;
-        bVal = b.currentScore?.technical.score ?? -1;
-        break;
-      case "news":
-        aVal = a.newsSentimentScore ?? -2;
-        bVal = b.newsSentimentScore ?? -2;
-        break;
-      case "risk":
-        aVal = a.riskLevel ?? "";
-        bVal = b.riskLevel ?? "";
-        break;
-      case "updated":
-        aVal = a.currentScore?.price?.updatedAt ?? a.updatedAt;
-        bVal = b.currentScore?.price?.updatedAt ?? b.updatedAt;
-        break;
-    }
-
-    if (typeof aVal === "string" && typeof bVal === "string") {
-      return sortDirection === "asc"
-        ? aVal.localeCompare(bVal)
-        : bVal.localeCompare(aVal);
-    }
-
-    return sortDirection === "asc"
-      ? (aVal as number) - (bVal as number)
-      : (bVal as number) - (aVal as number);
-  });
+  const sortedItems = sortWatchlistItems(items, sortField, sortDirection);
 
   const [pendingDelete, setPendingDelete] = useState<{ id: string; symbol: string } | null>(null);
 
