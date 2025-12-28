@@ -262,18 +262,13 @@
             "frontend/lib/utils/sortWatchlist.ts"
           ],
           "steps": [
-            "INVESTIGATION: sortedItems logic at lines 140-184 is 45 lines with switch statement",
-            "INVESTIGATION: Handles 7 sort fields: symbol, overall, price, technical, news, risk, updated",
-            "INVESTIGATION: Uses localeCompare for strings, numeric comparison for numbers",
-            "NEXT: Create frontend/lib/utils/sortWatchlist.ts",
-            "NEXT: Define SortField and SortDirection types (already exist in component)",
-            "NEXT: Export sortWatchlistItems(items: WatchlistItem[], field: SortField, direction: SortDirection): WatchlistItem[]",
-            "NEXT: Import WatchlistItem type from @/lib/api/watchlist",
-            "NEXT: Update WatchlistTable.tsx to use imported utility",
-            "Run: cd frontend && npm run lint && npm run build",
-            "Verify: Sorting logic is testable and reusable"
+            "Created sortWatchlistItems utility in frontend/lib/utils/sortWatchlist.ts",
+            "Exported SortField and SortDirection types from utility",
+            "Replaced 45-line inline sort with single function call",
+            "npm run lint: 0 errors, tsc --noEmit: passes",
+            "Commit: 3a8b7b98"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "4.4",

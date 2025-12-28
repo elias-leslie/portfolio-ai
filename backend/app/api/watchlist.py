@@ -53,6 +53,62 @@ strategy_reviewer = StrategyReviewer(storage, primary_provider="gemini")
 multi_reviewer = MultiReviewer(storage)
 
 
+def _review_to_dict(review: ProviderReview | None) -> dict[str, object] | None:
+    """Convert a ProviderReview to a dictionary for JSON response."""
+    if review is None:
+        return None
+    return {
+        "provider": review.provider,
+        "review_text": review.review_text,
+        "is_valid": review.is_valid,
+        "disagreement": review.disagreement,
+        "usage": review.usage,
+        "error": review.error,
+    }
+
+
+def _store_strategy_review(
+    item_id: str,
+    snapshot_id: str | None,
+    symbol: str,
+    review: ProviderReview,
+    pair_id: str | None = None,
+    severity: str | None = None,
+    agreement: float | None = None,
+    provider_disagreement: bool | None = None,
+) -> str:
+    """Store a strategy review in the database."""
+    review_id = str(uuid.uuid4())
+    with storage.connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO strategy_reviews (
+                id, watchlist_item_id, snapshot_id, symbol, review_text,
+                provider, is_valid, disagreement, token_usage, created_at,
+                review_pair_id, disagreement_severity, provider_disagreement, agreement_score
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                review_id,
+                item_id,
+                snapshot_id,
+                symbol,
+                review.review_text,
+                review.provider,
+                review.is_valid,
+                review.disagreement,
+                json.dumps(review.usage),
+                datetime.now(UTC),
+                pair_id,
+                severity,
+                provider_disagreement,
+                agreement,
+            ],
+        )
+        conn.commit()
+    return review_id
+
+
 # Endpoints
 @router.get("", response_model=WatchlistListResponse)
 @cache_response(ttl=60)  # 1 minute cache
@@ -649,63 +705,20 @@ async def review_strategy_signal(item_id: str, dual: bool = True) -> dict[str, o
             # Get dual-provider LLM review (both Gemini and Claude)
             dual_result: DualReviewResult = await multi_reviewer.review_signal_dual(signal_data)
 
-            # Store both reviews in database
-            def _store_provider_review(
-                review: ProviderReview | None,
-                pair_id: str,
-                severity: str,
-                agreement: float,
-                provider_disagreement: bool,
-            ) -> str | None:
-                if review is None or review.error:
-                    return None
-                review_id = str(uuid.uuid4())
-                with storage.connection() as conn:
-                    conn.execute(
-                        """
-                        INSERT INTO strategy_reviews (
-                            id, watchlist_item_id, snapshot_id, symbol, review_text,
-                            provider, is_valid, disagreement, token_usage, created_at,
-                            review_pair_id, disagreement_severity, provider_disagreement, agreement_score
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """,
-                        [
-                            review_id,
-                            item_id,
-                            snapshot_row.get("id"),
-                            dual_result.symbol,
-                            review.review_text,
-                            review.provider,
-                            review.is_valid,
-                            review.disagreement,
-                            json.dumps(review.usage),
-                            datetime.now(UTC),
-                            pair_id,
-                            severity,
-                            provider_disagreement,
-                            agreement,
-                        ],
+            # Store both reviews using module-level helper
+            snapshot_id = snapshot_row.get("id")
+            for review in [dual_result.gemini_review, dual_result.claude_review]:
+                if review and not review.error:
+                    _store_strategy_review(
+                        item_id=item_id,
+                        snapshot_id=snapshot_id,
+                        symbol=dual_result.symbol,
+                        review=review,
+                        pair_id=dual_result.review_pair_id,
+                        severity=dual_result.disagreement_severity.value,
+                        agreement=dual_result.agreement_score,
+                        provider_disagreement=dual_result.provider_disagreement,
                     )
-                    conn.commit()
-                return review_id
-
-            # Store Gemini review
-            _store_provider_review(
-                dual_result.gemini_review,
-                dual_result.review_pair_id,
-                dual_result.disagreement_severity.value,
-                dual_result.agreement_score,
-                dual_result.provider_disagreement,
-            )
-
-            # Store Claude review
-            _store_provider_review(
-                dual_result.claude_review,
-                dual_result.review_pair_id,
-                dual_result.disagreement_severity.value,
-                dual_result.agreement_score,
-                dual_result.provider_disagreement,
-            )
 
             logger.info(
                 f"Dual strategy review logged for {dual_result.symbol}",
@@ -717,19 +730,6 @@ async def review_strategy_signal(item_id: str, dual: bool = True) -> dict[str, o
                     "provider_disagreement": dual_result.provider_disagreement,
                 },
             )
-
-            # Return structured response
-            def _review_to_dict(review: ProviderReview | None) -> dict[str, object] | None:
-                if review is None:
-                    return None
-                return {
-                    "provider": review.provider,
-                    "review_text": review.review_text,
-                    "is_valid": review.is_valid,
-                    "disagreement": review.disagreement,
-                    "usage": review.usage,
-                    "error": review.error,
-                }
 
             return {
                 "symbol": dual_result.symbol,
