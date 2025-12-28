@@ -21,6 +21,11 @@ import { SparklineWithHistory } from "@/components/watchlist/SparklineWithHistor
 import { ExpandedRow } from "@/components/watchlist/ExpandedRow";
 import { WatchlistCard } from "@/components/watchlist/WatchlistCard";
 import { SourceBadge } from "@/components/watchlist/SourceBadge";
+import {
+  getScoreBadgeVariant,
+  getDataQualityColor,
+  getDataQualityBgColor,
+} from "@/components/watchlist/ExpandedRowUtils";
 import { Button } from "@/components/ui/button";
 import {
   ChevronDown,

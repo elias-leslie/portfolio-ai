@@ -105,6 +105,26 @@ export function formatModelCoverage(
 }
 
 /**
+ * Get data quality text color based on percentage
+ */
+export function getDataQualityColor(pct: number): string {
+    if (pct >= 80) return "text-gain";
+    if (pct >= 60) return "text-warning";
+    if (pct >= 40) return "text-neutral";
+    return "text-loss";
+}
+
+/**
+ * Get data quality background color based on percentage
+ */
+export function getDataQualityBgColor(pct: number): string {
+    if (pct >= 80) return "bg-gain/10";
+    if (pct >= 60) return "bg-warning/10";
+    if (pct >= 40) return "bg-neutral/10";
+    return "bg-loss/10";
+}
+
+/**
  * Get signal display configuration
  */
 export function getSignalDisplay(signalType: "BUY" | "HOLD" | "AVOID") {

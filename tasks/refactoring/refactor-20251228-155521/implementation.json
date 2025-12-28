@@ -134,15 +134,17 @@
           "category": "backend",
           "description": "Extract cache invalidation helper in watchlist.py",
           "files_affected": [
-            "backend/app/api/watchlist.py"
+            "backend/app/api/watchlist.py",
+            "backend/app/utils/watchlist_cache.py"
           ],
           "steps": [
-            "Create invalidate_watchlist_caches() helper function",
-            "Replace duplicate cache invalidation at lines 198-202 and 421-425",
-            "Run: cd backend && .venv/bin/ruff check app/api/watchlist.py",
-            "Verify: Single source of truth for cache invalidation"
+            "Created invalidate_all_watchlist_caches() in watchlist_cache.py",
+            "Consolidates Redis symbols cache + HTTP response cache invalidation",
+            "Replaced duplicate calls in create/delete endpoints (lines 187-191, 392-396)",
+            "ruff check passes, 154 watchlist tests pass",
+            "Commit: 4ec88bcd (in checkpoint)"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.4",
@@ -153,13 +155,14 @@
             "backend/app/watchlist/_service/helpers.py"
           ],
           "steps": [
-            "Use existing parse_json_field() from helpers.py for lines 111-125 in get_daily_report()",
-            "Use same helper for get_score_history() (lines 488-489)",
-            "Verify parse_json_field is imported correctly",
-            "Run: cd backend && .venv/bin/pytest tests/ -k watchlist -x --tb=short",
-            "Verify: No inline JSON parsing with try/except"
+            "ALREADY DONE in task 2.1: Created safe_json_loads() helper",
+            "Lines 112-114: Already use safe_json_loads for list fields",
+            "Line 454: Already uses safe_json_loads for raw_metrics",
+            "Line 241: Already uses safe_json_loads for status_data",
+            "Line 644: Uses parse_json_field for dict field (correct usage)",
+            "No inline JSON parsing remains - all consolidated"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.5",
