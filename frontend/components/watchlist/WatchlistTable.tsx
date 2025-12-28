@@ -42,6 +42,7 @@ import {
 } from "@/lib/hooks/useWatchlist";
 import { usePreferences } from "@/lib/hooks/usePreferences";
 import { usePortfolio } from "@/lib/hooks/usePortfolio";
+import { useWatchlistChangeDetection } from "@/lib/hooks/useWatchlistChangeDetection";
 import type { WatchlistItem } from "@/lib/api/watchlist";
 import { cn } from "@/lib/utils";
 import { ConfirmActionDialog } from "@/components/shared/ConfirmActionDialog";
@@ -52,13 +53,6 @@ interface WatchlistTableProps {
 
 type SortField = "symbol" | "overall" | "price" | "technical" | "news" | "updated" | "risk";
 type SortDirection = "asc" | "desc";
-
-type WatchlistSnapshot = {
-  price: number | null;
-  score: number | null;
-  risk: WatchlistItem["riskLevel"];
-  updatedAt: string | null;
-};
 
 export function WatchlistTable({ items }: WatchlistTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -71,9 +65,7 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
   const { data: portfolio } = usePortfolio();
   const searchParams = useSearchParams();
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
-  const previousSnapshots = useRef<Map<string, WatchlistSnapshot>>(new Map());
-  const [changedCells, setChangedCells] = useState<Record<string, Record<string, boolean>>>({});
-  const [recentlyUpdatedRows, setRecentlyUpdatedRows] = useState<Set<string>>(new Set());
+  const { changedCells, recentlyUpdatedRows } = useWatchlistChangeDetection(items);
 
   // Get user's timezone preference
   const userTimezone = preferences?.displayTimezone ?? "America/New_York";
@@ -82,16 +74,6 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
   const portfolioSymbols = new Set(
     portfolio?.positions?.map((p) => p.symbol.toUpperCase()) ?? []
   );
-
-  const buildSnapshot = (item: WatchlistItem): WatchlistSnapshot => ({
-    price:
-      typeof item.currentScore?.price.metadata?.price === "number"
-        ? item.currentScore.price.metadata.price
-        : null,
-    score: item.currentScore?.overall ?? null,
-    risk: item.riskLevel ?? null,
-    updatedAt: item.currentScore?.price?.updatedAt ?? item.updatedAt,
-  });
 
   // Scroll to symbol from query parameter
   useEffect(() => {
@@ -261,68 +243,6 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
     const tzAbbr = getTimezoneAbbreviation(timezone);
     return `${formatted} ${tzAbbr}`;
   };
-
-  // Track change detection for cell flash animations
-  // Uses refs to avoid synchronous setState in effect body
-  useEffect(() => {
-    // Handle empty items - clear refs only, no setState needed
-    // The render will use current state which may be stale but harmless
-    if (!items.length) {
-      previousSnapshots.current = new Map();
-      // Let the animation timeouts clear themselves naturally
-      return;
-    }
-
-    const nextSnapshots = new Map<string, WatchlistSnapshot>();
-    const nextChanged: Record<string, Record<string, boolean>> = {};
-    const updatedRows: string[] = [];
-
-    items.forEach((item) => {
-      const snapshot = buildSnapshot(item);
-      nextSnapshots.set(item.id, snapshot);
-      const previous = previousSnapshots.current.get(item.id);
-      if (!previous) {
-        updatedRows.push(item.id);
-        return;
-      }
-
-      const fieldChanges: Record<string, boolean> = {};
-      if (snapshot.price !== previous.price) fieldChanges.price = true;
-      if (snapshot.score !== previous.score) fieldChanges.score = true;
-      if (snapshot.risk !== previous.risk) fieldChanges.risk = true;
-      if (snapshot.updatedAt !== previous.updatedAt) fieldChanges.updatedAt = true;
-
-      if (Object.keys(fieldChanges).length > 0) {
-        nextChanged[item.id] = fieldChanges;
-        updatedRows.push(item.id);
-      }
-    });
-
-    previousSnapshots.current = nextSnapshots;
-
-    // Use setTimeout(0) to defer state updates outside the synchronous effect body
-    // This avoids the "setState in effect" warning while maintaining the same behavior
-    const immediateTimeout = window.setTimeout(() => {
-      // Set changed cells if there are actual changes
-      if (Object.keys(nextChanged).length > 0) {
-        setChangedCells(nextChanged);
-      }
-      // Set updated rows if there are actual updates
-      if (updatedRows.length > 0) {
-        setRecentlyUpdatedRows(new Set(updatedRows));
-      }
-    }, 0);
-
-    // Clear animation state after delay
-    const cellTimeout = window.setTimeout(() => setChangedCells({}), 2200);
-    const rowTimeout = window.setTimeout(() => setRecentlyUpdatedRows(new Set()), 1500);
-
-    return () => {
-      window.clearTimeout(immediateTimeout);
-      window.clearTimeout(cellTimeout);
-      window.clearTimeout(rowTimeout);
-    };
-  }, [items]);
 
   if (items.length === 0) {
     return (

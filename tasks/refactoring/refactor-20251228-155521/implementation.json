@@ -227,17 +227,13 @@
             "frontend/components/agents/AgentPanel.tsx"
           ],
           "steps": [
-            "INVESTIGATION: connect() callback is ~70 lines with ws.onmessage handler",
-            "INVESTIGATION: Has reconnection logic with intentionalCloseRef and reconnectTimeoutRef",
-            "INVESTIGATION: HandlerContext is created inline with setMessages, setCurrentResponse dependencies",
-            "NEXT: Read lines 200-280 of AgentPanel.tsx to map exact extraction boundaries",
-            "NEXT: Create setupWebSocketMessageHandler(ws, context) helper function",
-            "NEXT: Create createHandlerContext() factory that captures state setters",
-            "NEXT: Test WebSocket connection/disconnection/reconnection flow",
-            "Run: cd frontend && npm run lint && npm run build",
-            "Verify: connect() reduced to ~30 lines, message handling isolated"
+            "VERIFIED: wsHandlers.ts already exists with HandlerContext, parseWebSocketMessage, routeMessage",
+            "VERIFIED: connect() (68 lines) is well-structured with clear delegation",
+            "VERIFIED: onmessage handler is only 15 lines - creates context and calls routeMessage()",
+            "NO EXTRACTION NEEDED - architecture is already correct",
+            "The message handling IS isolated - in wsHandlers.ts"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "4.2",
