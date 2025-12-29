@@ -261,6 +261,90 @@ class Agent(ABC):
 
         return {"result": result, "duration_ms": duration_ms}
 
+    def _handle_unexpected_stop_reason(
+        self,
+        run_id: str,
+        started_at: datetime,
+        stop_reason: str,
+        tool_calls_made: list[ToolCallRecord],
+        token_usage: dict[str, int] | None = None,
+    ) -> AgentRunResult:
+        """Handle unexpected stop reason in agent execution.
+
+        Consolidates error handling for both LLM client and Anthropic API paths.
+
+        Args:
+            run_id: Unique run identifier
+            started_at: Run start timestamp
+            stop_reason: The unexpected stop reason from the LLM
+            tool_calls_made: List of tool calls made during the run
+            token_usage: Optional token usage stats
+
+        Returns:
+            AgentRunResult with error status
+        """
+        completed_at = datetime.now(UTC)
+        duration_ms = int((completed_at - started_at).total_seconds() * 1000)
+        error_msg = f"Unexpected stop reason: {stop_reason}"
+
+        self._record_run_complete(
+            run_id,
+            completed_at,
+            "error",
+            len(tool_calls_made),
+            error_msg,
+            duration_ms=duration_ms,
+            token_usage=token_usage,
+        )
+
+        return {
+            "status": "error",
+            "error": error_msg,
+            "tool_calls": tool_calls_made,
+            "run_id": run_id,
+        }
+
+    def _handle_max_iterations(
+        self,
+        run_id: str,
+        started_at: datetime,
+        max_iterations: int,
+        tool_calls_made: list[ToolCallRecord],
+        token_usage: dict[str, int] | None = None,
+    ) -> AgentRunResult:
+        """Handle max iterations reached in agent execution.
+
+        Consolidates max iterations handling for both LLM client and Anthropic API paths.
+
+        Args:
+            run_id: Unique run identifier
+            started_at: Run start timestamp
+            max_iterations: The maximum iterations limit
+            tool_calls_made: List of tool calls made during the run
+            token_usage: Optional token usage stats
+
+        Returns:
+            AgentRunResult with max_iterations status
+        """
+        completed_at = datetime.now(UTC)
+        duration_ms = int((completed_at - started_at).total_seconds() * 1000)
+
+        self._record_run_complete(
+            run_id,
+            completed_at,
+            "max_iterations",
+            len(tool_calls_made),
+            duration_ms=duration_ms,
+            token_usage=token_usage,
+        )
+
+        return {
+            "status": "max_iterations",
+            "tool_calls": tool_calls_made,
+            "iterations": max_iterations,
+            "run_id": run_id,
+        }
+
     def _process_tool_calls_anthropic(
         self,
         response: object,
@@ -445,41 +529,14 @@ class Agent(ABC):
 
             else:
                 # Unexpected stop reason
-                completed_at = datetime.now(UTC)
-                duration_ms = int((completed_at - started_at).total_seconds() * 1000)
-                self._record_run_complete(
-                    run_id,
-                    completed_at,
-                    "error",
-                    len(tool_calls_made),
-                    f"Unexpected stop reason: {response.stop_reason}",
-                    duration_ms=duration_ms,
-                    token_usage=total_token_usage,
+                return self._handle_unexpected_stop_reason(
+                    run_id, started_at, response.stop_reason, tool_calls_made, total_token_usage
                 )
-                return {
-                    "status": "error",
-                    "error": f"Unexpected stop reason: {response.stop_reason}",
-                    "tool_calls": tool_calls_made,
-                    "run_id": run_id,
-                }
 
         # Max iterations reached
-        completed_at = datetime.now(UTC)
-        duration_ms = int((completed_at - started_at).total_seconds() * 1000)
-        self._record_run_complete(
-            run_id,
-            completed_at,
-            "max_iterations",
-            len(tool_calls_made),
-            duration_ms=duration_ms,
-            token_usage=total_token_usage,
+        return self._handle_max_iterations(
+            run_id, started_at, max_iterations, tool_calls_made, total_token_usage
         )
-        return {
-            "status": "max_iterations",
-            "tool_calls": tool_calls_made,
-            "iterations": max_iterations,
-            "run_id": run_id,
-        }
 
     def _run_with_anthropic_api(
         self, run_id: str, started_at: datetime, user_prompt: str, max_iterations: int
@@ -524,28 +581,14 @@ class Agent(ABC):
 
             else:
                 # Unexpected stop reason
-                self._record_run_complete(
-                    run_id,
-                    datetime.now(UTC),
-                    "error",
-                    len(tool_calls_made),
-                    f"Unexpected stop reason: {response.stop_reason}",
+                return self._handle_unexpected_stop_reason(
+                    run_id, started_at, response.stop_reason, tool_calls_made
                 )
-                return {
-                    "status": "error",
-                    "error": f"Unexpected stop reason: {response.stop_reason}",
-                    "tool_calls": tool_calls_made,
-                    "run_id": run_id,
-                }
 
         # Max iterations reached
-        self._record_run_complete(run_id, datetime.now(UTC), "max_iterations", len(tool_calls_made))
-        return {
-            "status": "max_iterations",
-            "tool_calls": tool_calls_made,
-            "iterations": max_iterations,
-            "run_id": run_id,
-        }
+        return self._handle_max_iterations(
+            run_id, started_at, max_iterations, tool_calls_made
+        )
 
     def _process_tool_calls_llm(
         self,
