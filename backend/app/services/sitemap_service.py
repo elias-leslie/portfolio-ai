@@ -204,6 +204,47 @@ def _interpret_response(
     return False, None
 
 
+class HealthCheckResult:
+    """Container for health check results."""
+
+    __slots__ = (
+        "console_errors",
+        "console_warnings",
+        "error_details",
+        "health_status",
+        "http_status",
+        "last_error_message",
+        "response_time_ms",
+    )
+
+    def __init__(
+        self,
+        health_status: str = "healthy",
+        console_errors: int = 0,
+        console_warnings: int = 0,
+        http_status: int | None = None,
+        response_time_ms: int | None = None,
+        last_error_message: str | None = None,
+        error_details: dict[str, Any] | None = None,
+    ):
+        self.health_status = health_status
+        self.console_errors = console_errors
+        self.console_warnings = console_warnings
+        self.http_status = http_status
+        self.response_time_ms = response_time_ms
+        self.last_error_message = last_error_message
+        self.error_details = error_details or {}
+
+    def determine_status(self) -> None:
+        """Set health_status based on error/warning counts."""
+        if self.console_errors > 0:
+            self.health_status = "error"
+        elif self.console_warnings > 0:
+            self.health_status = "warning"
+        else:
+            self.health_status = "healthy"
+
+
 def _extract_openapi_endpoints(
     openapi: dict[str, Any], port: int, service_name: str | None = None
 ) -> list[dict[str, Any]]:
@@ -801,6 +842,61 @@ class SitemapService:
     # Health Check Methods
     # =========================================================================
 
+    def _save_health_result(self, entry_id: int, result: HealthCheckResult) -> None:
+        """Save health check result to database (entry update + history).
+
+        Args:
+            entry_id: ID of sitemap entry
+            result: Health check result to save
+        """
+        with self.conn_mgr.connection() as conn:
+            # Update sitemap_entries
+            conn.execute(
+                """
+                UPDATE sitemap_entries SET
+                    health_status = %s,
+                    console_errors = %s,
+                    console_warnings = %s,
+                    http_status = %s,
+                    response_time_ms = %s,
+                    last_error_message = %s,
+                    last_checked_at = NOW(),
+                    updated_at = NOW()
+                WHERE id = %s
+            """,
+                [
+                    result.health_status,
+                    result.console_errors,
+                    result.console_warnings,
+                    result.http_status,
+                    result.response_time_ms,
+                    result.last_error_message,
+                    entry_id,
+                ],
+            )
+
+            # Insert into history
+            conn.execute(
+                """
+                INSERT INTO sitemap_health_history
+                    (sitemap_entry_id, checked_at, health_status, console_errors, console_warnings,
+                     http_status, response_time_ms, error_details)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+                [
+                    entry_id,
+                    datetime.now(UTC),
+                    result.health_status,
+                    result.console_errors,
+                    result.console_warnings,
+                    result.http_status,
+                    result.response_time_ms,
+                    json.dumps(result.error_details) if result.error_details else None,
+                ],
+            )
+
+            conn.commit()
+
     async def check_entry_health(self, entry_id: int) -> dict[str, Any]:
         """Check health of a single sitemap entry.
 
@@ -845,30 +941,19 @@ class SitemapService:
 
         # 1. Skip entirely: streaming, mutating, or circular-risk endpoints
         if should_skip:
-            health_status = "healthy"
-            http_status = 0  # Indicates skipped, not actually checked
-            # Update entry and return early
-            with self.conn_mgr.connection() as conn:
-                conn.execute(
-                    """
-                    UPDATE sitemap_entries SET
-                        health_status = %s,
-                        http_status = %s,
-                        last_error_message = %s,
-                        last_checked_at = NOW(),
-                        updated_at = NOW()
-                    WHERE id = %s
-                """,
-                    [health_status, http_status, skip_msg, entry_id],
-                )
-                conn.commit()
+            skip_result = HealthCheckResult(
+                health_status="healthy",
+                http_status=0,  # Indicates skipped, not actually checked
+                last_error_message=skip_msg,
+            )
+            self._save_health_result(entry_id, skip_result)
             return {
                 "success": True,
                 "entry_id": entry_id,
-                "health_status": health_status,
+                "health_status": skip_result.health_status,
                 "console_errors": 0,
                 "console_warnings": 0,
-                "http_status": http_status,
+                "http_status": skip_result.http_status,
                 "response_time_ms": None,
                 "error": None,
             }
@@ -917,70 +1002,26 @@ class SitemapService:
             last_error_message = str(e)[:500]
             error_details["exception"] = str(e)
 
-        # Determine health status
-        if console_errors > 0:
-            health_status = "error"
-        elif console_warnings > 0:
-            health_status = "warning"
-        else:
-            health_status = "healthy"
-
-        # Update sitemap_entries
-        with self.conn_mgr.connection() as conn:
-            conn.execute(
-                """
-                UPDATE sitemap_entries SET
-                    health_status = %s,
-                    console_errors = %s,
-                    console_warnings = %s,
-                    http_status = %s,
-                    response_time_ms = %s,
-                    last_error_message = %s,
-                    last_checked_at = NOW(),
-                    updated_at = NOW()
-                WHERE id = %s
-            """,
-                [
-                    health_status,
-                    console_errors,
-                    console_warnings,
-                    http_status,
-                    response_time_ms,
-                    last_error_message,
-                    entry_id,
-                ],
-            )
-
-            # Insert into history
-            conn.execute(
-                """
-                INSERT INTO sitemap_health_history
-                    (sitemap_entry_id, checked_at, health_status, console_errors, console_warnings,
-                     http_status, response_time_ms, error_details)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """,
-                [
-                    entry_id,
-                    datetime.now(UTC),
-                    health_status,
-                    console_errors,
-                    console_warnings,
-                    http_status,
-                    response_time_ms,
-                    json.dumps(error_details) if error_details else None,
-                ],
-            )
-
-            conn.commit()
+        # Build and save result
+        result = HealthCheckResult(
+            console_errors=console_errors,
+            console_warnings=console_warnings,
+            http_status=http_status,
+            response_time_ms=response_time_ms,
+            last_error_message=last_error_message,
+            error_details=error_details,
+        )
+        result.determine_status()
+        self._save_health_result(entry_id, result)
 
         return {
             "success": True,
             "entry_id": entry_id,
-            "health_status": health_status,
-            "console_errors": console_errors,
-            "console_warnings": console_warnings,
-            "http_status": http_status,
-            "response_time_ms": response_time_ms,
+            "health_status": result.health_status,
+            "console_errors": result.console_errors,
+            "console_warnings": result.console_warnings,
+            "http_status": result.http_status,
+            "response_time_ms": result.response_time_ms,
         }
 
     async def check_all_health(self) -> dict[str, Any]:
