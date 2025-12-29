@@ -22,6 +22,7 @@ from app.logging_config import get_logger
 from app.sources.alphavantage_source import AlphaVantageSource
 from app.sources.yfinance_source import YFinanceSource
 from app.storage import get_storage
+from app.utils.watchlist_cache import get_watchlist_symbols_cached
 
 logger = get_logger(__name__)
 
@@ -412,10 +413,8 @@ def refresh_yfinance_reference_data(self: Task) -> dict[str, int | str]:
     try:
         storage = get_storage()
 
-        # Get all watchlist symbols
-        with storage.connection() as conn:
-            result = conn.execute("SELECT DISTINCT symbol FROM watchlist_items")
-            symbols = [str(row[0]) for row in result.fetchall() if row[0] is not None]
+        # Get all watchlist symbols (cached)
+        symbols = get_watchlist_symbols_cached(storage, account_id=None, ttl_seconds=60)
 
         if not symbols:
             logger.warning("no_watchlist_symbols_found")

@@ -1,0 +1,431 @@
+{
+  "_instructions": {
+    "critical": "Only modify 'passes' field. Never change structure.",
+    "workflow": "One task at a time. Full verification. Commit after each."
+  },
+  "meta": {
+    "title": "Full Codebase Refactor - December 2025 (Session 2)",
+    "created": "2025-12-28",
+    "targets_analyzed": 8,
+    "high_priority_files": [
+      "frontend/app/status/page.tsx",
+      "backend/app/agents/base.py",
+      "backend/app/tasks/strategy_monitoring_tasks.py",
+      "frontend/components/status/MaintenanceTable.tsx",
+      "backend/app/tasks/reference_tasks.py",
+      "backend/app/api/status_logs.py",
+      "backend/app/services/sitemap_service.py",
+      "services/dev-companion/dev_companion/server.py"
+    ]
+  },
+  "phases": [
+    {
+      "id": 1,
+      "name": "Critical Security & Resource Fixes",
+      "goal": "Fix critical issues before structural refactoring",
+      "tasks": [
+        {
+          "id": "1.1",
+          "category": "security",
+          "description": "Fix resource leak in dev-companion WebSocket endpoint",
+          "files_affected": [
+            "services/dev-companion/dev_companion/server.py"
+          ],
+          "steps": [
+            "ANALYSIS: Session persistence is intentional per line 542 comment: 'Don't stop the Claude session - it can be reconnected'",
+            "ANALYSIS: Sessions are designed to survive WebSocket disconnects for user reconnection workflow",
+            "ANALYSIS: This is a feature, not a resource leak - no fix required",
+            "VERIFIED: No actual resource leak - sessions are intentionally long-lived"
+          ],
+          "priority": "critical",
+          "passes": true
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "DRY Consolidation - Storage Layer",
+      "goal": "Move SQL queries from task layer to storage layer",
+      "tasks": [
+        {
+          "id": "2.1",
+          "category": "backend",
+          "description": "Extract duplicate watchlist symbols query from reference_tasks.py",
+          "files_affected": [
+            "backend/app/tasks/reference_tasks.py",
+            "backend/app/watchlist/storage.py"
+          ],
+          "steps": [
+            "Create get_watchlist_symbols() method in watchlist/storage.py",
+            "Replace 4 duplicate SELECT DISTINCT queries (lines 416-418, 645-647, 718-720, 861-863)",
+            "Run: cd backend && .venv/bin/ruff check app/tasks/reference_tasks.py",
+            "Run: cd backend && .venv/bin/pytest tests/ -k reference -x --tb=short",
+            "Verify: No duplicate SELECT DISTINCT symbol FROM watchlist_items"
+          ],
+          "passes": false
+        },
+        {
+          "id": "2.2",
+          "category": "backend",
+          "description": "Consolidate reference cache upsert pattern in reference_tasks.py",
+          "files_affected": [
+            "backend/app/tasks/reference_tasks.py",
+            "backend/app/storage/reference_storage.py"
+          ],
+          "steps": [
+            "Create upsert_reference_cache() method in storage layer",
+            "Replace duplicate ON CONFLICT upsert patterns (lines 452-462, 545-556)",
+            "Run: cd backend && .venv/bin/pytest tests/ -k reference -x --tb=short",
+            "Verify: Single source of truth for reference cache upserts"
+          ],
+          "passes": false
+        },
+        {
+          "id": "2.3",
+          "category": "backend",
+          "description": "Extract log level priority mapping to constants in status_logs.py",
+          "files_affected": [
+            "backend/app/api/status_logs.py"
+          ],
+          "steps": [
+            "Create module-level constants: LOG_LEVEL_PRIORITY, SYSLOG_PRIORITY_TO_LEVEL",
+            "Replace duplicate priority mappings (lines 429-436, 240-253)",
+            "Add constants: MAX_LOG_LINES = 5000, JOURNAL_FETCH_LIMIT = 10000",
+            "Run: cd backend && .venv/bin/ruff check app/api/status_logs.py",
+            "Verify: No duplicate priority/level mappings"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "DRY Consolidation - Frontend",
+      "goal": "Extract shared utilities and reduce code duplication",
+      "tasks": [
+        {
+          "id": "3.1",
+          "category": "frontend",
+          "description": "Extract task configuration to constants in MaintenanceTable.tsx",
+          "files_affected": [
+            "frontend/components/status/MaintenanceTable.tsx",
+            "frontend/components/status/maintenanceTaskConfig.ts"
+          ],
+          "steps": [
+            "Create maintenanceTaskConfig.ts with TASK_CONFIGS array",
+            "Replace 15+ repeated task definitions (lines 143-366) with factory function",
+            "Create createMaintenanceTask(config) factory function",
+            "Run: cd frontend && npm run lint && npm run build",
+            "Verify: Task definitions consolidated to single config array"
+          ],
+          "passes": false
+        },
+        {
+          "id": "3.2",
+          "category": "frontend",
+          "description": "Consolidate database task handlers in MaintenanceTable.tsx",
+          "files_affected": [
+            "frontend/components/status/MaintenanceTable.tsx"
+          ],
+          "steps": [
+            "Create handleDatabaseTask(taskName, apiFunc, successExtractor) function",
+            "Replace 3 duplicate handlers (handleCleanupNews, handleVacuumDatabase, handleValidateIntegrity)",
+            "Consolidate dialog config to lookup map",
+            "Run: cd frontend && npm run lint",
+            "Verify: Single parameterized handler for DB tasks"
+          ],
+          "passes": false
+        },
+        {
+          "id": "3.3",
+          "category": "frontend",
+          "description": "Extract connection badge logic from status/page.tsx",
+          "files_affected": [
+            "frontend/app/status/page.tsx",
+            "frontend/lib/utils/connectionBadge.ts"
+          ],
+          "steps": [
+            "Create connectionBadge.ts with getConnectionBadge() function",
+            "Move complex switch logic (lines 189-223)",
+            "Create useConnectionBanner hook for lines 265-295",
+            "Run: cd frontend && npm run lint && npm run build",
+            "Verify: Badge logic extracted to reusable utility"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Function Extraction - Backend",
+      "goal": "Break down oversized functions - all functions < 30 lines",
+      "tasks": [
+        {
+          "id": "4.1",
+          "category": "backend",
+          "description": "Extract helper methods from agents/base.py _run_with_llm_client",
+          "files_affected": [
+            "backend/app/agents/base.py"
+          ],
+          "steps": [
+            "Extract _handle_tool_use_iteration() from lines 365-413 (~45 lines)",
+            "Extract _handle_iteration_errors() for max_iterations and unexpected stop handling",
+            "Run: cd backend && .venv/bin/ruff check app/agents/base.py",
+            "Run: cd backend && .venv/bin/pytest tests/agents/ -x --tb=short",
+            "Verify: _run_with_llm_client reduced below 100 lines"
+          ],
+          "passes": false
+        },
+        {
+          "id": "4.2",
+          "category": "backend",
+          "description": "Consolidate _json_serializer to shared utility",
+          "files_affected": [
+            "backend/app/agents/base.py",
+            "backend/app/strategies/storage.py",
+            "backend/app/utils/json_helpers.py"
+          ],
+          "steps": [
+            "Create backend/app/utils/json_helpers.py with json_serializer()",
+            "Replace duplicate implementations in base.py and storage.py",
+            "Run: cd backend && .venv/bin/ruff check app/",
+            "Verify: Single source of truth for JSON serialization"
+          ],
+          "passes": false
+        },
+        {
+          "id": "4.3",
+          "category": "backend",
+          "description": "Extract journalctl execution logic in status_logs.py",
+          "files_affected": [
+            "backend/app/api/status_logs.py"
+          ],
+          "steps": [
+            "Create fetch_journal_logs(units, is_user_mode, fetch_limit, since) function",
+            "Replace duplicate journalctl execution (lines 349-369, 373-394)",
+            "Extract log merging logic to should_merge_logs() and merge_log_messages()",
+            "Run: cd backend && .venv/bin/ruff check app/api/status_logs.py",
+            "Verify: get_unified_logs reduced from 199 lines to <100"
+          ],
+          "passes": false
+        },
+        {
+          "id": "4.4",
+          "category": "backend",
+          "description": "Decompose check_entry_health in sitemap_service.py",
+          "files_affected": [
+            "backend/app/services/sitemap_service.py"
+          ],
+          "steps": [
+            "Extract _determine_check_strategy() for skip/probe logic (lines 844-879)",
+            "Extract _execute_health_check() for HTTP request logic",
+            "Extract _update_entry_health() and _record_health_history() for DB operations",
+            "Run: cd backend && .venv/bin/ruff check app/services/sitemap_service.py",
+            "Verify: check_entry_health reduced from 180 to <50 lines"
+          ],
+          "passes": false
+        },
+        {
+          "id": "4.5",
+          "category": "backend",
+          "description": "Extract helper methods from strategy_monitoring_tasks.py",
+          "files_affected": [
+            "backend/app/tasks/strategy_monitoring_tasks.py"
+          ],
+          "steps": [
+            "Extract _run_strategy_workflow() to wrap asyncio.run pattern (appears 4x)",
+            "Move SQL query from daily_strategy_refresh to storage layer",
+            "Define constants: PERFORMANCE_RATIO_THRESHOLD, DEFAULT_ROLLING_WINDOW_DAYS",
+            "Run: cd backend && .venv/bin/pytest tests/ -k strategy -x --tb=short",
+            "Verify: evaluate_strategy_performance reduced from 155 lines"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Function Extraction - Frontend",
+      "goal": "Extract component logic to hooks and utilities",
+      "tasks": [
+        {
+          "id": "5.1",
+          "category": "frontend",
+          "description": "Extract renderNewsHealthCard from status/page.tsx",
+          "files_affected": [
+            "frontend/app/status/page.tsx",
+            "frontend/components/status/NewsHealthCard.tsx"
+          ],
+          "steps": [
+            "Create NewsHealthCard.tsx component from lines 349-463 (114 lines)",
+            "Replace renderNewsHealthCard() call with <NewsHealthCard /> component",
+            "Run: cd frontend && npm run lint && npm run build",
+            "Verify: status/page.tsx reduced by ~100 lines"
+          ],
+          "passes": false
+        },
+        {
+          "id": "5.2",
+          "category": "frontend",
+          "description": "Extract useMaintenanceTasks hook from MaintenanceTable.tsx",
+          "files_affected": [
+            "frontend/components/status/MaintenanceTable.tsx",
+            "frontend/lib/hooks/useMaintenanceTasks.ts"
+          ],
+          "steps": [
+            "Create useMaintenanceTasks hook with task building logic (lines 135-369)",
+            "Move useMemo callback (234 lines) to dedicated hook",
+            "Run: cd frontend && npm run lint && tsc --noEmit",
+            "Verify: MaintenanceTable uses hook instead of inline logic"
+          ],
+          "passes": false
+        },
+        {
+          "id": "5.3",
+          "category": "frontend",
+          "description": "Split triggerTask function in MaintenanceTable.tsx",
+          "files_affected": [
+            "frontend/components/status/MaintenanceTable.tsx"
+          ],
+          "steps": [
+            "Extract shouldBlockLiveTask() function",
+            "Extract getTaskDialogConfig() function",
+            "Create executeDatabaseTask() and executeFileTask() functions",
+            "Run: cd frontend && npm run lint",
+            "Verify: triggerTask reduced from 61 lines to <30"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Type Safety & Constants",
+      "goal": "Improve type annotations and extract magic numbers",
+      "tasks": [
+        {
+          "id": "6.1",
+          "category": "backend",
+          "description": "Add parameter objects for agents/base.py record methods",
+          "files_affected": [
+            "backend/app/agents/base.py"
+          ],
+          "steps": [
+            "Create RunStartParams dataclass for _record_run_start (8 params)",
+            "Create RunCompletionParams dataclass for _record_run_complete (9 params)",
+            "Update method signatures to use new dataclasses",
+            "Run: cd backend && .venv/bin/ruff check app/agents/base.py",
+            "Run: cd backend && .venv/bin/pyright app/agents/base.py"
+          ],
+          "passes": false
+        },
+        {
+          "id": "6.2",
+          "category": "backend",
+          "description": "Extract constants in agents/base.py",
+          "files_affected": [
+            "backend/app/agents/base.py"
+          ],
+          "steps": [
+            "Add constants: MAX_LLM_TOKENS, MAX_TOOL_RESULT_LENGTH, RESULT_SUMMARY_LENGTH",
+            "Add RunStatus enum: RUNNING, COMPLETED, ERROR, MAX_ITERATIONS",
+            "Replace hardcoded values throughout file",
+            "Run: cd backend && .venv/bin/ruff check app/agents/base.py"
+          ],
+          "passes": false
+        },
+        {
+          "id": "6.3",
+          "category": "backend",
+          "description": "Fix hardcoded script path in status_logs.py",
+          "files_affected": [
+            "backend/app/api/status_logs.py"
+          ],
+          "steps": [
+            "Replace hardcoded path (line 547) with Path(__file__).parent calculation",
+            "Compute: Path(__file__).parent.parent.parent / 'scripts' / 'set-log-level.sh'",
+            "Run: cd backend && .venv/bin/ruff check app/api/status_logs.py",
+            "Verify: No hardcoded /home/kasadis paths"
+          ],
+          "passes": false
+        },
+        {
+          "id": "6.4",
+          "category": "backend",
+          "description": "Extract magic numbers in strategy_monitoring_tasks.py",
+          "files_affected": [
+            "backend/app/tasks/strategy_monitoring_tasks.py"
+          ],
+          "steps": [
+            "Add constants: PERFORMANCE_RATIO_THRESHOLD = 0.7",
+            "Add constants: DEFAULT_ROLLING_WINDOW_DAYS = 30",
+            "Add constants: UNDERPERFORMANCE_SHARPE_THRESHOLD = 0.5",
+            "Add constants: EVOLUTION_TRIGGER_THRESHOLD = 0.9",
+            "Run: cd backend && .venv/bin/ruff check app/tasks/"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Lint Compliance",
+      "goal": "Zero ruff/eslint errors",
+      "tasks": [
+        {
+          "id": "7.1",
+          "category": "backend",
+          "description": "Run full backend lint and format",
+          "files_affected": [
+            "backend/app/**/*.py"
+          ],
+          "steps": [
+            "Run: cd backend && .venv/bin/ruff check app/ --fix",
+            "Run: cd backend && .venv/bin/ruff format app/",
+            "Run: cd backend && .venv/bin/pyright app/",
+            "Verify: All checks pass"
+          ],
+          "passes": false
+        },
+        {
+          "id": "7.2",
+          "category": "frontend",
+          "description": "Run full frontend lint",
+          "files_affected": [
+            "frontend/**/*.tsx",
+            "frontend/**/*.ts"
+          ],
+          "steps": [
+            "Run: cd frontend && npm run lint",
+            "Run: cd frontend && npx tsc --noEmit",
+            "Verify: 0 errors"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "Final Verification",
+      "goal": "All checks pass, complexity reduced",
+      "tasks": [
+        {
+          "id": "8.1",
+          "category": "verification",
+          "description": "Run full test suite and complexity check",
+          "files_affected": [],
+          "steps": [
+            "Run: cd backend && timeout 120 .venv/bin/pytest tests/ -x --tb=short -q",
+            "Run: cd frontend && npm run build",
+            "Run: bash ~/portfolio-ai/scripts/restart.sh && sleep 3",
+            "Run: curl -sf http://localhost:8000/api/health",
+            "Run: curl -s http://localhost:8001/api/projects/portfolio-ai/explorer/refactor-targets | jq '.summary'",
+            "Compare with baseline_metrics.json",
+            "Verify: Complexity reduced from baseline"
+          ],
+          "passes": false
+        }
+      ]
+    }
+  ]
+}
