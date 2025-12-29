@@ -269,3 +269,71 @@ export function getTaskIcon(config: TaskConfig): React.ReactNode {
     className: `h-4 w-4 ${config.iconColor}`,
   });
 }
+
+/**
+ * Database task dialog configuration
+ * Used for confirmation dialogs before running DB tasks
+ */
+export interface DbTaskDialogConfig {
+  title: string;
+  dryRunDescription: string;
+  liveDescription: string;
+  dryRunLabel: string;
+  liveLabel: string;
+  storageKey: string;
+  successExtractor: (result: DbTaskResult) => string;
+}
+
+export interface DbTaskResult {
+  status: string;
+  summary?: {
+    deleted?: number;
+    totalReclaimedMb?: number;
+    totalErrors?: number;
+    totalWarnings?: number;
+    [key: string]: unknown;
+  };
+}
+
+/**
+ * Configuration for database task dialogs and result formatting
+ */
+export const DB_TASK_DIALOG_CONFIGS: Record<string, DbTaskDialogConfig> = {
+  cleanup_news: {
+    title: "Cleanup Old News",
+    dryRunDescription: "Preview articles older than 90 days that would be deleted.",
+    liveDescription: "Permanently delete news articles older than 90 days.",
+    dryRunLabel: "Preview",
+    liveLabel: "Delete",
+    storageKey: "status.confirm.cleanupNews",
+    successExtractor: (result) => {
+      const deleted = result.summary?.deleted || 0;
+      return `${deleted} articles`;
+    },
+  },
+  vacuum_db: {
+    title: "Vacuum Database",
+    dryRunDescription: "Analyze tables and show potential space savings.",
+    liveDescription: "Optimize all database tables using VACUUM ANALYZE.",
+    dryRunLabel: "Analyze",
+    liveLabel: "Vacuum",
+    storageKey: "status.confirm.vacuumDatabase",
+    successExtractor: (result) => {
+      const reclaimed = result.summary?.totalReclaimedMb || 0;
+      return `${reclaimed} MB`;
+    },
+  },
+  validate_integrity: {
+    title: "Validate Integrity",
+    dryRunDescription: "Check for orphaned records and consistency issues.",
+    liveDescription: "Check and attempt to fix integrity issues.",
+    dryRunLabel: "Check",
+    liveLabel: "Fix",
+    storageKey: "status.confirm.validateIntegrity",
+    successExtractor: (result) => {
+      const errors = result.summary?.totalErrors || 0;
+      const warnings = result.summary?.totalWarnings || 0;
+      return `${errors} errors, ${warnings} warnings`;
+    },
+  },
+};

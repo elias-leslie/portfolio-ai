@@ -45,9 +45,11 @@ import { useMaintenanceBackupCheck } from "@/lib/hooks/useMaintenanceBackupCheck
 import { toast } from "sonner";
 import {
   TASK_CONFIGS,
+  DB_TASK_DIALOG_CONFIGS,
   getTaskIcon,
   type TaskCategory,
   type TaskConfig,
+  type DbTaskResult,
 } from "./maintenanceTaskConfig";
 
 // Unified task interface
@@ -274,53 +276,35 @@ export function MaintenanceTable() {
     }
   };
 
-  // Database task handlers
+  // Database task handlers - consolidated into single parameterized handler
   const shouldShowDialog = (storageKey: string, isLiveOperation: boolean) => {
     if (typeof window === "undefined") return true;
     if (isLiveOperation) return true;
     return !localStorage.getItem(storageKey);
   };
 
-  const handleCleanupNews = async () => {
-    setTriggeringTask("cleanup_news");
-    try {
-      const result = await cleanupOldNews(dryRun);
-      toast.success(`Cleanup ${result.status}: ${result.summary?.deleted || 0} articles ${dryRun ? "would be" : ""} deleted`);
-      await fetchAllData();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed";
-      toast.error(`Cleanup failed: ${message}`);
-    } finally {
-      setTriggeringTask(null);
-    }
+  // Map of task id -> API function
+  const dbTaskApiFunctions: Record<string, (dryRun: boolean) => Promise<DbTaskResult>> = {
+    cleanup_news: cleanupOldNews,
+    vacuum_db: vacuumDatabase,
+    validate_integrity: validateIntegrity,
   };
 
-  const handleVacuumDatabase = async () => {
-    setTriggeringTask("vacuum_database");
-    try {
-      const result = await vacuumDatabase(dryRun);
-      toast.success(`Vacuum ${result.status}: ${result.summary?.totalReclaimedMb || 0} MB ${dryRun ? "could be" : ""} reclaimed`);
-      await fetchAllData();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed";
-      toast.error(`Vacuum failed: ${message}`);
-    } finally {
-      setTriggeringTask(null);
-    }
-  };
+  const handleDatabaseTask = async (taskId: string) => {
+    const config = DB_TASK_DIALOG_CONFIGS[taskId];
+    const apiFunc = dbTaskApiFunctions[taskId];
+    if (!config || !apiFunc) return;
 
-  const handleValidateIntegrity = async () => {
-    setTriggeringTask("validate_integrity");
+    setTriggeringTask(taskId);
     try {
-      const result = await validateIntegrity(dryRun);
-      const summary = result.summary as Record<string, unknown> | null;
-      const totalErrors = typeof summary?.totalErrors === "number" ? summary.totalErrors : 0;
-      const totalWarnings = typeof summary?.totalWarnings === "number" ? summary.totalWarnings : 0;
-      toast.success(`Validation ${result.status}: ${totalErrors} errors, ${totalWarnings} warnings`);
+      const result = await apiFunc(dryRun);
+      const extracted = config.successExtractor(result);
+      const action = dryRun ? "would be processed" : "processed";
+      toast.success(`${config.title} ${result.status}: ${extracted} ${action}`);
       await fetchAllData();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed";
-      toast.error(`Validation failed: ${message}`);
+      toast.error(`${config.title} failed: ${message}`);
     } finally {
       setTriggeringTask(null);
     }
