@@ -191,7 +191,7 @@
             "Run pytest tests/tasks/ -k strategy"
           ],
           "verification": "pytest tests/tasks/ -k strategy -v --tb=short",
-          "passes": false
+          "passes": true
         },
         {
           "id": "2.4",

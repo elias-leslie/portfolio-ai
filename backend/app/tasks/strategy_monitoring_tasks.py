@@ -259,6 +259,71 @@ def evaluate_strategy_performance() -> dict[str, Any]:
         }
 
 
+def _calculate_today_metrics(trades: list[dict[str, Any]], today: date) -> dict[str, Any]:
+    """Calculate metrics for trades made today.
+
+    Args:
+        trades: List of trade dicts with 'date' and 'pnl' keys
+        today: Today's date
+
+    Returns:
+        Dict with trades_today, wins_today, losses_today, pnl_today
+    """
+    today_trades = [t for t in trades if t["date"] == today]
+    trades_today = len(today_trades)
+    wins_today = sum(1 for t in today_trades if t["pnl"] > 0)
+    losses_today = trades_today - wins_today
+    pnl_today = sum(t["pnl"] for t in today_trades)
+    return {
+        "trades_today": trades_today,
+        "wins_today": wins_today,
+        "losses_today": losses_today,
+        "pnl_today": pnl_today,
+    }
+
+
+def _calculate_sharpe_ratio(daily_returns: list[float]) -> float:
+    """Calculate simplified Sharpe ratio from daily returns.
+
+    Uses mean/std without risk-free rate adjustment.
+
+    Args:
+        daily_returns: List of daily PnL values
+
+    Returns:
+        Sharpe ratio (0.0 if insufficient data)
+    """
+    if len(daily_returns) <= 1:
+        return 0.0
+
+    mean_return = sum(daily_returns) / len(daily_returns)
+    variance = sum((r - mean_return) ** 2 for r in daily_returns) / len(daily_returns)
+    std_dev = variance**0.5
+    return mean_return / std_dev if std_dev > 0 else 0.0
+
+
+def _calculate_max_drawdown(trades: list[dict[str, Any]]) -> float:
+    """Calculate maximum drawdown from trade sequence.
+
+    Args:
+        trades: List of trade dicts with 'pnl' key
+
+    Returns:
+        Max drawdown as fraction (0.0 to 1.0)
+    """
+    cumulative_pnl = 0.0
+    peak_pnl = 0.0
+    max_drawdown = 0.0
+
+    for t in trades:
+        cumulative_pnl += t["pnl"]
+        peak_pnl = max(peak_pnl, cumulative_pnl)
+        drawdown = (peak_pnl - cumulative_pnl) / peak_pnl if peak_pnl > 0 else 0.0
+        max_drawdown = max(max_drawdown, drawdown)
+
+    return max_drawdown
+
+
 def _calculate_rolling_metrics(
     conn: Any, strategy_id: str, window_days: int = 30
 ) -> dict[str, Any]:
@@ -327,45 +392,22 @@ def _calculate_rolling_metrics(
     if not trades:
         return empty_metrics
 
-    # Calculate metrics
+    # Calculate metrics using helpers
     today = date.today()
-    today_trades = [t for t in trades if t["date"] == today]
+    today_metrics = _calculate_today_metrics(trades, today)
 
-    trades_today = len(today_trades)
-    wins_today = sum(1 for t in today_trades if t["pnl"] > 0)
-    losses_today = trades_today - wins_today
-    pnl_today = sum(t["pnl"] for t in today_trades)
-
+    # 30-day metrics
     trades_30d = len(trades)
     wins_30d = sum(1 for t in trades if t["pnl"] > 0)
     win_rate_30d = wins_30d / trades_30d if trades_30d > 0 else 0.0
 
-    # Calculate Sharpe ratio (simplified: mean/std of daily returns)
+    # Sharpe ratio and max drawdown
     daily_returns = [t["pnl"] for t in trades]
-    if len(daily_returns) > 1:
-        mean_return = sum(daily_returns) / len(daily_returns)
-        variance = sum((r - mean_return) ** 2 for r in daily_returns) / len(daily_returns)
-        std_dev = variance**0.5
-        sharpe_ratio_30d = mean_return / std_dev if std_dev > 0 else 0.0
-    else:
-        sharpe_ratio_30d = 0.0
-
-    # Calculate max drawdown
-    cumulative_pnl = 0.0
-    peak_pnl = 0.0
-    max_drawdown = 0.0
-
-    for t in trades:
-        cumulative_pnl += t["pnl"]
-        peak_pnl = max(peak_pnl, cumulative_pnl)
-        drawdown = (peak_pnl - cumulative_pnl) / peak_pnl if peak_pnl > 0 else 0.0
-        max_drawdown = max(max_drawdown, drawdown)
+    sharpe_ratio_30d = _calculate_sharpe_ratio(daily_returns)
+    max_drawdown = _calculate_max_drawdown(trades)
 
     return {
-        "trades_today": trades_today,
-        "wins_today": wins_today,
-        "losses_today": losses_today,
-        "pnl_today": pnl_today,
+        **today_metrics,
         "trades_30d": trades_30d,
         "win_rate_30d": win_rate_30d,
         "sharpe_ratio_30d": sharpe_ratio_30d,
