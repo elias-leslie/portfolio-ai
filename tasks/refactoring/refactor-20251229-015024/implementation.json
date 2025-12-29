@@ -364,7 +364,7 @@
             "Run cd frontend && npm run lint"
           ],
           "verification": "cd frontend && npm run build",
-          "passes": false
+          "passes": true
         }
       ]
     },
