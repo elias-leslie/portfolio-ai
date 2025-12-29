@@ -105,3 +105,27 @@ export function formatNewsDate(dateString: string | null | undefined): string {
     return "";
   }
 }
+
+/**
+ * Article-like structure with optional sentiment fields
+ */
+interface ArticleWithSentiment {
+  sentimentScore?: number;
+  sentiment?: {
+    score: number;
+  };
+}
+
+/**
+ * Extract sentiment score from article with varying data structures.
+ * Normalizes the different shapes: sentimentScore directly, or nested sentiment.score
+ * @param article Article object with optional sentimentScore or sentiment.score
+ * @param defaultValue Value to return if no score found (default: 0)
+ * @returns Numeric sentiment score
+ */
+export function getSentimentScore(
+  article: ArticleWithSentiment,
+  defaultValue = 0
+): number {
+  return article.sentimentScore ?? article.sentiment?.score ?? defaultValue;
+}

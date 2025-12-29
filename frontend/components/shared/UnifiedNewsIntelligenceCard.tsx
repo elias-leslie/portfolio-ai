@@ -8,6 +8,7 @@ import { ArrowUpDown, Newspaper, ChevronDown } from "lucide-react";
 import {
   formatSentimentScore,
   getSentimentBadgeVariant,
+  getSentimentScore,
 } from "@/lib/utils/news-formatting";
 import { NewsArticleCard } from "./NewsArticleCard";
 
@@ -181,17 +182,9 @@ export function UnifiedNewsIntelligenceCard({
   const sortedArticles = useMemo(() => {
     const sorted = [...articles];
     if (sortBy === "positive") {
-      return sorted.sort((a, b) => {
-        const scoreA = a.sentimentScore ?? a.sentiment?.score ?? 0;
-        const scoreB = b.sentimentScore ?? b.sentiment?.score ?? 0;
-        return scoreB - scoreA;
-      });
+      return sorted.sort((a, b) => getSentimentScore(b) - getSentimentScore(a));
     } else if (sortBy === "negative") {
-      return sorted.sort((a, b) => {
-        const scoreA = a.sentimentScore ?? a.sentiment?.score ?? 0;
-        const scoreB = b.sentimentScore ?? b.sentiment?.score ?? 0;
-        return scoreA - scoreB;
-      });
+      return sorted.sort((a, b) => getSentimentScore(a) - getSentimentScore(b));
     }
     // "recent" - keep original order (already sorted by publishedAt from backend)
     return sorted;
