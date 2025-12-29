@@ -76,9 +76,12 @@ POLL_INTERVAL_12_HOURS = 43200.0  # 12 hours - for daily-ish tasks
 
 # Task expiry times (seconds)
 EXPIRY_2_MIN = 120  # Quick tasks that should be dropped if delayed
+EXPIRY_10_MIN = 600  # 10-minute expiry for quick monitoring tasks
 EXPIRY_28_MIN = 1700  # Slightly less than 30-min schedule
 EXPIRY_30_MIN = 1800  # 30-minute expiry for moderate tasks
+EXPIRY_50_MIN = 3000  # 50-minute expiry for longer tasks
 EXPIRY_1_HOUR = 3600  # Longer-running tasks
+EXPIRY_2_HOURS = 7200  # 2-hour expiry for daily cleanup tasks
 
 
 def get_beat_schedule() -> dict[str, dict[str, Any]]:
@@ -174,7 +177,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "retrain-article-quality-model": {
             "task": "retrain_article_quality_model",
             "schedule": crontab(hour=5, minute=0),  # Daily at 05:00 UTC
-            "options": {"expires": 7200},  # Task expires after 2 hours
+            "options": {"expires": EXPIRY_2_HOURS},  # Task expires after 2 hours
             # Notes:
             # - Runs daily at 05:00 UTC (after all market data tasks complete)
             # - Queries 100 newest unlabeled articles from news_cache
@@ -356,7 +359,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "update-earnings-surprises-weekly": {
             "task": "update_earnings_surprises",
             "schedule": crontab(hour=5, minute=0, day_of_week=0),  # Sundays at 05:00 UTC
-            "options": {"expires": 7200},  # Task expires after 2 hours
+            "options": {"expires": EXPIRY_2_HOURS},  # Task expires after 2 hours
             # Notes:
             # - Runs weekly on Sundays at 05:00 UTC (GAP-003)
             # - Fetches earnings surprise data (EPS estimate vs actual) from Finnhub
@@ -379,7 +382,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "refresh-financial-health-scores-weekly": {
             "task": "refresh_financial_health_scores",
             "schedule": crontab(hour=5, minute=0, day_of_week=0),  # Sundays at 05:00 UTC
-            "options": {"expires": 7200},  # Task expires after 2 hours
+            "options": {"expires": EXPIRY_2_HOURS},  # Task expires after 2 hours
             # Notes:
             # - Runs weekly on Sundays at 05:00 UTC (GAP-008, GAP-009)
             # - Calculates Piotroski F-Score (9-point quality metric)
@@ -403,7 +406,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "ingest-fundamental-data-weekly": {
             "task": "app.tasks.ingestion.fundamental_ingestion.ingest_fundamental_data",
             "schedule": crontab(hour=6, minute=0, day_of_week=0),  # Sundays at 06:00 UTC
-            "options": {"expires": 7200},  # Task expires after 2 hours
+            "options": {"expires": EXPIRY_2_HOURS},  # Task expires after 2 hours
             # Notes:
             # - Runs weekly on Sundays at 06:00 UTC
             # - Fetches and stores (GAP-004, 006, 007, 011):
@@ -417,7 +420,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "fetch-corporate-actions-weekly": {
             "task": "tasks.fetch_corporate_actions",
             "schedule": crontab(hour=6, minute=30, day_of_week=0),  # Sundays at 06:30 UTC
-            "options": {"expires": 7200},  # Task expires after 2 hours
+            "options": {"expires": EXPIRY_2_HOURS},  # Task expires after 2 hours
             # Notes:
             # - Runs weekly on Sundays at 06:30 UTC (FEAT-175)
             # - Fetches share buyback data from yfinance cash flow
@@ -535,7 +538,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "verify-acceptance-criteria": {
             "task": "verify_all_acceptance_criteria",
             "schedule": crontab(hour=5, minute=0, day_of_week=0),  # Weekly on Sunday at 05:00 UTC
-            "options": {"expires": 7200},  # 2 hour expiry for thorough check
+            "options": {"expires": EXPIRY_2_HOURS},  # 2 hour expiry for thorough check
             # Notes:
             # - Changed from daily to weekly to reduce Playwright/browser load
             # - On-demand available via POST /api/capabilities/verify-all
@@ -610,7 +613,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
             "task": "vacuum_database_task",
             "schedule": crontab(day_of_week=0, hour=3, minute=30),  # Sunday 03:30 UTC
             "args": [None],  # Vacuum all tables
-            "options": {"expires": 7200},  # 2 hour timeout for large databases
+            "options": {"expires": EXPIRY_2_HOURS},  # 2 hour timeout for large databases
             # Notes:
             # - Runs weekly on Sunday at 03:30 UTC (after capability analysis)
             # - VACUUM ANALYZE reclaims space and updates table statistics
@@ -687,7 +690,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "check-disk-space-periodic": {
             "task": "check_disk_space_task",
             "schedule": crontab(hour="*/6"),  # Every 6 hours
-            "options": {"expires": 600},
+            "options": {"expires": EXPIRY_10_MIN},
             # Notes:
             # - Runs every 6 hours (00:00, 06:00, 12:00, 18:00 UTC)
             # - Checks disk usage for /, /tmp, /var/log partitions
@@ -698,7 +701,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "check-data-source-health-periodic": {
             "task": "check_data_source_health",
             "schedule": crontab(minute=30, hour="*/6"),  # Every 6 hours at :30
-            "options": {"expires": 600},
+            "options": {"expires": EXPIRY_10_MIN},
             # Notes:
             # - Runs every 6 hours at :30 (00:30, 06:30, 12:30, 18:30 UTC)
             # - Tests each data source with SPY OHLCV fetch
@@ -709,7 +712,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "get-database-size-daily": {
             "task": "get_database_size_task",
             "schedule": crontab(hour=5, minute=30),  # Daily at 05:30 UTC
-            "options": {"expires": 600},
+            "options": {"expires": EXPIRY_10_MIN},
             # Notes:
             # - Runs daily at 05:30 UTC (after all cleanup tasks complete)
             # - Gets total database size and top 10 largest tables
@@ -756,7 +759,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "generate-weekly-strategies": {
             "task": "app.tasks.strategy_monitoring_tasks.weekly_strategy_generation",
             "schedule": crontab(hour=5, minute=0, day_of_week=0),  # Sunday 05:00 UTC
-            "options": {"expires": 7200},
+            "options": {"expires": EXPIRY_2_HOURS},
             # Notes:
             # - Full sweep of top 20 watchlist symbols
             # - Skips symbols that already have active strategies
@@ -766,7 +769,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "weekly-strategy-evolution": {
             "task": "app.tasks.strategy_monitoring_tasks.weekly_strategy_evolution",
             "schedule": crontab(hour=6, minute=0, day_of_week=0),  # Sunday 06:00 UTC
-            "options": {"expires": 7200},
+            "options": {"expires": EXPIRY_2_HOURS},
             # Notes:
             # - Evolves underperforming strategies via LLM analysis
             # - Runs after weekly strategy generation (05:00)
@@ -882,7 +885,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "daily-rules-validation": {
             "task": "daily_rules_validation",
             "schedule": crontab(hour=3, minute=0),  # Daily at 03:00 UTC
-            "options": {"expires": 600},
+            "options": {"expires": EXPIRY_10_MIN},
             # Notes:
             # - Validates all trading rules for logical consistency
             # - Checks: threshold ranges, contradictions, position sizing, fee assumptions
@@ -977,7 +980,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "check-sitemap-health-morning": {
             "task": "check_sitemap_health",
             "schedule": crontab(hour=8, minute=0),  # Daily at 08:00 UTC (3 AM ET)
-            "options": {"expires": 3000},  # 50-minute expiry
+            "options": {"expires": EXPIRY_50_MIN},  # 50-minute expiry
             # Notes:
             # - HTTP-only reachability check for all sitemap entries (no Playwright)
             # - Runs 2x daily (morning + evening) instead of hourly to reduce load
@@ -986,7 +989,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "check-sitemap-health-evening": {
             "task": "check_sitemap_health",
             "schedule": crontab(hour=20, minute=0),  # Daily at 20:00 UTC (3 PM ET)
-            "options": {"expires": 3000},
+            "options": {"expires": EXPIRY_50_MIN},
         },
         "discover-sitemap-entries-daily": {
             "task": "discover_sitemap_entries",
@@ -1000,7 +1003,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "cleanup-sitemap-history-daily": {
             "task": "cleanup_sitemap_history",
             "schedule": crontab(hour=4, minute=0),  # Daily at 04:00 UTC
-            "options": {"expires": 600},  # 10-minute expiry
+            "options": {"expires": EXPIRY_10_MIN},  # 10-minute expiry
             # Notes:
             # - Deletes health history older than 7 days
             # - Keeps sitemap_health_history table size manageable
