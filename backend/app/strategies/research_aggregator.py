@@ -19,6 +19,7 @@ from typing import Any, Literal
 from app.analytics.indicators import calculate_indicators_for_symbol
 from app.storage import PortfolioStorage
 from app.storage.connection import get_connection_manager
+from app.utils.db_helpers import rows_to_dicts
 from app.watchlist.fundamentals import (
     FundamentalData,
     calculate_fundamental_score,
@@ -29,23 +30,6 @@ from app.watchlist.fundamentals import (
 from .models import ResearchInsights
 
 logger = logging.getLogger(__name__)
-
-
-def _rows_to_dicts(rows: list[tuple[Any, ...]], conn_wrapper: Any) -> list[dict[str, Any]]:
-    """Convert database cursor rows (tuples) to dictionaries using cursor column names.
-
-    Args:
-        rows: List of tuple rows from cursor.fetchall()
-        conn_wrapper: PostgreSQLConnectionWrapper object with description property
-
-    Returns:
-        List of dictionaries with column names as keys
-    """
-    if not rows or conn_wrapper.description is None:
-        return []
-
-    columns = [desc[0] for desc in conn_wrapper.description]
-    return [dict(zip(columns, row, strict=False)) for row in rows]
 
 
 class ResearchAggregationService:
