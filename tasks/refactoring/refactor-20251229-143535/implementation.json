@@ -155,7 +155,7 @@
             "Run pytest tests/agents/ -x --tb=short"
           ],
           "verification": "python -c 'from app.agents.base import BaseAgent'",
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.2",
@@ -174,7 +174,7 @@
             "Run pytest tests/agents/ -x --tb=short"
           ],
           "verification": "python -c 'from app.agents.base import BaseAgent'",
-          "passes": false
+          "passes": true
         }
       ]
     },

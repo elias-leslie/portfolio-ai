@@ -38,16 +38,7 @@ interface AgentPanelProps {
   standalone?: boolean;
 }
 
-// Get server URL based on current hostname
-// Use nginx proxy path /dev-companion/ for SSL termination
-const getServerUrl = () => {
-  if (typeof window === 'undefined') return null;
-  if (process.env.NEXT_PUBLIC_DEV_COMPANION_URL) {
-    return process.env.NEXT_PUBLIC_DEV_COMPANION_URL;
-  }
-  // Use proxied path through nginx (handles SSL)
-  return `${window.location.origin}/dev-companion`;
-};
+import { getServerUrl, getWsUrl } from '@/lib/server-url';
 
 export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, standalone = false }: AgentPanelProps) {
   // Note: _onOpenChange is received from callers but not used internally yet
