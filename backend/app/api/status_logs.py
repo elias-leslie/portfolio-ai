@@ -282,6 +282,56 @@ def parse_journal_output(output: str, service_units: dict[str, str]) -> list[Uni
     return logs
 
 
+def fetch_journal_logs(
+    units: list[str],
+    is_user_mode: bool,
+    fetch_limit: int,
+    since: str,
+    service_units: dict[str, str],
+) -> list[UnifiedLogEntry]:
+    """Fetch logs from journald for specified units.
+
+    Args:
+        units: List of systemd unit names to fetch
+        is_user_mode: Whether to use --user flag for user services
+        fetch_limit: Maximum number of log entries to fetch
+        since: Time range (e.g., "5 minutes ago")
+        service_units: Mapping of service names to unit names (for parsing)
+
+    Returns:
+        List of parsed log entries
+    """
+    if not units:
+        return []
+
+    cmd = [
+        "journalctl",
+        "--no-pager",
+        "-o",
+        "json",
+        "--since",
+        since,
+        "-n",
+        str(fetch_limit),
+    ]
+
+    if is_user_mode:
+        cmd.insert(1, "--user")
+
+    for unit in units:
+        cmd.extend(["-u", unit])
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=15, check=False)
+        if result.returncode == 0:
+            return parse_journal_output(result.stdout, service_units)
+    except Exception as e:
+        mode = "user" if is_user_mode else "system"
+        logger.warning(f"{mode}_journal_fetch_failed", error=str(e))
+
+    return []
+
+
 @router.get("/unified-logs", response_model=UnifiedLogsResponse)
 async def get_unified_logs(
     lines: int = 500,
@@ -356,56 +406,26 @@ async def get_unified_logs(
                 user_units = []
                 system_units = [service_units[service]]
 
+        # Fetch logs from both system and user units
         logs: list[UnifiedLogEntry] = []
-
-        # 1. Fetch System Logs
-        if system_units:
-            cmd_system = [
-                "journalctl",
-                "--no-pager",
-                "-o",
-                "json",
-                "--since",
-                since,
-                "-n",
-                str(fetch_limit),
-            ]
-            for unit in system_units:
-                cmd_system.extend(["-u", unit])
-
-            try:
-                result_system = subprocess.run(
-                    cmd_system, capture_output=True, text=True, timeout=15, check=False
-                )
-                if result_system.returncode == 0:
-                    logs.extend(parse_journal_output(result_system.stdout, service_units))
-            except Exception as e:
-                logger.warning("system_journal_fetch_failed", error=str(e))
-
-        # 2. Fetch User Logs
-        if user_units:
-            cmd_user = [
-                "journalctl",
-                "--user",
-                "--no-pager",
-                "-o",
-                "json",
-                "--since",
-                since,
-                "-n",
-                str(fetch_limit),
-            ]
-            for unit in user_units:
-                cmd_user.extend(["-u", unit])
-
-            try:
-                result_user = subprocess.run(
-                    cmd_user, capture_output=True, text=True, timeout=15, check=False
-                )
-                if result_user.returncode == 0:
-                    logs.extend(parse_journal_output(result_user.stdout, service_units))
-            except Exception as e:
-                logger.warning("user_journal_fetch_failed", error=str(e))
+        logs.extend(
+            fetch_journal_logs(
+                system_units,
+                is_user_mode=False,
+                fetch_limit=fetch_limit,
+                since=since,
+                service_units=service_units,
+            )
+        )
+        logs.extend(
+            fetch_journal_logs(
+                user_units,
+                is_user_mode=True,
+                fetch_limit=fetch_limit,
+                since=since,
+                service_units=service_units,
+            )
+        )
 
         # Sort by timestamp (chronological order)
         logs.sort(key=lambda x: x.timestamp)
