@@ -13,6 +13,7 @@ import datetime as dt
 from typing import TYPE_CHECKING
 
 from app.celery_app import celery_app
+from app.constants import SECTOR_ETF_SYMBOLS
 from app.logging_config import get_logger
 from app.sources.fred import FREDSource
 from app.storage import get_storage
@@ -187,19 +188,8 @@ def _calculate_market_breadth(storage: PortfolioStorage, target_date: dt.date) -
         >>> breadth = _calculate_market_breadth(storage, dt.date(2025, 11, 12))
         >>> breadth  # e.g., 63.64 (7 out of 11 sectors up)
     """
-    sector_symbols = [
-        "XLK",  # Technology
-        "XLF",  # Financials
-        "XLE",  # Energy
-        "XLV",  # Healthcare
-        "XLY",  # Consumer Discretionary
-        "XLP",  # Consumer Staples
-        "XLI",  # Industrials
-        "XLU",  # Utilities
-        "XLRE",  # Real Estate
-        "XLB",  # Materials
-        "XLC",  # Communication Services
-    ]
+    # Use shared sector ETF symbols constant
+    sector_symbols = SECTOR_ETF_SYMBOLS
 
     with storage.connection() as conn:
         # Use subquery with window function to get current and previous close
