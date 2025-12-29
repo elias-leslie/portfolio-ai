@@ -1,11 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { MessageSquare, Plus, Trash2, Settings, Activity, Camera, Eye, Diamond, Star } from 'lucide-react';
 // Note: We use a custom side panel instead of Sheet to allow non-overlay behavior (FEAT-220)
 import { Button } from '@/components/ui/button';
 import { cn, formatRelativeTime } from '@/lib/utils';
-import { toast } from 'sonner';
 import { SettingsModal, LLMProvider } from './SettingsModal';
 import { StatusModal } from './StatusModal';
 import { AgentSelector, AgentProvider, RoundtableOrder } from './AgentSelector';
@@ -14,31 +13,15 @@ import { TokenSummaryCards } from './TokenSummaryCards';
 import { EvidenceCaptureModal } from './EvidenceCaptureModal';
 import { ProviderBadge } from './ProviderBadge';
 import {
-  parseWebSocketMessage,
-  routeMessage,
-  type HandlerContext,
   type ContentBlock,
   type PermissionRequest,
   type EvidenceData,
   type ChatMessage,
 } from './wsHandlers';
+import { useWebSocketConnection, useSessionManagement } from './hooks';
 
 // SummitFlow API configuration
 const SUMMITFLOW_API = "/summitflow/api/projects/portfolio-ai";
-
-// Session type (not in wsHandlers as it's specific to AgentPanel)
-interface Session {
-  id: string;
-  workingDir: string;
-  createdAt: string;
-  updatedAt: string;
-  isActive: boolean;
-  metadata: Record<string, unknown>;
-  originalProvider?: string | null;
-  messageCount?: number;
-  description?: string | null;
-  participants?: string[];
-}
 
 // AgentRole is now handled by ModeSelector
 
@@ -75,11 +58,6 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [, setActiveProvider] = useState<LLMProvider>('claude');
 
-  // Session state
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
-  const [isLoadingSessions, setIsLoadingSessions] = useState(true);
-
   // Chat state
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -102,17 +80,8 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
   const [showEvidenceCapture, setShowEvidenceCapture] = useState(false);
 
   // Refs
-  const wsRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const currentResponseRef = useRef<ContentBlock[]>([]);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const intentionalCloseRef = useRef(false); // Prevent reconnect on provider switch
-
-  // Memoize current session lookup to avoid duplicate finds in render
-  const currentSession = useMemo(
-    () => sessions.find(s => s.id === currentSessionId),
-    [sessions, currentSessionId]
-  );
 
   // Initialize URLs on client
   useEffect(() => {
@@ -128,223 +97,54 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
     currentResponseRef.current = currentResponse;
   }, [currentResponse]);
 
-  // Fetch sessions
-  const fetchSessions = useCallback(async () => {
-    if (!serverUrl) return;
-    try {
-      const response = await fetch(`${serverUrl}/sessions`);
-      if (!response.ok) throw new Error('Failed to fetch sessions');
-      const data = await response.json();
-      setSessions(data);
-      if (data.length > 0 && !currentSessionId) {
-        setCurrentSessionId(data[0].id);
-      }
-    } catch {
-      setConnectionError('Failed to connect to Dev Companion server');
-    } finally {
-      setIsLoadingSessions(false);
-    }
-  }, [serverUrl, currentSessionId]);
+  // Session management hook
+  const {
+    sessions,
+    currentSessionId,
+    setCurrentSessionId,
+    currentSession,
+    isLoadingSessions,
+    createSession: createSessionBase,
+    deleteSession,
+    saveEvidenceToServer,
+  } = useSessionManagement({
+    serverUrl,
+    open,
+    setMessages,
+    setCurrentResponse,
+    setIsLoading,
+  });
 
-  useEffect(() => {
-    if (serverUrl && open) {
-      fetchSessions();
-    }
-  }, [serverUrl, open, fetchSessions]);
-
-  // Save evidence message to server
-  const saveEvidenceToServer = useCallback(async (sessionId: string, evidenceMsg: ChatMessage) => {
-    if (!sessionId || !serverUrl) return;
-    try {
-      await fetch(`${serverUrl}/sessions/${sessionId}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          role: 'evidence',
-          content: evidenceMsg.content,
-          metadata: { evidence: evidenceMsg.evidence },
-        }),
-      });
-    } catch (err) {
-      console.error('Failed to save evidence to server:', err);
-    }
-  }, [serverUrl]);
-
-  // Load history when session changes
-  useEffect(() => {
-    if (!serverUrl || !currentSessionId) return;
-
-    const loadHistory = async () => {
-      try {
-        const res = await fetch(`${serverUrl}/sessions/${currentSessionId}/history`);
-        if (res.ok) {
-          const data = await res.json();
-          const loadedMessages: ChatMessage[] = data.messages.map((msg: { role: string; content: string; createdAt: string; agent?: string; metadata?: { evidence?: EvidenceData } }) => ({
-            role: msg.role as 'user' | 'assistant' | 'system' | 'evidence',
-            content: msg.content,
-            timestamp: new Date(msg.createdAt),
-            agent: msg.agent as 'claude' | 'gemini' | undefined,
-            evidence: msg.metadata?.evidence,
-          }));
-
-          setMessages(loadedMessages);
-        }
-      } catch (err) {
-        console.error('Failed to load history:', err);
-      }
-    };
-
-    setMessages([]);
-    setCurrentResponse([]);
-    setIsLoading(false);
-    loadHistory();
-  }, [currentSessionId, serverUrl]);
+  // Wrap createSession to also close the sessions panel
+  const createSession = useCallback(async () => {
+    await createSessionBase();
+    setShowSessions(false);
+  }, [createSessionBase]);
 
   // Scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, currentResponse]);
 
-  // Track connection generation to prevent stale reconnects
-  const connectionGenRef = useRef(0);
-
-  // Connect WebSocket
-  const connect = useCallback(() => {
-    if (!wsUrl || !currentSessionId || !open) return;
-
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
-    }
-
-    if (wsRef.current?.readyState === WebSocket.OPEN ||
-        wsRef.current?.readyState === WebSocket.CONNECTING) {
-      return;
-    }
-
-    // Increment generation to invalidate stale onclose handlers
-    const thisGeneration = ++connectionGenRef.current;
-
-    // Use agentProvider from selector (claude/gemini/both), with order and maxTurns for roundtable
-    const providerParam = agentProvider === 'both' ? 'both' : agentProvider;
-    const orderParam = agentProvider === 'both' ? `&order=${roundtableOrder}&max_turns=${maxTurns}` : '';
-    const ws = new WebSocket(`${wsUrl}/ws/${currentSessionId}?provider=${providerParam}${orderParam}`);
-
-    ws.onopen = () => {
-      // Only update state if this is still the current connection generation
-      // This prevents race conditions when rapidly switching providers
-      if (thisGeneration === connectionGenRef.current) {
-        setIsConnected(true);
-        setConnectionError(null);
-        console.log('WebSocket opened, generation:', thisGeneration);
-      }
-    };
-
-    ws.onclose = () => {
-      // Only update state if this is still the current connection generation
-      // This prevents stale onclose from old connections affecting the new connection
-      if (thisGeneration === connectionGenRef.current) {
-        setIsConnected(false);
-        wsRef.current = null;
-        console.log('WebSocket closed, generation:', thisGeneration);
-        // Only reconnect if this wasn't an intentional close
-        if (open && !intentionalCloseRef.current) {
-          reconnectTimeoutRef.current = setTimeout(connect, 3000);
-        }
-      } else {
-        console.log('Ignoring stale onclose for generation:', thisGeneration, 'current:', connectionGenRef.current);
-      }
-    };
-
-    ws.onerror = () => {
-      setConnectionError(`Failed to connect to ${ws.url}`);
-    };
-
-    ws.onmessage = (event) => {
-      const msg = parseWebSocketMessage(event);
-      const ctx: HandlerContext = {
-        currentResponseRef,
-        currentRespondingAgent,
-        agentProvider,
-        setCurrentResponse,
-        setCurrentRespondingAgent,
-        setMessages,
-        setIsLoading,
-        setPendingPermission,
-        setActiveProvider,
-      };
-      routeMessage(msg, ctx);
-    };
-
-    wsRef.current = ws;
-  }, [wsUrl, currentSessionId, open, agentProvider, roundtableOrder, maxTurns, currentRespondingAgent]);
-
-  // Connect/disconnect based on panel state
-  useEffect(() => {
-    // Reset intentional close flag before connecting
-    intentionalCloseRef.current = false;
-
-    if (open && currentSessionId) {
-      connect();
-    }
-
-    return () => {
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
-      if (wsRef.current) {
-        // Mark as intentional close to prevent reconnect with stale provider
-        intentionalCloseRef.current = true;
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-    };
-  }, [open, currentSessionId, connect]);
-
-  // Create session
-  const createSession = async () => {
-    if (!serverUrl) return;
-    try {
-      const response = await fetch(`${serverUrl}/sessions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          workingDir: '/home/kasadis/portfolio-ai',
-        }),
-      });
-      if (!response.ok) throw new Error('Failed to create session');
-      const session = await response.json();
-      setSessions(prev => [session, ...prev]);
-      setCurrentSessionId(session.id);
-      setShowSessions(false);
-    } catch (err) {
-      console.error('Failed to create session:', err);
-    }
-  };
-
-  // Delete session
-  const deleteSession = async (sessionId: string) => {
-    if (!serverUrl) return;
-    try {
-      const response = await fetch(`${serverUrl}/sessions/${sessionId}`, { method: 'DELETE' });
-      if (!response.ok) {
-        throw new Error(`Server returned ${response.status}`);
-      }
-      // Clear chat if deleting current session BEFORE updating session ID
-      if (currentSessionId === sessionId) {
-        setMessages([]);
-        setCurrentResponse([]);
-      }
-      // Only update local state after confirmed deletion
-      setSessions(prev => prev.filter(s => s.id !== sessionId));
-      if (currentSessionId === sessionId) {
-        setCurrentSessionId(sessions.find(s => s.id !== sessionId)?.id || null);
-      }
-    } catch (err) {
-      console.error('Failed to delete session:', err);
-      toast.error('Failed to delete session');
-    }
-  };
+  // WebSocket connection hook
+  const { wsRef, connect } = useWebSocketConnection({
+    wsUrl,
+    currentSessionId,
+    open,
+    agentProvider,
+    roundtableOrder,
+    maxTurns,
+    currentRespondingAgent,
+    currentResponseRef,
+    setCurrentResponse,
+    setCurrentRespondingAgent,
+    setMessages,
+    setIsLoading,
+    setPendingPermission,
+    setActiveProvider,
+    setIsConnected,
+    setConnectionError,
+  });
 
   // Build evidence context from recent captures (last 5)
   const buildEvidenceContext = useCallback(() => {
