@@ -268,12 +268,14 @@
             "frontend/components/status/NewsHealthCard.tsx"
           ],
           "steps": [
-            "Create NewsHealthCard.tsx component from lines 349-463 (114 lines)",
-            "Replace renderNewsHealthCard() call with <NewsHealthCard /> component",
-            "Run: cd frontend && npm run lint && npm run build",
-            "Verify: status/page.tsx reduced by ~100 lines"
+            "Created NewsHealthCard.tsx component (~145 lines)",
+            "Moved fallback metrics calculation to component",
+            "Removed unused imports from status/page.tsx",
+            "Run: npm run build - PASSED",
+            "Reduced status/page.tsx by ~100 lines",
+            "Commit: 3f36cbdb"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "5.2",
