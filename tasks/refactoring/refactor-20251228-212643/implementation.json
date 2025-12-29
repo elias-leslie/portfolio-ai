@@ -252,7 +252,7 @@
             "Run pytest tests/services/ -k sitemap"
           ],
           "verification": "pytest tests/services/ -k sitemap -v --tb=short",
-          "passes": false
+          "passes": true
         }
       ]
     },
