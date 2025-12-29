@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import ChatPanel from '@/components/dev-assistant/ChatPanel';
+import { getServerUrl, getWsUrl } from '@/lib/server-url';
 
 interface Session {
   id: string;
@@ -11,16 +12,6 @@ interface Session {
   isActive: boolean;
   metadata: Record<string, unknown>;
 }
-
-// Get server URL based on current hostname (protocol-aware for HTTPS)
-const getServerUrl = () => {
-  if (typeof window === 'undefined') return null;
-  if (process.env.NEXT_PUBLIC_DEV_COMPANION_URL) {
-    return process.env.NEXT_PUBLIC_DEV_COMPANION_URL;
-  }
-  // Use proxied path through nginx (handles SSL)
-  return `${window.location.origin}/dev-companion`;
-};
 
 export default function DevAssistantPage() {
   const [serverUrl, setServerUrl] = useState<string | null>(null);
@@ -35,7 +26,7 @@ export default function DevAssistantPage() {
     const url = getServerUrl();
     if (url) {
       setServerUrl(url);
-      setWsUrl(url.replace(/^http/, 'ws'));
+      setWsUrl(getWsUrl(url));
     }
   }, []);
 

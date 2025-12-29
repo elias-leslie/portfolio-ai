@@ -21,6 +21,7 @@ import {
   type ChatMessage,
 } from './wsHandlers';
 import { useWebSocketConnection, useSessionManagement } from './hooks';
+import { getServerUrl, getWsUrl } from '@/lib/server-url';
 
 // SummitFlow API configuration
 const SUMMITFLOW_API = "/summitflow/api/projects/portfolio-ai";
@@ -37,8 +38,6 @@ interface AgentPanelProps {
   /** When true, renders as full-page content without fixed positioning (for popup window) */
   standalone?: boolean;
 }
-
-import { getServerUrl, getWsUrl } from '@/lib/server-url';
 
 export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, standalone = false }: AgentPanelProps) {
   // Note: _onOpenChange is received from callers but not used internally yet
@@ -81,7 +80,7 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
     const url = getServerUrl();
     if (url) {
       setServerUrl(url);
-      setWsUrl(url.replace(/^http/, 'ws'));
+      setWsUrl(getWsUrl(url));
     }
   }, []);
 
