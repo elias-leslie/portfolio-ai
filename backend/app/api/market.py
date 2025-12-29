@@ -55,6 +55,7 @@ from app.models.market_intelligence import (
     MarketHealthScore as MarketHealthScoreResponse,
 )
 from app.portfolio.price_fetcher import PriceDataFetcher
+from app.repositories.market_repository import MarketRepository
 from app.services.market_events_service import (
     create_market_event as svc_create_event,
 )
@@ -89,6 +90,7 @@ MARKET_SYMBOL = "__MARKET__"
 
 # Initialize services
 storage = get_storage()
+market_repo = MarketRepository(storage)
 price_fetcher = PriceDataFetcher(storage)
 
 # Market indicator symbols
@@ -544,43 +546,10 @@ async def get_news_sentiment_history(
     Returns daily or hourly aggregated sentiment scores from news_summary_log.
     Scores range from -1 (very negative) to +1 (very positive).
     """
-    with storage.connection() as conn:
-        if granularity == "hourly":
-            # Hourly aggregation - useful for intraday view
-            result = conn.execute(
-                """
-                SELECT
-                    DATE_TRUNC('hour', window_end) as period,
-                    AVG(sentiment_score) as avg_score,
-                    SUM(positive_count) as pos_count,
-                    SUM(negative_count) as neg_count,
-                    SUM(article_count) as total_count
-                FROM news_summary_log
-                WHERE symbol = MARKET_SYMBOL
-                  AND window_end >= NOW() - INTERVAL '%s days'
-                GROUP BY DATE_TRUNC('hour', window_end)
-                ORDER BY period ASC
-                """,
-                [days],
-            )
-        else:
-            # Daily aggregation - use last reading per day for consistency
-            result = conn.execute(
-                """
-                SELECT DISTINCT ON (DATE(window_end))
-                    DATE(window_end) as period,
-                    sentiment_score as avg_score,
-                    positive_count as pos_count,
-                    negative_count as neg_count,
-                    article_count as total_count
-                FROM news_summary_log
-                WHERE symbol = MARKET_SYMBOL
-                  AND window_end >= NOW() - INTERVAL '%s days'
-                ORDER BY DATE(window_end), window_end DESC
-                """,
-                [days],
-            )
-        rows = result.fetchall()
+    if granularity == "hourly":
+        rows = market_repo.get_news_sentiment_hourly(days)
+    else:
+        rows = market_repo.get_news_sentiment_daily(days)
 
     dates: list[str] = []
     scores: list[float] = []

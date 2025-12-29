@@ -269,17 +269,17 @@
           "description": "Create WatchlistRepository for database operations",
           "severity": "high",
           "confidence": 0.93,
-          "files_affected": ["backend/app/api/watchlist.py", "backend/app/watchlist/repository.py"],
+          "files_affected": ["backend/app/api/watchlist.py", "backend/app/watchlist/watchlist_repository.py"],
           "steps": [
             "Read backend/app/api/watchlist.py for all SQL operations",
-            "Check if backend/app/watchlist/repository.py exists",
-            "Create WatchlistRepository class with methods: create_item(), update_item(), delete_item(), store_review(), check_exists()",
-            "Move all SQL from watchlist.py to repository",
-            "Update watchlist.py to use repository",
-            "Run pytest tests/api/ -k watchlist"
+            "Check if backend/app/watchlist/watchlist_repository.py exists (it does)",
+            "Extend WatchlistRepository class with methods: create_item(), update_item_note(), delete_item(), store_strategy_review(), check_item_exists(), get_all_symbols(), get_symbol_by_item_id(), get_item_with_snapshots(), get_latest_snapshot_for_review(), get_snapshots_with_metrics(), get_latest_daily_report()",
+            "Update watchlist.py to use repository methods instead of direct SQL",
+            "Update tests to mock watchlist_repo instead of storage",
+            "Run pytest tests/unit/api/test_watchlist_refresh.py tests/unit/api/test_watchlist_score_history.py"
           ],
-          "verification": "pytest tests/api/ -k watchlist -v --tb=short",
-          "passes": false
+          "verification": "pytest tests/unit/api/test_watchlist_refresh.py tests/unit/api/test_watchlist_score_history.py -v --tb=short",
+          "passes": true
         },
         {
           "id": "3.2",
