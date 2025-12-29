@@ -21,6 +21,30 @@ DEFAULT_NEWS_LOOKBACK_HOURS = 6
 ALLOWED_NEWS_MAX_ARTICLES = (5, 10, 15, 20)
 DEFAULT_NEWS_MAX_ARTICLES = 10
 
+# Default preferences values - used for both creation and response building
+DEFAULT_PREFERENCES = {
+    "risk_tolerance": 5,
+    "allow_long": True,
+    "allow_short": False,
+    "allow_options": False,
+    "allow_crypto": False,
+    "allow_futures": False,
+    "max_position_size_pct": 10.0,
+    "default_refresh_minutes": 15,
+    "watchlist_refresh_override": None,
+    "portfolio_refresh_override": None,
+    "news_refresh_override": None,
+    "news_lookback_hours": DEFAULT_NEWS_LOOKBACK_HOURS,
+    "news_max_articles": DEFAULT_NEWS_MAX_ARTICLES,
+    "frontend_poll_interval": 30,
+    "watchlist_refresh_minutes": 15,
+    "watchlist_auto_expand": False,
+    "watchlist_price_weight": 50.0,
+    "watchlist_technical_weight": 50.0,
+    "watchlist_show_news": True,
+    "display_timezone": "America/New_York",
+}
+
 
 # Request/Response models
 class PreferencesResponse(BaseModel):
@@ -205,6 +229,53 @@ class PreferencesUpdate(BaseModel):
         return v
 
 
+def _dict_to_preferences_response(prefs: dict[str, Any]) -> PreferencesResponse:
+    """Convert preferences dict to PreferencesResponse with proper defaults.
+
+    Centralizes the cast operations and default value handling.
+    """
+    return PreferencesResponse(
+        risk_tolerance=int(prefs.get("risk_tolerance", DEFAULT_PREFERENCES["risk_tolerance"])),
+        allow_long=bool(prefs.get("allow_long", DEFAULT_PREFERENCES["allow_long"])),
+        allow_short=bool(prefs.get("allow_short", DEFAULT_PREFERENCES["allow_short"])),
+        allow_options=bool(prefs.get("allow_options", DEFAULT_PREFERENCES["allow_options"])),
+        allow_crypto=bool(prefs.get("allow_crypto", DEFAULT_PREFERENCES["allow_crypto"])),
+        allow_futures=bool(prefs.get("allow_futures", DEFAULT_PREFERENCES["allow_futures"])),
+        max_position_size_pct=float(
+            prefs.get("max_position_size_pct", DEFAULT_PREFERENCES["max_position_size_pct"])
+        ),
+        default_refresh_minutes=int(
+            prefs.get("default_refresh_minutes", DEFAULT_PREFERENCES["default_refresh_minutes"])
+        ),
+        watchlist_refresh_override=prefs.get("watchlist_refresh_override"),
+        portfolio_refresh_override=prefs.get("portfolio_refresh_override"),
+        news_refresh_override=prefs.get("news_refresh_override"),
+        news_lookback_hours=int(prefs.get("news_lookback_hours", DEFAULT_NEWS_LOOKBACK_HOURS)),
+        news_max_articles=int(prefs.get("news_max_articles", DEFAULT_NEWS_MAX_ARTICLES)),
+        frontend_poll_interval=int(
+            prefs.get("frontend_poll_interval", DEFAULT_PREFERENCES["frontend_poll_interval"])
+        ),
+        watchlist_refresh_minutes=int(
+            prefs.get("watchlist_refresh_minutes", DEFAULT_PREFERENCES["watchlist_refresh_minutes"])
+        ),
+        watchlist_auto_expand=bool(
+            prefs.get("watchlist_auto_expand", DEFAULT_PREFERENCES["watchlist_auto_expand"])
+        ),
+        watchlist_price_weight=float(
+            prefs.get("watchlist_price_weight", DEFAULT_PREFERENCES["watchlist_price_weight"])
+        ),
+        watchlist_technical_weight=float(
+            prefs.get("watchlist_technical_weight", DEFAULT_PREFERENCES["watchlist_technical_weight"])
+        ),
+        display_timezone=str(
+            prefs.get("display_timezone", DEFAULT_PREFERENCES["display_timezone"])
+        ),
+        watchlist_show_news=bool(
+            prefs.get("watchlist_show_news", DEFAULT_PREFERENCES["watchlist_show_news"])
+        ),
+    )
+
+
 def _get_or_create_preferences() -> dict[str, str | int | float | bool | datetime | None]:
     """Get existing preferences or create default ones."""
     user_id = "default"  # Use specific user ID, not "most recent"
@@ -284,30 +355,10 @@ def _get_or_create_preferences() -> dict[str, str | int | float | bool | datetim
         )
         conn.commit()  # Commit the insert
 
+    # Return defaults with ID and timestamps
     return {
         "id": user_id,
-        "risk_tolerance": 5,
-        "allow_long": True,
-        "allow_short": False,
-        "allow_options": False,
-        "allow_crypto": False,
-        "allow_futures": False,
-        "max_position_size_pct": 10.0,
-        # Refresh control fields
-        "default_refresh_minutes": 15,
-        "watchlist_refresh_override": None,
-        "portfolio_refresh_override": None,
-        "news_refresh_override": None,
-        "news_lookback_hours": DEFAULT_NEWS_LOOKBACK_HOURS,
-        "news_max_articles": DEFAULT_NEWS_MAX_ARTICLES,
-        "frontend_poll_interval": 30,
-        # Legacy watchlist fields
-        "watchlist_refresh_minutes": 15,
-        "watchlist_auto_expand": False,
-        "watchlist_price_weight": 50.0,
-        "watchlist_technical_weight": 50.0,
-        "watchlist_show_news": True,
-        "display_timezone": "America/New_York",
+        **DEFAULT_PREFERENCES,
         "created_at": datetime.now(UTC),
         "updated_at": datetime.now(UTC),
     }
@@ -317,33 +368,7 @@ def _get_or_create_preferences() -> dict[str, str | int | float | bool | datetim
 async def get_preferences() -> PreferencesResponse:
     """Get user's risk tolerance and trade preferences."""
     prefs = await run_in_threadpool(_get_or_create_preferences)
-
-    return PreferencesResponse(
-        risk_tolerance=cast(int, prefs["risk_tolerance"]),
-        allow_long=cast(bool, prefs["allow_long"]),
-        allow_short=cast(bool, prefs["allow_short"]),
-        allow_options=cast(bool, prefs["allow_options"]),
-        allow_crypto=cast(bool, prefs["allow_crypto"]),
-        allow_futures=cast(bool, prefs["allow_futures"]),
-        max_position_size_pct=cast(float, prefs["max_position_size_pct"]),
-        # Refresh control fields
-        default_refresh_minutes=cast(int, prefs["default_refresh_minutes"]),
-        watchlist_refresh_override=cast(int | None, prefs.get("watchlist_refresh_override")),
-        portfolio_refresh_override=cast(int | None, prefs.get("portfolio_refresh_override")),
-        news_refresh_override=cast(int | None, prefs.get("news_refresh_override")),
-        news_lookback_hours=cast(
-            int, prefs.get("news_lookback_hours", DEFAULT_NEWS_LOOKBACK_HOURS)
-        ),
-        news_max_articles=cast(int, prefs.get("news_max_articles", DEFAULT_NEWS_MAX_ARTICLES)),
-        frontend_poll_interval=cast(int, prefs["frontend_poll_interval"]),
-        # Legacy watchlist fields
-        watchlist_refresh_minutes=cast(int, prefs["watchlist_refresh_minutes"]),
-        watchlist_auto_expand=cast(bool, prefs["watchlist_auto_expand"]),
-        watchlist_price_weight=cast(float, prefs["watchlist_price_weight"]),
-        watchlist_technical_weight=cast(float, prefs["watchlist_technical_weight"]),
-        display_timezone=cast(str, prefs["display_timezone"]),
-        watchlist_show_news=cast(bool, prefs.get("watchlist_show_news", True)),
-    )
+    return _dict_to_preferences_response(prefs)
 
 
 @router.post("", response_model=PreferencesResponse)
@@ -451,32 +476,7 @@ async def update_preferences(update: PreferencesUpdate) -> PreferencesResponse:
         )
         conn.commit()  # Commit the update
 
-    return PreferencesResponse(
-        risk_tolerance=cast(int, current["risk_tolerance"]),
-        allow_long=cast(bool, current["allow_long"]),
-        allow_short=cast(bool, current["allow_short"]),
-        allow_options=cast(bool, current["allow_options"]),
-        allow_crypto=cast(bool, current["allow_crypto"]),
-        allow_futures=cast(bool, current["allow_futures"]),
-        max_position_size_pct=cast(float, current["max_position_size_pct"]),
-        # Refresh control fields
-        default_refresh_minutes=cast(int, current["default_refresh_minutes"]),
-        watchlist_refresh_override=cast(int | None, current.get("watchlist_refresh_override")),
-        portfolio_refresh_override=cast(int | None, current.get("portfolio_refresh_override")),
-        news_refresh_override=cast(int | None, current.get("news_refresh_override")),
-        news_lookback_hours=cast(
-            int, current.get("news_lookback_hours", DEFAULT_NEWS_LOOKBACK_HOURS)
-        ),
-        news_max_articles=cast(int, current.get("news_max_articles", DEFAULT_NEWS_MAX_ARTICLES)),
-        frontend_poll_interval=cast(int, current["frontend_poll_interval"]),
-        # Legacy watchlist fields
-        watchlist_refresh_minutes=cast(int, current["watchlist_refresh_minutes"]),
-        watchlist_auto_expand=cast(bool, current["watchlist_auto_expand"]),
-        watchlist_price_weight=cast(float, current["watchlist_price_weight"]),
-        watchlist_technical_weight=cast(float, current["watchlist_technical_weight"]),
-        display_timezone=cast(str, current["display_timezone"]),
-        watchlist_show_news=cast(bool, current.get("watchlist_show_news", True)),
-    )
+    return _dict_to_preferences_response(current)
 
 
 @router.get("/scoring-weights", response_model=ScoringWeightsUpdate)
