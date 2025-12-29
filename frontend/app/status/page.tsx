@@ -2,11 +2,7 @@
 
 import { useState, useEffect } from "react";
 import {
-    RefreshCw,
     Wifi,
-    WifiOff,
-    Radio,
-    Clock3,
     Newspaper,
 } from "lucide-react";
 import "react-grid-layout/css/styles.css";
@@ -47,6 +43,7 @@ import {
 import { PageHeader } from "@/components/shared/PageHeader";
 import { SectionCard } from "@/components/shared/SectionCard";
 import { PageContainer } from "@/components/shared/PageContainer";
+import { getConnectionBadge, getConnectionBanner } from "@/lib/utils/connectionBadge";
 
 // Storage key for realtime preference
 const REALTIME_STORAGE_KEY = "status.realtimeEnabled";
@@ -185,44 +182,9 @@ export default function StatusPage() {
         }
     };
 
-    // Connection state badge (only shown when realtime is enabled)
-    const getConnectionBadge = () => {
-        if (!realtimeEnabled) {
-            return {
-                icon: <RefreshCw className="h-3 w-3" />,
-                text: "Polling",
-                variant: "secondary" as const,
-            };
-        }
-        switch (connectionState) {
-            case "connected":
-                return {
-                    icon: <Wifi className="h-3 w-3" />,
-                    text: "Live",
-                    variant: "default" as const,
-                };
-            case "connecting":
-                return {
-                    icon: <Radio className="h-3 w-3 animate-pulse" />,
-                    text: "Connecting",
-                    variant: "secondary" as const,
-                };
-            case "disconnected":
-                return {
-                    icon: <WifiOff className="h-3 w-3" />,
-                    text: "Disconnected",
-                    variant: "destructive" as const,
-                };
-            case "fallback":
-                return {
-                    icon: <RefreshCw className="h-3 w-3" />,
-                    text: "Polling",
-                    variant: "secondary" as const,
-                };
-        }
-    };
-
-    const connectionBadge = getConnectionBadge();
+    // Connection state badge and banner (using extracted utility)
+    const connectionBadge = getConnectionBadge(connectionState, realtimeEnabled);
+    const connectionBanner = getConnectionBanner(connectionState, realtimeEnabled, isDataStale);
 
     const headerActions = (
         <div className="flex flex-wrap items-center gap-3">
@@ -261,38 +223,6 @@ export default function StatusPage() {
             )}
         </div>
     );
-
-    const connectionBanner = (() => {
-        if (!realtimeEnabled) return null;
-        if (connectionState === "disconnected") {
-            return {
-                tone: "danger" as const,
-                title: "Live stream disconnected",
-                description:
-                    "We lost connection to the SSE stream. Reconnect to resume real-time updates.",
-                icon: <WifiOff className="h-4 w-4 text-loss" />,
-            };
-        }
-        if (connectionState === "fallback") {
-            return {
-                tone: "warning" as const,
-                title: "Live stream unavailable",
-                description:
-                    "Showing backup polling data (30s interval). Retry the live stream for lower latency.",
-                icon: <Radio className="h-4 w-4 text-accent" />,
-            };
-        }
-        if (connectionState === "connected" && isDataStale) {
-            return {
-                tone: "warning" as const,
-                title: "No live events detected",
-                description:
-                    "We haven't received new status events for 10 seconds. Refresh the stream to ensure accuracy.",
-                icon: <Clock3 className="h-4 w-4 text-accent" />,
-            };
-        }
-        return null;
-    })();
 
     const formatDateTime = (value?: string | null) =>
         value ? new Date(value).toLocaleString() : "—";
