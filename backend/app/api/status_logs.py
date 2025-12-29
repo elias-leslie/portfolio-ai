@@ -552,9 +552,9 @@ async def set_log_level(request: SetLogLevelRequest) -> SetLogLevelResponse:
         # Run script to update systemd configs
         # Script uses sudo internally for tee and systemctl
         # Requires sudoers rule for passwordless execution
-        script_path = "/home/kasadis/portfolio-ai/scripts/set-log-level.sh"
+        script_path = Path(__file__).parent.parent.parent / "scripts" / "set-log-level.sh"
         result = subprocess.run(
-            ["bash", script_path, level],
+            ["bash", str(script_path), level],
             capture_output=True,
             text=True,
             timeout=30,
