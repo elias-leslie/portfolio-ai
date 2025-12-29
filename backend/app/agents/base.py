@@ -48,6 +48,13 @@ class AgentRunResult(TypedDict, total=False):
     run_id: str
 
 
+class ToolExecutionResult(TypedDict):
+    """Result of executing and recording a tool call."""
+
+    result: object
+    duration_ms: int
+
+
 class Agent(ABC):
     """Base class for AI agents.
 
@@ -180,13 +187,54 @@ class Agent(ABC):
             "run_id": run_id,
         }
 
-    def _process_tool_calls(
+    def _execute_and_record_tool(
+        self,
+        run_id: str,
+        tool_name: str,
+        tool_params: ToolInputDict,
+        tool_calls_made: list[ToolCallRecord],
+    ) -> ToolExecutionResult:
+        """Execute a tool and record the call in the database.
+
+        This is the core tool execution logic shared by both Anthropic API
+        and LLM client processing paths.
+
+        Args:
+            run_id: Unique run identifier
+            tool_name: Name of the tool to execute
+            tool_params: Parameters to pass to the tool
+            tool_calls_made: List to append tool call record to (modified in place)
+
+        Returns:
+            ToolExecutionResult with result and duration_ms
+        """
+        tool_start = datetime.now(UTC)
+
+        # Execute the tool
+        result = self.execute_tool(tool_name, tool_params)
+
+        tool_end = datetime.now(UTC)
+        duration_ms = int((tool_end - tool_start).total_seconds() * 1000)
+
+        # Record in database
+        self._record_tool_call(run_id, tool_name, tool_params, result, duration_ms)
+
+        # Append to accumulated records
+        tool_calls_made.append({
+            "name": tool_name,
+            "input": tool_params,
+            "result": result,
+        })
+
+        return {"result": result, "duration_ms": duration_ms}
+
+    def _process_tool_calls_anthropic(
         self,
         response: object,
         run_id: str,
         tool_calls_made: list[ToolCallRecord],
     ) -> tuple[list[object], list[dict[str, object]]]:
-        """Process tool calls from API response.
+        """Process tool calls from Anthropic API response.
 
         Args:
             response: Anthropic API response with tool_use blocks
@@ -203,26 +251,19 @@ class Agent(ABC):
             assistant_content.append(block)
 
             if block.type == "tool_use":
-                tool_start = datetime.now(UTC)
                 tool_input = cast(ToolInputDict, block.input)
 
-                # Execute tool
-                result = self.execute_tool(block.name, tool_input)
+                # Execute and record using shared helper
+                exec_result = self._execute_and_record_tool(
+                    run_id, block.name, tool_input, tool_calls_made
+                )
 
-                tool_end = datetime.now(UTC)
-                duration_ms = int((tool_end - tool_start).total_seconds() * 1000)
-
-                # Record tool call
-                self._record_tool_call(run_id, block.name, tool_input, result, duration_ms)
-
-                tool_calls_made.append({"name": block.name, "input": tool_input, "result": result})
-
-                # Add tool result to conversation
+                # Add tool result to conversation (Anthropic format)
                 tool_results.append(
                     {
                         "type": "tool_result",
                         "tool_use_id": block.id,
-                        "content": json.dumps(result, default=json_serializer),
+                        "content": json.dumps(exec_result["result"], default=json_serializer),
                     }
                 )
 
@@ -357,7 +398,7 @@ class Agent(ABC):
                 )
 
                 # Process tool calls and format results for next turn
-                tool_results = self._process_tool_calls(
+                tool_results = self._process_tool_calls_llm(
                     run_id, response.tool_calls, tool_calls_made
                 )
                 current_prompt = self._format_tool_results(tool_results)
@@ -448,7 +489,7 @@ class Agent(ABC):
                 )
 
             if response.stop_reason == "tool_use":
-                assistant_content, tool_results = self._process_tool_calls(
+                assistant_content, tool_results = self._process_tool_calls_anthropic(
                     response, run_id, tool_calls_made
                 )
 
@@ -481,16 +522,16 @@ class Agent(ABC):
             "run_id": run_id,
         }
 
-    def _process_tool_calls(
+    def _process_tool_calls_llm(
         self,
         run_id: str,
         tool_calls: list[dict[str, object]],
         tool_calls_made: list[ToolCallRecord],
     ) -> list[dict[str, object]]:
-        """Process a batch of tool calls and return results.
+        """Process a batch of tool calls from LLM client and return results.
 
-        Executes each tool call, records it in the database, and returns
-        formatted results for the next conversation turn.
+        Executes each tool call, stores conversation messages, records in database,
+        and returns formatted results for the next conversation turn.
 
         Args:
             run_id: Current agent run ID
@@ -505,9 +546,8 @@ class Agent(ABC):
         for tool_call in tool_calls:
             tool_name = str(tool_call["name"])
             tool_params = cast(ToolInputDict, tool_call["parameters"])
-            tool_start = datetime.now(UTC)
 
-            # Store tool call message
+            # Store tool call message (before execution)
             self._store_conversation_message(
                 run_id,
                 "tool_call",
@@ -518,38 +558,25 @@ class Agent(ABC):
                 metadata={"tool_name": tool_name},
             )
 
-            # Execute tool
-            result = self.execute_tool(tool_name, tool_params)
-
-            tool_end = datetime.now(UTC)
-            duration_ms = int((tool_end - tool_start).total_seconds() * 1000)
+            # Execute and record using shared helper
+            exec_result = self._execute_and_record_tool(
+                run_id, tool_name, tool_params, tool_calls_made
+            )
 
             # Store tool result message (truncate long results)
-            result_str = json.dumps(result, default=json_serializer)
+            result_str = json.dumps(exec_result["result"], default=json_serializer)
             self._store_conversation_message(
                 run_id,
                 "tool_result",
                 result_str[:TOOL_RESULT_TRUNCATE],
-                metadata={"tool_name": tool_name, "duration_ms": duration_ms},
-            )
-
-            # Record tool call in database
-            self._record_tool_call(run_id, tool_name, tool_params, result, duration_ms)
-
-            # Append to accumulated records
-            tool_calls_made.append(
-                {
-                    "name": tool_name,
-                    "input": tool_params,
-                    "result": result,
-                }
+                metadata={"tool_name": tool_name, "duration_ms": exec_result["duration_ms"]},
             )
 
             tool_results.append(
                 {
                     "name": tool_name,
                     "parameters": tool_params,
-                    "result": result,
+                    "result": exec_result["result"],
                 }
             )
 

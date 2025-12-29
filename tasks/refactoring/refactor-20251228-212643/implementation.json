@@ -1,0 +1,574 @@
+{
+  "meta": {
+    "title": "Full Codebase Refactor - December 2025",
+    "created": "2025-12-28",
+    "session_id": "refactor-20251228-212643",
+    "targets_analyzed": 10,
+    "total_issues_found": 108,
+    "high_severity_count": 32,
+    "medium_severity_count": 58,
+    "low_severity_count": 18
+  },
+  "phases": [
+    {
+      "id": 1,
+      "name": "DRY Violations - Extract Duplicate Code",
+      "goal": "Eliminate code duplication by extracting shared helpers and utilities",
+      "tasks": [
+        {
+          "id": "1.1",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Extract duplicate tool execution logic in agents/base.py",
+          "severity": "high",
+          "confidence": 0.95,
+          "files_affected": ["backend/app/agents/base.py"],
+          "steps": [
+            "Read backend/app/agents/base.py lines 183-229 and 484-556",
+            "Identify common logic in both _process_tool_calls variants",
+            "Create private method _execute_and_record_tool(run_id, tool_name, tool_params, tool_calls_made) -> tuple[result, duration_ms]",
+            "Update both _process_tool_calls methods to use the helper",
+            "Run pytest tests/unit/agents/ to verify no regressions"
+          ],
+          "verification": "pytest tests/unit/agents/ -v --tb=short",
+          "passes": false
+        },
+        {
+          "id": "1.2",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Extract duplicate market indicators fetching in market.py",
+          "severity": "medium",
+          "confidence": 0.88,
+          "files_affected": ["backend/app/api/market.py"],
+          "steps": [
+            "Read backend/app/api/market.py lines 102-155 and 200-243",
+            "Create helper _fetch_core_market_data() returning typed dict with sp500_data, vix_data, tnx_data, dxy_data, sector_data",
+            "Update get_market_conditions and get_market_intelligence to use helper",
+            "Run pytest tests/api/ -k market to verify"
+          ],
+          "verification": "pytest tests/api/ -k market -v --tb=short",
+          "passes": false
+        },
+        {
+          "id": "1.3",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Extract duplicate date formatting in market.py",
+          "severity": "medium",
+          "confidence": 0.84,
+          "files_affected": ["backend/app/api/market.py", "backend/app/utils/formatters.py"],
+          "steps": [
+            "Read backend/app/api/market.py and find all date type handling (lines 489-502, 571-580, 767-773, 814-822)",
+            "Read backend/app/utils/formatters.py to check for existing date utilities",
+            "Create format_db_date(value) -> str function in formatters.py if not exists",
+            "Replace all 4 occurrences with the utility call",
+            "Run ruff check backend/app/api/market.py"
+          ],
+          "verification": "ruff check backend/app/api/market.py && pytest tests/api/ -k market -v --tb=short",
+          "passes": false
+        },
+        {
+          "id": "1.4",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Extract duplicate strategy workflow calls in strategy_monitoring_tasks.py",
+          "severity": "high",
+          "confidence": 0.90,
+          "files_affected": ["backend/app/tasks/strategy_monitoring_tasks.py"],
+          "steps": [
+            "Read backend/app/tasks/strategy_monitoring_tasks.py",
+            "Find _run_strategy_workflow helper and all 4 asyncio.run(strategy_research_workflow(...)) calls",
+            "Refactor all 4 locations to use _run_strategy_workflow consistently",
+            "Standardize error handling across all usages",
+            "Run pytest tests/tasks/ -k strategy to verify"
+          ],
+          "verification": "pytest tests/tasks/ -k strategy -v --tb=short",
+          "passes": false
+        },
+        {
+          "id": "1.5",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Extract duplicate dual-write pattern in reference_tasks.py",
+          "severity": "high",
+          "confidence": 0.95,
+          "files_affected": ["backend/app/tasks/reference_tasks.py"],
+          "steps": [
+            "Read backend/app/tasks/reference_tasks.py lines 175-232, 739-786, 888-921",
+            "Create helper _dual_write_metrics(conn, base_table, metrics_table, symbol, as_of_date, metrics_dict, conflict_keys)",
+            "Replace all 3 occurrences with the helper",
+            "Run pytest tests/tasks/ -k reference to verify"
+          ],
+          "verification": "pytest tests/tasks/ -k reference -v --tb=short",
+          "passes": false
+        },
+        {
+          "id": "1.6",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Extract duplicate task boilerplate in reference_tasks.py",
+          "severity": "medium",
+          "confidence": 0.88,
+          "files_affected": ["backend/app/tasks/reference_tasks.py"],
+          "steps": [
+            "Read backend/app/tasks/reference_tasks.py",
+            "Identify ~40 lines of duplicated boilerplate across 5 Celery tasks",
+            "Create _get_watchlist_or_early_return(task_id, storage) helper",
+            "Update all 5 tasks to use the helper for early return pattern",
+            "Run pytest tests/tasks/ -k reference"
+          ],
+          "verification": "pytest tests/tasks/ -k reference -v --tb=short",
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Long Method Extraction",
+      "goal": "Break down long methods into smaller, focused functions",
+      "tasks": [
+        {
+          "id": "2.1",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Extract methods from _run_with_llm_client in agents/base.py",
+          "severity": "high",
+          "confidence": 0.92,
+          "files_affected": ["backend/app/agents/base.py"],
+          "steps": [
+            "Read backend/app/agents/base.py lines 275-416",
+            "Extract _handle_llm_iteration_response(response, run_id, started_at, tool_calls_made, iteration, total_token_usage)",
+            "Extract _accumulate_token_usage(response, total_token_usage)",
+            "Extract _update_provider_metadata(response, run_id)",
+            "Reduce main loop to 15-20 lines of orchestration",
+            "Run pytest tests/unit/agents/ to verify"
+          ],
+          "verification": "pytest tests/unit/agents/ -v --tb=short",
+          "passes": false
+        },
+        {
+          "id": "2.2",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Extract methods from review_strategy_signal in watchlist.py",
+          "severity": "high",
+          "confidence": 0.92,
+          "files_affected": ["backend/app/api/watchlist.py"],
+          "steps": [
+            "Read backend/app/api/watchlist.py lines 632-788",
+            "Extract _store_strategy_review() to consolidate duplicate insert logic",
+            "Extract _build_signal_data_from_snapshot(snapshot_row, symbol)",
+            "Separate dual review and legacy review paths into distinct helper functions",
+            "Run pytest tests/api/ -k watchlist to verify"
+          ],
+          "verification": "pytest tests/api/ -k watchlist -v --tb=short",
+          "passes": false
+        },
+        {
+          "id": "2.3",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Extract methods from evaluate_strategy_performance",
+          "severity": "high",
+          "confidence": 0.95,
+          "files_affected": ["backend/app/tasks/strategy_monitoring_tasks.py"],
+          "steps": [
+            "Read backend/app/tasks/strategy_monitoring_tasks.py lines 62-225",
+            "Extract _evaluate_single_strategy() for individual strategy evaluation",
+            "Extract _should_archive_strategy() for decision logic",
+            "Extract _record_strategy_metrics() for metric recording",
+            "Reduce main function to orchestration logic only",
+            "Run pytest tests/tasks/ -k strategy"
+          ],
+          "verification": "pytest tests/tasks/ -k strategy -v --tb=short",
+          "passes": false
+        },
+        {
+          "id": "2.4",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Extract methods from _calculate_rolling_metrics",
+          "severity": "high",
+          "confidence": 0.92,
+          "files_affected": ["backend/app/tasks/strategy_monitoring_tasks.py"],
+          "steps": [
+            "Read backend/app/tasks/strategy_monitoring_tasks.py lines 227-338",
+            "Extract _calculate_today_metrics(trades)",
+            "Extract _calculate_30d_metrics(trades)",
+            "Extract _calculate_sharpe_ratio(daily_returns)",
+            "Extract _calculate_max_drawdown(trades)",
+            "Run pytest tests/tasks/ -k strategy"
+          ],
+          "verification": "pytest tests/tasks/ -k strategy -v --tb=short",
+          "passes": false
+        },
+        {
+          "id": "2.5",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Extract methods from get_unified_logs in status_logs.py",
+          "severity": "high",
+          "confidence": 0.95,
+          "files_affected": ["backend/app/api/status_logs.py"],
+          "steps": [
+            "Read backend/app/api/status_logs.py lines 336-496",
+            "Extract validate_unified_logs_params()",
+            "Extract build_service_unit_mapping()",
+            "Extract fetch_all_logs()",
+            "Extract calculate_level_counts()",
+            "Extract filter_and_merge_logs()",
+            "Run pytest tests/api/ -k status"
+          ],
+          "verification": "pytest tests/api/ -k status -v --tb=short",
+          "passes": false
+        },
+        {
+          "id": "2.6",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Extract methods from check_entry_health in sitemap_service.py",
+          "severity": "high",
+          "confidence": 0.92,
+          "files_affected": ["backend/app/services/sitemap_service.py"],
+          "steps": [
+            "Read backend/app/services/sitemap_service.py lines 900-1025",
+            "Extract _build_check_url(entry)",
+            "Extract _execute_health_check(url, method, timeout)",
+            "Extract _handle_check_exception(exception, is_probe)",
+            "Consider strategy pattern for probe vs normal checks",
+            "Run pytest tests/services/ -k sitemap"
+          ],
+          "verification": "pytest tests/services/ -k sitemap -v --tb=short",
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Missing Abstractions",
+      "goal": "Create proper abstractions for complex logic currently embedded in API/task layers",
+      "tasks": [
+        {
+          "id": "3.1",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Create WatchlistRepository for database operations",
+          "severity": "high",
+          "confidence": 0.93,
+          "files_affected": ["backend/app/api/watchlist.py", "backend/app/watchlist/repository.py"],
+          "steps": [
+            "Read backend/app/api/watchlist.py for all SQL operations",
+            "Check if backend/app/watchlist/repository.py exists",
+            "Create WatchlistRepository class with methods: create_item(), update_item(), delete_item(), store_review(), check_exists()",
+            "Move all SQL from watchlist.py to repository",
+            "Update watchlist.py to use repository",
+            "Run pytest tests/api/ -k watchlist"
+          ],
+          "verification": "pytest tests/api/ -k watchlist -v --tb=short",
+          "passes": false
+        },
+        {
+          "id": "3.2",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Create market_repository for SQL queries in market.py",
+          "severity": "medium",
+          "confidence": 0.87,
+          "files_affected": ["backend/app/api/market.py", "backend/app/repositories/market_repository.py"],
+          "steps": [
+            "Read backend/app/api/market.py lines 526-562",
+            "Create backend/app/repositories/market_repository.py if not exists",
+            "Add methods get_news_sentiment_hourly(days) and get_news_sentiment_daily(days)",
+            "Move SQL queries from endpoint to repository",
+            "Update market.py to use repository",
+            "Run pytest tests/api/ -k market"
+          ],
+          "verification": "pytest tests/api/ -k market -v --tb=short",
+          "passes": false
+        },
+        {
+          "id": "3.3",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Extract rate limiter utility from strategy_monitoring_tasks.py",
+          "severity": "medium",
+          "confidence": 0.87,
+          "files_affected": ["backend/app/tasks/strategy_monitoring_tasks.py", "backend/app/utils/rate_limiter.py"],
+          "steps": [
+            "Read backend/app/tasks/strategy_monitoring_tasks.py lines 822-843",
+            "Create backend/app/utils/rate_limiter.py if not exists",
+            "Implement check_and_increment_daily_limit(key, max_count) function",
+            "Move Redis rate limiting logic to utility",
+            "Update strategy_monitoring_tasks.py to use utility",
+            "Run pytest tests/tasks/ -k strategy"
+          ],
+          "verification": "pytest tests/tasks/ -k strategy -v --tb=short",
+          "passes": false
+        },
+        {
+          "id": "3.4",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Create HealthCheckStrategy abstraction in sitemap_service.py",
+          "severity": "high",
+          "confidence": 0.91,
+          "files_affected": ["backend/app/services/sitemap_service.py", "backend/app/services/health_check_strategies.py"],
+          "steps": [
+            "Read backend/app/services/sitemap_service.py lines 85-174",
+            "Create backend/app/services/health_check_strategies.py",
+            "Create HealthCheckStrategy class with methods match_pattern(), should_skip(), should_probe()",
+            "Move pattern lists as class attributes",
+            "Update sitemap_service.py to use strategy",
+            "Run pytest tests/services/ -k sitemap"
+          ],
+          "verification": "pytest tests/services/ -k sitemap -v --tb=short",
+          "passes": false
+        },
+        {
+          "id": "3.5",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Move SQL queries from strategy_monitoring_tasks to strategy_storage",
+          "severity": "medium",
+          "confidence": 0.86,
+          "files_affected": ["backend/app/tasks/strategy_monitoring_tasks.py", "backend/app/strategies/storage.py"],
+          "steps": [
+            "Read backend/app/tasks/strategy_monitoring_tasks.py lines 558-596 and 690-706",
+            "Read backend/app/strategies/storage.py for existing methods",
+            "Add get_symbols_needing_strategies(max_symbols, include_underperforming) method",
+            "Add get_underperforming_strategies(performance_threshold, limit) method",
+            "Update strategy_monitoring_tasks.py to use storage methods",
+            "Run pytest tests/tasks/ -k strategy"
+          ],
+          "verification": "pytest tests/tasks/ -k strategy -v --tb=short",
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Frontend Component Extraction",
+      "goal": "Break down god components into focused sub-components and hooks",
+      "tasks": [
+        {
+          "id": "4.1",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Extract custom hooks from AgentPanel.tsx",
+          "severity": "high",
+          "confidence": 0.95,
+          "files_affected": ["frontend/components/agents/AgentPanel.tsx", "frontend/components/agents/hooks/useWebSocketConnection.ts", "frontend/components/agents/hooks/useSessionManagement.ts"],
+          "steps": [
+            "Read frontend/components/agents/AgentPanel.tsx",
+            "Create frontend/components/agents/hooks/ directory if not exists",
+            "Extract useWebSocketConnection hook (lines 212-302)",
+            "Extract useSessionManagement hook (lines 132-347)",
+            "Update AgentPanel to use the new hooks",
+            "Run npm run lint in frontend"
+          ],
+          "verification": "cd frontend && npm run lint && npm run build",
+          "passes": false
+        },
+        {
+          "id": "4.2",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Extract sub-components from AgentPanel.tsx",
+          "severity": "high",
+          "confidence": 0.88,
+          "files_affected": ["frontend/components/agents/AgentPanel.tsx", "frontend/components/agents/SessionsPanel.tsx", "frontend/components/agents/ChatInput.tsx"],
+          "steps": [
+            "Read frontend/components/agents/AgentPanel.tsx lines 467-865",
+            "Extract AgentPanelHeader component (lines 472-582)",
+            "Extract SessionsPanel component (lines 591-683)",
+            "Extract ChatInput component (lines 775-828)",
+            "Update AgentPanel to compose sub-components",
+            "Run npm run lint in frontend"
+          ],
+          "verification": "cd frontend && npm run lint && npm run build",
+          "passes": false
+        },
+        {
+          "id": "4.3",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Extract formatting helpers from MaintenanceTable.tsx",
+          "severity": "medium",
+          "confidence": 0.84,
+          "files_affected": ["frontend/components/status/MaintenanceTable.tsx", "frontend/lib/maintenance/formatters.ts"],
+          "steps": [
+            "Read frontend/components/status/MaintenanceTable.tsx lines 408-464",
+            "Create frontend/lib/maintenance/ directory if not exists",
+            "Create formatters.ts with formatSize, formatLastRun, getStatusIcon, getCategoryBadge functions",
+            "Update MaintenanceTable to import from formatters.ts",
+            "Run npm run lint in frontend"
+          ],
+          "verification": "cd frontend && npm run lint && npm run build",
+          "passes": false
+        },
+        {
+          "id": "4.4",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Extract useMaintenanceTasks hook from MaintenanceTable.tsx",
+          "severity": "high",
+          "confidence": 0.90,
+          "files_affected": ["frontend/components/status/MaintenanceTable.tsx", "frontend/lib/hooks/useMaintenanceTasks.ts"],
+          "steps": [
+            "Read frontend/components/status/MaintenanceTable.tsx lines 128-186",
+            "Create frontend/lib/hooks/useMaintenanceTasks.ts",
+            "Move task building useMemo logic to the hook",
+            "Extract createTask factory to a separate utility",
+            "Update MaintenanceTable to use the hook",
+            "Run npm run lint in frontend"
+          ],
+          "verification": "cd frontend && npm run lint && npm run build",
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Complex Conditional Simplification",
+      "goal": "Simplify complex conditional logic with early returns, strategies, or lookup tables",
+      "tasks": [
+        {
+          "id": "5.1",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Simplify stop_reason handling in agents/base.py",
+          "severity": "medium",
+          "confidence": 0.84,
+          "files_affected": ["backend/app/agents/base.py"],
+          "steps": [
+            "Read backend/app/agents/base.py lines 332-398",
+            "Create _handle_stop_reason(stop_reason, response, run_id, ...) dispatch method",
+            "Create _handle_end_turn(), _handle_tool_use(), _handle_unexpected_stop() helpers",
+            "Update both _run_with_llm_client and _run_with_anthropic_api to use dispatch",
+            "Run pytest tests/unit/agents/"
+          ],
+          "verification": "pytest tests/unit/agents/ -v --tb=short",
+          "passes": false
+        },
+        {
+          "id": "5.2",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Simplify archival decision logic in strategy_monitoring_tasks.py",
+          "severity": "medium",
+          "confidence": 0.85,
+          "files_affected": ["backend/app/tasks/strategy_monitoring_tasks.py"],
+          "steps": [
+            "Read backend/app/tasks/strategy_monitoring_tasks.py lines 124-127, 151-155",
+            "Create _should_archive_strategy(performance_ratio, days_since_activation) function",
+            "Add named constants PERFORMANCE_RATIO_THRESHOLD, MIN_DAYS_FOR_ARCHIVE",
+            "Update evaluate_strategy_performance to use helper",
+            "Run pytest tests/tasks/ -k strategy"
+          ],
+          "verification": "pytest tests/tasks/ -k strategy -v --tb=short",
+          "passes": false
+        },
+        {
+          "id": "5.3",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Extract input placeholder logic in AgentPanel.tsx",
+          "severity": "medium",
+          "confidence": 0.84,
+          "files_affected": ["frontend/components/agents/AgentPanel.tsx"],
+          "steps": [
+            "Read frontend/components/agents/AgentPanel.tsx lines 783-790",
+            "Create getInputPlaceholder(pendingPermission, currentSessionId, isConnected, agentMode) function",
+            "Replace nested ternaries with function call",
+            "Run npm run lint in frontend"
+          ],
+          "verification": "cd frontend && npm run lint && npm run build",
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Final Verification",
+      "goal": "Run comprehensive tests and verify no regressions",
+      "tasks": [
+        {
+          "id": "6.1",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": false,
+          "description": "Run full backend test suite",
+          "severity": "high",
+          "confidence": 1.0,
+          "files_affected": [],
+          "steps": [
+            "Run full pytest suite: pytest tests/ -v --tb=short",
+            "Check for any failures",
+            "If failures, create fix tasks"
+          ],
+          "verification": "cd backend && .venv/bin/pytest tests/ -v --tb=short",
+          "passes": false
+        },
+        {
+          "id": "6.2",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": false,
+          "description": "Run frontend build and lint",
+          "severity": "high",
+          "confidence": 1.0,
+          "files_affected": [],
+          "steps": [
+            "Run npm run lint",
+            "Run npm run build",
+            "Check for any errors"
+          ],
+          "verification": "cd frontend && npm run lint && npm run build",
+          "passes": false
+        },
+        {
+          "id": "6.3",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": false,
+          "description": "Run type checking",
+          "severity": "high",
+          "confidence": 1.0,
+          "files_affected": [],
+          "steps": [
+            "Run mypy on backend",
+            "Run tsc on frontend",
+            "Check for type errors"
+          ],
+          "verification": "cd backend && .venv/bin/mypy app/ --no-error-summary && cd ../frontend && npx tsc --noEmit",
+          "passes": false
+        }
+      ]
+    }
+  ]
+}
