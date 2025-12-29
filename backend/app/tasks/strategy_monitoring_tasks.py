@@ -59,6 +59,127 @@ def _run_strategy_workflow(
         return f"Error for {symbol}: {str(e)[:100]}", None
 
 
+def _should_archive_strategy(performance_ratio: float, days_since_activation: int) -> bool:
+    """Determine if a strategy should be archived based on performance.
+
+    Args:
+        performance_ratio: Actual/expected performance ratio
+        days_since_activation: Days since strategy was activated
+
+    Returns:
+        True if strategy should be archived
+    """
+    return (
+        performance_ratio < PERFORMANCE_RATIO_THRESHOLD
+        and days_since_activation > DEFAULT_ROLLING_WINDOW_DAYS
+    )
+
+
+def _evaluate_single_strategy(
+    strategy: Any,
+    conn: Any,
+    strategy_storage: Any,
+) -> tuple[str | None, bool]:
+    """Evaluate a single strategy and update its metrics.
+
+    Args:
+        strategy: Strategy object to evaluate
+        conn: Database connection
+        strategy_storage: Strategy storage instance
+
+    Returns:
+        Tuple of (result_message_or_none, was_archived)
+    """
+    # Calculate rolling metrics from paper_trade_transactions
+    metrics = _calculate_rolling_metrics(
+        conn, strategy.id, window_days=DEFAULT_ROLLING_WINDOW_DAYS
+    )
+
+    # Compare to expected metrics
+    expected_sharpe = float(strategy.expected_sharpe or 0.0)
+    actual_sharpe = metrics["sharpe_ratio_30d"]
+    performance_ratio = actual_sharpe / expected_sharpe if expected_sharpe > 0 else 0
+
+    # Determine status
+    days_since_activation = (
+        (datetime.now() - strategy.activation_date).days
+        if strategy.activation_date
+        else 0
+    )
+
+    archived = False
+    result_msg: str | None = None
+
+    # Decision logic: Archive if underperforming for >30 days
+    if _should_archive_strategy(performance_ratio, days_since_activation):
+        reason = (
+            f"Underperforming: {actual_sharpe:.2f} Sharpe vs "
+            f"{expected_sharpe:.2f} expected ({performance_ratio:.1%})"
+        )
+        strategy_storage.archive_strategy(strategy.id, reason)
+        archived = True
+        result_msg = f"Archived {strategy.name}: {performance_ratio:.1%} of expected performance"
+        logger.warning(
+            "Strategy archived due to underperformance",
+            strategy_id=strategy.id,
+            strategy_name=strategy.name,
+            performance_ratio=performance_ratio,
+        )
+    else:
+        # Update live performance metrics
+        strategy_storage.update_live_performance(
+            strategy_id=strategy.id,
+            trades_count=metrics["trades_30d"],
+            win_rate=metrics["win_rate_30d"],
+            sharpe_ratio=actual_sharpe,
+        )
+
+    # Record daily performance
+    status: Literal["active", "underperforming"] = (
+        "underperforming" if performance_ratio < PERFORMANCE_RATIO_THRESHOLD else "active"
+    )
+    strategy_storage.record_daily_performance(
+        strategy_id=strategy.id,
+        date=date.today(),
+        trades_today=metrics["trades_today"],
+        wins_today=metrics["wins_today"],
+        losses_today=metrics["losses_today"],
+        pnl_today=Decimal(str(metrics["pnl_today"])),
+        trades_30d=metrics["trades_30d"],
+        win_rate_30d=metrics["win_rate_30d"],
+        sharpe_ratio_30d=actual_sharpe,
+        max_drawdown_30d=metrics["max_drawdown_30d"],
+        status=status,
+        notes=f"Performance ratio: {performance_ratio:.2f}" if status == "underperforming" else None,
+    )
+
+    logger.info(
+        "Strategy evaluated",
+        strategy_id=strategy.id,
+        strategy_name=strategy.name,
+        trades_30d=metrics["trades_30d"],
+        sharpe_30d=actual_sharpe,
+        performance_ratio=performance_ratio,
+        status=status,
+    )
+
+    # Emit event for downstream triggers (auto-003)
+    from app.tasks.triggers import emit_event
+
+    emit_event(
+        "strategy_performance_updated",
+        {
+            "strategy_id": strategy.id,
+            "symbol": strategy.symbol,
+            "sharpe_30d": actual_sharpe,
+            "performance_ratio": performance_ratio,
+            "status": status,
+        },
+    )
+
+    return result_msg, archived
+
+
 @celery_app.task(name="app.tasks.strategy_monitoring_tasks.evaluate_strategy_performance")
 def evaluate_strategy_performance() -> dict[str, Any]:
     """Evaluate all active strategies and archive underperformers.
@@ -100,99 +221,13 @@ def evaluate_strategy_performance() -> dict[str, Any]:
 
             for strategy in active_strategies:
                 try:
-                    # Calculate rolling metrics from paper_trade_transactions
-                    metrics = _calculate_rolling_metrics(
-                        conn, strategy.id, window_days=DEFAULT_ROLLING_WINDOW_DAYS
+                    result_msg, archived = _evaluate_single_strategy(
+                        strategy, conn, strategy_storage
                     )
-
-                    # Compare to expected metrics
-                    expected_sharpe = float(strategy.expected_sharpe or 0.0)
-                    actual_sharpe = metrics["sharpe_ratio_30d"]
-
-                    performance_ratio = (
-                        actual_sharpe / expected_sharpe if expected_sharpe > 0 else 0
-                    )
-
-                    # Determine status
-                    days_since_activation = (
-                        (datetime.now() - strategy.activation_date).days
-                        if strategy.activation_date
-                        else 0
-                    )
-
-                    # Decision logic: Archive if underperforming for >30 days
-                    if (
-                        performance_ratio < PERFORMANCE_RATIO_THRESHOLD
-                        and days_since_activation > DEFAULT_ROLLING_WINDOW_DAYS
-                    ):
-                        # Underperforming for >30 days → Archive
-                        reason = f"Underperforming: {actual_sharpe:.2f} Sharpe vs {expected_sharpe:.2f} expected ({performance_ratio:.1%})"
-                        strategy_storage.archive_strategy(strategy.id, reason)
+                    if result_msg:
+                        results.append(result_msg)
+                    if archived:
                         archived_count += 1
-                        results.append(
-                            f"Archived {strategy.name}: {performance_ratio:.1%} of expected performance"
-                        )
-                        logger.warning(
-                            "Strategy archived due to underperformance",
-                            strategy_id=strategy.id,
-                            strategy_name=strategy.name,
-                            performance_ratio=performance_ratio,
-                        )
-                    else:
-                        # Update live performance metrics
-                        strategy_storage.update_live_performance(
-                            strategy_id=strategy.id,
-                            trades_count=metrics["trades_30d"],
-                            win_rate=metrics["win_rate_30d"],
-                            sharpe_ratio=actual_sharpe,
-                        )
-
-                    # Record daily performance
-                    status: Literal["active", "underperforming"] = (
-                        "underperforming"
-                        if performance_ratio < PERFORMANCE_RATIO_THRESHOLD
-                        else "active"
-                    )
-                    strategy_storage.record_daily_performance(
-                        strategy_id=strategy.id,
-                        date=date.today(),
-                        trades_today=metrics["trades_today"],
-                        wins_today=metrics["wins_today"],
-                        losses_today=metrics["losses_today"],
-                        pnl_today=Decimal(str(metrics["pnl_today"])),
-                        trades_30d=metrics["trades_30d"],
-                        win_rate_30d=metrics["win_rate_30d"],
-                        sharpe_ratio_30d=actual_sharpe,
-                        max_drawdown_30d=metrics["max_drawdown_30d"],
-                        status=status,
-                        notes=f"Performance ratio: {performance_ratio:.2f}"
-                        if status == "underperforming"
-                        else None,
-                    )
-
-                    logger.info(
-                        "Strategy evaluated",
-                        strategy_id=strategy.id,
-                        strategy_name=strategy.name,
-                        trades_30d=metrics["trades_30d"],
-                        sharpe_30d=actual_sharpe,
-                        performance_ratio=performance_ratio,
-                        status=status,
-                    )
-
-                    # Emit event for downstream triggers (auto-003)
-                    from app.tasks.triggers import emit_event
-
-                    emit_event(
-                        "strategy_performance_updated",
-                        {
-                            "strategy_id": strategy.id,
-                            "symbol": strategy.symbol,
-                            "sharpe_30d": actual_sharpe,
-                            "performance_ratio": performance_ratio,
-                            "status": status,
-                        },
-                    )
 
                 except Exception as e:
                     logger.exception(
