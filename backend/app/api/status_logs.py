@@ -332,6 +332,119 @@ def fetch_journal_logs(
     return []
 
 
+VALID_SERVICES = {"backend", "celery_worker", "celery_beat", "frontend", "redis", "postgresql"}
+VALID_LEVELS = {"CRITICAL", "ERROR", "WARN", "INFO", "DEBUG"}
+
+
+def _validate_log_params(lines: int, service: str | None, level: str | None) -> None:
+    """Validate unified log query parameters.
+
+    Args:
+        lines: Number of log lines requested
+        service: Service filter (or None)
+        level: Level filter (or None)
+
+    Raises:
+        HTTPException: If any parameter is invalid
+    """
+    if lines < 1 or lines > MAX_LOG_LINES:
+        raise HTTPException(status_code=400, detail=f"Lines must be between 1 and {MAX_LOG_LINES}")
+
+    if service and service not in VALID_SERVICES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid service. Must be one of: {', '.join(VALID_SERVICES)}",
+        )
+
+    if level and level not in VALID_LEVELS:
+        raise HTTPException(
+            status_code=400, detail=f"Invalid level. Must be one of: {', '.join(VALID_LEVELS)}"
+        )
+
+
+def _categorize_units(
+    service_units: dict[str, str], service: str | None
+) -> tuple[list[str], list[str]]:
+    """Categorize service units into system and user units.
+
+    Args:
+        service_units: Mapping of service names to unit names
+        service: Optional service filter
+
+    Returns:
+        Tuple of (system_units, user_units) lists
+    """
+    if service:
+        # Single service filter
+        unit = service_units.get(service, "")
+        if service in ["celery_worker", "celery_beat"]:
+            return [], [unit]
+        return [unit], []
+
+    # All services
+    system_units = []
+    user_units = []
+    for svc, unit in service_units.items():
+        if svc in ["celery_worker", "celery_beat"]:
+            user_units.append(unit)
+        else:
+            system_units.append(unit)
+    return system_units, user_units
+
+
+def _count_log_levels(logs: list[UnifiedLogEntry]) -> dict[str, int]:
+    """Count occurrences of each log level.
+
+    Args:
+        logs: List of log entries
+
+    Returns:
+        Dict with counts per level
+    """
+    level_counts: dict[str, int] = {
+        "CRITICAL": 0,
+        "ERROR": 0,
+        "WARN": 0,
+        "INFO": 0,
+        "DEBUG": 0,
+        "UNKNOWN": 0,
+    }
+    for log in logs:
+        level_counts[log.level] = level_counts.get(log.level, 0) + 1
+    return level_counts
+
+
+def _merge_consecutive_logs(logs: list[UnifiedLogEntry]) -> list[UnifiedLogEntry]:
+    """Merge consecutive logs with same timestamp and service.
+
+    Handles multi-line PostgreSQL logs by combining messages.
+
+    Args:
+        logs: List of log entries (already filtered)
+
+    Returns:
+        List with consecutive same-timestamp entries merged
+    """
+    merged_logs: list[UnifiedLogEntry] = []
+    for log in logs:
+        if (
+            merged_logs
+            and merged_logs[-1].timestamp == log.timestamp
+            and merged_logs[-1].service == log.service
+        ):
+            # Same timestamp and service - merge messages
+            merged_logs[-1].message += "\n" + log.message
+            # Upgrade level if new entry has higher severity
+            if LOG_LEVEL_PRIORITY.get(log.level, 0) > LOG_LEVEL_PRIORITY.get(
+                merged_logs[-1].level, 0
+            ):
+                merged_logs[-1].level = log.level
+        else:
+            # Different timestamp or service - add as new entry
+            merged_logs.append(log)
+    return merged_logs
+
+
 @router.get("/unified-logs", response_model=UnifiedLogsResponse)
 async def get_unified_logs(
     lines: int = 500,
@@ -356,22 +469,8 @@ async def get_unified_logs(
     Raises:
         HTTPException: 400 if parameters invalid, 500 if journalctl fails
     """
-    # Validate parameters
-    if lines < 1 or lines > MAX_LOG_LINES:
-        raise HTTPException(status_code=400, detail=f"Lines must be between 1 and {MAX_LOG_LINES}")
-
-    valid_services = {"backend", "celery_worker", "celery_beat", "frontend", "redis", "postgresql"}
-    if service and service not in valid_services:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid service. Must be one of: {', '.join(valid_services)}",
-        )
-
-    valid_levels = {"CRITICAL", "ERROR", "WARN", "INFO", "DEBUG"}
-    if level and level not in valid_levels:
-        raise HTTPException(
-            status_code=400, detail=f"Invalid level. Must be one of: {', '.join(valid_levels)}"
-        )
+    # Validate parameters using helper
+    _validate_log_params(lines, service, level)
 
     try:
         # Map service names to systemd unit names
@@ -384,27 +483,9 @@ async def get_unified_logs(
             "postgresql": "postgresql@16-main",
         }
 
-        # Build journalctl command for system units
-        # Fetch more logs than requested to ensure fair representation across all services
-        fetch_limit = JOURNAL_FETCH_LIMIT  # Fetch up to 10k logs from journald
-
-        system_units = []
-        user_units = []
-
-        for svc, unit in service_units.items():
-            if svc in ["celery_worker", "celery_beat"]:
-                user_units.append(unit)
-            else:
-                system_units.append(unit)
-
-        # Filter if specific service requested
-        if service:
-            if service in ["celery_worker", "celery_beat"]:
-                system_units = []
-                user_units = [service_units[service]]
-            else:
-                user_units = []
-                system_units = [service_units[service]]
+        # Categorize units using helper
+        system_units, user_units = _categorize_units(service_units, service)
+        fetch_limit = JOURNAL_FETCH_LIMIT
 
         # Fetch logs from both system and user units
         logs: list[UnifiedLogEntry] = []
@@ -430,47 +511,16 @@ async def get_unified_logs(
         # Sort by timestamp (chronological order)
         logs.sort(key=lambda x: x.timestamp)
 
-        # Calculate level counts from ALL logs (before filtering)
-        level_counts: dict[str, int] = {
-            "CRITICAL": 0,
-            "ERROR": 0,
-            "WARN": 0,
-            "INFO": 0,
-            "DEBUG": 0,
-            "UNKNOWN": 0,
-        }
-        for log in logs:
-            level_counts[log.level] = level_counts.get(log.level, 0) + 1
+        # Calculate level counts from ALL logs (before filtering) using helper
+        level_counts = _count_log_levels(logs)
 
         # Apply level filter if specified (exact match)
-        if level:
-            # Exact match: only show logs at the specified level
-            filtered_logs = [log for log in logs if log.level == level]
-        else:
-            filtered_logs = logs
+        filtered_logs = [log for log in logs if log.level == level] if level else logs
 
-        # Merge consecutive entries with same timestamp and service (handles multi-line PostgreSQL logs)
-        merged_logs: list[UnifiedLogEntry] = []
-        for log in filtered_logs:
-            if (
-                merged_logs
-                and merged_logs[-1].timestamp == log.timestamp
-                and merged_logs[-1].service == log.service
-            ):
-                # Same timestamp and service - merge messages
-                merged_logs[-1].message += "\n" + log.message
-                # Upgrade level if new entry has higher severity
-                if LOG_LEVEL_PRIORITY.get(log.level, 0) > LOG_LEVEL_PRIORITY.get(
-                    merged_logs[-1].level, 0
-                ):
-                    merged_logs[-1].level = log.level
-            else:
-                # Different timestamp or service - add as new entry
-                merged_logs.append(log)
+        # Merge consecutive entries using helper
+        merged_logs = _merge_consecutive_logs(filtered_logs)
 
         # Limit to requested number of entries (take most recent)
-        # We fetched a large sample (10k) to ensure all services are represented,
-        # now return only what the user requested
         limited_logs = merged_logs[-lines:] if len(merged_logs) > lines else merged_logs
 
         return UnifiedLogsResponse(
