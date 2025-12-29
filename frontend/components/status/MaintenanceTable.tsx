@@ -47,9 +47,15 @@ import {
   TASK_CONFIGS,
   DB_TASK_DIALOG_CONFIGS,
   getTaskIcon,
-  type TaskCategory,
   type TaskConfig,
 } from "./maintenanceTaskConfig";
+import {
+  formatSize,
+  formatLastRun,
+  getStatusIcon,
+  getCategoryBadge,
+  type TaskCategory,
+} from "@/lib/maintenance/formatters";
 
 // Unified task interface
 interface MaintenanceTask {
