@@ -174,8 +174,8 @@
             "Update _aggregate_technical_analysis to use helpers",
             "Run python -c 'from app.strategies.research_aggregator import ResearchAggregator'"
           ],
-          "verification": "python -c 'from app.strategies.research_aggregator import ResearchAggregator'",
-          "passes": false
+          "verification": "python -c 'from app.strategies.research_aggregator import ResearchAggregationService'",
+          "passes": true
         }
       ]
     },

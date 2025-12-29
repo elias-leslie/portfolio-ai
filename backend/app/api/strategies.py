@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from app.agents.workflows.strategy_research_workflow import strategy_research_workflow
 from app.logging_config import get_logger
 from app.storage.connection import get_connection_manager
+from app.strategies.performance_utils import calculate_performance_status
 from app.strategies.storage import get_strategy_storage
 from app.tasks.strategy_monitoring_tasks import weekly_strategy_generation
 from app.tasks.strategy_signal_tasks import generate_signal_for_strategy, store_signal
@@ -144,20 +145,8 @@ async def list_strategies(
             expected = float(s.expected_sharpe) if s.expected_sharpe else None
             live = float(s.live_sharpe_ratio) if s.live_sharpe_ratio else None
 
-            # Calculate performance variance (Task 4.2)
-            variance: float | None = None
-            flag: Literal["exceeding", "meeting", "underperforming", "no_data"] | None = None
-
-            if s.live_trades_count == 0:
-                flag = "no_data"
-            elif expected and expected > 0 and live is not None:
-                variance = live / expected
-                if variance >= 0.9:
-                    flag = "exceeding"
-                elif variance >= 0.7:
-                    flag = "meeting"
-                else:
-                    flag = "underperforming"
+            # Calculate performance variance using shared utility
+            variance, flag = calculate_performance_status(expected, live, s.live_trades_count)
 
             items.append(
                 StrategyListItem(
@@ -230,24 +219,21 @@ async def get_strategy_summary() -> StrategySummary:
         # Total trades
         total_trades = sum(s.live_trades_count for s in strategies)
 
-        # Performance flags
+        # Performance flags using shared utility
         exceeding = 0
         meeting = 0
         underperforming = 0
 
         for s in strategies:
-            if s.live_trades_count == 0:
-                continue
             expected = float(s.expected_sharpe) if s.expected_sharpe else None
             live = float(s.live_sharpe_ratio) if s.live_sharpe_ratio else None
-            if expected and expected > 0 and live is not None:
-                variance = live / expected
-                if variance >= 0.9:
-                    exceeding += 1
-                elif variance >= 0.7:
-                    meeting += 1
-                else:
-                    underperforming += 1
+            _, flag = calculate_performance_status(expected, live, s.live_trades_count)
+            if flag == "exceeding":
+                exceeding += 1
+            elif flag == "meeting":
+                meeting += 1
+            elif flag == "underperforming":
+                underperforming += 1
 
         return StrategySummary(
             total=total,
