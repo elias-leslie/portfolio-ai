@@ -27,6 +27,58 @@ import type {
     FundamentalSubWeights,
 } from "@/lib/api/preferences";
 
+// State setters type for resetFormState helper
+interface FormStateSetters {
+    setDefaultRefreshMinutes: (v: number) => void;
+    setUseWatchlistOverride: (v: boolean) => void;
+    setWatchlistOverride: (v: number) => void;
+    setUseNewsOverride: (v: boolean) => void;
+    setNewsOverride: (v: number) => void;
+    setNewsLookbackHours: (v: number) => void;
+    setNewsMaxArticles: (v: number) => void;
+    setAutoExpand: (v: boolean) => void;
+    setPriceWeight: (v: number) => void;
+    setTechnicalWeight: (v: number) => void;
+    setShowNews: (v: boolean) => void;
+    setScoreWeights: (v: ScoreWeights) => void;
+    setTechnicalSubWeights: (v: TechnicalSubWeights) => void;
+    setFundamentalSubWeights: (v: FundamentalSubWeights) => void;
+}
+
+/**
+ * Resets all form state to match the provided preferences.
+ * Used by both useEffect (on external preference changes) and handleReset button.
+ */
+function resetFormState(
+    preferences: PreferencesResponse,
+    setters: FormStateSetters
+): void {
+    setters.setDefaultRefreshMinutes(preferences.defaultRefreshMinutes);
+    setters.setUseWatchlistOverride(preferences.watchlistRefreshOverride !== null);
+    setters.setWatchlistOverride(
+        preferences.watchlistRefreshOverride ?? preferences.defaultRefreshMinutes
+    );
+    setters.setUseNewsOverride(preferences.newsRefreshOverride !== null);
+    setters.setNewsOverride(
+        preferences.newsRefreshOverride ?? preferences.defaultRefreshMinutes
+    );
+    setters.setNewsLookbackHours(preferences.newsLookbackHours);
+    setters.setNewsMaxArticles(preferences.newsMaxArticles);
+    setters.setAutoExpand(preferences.watchlistAutoExpand);
+    setters.setPriceWeight(preferences.watchlistPriceWeight);
+    setters.setTechnicalWeight(preferences.watchlistTechnicalWeight);
+    setters.setShowNews(preferences.watchlistShowNews);
+    setters.setScoreWeights(
+        preferences.watchlistScoreWeights ?? DEFAULT_SCORE_WEIGHTS
+    );
+    setters.setTechnicalSubWeights(
+        preferences.technicalSubWeights ?? DEFAULT_TECH_WEIGHTS
+    );
+    setters.setFundamentalSubWeights(
+        preferences.fundamentalSubWeights ?? DEFAULT_FUND_WEIGHTS
+    );
+}
+
 interface WatchlistPreferencesProps {
     preferences: PreferencesResponse;
     onUpdate: (updates: Partial<PreferencesResponse>) => Promise<void>;
@@ -117,23 +169,27 @@ export function WatchlistPreferences({
         // This is the "derive state from props" pattern
     }
 
+    // Setters object for resetFormState helper
+    const formSetters: FormStateSetters = {
+        setDefaultRefreshMinutes,
+        setUseWatchlistOverride,
+        setWatchlistOverride,
+        setUseNewsOverride,
+        setNewsOverride,
+        setNewsLookbackHours,
+        setNewsMaxArticles,
+        setAutoExpand,
+        setPriceWeight,
+        setTechnicalWeight,
+        setShowNews,
+        setScoreWeights,
+        setTechnicalSubWeights,
+        setFundamentalSubWeights,
+    };
+
     // Synchronize when preferences object identity changes (profile switch)
     useEffect(() => {
-        // Only sync if we detect the preferences changed externally
-        setDefaultRefreshMinutes(preferences.defaultRefreshMinutes);
-        setUseWatchlistOverride(preferences.watchlistRefreshOverride !== null);
-        setWatchlistOverride(preferences.watchlistRefreshOverride ?? preferences.defaultRefreshMinutes);
-        setUseNewsOverride(preferences.newsRefreshOverride !== null);
-        setNewsOverride(preferences.newsRefreshOverride ?? preferences.defaultRefreshMinutes);
-        setNewsLookbackHours(preferences.newsLookbackHours);
-        setNewsMaxArticles(preferences.newsMaxArticles);
-        setAutoExpand(preferences.watchlistAutoExpand);
-        setPriceWeight(preferences.watchlistPriceWeight);
-        setTechnicalWeight(preferences.watchlistTechnicalWeight);
-        setShowNews(preferences.watchlistShowNews);
-        setScoreWeights(preferences.watchlistScoreWeights ?? DEFAULT_SCORE_WEIGHTS);
-        setTechnicalSubWeights(preferences.technicalSubWeights ?? DEFAULT_TECH_WEIGHTS);
-        setFundamentalSubWeights(preferences.fundamentalSubWeights ?? DEFAULT_FUND_WEIGHTS);
+        resetFormState(preferences, formSetters);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [preferencesKey]); // Depend on the key, not the full object
 
@@ -207,34 +263,7 @@ export function WatchlistPreferences({
     };
 
     const handleReset = () => {
-        setDefaultRefreshMinutes(preferences.defaultRefreshMinutes);
-        setUseWatchlistOverride(
-            preferences.watchlistRefreshOverride !== null,
-        );
-        setWatchlistOverride(
-            preferences.watchlistRefreshOverride ??
-                preferences.defaultRefreshMinutes,
-        );
-        setUseNewsOverride(preferences.newsRefreshOverride !== null);
-        setNewsOverride(
-            preferences.newsRefreshOverride ??
-                preferences.defaultRefreshMinutes,
-        );
-        setNewsLookbackHours(preferences.newsLookbackHours);
-        setNewsMaxArticles(preferences.newsMaxArticles);
-        setAutoExpand(preferences.watchlistAutoExpand);
-        setPriceWeight(preferences.watchlistPriceWeight);
-        setTechnicalWeight(preferences.watchlistTechnicalWeight);
-        setShowNews(preferences.watchlistShowNews);
-        setScoreWeights(
-            preferences.watchlistScoreWeights ?? DEFAULT_SCORE_WEIGHTS
-        );
-        setTechnicalSubWeights(
-            preferences.technicalSubWeights ?? DEFAULT_TECH_WEIGHTS
-        );
-        setFundamentalSubWeights(
-            preferences.fundamentalSubWeights ?? DEFAULT_FUND_WEIGHTS
-        );
+        resetFormState(preferences, formSetters);
     };
 
     const handleEqualMainWeights = () => {
