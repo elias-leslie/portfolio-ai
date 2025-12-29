@@ -238,7 +238,7 @@
             "Run python -c 'from app.tasks.market_data.fear_greed_pipeline import populate_fear_greed_inputs'"
           ],
           "verification": "python -c 'from app.tasks.market_data.fear_greed_pipeline import populate_fear_greed_inputs'",
-          "passes": false
+          "passes": true
         }
       ]
     },

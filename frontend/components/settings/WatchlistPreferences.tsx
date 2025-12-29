@@ -15,6 +15,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 import { WeightSlider } from "./WeightSlider";
+import {
+    DEFAULT_SCORE_WEIGHTS,
+    DEFAULT_TECH_WEIGHTS,
+    DEFAULT_FUND_WEIGHTS,
+} from "./DEFAULTS";
 import type {
     PreferencesResponse,
     ScoreWeights,
@@ -75,13 +80,13 @@ export function WatchlistPreferences({
 
     // New weight configuration (migration 019)
     const [scoreWeights, setScoreWeights] = useState<ScoreWeights>(
-        preferences.watchlistScoreWeights ?? { price: 33, technical: 33, fundamental: 34 }
+        preferences.watchlistScoreWeights ?? DEFAULT_SCORE_WEIGHTS
     );
     const [technicalSubWeights, setTechnicalSubWeights] = useState<TechnicalSubWeights>(
-        preferences.technicalSubWeights ?? { rsi14: 33, trend: 34, macd: 33 }
+        preferences.technicalSubWeights ?? DEFAULT_TECH_WEIGHTS
     );
     const [fundamentalSubWeights, setFundamentalSubWeights] = useState<FundamentalSubWeights>(
-        preferences.fundamentalSubWeights ?? { valuation: 30, growth: 35, health: 25, sentiment: 10 }
+        preferences.fundamentalSubWeights ?? DEFAULT_FUND_WEIGHTS
     );
     const [showTechnicalSubWeights, setShowTechnicalSubWeights] = useState(false);
     const [showFundamentalSubWeights, setShowFundamentalSubWeights] = useState(false);
@@ -126,9 +131,9 @@ export function WatchlistPreferences({
         setPriceWeight(preferences.watchlistPriceWeight);
         setTechnicalWeight(preferences.watchlistTechnicalWeight);
         setShowNews(preferences.watchlistShowNews);
-        setScoreWeights(preferences.watchlistScoreWeights ?? { price: 33, technical: 33, fundamental: 34 });
-        setTechnicalSubWeights(preferences.technicalSubWeights ?? { rsi14: 33, trend: 34, macd: 33 });
-        setFundamentalSubWeights(preferences.fundamentalSubWeights ?? { valuation: 30, growth: 35, health: 25, sentiment: 10 });
+        setScoreWeights(preferences.watchlistScoreWeights ?? DEFAULT_SCORE_WEIGHTS);
+        setTechnicalSubWeights(preferences.technicalSubWeights ?? DEFAULT_TECH_WEIGHTS);
+        setFundamentalSubWeights(preferences.fundamentalSubWeights ?? DEFAULT_FUND_WEIGHTS);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [preferencesKey]); // Depend on the key, not the full object
 
@@ -148,9 +153,9 @@ export function WatchlistPreferences({
             autoExpand !== preferences.watchlistAutoExpand ||
             priceWeight !== preferences.watchlistPriceWeight ||
             technicalWeight !== preferences.watchlistTechnicalWeight ||
-            JSON.stringify(scoreWeights) !== JSON.stringify(preferences.watchlistScoreWeights ?? { price: 33, technical: 33, fundamental: 34 }) ||
-            JSON.stringify(technicalSubWeights) !== JSON.stringify(preferences.technicalSubWeights ?? { rsi14: 33, trend: 34, macd: 33 }) ||
-            JSON.stringify(fundamentalSubWeights) !== JSON.stringify(preferences.fundamentalSubWeights ?? { valuation: 30, growth: 35, health: 25, sentiment: 10 })
+            JSON.stringify(scoreWeights) !== JSON.stringify(preferences.watchlistScoreWeights ?? DEFAULT_SCORE_WEIGHTS) ||
+            JSON.stringify(technicalSubWeights) !== JSON.stringify(preferences.technicalSubWeights ?? DEFAULT_TECH_WEIGHTS) ||
+            JSON.stringify(fundamentalSubWeights) !== JSON.stringify(preferences.fundamentalSubWeights ?? DEFAULT_FUND_WEIGHTS)
         );
     };
 
@@ -222,22 +227,22 @@ export function WatchlistPreferences({
         setTechnicalWeight(preferences.watchlistTechnicalWeight);
         setShowNews(preferences.watchlistShowNews);
         setScoreWeights(
-            preferences.watchlistScoreWeights ?? { price: 33, technical: 33, fundamental: 34 }
+            preferences.watchlistScoreWeights ?? DEFAULT_SCORE_WEIGHTS
         );
         setTechnicalSubWeights(
-            preferences.technicalSubWeights ?? { rsi14: 33, trend: 34, macd: 33 }
+            preferences.technicalSubWeights ?? DEFAULT_TECH_WEIGHTS
         );
         setFundamentalSubWeights(
-            preferences.fundamentalSubWeights ?? { valuation: 30, growth: 35, health: 25, sentiment: 10 }
+            preferences.fundamentalSubWeights ?? DEFAULT_FUND_WEIGHTS
         );
     };
 
     const handleEqualMainWeights = () => {
-        setScoreWeights({ price: 33, technical: 33, fundamental: 34 });
+        setScoreWeights(DEFAULT_SCORE_WEIGHTS);
     };
 
     const handleEqualTechnicalSubWeights = () => {
-        setTechnicalSubWeights({ rsi14: 33, trend: 34, macd: 33 });
+        setTechnicalSubWeights(DEFAULT_TECH_WEIGHTS);
     };
 
     const handleEqualFundamentalSubWeights = () => {
