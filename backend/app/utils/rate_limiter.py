@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import os
 from datetime import date
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 import redis
 
@@ -21,7 +21,7 @@ class RateLimitResult(NamedTuple):
     limit: int
 
 
-def get_redis_client() -> redis.Redis:
+def get_redis_client() -> redis.Redis[Any]:
     """Get a Redis client instance.
 
     Returns:
@@ -76,7 +76,7 @@ def increment_daily_count(key_prefix: str, expire_seconds: int = 86400 * 2) -> i
     pipe.expire(rate_key, expire_seconds)
     results = pipe.execute()
 
-    return results[0]  # Return the new count
+    return int(results[0])  # Return the new count
 
 
 def check_and_increment_daily_limit(key_prefix: str, max_count: int) -> RateLimitResult:

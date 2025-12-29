@@ -512,7 +512,7 @@ class StrategyStorage:
             last_used_at=row.get("last_used_at"),
         )
 
-    def get_symbols_needing_strategies(self, max_symbols: int) -> list[tuple]:
+    def get_symbols_needing_strategies(self, max_symbols: int) -> list[tuple[Any, ...]]:
         """Get symbols that need strategy generation.
 
         Includes:
@@ -568,7 +568,7 @@ class StrategyStorage:
 
     def get_underperforming_strategies(
         self, performance_threshold: float = 0.9, limit: int = 5
-    ) -> list[tuple]:
+    ) -> list[tuple[Any, ...]]:
         """Get active strategies with performance below threshold.
 
         Args:

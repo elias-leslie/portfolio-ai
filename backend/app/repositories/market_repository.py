@@ -8,7 +8,7 @@ Pattern: Repository handles data access, API layer handles business logic.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from app.storage import PortfolioStorage
@@ -28,7 +28,7 @@ class MarketRepository:
         """
         self.storage = storage
 
-    def get_news_sentiment_hourly(self, days: int) -> list[tuple]:
+    def get_news_sentiment_hourly(self, days: int) -> list[tuple[Any, ...]]:
         """Get hourly aggregated news sentiment data.
 
         Args:
@@ -56,7 +56,7 @@ class MarketRepository:
             )
             return result.fetchall()
 
-    def get_news_sentiment_daily(self, days: int) -> list[tuple]:
+    def get_news_sentiment_daily(self, days: int) -> list[tuple[Any, ...]]:
         """Get daily aggregated news sentiment data.
 
         Args:
