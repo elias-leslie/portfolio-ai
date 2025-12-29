@@ -112,3 +112,15 @@ def safe_get_int(
         return int(value)
     except (ValueError, TypeError):
         return default
+
+
+def generate_uuid() -> str:
+    """Generate a new UUID4 string.
+
+    Provides a single source of truth for UUID generation,
+    replacing scattered str(uuid.uuid4()) calls.
+
+    Returns:
+        UUID4 string
+    """
+    return str(uuid.uuid4())
