@@ -26,6 +26,12 @@ from ..utils.port_discovery import (
     PortDiscovery,
     get_port_for_service,
 )
+from .health_check_strategies import (
+    PROBE_CHECK_PATTERNS,
+    SKIP_HEALTH_CHECK_PATTERNS,
+    HealthCheckStrategy,
+    matches_pattern,
+)
 
 logger = get_logger(__name__)
 
@@ -42,72 +48,12 @@ HEALTH_CHECK_TIMEOUT_PROBE = (
     5  # seconds for lightweight probe checks (enough to verify route exists)
 )
 
-# Endpoints that need lightweight "probe" checks instead of full execution
-# These are checked with short timeout and ANY response (even 4xx) = route exists
-# This verifies the endpoint is reachable without triggering expensive operations
-PROBE_CHECK_PATTERNS: list[str] = [
-    # Market data endpoints - trigger external API calls
-    "/api/market/intelligence",  # Fetches live market data from yfinance/polygon
-    "/api/market/prices",  # Fetches live prices
-    "/api/market/movers",  # Fetches market movers
-    "/api/market/status",  # May fetch external data
-    # Symbol intelligence - potentially expensive
-    "/api/symbols/{symbol}/intelligence",  # Heavy aggregation
-    # Analytics endpoints with symbol params - expensive external fetches
-    "/api/analytics/rvol/",  # Fetches historical data
-    "/api/analytics/peers/",  # Fetches peer data
-    "/api/analytics/short-interest/",  # Fetches short interest
-    "/api/analytics/cash-flow/",  # Fetches financial data
-    "/api/analytics/insider-transactions/",  # Fetches insider data
-    "/api/analytics/institutional-holdings/",  # Fetches holdings data
-    # News endpoints - may trigger external fetches
-    "/api/news/intelligence",  # Fetches news from APIs
-    # Valuation endpoints - expensive calculations
-    "/api/valuation/metrics",
-    # Celery endpoints - may interact with worker
-    "/api/celery/",  # Celery inspection can be slow
-    # Backup endpoints - may trigger filesystem operations
-    "/api/backup/status",
-    "/api/backup/latest",
-    # ML endpoints - expensive operations
-    "/api/ml/",
-    # Backtest endpoints - heavy computation
-    "/api/backtest/run",
-]
-
-# Endpoints to completely skip (circular dependency risk)
-SKIP_HEALTH_CHECK_PATTERNS: list[str] = [
-    "/health",  # Skip health endpoints to avoid circular calls
-    "/api/health",  # Skip all health endpoints
-]
+# Pattern constants imported from health_check_strategies module
+# (PROBE_CHECK_PATTERNS, SKIP_HEALTH_CHECK_PATTERNS, matches_pattern)
 
 
-def _matches_pattern(path: str, pattern: str) -> bool:
-    """Check if a path matches a pattern (exact, prefix, or path-param).
-
-    Args:
-        path: The endpoint path to check
-        pattern: Pattern to match against
-
-    Returns:
-        True if path matches pattern
-    """
-    # Exact match
-    if path == pattern:
-        return True
-
-    # Prefix match (patterns ending with /)
-    if pattern.endswith("/") and path.startswith(pattern):
-        return True
-
-    # Path parameter patterns like {symbol}
-    if "{" in pattern:
-        regex_pattern = re.sub(r"\{[^}]+\}", r"[^/]+", pattern)
-        if re.fullmatch(regex_pattern, path):
-            return True
-
-    # Simple prefix match for patterns without trailing /
-    return not pattern.endswith("/") and path.startswith(pattern + "/")
+# Alias for backward compatibility
+_matches_pattern = matches_pattern
 
 
 def should_skip_health_check(path: str) -> str | None:

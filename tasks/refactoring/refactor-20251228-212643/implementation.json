@@ -310,15 +310,13 @@
           "confidence": 0.87,
           "files_affected": ["backend/app/tasks/strategy_monitoring_tasks.py", "backend/app/utils/rate_limiter.py"],
           "steps": [
-            "Read backend/app/tasks/strategy_monitoring_tasks.py lines 822-843",
-            "Create backend/app/utils/rate_limiter.py if not exists",
-            "Implement check_and_increment_daily_limit(key, max_count) function",
-            "Move Redis rate limiting logic to utility",
-            "Update strategy_monitoring_tasks.py to use utility",
-            "Run pytest tests/tasks/ -k strategy"
+            "Create backend/app/utils/rate_limiter.py with RateLimitResult, check_daily_limit(), increment_daily_count()",
+            "Update trigger_strategies_for_top_watchlist to use utility functions",
+            "Remove local redis import from task function",
+            "Verify import works"
           ],
-          "verification": "pytest tests/tasks/ -k strategy -v --tb=short",
-          "passes": false
+          "verification": "python -c 'from app.tasks.strategy_monitoring_tasks import trigger_strategies_for_top_watchlist'",
+          "passes": true
         },
         {
           "id": "3.4",
