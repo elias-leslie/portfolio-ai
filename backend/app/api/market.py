@@ -70,6 +70,7 @@ from app.services.market_events_service import (
     update_market_event as svc_update_event,
 )
 from app.storage import get_storage
+from app.utils.formatters import format_db_date
 from app.utils.market_hours import (
     NY_TZ,
     get_expected_data_date,
@@ -512,14 +513,10 @@ async def get_fear_greed_history(
     put_call_ratios: list[float | None] = []
     for row in rows:
         if row[0] and row[1] is not None:
-            # row[0] is date from SQL - handle as datetime/date object
-            date_val = row[0]
-            if isinstance(date_val, (datetime, date)):
-                dates.append(date_val.isoformat())
-            elif isinstance(date_val, str):
-                dates.append(date_val)
-            else:
+            formatted_date = format_db_date(row[0])
+            if formatted_date is None:
                 continue  # Skip if not a valid date type
+            dates.append(formatted_date)
             scores.append(float(row[1]))
             labels.append(str(row[2]) if row[2] else "Unknown")
             # P/C ratio may be null for dates before we started collecting
@@ -594,10 +591,10 @@ async def get_news_sentiment_history(
     for row in rows:
         period, avg_score, pos_count, neg_count, total_count = row
         if period and avg_score is not None:
-            if isinstance(period, (datetime, date)):
-                dates.append(period.isoformat())
-            else:
-                dates.append(str(period))
+            formatted_date = format_db_date(period)
+            if formatted_date is None:
+                continue
+            dates.append(formatted_date)
             scores.append(float(avg_score))
             positive_counts.append(int(pos_count) if pos_count else 0)
             negative_counts.append(int(neg_count) if neg_count else 0)
@@ -788,12 +785,12 @@ async def get_corporate_actions(
             {
                 "symbol": row[0],
                 "action_type": row[1],
-                "action_date": row[2].isoformat() if isinstance(row[2], (date, datetime)) else None,
+                "action_date": format_db_date(row[2]),
                 "repurchase_amount": float(row[3]) if row[3] else None,
                 "shares_repurchased": row[4],
                 "dividend_amount": float(row[5]) if row[5] else None,
                 "source": row[6],
-                "updated_at": row[7].isoformat() if isinstance(row[7], (date, datetime)) else None,
+                "updated_at": format_db_date(row[7]),
             }
         )
 
@@ -840,9 +837,7 @@ async def get_corporate_actions_summary(
                 "symbol": row[0],
                 "buyback_count": row[1] or 0,
                 "total_buybacks": float(row[2]) if row[2] else 0,
-                "latest_buyback": row[3].isoformat()
-                if isinstance(row[3], (date, datetime))
-                else None,
+                "latest_buyback": format_db_date(row[3]),
             }
         )
 
