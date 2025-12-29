@@ -24,8 +24,6 @@ import {
   RefreshCw,
   PlayCircle,
   Loader2,
-  AlertCircle,
-  CheckCircle2,
   ShieldCheck,
   ShieldAlert,
   ArrowUpDown,
@@ -409,64 +407,6 @@ export function MaintenanceTable() {
     if (!dryRun) {
       setTimeout(fetchAllData, 2000);
     }
-  };
-
-  // Format helpers
-  const formatSize = (mb: number | null) => {
-    if (mb === null) return "—";
-    if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`;
-    return `${mb.toFixed(1)} MB`;
-  };
-
-  const formatLastRun = (lastRun: MaintenanceResult | null) => {
-    if (!lastRun?.startedAt) return "—";
-    const date = new Date(lastRun.startedAt);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / (1000 * 60));
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffDays > 0) return `${diffDays}d ago`;
-    if (diffHours > 0) return `${diffHours}h ago`;
-    if (diffMins > 0) return `${diffMins}m ago`;
-    return "Just now";
-  };
-
-  const getStatusIcon = (lastRun: MaintenanceResult | null) => {
-    if (!lastRun) return null;
-    switch (lastRun.status) {
-      case "success":
-        return <CheckCircle2 className="h-3.5 w-3.5 text-status-success" />;
-      case "error":
-        return <AlertCircle className="h-3.5 w-3.5 text-status-error" />;
-      case "running":
-        return <RefreshCw className="h-3.5 w-3.5 animate-spin text-status-info" />;
-      default:
-        return null;
-    }
-  };
-
-  const getCategoryBadge = (category: TaskCategory) => {
-    const colors: Record<TaskCategory, string> = {
-      file: "bg-status-warning/20 text-status-warning",
-      cache: "bg-status-warning/20 text-status-warning",
-      data: "bg-status-info/20 text-status-info",
-      database: "bg-accent/20 text-accent",
-      system: "bg-surface-muted text-text-muted",
-    };
-    const labels: Record<TaskCategory, string> = {
-      file: "File",
-      cache: "Cache",
-      data: "Data",
-      database: "DB",
-      system: "System",
-    };
-    return (
-      <Badge variant="outline" className={`text-xs ${colors[category]}`}>
-        {labels[category]}
-      </Badge>
-    );
   };
 
   // Summary stats
