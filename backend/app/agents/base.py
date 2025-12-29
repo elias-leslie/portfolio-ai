@@ -351,60 +351,10 @@ class Agent(ABC):
                     metadata={"has_tool_calls": True},
                 )
 
-                # Agent wants to call tools
-                tool_results = []
-
-                for tool_call in response.tool_calls:
-                    tool_start = datetime.now(UTC)
-
-                    # Store tool call message
-                    self._store_conversation_message(
-                        run_id,
-                        "tool_call",
-                        json.dumps(
-                            {"name": tool_call["name"], "parameters": tool_call["parameters"]},
-                            default=json_serializer,
-                        ),
-                        metadata={"tool_name": tool_call["name"]},
-                    )
-
-                    # Execute tool
-                    result = self.execute_tool(tool_call["name"], tool_call["parameters"])
-
-                    tool_end = datetime.now(UTC)
-                    duration_ms = int((tool_end - tool_start).total_seconds() * 1000)
-
-                    # Store tool result message
-                    result_str = json.dumps(result, default=json_serializer)
-                    self._store_conversation_message(
-                        run_id,
-                        "tool_result",
-                        result_str[:10000],  # Truncate very long results
-                        metadata={"tool_name": tool_call["name"], "duration_ms": duration_ms},
-                    )
-
-                    # Record tool call
-                    self._record_tool_call(
-                        run_id, tool_call["name"], tool_call["parameters"], result, duration_ms
-                    )
-
-                    tool_calls_made.append(
-                        {
-                            "name": tool_call["name"],
-                            "input": tool_call["parameters"],
-                            "result": result,
-                        }
-                    )
-
-                    tool_results.append(
-                        {
-                            "name": tool_call["name"],
-                            "parameters": tool_call["parameters"],
-                            "result": result,
-                        }
-                    )
-
-                # Format tool results for next turn
+                # Process tool calls and format results for next turn
+                tool_results = self._process_tool_calls(
+                    run_id, response.tool_calls, tool_calls_made
+                )
                 current_prompt = self._format_tool_results(tool_results)
 
                 # Update conversation history
@@ -525,6 +475,80 @@ class Agent(ABC):
             "iterations": max_iterations,
             "run_id": run_id,
         }
+
+    def _process_tool_calls(
+        self,
+        run_id: str,
+        tool_calls: list[dict[str, object]],
+        tool_calls_made: list[ToolCallRecord],
+    ) -> list[dict[str, object]]:
+        """Process a batch of tool calls and return results.
+
+        Executes each tool call, records it in the database, and returns
+        formatted results for the next conversation turn.
+
+        Args:
+            run_id: Current agent run ID
+            tool_calls: List of tool call dicts from LLM response
+            tool_calls_made: Accumulated list to append tool records to
+
+        Returns:
+            List of tool result dicts for _format_tool_results
+        """
+        tool_results: list[dict[str, object]] = []
+
+        for tool_call in tool_calls:
+            tool_name = str(tool_call["name"])
+            tool_params = cast(ToolInputDict, tool_call["parameters"])
+            tool_start = datetime.now(UTC)
+
+            # Store tool call message
+            self._store_conversation_message(
+                run_id,
+                "tool_call",
+                json.dumps(
+                    {"name": tool_name, "parameters": tool_params},
+                    default=json_serializer,
+                ),
+                metadata={"tool_name": tool_name},
+            )
+
+            # Execute tool
+            result = self.execute_tool(tool_name, tool_params)
+
+            tool_end = datetime.now(UTC)
+            duration_ms = int((tool_end - tool_start).total_seconds() * 1000)
+
+            # Store tool result message (truncate long results)
+            result_str = json.dumps(result, default=json_serializer)
+            self._store_conversation_message(
+                run_id,
+                "tool_result",
+                result_str[:10000],
+                metadata={"tool_name": tool_name, "duration_ms": duration_ms},
+            )
+
+            # Record tool call in database
+            self._record_tool_call(run_id, tool_name, tool_params, result, duration_ms)
+
+            # Append to accumulated records
+            tool_calls_made.append(
+                {
+                    "name": tool_name,
+                    "input": tool_params,
+                    "result": result,
+                }
+            )
+
+            tool_results.append(
+                {
+                    "name": tool_name,
+                    "parameters": tool_params,
+                    "result": result,
+                }
+            )
+
+        return tool_results
 
     def _format_tool_results(self, tool_results: list[dict[str, object]]) -> str:
         """Format tool results for next conversation turn.
