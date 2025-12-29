@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { MessageSquare, Settings, Activity, Camera, Eye, Diamond, Star } from 'lucide-react';
+import { MessageSquare, Settings, Activity, Camera, Eye } from 'lucide-react';
 // Note: We use a custom side panel instead of Sheet to allow non-overlay behavior (FEAT-220)
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -14,8 +14,8 @@ import { EvidenceCaptureModal } from './EvidenceCaptureModal';
 import { ProviderBadge } from './ProviderBadge';
 import { SessionsPanel } from './SessionsPanel';
 import { ChatInput } from './ChatInput';
+import { MessageBubble } from './MessageBubble';
 import {
-  type ContentBlock,
   type PermissionRequest,
   type EvidenceData,
   type ChatMessage,
