@@ -86,6 +86,64 @@ def _calculate_news_confidence(news_volume: int) -> float:
     return NEWS_CONFIDENCE_DEFAULT
 
 
+def _classify_trend_strength(
+    price: float, sma_20: float, sma_50: float, sma_200: float
+) -> Literal["strong_up", "weak_up", "neutral", "weak_down", "strong_down"]:
+    """Classify trend strength based on price vs moving averages.
+
+    Args:
+        price: Current stock price
+        sma_20: 20-day simple moving average
+        sma_50: 50-day simple moving average
+        sma_200: 200-day simple moving average
+
+    Returns:
+        Trend strength classification
+    """
+    if price > sma_20 and price > sma_50 and price > sma_200:
+        if sma_200 > 0 and price / sma_200 > 1.10:
+            return "strong_up"
+        return "weak_up"
+    if price < sma_20 and price < sma_50 and price < sma_200:
+        if sma_200 > 0 and price / sma_200 < 0.90:
+            return "strong_down"
+        return "weak_down"
+    return "neutral"
+
+
+def _analyze_momentum(macd_data: dict[str, Any] | float) -> Literal["accelerating", "steady", "decelerating"]:
+    """Classify momentum using MACD histogram.
+
+    Args:
+        macd_data: MACD data dict with 'histogram' key, or float
+
+    Returns:
+        Momentum classification
+    """
+    macd_hist = macd_data.get("histogram", 0.0) if isinstance(macd_data, dict) else 0.0
+    if macd_hist > 1.0:
+        return "accelerating"
+    if macd_hist < -1.0:
+        return "decelerating"
+    return "steady"
+
+
+def _classify_rsi_zone(rsi_14: float) -> Literal["oversold", "healthy", "overbought"]:
+    """Classify RSI zone.
+
+    Args:
+        rsi_14: 14-period RSI value
+
+    Returns:
+        RSI zone classification
+    """
+    if rsi_14 < 30:
+        return "oversold"
+    if rsi_14 > 70:
+        return "overbought"
+    return "healthy"
+
+
 class ResearchAggregationService:
     """Service for aggregating market research from multiple sources."""
 
@@ -394,6 +452,84 @@ class ResearchAggregationService:
             "confidence": confidence,
         }
 
+    def _calculate_trend_duration(
+        self, symbol: str, trend_strength: str, sma_20: float
+    ) -> int:
+        """Calculate trend duration in days above/below key moving average.
+
+        Args:
+            symbol: Stock symbol
+            trend_strength: Current trend classification
+            sma_20: 20-day simple moving average
+
+        Returns:
+            Number of days in current trend
+        """
+        with self.conn.connection() as conn:
+            result_wrapper = conn.execute(
+                """
+                SELECT date, close
+                FROM day_bars
+                WHERE symbol = %s
+                ORDER BY date DESC
+                LIMIT 60
+                """,
+                [symbol],
+            )
+            rows = result_wrapper.fetchall()
+            trend_rows = rows_to_dicts(rows, conn)
+
+        trend_duration_days = 0
+        if trend_rows:
+            for i, row in enumerate(trend_rows):
+                if trend_strength in ["strong_up", "weak_up"]:
+                    if row["close"] > sma_20:
+                        trend_duration_days = i + 1
+                    else:
+                        break
+                elif trend_strength in ["strong_down", "weak_down"]:
+                    if row["close"] < sma_20:
+                        trend_duration_days = i + 1
+                    else:
+                        break
+                else:
+                    break
+        return trend_duration_days
+
+    def _analyze_volume_profile(
+        self, symbol: str
+    ) -> Literal["increasing", "stable", "decreasing"]:
+        """Analyze volume profile by comparing recent to average volume.
+
+        Args:
+            symbol: Stock symbol
+
+        Returns:
+            Volume profile classification
+        """
+        with self.conn.connection() as conn:
+            result_wrapper = conn.execute(
+                """
+                SELECT volume
+                FROM day_bars
+                WHERE symbol = %s
+                ORDER BY date DESC
+                LIMIT 20
+                """,
+                [symbol],
+            )
+            rows = result_wrapper.fetchall()
+            volume_rows = rows_to_dicts(rows, conn)
+
+        if volume_rows and len(volume_rows) >= 20:
+            recent_5d_avg = sum(row["volume"] for row in volume_rows[:5]) / 5
+            recent_20d_avg = sum(row["volume"] for row in volume_rows) / 20
+            if recent_5d_avg > recent_20d_avg * 1.2:
+                return "increasing"
+            if recent_5d_avg < recent_20d_avg * 0.8:
+                return "decreasing"
+        return "stable"
+
     def _aggregate_technical_analysis(self, symbol: str, as_of_date: date) -> dict[str, Any]:
         """Aggregate technical indicators and trends.
 
@@ -443,93 +579,21 @@ class ResearchAggregationService:
         sma_50 = indicators.get("sma_50", current_price)
         sma_200 = indicators.get("sma_200", current_price)
 
-        # Classify trend strength
-        if current_price > sma_20 and current_price > sma_50 and current_price > sma_200:
-            if current_price / sma_200 > 1.10:
-                trend_strength = "strong_up"
-            else:
-                trend_strength = "weak_up"
-        elif current_price < sma_20 and current_price < sma_50 and current_price < sma_200:
-            if current_price / sma_200 < 0.90:
-                trend_strength = "strong_down"
-            else:
-                trend_strength = "weak_down"
-        else:
-            trend_strength = "neutral"
+        # Classify trend strength using helper
+        trend_strength = _classify_trend_strength(current_price, sma_20, sma_50, sma_200)
 
         # Calculate trend duration (days above/below key moving average)
-        with self.conn.connection() as conn:
-            result_wrapper = conn.execute(
-                """
-                SELECT date, close
-                FROM day_bars
-                WHERE symbol = %s
-                ORDER BY date DESC
-                LIMIT 60
-                """,
-                [symbol],
-            )
-            rows = result_wrapper.fetchall()
-            trend_rows = rows_to_dicts(rows, conn)
-        trend_duration_days = 0
-        if trend_rows:
-            for i, row in enumerate(trend_rows):
-                if trend_strength in ["strong_up", "weak_up"]:
-                    if row["close"] > sma_20:
-                        trend_duration_days = i + 1
-                    else:
-                        break
-                elif trend_strength in ["strong_down", "weak_down"]:
-                    if row["close"] < sma_20:
-                        trend_duration_days = i + 1
-                    else:
-                        break
-                else:
-                    break
+        trend_duration_days = self._calculate_trend_duration(symbol, trend_strength, sma_20)
 
-        # Classify momentum using MACD
+        # Classify momentum using helper
         macd_data = indicators.get("macd_12_26_9", {})
-        macd_hist = macd_data.get("histogram", 0.0) if isinstance(macd_data, dict) else 0.0
-        if macd_hist > 1.0:
-            momentum_rating = "accelerating"
-        elif macd_hist < -1.0:
-            momentum_rating = "decelerating"
-        else:
-            momentum_rating = "steady"
+        momentum_rating = _analyze_momentum(macd_data)
 
         # Volume profile (requires recent volume data)
-        with self.conn.connection() as conn:
-            result_wrapper = conn.execute(
-                """
-                SELECT volume
-                FROM day_bars
-                WHERE symbol = %s
-                ORDER BY date DESC
-                LIMIT 20
-                """,
-                [symbol],
-            )
-            rows = result_wrapper.fetchall()
-            volume_rows = rows_to_dicts(rows, conn)
-        if volume_rows and len(volume_rows) >= 20:
-            recent_5d_avg = sum(row["volume"] for row in volume_rows[:5]) / 5
-            recent_20d_avg = sum(row["volume"] for row in volume_rows) / 20
-            if recent_5d_avg > recent_20d_avg * 1.2:
-                volume_profile = "increasing"
-            elif recent_5d_avg < recent_20d_avg * 0.8:
-                volume_profile = "decreasing"
-            else:
-                volume_profile = "stable"
-        else:
-            volume_profile = "stable"
+        volume_profile = self._analyze_volume_profile(symbol)
 
-        # RSI zone classification
-        if rsi_14 < 30:
-            rsi_zone = "oversold"
-        elif rsi_14 > 70:
-            rsi_zone = "overbought"
-        else:
-            rsi_zone = "healthy"
+        # RSI zone classification using helper
+        rsi_zone = _classify_rsi_zone(rsi_14)
 
         # Price vs moving averages
         price_vs_ma = {

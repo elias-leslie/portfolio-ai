@@ -154,8 +154,8 @@
             "Update _aggregate_news_intelligence to use these helpers",
             "Run python -c 'from app.strategies.research_aggregator import ResearchAggregator'"
           ],
-          "verification": "python -c 'from app.strategies.research_aggregator import ResearchAggregator'",
-          "passes": false
+          "verification": "python -c 'from app.strategies.research_aggregator import ResearchAggregationService'",
+          "passes": true
         },
         {
           "id": "2.4",
