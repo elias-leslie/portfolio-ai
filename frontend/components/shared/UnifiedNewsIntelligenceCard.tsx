@@ -200,7 +200,7 @@ export function UnifiedNewsIntelligenceCard({
     // Default balanced view: show extremes
     const withScores = articles.map(a => ({
       article: a,
-      score: a.sentimentScore ?? a.sentiment?.score ?? 0
+      score: getSentimentScore(a)
     }));
 
     // Sort by score to find extremes

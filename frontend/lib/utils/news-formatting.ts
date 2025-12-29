@@ -125,7 +125,19 @@ interface ArticleWithSentiment {
  */
 export function getSentimentScore(
   article: ArticleWithSentiment,
-  defaultValue = 0
+  defaultValue: number = 0
 ): number {
   return article.sentimentScore ?? article.sentiment?.score ?? defaultValue;
+}
+
+/**
+ * Extract sentiment score from article, returning undefined if not found.
+ * Use this when you need to distinguish "no score" from "score is 0".
+ * @param article Article object with optional sentimentScore or sentiment.score
+ * @returns Numeric sentiment score or undefined
+ */
+export function getSentimentScoreOrUndefined(
+  article: ArticleWithSentiment
+): number | undefined {
+  return article.sentimentScore ?? article.sentiment?.score;
 }

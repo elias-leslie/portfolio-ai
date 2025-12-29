@@ -8,6 +8,7 @@ import {
   formatNewsDate,
   formatVendorLabel,
   formatConfidence,
+  getSentimentScoreOrUndefined,
 } from "@/lib/utils/news-formatting";
 
 interface NewsArticle {
@@ -46,7 +47,7 @@ interface NewsArticleCardProps {
  */
 export function NewsArticleCard({ article, index }: NewsArticleCardProps) {
   // Normalize article data from either structure
-  const sentimentScore = article.sentimentScore ?? article.sentiment?.score;
+  const sentimentScore = getSentimentScoreOrUndefined(article);
   const sentimentLabel = article.sentimentLabel ?? article.sentiment?.label;
   const sentimentConfidence = article.sentiment?.confidence;
   const sentimentModel = article.sentiment?.model;
