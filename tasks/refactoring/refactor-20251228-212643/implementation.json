@@ -291,15 +291,14 @@
           "confidence": 0.87,
           "files_affected": ["backend/app/api/market.py", "backend/app/repositories/market_repository.py"],
           "steps": [
-            "Read backend/app/api/market.py lines 526-562",
-            "Create backend/app/repositories/market_repository.py if not exists",
+            "Create backend/app/repositories/ directory with __init__.py",
+            "Create backend/app/repositories/market_repository.py with MarketRepository class",
             "Add methods get_news_sentiment_hourly(days) and get_news_sentiment_daily(days)",
-            "Move SQL queries from endpoint to repository",
-            "Update market.py to use repository",
-            "Run pytest tests/api/ -k market"
+            "Update market.py get_news_sentiment_history to use repository",
+            "Run pytest tests/api/ -k market to verify"
           ],
           "verification": "pytest tests/api/ -k market -v --tb=short",
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.3",

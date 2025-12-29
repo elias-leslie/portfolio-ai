@@ -16,6 +16,7 @@ from app.logging_config import get_logger
 from app.storage.connection import get_connection_manager
 from app.storage.credential_loader import load_credentials_from_database
 from app.strategies.storage import get_strategy_storage
+from app.utils.rate_limiter import check_daily_limit, increment_daily_count
 
 logger = get_logger(__name__)
 
@@ -868,37 +869,28 @@ def trigger_strategies_for_top_watchlist(
     Returns:
         Summary dict with generation results
     """
-    import redis
-
     logger.info(
         "trigger_strategies_for_top_watchlist_started",
         top_n=top_n,
         max_per_day=max_per_day,
     )
 
-    # Rate limit key - resets daily at midnight UTC
-    rate_key = f"strategy_gen_daily:{date.today().isoformat()}"
-
     try:
-        # Check and update daily rate limit via Redis
-        redis_url = __import__("os").getenv("REDIS_URL", "redis://localhost:6379")
-        r = redis.Redis.from_url(redis_url, decode_responses=True)
-
-        # Get current count for today
-        current_count = int(r.get(rate_key) or 0)
-        if current_count >= max_per_day:
+        # Check daily rate limit via utility
+        rate_result = check_daily_limit("strategy_gen_daily", max_per_day)
+        if not rate_result.allowed:
             logger.info(
                 "trigger_strategies_rate_limited",
-                current_count=current_count,
+                current_count=rate_result.current_count,
                 max_per_day=max_per_day,
             )
             return {
                 "status": "rate_limited",
                 "generated": 0,
-                "reason": f"Daily limit reached ({current_count}/{max_per_day})",
+                "reason": f"Daily limit reached ({rate_result.current_count}/{max_per_day})",
             }
 
-        remaining_budget = max_per_day - current_count
+        remaining_budget = rate_result.remaining
         strategy_storage = get_strategy_storage()
 
         # Get top N watchlist symbols by composite score (require non-null scores)
@@ -928,9 +920,8 @@ def trigger_strategies_for_top_watchlist(
 
             if result and result["status"] == "completed":
                 generated_count += 1
-                # Increment Redis counter
-                r.incr(rate_key)
-                r.expire(rate_key, 86400)  # Expire after 24 hours
+                # Increment daily rate limit counter
+                increment_daily_count("strategy_gen_daily")
                 logger.info(
                     "strategy_auto_generated",
                     symbol=symbol,
