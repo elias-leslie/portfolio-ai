@@ -50,7 +50,7 @@
             "Run pytest tests/api/ -k market to verify"
           ],
           "verification": "pytest tests/api/ -k market -v --tb=short",
-          "passes": false
+          "passes": true
         },
         {
           "id": "1.3",
