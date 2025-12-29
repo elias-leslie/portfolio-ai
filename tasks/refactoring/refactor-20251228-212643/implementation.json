@@ -232,7 +232,7 @@
             "Run pytest tests/api/ -k status"
           ],
           "verification": "pytest tests/api/ -k status -v --tb=short",
-          "passes": false
+          "passes": true
         },
         {
           "id": "2.6",

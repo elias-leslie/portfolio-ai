@@ -204,6 +204,62 @@ def _interpret_response(
     return False, None
 
 
+def _build_check_url(
+    path: str, port: int, frontend_port: int
+) -> tuple[str, bool]:
+    """Build URL for health check, substituting path parameters.
+
+    Args:
+        path: Endpoint path (may contain {param} placeholders)
+        port: Port number for the endpoint
+        frontend_port: Frontend port (for host selection)
+
+    Returns:
+        Tuple of (url, has_path_params)
+    """
+    test_path = path
+    has_path_params = "{" in path
+    if has_path_params:
+        # Substitute all path parameters with test values
+        test_path = re.sub(r"\{[^}]+\}", "test-probe-value", path)
+
+    host = FRONTEND_HOST if port == frontend_port else BACKEND_HOST
+    url = f"http://{host}:{port}{test_path}"
+    return url, has_path_params
+
+
+def _handle_check_exception(
+    e: Exception, is_probe: bool, probe_pattern: str | None, timeout: float
+) -> tuple[int, int, str, dict[str, str]]:
+    """Handle exception from health check and return error details.
+
+    Args:
+        e: Exception that occurred
+        is_probe: Whether this was a probe check
+        probe_pattern: Probe pattern if applicable
+        timeout: Timeout value used
+
+    Returns:
+        Tuple of (console_errors, console_warnings, last_error_message, error_details)
+    """
+    error_details = {"exception": str(e)}
+
+    if isinstance(e, httpx.TimeoutException):
+        # Timeout handling depends on endpoint type
+        if is_probe:
+            # Probe timeout = endpoint is slow but might still work
+            return 0, 1, f"Probe timeout ({timeout}s) - {probe_pattern}", error_details
+        # Normal timeout = endpoint is too slow
+        return 1, 0, f"Timeout after {timeout}s", error_details
+
+    if isinstance(e, httpx.ConnectError):
+        # Connection refused/failed = endpoint is DOWN
+        return 1, 0, f"Connection failed: {e!s}"[:500], error_details
+
+    # Other exceptions
+    return 1, 0, str(e)[:500], error_details
+
+
 class HealthCheckResult:
     """Container for health check results."""
 
@@ -918,16 +974,8 @@ class SitemapService:
         path = entry["path"]
         method = entry["method"]
 
-        # Build URL - substitute path parameters with test values
-        # Any path with {param} gets a generic test value
-        test_path = path
-        has_path_params = "{" in path
-        if has_path_params:
-            # Substitute all path parameters with test values
-            test_path = re.sub(r"\{[^}]+\}", "test-probe-value", path)
-
-        host = FRONTEND_HOST if port == self.frontend_port else BACKEND_HOST
-        url = f"http://{host}:{port}{test_path}"
+        # Build URL using helper
+        url, has_path_params = _build_check_url(path, port, self.frontend_port)
 
         console_errors = 0
         console_warnings = 0
@@ -978,29 +1026,11 @@ class SitemapService:
                 if is_error:
                     console_errors = 1
 
-        except httpx.TimeoutException as e:
-            # Timeout handling depends on endpoint type
-            if is_probe:
-                # Probe timeout = endpoint is slow but might still work
-                # Mark as warning, not error - route likely exists
-                console_warnings = 1
-                last_error_message = f"Probe timeout ({timeout}s) - {probe_pattern}"
-            else:
-                # Normal timeout = endpoint is too slow
-                console_errors = 1
-                last_error_message = f"Timeout after {timeout}s"
-            error_details["exception"] = str(e)
-
-        except httpx.ConnectError as e:
-            # Connection refused/failed = endpoint is DOWN
-            console_errors = 1
-            last_error_message = f"Connection failed: {e!s}"[:500]
-            error_details["exception"] = str(e)
-
         except Exception as e:
-            console_errors = 1
-            last_error_message = str(e)[:500]
-            error_details["exception"] = str(e)
+            # Handle all exceptions using helper
+            console_errors, console_warnings, last_error_message, error_details = (
+                _handle_check_exception(e, is_probe, probe_pattern, timeout)
+            )
 
         # Build and save result
         result = HealthCheckResult(
