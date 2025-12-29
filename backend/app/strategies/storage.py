@@ -512,6 +512,92 @@ class StrategyStorage:
             last_used_at=row.get("last_used_at"),
         )
 
+    def get_symbols_needing_strategies(self, max_symbols: int) -> list[tuple]:
+        """Get symbols that need strategy generation.
+
+        Includes:
+        1. Top watchlist symbols without active strategy
+        2. Symbols with underperforming strategies (30-day Sharpe < 0.5)
+
+        Args:
+            max_symbols: Maximum number of symbols to return
+
+        Returns:
+            List of (symbol, overall_score, reason) tuples
+        """
+        with self.conn.connection() as conn:
+            return conn.execute(
+                """
+                WITH latest_scores AS (
+                    SELECT DISTINCT ON (wi.symbol)
+                        wi.symbol,
+                        ws.overall_score
+                    FROM watchlist_items wi
+                    LEFT JOIN watchlist_snapshots_v ws ON wi.id = ws.item_id
+                    ORDER BY wi.symbol, ws.fetched_at DESC
+                ),
+                active_strategies AS (
+                    SELECT symbol, id, expected_sharpe
+                    FROM strategy_definitions
+                    WHERE status = 'active'
+                ),
+                underperforming AS (
+                    SELECT DISTINCT sd.symbol
+                    FROM strategy_definitions sd
+                    JOIN strategy_performance sp ON sd.id = sp.strategy_id
+                    WHERE sd.status = 'active'
+                      AND sp.date >= CURRENT_DATE - INTERVAL '30 days'
+                    GROUP BY sd.symbol
+                    HAVING AVG(sp.sharpe_ratio_30d) < 0.5
+                )
+                SELECT ls.symbol, ls.overall_score,
+                       CASE
+                           WHEN acts.id IS NULL THEN 'no_strategy'
+                           WHEN under.symbol IS NOT NULL THEN 'underperforming'
+                           ELSE 'active'
+                       END as reason
+                FROM latest_scores ls
+                LEFT JOIN active_strategies acts ON ls.symbol = acts.symbol
+                LEFT JOIN underperforming under ON ls.symbol = under.symbol
+                WHERE acts.id IS NULL OR under.symbol IS NOT NULL
+                ORDER BY ls.overall_score DESC NULLS LAST
+                LIMIT %s
+                """,
+                (max_symbols * 2,),  # Fetch extra in case some fail
+            ).fetchall()
+
+    def get_underperforming_strategies(
+        self, performance_threshold: float = 0.9, limit: int = 5
+    ) -> list[tuple]:
+        """Get active strategies with performance below threshold.
+
+        Args:
+            performance_threshold: Min ratio of actual/expected Sharpe (default 0.9 = 90%)
+            limit: Maximum number of strategies to return
+
+        Returns:
+            List of (id, symbol, name, expected_sharpe, actual_sharpe, performance_ratio) tuples
+        """
+        with self.conn.connection() as conn:
+            return conn.execute(
+                """
+                SELECT DISTINCT sd.id, sd.symbol, sd.name,
+                       sd.expected_sharpe,
+                       AVG(sp.sharpe_ratio_30d) as actual_sharpe,
+                       AVG(sp.sharpe_ratio_30d) / NULLIF(sd.expected_sharpe, 0) as performance_ratio
+                FROM strategy_definitions sd
+                JOIN strategy_performance sp ON sd.id = sp.strategy_id
+                WHERE sd.status = 'active'
+                  AND sp.date >= CURRENT_DATE - INTERVAL '30 days'
+                  AND sd.expected_sharpe > 0
+                GROUP BY sd.id, sd.symbol, sd.name, sd.expected_sharpe
+                HAVING AVG(sp.sharpe_ratio_30d) / NULLIF(sd.expected_sharpe, 0) < %s
+                ORDER BY performance_ratio ASC
+                LIMIT %s
+                """,
+                (performance_threshold, limit),
+            ).fetchall()
+
 
 # Singleton instance
 _storage_instance: StrategyStorage | None = None
