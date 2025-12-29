@@ -19,6 +19,12 @@ from app.strategies.storage import get_strategy_storage
 
 logger = get_logger(__name__)
 
+# Strategy performance thresholds
+PERFORMANCE_RATIO_THRESHOLD = 0.7  # Archive if performance < 70% of expected
+DEFAULT_ROLLING_WINDOW_DAYS = 30  # Rolling window for metrics calculation
+UNDERPERFORMANCE_SHARPE_THRESHOLD = 0.5  # Sharpe ratio threshold for regeneration
+EVOLUTION_TRIGGER_THRESHOLD = 0.9  # 90% of expected performance triggers evolution
+
 
 @celery_app.task(name="app.tasks.strategy_monitoring_tasks.evaluate_strategy_performance")
 def evaluate_strategy_performance() -> dict[str, Any]:
@@ -61,8 +67,10 @@ def evaluate_strategy_performance() -> dict[str, Any]:
 
             for strategy in active_strategies:
                 try:
-                    # Calculate 30-day metrics from paper_trade_transactions
-                    metrics = _calculate_rolling_metrics(conn, strategy.id, window_days=30)
+                    # Calculate rolling metrics from paper_trade_transactions
+                    metrics = _calculate_rolling_metrics(
+                        conn, strategy.id, window_days=DEFAULT_ROLLING_WINDOW_DAYS
+                    )
 
                     # Compare to expected metrics
                     expected_sharpe = float(strategy.expected_sharpe or 0.0)
@@ -80,7 +88,10 @@ def evaluate_strategy_performance() -> dict[str, Any]:
                     )
 
                     # Decision logic: Archive if underperforming for >30 days
-                    if performance_ratio < 0.7 and days_since_activation > 30:
+                    if (
+                        performance_ratio < PERFORMANCE_RATIO_THRESHOLD
+                        and days_since_activation > DEFAULT_ROLLING_WINDOW_DAYS
+                    ):
                         # Underperforming for >30 days → Archive
                         reason = f"Underperforming: {actual_sharpe:.2f} Sharpe vs {expected_sharpe:.2f} expected ({performance_ratio:.1%})"
                         strategy_storage.archive_strategy(strategy.id, reason)
@@ -105,7 +116,9 @@ def evaluate_strategy_performance() -> dict[str, Any]:
 
                     # Record daily performance
                     status: Literal["active", "underperforming"] = (
-                        "underperforming" if performance_ratio < 0.7 else "active"
+                        "underperforming"
+                        if performance_ratio < PERFORMANCE_RATIO_THRESHOLD
+                        else "active"
                     )
                     strategy_storage.record_daily_performance(
                         strategy_id=strategy.id,

@@ -347,12 +347,11 @@
             "backend/app/api/status_logs.py"
           ],
           "steps": [
-            "Replace hardcoded path (line 547) with Path(__file__).parent calculation",
-            "Compute: Path(__file__).parent.parent.parent / 'scripts' / 'set-log-level.sh'",
-            "Run: cd backend && .venv/bin/ruff check app/api/status_logs.py",
-            "Verify: No hardcoded /home/kasadis paths"
+            "Replaced hardcoded path with Path(__file__) relative path",
+            "Run: cd backend && .venv/bin/ruff check - PASSED",
+            "Commit: 5930ee0c"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "6.4",
