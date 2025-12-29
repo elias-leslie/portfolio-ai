@@ -36,6 +36,7 @@ import { ExpandableCard } from "@/components/status/ExpandableCard";
 import { WorkflowHealthCard } from "@/components/status/WorkflowHealthCard";
 import { AgentStatsCard } from "@/components/status/AgentStatsCard";
 import { WorkflowMetricsCard } from "@/components/status/WorkflowMetricsCard";
+import { NewsHealthCard } from "@/components/status/NewsHealthCard";
 import { restartService } from "@/lib/api/service-control";
 import {
     fetchDetailedHealth,
