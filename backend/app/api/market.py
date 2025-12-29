@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any, cast
 
@@ -89,20 +90,30 @@ MARKET_SYMBOL = "__MARKET__"
 storage = get_storage()
 price_fetcher = PriceDataFetcher(storage)
 
+# Market indicator symbols
+CORE_MARKET_SYMBOLS = ["^GSPC", "^VIX", "^TNX", "DX-Y.NYB"]
 
-# API endpoints
-@router.get("/conditions", response_model=MarketConditionsResponse)
-@cache_response(ttl=300)  # 5 minutes cache
-async def get_market_conditions(request: Request) -> MarketConditionsResponse:
-    """Get current market conditions with health scoring.
+
+@dataclass
+class CoreMarketData:
+    """Core market indicators fetched from price service."""
+
+    sp500_data: Any | None
+    vix_data: Any | None
+    tnx_data: Any | None
+    dxy_data: Any | None
+    sector_data: dict[str, tuple[float | None, float | None, str | None]]
+    current_timestamp: str
+
+
+def _fetch_core_market_data() -> CoreMarketData:
+    """Fetch core market indicators used by multiple endpoints.
 
     Returns:
-        Market indicators with overall health score and component breakdown
+        CoreMarketData with sp500, vix, tnx, dxy, sector data, and timestamp
     """
     # Fetch market indicators
-    # Using ^GSPC for S&P 500, ^VIX for VIX, ^TNX for 10Y yield, DX-Y.NYB for USD
-    symbols = ["^GSPC", "^VIX", "^TNX", "DX-Y.NYB"]
-    price_data = price_fetcher.fetch_price_data(symbols)
+    price_data = price_fetcher.fetch_price_data(CORE_MARKET_SYMBOLS)
 
     sp500_data = price_data.get("^GSPC")
     vix_data = price_data.get("^VIX")
@@ -110,7 +121,6 @@ async def get_market_conditions(request: Request) -> MarketConditionsResponse:
     dxy_data = price_data.get("DX-Y.NYB")
 
     # Get actual timestamp from fetched data (respects 15-min cache)
-    # Note: cached_at already has timezone info, isoformat() includes it
     current_timestamp = (
         sp500_data.cached_at.isoformat() if sp500_data else datetime.utcnow().isoformat() + "Z"
     )
@@ -122,34 +132,56 @@ async def get_market_conditions(request: Request) -> MarketConditionsResponse:
     # Get sector data with changes using batch query (avoiding N+1 query problem)
     sector_data = fetch_sector_data_with_changes(storage, sector_symbols, sector_price_data)
 
-    # Calculate market health score with sector data
-    health_score = calculate_market_health(
-        vix_price=vix_data.price if vix_data else None,
-        sp500_price=sp500_data.price if sp500_data else None,
-        tnx_yield=tnx_data.price if tnx_data else None,
-        dxy_price=dxy_data.price if dxy_data else None,
+    return CoreMarketData(
+        sp500_data=sp500_data,
+        vix_data=vix_data,
+        tnx_data=tnx_data,
+        dxy_data=dxy_data,
         sector_data=sector_data,
         current_timestamp=current_timestamp,
     )
 
+
+# API endpoints
+@router.get("/conditions", response_model=MarketConditionsResponse)
+@cache_response(ttl=300)  # 5 minutes cache
+async def get_market_conditions(request: Request) -> MarketConditionsResponse:
+    """Get current market conditions with health scoring.
+
+    Returns:
+        Market indicators with overall health score and component breakdown
+    """
+    # Use shared helper to fetch core market data
+    market_data = _fetch_core_market_data()
+
+    # Calculate market health score with sector data
+    health_score = calculate_market_health(
+        vix_price=market_data.vix_data.price if market_data.vix_data else None,
+        sp500_price=market_data.sp500_data.price if market_data.sp500_data else None,
+        tnx_yield=market_data.tnx_data.price if market_data.tnx_data else None,
+        dxy_price=market_data.dxy_data.price if market_data.dxy_data else None,
+        sector_data=market_data.sector_data,
+        current_timestamp=market_data.current_timestamp,
+    )
+
     return MarketConditionsResponse(
         sp500={
-            "price": sp500_data.price if sp500_data else None,
+            "price": market_data.sp500_data.price if market_data.sp500_data else None,
             "change_pct": None,  # Would need historical data
-            "last_updated": sp500_data.cached_at.isoformat() if sp500_data else None,
+            "last_updated": market_data.sp500_data.cached_at.isoformat() if market_data.sp500_data else None,
         },
         vix={
-            "price": vix_data.price if vix_data else None,
+            "price": market_data.vix_data.price if market_data.vix_data else None,
             "level": None,
-            "last_updated": vix_data.cached_at.isoformat() if vix_data else None,
+            "last_updated": market_data.vix_data.cached_at.isoformat() if market_data.vix_data else None,
         },
         tnx={
-            "yield": tnx_data.price if tnx_data else None,
-            "last_updated": tnx_data.cached_at.isoformat() if tnx_data else None,
+            "yield": market_data.tnx_data.price if market_data.tnx_data else None,
+            "last_updated": market_data.tnx_data.cached_at.isoformat() if market_data.tnx_data else None,
         },
         dxy={
-            "price": dxy_data.price if dxy_data else None,
-            "last_updated": dxy_data.cached_at.isoformat() if dxy_data else None,
+            "price": market_data.dxy_data.price if market_data.dxy_data else None,
+            "last_updated": market_data.dxy_data.cached_at.isoformat() if market_data.dxy_data else None,
         },
         health=health_score,
     )
@@ -197,50 +229,42 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
     Returns:
         MarketIntelligenceResponse with all market intelligence data
     """
-    # Fetch market indicators
-    symbols = ["^GSPC", "^VIX", "^TNX", "DX-Y.NYB"]
-    price_data = price_fetcher.fetch_price_data(symbols)
-
-    sp500_data = price_data.get("^GSPC")
-    vix_data = price_data.get("^VIX")
-    tnx_data = price_data.get("^TNX")
-    dxy_data = price_data.get("DX-Y.NYB")
+    # Use shared helper to fetch core market data
+    market_data = _fetch_core_market_data()
 
     # Get ACTUAL data dates from day_bars (not cache timestamps)
     # This shows when the market data was created, not when we fetched it
-    actual_data_dates = get_actual_data_dates(storage, symbols)
+    actual_data_dates = get_actual_data_dates(storage, CORE_MARKET_SYMBOLS)
 
     # Get the actual market data date from Fear & Greed (most accurate source)
     # This represents when the underlying market data is from, not when we cached it
     current_timestamp = get_market_data_timestamp(storage)
     if not current_timestamp:
-        # Fallback to cache timestamp if no Fear & Greed data
-        current_timestamp = (
-            sp500_data.cached_at.isoformat() if sp500_data else datetime.utcnow().isoformat() + "Z"
-        )
+        # Fallback to cache timestamp from shared helper
+        current_timestamp = market_data.current_timestamp
 
-    # Fetch sector ETF data
+    # Convert sector data to list format for intelligence helper
     sector_symbols = get_sector_symbols()
-    sector_price_data = price_fetcher.fetch_price_data(sector_symbols)
-
-    # Get sector data with changes using batch query (avoiding N+1 query problem)
-    sector_data_dict = fetch_sector_data_with_changes(storage, sector_symbols, sector_price_data)
-
-    # Convert to list format for intelligence helper
-    sector_data_list = [(symbol, *sector_data_dict[symbol]) for symbol in sector_symbols]
+    sector_data_list = [(symbol, *market_data.sector_data[symbol]) for symbol in sector_symbols]
 
     # Calculate market health score (existing logic)
     health_score_data = calculate_market_health(
-        vix_price=vix_data.price if vix_data else None,
-        sp500_price=sp500_data.price if sp500_data else None,
-        tnx_yield=tnx_data.price if tnx_data else None,
-        dxy_price=dxy_data.price if dxy_data else None,
+        vix_price=market_data.vix_data.price if market_data.vix_data else None,
+        sp500_price=market_data.sp500_data.price if market_data.sp500_data else None,
+        tnx_yield=market_data.tnx_data.price if market_data.tnx_data else None,
+        dxy_price=market_data.dxy_data.price if market_data.dxy_data else None,
         sector_data={
             symbol: (price, change_pct, timestamp)
             for symbol, price, change_pct, timestamp in sector_data_list
         },
         current_timestamp=current_timestamp,
     )
+
+    # Extract data references for rest of function
+    vix_data = market_data.vix_data
+    sp500_data = market_data.sp500_data
+    tnx_data = market_data.tnx_data
+    dxy_data = market_data.dxy_data
 
     # Get Fear & Greed score (stub for now - local agent will implement)
     fg_reading = get_fear_greed_score()

@@ -32,7 +32,7 @@
             "Run pytest tests/unit/agents/ to verify no regressions"
           ],
           "verification": "pytest tests/unit/agents/ -v --tb=short",
-          "passes": false
+          "passes": true
         },
         {
           "id": "1.2",
