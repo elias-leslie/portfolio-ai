@@ -135,7 +135,7 @@
             "Run python -c 'from app.tasks.workflow_tasks import paper_trade_validation_workflow'"
           ],
           "verification": "python -c 'from app.tasks.workflow_tasks import paper_trade_validation_workflow'",
-          "passes": false
+          "passes": true
         },
         {
           "id": "2.3",

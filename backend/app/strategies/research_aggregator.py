@@ -32,6 +32,60 @@ from .models import ResearchInsights
 logger = logging.getLogger(__name__)
 
 
+# Material event keywords for headline classification
+MATERIAL_EVENT_KEYWORDS: dict[str, list[str]] = {
+    "earnings": ["earnings", "beat", "miss", "eps", "revenue"],
+    "product_launch": ["product", "launch", "release", "announce"],
+    "acquisition": ["acquisition", "merger", "acquire", "buyout"],
+    "regulatory": ["fda", "approval", "regulatory", "sec"],
+}
+
+# News volume thresholds for confidence calculation
+NEWS_CONFIDENCE_THRESHOLDS: dict[int, float] = {
+    20: 1.0,
+    10: 0.8,
+    5: 0.6,
+}
+NEWS_CONFIDENCE_DEFAULT = 0.4
+
+
+def _extract_material_events(news_rows: list[dict[str, Any]]) -> list[str]:
+    """Extract material events from headlines using keyword classification.
+
+    Args:
+        news_rows: List of news article dicts with 'headline' key
+
+    Returns:
+        List of unique event types found (e.g., ['earnings', 'acquisition'])
+    """
+    material_events = []
+    for row in news_rows:
+        headline = row.get("headline", "")
+        if not headline:
+            continue
+        headline_lower = headline.lower()
+        for event_type, keywords in MATERIAL_EVENT_KEYWORDS.items():
+            if any(kw in headline_lower for kw in keywords):
+                material_events.append(event_type)
+                break  # One event type per headline
+    return list(set(material_events))
+
+
+def _calculate_news_confidence(news_volume: int) -> float:
+    """Calculate confidence score based on article count.
+
+    Args:
+        news_volume: Number of news articles
+
+    Returns:
+        Confidence score between 0.0 and 1.0
+    """
+    for threshold, confidence in sorted(NEWS_CONFIDENCE_THRESHOLDS.items(), reverse=True):
+        if news_volume >= threshold:
+            return confidence
+    return NEWS_CONFIDENCE_DEFAULT
+
+
 class ResearchAggregationService:
     """Service for aggregating market research from multiple sources."""
 
@@ -125,20 +179,19 @@ class ResearchAggregationService:
             last_updated=datetime.now(),
         )
 
-    def _aggregate_news_intelligence(
+    def _fetch_news_data(
         self, symbol: str, start_date: date, end_date: date
-    ) -> dict[str, Any]:
-        """Aggregate news sentiment and events.
+    ) -> list[dict[str, Any]]:
+        """Fetch news articles from the cache.
 
         Args:
             symbol: Stock symbol
             start_date: Start of lookback period
-            end_date: End of lookback period (today)
+            end_date: End of lookback period
 
         Returns:
-            Dict with news intelligence fields
+            List of news article dicts with sentiment_score, published_at, headline
         """
-        # Query news_cache table for 30-day sentiment
         with self.conn.connection() as conn:
             result_wrapper = conn.execute(
                 """
@@ -155,21 +208,20 @@ class ResearchAggregationService:
                 [symbol, str(start_date), str(end_date)],
             )
             rows = result_wrapper.fetchall()
-            news_rows = rows_to_dicts(rows, conn)
+            return rows_to_dicts(rows, conn)
 
-        if not news_rows or len(news_rows) == 0:
-            # No news data available
-            return {
-                "sentiment_trend": "stable",
-                "sentiment_score": 0.0,
-                "sentiment_7d_avg": 0.0,
-                "sentiment_30d_avg": 0.0,
-                "material_events": [],
-                "news_volume": 0,
-                "confidence": 0.0,
-            }
+    def _calculate_sentiment_metrics(
+        self, news_rows: list[dict[str, Any]], end_date: date
+    ) -> dict[str, Any]:
+        """Calculate sentiment metrics from news data.
 
-        # Calculate sentiment metrics
+        Args:
+            news_rows: List of news article dicts
+            end_date: End of lookback period
+
+        Returns:
+            Dict with sentiment_score, sentiment_7d_avg, sentiment_30d_avg, sentiment_trend
+        """
         all_scores = [
             row["sentiment_score"] for row in news_rows if row["sentiment_score"] is not None
         ]
@@ -200,43 +252,51 @@ class ResearchAggregationService:
         else:
             sentiment_trend = "stable"
 
-        # Extract material events from headlines (keyword-based classification)
-        # Note: is_material_event column does not exist in news_cache schema
-        material_events = []
-        for row in news_rows:
-            headline = row.get("headline", "")
-            if not headline:
-                continue
-            headline_lower = headline.lower()
-            # Simple event classification based on keywords
-            if any(kw in headline_lower for kw in ["earnings", "beat", "miss", "eps", "revenue"]):
-                material_events.append("earnings")
-            elif any(kw in headline_lower for kw in ["product", "launch", "release", "announce"]):
-                material_events.append("product_launch")
-            elif any(kw in headline_lower for kw in ["acquisition", "merger", "acquire", "buyout"]):
-                material_events.append("acquisition")
-            elif any(kw in headline_lower for kw in ["fda", "approval", "regulatory", "sec"]):
-                material_events.append("regulatory")
-
-        # Deduplicate events
-        material_events = list(set(material_events))
-
-        # Confidence based on article count and source quality
-        news_volume = len(news_rows)
-        if news_volume >= 20:
-            confidence = 1.0
-        elif news_volume >= 10:
-            confidence = 0.8
-        elif news_volume >= 5:
-            confidence = 0.6
-        else:
-            confidence = 0.4
-
         return {
-            "sentiment_trend": sentiment_trend,
             "sentiment_score": sentiment_score,
             "sentiment_7d_avg": sentiment_7d_avg,
             "sentiment_30d_avg": sentiment_30d_avg,
+            "sentiment_trend": sentiment_trend,
+        }
+
+    def _aggregate_news_intelligence(
+        self, symbol: str, start_date: date, end_date: date
+    ) -> dict[str, Any]:
+        """Aggregate news sentiment and events.
+
+        Args:
+            symbol: Stock symbol
+            start_date: Start of lookback period
+            end_date: End of lookback period (today)
+
+        Returns:
+            Dict with news intelligence fields
+        """
+        news_rows = self._fetch_news_data(symbol, start_date, end_date)
+
+        if not news_rows:
+            # No news data available
+            return {
+                "sentiment_trend": "stable",
+                "sentiment_score": 0.0,
+                "sentiment_7d_avg": 0.0,
+                "sentiment_30d_avg": 0.0,
+                "material_events": [],
+                "news_volume": 0,
+                "confidence": 0.0,
+            }
+
+        # Calculate metrics using extracted helpers
+        sentiment_data = self._calculate_sentiment_metrics(news_rows, end_date)
+        material_events = _extract_material_events(news_rows)
+        news_volume = len(news_rows)
+        confidence = _calculate_news_confidence(news_volume)
+
+        return {
+            "sentiment_trend": sentiment_data["sentiment_trend"],
+            "sentiment_score": sentiment_data["sentiment_score"],
+            "sentiment_7d_avg": sentiment_data["sentiment_7d_avg"],
+            "sentiment_30d_avg": sentiment_data["sentiment_30d_avg"],
             "material_events": material_events,
             "news_volume": news_volume,
             "confidence": confidence,
