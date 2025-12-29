@@ -27,8 +27,6 @@ from ..utils.port_discovery import (
     get_port_for_service,
 )
 from .health_check_strategies import (
-    PROBE_CHECK_PATTERNS,
-    SKIP_HEALTH_CHECK_PATTERNS,
     HealthCheckStrategy,
     matches_pattern,
 )
@@ -48,48 +46,13 @@ HEALTH_CHECK_TIMEOUT_PROBE = (
     5  # seconds for lightweight probe checks (enough to verify route exists)
 )
 
-# Pattern constants imported from health_check_strategies module
-# (PROBE_CHECK_PATTERNS, SKIP_HEALTH_CHECK_PATTERNS, matches_pattern)
-
-
-# Alias for backward compatibility
+# Alias for backward compatibility (pattern matching moved to health_check_strategies)
 _matches_pattern = matches_pattern
 
 
-def should_skip_health_check(path: str) -> str | None:
-    """Check if a path should be completely skipped during health checks.
-
-    Only returns skip reason for endpoints that could cause circular dependencies
-    (like health check endpoints calling health check endpoints).
-
-    Args:
-        path: The endpoint path to check
-
-    Returns:
-        Skip reason string if should skip, None otherwise
-    """
-    for pattern in SKIP_HEALTH_CHECK_PATTERNS:
-        if _matches_pattern(path, pattern):
-            return f"Skipped (circular: {pattern})"
-    return None
-
-
-def should_probe_check(path: str) -> str | None:
-    """Check if a path needs lightweight probe check instead of full execution.
-
-    Probe checks use short timeout and accept any response (even 4xx) as "route exists".
-    This verifies reachability without triggering expensive external API calls.
-
-    Args:
-        path: The endpoint path to check
-
-    Returns:
-        Pattern that matched if should probe, None for normal check
-    """
-    for pattern in PROBE_CHECK_PATTERNS:
-        if _matches_pattern(path, pattern):
-            return pattern
-    return None
+# Delegate to HealthCheckStrategy class methods
+should_skip_health_check = HealthCheckStrategy.should_skip_health_check
+should_probe_check = HealthCheckStrategy.should_probe_check
 
 
 def _should_skip_entry(
