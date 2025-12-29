@@ -4,7 +4,7 @@ import { Diamond, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { type ContentBlock, type ChatMessage } from './wsHandlers';
 
-function ContentBlockView({ block }: { block: ContentBlock }) {
+export function ContentBlockView({ block }: { block: ContentBlock }) {
   switch (block.type) {
     case 'text':
       return <div className="whitespace-pre-wrap">{block.text}</div>;
