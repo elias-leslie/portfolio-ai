@@ -1,0 +1,379 @@
+{
+  "meta": {
+    "title": "Full Codebase Refactor - December 2025 (Session 3)",
+    "created": "2025-12-29",
+    "session_id": "refactor-20251229-143535",
+    "targets_analyzed": 10,
+    "total_issues_found": 65,
+    "high_severity_count": 18,
+    "medium_severity_count": 32,
+    "low_severity_count": 15
+  },
+  "phases": [
+    {
+      "id": 1,
+      "name": "Backend DRY Violations - Shared Utilities",
+      "goal": "Create shared utility functions for duplicated patterns across backend",
+      "tasks": [
+        {
+          "id": "1.1",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Create utc_now_iso() utility for timestamp generation",
+          "severity": "medium",
+          "confidence": 0.85,
+          "files_affected": ["backend/app/utils/formatters.py", "backend/app/api/watchlist.py"],
+          "steps": [
+            "Add utc_now_iso() function to backend/app/utils/formatters.py that returns datetime.now(UTC).isoformat()",
+            "Update backend/app/api/watchlist.py to use the new utility (3 instances)",
+            "Run python -c 'from app.utils.formatters import utc_now_iso; print(utc_now_iso())'"
+          ],
+          "verification": "python -c 'from app.utils.formatters import utc_now_iso; print(utc_now_iso())'",
+          "passes": false
+        },
+        {
+          "id": "1.2",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Create generate_uuid() utility function",
+          "severity": "medium",
+          "confidence": 0.88,
+          "files_affected": ["backend/app/utils/db_helpers.py", "backend/app/api/watchlist.py"],
+          "steps": [
+            "Add generate_uuid() function to backend/app/utils/db_helpers.py",
+            "Update backend/app/api/watchlist.py to import and use generate_uuid() (3 instances)",
+            "Run python -c 'from app.utils.db_helpers import generate_uuid; print(generate_uuid())'"
+          ],
+          "verification": "python -c 'from app.utils.db_helpers import generate_uuid; print(generate_uuid())'",
+          "passes": false
+        },
+        {
+          "id": "1.3",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Create calculate_duration_ms() utility for agent timing",
+          "severity": "medium",
+          "confidence": 0.90,
+          "files_affected": ["backend/app/utils/formatters.py", "backend/app/agents/base.py"],
+          "steps": [
+            "Add calculate_duration_ms(start: datetime, end: datetime) -> int to formatters.py",
+            "Update backend/app/agents/base.py to use this utility (3 instances)",
+            "Run python -c 'from app.utils.formatters import calculate_duration_ms'"
+          ],
+          "verification": "python -c 'from app.utils.formatters import calculate_duration_ms'",
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Backend Long Method Extraction - Strategy Tasks",
+      "goal": "Extract helper functions from long Celery task methods",
+      "tasks": [
+        {
+          "id": "2.1",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Use existing calculate_sharpe_ratio from backtest/metrics.py",
+          "severity": "high",
+          "confidence": 0.95,
+          "files_affected": ["backend/app/tasks/strategy_monitoring_tasks.py"],
+          "steps": [
+            "Import calculate_sharpe_ratio from backend/app/backtest/metrics.py",
+            "Remove local _calculate_sharpe_ratio function (lines 286-304)",
+            "Update callers to use the imported function",
+            "Run pytest tests/strategies/ -k monitoring -x --tb=short"
+          ],
+          "verification": "python -c 'from app.tasks.strategy_monitoring_tasks import evaluate_strategy_performance'",
+          "passes": false
+        },
+        {
+          "id": "2.2",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Use existing calculate_max_drawdown from backtest/metrics.py",
+          "severity": "high",
+          "confidence": 0.95,
+          "files_affected": ["backend/app/tasks/strategy_monitoring_tasks.py"],
+          "steps": [
+            "Import calculate_max_drawdown from backend/app/backtest/metrics.py",
+            "Remove local _calculate_max_drawdown function (lines 306-326)",
+            "Update callers to use the imported function",
+            "Run pytest tests/strategies/ -k monitoring -x --tb=short"
+          ],
+          "verification": "python -c 'from app.tasks.strategy_monitoring_tasks import evaluate_strategy_performance'",
+          "passes": false
+        },
+        {
+          "id": "2.3",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Extract _generate_strategies_for_symbols shared helper",
+          "severity": "medium",
+          "confidence": 0.90,
+          "files_affected": ["backend/app/tasks/strategy_monitoring_tasks.py"],
+          "steps": [
+            "Create _generate_strategies_for_symbols(symbols, force_regenerate, max_count) helper",
+            "Update weekly_strategy_generation to use the helper",
+            "Update daily_strategy_refresh to use the helper",
+            "Update trigger_strategies_for_top_watchlist to use the helper",
+            "Run python -c 'from app.tasks.strategy_monitoring_tasks import weekly_strategy_generation'"
+          ],
+          "verification": "python -c 'from app.tasks.strategy_monitoring_tasks import weekly_strategy_generation'",
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Backend DRY Violations - Agent Error Handling",
+      "goal": "Consolidate error handling patterns in agent base class",
+      "tasks": [
+        {
+          "id": "3.1",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Extract _handle_unexpected_stop_reason helper in base.py",
+          "severity": "high",
+          "confidence": 0.98,
+          "files_affected": ["backend/app/agents/base.py"],
+          "steps": [
+            "Create _handle_unexpected_stop_reason(run_id, started_at, response, tool_calls_made, token_usage) helper",
+            "Update _run_with_llm_client to use the helper (lines 447-464)",
+            "Update _run_with_anthropic_api to use the helper (lines 526-539)",
+            "Ensure consistent metadata (duration_ms, token_usage) across both paths",
+            "Run pytest tests/agents/ -x --tb=short"
+          ],
+          "verification": "python -c 'from app.agents.base import BaseAgent'",
+          "passes": false
+        },
+        {
+          "id": "3.2",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Extract _handle_max_iterations helper in base.py",
+          "severity": "high",
+          "confidence": 0.98,
+          "files_affected": ["backend/app/agents/base.py"],
+          "steps": [
+            "Create _handle_max_iterations(run_id, started_at, tool_calls_made, max_iterations, token_usage) helper",
+            "Update _run_with_llm_client to use the helper (lines 466-482)",
+            "Update _run_with_anthropic_api to use the helper (lines 541-548)",
+            "Ensure consistent metadata tracking",
+            "Run pytest tests/agents/ -x --tb=short"
+          ],
+          "verification": "python -c 'from app.agents.base import BaseAgent'",
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Backend Long Method Extraction - Watchlist API",
+      "goal": "Break down long methods in watchlist.py",
+      "tasks": [
+        {
+          "id": "4.1",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Extract _build_refresh_status_response helper",
+          "severity": "medium",
+          "confidence": 0.90,
+          "files_affected": ["backend/app/api/watchlist.py"],
+          "steps": [
+            "Create _build_refresh_status_response(is_refreshing, status_data=None) helper function",
+            "Replace 3 RefreshStatusResponse constructions with the helper",
+            "This should reduce get_refresh_status by ~30 lines",
+            "Run python -c 'from app.api.watchlist import router'"
+          ],
+          "verification": "python -c 'from app.api.watchlist import router'",
+          "passes": false
+        },
+        {
+          "id": "4.2",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Split review_strategy_signal into dual vs legacy paths",
+          "severity": "high",
+          "confidence": 0.95,
+          "files_affected": ["backend/app/api/watchlist.py"],
+          "steps": [
+            "Create _handle_dual_review(watchlist_id, item_id, request, item_data) helper",
+            "Create _handle_legacy_review(watchlist_id, item_id, request, item_data) helper",
+            "Update review_strategy_signal to dispatch to appropriate handler",
+            "Run python -c 'from app.api.watchlist import router'"
+          ],
+          "verification": "python -c 'from app.api.watchlist import router'",
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Frontend Component Extraction - AgentPanel",
+      "goal": "Extract sub-components from AgentPanel.tsx",
+      "tasks": [
+        {
+          "id": "5.1",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Extract MessageBubble component",
+          "severity": "high",
+          "confidence": 0.95,
+          "files_affected": ["frontend/components/agents/AgentPanel.tsx", "frontend/components/agents/MessageBubble.tsx"],
+          "steps": [
+            "Create frontend/components/agents/MessageBubble.tsx",
+            "Move MessageBubble function from AgentPanel (lines 570-608)",
+            "Export and import properly",
+            "Run cd frontend && npm run lint"
+          ],
+          "verification": "cd frontend && npm run build",
+          "passes": false
+        },
+        {
+          "id": "5.2",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Extract EvidenceMessageBubble component",
+          "severity": "high",
+          "confidence": 0.95,
+          "files_affected": ["frontend/components/agents/AgentPanel.tsx", "frontend/components/agents/EvidenceMessageBubble.tsx"],
+          "steps": [
+            "Create frontend/components/agents/EvidenceMessageBubble.tsx",
+            "Move EvidenceMessageBubble function (lines 610-662)",
+            "Export and import properly",
+            "Run cd frontend && npm run lint"
+          ],
+          "verification": "cd frontend && npm run build",
+          "passes": false
+        },
+        {
+          "id": "5.3",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Extract getServerUrl to shared utility",
+          "severity": "medium",
+          "confidence": 0.90,
+          "files_affected": ["frontend/lib/server-url.ts", "frontend/components/agents/AgentPanel.tsx", "frontend/app/dev-assistant/page.tsx"],
+          "steps": [
+            "Create frontend/lib/server-url.ts with getServerUrl() function",
+            "Update AgentPanel.tsx to import from the new location",
+            "Update dev-assistant/page.tsx to import from the new location",
+            "Run cd frontend && npm run lint"
+          ],
+          "verification": "cd frontend && npm run build",
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Frontend Component Extraction - MaintenanceTable",
+      "goal": "Extract duplicate logic from MaintenanceTable.tsx",
+      "tasks": [
+        {
+          "id": "6.1",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Replace formatLastRun with formatRelativeTime",
+          "severity": "high",
+          "confidence": 0.95,
+          "files_affected": ["frontend/lib/maintenance/formatters.tsx"],
+          "steps": [
+            "Update formatLastRun to use formatRelativeTime from lib/utils.ts",
+            "Handle the 'Never' vs '—' difference with a parameter",
+            "Run cd frontend && npm run lint"
+          ],
+          "verification": "cd frontend && npm run build",
+          "passes": false
+        },
+        {
+          "id": "6.2",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Create useTableSort hook for reusable sorting",
+          "severity": "medium",
+          "confidence": 0.90,
+          "files_affected": ["frontend/lib/hooks/useTableSort.ts", "frontend/components/status/MaintenanceTable.tsx"],
+          "steps": [
+            "Create frontend/lib/hooks/useTableSort.ts",
+            "Add useTableSort<T>(items, defaultSortKey, compareFn) hook",
+            "Update MaintenanceTable.tsx to use the new hook",
+            "Run cd frontend && npm run lint"
+          ],
+          "verification": "cd frontend && npm run build",
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Final Verification",
+      "goal": "Run comprehensive tests and verify no regressions",
+      "tasks": [
+        {
+          "id": "7.1",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": false,
+          "description": "Run backend type checking",
+          "severity": "high",
+          "confidence": 1.0,
+          "files_affected": [],
+          "steps": [
+            "Run mypy on modified backend files",
+            "Fix any type errors introduced by refactoring"
+          ],
+          "verification": "cd backend && .venv/bin/mypy app/utils/formatters.py app/utils/db_helpers.py app/agents/base.py app/tasks/strategy_monitoring_tasks.py app/api/watchlist.py --no-error-summary",
+          "passes": false
+        },
+        {
+          "id": "7.2",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": false,
+          "description": "Run frontend build and lint",
+          "severity": "high",
+          "confidence": 1.0,
+          "files_affected": [],
+          "steps": [
+            "Run npm run lint",
+            "Run npm run build"
+          ],
+          "verification": "cd frontend && npm run lint && npm run build",
+          "passes": false
+        },
+        {
+          "id": "7.3",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": false,
+          "description": "Run backend tests",
+          "severity": "high",
+          "confidence": 1.0,
+          "files_affected": [],
+          "steps": [
+            "Run pytest on relevant test suites"
+          ],
+          "verification": "cd backend && timeout 90 .venv/bin/pytest tests/unit tests/analytics -x --tb=short -q",
+          "passes": false
+        }
+      ]
+    }
+  ]
+}

@@ -6,7 +6,7 @@ consistently across the codebase.
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 
@@ -51,3 +51,28 @@ def format_db_date_required(value: Any, skip_invalid: bool = True) -> str | None
     if result is None and not skip_invalid:
         raise ValueError(f"Invalid date value: {value}")
     return result
+
+
+def utc_now_iso() -> str:
+    """Return current UTC time as ISO format string.
+
+    Provides a single source of truth for timestamp generation,
+    replacing scattered datetime.now(UTC).isoformat() calls.
+
+    Returns:
+        ISO format string of current UTC time
+    """
+    return datetime.now(UTC).isoformat()
+
+
+def calculate_duration_ms(start: datetime, end: datetime) -> int:
+    """Calculate duration in milliseconds between two timestamps.
+
+    Args:
+        start: Start timestamp
+        end: End timestamp
+
+    Returns:
+        Duration in milliseconds as integer
+    """
+    return int((end - start).total_seconds() * 1000)
