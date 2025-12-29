@@ -235,44 +235,26 @@ def _dict_to_preferences_response(prefs: dict[str, Any]) -> PreferencesResponse:
     Centralizes the cast operations and default value handling.
     """
     return PreferencesResponse(
-        risk_tolerance=int(prefs.get("risk_tolerance", DEFAULT_PREFERENCES["risk_tolerance"])),
-        allow_long=bool(prefs.get("allow_long", DEFAULT_PREFERENCES["allow_long"])),
-        allow_short=bool(prefs.get("allow_short", DEFAULT_PREFERENCES["allow_short"])),
-        allow_options=bool(prefs.get("allow_options", DEFAULT_PREFERENCES["allow_options"])),
-        allow_crypto=bool(prefs.get("allow_crypto", DEFAULT_PREFERENCES["allow_crypto"])),
-        allow_futures=bool(prefs.get("allow_futures", DEFAULT_PREFERENCES["allow_futures"])),
-        max_position_size_pct=float(
-            prefs.get("max_position_size_pct", DEFAULT_PREFERENCES["max_position_size_pct"])
-        ),
-        default_refresh_minutes=int(
-            prefs.get("default_refresh_minutes", DEFAULT_PREFERENCES["default_refresh_minutes"])
-        ),
+        risk_tolerance=int(prefs.get("risk_tolerance") or 5),
+        allow_long=bool(prefs.get("allow_long")) if prefs.get("allow_long") is not None else True,
+        allow_short=bool(prefs.get("allow_short")) if prefs.get("allow_short") is not None else False,
+        allow_options=bool(prefs.get("allow_options")) if prefs.get("allow_options") is not None else False,
+        allow_crypto=bool(prefs.get("allow_crypto")) if prefs.get("allow_crypto") is not None else False,
+        allow_futures=bool(prefs.get("allow_futures")) if prefs.get("allow_futures") is not None else False,
+        max_position_size_pct=float(prefs.get("max_position_size_pct") or 10.0),
+        default_refresh_minutes=int(prefs.get("default_refresh_minutes") or 15),
         watchlist_refresh_override=prefs.get("watchlist_refresh_override"),
         portfolio_refresh_override=prefs.get("portfolio_refresh_override"),
         news_refresh_override=prefs.get("news_refresh_override"),
-        news_lookback_hours=int(prefs.get("news_lookback_hours", DEFAULT_NEWS_LOOKBACK_HOURS)),
-        news_max_articles=int(prefs.get("news_max_articles", DEFAULT_NEWS_MAX_ARTICLES)),
-        frontend_poll_interval=int(
-            prefs.get("frontend_poll_interval", DEFAULT_PREFERENCES["frontend_poll_interval"])
-        ),
-        watchlist_refresh_minutes=int(
-            prefs.get("watchlist_refresh_minutes", DEFAULT_PREFERENCES["watchlist_refresh_minutes"])
-        ),
-        watchlist_auto_expand=bool(
-            prefs.get("watchlist_auto_expand", DEFAULT_PREFERENCES["watchlist_auto_expand"])
-        ),
-        watchlist_price_weight=float(
-            prefs.get("watchlist_price_weight", DEFAULT_PREFERENCES["watchlist_price_weight"])
-        ),
-        watchlist_technical_weight=float(
-            prefs.get("watchlist_technical_weight", DEFAULT_PREFERENCES["watchlist_technical_weight"])
-        ),
-        display_timezone=str(
-            prefs.get("display_timezone", DEFAULT_PREFERENCES["display_timezone"])
-        ),
-        watchlist_show_news=bool(
-            prefs.get("watchlist_show_news", DEFAULT_PREFERENCES["watchlist_show_news"])
-        ),
+        news_lookback_hours=int(prefs.get("news_lookback_hours") or DEFAULT_NEWS_LOOKBACK_HOURS),
+        news_max_articles=int(prefs.get("news_max_articles") or DEFAULT_NEWS_MAX_ARTICLES),
+        frontend_poll_interval=int(prefs.get("frontend_poll_interval") or 30),
+        watchlist_refresh_minutes=int(prefs.get("watchlist_refresh_minutes") or 15),
+        watchlist_auto_expand=bool(prefs.get("watchlist_auto_expand")) if prefs.get("watchlist_auto_expand") is not None else False,
+        watchlist_price_weight=float(prefs.get("watchlist_price_weight") or 50.0),
+        watchlist_technical_weight=float(prefs.get("watchlist_technical_weight") or 50.0),
+        display_timezone=str(prefs.get("display_timezone") or "America/New_York"),
+        watchlist_show_news=bool(prefs.get("watchlist_show_news")) if prefs.get("watchlist_show_news") is not None else True,
     )
 
 

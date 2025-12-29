@@ -282,7 +282,8 @@
             "Run cd frontend && npm run lint"
           ],
           "verification": "cd frontend && npm run build",
-          "passes": false
+          "passes": true,
+          "notes": "Constants already exist in DEFAULTS.ts. Updated WatchlistPreferences to use them."
         },
         {
           "id": "4.3",
