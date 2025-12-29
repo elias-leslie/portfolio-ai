@@ -115,7 +115,7 @@
             "Run pytest tests/tasks/ -k cleanup"
           ],
           "verification": "python -c 'from app.tasks.log_cleanup_tasks import cleanup_old_logs_task'",
-          "passes": false
+          "passes": true
         },
         {
           "id": "2.2",
@@ -261,7 +261,7 @@
             "Run cd frontend && npm run lint"
           ],
           "verification": "cd frontend && npm run build",
-          "passes": false
+          "passes": true
         },
         {
           "id": "4.2",
