@@ -27,6 +27,54 @@ from app.utils.watchlist_cache import get_watchlist_symbols_cached
 logger = get_logger(__name__)
 
 
+def _dual_write_metrics(
+    conn: Any,
+    symbol: str,
+    as_of_date: Any,
+    base_table_update_sql: str,
+    base_table_params: list[Any],
+    metrics_table: str,
+    metrics_columns: list[str],
+    metrics_values: list[Any],
+    conflict_keys: list[str],
+) -> None:
+    """Write metrics to both reference_cache and a dedicated metrics table.
+
+    This pattern is used for valuation metrics, financial health scores, etc.
+    where we want both the cached payload + structured metrics columns AND
+    a dedicated historical table for efficient queries.
+
+    Args:
+        conn: Database connection
+        symbol: Stock symbol
+        as_of_date: Date for the metrics record
+        base_table_update_sql: SQL to update reference_cache
+        base_table_params: Parameters for base table update
+        metrics_table: Name of dedicated metrics table
+        metrics_columns: Column names for metrics table (excluding symbol, as_of_date)
+        metrics_values: Values for metrics columns
+        conflict_keys: Columns for ON CONFLICT clause
+    """
+    # Update reference_cache (base table)
+    conn.execute(base_table_update_sql, base_table_params)
+
+    # Build metrics table INSERT with ON CONFLICT
+    all_columns = ["symbol", "as_of_date", *metrics_columns]
+    placeholders = ", ".join(["%s"] * len(all_columns))
+    update_set = ", ".join(
+        f"{col} = EXCLUDED.{col}" for col in metrics_columns
+    )
+    update_set += ", updated_at = NOW()"
+    conflict_clause = ", ".join(conflict_keys)
+
+    insert_sql = f"""
+        INSERT INTO {metrics_table} ({", ".join(all_columns)})
+        VALUES ({placeholders})
+        ON CONFLICT ({conflict_clause}) DO UPDATE SET {update_set}
+    """
+    conn.execute(insert_sql, [symbol, as_of_date, *metrics_values])
+
+
 class ValuationMetricsDict(TypedDict, total=False):
     """Valuation metrics extracted from reference data payloads."""
 
@@ -171,64 +219,39 @@ def _update_valuation_metrics(symbol: str, source: str, payload: dict[str, Any])
 
         as_of_date = result[0]
 
-        # Update the metrics using composite primary key
-        conn.execute(
-            """
-            UPDATE reference_cache
-            SET pe_ratio_trailing = %s,
-                pe_ratio_forward = %s,
-                ps_ratio = %s,
-                pb_ratio = %s,
-                peg_ratio = %s,
-                dividend_yield = %s,
-                payout_ratio = %s
-            WHERE symbol = %s AND source = %s AND as_of_date = %s
-            """,
-            [
-                metrics["pe_ratio_trailing"],
-                metrics["pe_ratio_forward"],
-                metrics["ps_ratio"],
-                metrics["pb_ratio"],
-                metrics["peg_ratio"],
-                metrics["dividend_yield"],
-                metrics["payout_ratio"],
-                symbol,
-                source,
-                as_of_date,
-            ],
-        )
+        # Dual-write using shared helper
+        metrics_columns = [
+            "pe_ratio_trailing", "pe_ratio_forward", "ps_ratio",
+            "pb_ratio", "peg_ratio", "dividend_yield", "payout_ratio",
+        ]
+        metrics_values = [
+            metrics["pe_ratio_trailing"],
+            metrics["pe_ratio_forward"],
+            metrics["ps_ratio"],
+            metrics["pb_ratio"],
+            metrics["peg_ratio"],
+            metrics["dividend_yield"],
+            metrics["payout_ratio"],
+        ]
 
-        # Dual-write to valuation_metrics table
-        conn.execute(
-            """
-            INSERT INTO valuation_metrics (
-                symbol, as_of_date,
-                pe_ratio_trailing, pe_ratio_forward,
-                ps_ratio, pb_ratio, peg_ratio,
-                dividend_yield, payout_ratio
-            )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (symbol, as_of_date) DO UPDATE SET
-                pe_ratio_trailing = EXCLUDED.pe_ratio_trailing,
-                pe_ratio_forward = EXCLUDED.pe_ratio_forward,
-                ps_ratio = EXCLUDED.ps_ratio,
-                pb_ratio = EXCLUDED.pb_ratio,
-                peg_ratio = EXCLUDED.peg_ratio,
-                dividend_yield = EXCLUDED.dividend_yield,
-                payout_ratio = EXCLUDED.payout_ratio,
-                updated_at = NOW()
-            """,
-            [
-                symbol,
-                as_of_date,
-                metrics["pe_ratio_trailing"],
-                metrics["pe_ratio_forward"],
-                metrics["ps_ratio"],
-                metrics["pb_ratio"],
-                metrics["peg_ratio"],
-                metrics["dividend_yield"],
-                metrics["payout_ratio"],
-            ],
+        base_update_sql = """
+            UPDATE reference_cache
+            SET pe_ratio_trailing = %s, pe_ratio_forward = %s, ps_ratio = %s,
+                pb_ratio = %s, peg_ratio = %s, dividend_yield = %s, payout_ratio = %s
+            WHERE symbol = %s AND source = %s AND as_of_date = %s
+        """
+        base_params = [*metrics_values, symbol, source, as_of_date]
+
+        _dual_write_metrics(
+            conn=conn,
+            symbol=symbol,
+            as_of_date=as_of_date,
+            base_table_update_sql=base_update_sql,
+            base_table_params=base_params,
+            metrics_table="valuation_metrics",
+            metrics_columns=metrics_columns,
+            metrics_values=metrics_values,
+            conflict_keys=["symbol", "as_of_date"],
         )
 
         conn.commit()
@@ -735,54 +758,39 @@ def refresh_financial_health_scores(self: Task) -> dict[str, int | str]:
                     scores = get_financial_health_scores(symbol)
 
                     if scores.f_score is not None or scores.z_score is not None:
-                        # Update reference_cache with scores
-                        conn.execute(
-                            """
+                        # Prepare score values
+                        f_components_json = (
+                            json.dumps(scores.f_score_components)
+                            if scores.f_score_components
+                            else None
+                        )
+                        score_values = [
+                            scores.f_score,
+                            f_components_json,
+                            scores.z_score,
+                            scores.z_score_zone,
+                        ]
+
+                        # Dual-write using shared helper
+                        base_update_sql = """
                             UPDATE reference_cache
-                            SET f_score = %s,
-                                f_score_components = %s,
-                                z_score = %s,
-                                z_score_zone = %s
+                            SET f_score = %s, f_score_components = %s,
+                                z_score = %s, z_score_zone = %s
                             WHERE symbol = %s
                               AND as_of_date = (
                                   SELECT MAX(as_of_date) FROM reference_cache WHERE symbol = %s
                               )
-                            """,
-                            [
-                                scores.f_score,
-                                json.dumps(scores.f_score_components)
-                                if scores.f_score_components
-                                else None,
-                                scores.z_score,
-                                scores.z_score_zone,
-                                symbol,
-                                symbol,
-                            ],
-                        )
-
-                        # Dual-write to financial_health_scores table
-                        conn.execute(
-                            """
-                            INSERT INTO financial_health_scores (
-                                symbol, as_of_date, f_score, f_score_components, z_score, z_score_zone
-                            )
-                            VALUES (%s, NOW(), %s, %s, %s, %s)
-                            ON CONFLICT (symbol, as_of_date) DO UPDATE SET
-                                f_score = EXCLUDED.f_score,
-                                f_score_components = EXCLUDED.f_score_components,
-                                z_score = EXCLUDED.z_score,
-                                z_score_zone = EXCLUDED.z_score_zone,
-                                updated_at = NOW()
-                            """,
-                            [
-                                symbol,
-                                scores.f_score,
-                                json.dumps(scores.f_score_components)
-                                if scores.f_score_components
-                                else None,
-                                scores.z_score,
-                                scores.z_score_zone,
-                            ],
+                        """
+                        _dual_write_metrics(
+                            conn=conn,
+                            symbol=symbol,
+                            as_of_date=dt.date.today(),  # Use today for metrics table
+                            base_table_update_sql=base_update_sql,
+                            base_table_params=[*score_values, symbol, symbol],
+                            metrics_table="financial_health_scores",
+                            metrics_columns=["f_score", "f_score_components", "z_score", "z_score_zone"],
+                            metrics_values=score_values,
+                            conflict_keys=["symbol", "as_of_date"],
                         )
 
                         symbols_updated += 1
