@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import {
+    RefreshCw,
     Wifi,
     Newspaper,
 } from "lucide-react";
