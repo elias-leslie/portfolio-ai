@@ -130,16 +130,19 @@
           "category": "frontend",
           "description": "Consolidate database task handlers in MaintenanceTable.tsx",
           "files_affected": [
-            "frontend/components/status/MaintenanceTable.tsx"
+            "frontend/components/status/MaintenanceTable.tsx",
+            "frontend/components/status/maintenanceTaskConfig.ts"
           ],
           "steps": [
-            "Create handleDatabaseTask(taskName, apiFunc, successExtractor) function",
-            "Replace 3 duplicate handlers (handleCleanupNews, handleVacuumDatabase, handleValidateIntegrity)",
-            "Consolidate dialog config to lookup map",
-            "Run: cd frontend && npm run lint",
-            "Verify: Single parameterized handler for DB tasks"
+            "Added DB_TASK_DIALOG_CONFIGS to maintenanceTaskConfig.ts",
+            "Created handleDatabaseTask(taskId) single parameterized handler",
+            "Replaced 3 duplicate handlers with config-driven pattern",
+            "Updated triggerTask() to use dbConfig lookup",
+            "Updated handleRunAll() to use dbTaskApiFunctions map",
+            "Run: npm run build - PASSED",
+            "Commit: 9bb2d837"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.3",
