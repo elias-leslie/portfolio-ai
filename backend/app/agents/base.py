@@ -18,6 +18,11 @@ from ..utils.json_helpers import json_serializer
 from .llm_client import LLMClient
 from .types import ToolInputDict
 
+# Agent constants
+MAX_LLM_TOKENS = 4096  # Max tokens for LLM response
+TOOL_RESULT_TRUNCATE = 10000  # Max chars to store for tool results
+RESULT_SUMMARY_LENGTH = 500  # Max chars for result summary
+
 if TYPE_CHECKING:
     from app.storage.facade import PortfolioStorage
 
@@ -305,7 +310,7 @@ class Agent(ABC):
                 tools=self.get_tools(),
                 system=self.get_system_prompt(),
                 conversation_history=conversation_history,
-                max_tokens=4096,
+                max_tokens=MAX_LLM_TOKENS,
                 temperature=1.0,
             )
 
@@ -430,7 +435,7 @@ class Agent(ABC):
         for iteration in range(max_iterations):
             response = self.client.messages.create(
                 model=self.model,
-                max_tokens=4096,
+                max_tokens=MAX_LLM_TOKENS,
                 system=self.get_system_prompt(),
                 tools=self.get_tools(),  # type: ignore[arg-type]
                 messages=messages,  # type: ignore[arg-type]
@@ -524,7 +529,7 @@ class Agent(ABC):
             self._store_conversation_message(
                 run_id,
                 "tool_result",
-                result_str[:10000],
+                result_str[:TOOL_RESULT_TRUNCATE],
                 metadata={"tool_name": tool_name, "duration_ms": duration_ms},
             )
 
@@ -688,7 +693,7 @@ class Agent(ABC):
         tool_call_id = str(uuid.uuid4())
 
         # Summarize result
-        result_summary = str(result)[:500]
+        result_summary = str(result)[:RESULT_SUMMARY_LENGTH]
 
         self.storage.insert_dict(
             "agent_tool_calls",
