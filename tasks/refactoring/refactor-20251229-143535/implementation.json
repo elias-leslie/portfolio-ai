@@ -244,7 +244,8 @@
             "Run cd frontend && npm run lint"
           ],
           "verification": "cd frontend && npm run build",
-          "passes": false
+          "passes": true,
+          "notes": "Extracted both MessageBubble and ContentBlockView (tightly coupled). Reduced AgentPanel.tsx by ~85 lines. Build verified."
         },
         {
           "id": "5.2",
