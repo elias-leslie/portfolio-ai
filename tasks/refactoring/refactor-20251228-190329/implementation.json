@@ -361,13 +361,12 @@
             "backend/app/tasks/strategy_monitoring_tasks.py"
           ],
           "steps": [
-            "Add constants: PERFORMANCE_RATIO_THRESHOLD = 0.7",
-            "Add constants: DEFAULT_ROLLING_WINDOW_DAYS = 30",
-            "Add constants: UNDERPERFORMANCE_SHARPE_THRESHOLD = 0.5",
-            "Add constants: EVOLUTION_TRIGGER_THRESHOLD = 0.9",
-            "Run: cd backend && .venv/bin/ruff check app/tasks/"
+            "Added 4 module-level constants for performance thresholds",
+            "Replaced magic numbers in evaluate_strategy_performance()",
+            "Run: cd backend && .venv/bin/ruff check - PASSED",
+            "Commit: cd32e163"
           ],
-          "passes": false
+          "passes": true
         }
       ]
     },

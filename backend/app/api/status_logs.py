@@ -56,11 +56,11 @@ SYSLOG_PRIORITY_TO_LEVEL: dict[int, str] = {
     0: "CRITICAL",  # Emergency
     1: "CRITICAL",  # Alert
     2: "CRITICAL",  # Critical
-    3: "ERROR",     # Error
-    4: "WARN",      # Warning
-    5: "INFO",      # Notice
-    6: "INFO",      # Informational
-    7: "DEBUG",     # Debug
+    3: "ERROR",  # Error
+    4: "WARN",  # Warning
+    5: "INFO",  # Notice
+    6: "INFO",  # Informational
+    7: "DEBUG",  # Debug
 }
 
 # Fetch limits
@@ -308,9 +308,7 @@ async def get_unified_logs(
     """
     # Validate parameters
     if lines < 1 or lines > MAX_LOG_LINES:
-        raise HTTPException(
-            status_code=400, detail=f"Lines must be between 1 and {MAX_LOG_LINES}"
-        )
+        raise HTTPException(status_code=400, detail=f"Lines must be between 1 and {MAX_LOG_LINES}")
 
     valid_services = {"backend", "celery_worker", "celery_beat", "frontend", "redis", "postgresql"}
     if service and service not in valid_services:

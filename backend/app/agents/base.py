@@ -540,9 +540,7 @@ class Agent(ABC):
         for tr in tool_results:
             parts.append(f"\nTool: {tr['name']}")
             parts.append(f"Parameters: {json.dumps(tr['parameters'])}")
-            parts.append(
-                f"Result:\n{json.dumps(tr['result'], indent=2, default=json_serializer)}"
-            )
+            parts.append(f"Result:\n{json.dumps(tr['result'], indent=2, default=json_serializer)}")
             parts.append("=" * 60)
 
         parts.append(
