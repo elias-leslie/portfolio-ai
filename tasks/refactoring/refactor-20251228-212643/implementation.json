@@ -382,7 +382,7 @@
             "Run npm run lint in frontend"
           ],
           "verification": "cd frontend && npm run lint && npm run build",
-          "passes": false
+          "passes": true
         },
         {
           "id": "4.2",
