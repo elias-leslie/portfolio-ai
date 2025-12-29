@@ -11,6 +11,7 @@ import {
   getSentimentScore,
 } from "@/lib/utils/news-formatting";
 import { NewsArticleCard } from "./NewsArticleCard";
+import { SentimentBreakdownSection } from "./SentimentBreakdownSection";
 
 type SortOption = "recent" | "positive" | "negative";
 
