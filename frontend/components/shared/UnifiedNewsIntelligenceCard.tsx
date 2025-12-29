@@ -8,10 +8,8 @@ import { ExternalLink, ArrowUpDown, Newspaper, ChevronDown } from "lucide-react"
 import {
   formatSentimentScore,
   getSentimentBadgeVariant,
-  formatNewsDate,
-  formatVendorLabel,
-  formatConfidence,
 } from "@/lib/utils/news-formatting";
+import { NewsArticleCard } from "./NewsArticleCard";
 
 type SortOption = "recent" | "positive" | "negative";
 
