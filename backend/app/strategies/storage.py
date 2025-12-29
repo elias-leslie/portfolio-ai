@@ -70,9 +70,9 @@ class StrategyStorage:
         version = self._get_next_version(symbol, name)
 
         # Serialize JSONB fields (handle Decimal types)
-        parameters_json = json.dumps(parameters, default=_json_serializer)
-        research_summary_json = json.dumps(research_summary, default=_json_serializer)
-        backtest_metrics_json = json.dumps(backtest_metrics, default=_json_serializer)
+        parameters_json = json.dumps(parameters, default=json_serializer)
+        research_summary_json = json.dumps(research_summary, default=json_serializer)
+        backtest_metrics_json = json.dumps(backtest_metrics, default=json_serializer)
 
         with self.conn.connection() as conn:
             # Ensure symbol exists in symbols table (FK constraint)
