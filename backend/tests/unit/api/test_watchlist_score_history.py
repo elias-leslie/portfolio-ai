@@ -18,8 +18,8 @@ class TestGetScoreHistoryEndpoint:
     """Tests for GET /api/watchlist/{item_id}/history endpoint."""
 
     @pytest.fixture
-    def mock_storage(self) -> MagicMock:
-        """Create mock storage instance."""
+    def mock_repo(self) -> MagicMock:
+        """Create mock watchlist repository instance."""
         return MagicMock()
 
     @pytest.fixture

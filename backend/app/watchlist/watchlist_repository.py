@@ -420,3 +420,22 @@ class WatchlistRepository:
             """,
             [item_id],
         )
+
+    def get_snapshots_with_metrics(self, item_id: str) -> pl.DataFrame:
+        """Get all snapshots for history with raw_metrics.
+
+        Args:
+            item_id: Watchlist item ID
+
+        Returns:
+            DataFrame with snapshots including raw_metrics
+        """
+        return self.storage.query(
+            """
+            SELECT item_id, fetched_at, price, technical_score, overall_score, raw_metrics
+            FROM watchlist_snapshots_v
+            WHERE item_id = ?
+            ORDER BY fetched_at DESC
+            """,
+            [item_id],
+        )

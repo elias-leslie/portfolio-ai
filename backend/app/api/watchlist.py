@@ -187,14 +187,7 @@ async def get_daily_report() -> dict[str, object]:
     """
     try:
         # Get latest report
-        report_df = storage.query(
-            """
-            SELECT id, report_date, symbols_added, symbols_removed, score_changes, generated_at
-            FROM watchlist_daily_reports
-            ORDER BY report_date DESC
-            LIMIT 1
-            """
-        )
+        report_df = watchlist_repo.get_latest_daily_report()
 
         if report_df.is_empty():
             return {
@@ -251,38 +244,14 @@ async def create_watchlist_item(data: WatchlistItemCreate) -> WatchlistItemRespo
         symbol = validate_symbol(data.symbol)
 
         # Check if already exists (globally - watchlist is user-level)
-        existing_df = storage.query(
-            """
-            SELECT id FROM watchlist_items
-            WHERE symbol = ?
-            """,
-            [symbol],
-        )
-        if not existing_df.is_empty():
+        if watchlist_repo.check_item_exists(symbol):
             raise HTTPException(status_code=409, detail=f"Symbol {symbol} already in watchlist")
 
         # Create item
         item_id = str(uuid.uuid4())
         now = datetime.now(UTC).isoformat()
 
-        with storage.connection() as conn:
-            # Ensure symbol exists in symbols table (FK constraint)
-            conn.execute(
-                """
-                INSERT INTO symbols (symbol, security_type, created_at)
-                VALUES (%s, 'equity', %s)
-                ON CONFLICT (symbol) DO NOTHING
-                """,
-                [symbol, now],
-            )
-            conn.execute(
-                """
-                INSERT INTO watchlist_items (id, symbol, note, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s)
-                """,
-                [item_id, symbol, data.note, now, now],
-            )
-            conn.commit()
+        watchlist_repo.create_item(item_id, symbol, data.note, now)
 
         # Invalidate all watchlist caches (Redis symbols + HTTP response)
         invalidate_all_watchlist_caches()
@@ -418,12 +387,7 @@ async def update_watchlist_item(item_id: str, data: WatchlistItemUpdate) -> Watc
     """
     try:
         # Check if exists
-        items_df = storage.query(
-            """
-            SELECT id, symbol FROM watchlist_items WHERE id = ?
-            """,
-            [item_id],
-        )
+        items_df = watchlist_repo.get_item_by_id(item_id)
 
         if items_df.is_empty():
             raise HTTPException(status_code=404, detail="Watchlist item not found")
@@ -431,16 +395,7 @@ async def update_watchlist_item(item_id: str, data: WatchlistItemUpdate) -> Watc
         now = datetime.now(UTC).isoformat()
 
         # Update note
-        with storage.connection() as conn:
-            conn.execute(
-                """
-                UPDATE watchlist_items
-                SET note = ?, updated_at = ?
-                WHERE id = ?
-                """,
-                [data.note, now, item_id],
-            )
-            conn.commit()
+        watchlist_repo.update_item_note(item_id, data.note, now)
 
         logger.info("Watchlist item updated", item_id=item_id)
 
@@ -463,31 +418,13 @@ async def delete_watchlist_item(item_id: str) -> None:
     """
     try:
         # Check if exists
-        items_df = storage.query(
-            """
-            SELECT id FROM watchlist_items WHERE id = ?
-            """,
-            [item_id],
-        )
+        items_df = watchlist_repo.get_item_by_id(item_id)
 
         if items_df.is_empty():
             raise HTTPException(status_code=404, detail="Watchlist item not found")
 
         # Delete snapshots first (foreign key), then delete item
-        with storage.connection() as conn:
-            conn.execute(
-                """
-                DELETE FROM watchlist_snapshots WHERE item_id = ?
-                """,
-                [item_id],
-            )
-            conn.execute(
-                """
-                DELETE FROM watchlist_items WHERE id = ?
-                """,
-                [item_id],
-            )
-            conn.commit()
+        watchlist_repo.delete_item(item_id)
 
         # Invalidate all watchlist caches (Redis symbols + HTTP response)
         invalidate_all_watchlist_caches()
@@ -516,12 +453,7 @@ async def get_score_history(item_id: str, days: int = 10) -> ScoreHistoryRespons
     """
     try:
         # Get item info
-        item_df = storage.query(
-            """
-            SELECT symbol FROM watchlist_items WHERE id = ?
-            """,
-            [item_id],
-        )
+        item_df = watchlist_repo.get_symbol_by_item_id(item_id)
 
         if item_df.is_empty():
             raise HTTPException(status_code=404, detail="Watchlist item not found")
@@ -529,15 +461,7 @@ async def get_score_history(item_id: str, days: int = 10) -> ScoreHistoryRespons
         symbol = item_df.to_dicts()[0]["symbol"]
 
         # Fetch snapshots from database using the normalized view
-        snapshots_df = storage.query(
-            """
-            SELECT item_id, fetched_at, price, technical_score, overall_score, raw_metrics
-            FROM watchlist_snapshots_v
-            WHERE item_id = ?
-            ORDER BY fetched_at DESC
-            """,
-            [item_id],
-        )
+        snapshots_df = watchlist_repo.get_snapshots_with_metrics(item_id)
 
         if snapshots_df.is_empty():
             logger.warning("No snapshot data available", symbol=symbol, item_id=item_id)
@@ -605,11 +529,7 @@ async def refresh_watchlist_scores(data: RefreshRequest) -> RefreshResponse:
         logger.info("Refresh request started")
 
         # Get all watchlist items
-        items_df = storage.query(
-            """
-            SELECT id, symbol FROM watchlist_items
-            """
-        )
+        items_df = watchlist_repo.get_all_symbols()
 
         if items_df.is_empty():
             return RefreshResponse(
@@ -706,26 +626,13 @@ async def review_strategy_signal(item_id: str, dual: bool = True) -> dict[str, o
     """
     try:
         # Fetch watchlist item
-        items_df = storage.query(
-            """
-            SELECT * FROM watchlist_items WHERE id = ?
-            """,
-            [item_id],
-        )
+        items_df = watchlist_repo.get_item_with_snapshots(item_id)
 
         if items_df.is_empty():
             raise HTTPException(status_code=404, detail=f"Watchlist item {item_id} not found")
 
         # Get latest snapshot
-        snapshots_df = storage.query(
-            """
-            SELECT * FROM watchlist_snapshots_v
-            WHERE item_id = ?
-            ORDER BY fetched_at DESC
-            LIMIT 1
-            """,
-            [item_id],
-        )
+        snapshots_df = watchlist_repo.get_latest_snapshot_for_review(item_id)
 
         if snapshots_df.is_empty():
             raise HTTPException(
