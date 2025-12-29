@@ -23,6 +23,84 @@ from app.utils.git_automation import commit_workflow_results
 logger = get_logger(__name__)
 
 
+def _setup_agent_tools(storage: PortfolioStorage) -> AgentTools:
+    """Initialize AgentTools with all required dependencies.
+
+    Centralizes tool setup to avoid duplication across workflow functions.
+    """
+    portfolio_mgr = PortfolioManager(storage)
+    return AgentTools(
+        storage=storage,
+        news_service=NewsService(storage),
+        fred_source=FREDSource(api_key=None),
+        price_fetcher=PriceDataFetcher(storage),
+        portfolio_mgr=portfolio_mgr,
+        analytics=PortfolioAnalytics(),
+    )
+
+
+def _execute_agent_with_error_handling(
+    client: DualProviderClient,
+    prompt: str,
+    system: str,
+    agent_name: str,
+) -> tuple[str | None, str | None]:
+    """Execute an agent prompt with standardized error handling.
+
+    Args:
+        client: LLM client instance
+        prompt: The prompt to send
+        system: System message for the agent
+        agent_name: Name for logging purposes
+
+    Returns:
+        Tuple of (output, error) - one will be None
+    """
+    try:
+        response = client.generate(prompt=prompt, system=system)
+        output = response.content
+        logger.info(f"{agent_name} analysis: {len(output)} chars")
+        return output, None
+    except Exception as e:
+        error = f"{type(e).__name__}: {e!s}"
+        logger.error(f"{agent_name} agent failed: {error}", exc_info=True)
+        return None, error
+
+
+def _commit_workflow_to_git(
+    workflow_type: str,
+    workflow_id: str,
+    date: datetime,
+    result_summary: str,
+    snapshot_data: dict[str, object],
+) -> bool:
+    """Commit workflow results to git with error handling.
+
+    Args:
+        workflow_type: Type of workflow (e.g., 'daily_gap_analysis')
+        workflow_id: Unique workflow identifier
+        date: Workflow execution date
+        result_summary: Human-readable summary
+        snapshot_data: Data to include in the commit
+
+    Returns:
+        True if commit succeeded, False otherwise
+    """
+    try:
+        commit_success = commit_workflow_results(
+            workflow_type=workflow_type,
+            date=date,
+            result_summary=result_summary,
+            snapshot_data=snapshot_data,
+        )
+        if commit_success:
+            logger.info(f"Workflow {workflow_id} results committed to git")
+        return commit_success
+    except Exception as e:
+        logger.warning(f"Git automation failed: {e} (non-blocking)")
+        return False
+
+
 def _get_available_data_range(
     storage: PortfolioStorage, symbol: str
 ) -> tuple[str | None, str | None]:
@@ -106,18 +184,12 @@ Identify trading intelligence gaps in current data coverage:
 
 Respond with structured JSON."""
 
-        gemini_output = None
-        gemini_error = None
-        try:
-            gemini_response = client.generate(
-                prompt=gemini_prompt,
-                system="You are a market intelligence analyst identifying data gaps.",
-            )
-            gemini_output = gemini_response.content
-            logger.info(f"Gemini analysis: {len(gemini_output)} chars")
-        except Exception as e:
-            gemini_error = f"{type(e).__name__}: {e!s}"
-            logger.error(f"Gemini agent failed: {gemini_error}", exc_info=True)
+        gemini_output, gemini_error = _execute_agent_with_error_handling(
+            client=client,
+            prompt=gemini_prompt,
+            system="You are a market intelligence analyst identifying data gaps.",
+            agent_name="Gemini",
+        )
 
         # Execute Claude agent for validation
         if gemini_output:
@@ -129,18 +201,12 @@ Validate gaps, add missed insights, refine priorities, provide final recommendat
         else:
             claude_prompt = gemini_prompt
 
-        claude_output = None
-        claude_error = None
-        try:
-            claude_response = client.generate(
-                prompt=claude_prompt,
-                system="You are a senior market analyst validating gap analysis.",
-            )
-            claude_output = claude_response.content
-            logger.info(f"Claude analysis: {len(claude_output)} chars")
-        except Exception as e:
-            claude_error = f"{type(e).__name__}: {e!s}"
-            logger.error(f"Claude agent failed: {claude_error}", exc_info=True)
+        claude_output, claude_error = _execute_agent_with_error_handling(
+            client=client,
+            prompt=claude_prompt,
+            system="You are a senior market analyst validating gap analysis.",
+            agent_name="Claude",
+        )
 
         # Generate final analysis
         if not gemini_output and not claude_output:
@@ -191,8 +257,9 @@ Validate gaps, add missed insights, refine priorities, provide final recommendat
             except Exception:
                 pass
 
-            commit_success = commit_workflow_results(
+            _commit_workflow_to_git(
                 workflow_type="daily_gap_analysis",
+                workflow_id=workflow_id,
                 date=datetime.now(UTC),
                 result_summary=analysis_summary,
                 snapshot_data={
@@ -204,10 +271,8 @@ Validate gaps, add missed insights, refine priorities, provide final recommendat
                     ],
                 },
             )
-            if commit_success:
-                logger.info(f"Workflow {workflow_id} results committed to git")
-        except Exception as e:
-            logger.warning(f"Git automation failed: {e} (non-blocking)")
+        except Exception:
+            pass  # Error already logged in helper
 
         return {"status": "completed", "workflow_id": workflow_id, "result": final_analysis}
 
@@ -336,15 +401,7 @@ def paper_trade_validation_workflow(  # noqa: PLR0911
                 logger.info(f"Using default SignalStrategy (no custom strategy found for {symbol})")
 
             # Initialize tools to execute backtest
-            portfolio_mgr = PortfolioManager(storage)
-            tools = AgentTools(
-                storage=storage,
-                news_service=NewsService(storage),
-                fred_source=FREDSource(api_key=None),
-                price_fetcher=PriceDataFetcher(storage),
-                portfolio_mgr=portfolio_mgr,
-                analytics=PortfolioAnalytics(),
-            )
+            tools = _setup_agent_tools(storage)
 
             logger.info(f"Executing 1-year backtest for {symbol} ({start_date} to {end_date})")
 
@@ -598,16 +655,7 @@ Respond with JSON: {{"decision": "APPROVE|REJECT", "confidence": <0-100>, "reaso
         # Execute paper trade if approved
         trade_id = None
         if approved:
-            portfolio_mgr = PortfolioManager(storage)
-            tools = AgentTools(
-                storage=storage,
-                news_service=NewsService(storage),
-                fred_source=FREDSource(api_key=None),  # FREDSource takes api_key, not storage
-                price_fetcher=PriceDataFetcher(storage),
-                portfolio_mgr=portfolio_mgr,
-                analytics=PortfolioAnalytics(),  # No-arg constructor
-            )
-
+            tools = _setup_agent_tools(storage)
             trade_result = tools.execute_create_paper_trade(
                 agent_run_id=workflow_id,
                 symbol=symbol,
@@ -647,45 +695,41 @@ Respond with JSON: {{"decision": "APPROVE|REJECT", "confidence": <0-100>, "reaso
         )
 
         # Commit results to git
-        try:
-            decision = "APPROVED" if approved else "REJECTED"
-            trade_summary = f"{symbol} {action} {decision}"
+        decision = "APPROVED" if approved else "REJECTED"
+        trade_summary = f"{symbol} {action} {decision}"
 
-            if backtest_metrics:
-                sharpe_raw = backtest_metrics.get("sharpe_ratio", 0)
-                win_rate_raw = backtest_metrics.get("win_rate", 0)
-                sharpe_f = float(str(sharpe_raw)) if sharpe_raw is not None else 0.0
-                win_rate_f = float(str(win_rate_raw)) if win_rate_raw is not None else 0.0
-                trade_summary += f" (Sharpe {sharpe_f:.1f}, win rate {win_rate_f:.0f}%)"
+        if backtest_metrics:
+            sharpe_raw = backtest_metrics.get("sharpe_ratio", 0)
+            win_rate_raw = backtest_metrics.get("win_rate", 0)
+            sharpe_f = float(str(sharpe_raw)) if sharpe_raw is not None else 0.0
+            win_rate_f = float(str(win_rate_raw)) if win_rate_raw is not None else 0.0
+            trade_summary += f" (Sharpe {sharpe_f:.1f}, win rate {win_rate_f:.0f}%)"
 
-            if trade_id:
-                trade_summary += f" (trade_id: {str(trade_id)[:8]})"
+        if trade_id:
+            trade_summary += f" (trade_id: {str(trade_id)[:8]})"
 
-            commit_success = commit_workflow_results(
-                workflow_type="paper_trade_validation",
-                date=datetime.now(UTC),
-                result_summary=trade_summary,
-                snapshot_data={
-                    "workflow_id": workflow_id,
-                    "symbol": symbol,
-                    "action": action,
-                    "thesis": thesis,
-                    "approved": approved,
-                    "trade_id": str(trade_id) if trade_id else None,
-                    "backtest_run_id": str(backtest_result.get("backtest_run_id"))
-                    if backtest_result
-                    else None,
-                    "backtest_metrics": backtest_metrics,
-                    "strategy_decision": "APPROVE" if strategy_approved else "REJECT",
-                    "strategy_reasoning": strategy_reasoning,
-                    "risk_decision": "APPROVE" if risk_approved else "REJECT",
-                    "risk_reasoning": risk_reasoning,
-                },
-            )
-            if commit_success:
-                logger.info(f"Workflow {workflow_id} results committed to git")
-        except Exception as e:
-            logger.warning(f"Git automation failed: {e} (non-blocking)")
+        _commit_workflow_to_git(
+            workflow_type="paper_trade_validation",
+            workflow_id=workflow_id,
+            date=datetime.now(UTC),
+            result_summary=trade_summary,
+            snapshot_data={
+                "workflow_id": workflow_id,
+                "symbol": symbol,
+                "action": action,
+                "thesis": thesis,
+                "approved": approved,
+                "trade_id": str(trade_id) if trade_id else None,
+                "backtest_run_id": str(backtest_result.get("backtest_run_id"))
+                if backtest_result
+                else None,
+                "backtest_metrics": backtest_metrics,
+                "strategy_decision": "APPROVE" if strategy_approved else "REJECT",
+                "strategy_reasoning": strategy_reasoning,
+                "risk_decision": "APPROVE" if risk_approved else "REJECT",
+                "risk_reasoning": risk_reasoning,
+            },
+        )
 
         return {
             "status": "completed",
