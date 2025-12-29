@@ -640,10 +640,8 @@ def refresh_analyst_revisions(self: Task) -> dict[str, int | str]:
     try:
         storage = get_storage()
 
-        # Get watchlist symbols
-        with storage.connection() as conn:
-            result = conn.execute("SELECT DISTINCT symbol FROM watchlist_items")
-            symbols = [str(row[0]) for row in result.fetchall()]
+        # Get watchlist symbols (cached)
+        symbols = get_watchlist_symbols_cached(storage, account_id=None, ttl_seconds=60)
 
         if not symbols:
             logger.info("no_watchlist_symbols_for_analyst_revisions")
@@ -713,10 +711,8 @@ def refresh_financial_health_scores(self: Task) -> dict[str, int | str]:
     try:
         storage = get_storage()
 
-        # Get watchlist symbols
-        with storage.connection() as conn:
-            result = conn.execute("SELECT DISTINCT symbol FROM watchlist_items")
-            symbols = [str(row[0]) for row in result.fetchall()]
+        # Get watchlist symbols (cached)
+        symbols = get_watchlist_symbols_cached(storage, account_id=None, ttl_seconds=60)
 
         if not symbols:
             logger.info("no_watchlist_symbols_for_health_scores")
@@ -856,10 +852,8 @@ def refresh_risk_metrics(self: Task) -> dict[str, int | str]:
     try:
         storage = get_storage()
 
-        # Get watchlist symbols
-        with storage.connection() as conn:
-            result = conn.execute("SELECT DISTINCT symbol FROM watchlist_items")
-            symbols = [str(row[0]) for row in result.fetchall()]
+        # Get watchlist symbols (cached)
+        symbols = get_watchlist_symbols_cached(storage, account_id=None, ttl_seconds=60)
 
         if not symbols:
             logger.info("no_watchlist_symbols_for_risk_metrics")
