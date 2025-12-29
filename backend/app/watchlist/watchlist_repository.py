@@ -186,3 +186,237 @@ class WatchlistRepository:
             snapshot_params: Snapshot parameters for upsert operation
         """
         self.storage.query_mgr.upsert_watchlist_snapshot(**snapshot_params)
+
+    def check_item_exists(self, symbol: str) -> bool:
+        """Check if a watchlist item exists for the given symbol.
+
+        Args:
+            symbol: Stock symbol
+
+        Returns:
+            True if item exists, False otherwise
+        """
+        df = self.storage.query(
+            """
+            SELECT id FROM watchlist_items
+            WHERE symbol = ?
+            """,
+            [symbol],
+        )
+        return not df.is_empty()
+
+    def create_item(
+        self,
+        item_id: str,
+        symbol: str,
+        note: str | None,
+        now: str,
+    ) -> None:
+        """Create a new watchlist item.
+
+        Args:
+            item_id: UUID for the new item
+            symbol: Stock symbol
+            note: Optional note
+            now: ISO timestamp for created_at/updated_at
+        """
+        with self.storage.connection() as conn:
+            # Ensure symbol exists in symbols table (FK constraint)
+            conn.execute(
+                """
+                INSERT INTO symbols (symbol, security_type, created_at)
+                VALUES (%s, 'equity', %s)
+                ON CONFLICT (symbol) DO NOTHING
+                """,
+                [symbol, now],
+            )
+            conn.execute(
+                """
+                INSERT INTO watchlist_items (id, symbol, note, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s)
+                """,
+                [item_id, symbol, note, now, now],
+            )
+            conn.commit()
+
+    def update_item_note(self, item_id: str, note: str | None, now: str) -> None:
+        """Update a watchlist item's note.
+
+        Args:
+            item_id: Watchlist item ID
+            note: New note value
+            now: ISO timestamp for updated_at
+        """
+        with self.storage.connection() as conn:
+            conn.execute(
+                """
+                UPDATE watchlist_items
+                SET note = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                [note, now, item_id],
+            )
+            conn.commit()
+
+    def delete_item(self, item_id: str) -> None:
+        """Delete a watchlist item and its snapshots.
+
+        Args:
+            item_id: Watchlist item ID
+        """
+        with self.storage.connection() as conn:
+            # Delete snapshots first (foreign key)
+            conn.execute(
+                """
+                DELETE FROM watchlist_snapshots WHERE item_id = ?
+                """,
+                [item_id],
+            )
+            conn.execute(
+                """
+                DELETE FROM watchlist_items WHERE id = ?
+                """,
+                [item_id],
+            )
+            conn.commit()
+
+    def store_strategy_review(
+        self,
+        review_id: str,
+        item_id: str,
+        snapshot_id: str | None,
+        symbol: str,
+        review_text: str,
+        provider: str,
+        is_valid: bool,
+        disagreement: bool | None,
+        token_usage_json: str,
+        created_at: datetime,
+        pair_id: str | None = None,
+        severity: str | None = None,
+        agreement: float | None = None,
+        provider_disagreement: bool | None = None,
+    ) -> None:
+        """Store a strategy review in the database.
+
+        Args:
+            review_id: UUID for the review
+            item_id: Watchlist item ID
+            snapshot_id: Snapshot ID (optional)
+            symbol: Stock symbol
+            review_text: LLM review text
+            provider: LLM provider name
+            is_valid: Whether the signal is valid
+            disagreement: Whether LLM disagrees with signal
+            token_usage_json: JSON string of token usage
+            created_at: Creation timestamp
+            pair_id: Review pair ID for dual reviews
+            severity: Disagreement severity
+            agreement: Agreement score
+            provider_disagreement: Provider disagreement flag
+        """
+        with self.storage.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO strategy_reviews (
+                    id, watchlist_item_id, snapshot_id, symbol, review_text,
+                    provider, is_valid, disagreement, token_usage, created_at,
+                    review_pair_id, disagreement_severity, provider_disagreement, agreement_score
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    review_id,
+                    item_id,
+                    snapshot_id,
+                    symbol,
+                    review_text,
+                    provider,
+                    is_valid,
+                    disagreement,
+                    token_usage_json,
+                    created_at,
+                    pair_id,
+                    severity,
+                    agreement,
+                    provider_disagreement,
+                ],
+            )
+            conn.commit()
+
+    def get_latest_daily_report(self) -> pl.DataFrame:
+        """Get the latest daily watchlist report.
+
+        Returns:
+            DataFrame with latest report (or empty if none exists)
+        """
+        return self.storage.query(
+            """
+            SELECT id, report_date, symbols_added, symbols_removed, score_changes, generated_at
+            FROM watchlist_daily_reports
+            ORDER BY report_date DESC
+            LIMIT 1
+            """
+        )
+
+    def get_all_symbols(self) -> pl.DataFrame:
+        """Get all watchlist item IDs and symbols.
+
+        Returns:
+            DataFrame with id and symbol columns
+        """
+        return self.storage.query(
+            """
+            SELECT id, symbol FROM watchlist_items
+            """
+        )
+
+    def get_symbol_by_item_id(self, item_id: str) -> pl.DataFrame:
+        """Get symbol for a watchlist item.
+
+        Args:
+            item_id: Watchlist item ID
+
+        Returns:
+            DataFrame with symbol column (or empty if not found)
+        """
+        return self.storage.query(
+            """
+            SELECT symbol FROM watchlist_items WHERE id = ?
+            """,
+            [item_id],
+        )
+
+    def get_item_with_snapshots(self, item_id: str) -> pl.DataFrame:
+        """Get watchlist item with full details for review.
+
+        Args:
+            item_id: Watchlist item ID
+
+        Returns:
+            DataFrame with item details (or empty if not found)
+        """
+        return self.storage.query(
+            """
+            SELECT * FROM watchlist_items WHERE id = ?
+            """,
+            [item_id],
+        )
+
+    def get_latest_snapshot_for_review(self, item_id: str) -> pl.DataFrame:
+        """Get latest snapshot for a watchlist item (full row for review).
+
+        Args:
+            item_id: Watchlist item ID
+
+        Returns:
+            DataFrame with latest snapshot (or empty if none exists)
+        """
+        return self.storage.query(
+            """
+            SELECT * FROM watchlist_snapshots_v
+            WHERE item_id = ?
+            ORDER BY fetched_at DESC
+            LIMIT 1
+            """,
+            [item_id],
+        )

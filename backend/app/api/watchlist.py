@@ -40,6 +40,7 @@ from app.watchlist.service import (
     refresh_watchlist_scores as refresh_watchlist_scores_service,
 )
 from app.watchlist.validators import validate_symbol
+from app.watchlist.watchlist_repository import WatchlistRepository
 from app.watchlist.watchlist_service import WatchlistService
 
 logger = get_logger(__name__)
@@ -49,6 +50,7 @@ router = APIRouter(prefix="/api/watchlist", tags=["watchlist"])
 # Initialize services
 storage = get_storage()
 watchlist_service = WatchlistService(storage)
+watchlist_repo = WatchlistRepository(storage)
 strategy_reviewer = StrategyReviewer(storage, primary_provider="gemini")
 multi_reviewer = MultiReviewer(storage)
 
@@ -79,33 +81,22 @@ def _store_strategy_review(
 ) -> str:
     """Store a strategy review in the database."""
     review_id = str(uuid.uuid4())
-    with storage.connection() as conn:
-        conn.execute(
-            """
-            INSERT INTO strategy_reviews (
-                id, watchlist_item_id, snapshot_id, symbol, review_text,
-                provider, is_valid, disagreement, token_usage, created_at,
-                review_pair_id, disagreement_severity, provider_disagreement, agreement_score
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            [
-                review_id,
-                item_id,
-                snapshot_id,
-                symbol,
-                review.review_text,
-                review.provider,
-                review.is_valid,
-                review.disagreement,
-                json.dumps(review.usage),
-                datetime.now(UTC),
-                pair_id,
-                severity,
-                provider_disagreement,
-                agreement,
-            ],
-        )
-        conn.commit()
+    watchlist_repo.store_strategy_review(
+        review_id=review_id,
+        item_id=item_id,
+        snapshot_id=snapshot_id,
+        symbol=symbol,
+        review_text=review.review_text,
+        provider=review.provider,
+        is_valid=review.is_valid,
+        disagreement=review.disagreement,
+        token_usage_json=json.dumps(review.usage),
+        created_at=datetime.now(UTC),
+        pair_id=pair_id,
+        severity=severity,
+        agreement=agreement,
+        provider_disagreement=provider_disagreement,
+    )
     return review_id
 
 
@@ -147,28 +138,18 @@ def _store_legacy_review(
         Generated review ID
     """
     review_id = str(uuid.uuid4())
-    with storage.connection() as conn:
-        conn.execute(
-            """
-            INSERT INTO strategy_reviews (
-                id, watchlist_item_id, snapshot_id, symbol, review_text,
-                provider, is_valid, disagreement, token_usage, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            [
-                review_id,
-                item_id,
-                snapshot_id,
-                review_result["symbol"],
-                review_result["review"],
-                review_result["provider"],
-                review_result["is_valid"],
-                review_result["disagreement"],
-                json.dumps(review_result["usage"]),
-                datetime.now(UTC),
-            ],
-        )
-        conn.commit()
+    watchlist_repo.store_strategy_review(
+        review_id=review_id,
+        item_id=item_id,
+        snapshot_id=snapshot_id,
+        symbol=str(review_result["symbol"]),
+        review_text=str(review_result["review"]),
+        provider=str(review_result["provider"]),
+        is_valid=bool(review_result["is_valid"]),
+        disagreement=bool(review_result["disagreement"]) if review_result.get("disagreement") else None,
+        token_usage_json=json.dumps(review_result["usage"]),
+        created_at=datetime.now(UTC),
+    )
     return review_id
 
 
