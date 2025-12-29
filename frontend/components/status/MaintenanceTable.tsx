@@ -49,7 +49,6 @@ import {
   getTaskIcon,
   type TaskCategory,
   type TaskConfig,
-  type DbTaskResult,
 } from "./maintenanceTaskConfig";
 
 // Unified task interface
@@ -284,7 +283,7 @@ export function MaintenanceTable() {
   };
 
   // Map of task id -> API function
-  const dbTaskApiFunctions: Record<string, (dryRun: boolean) => Promise<DbTaskResult>> = {
+  const dbTaskApiFunctions: Record<string, (dryRun: boolean) => Promise<MaintenanceResult>> = {
     cleanup_news: cleanupOldNews,
     vacuum_db: vacuumDatabase,
     validate_integrity: validateIntegrity,
@@ -319,54 +318,20 @@ export function MaintenanceTable() {
       return;
     }
 
-    // Database tasks have special handlers
-    if (task.id === "cleanup_news") {
-      const storageKey = "status.confirm.cleanupNews";
-      if (shouldShowDialog(storageKey, !dryRun)) {
+    // Database tasks have special handlers with dialog config
+    const dbConfig = DB_TASK_DIALOG_CONFIGS[task.id];
+    if (dbConfig) {
+      if (shouldShowDialog(dbConfig.storageKey, !dryRun)) {
         setActionDialogConfig({
-          title: "Cleanup Old News",
-          description: dryRun
-            ? "Preview articles older than 90 days that would be deleted."
-            : "Permanently delete news articles older than 90 days.",
-          actionLabel: dryRun ? "Preview" : "Delete",
-          onConfirm: handleCleanupNews,
-          storageKey: dryRun ? storageKey : undefined,
+          title: dbConfig.title,
+          description: dryRun ? dbConfig.dryRunDescription : dbConfig.liveDescription,
+          actionLabel: dryRun ? dbConfig.dryRunLabel : dbConfig.liveLabel,
+          onConfirm: () => handleDatabaseTask(task.id),
+          storageKey: dryRun ? dbConfig.storageKey : undefined,
         });
         setActionDialogOpen(true);
       } else {
-        handleCleanupNews();
-      }
-    } else if (task.id === "vacuum_db") {
-      const storageKey = "status.confirm.vacuumDatabase";
-      if (shouldShowDialog(storageKey, !dryRun)) {
-        setActionDialogConfig({
-          title: "Vacuum Database",
-          description: dryRun
-            ? "Analyze tables and show potential space savings."
-            : "Optimize all database tables using VACUUM ANALYZE.",
-          actionLabel: dryRun ? "Analyze" : "Vacuum",
-          onConfirm: handleVacuumDatabase,
-          storageKey: dryRun ? storageKey : undefined,
-        });
-        setActionDialogOpen(true);
-      } else {
-        handleVacuumDatabase();
-      }
-    } else if (task.id === "validate_integrity") {
-      const storageKey = "status.confirm.validateIntegrity";
-      if (shouldShowDialog(storageKey, !dryRun)) {
-        setActionDialogConfig({
-          title: "Validate Integrity",
-          description: dryRun
-            ? "Check for orphaned records and consistency issues."
-            : "Check and attempt to fix integrity issues.",
-          actionLabel: dryRun ? "Check" : "Fix",
-          onConfirm: handleValidateIntegrity,
-          storageKey: dryRun ? storageKey : undefined,
-        });
-        setActionDialogOpen(true);
-      } else {
-        handleValidateIntegrity();
+        handleDatabaseTask(task.id);
       }
     } else {
       // Regular file/data cleanup tasks
@@ -397,15 +362,10 @@ export function MaintenanceTable() {
       try {
         let taskResult: Record<string, unknown> | null = null;
 
-        // Handle special DB tasks that use scripts endpoint
-        if (task.id === "cleanup_news") {
-          const r = await cleanupOldNews(dryRun);
-          taskResult = { ...r, ...r.summary };
-        } else if (task.id === "vacuum_db") {
-          const r = await vacuumDatabase(dryRun);
-          taskResult = { ...r, ...r.summary };
-        } else if (task.id === "validate_integrity") {
-          const r = await validateIntegrity(dryRun);
+        // Handle DB tasks via config-driven API lookup
+        const apiFunc = dbTaskApiFunctions[task.id];
+        if (apiFunc) {
+          const r = await apiFunc(dryRun);
           taskResult = { ...r, ...r.summary };
         } else {
           // Regular Celery tasks

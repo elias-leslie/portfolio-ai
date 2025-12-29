@@ -286,13 +286,7 @@ export interface DbTaskDialogConfig {
 
 export interface DbTaskResult {
   status: string;
-  summary?: {
-    deleted?: number;
-    totalReclaimedMb?: number;
-    totalErrors?: number;
-    totalWarnings?: number;
-    [key: string]: unknown;
-  };
+  summary?: Record<string, unknown> | null;
 }
 
 /**
@@ -307,7 +301,8 @@ export const DB_TASK_DIALOG_CONFIGS: Record<string, DbTaskDialogConfig> = {
     liveLabel: "Delete",
     storageKey: "status.confirm.cleanupNews",
     successExtractor: (result) => {
-      const deleted = result.summary?.deleted || 0;
+      const summary = result.summary as Record<string, unknown> | null;
+      const deleted = (summary?.deleted as number) || 0;
       return `${deleted} articles`;
     },
   },
@@ -319,7 +314,8 @@ export const DB_TASK_DIALOG_CONFIGS: Record<string, DbTaskDialogConfig> = {
     liveLabel: "Vacuum",
     storageKey: "status.confirm.vacuumDatabase",
     successExtractor: (result) => {
-      const reclaimed = result.summary?.totalReclaimedMb || 0;
+      const summary = result.summary as Record<string, unknown> | null;
+      const reclaimed = (summary?.totalReclaimedMb as number) || 0;
       return `${reclaimed} MB`;
     },
   },
@@ -331,8 +327,9 @@ export const DB_TASK_DIALOG_CONFIGS: Record<string, DbTaskDialogConfig> = {
     liveLabel: "Fix",
     storageKey: "status.confirm.validateIntegrity",
     successExtractor: (result) => {
-      const errors = result.summary?.totalErrors || 0;
-      const warnings = result.summary?.totalWarnings || 0;
+      const summary = result.summary as Record<string, unknown> | null;
+      const errors = (summary?.totalErrors as number) || 0;
+      const warnings = (summary?.totalWarnings as number) || 0;
       return `${errors} errors, ${warnings} warnings`;
     },
   },
