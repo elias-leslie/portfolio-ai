@@ -548,8 +548,6 @@ def daily_strategy_refresh(max_symbols: int = 5) -> dict[str, Any]:
     """
     logger.info("Starting daily strategy refresh", max_symbols=max_symbols)
 
-    from app.agents.workflows.strategy_research_workflow import strategy_research_workflow
-
     try:
         with get_connection_manager().connection() as conn:
             # Get symbols needing strategy generation:
@@ -619,23 +617,11 @@ def daily_strategy_refresh(max_symbols: int = 5) -> dict[str, Any]:
                 # Force regenerate if underperforming
                 force = reason == "underperforming"
 
-                try:
-                    logger.info(f"Generating strategy for {symbol} (reason: {reason})")
-                    result = asyncio.run(
-                        strategy_research_workflow(symbol=symbol, force_regenerate=force)
-                    )
-
-                    if result["status"] == "completed":
-                        generated_count += 1
-                        results.append(
-                            f"Generated strategy for {symbol} ({reason}): {result.get('strategy_id')}"
-                        )
-                    else:
-                        results.append(f"Skipped {symbol}: {result.get('message', 'unknown')}")
-
-                except Exception as e:
-                    logger.exception("Strategy generation failed", symbol=symbol, error=str(e))
-                    results.append(f"Error for {symbol}: {str(e)[:100]}")
+                logger.info(f"Generating strategy for {symbol} (reason: {reason})")
+                msg, result = _run_strategy_workflow(symbol, force_regenerate=force)
+                results.append(msg)
+                if result and result["status"] == "completed":
+                    generated_count += 1
 
             logger.info(
                 "Daily strategy refresh complete",
@@ -813,11 +799,6 @@ def trigger_strategies_for_top_watchlist(
         max_per_day=max_per_day,
     )
 
-    # Import here to avoid circular dependency
-    from app.agents.workflows.strategy_research_workflow import (
-        strategy_research_workflow,
-    )
-
     # Rate limit key - resets daily at midnight UTC
     rate_key = f"strategy_gen_daily:{date.today().isoformat()}"
 
@@ -864,33 +845,20 @@ def trigger_strategies_for_top_watchlist(
                 continue
 
             # Generate strategy
-            try:
-                logger.info(f"Auto-generating strategy for {symbol}")
-                result = asyncio.run(
-                    strategy_research_workflow(symbol=symbol, force_regenerate=False)
-                )
+            logger.info(f"Auto-generating strategy for {symbol}")
+            msg, result = _run_strategy_workflow(symbol, force_regenerate=False)
+            results.append(msg)
 
-                if result["status"] == "completed":
-                    generated_count += 1
-                    # Increment Redis counter
-                    r.incr(rate_key)
-                    r.expire(rate_key, 86400)  # Expire after 24 hours
-                    results.append(f"Generated for {symbol}: {result.get('strategy_id')}")
-                    logger.info(
-                        "strategy_auto_generated",
-                        symbol=symbol,
-                        strategy_id=result.get("strategy_id"),
-                    )
-                else:
-                    results.append(f"Skipped {symbol}: {result.get('message', 'blocked')}")
-
-            except Exception as e:
-                logger.warning(
-                    "strategy_auto_generation_failed",
+            if result and result["status"] == "completed":
+                generated_count += 1
+                # Increment Redis counter
+                r.incr(rate_key)
+                r.expire(rate_key, 86400)  # Expire after 24 hours
+                logger.info(
+                    "strategy_auto_generated",
                     symbol=symbol,
-                    error=str(e),
+                    strategy_id=result.get("strategy_id"),
                 )
-                results.append(f"Error for {symbol}: {str(e)[:50]}")
 
         logger.info(
             "trigger_strategies_for_top_watchlist_completed",
@@ -926,9 +894,6 @@ def trigger_strategy_from_seed(seed_id: str, symbol: str) -> dict[str, Any]:
     """
     logger.info(f"Generating strategy from seed {seed_id} for {symbol}")
 
-    # Import here to avoid circular dependency
-    from app.agents.workflows.strategy_research_workflow import strategy_research_workflow
-
     try:
         with get_connection_manager().connection() as conn:
             # Get seed details
@@ -949,10 +914,10 @@ def trigger_strategy_from_seed(seed_id: str, symbol: str) -> dict[str, Any]:
                 f"thesis={seed_thesis[:100] if seed_thesis else ''}..."
             )
 
-            # Run strategy workflow
-            result = asyncio.run(strategy_research_workflow(symbol=symbol, force_regenerate=False))
+            # Run strategy workflow using shared helper
+            _msg, result = _run_strategy_workflow(symbol, force_regenerate=False)
 
-            if result["status"] == "completed":
+            if result and result["status"] == "completed":
                 strategy_id = result.get("strategy_id")
 
                 # Link strategy back to seed
@@ -991,7 +956,7 @@ def trigger_strategy_from_seed(seed_id: str, symbol: str) -> dict[str, Any]:
                     "message": f"Strategy generated from seed (confidence: {seed_confidence})",
                 }
 
-            # Strategy not generated (blocked, skipped, etc.)
+            # Strategy not generated (blocked, skipped, or error)
             conn.execute(
                 """
                 UPDATE strategy_seeds
@@ -1002,17 +967,18 @@ def trigger_strategy_from_seed(seed_id: str, symbol: str) -> dict[str, Any]:
             )
             conn.commit()
 
+            reason = result.get("message", result.get("status", "unknown")) if result else "workflow error"
             logger.info(
-                f"Seed {seed_id} rejected: {result.get('message', 'unknown reason')}",
+                f"Seed {seed_id} rejected: {reason}",
                 symbol=symbol,
-                workflow_status=result["status"],
+                workflow_status=result["status"] if result else "error",
             )
 
             return {
                 "status": "rejected",
                 "seed_id": seed_id,
                 "symbol": symbol,
-                "reason": result.get("message", result["status"]),
+                "reason": reason,
             }
 
     except Exception as e:

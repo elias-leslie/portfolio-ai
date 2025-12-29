@@ -69,7 +69,7 @@
             "Run ruff check backend/app/api/market.py"
           ],
           "verification": "ruff check backend/app/api/market.py && pytest tests/api/ -k market -v --tb=short",
-          "passes": false
+          "passes": true
         },
         {
           "id": "1.4",
