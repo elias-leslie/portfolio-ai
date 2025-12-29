@@ -109,6 +109,69 @@ def _store_strategy_review(
     return review_id
 
 
+def _build_signal_data_from_snapshot(snapshot_row: dict[str, object], symbol: str) -> dict[str, object]:
+    """Build signal data dict from a snapshot row for LLM review.
+
+    Args:
+        snapshot_row: Row from watchlist_snapshots_v
+        symbol: Stock symbol
+
+    Returns:
+        Signal data dict with standardized fields for LLM review
+    """
+    return {
+        "symbol": symbol,
+        "signal_type": snapshot_row.get("signal_type"),
+        "signal_strength": snapshot_row.get("signal_strength"),
+        "recommended_style": snapshot_row.get("recommended_style"),
+        "risk_level": snapshot_row.get("risk_level"),
+        "rationale": snapshot_row.get("rationale"),
+        "current_score": parse_json_field(snapshot_row.get("current_score")) or {},
+        "news_sentiment_score": snapshot_row.get("news_sentiment_score"),
+    }
+
+
+def _store_legacy_review(
+    review_result: dict[str, object],
+    item_id: str,
+    snapshot_id: str | None,
+) -> str:
+    """Store a legacy single-provider review in the database.
+
+    Args:
+        review_result: Review result from strategy_reviewer
+        item_id: Watchlist item ID
+        snapshot_id: Snapshot ID
+
+    Returns:
+        Generated review ID
+    """
+    review_id = str(uuid.uuid4())
+    with storage.connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO strategy_reviews (
+                id, watchlist_item_id, snapshot_id, symbol, review_text,
+                provider, is_valid, disagreement, token_usage, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                review_id,
+                item_id,
+                snapshot_id,
+                review_result["symbol"],
+                review_result["review"],
+                review_result["provider"],
+                review_result["is_valid"],
+                review_result["disagreement"],
+                json.dumps(review_result["usage"]),
+                datetime.now(UTC),
+            ],
+        )
+        conn.commit()
+    return review_id
+
+
 # Endpoints
 @router.get("", response_model=WatchlistListResponse)
 @cache_response(ttl=60)  # 1 minute cache
@@ -688,18 +751,10 @@ async def review_strategy_signal(item_id: str, dual: bool = True) -> dict[str, o
                 status_code=404, detail=f"No snapshot found for item {item_id}. Run refresh first."
             )
 
-        # Parse snapshot JSON
+        # Parse snapshot and build signal data using helper
         snapshot_row = snapshots_df.to_dicts()[0]
-        signal_data = {
-            "symbol": items_df.to_dicts()[0]["symbol"],
-            "signal_type": snapshot_row.get("signal_type"),
-            "signal_strength": snapshot_row.get("signal_strength"),
-            "recommended_style": snapshot_row.get("recommended_style"),
-            "risk_level": snapshot_row.get("risk_level"),
-            "rationale": snapshot_row.get("rationale"),
-            "current_score": parse_json_field(snapshot_row.get("current_score")) or {},
-            "news_sentiment_score": snapshot_row.get("news_sentiment_score"),
-        }
+        symbol = str(items_df.to_dicts()[0]["symbol"])
+        signal_data = _build_signal_data_from_snapshot(snapshot_row, symbol)
 
         if dual:
             # Get dual-provider LLM review (both Gemini and Claude)
@@ -745,30 +800,8 @@ async def review_strategy_signal(item_id: str, dual: bool = True) -> dict[str, o
         # Legacy single-provider path
         review_result = await strategy_reviewer.review_signal(signal_data)
 
-        # Log review to database
-        review_id = str(uuid.uuid4())
-        with storage.connection() as conn:
-            conn.execute(
-                """
-                INSERT INTO strategy_reviews (
-                    id, watchlist_item_id, snapshot_id, symbol, review_text,
-                    provider, is_valid, disagreement, token_usage, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                [
-                    review_id,
-                    item_id,
-                    snapshot_row.get("id"),
-                    review_result["symbol"],
-                    review_result["review"],
-                    review_result["provider"],
-                    review_result["is_valid"],
-                    review_result["disagreement"],
-                    json.dumps(review_result["usage"]),
-                    datetime.now(UTC),
-                ],
-            )
-            conn.commit()
+        # Log review to database using helper
+        _store_legacy_review(review_result, item_id, snapshot_row.get("id"))
 
         logger.info(
             f"Strategy review logged for {review_result['symbol']}",
