@@ -155,7 +155,7 @@ class ResearchAggregationService:
                 [symbol, str(start_date), str(end_date)],
             )
             rows = result_wrapper.fetchall()
-            news_rows = _rows_to_dicts(rows, conn)
+            news_rows = rows_to_dicts(rows, conn)
 
         if not news_rows or len(news_rows) == 0:
             # No news data available
@@ -374,7 +374,7 @@ class ResearchAggregationService:
                 [symbol],
             )
             rows = result_wrapper.fetchall()
-            price_rows = _rows_to_dicts(rows, conn)
+            price_rows = rows_to_dicts(rows, conn)
         current_price = float(price_rows[0]["close"]) if price_rows else 100.0
 
         # Extract indicators
@@ -410,7 +410,7 @@ class ResearchAggregationService:
                 [symbol],
             )
             rows = result_wrapper.fetchall()
-            trend_rows = _rows_to_dicts(rows, conn)
+            trend_rows = rows_to_dicts(rows, conn)
         trend_duration_days = 0
         if trend_rows:
             for i, row in enumerate(trend_rows):
@@ -450,7 +450,7 @@ class ResearchAggregationService:
                 [symbol],
             )
             rows = result_wrapper.fetchall()
-            volume_rows = _rows_to_dicts(rows, conn)
+            volume_rows = rows_to_dicts(rows, conn)
         if volume_rows and len(volume_rows) >= 20:
             recent_5d_avg = sum(row["volume"] for row in volume_rows[:5]) / 5
             recent_20d_avg = sum(row["volume"] for row in volume_rows) / 20
@@ -484,7 +484,7 @@ class ResearchAggregationService:
                 "SELECT COUNT(*) as count FROM day_bars WHERE symbol = %s", [symbol]
             )
             rows = result_wrapper.fetchall()
-            bar_count = _rows_to_dicts(rows, conn)
+            bar_count = rows_to_dicts(rows, conn)
         bar_count_val = bar_count[0]["count"] if bar_count else 0
         confidence = 1.0 if bar_count_val >= 252 else (bar_count_val / 252.0)
 
@@ -518,7 +518,7 @@ class ResearchAggregationService:
                 """
             )
             rows = result_wrapper.fetchall()
-            fg_rows = _rows_to_dicts(rows, conn)
+            fg_rows = rows_to_dicts(rows, conn)
 
         if fg_rows and fg_rows[0]["score"] is not None:
             fear_greed_score = int(fg_rows[0]["score"])
@@ -551,7 +551,7 @@ class ResearchAggregationService:
                 """
             )
             rows = result_wrapper.fetchall()
-            spy_price_rows = _rows_to_dicts(rows, conn)
+            spy_price_rows = rows_to_dicts(rows, conn)
 
             result_wrapper = conn.execute(
                 """
@@ -563,7 +563,7 @@ class ResearchAggregationService:
                 """
             )
             rows = result_wrapper.fetchall()
-            vix_rows = _rows_to_dicts(rows, conn)
+            vix_rows = rows_to_dicts(rows, conn)
 
         spy_price = float(spy_price_rows[0]["close"]) if spy_price_rows else 450.0
         spy_sma_200 = spy_indicators.get("sma_200", spy_price)
@@ -621,7 +621,7 @@ class ResearchAggregationService:
                     [symbol],
                 )
                 rows = result_wrapper.fetchall()
-                meta_rows = _rows_to_dicts(rows, conn)
+                meta_rows = rows_to_dicts(rows, conn)
 
             if meta_rows and meta_rows[0].get("metadata"):
                 metadata = meta_rows[0]["metadata"]
@@ -691,7 +691,7 @@ class ResearchAggregationService:
                 [symbol],
             )
             rows_tuple = result_wrapper.fetchall()
-            rows = _rows_to_dicts(rows_tuple, conn)
+            rows = rows_to_dicts(rows_tuple, conn)
 
         if not rows or len(rows) < 2:
             return 0.0
