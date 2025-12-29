@@ -125,7 +125,7 @@
             "Run pytest tests/tasks/ -k reference"
           ],
           "verification": "pytest tests/tasks/ -k reference -v --tb=short",
-          "passes": false
+          "passes": true
         }
       ]
     },

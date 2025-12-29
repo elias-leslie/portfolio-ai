@@ -26,6 +26,8 @@ RESULT_SUMMARY_LENGTH = 500  # Max chars for result summary
 if TYPE_CHECKING:
     from app.storage.facade import PortfolioStorage
 
+    from .llm_client import LLMResponse
+
 logger = get_logger(__name__)
 
 
@@ -132,6 +134,37 @@ class Agent(ABC):
             if block.type == "text":
                 final_text += block.text
         return final_text
+
+    def _accumulate_token_usage(
+        self, response: LLMResponse, total_token_usage: dict[str, int]
+    ) -> None:
+        """Accumulate token usage from an LLM response.
+
+        Args:
+            response: LLM response with usage info
+            total_token_usage: Dict to accumulate usage into (modified in place)
+        """
+        if response.usage:
+            total_token_usage["input_tokens"] += response.usage.get("prompt_tokens", 0)
+            total_token_usage["output_tokens"] += response.usage.get("completion_tokens", 0)
+            total_token_usage["total_tokens"] += response.usage.get("total_tokens", 0)
+
+    def _update_provider_metadata(self, response: LLMResponse, run_id: str) -> None:
+        """Update provider and model metadata in database from LLM response.
+
+        Called on first iteration to get actual values from CLI.
+
+        Args:
+            response: LLM response with provider/model info
+            run_id: Agent run ID to update
+        """
+        if response.provider and response.model:
+            with self.storage.connection() as conn:
+                conn.execute(
+                    "UPDATE agent_runs SET provider = ?, model = ? WHERE id = ?",
+                    [response.provider, response.model, run_id],
+                )
+                conn.commit()
 
     def _handle_completion(
         self,
@@ -356,19 +389,11 @@ class Agent(ABC):
             )
 
             # Accumulate token usage from this iteration
-            if response.usage:
-                total_token_usage["input_tokens"] += response.usage.get("prompt_tokens", 0)
-                total_token_usage["output_tokens"] += response.usage.get("completion_tokens", 0)
-                total_token_usage["total_tokens"] += response.usage.get("total_tokens", 0)
+            self._accumulate_token_usage(response, total_token_usage)
 
             # Update provider/model in database on first response (get actual values from CLI)
-            if iteration == 0 and response.provider and response.model:
-                with self.storage.connection() as conn:
-                    conn.execute(
-                        "UPDATE agent_runs SET provider = ?, model = ? WHERE id = ?",
-                        [response.provider, response.model, run_id],
-                    )
-                    conn.commit()
+            if iteration == 0:
+                self._update_provider_metadata(response, run_id)
 
             if response.stop_reason == "end_turn":
                 # Store assistant's final response
