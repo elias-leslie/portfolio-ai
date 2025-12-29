@@ -26,6 +26,39 @@ UNDERPERFORMANCE_SHARPE_THRESHOLD = 0.5  # Sharpe ratio threshold for regenerati
 EVOLUTION_TRIGGER_THRESHOLD = 0.9  # 90% of expected performance triggers evolution
 
 
+def _run_strategy_workflow(
+    symbol: str,
+    force_regenerate: bool = False,
+) -> tuple[str, dict[str, Any] | None]:
+    """Run strategy research workflow for a symbol with standardized error handling.
+
+    Wraps asyncio.run pattern and provides consistent result structure.
+
+    Args:
+        symbol: Stock symbol to generate strategy for
+        force_regenerate: Whether to force regeneration even if strategy exists
+
+    Returns:
+        Tuple of (status_message, result_dict or None on error)
+    """
+    from app.agents.workflows.strategy_research_workflow import strategy_research_workflow
+
+    try:
+        result = asyncio.run(strategy_research_workflow(symbol=symbol, force_regenerate=force_regenerate))
+
+        if result["status"] == "completed":
+            strategy_id = result.get("strategy_id", "unknown")
+            logger.info("Strategy generated successfully", symbol=symbol, strategy_id=strategy_id)
+            return f"Generated strategy for {symbol}: {strategy_id}", result
+        msg = result.get("message", "unknown reason")
+        logger.info("Strategy generation skipped/blocked", symbol=symbol, status=result["status"], message=msg)
+        return f"Skipped {symbol}: {msg}", result
+
+    except Exception as e:
+        logger.exception("Strategy generation failed", symbol=symbol, error=str(e))
+        return f"Error for {symbol}: {str(e)[:100]}", None
+
+
 @celery_app.task(name="app.tasks.strategy_monitoring_tasks.evaluate_strategy_performance")
 def evaluate_strategy_performance() -> dict[str, Any]:
     """Evaluate all active strategies and archive underperformers.
@@ -438,7 +471,6 @@ def weekly_strategy_generation() -> dict[str, Any]:
     logger.info("Starting weekly strategy generation")
 
     # Import here to avoid circular dependency
-    from app.agents.workflows.strategy_research_workflow import strategy_research_workflow
 
     try:
         strategy_storage = get_strategy_storage()
@@ -468,34 +500,11 @@ def weekly_strategy_generation() -> dict[str, Any]:
                 continue
 
             # Generate new strategy
-            try:
-                logger.info(f"Generating strategy for {symbol}")
-                result = asyncio.run(
-                    strategy_research_workflow(symbol=symbol, force_regenerate=False)
-                )
-
-                if result["status"] == "completed":
-                    generated_count += 1
-                    results.append(
-                        f"Generated strategy for {symbol}: {result.get('strategy_id', 'unknown')}"
-                    )
-                    logger.info(
-                        "Strategy generated successfully",
-                        symbol=symbol,
-                        strategy_id=result.get("strategy_id"),
-                    )
-                else:
-                    results.append(f"Skipped {symbol}: {result.get('message', 'unknown reason')}")
-                    logger.info(
-                        "Strategy generation skipped/blocked",
-                        symbol=symbol,
-                        status=result["status"],
-                        message=result.get("message"),
-                    )
-
-            except Exception as e:
-                logger.exception("Strategy generation failed", symbol=symbol, error=str(e))
-                results.append(f"Error for {symbol}: {str(e)[:100]}")
+            logger.info(f"Generating strategy for {symbol}")
+            msg, result = _run_strategy_workflow(symbol, force_regenerate=False)
+            results.append(msg)
+            if result and result["status"] == "completed":
+                generated_count += 1
 
         logger.info(
             "Weekly strategy generation complete",
