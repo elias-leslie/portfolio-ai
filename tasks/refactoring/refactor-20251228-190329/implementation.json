@@ -90,13 +90,14 @@
             "backend/app/api/status_logs.py"
           ],
           "steps": [
-            "Create module-level constants: LOG_LEVEL_PRIORITY, SYSLOG_PRIORITY_TO_LEVEL",
-            "Replace duplicate priority mappings (lines 429-436, 240-253)",
-            "Add constants: MAX_LOG_LINES = 5000, JOURNAL_FETCH_LIMIT = 10000",
-            "Run: cd backend && .venv/bin/ruff check app/api/status_logs.py",
-            "Verify: No duplicate priority/level mappings"
+            "Added LOG_LEVEL_PRIORITY and SYSLOG_PRIORITY_TO_LEVEL constants",
+            "Replaced inline if/elif chain with SYSLOG_PRIORITY_TO_LEVEL.get()",
+            "Replaced inline level_priority_merge dict with LOG_LEVEL_PRIORITY constant",
+            "Added MAX_LOG_LINES=5000 and JOURNAL_FETCH_LIMIT=10000, replaced magic numbers",
+            "Run: cd backend && .venv/bin/ruff check - PASSED",
+            "Commit: 03e64441"
           ],
-          "passes": false
+          "passes": true
         }
       ]
     },

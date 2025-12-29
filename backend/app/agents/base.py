@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, TypedDict, cast
 from anthropic import Anthropic
 
 from ..logging_config import get_logger
+from ..utils.json_helpers import json_serializer
 from .llm_client import LLMClient
 from .types import ToolInputDict
 
@@ -73,15 +74,6 @@ class Agent(ABC):
         self.client = anthropic_client or Anthropic()  # Keep for tool calling support
         self.model = model
         self.agent_type = self.__class__.__name__
-
-    @staticmethod
-    def _json_serializer(value: object) -> object:
-        """Serialize non-JSON-compatible values (e.g., datetime) to strings."""
-        if isinstance(value, datetime):
-            if value.tzinfo is None:
-                value = value.replace(tzinfo=UTC)
-            return value.isoformat()
-        return value
 
     @abstractmethod
     def get_system_prompt(self) -> str:
@@ -225,7 +217,7 @@ class Agent(ABC):
                     {
                         "type": "tool_result",
                         "tool_use_id": block.id,
-                        "content": json.dumps(result, default=self._json_serializer),
+                        "content": json.dumps(result, default=json_serializer),
                     }
                 )
 
@@ -371,7 +363,7 @@ class Agent(ABC):
                         "tool_call",
                         json.dumps(
                             {"name": tool_call["name"], "parameters": tool_call["parameters"]},
-                            default=self._json_serializer,
+                            default=json_serializer,
                         ),
                         metadata={"tool_name": tool_call["name"]},
                     )
@@ -383,7 +375,7 @@ class Agent(ABC):
                     duration_ms = int((tool_end - tool_start).total_seconds() * 1000)
 
                     # Store tool result message
-                    result_str = json.dumps(result, default=self._json_serializer)
+                    result_str = json.dumps(result, default=json_serializer)
                     self._store_conversation_message(
                         run_id,
                         "tool_result",
@@ -549,7 +541,7 @@ class Agent(ABC):
             parts.append(f"\nTool: {tr['name']}")
             parts.append(f"Parameters: {json.dumps(tr['parameters'])}")
             parts.append(
-                f"Result:\n{json.dumps(tr['result'], indent=2, default=self._json_serializer)}"
+                f"Result:\n{json.dumps(tr['result'], indent=2, default=json_serializer)}"
             )
             parts.append("=" * 60)
 
@@ -682,7 +674,7 @@ class Agent(ABC):
                 "id": tool_call_id,
                 "agent_run_id": run_id,
                 "tool_name": tool_name,
-                "parameters": json.dumps(parameters, default=self._json_serializer),
+                "parameters": json.dumps(parameters, default=json_serializer),
                 "response_summary": result_summary,
                 "duration_ms": duration_ms,
                 "called_at": datetime.now(UTC).isoformat(),

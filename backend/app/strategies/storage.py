@@ -13,24 +13,13 @@ from decimal import Decimal
 from typing import Any, Literal
 
 from app.storage.connection import get_connection_manager
+from app.utils.json_helpers import json_serializer
 
 from .models import (
     StrategyDefinition,
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _json_serializer(obj: Any) -> Any:
-    """Custom JSON serializer for objects not serializable by default json.
-
-    Handles Decimal, date, datetime types.
-    """
-    if isinstance(obj, Decimal):
-        return float(obj)
-    if isinstance(obj, (date, datetime)):
-        return obj.isoformat()
-    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
 class StrategyStorage:
