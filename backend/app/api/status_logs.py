@@ -41,6 +41,32 @@ LOG_PATHS: dict[str, str] = {
 # ANSI escape code pattern for stripping colors
 ANSI_ESCAPE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 
+# Log level priority mapping for merging/comparison (higher = more severe)
+LOG_LEVEL_PRIORITY: dict[str, int] = {
+    "CRITICAL": 5,
+    "ERROR": 4,
+    "WARN": 3,
+    "INFO": 2,
+    "DEBUG": 1,
+    "UNKNOWN": 0,
+}
+
+# Syslog priority to log level mapping (journald PRIORITY field)
+SYSLOG_PRIORITY_TO_LEVEL: dict[int, str] = {
+    0: "CRITICAL",  # Emergency
+    1: "CRITICAL",  # Alert
+    2: "CRITICAL",  # Critical
+    3: "ERROR",     # Error
+    4: "WARN",      # Warning
+    5: "INFO",      # Notice
+    6: "INFO",      # Informational
+    7: "DEBUG",     # Debug
+}
+
+# Fetch limits
+MAX_LOG_LINES = 5000
+JOURNAL_FETCH_LIMIT = 10000
+
 
 class LogResponse(BaseModel):
     """Response model for log endpoint."""
@@ -238,19 +264,7 @@ def parse_journal_output(output: str, service_units: dict[str, str]) -> list[Uni
 
             # Use journald's native PRIORITY field (syslog levels)
             priority = int(entry.get("PRIORITY", 6))  # Default to info (6)
-
-            if priority <= 2:  # Emergency, Alert, Critical
-                log_level = "CRITICAL"
-            elif priority == 3:  # Error
-                log_level = "ERROR"
-            elif priority == 4:  # Warning
-                log_level = "WARN"
-            elif priority in {5, 6}:  # Notice, Informational
-                log_level = "INFO"
-            elif priority == 7:  # Debug
-                log_level = "DEBUG"
-            else:
-                log_level = "UNKNOWN"
+            log_level = SYSLOG_PRIORITY_TO_LEVEL.get(priority, "UNKNOWN")
 
             # Collect log
             logs.append(
@@ -281,7 +295,7 @@ async def get_unified_logs(
     of all services, then filters and returns the requested number of entries.
 
     Args:
-        lines: Maximum number of log entries to return (default 500, max 5000)
+        lines: Maximum number of log entries to return (default 500, max MAX_LOG_LINES)
         service: Filter by service name (backend, celery_worker, celery_beat, frontend, redis, postgresql)
         level: Filter by log level (ERROR, WARN, INFO, DEBUG)
         since: Time range (e.g., "5 minutes ago", "1 hour ago", "today")
@@ -293,8 +307,10 @@ async def get_unified_logs(
         HTTPException: 400 if parameters invalid, 500 if journalctl fails
     """
     # Validate parameters
-    if lines < 1 or lines > 5000:
-        raise HTTPException(status_code=400, detail="Lines must be between 1 and 5000")
+    if lines < 1 or lines > MAX_LOG_LINES:
+        raise HTTPException(
+            status_code=400, detail=f"Lines must be between 1 and {MAX_LOG_LINES}"
+        )
 
     valid_services = {"backend", "celery_worker", "celery_beat", "frontend", "redis", "postgresql"}
     if service and service not in valid_services:
@@ -322,7 +338,7 @@ async def get_unified_logs(
 
         # Build journalctl command for system units
         # Fetch more logs than requested to ensure fair representation across all services
-        fetch_limit = 10000  # Fetch up to 10k logs from journald
+        fetch_limit = JOURNAL_FETCH_LIMIT  # Fetch up to 10k logs from journald
 
         system_units = []
         user_units = []
@@ -426,15 +442,7 @@ async def get_unified_logs(
                 # Same timestamp and service - merge messages
                 merged_logs[-1].message += "\n" + log.message
                 # Upgrade level if new entry has higher severity
-                level_priority_merge = {
-                    "CRITICAL": 5,
-                    "ERROR": 4,
-                    "WARN": 3,
-                    "INFO": 2,
-                    "DEBUG": 1,
-                    "UNKNOWN": 0,
-                }
-                if level_priority_merge.get(log.level, 0) > level_priority_merge.get(
+                if LOG_LEVEL_PRIORITY.get(log.level, 0) > LOG_LEVEL_PRIORITY.get(
                     merged_logs[-1].level, 0
                 ):
                     merged_logs[-1].level = log.level
