@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -21,25 +21,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  FileText,
-  Database,
-  Brain,
-  TestTube,
   RefreshCw,
   PlayCircle,
   Loader2,
   AlertCircle,
   CheckCircle2,
-  Trash2,
   ShieldCheck,
   ShieldAlert,
-  Zap,
-  Users,
-  ServerCrash,
-  FileX,
-  Camera,
   ArrowUpDown,
-  RotateCcw,
 } from "lucide-react";
 import { ExpandableCard } from "@/components/status/ExpandableCard";
 import { ServiceActionDialog } from "./ServiceActionDialog";
@@ -54,9 +43,12 @@ import {
 import { useMaintenanceData } from "@/lib/hooks/useMaintenanceData";
 import { useMaintenanceBackupCheck } from "@/lib/hooks/useMaintenanceBackupCheck";
 import { toast } from "sonner";
-
-// Task category types
-type TaskCategory = "file" | "cache" | "data" | "database" | "system";
+import {
+  TASK_CONFIGS,
+  getTaskIcon,
+  type TaskCategory,
+  type TaskConfig,
+} from "./maintenanceTaskConfig";
 
 // Unified task interface
 interface MaintenanceTask {
@@ -131,241 +123,65 @@ export function MaintenanceTable() {
     fetchAllData();
   };
 
-  // Build unified task list
+  // Build unified task list from config
   const tasks: MaintenanceTask[] = useMemo(() => {
-    const taskList: MaintenanceTask[] = [];
-
-    // Helper to lookup last run from dynamic tasks dict
     const getLastRun = (taskName: string) => lastRunSummary?.tasks?.[taskName] || null;
 
-    // File cleanup tasks
-    if (fileCleanup) {
-      taskList.push({
-        id: "logs",
-        name: "Application Logs",
-        category: "file",
-        icon: <FileText className="h-4 w-4 text-status-warning" />,
-        sizeMb: fileCleanup.logs.sizeMb,
-        fileCount: fileCleanup.logs.fileCount,
-        schedule: fileCleanup.logs.schedule,
-        retentionPolicy: fileCleanup.logs.retentionPolicy,
-        lastRun: getLastRun("cleanup_old_logs_task"),
-        path: fileCleanup.logs.path,
-        description: "Application log files",
-        taskName: "cleanup_old_logs_task",
-        supportsDryRun: true,
-      });
-      taskList.push({
-        id: "backups",
-        name: "Database Backups",
-        category: "file",
-        icon: <Database className="h-4 w-4 text-status-info" />,
-        sizeMb: fileCleanup.backups.sizeMb,
-        fileCount: fileCleanup.backups.fileCount,
-        schedule: fileCleanup.backups.schedule,
-        retentionPolicy: fileCleanup.backups.retentionPolicy,
-        lastRun: getLastRun("cleanup_old_backups_task"),
-        path: fileCleanup.backups.path,
-        description: "PostgreSQL backup files",
-        taskName: "cleanup_old_backups_task",
-        supportsDryRun: true,
-      });
-      taskList.push({
-        id: "models",
-        name: "ML Model Versions",
-        category: "file",
-        icon: <Brain className="h-4 w-4 text-accent" />,
-        sizeMb: fileCleanup.models.sizeMb,
-        fileCount: fileCleanup.models.fileCount,
-        schedule: fileCleanup.models.schedule,
-        retentionPolicy: fileCleanup.models.retentionPolicy,
-        lastRun: getLastRun("cleanup_old_models_task"),
-        path: fileCleanup.models.path,
-        description: "Trained ML model files",
-        taskName: "cleanup_old_models_task",
-        supportsDryRun: true,
-      });
-      taskList.push({
-        id: "solution_state",
-        name: "Test Artifacts",
-        category: "file",
-        icon: <TestTube className="h-4 w-4 text-status-success" />,
-        sizeMb: fileCleanup.solutionState.sizeMb,
-        fileCount: fileCleanup.solutionState.fileCount,
-        schedule: fileCleanup.solutionState.schedule,
-        retentionPolicy: fileCleanup.solutionState.retentionPolicy,
-        lastRun: getLastRun("cleanup_solution_state_task"),
-        path: fileCleanup.solutionState.path,
-        description: "UI regression test artifacts",
-        taskName: "cleanup_solution_state_task",
-        supportsDryRun: true,
-      });
-    }
+    // Factory function to create task from config
+    const createTask = (config: TaskConfig): MaintenanceTask | null => {
+      // Get file cleanup data if applicable
+      let sizeMb: number | null = null;
+      let fileCount: number | null = null;
+      let path: string | null = null;
+      let scheduleOverride: string | undefined;
+      let retentionOverride: string | undefined;
 
-    // Cache cleanup (manual only)
-    if (cacheStatus) {
-      taskList.push({
-        id: "dev_caches",
-        name: "Dev Caches",
-        category: "cache",
-        icon: <Zap className="h-4 w-4 text-status-warning" />,
-        sizeMb: cacheStatus.totalSizeMb,
-        fileCount: cacheStatus.totalFileCount,
-        schedule: "Manual",
-        retentionPolicy: "Auto-regenerate",
-        lastRun: getLastRun("cleanup_cache_directories_task"),
-        path: null,
-        description: "Python bytecode, linter caches, build caches",
-        taskName: "cleanup_cache_directories_task",
-        supportsDryRun: true,
-      });
-    }
+      if (config.fileCleanupKey && fileCleanup) {
+        const data = fileCleanup[config.fileCleanupKey];
+        if (data) {
+          sizeMb = data.sizeMb;
+          fileCount = data.fileCount;
+          path = data.path;
+          scheduleOverride = data.schedule;
+          retentionOverride = data.retentionPolicy;
+        }
+      }
 
-    // Data cleanup tasks
-    taskList.push({
-      id: "agent_runs",
-      name: "Old Agent Runs",
-      category: "data",
-      icon: <Users className="h-4 w-4 text-accent" />,
-      sizeMb: null,
-      fileCount: null,
-      schedule: "Weekly Sun 04:15",
-      retentionPolicy: "30 days",
-      lastRun: getLastRun("cleanup_old_agent_runs_task"),
-      path: null,
-      description: "Historical agent execution records",
-      taskName: "cleanup_old_agent_runs_task",
-      supportsDryRun: true,
-    });
-    taskList.push({
-      id: "orphaned_data",
-      name: "Orphaned Data",
-      category: "data",
-      icon: <ServerCrash className="h-4 w-4 text-status-error" />,
-      sizeMb: null,
-      fileCount: null,
-      schedule: "Weekly Sun 04:30",
-      retentionPolicy: "Integrity fix",
-      lastRun: getLastRun("cleanup_orphaned_data_task"),
-      path: null,
-      description: "Records without valid foreign keys",
-      taskName: "cleanup_orphaned_data_task",
-      supportsDryRun: true,
-    });
-    taskList.push({
-      id: "temp_files",
-      name: "Temp Files",
-      category: "data",
-      icon: <FileX className="h-4 w-4 text-text-muted" />,
-      sizeMb: null,
-      fileCount: null,
-      schedule: "Daily 02:15",
-      retentionPolicy: "24 hours",
-      lastRun: getLastRun("cleanup_temp_files_task"),
-      path: null,
-      description: "Temporary processing files",
-      taskName: "cleanup_temp_files_task",
-      supportsDryRun: true,
-    });
-    taskList.push({
-      id: "evidence",
-      name: "Evidence Artifacts",
-      category: "data",
-      icon: <Camera className="h-4 w-4 text-status-info" />,
-      sizeMb: null,
-      fileCount: null,
-      schedule: "Daily 06:00",
-      retentionPolicy: "5 versions",
-      lastRun: getLastRun("cleanup_old_versions"),
-      path: null,
-      description: "Feature verification screenshots",
-      taskName: "cleanup_old_versions",
-      supportsDryRun: true,
-    });
-    taskList.push({
-      id: "debug_captures",
-      name: "Debug Captures",
-      category: "data",
-      icon: <Camera className="h-4 w-4 text-text-muted" />,
-      sizeMb: null,
-      fileCount: null,
-      schedule: "Daily 06:00",
-      retentionPolicy: "7 days",
-      lastRun: getLastRun("cleanup_debug_captures"),
-      path: null,
-      description: "Debug screenshots and traces",
-      taskName: "cleanup_debug_captures",
-      supportsDryRun: true,
-    });
+      // Get cache status data for dev_caches task
+      if (config.id === "dev_caches" && cacheStatus) {
+        sizeMb = cacheStatus.totalSizeMb;
+        fileCount = cacheStatus.totalFileCount;
+      }
 
-    // Database maintenance tasks
-    taskList.push({
-      id: "cleanup_news",
-      name: "Old News",
-      category: "database",
-      icon: <Trash2 className="h-4 w-4 text-status-warning" />,
-      sizeMb: null,
-      fileCount: null,
-      schedule: "Daily 03:00",
-      retentionPolicy: "90 days",
-      lastRun: getLastRun("cleanup_old_news_task") || getLastRun("cleanup_news"),
-      path: null,
-      description: "Delete news articles older than 90 days",
-      taskName: "cleanup_old_news_task",
-      isDbTask: true,
-      supportsDryRun: true,
-    });
-    taskList.push({
-      id: "vacuum_db",
-      name: "Vacuum Database",
-      category: "database",
-      icon: <Database className="h-4 w-4 text-status-info" />,
-      sizeMb: null,
-      fileCount: null,
-      schedule: "Weekly Sun 05:30",
-      retentionPolicy: null,
-      lastRun: getLastRun("vacuum_database_task") || getLastRun("vacuum_database"),
-      path: null,
-      description: "Reclaim space and update statistics",
-      taskName: "vacuum_database_task",
-      isDbTask: true,
-      supportsDryRun: true,
-    });
-    taskList.push({
-      id: "validate_integrity",
-      name: "Validate Integrity",
-      category: "database",
-      icon: <CheckCircle2 className="h-4 w-4 text-status-success" />,
-      sizeMb: null,
-      fileCount: null,
-      schedule: "Daily 04:00",
-      retentionPolicy: null,
-      lastRun: getLastRun("validate_integrity_task") || getLastRun("validate_integrity"),
-      path: null,
-      description: "Check for orphaned records and consistency",
-      taskName: "validate_integrity_task",
-      isDbTask: true,
-      supportsDryRun: true,
-    });
+      // Skip file cleanup tasks if data not available
+      if (config.fileCleanupKey && !fileCleanup) return null;
+      if (config.id === "dev_caches" && !cacheStatus) return null;
 
-    // System tasks
-    taskList.push({
-      id: "rotate_logs",
-      name: "Rotate Logs",
-      category: "system",
-      icon: <RotateCcw className="h-4 w-4 text-text-muted" />,
-      sizeMb: null,
-      fileCount: null,
-      schedule: "Daily 01:00",
-      retentionPolicy: null,
-      lastRun: getLastRun("rotate_logs_task"),
-      path: null,
-      description: "Archive and compress old log files",
-      taskName: "rotate_logs_task",
-      supportsDryRun: true,
-    });
+      // Get last run with fallback
+      const lastRun = getLastRun(config.taskName) ||
+        (config.fallbackTaskName ? getLastRun(config.fallbackTaskName) : null);
 
-    return taskList;
+      return {
+        id: config.id,
+        name: config.name,
+        category: config.category,
+        icon: getTaskIcon(config),
+        sizeMb,
+        fileCount,
+        schedule: scheduleOverride || config.schedule,
+        retentionPolicy: retentionOverride ?? config.retentionPolicy,
+        lastRun,
+        path,
+        description: config.description,
+        taskName: config.taskName,
+        isDbTask: config.isDbTask,
+        supportsDryRun: config.supportsDryRun,
+      };
+    };
+
+    return TASK_CONFIGS
+      .map(createTask)
+      .filter((task): task is MaintenanceTask => task !== null);
   }, [fileCleanup, cacheStatus, lastRunSummary]);
 
   // Filter and sort tasks
