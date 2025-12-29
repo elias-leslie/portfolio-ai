@@ -55,6 +55,19 @@ strategy_reviewer = StrategyReviewer(storage, primary_provider="gemini")
 multi_reviewer = MultiReviewer(storage)
 
 
+def _build_not_refreshing_response() -> RefreshStatusResponse:
+    """Build a RefreshStatusResponse for when no refresh is in progress."""
+    return RefreshStatusResponse(
+        is_refreshing=False,
+        started_at=None,
+        elapsed_seconds=None,
+        total_items=None,
+        processed_items=None,
+        current_symbol=None,
+        percent_complete=None,
+    )
+
+
 def _review_to_dict(review: ProviderReview | None) -> dict[str, object] | None:
     """Convert a ProviderReview to a dictionary for JSON response."""
     if review is None:
@@ -297,15 +310,7 @@ async def get_refresh_status() -> RefreshStatusResponse:
 
         if not status_json:
             # No refresh in progress
-            return RefreshStatusResponse(
-                is_refreshing=False,
-                started_at=None,
-                elapsed_seconds=None,
-                total_items=None,
-                processed_items=None,
-                current_symbol=None,
-                percent_complete=None,
-            )
+            return _build_not_refreshing_response()
 
         status_data = safe_json_loads(str(status_json), {})
         started_at_str = status_data.get("started_at")
@@ -336,15 +341,7 @@ async def get_refresh_status() -> RefreshStatusResponse:
     except Exception as e:
         logger.error("Failed to get refresh status", error=str(e))
         # Return no refresh in progress on error
-        return RefreshStatusResponse(
-            is_refreshing=False,
-            started_at=None,
-            elapsed_seconds=None,
-            total_items=None,
-            processed_items=None,
-            current_symbol=None,
-            percent_complete=None,
-        )
+        return _build_not_refreshing_response()
 
 
 @router.get("/{item_id}", response_model=WatchlistItemResponse)

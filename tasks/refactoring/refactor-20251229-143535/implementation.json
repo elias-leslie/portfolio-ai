@@ -278,7 +278,8 @@
             "Run cd frontend && npm run lint"
           ],
           "verification": "cd frontend && npm run build",
-          "passes": false
+          "passes": true,
+          "notes": "Completed in earlier session today - server-url.ts already exists with getServerUrl() and getWsUrl() utilities"
         }
       ]
     },
