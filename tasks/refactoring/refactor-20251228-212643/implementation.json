@@ -106,7 +106,7 @@
             "Run pytest tests/tasks/ -k reference to verify"
           ],
           "verification": "pytest tests/tasks/ -k reference -v --tb=short",
-          "passes": false
+          "passes": true
         },
         {
           "id": "1.6",

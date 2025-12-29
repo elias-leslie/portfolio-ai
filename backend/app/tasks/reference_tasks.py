@@ -75,6 +75,40 @@ def _dual_write_metrics(
     conn.execute(insert_sql, [symbol, as_of_date, *metrics_values])
 
 
+def _get_watchlist_symbols_or_early_return(
+    task_id: str | None,
+    log_event: str,
+    secondary_metric_name: str = "symbols_updated",
+) -> tuple[list[str], Any, dict[str, int | str] | None]:
+    """Get watchlist symbols or return early response if none found.
+
+    Common boilerplate pattern used by Celery tasks that process watchlist symbols.
+
+    Args:
+        task_id: Celery task ID for response
+        log_event: Log event name for empty list (e.g., "no_watchlist_symbols_for_health_scores")
+        secondary_metric_name: Name of secondary metric in response (default: "symbols_updated")
+
+    Returns:
+        Tuple of (symbols_list, storage, early_return_response_or_none)
+        If symbols is empty, early_return_response contains the response dict.
+        Otherwise, early_return_response is None.
+    """
+    storage = get_storage()
+    symbols = get_watchlist_symbols_cached(storage, account_id=None, ttl_seconds=60)
+
+    if not symbols:
+        logger.info(log_event)
+        return [], storage, {
+            "task_id": task_id,
+            "symbols_processed": 0,
+            secondary_metric_name: 0,
+            "duration_seconds": 0,
+        }
+
+    return symbols, storage, None
+
+
 class ValuationMetricsDict(TypedDict, total=False):
     """Valuation metrics extracted from reference data payloads."""
 
@@ -466,19 +500,12 @@ def refresh_yfinance_reference_data(self: Task) -> dict[str, int | str]:
     logger.info("yfinance_reference_refresh_started", task_id=task_id)
 
     try:
-        storage = get_storage()
-
-        # Get all watchlist symbols (cached)
-        symbols = get_watchlist_symbols_cached(storage, account_id=None, ttl_seconds=60)
-
-        if not symbols:
-            logger.warning("no_watchlist_symbols_found")
-            return {
-                "task_id": task_id,
-                "symbols_processed": 0,
-                "symbols_updated": 0,
-                "duration_seconds": 0,
-            }
+        # Get watchlist symbols with early return if none found
+        symbols, storage, early_return = _get_watchlist_symbols_or_early_return(
+            task_id, "no_watchlist_symbols_found"
+        )
+        if early_return:
+            return early_return
 
         logger.info("fetching_yfinance_reference", num_symbols=len(symbols))
 
@@ -663,19 +690,12 @@ def refresh_analyst_revisions(self: Task) -> dict[str, int | str]:
     logger.info("analyst_revisions_refresh_started", task_id=task_id)
 
     try:
-        storage = get_storage()
-
-        # Get watchlist symbols (cached)
-        symbols = get_watchlist_symbols_cached(storage, account_id=None, ttl_seconds=60)
-
-        if not symbols:
-            logger.info("no_watchlist_symbols_for_analyst_revisions")
-            return {
-                "task_id": task_id,
-                "symbols_processed": 0,
-                "records_saved": 0,
-                "duration_seconds": 0,
-            }
+        # Get watchlist symbols with early return if none found
+        symbols, storage, early_return = _get_watchlist_symbols_or_early_return(
+            task_id, "no_watchlist_symbols_for_analyst_revisions", "records_saved"
+        )
+        if early_return:
+            return early_return
 
         logger.info("refreshing_analyst_revisions", num_symbols=len(symbols))
 
@@ -734,19 +754,12 @@ def refresh_financial_health_scores(self: Task) -> dict[str, int | str]:
     logger.info("financial_health_scores_refresh_started", task_id=task_id)
 
     try:
-        storage = get_storage()
-
-        # Get watchlist symbols (cached)
-        symbols = get_watchlist_symbols_cached(storage, account_id=None, ttl_seconds=60)
-
-        if not symbols:
-            logger.info("no_watchlist_symbols_for_health_scores")
-            return {
-                "task_id": task_id,
-                "symbols_processed": 0,
-                "symbols_updated": 0,
-                "duration_seconds": 0,
-            }
+        # Get watchlist symbols with early return if none found
+        symbols, storage, early_return = _get_watchlist_symbols_or_early_return(
+            task_id, "no_watchlist_symbols_for_health_scores"
+        )
+        if early_return:
+            return early_return
 
         logger.info("calculating_financial_health_scores", num_symbols=len(symbols))
 
@@ -860,19 +873,12 @@ def refresh_risk_metrics(self: Task) -> dict[str, int | str]:
     logger.info("risk_metrics_refresh_started", task_id=task_id)
 
     try:
-        storage = get_storage()
-
-        # Get watchlist symbols (cached)
-        symbols = get_watchlist_symbols_cached(storage, account_id=None, ttl_seconds=60)
-
-        if not symbols:
-            logger.info("no_watchlist_symbols_for_risk_metrics")
-            return {
-                "task_id": task_id,
-                "symbols_processed": 0,
-                "symbols_updated": 0,
-                "duration_seconds": 0,
-            }
+        # Get watchlist symbols with early return if none found
+        symbols, storage, early_return = _get_watchlist_symbols_or_early_return(
+            task_id, "no_watchlist_symbols_for_risk_metrics"
+        )
+        if early_return:
+            return early_return
 
         logger.info("calculating_risk_metrics", num_symbols=len(symbols))
 
