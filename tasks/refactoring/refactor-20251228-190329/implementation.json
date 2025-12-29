@@ -341,12 +341,13 @@
             "backend/app/agents/base.py"
           ],
           "steps": [
-            "Add constants: MAX_LLM_TOKENS=4096, TOOL_RESULT_TRUNCATE=10000, RESULT_SUMMARY_LENGTH=500",
-            "Replace hardcoded values at lines 308, 433, 527, 691",
-            "Run: cd backend && .venv/bin/ruff check app/agents/base.py",
-            "Run: cd backend && .venv/bin/pytest tests/unit/agents/ -x --tb=short"
+            "Added MAX_LLM_TOKENS=4096, TOOL_RESULT_TRUNCATE=10000, RESULT_SUMMARY_LENGTH=500",
+            "Replaced hardcoded values at lines 313, 438, 532, 696",
+            "Run: ruff check - PASSED",
+            "Run: pytest tests/unit/agents/ - 108 tests PASSED",
+            "Commit: c2130109"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "6.3",
