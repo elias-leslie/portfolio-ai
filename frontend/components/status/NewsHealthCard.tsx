@@ -36,8 +36,8 @@ export function NewsHealthCard({
       ? (newsHealth.fallbackHeadlines24H / newsHealth.headlines24H) * 100
       : 0;
 
-  const fallbackAvgLatency = newsHealth?.fallbackAvgLatencyMs ?? null;
-  const fallbackP95Latency = newsHealth?.fallbackP95LatencyMs ?? null;
+  const fallbackAvgLatency = newsHealth?.fallbackAvgLatencyMs24H ?? null;
+  const fallbackP95Latency = newsHealth?.fallbackP95LatencyMs24H ?? null;
   const fallbackLastEventAt = newsHealth?.fallbackLastEventAt ?? null;
 
   // Build summary text
