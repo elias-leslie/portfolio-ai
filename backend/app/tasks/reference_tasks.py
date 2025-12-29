@@ -384,6 +384,38 @@ def parse_valuation_metrics(self: Task) -> dict[str, int | str]:
         }
 
 
+def _upsert_reference_cache(
+    storage: Any,
+    df: Any,
+    source: str,
+) -> int:
+    """Store reference data in reference_cache table.
+
+    Args:
+        storage: PortfolioStorage instance
+        df: Polars DataFrame with columns: symbol, as_of_date, payload
+        source: Data source identifier (e.g., "yfinance", "alphavantage")
+
+    Returns:
+        Number of rows upserted
+    """
+    rows_upserted = 0
+    with storage.connection() as conn:
+        for row in df.iter_rows(named=True):
+            conn.execute(
+                """
+                INSERT INTO reference_cache (symbol, as_of_date, payload, source)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (symbol, as_of_date, source)
+                DO UPDATE SET payload = EXCLUDED.payload
+                """,
+                [row["symbol"], row["as_of_date"], row["payload"], source],
+            )
+            rows_upserted += 1
+        conn.commit()
+    return rows_upserted
+
+
 @celery_app.task(
     bind=True,
     name="refresh_yfinance_reference_data",
@@ -442,23 +474,8 @@ def refresh_yfinance_reference_data(self: Task) -> dict[str, int | str]:
                 "duration_seconds": (dt.datetime.now(dt.UTC) - start_time).total_seconds(),
             }
 
-        # Store in reference_cache table
-        symbols_updated = len(df)
-
-        # DataFrame should have: symbol, as_of_date, payload, source
-        # Insert into reference_cache
-        with storage.connection() as conn:
-            for row in df.iter_rows(named=True):
-                conn.execute(
-                    """
-                    INSERT INTO reference_cache (symbol, as_of_date, payload, source)
-                    VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (symbol, as_of_date, source)
-                    DO UPDATE SET payload = EXCLUDED.payload
-                    """,
-                    [row["symbol"], row["as_of_date"], row["payload"], "yfinance"],
-                )
-            conn.commit()
+        # Store in reference_cache table using shared helper
+        symbols_updated = _upsert_reference_cache(storage, df, "yfinance")
 
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
 
@@ -538,23 +555,8 @@ def _store_alphavantage_payload(symbols: list[str]) -> int:
         logger.warning("alphavantage_backup_fetch_failed")
         return 0
 
-    symbols_stored = len(df)
     storage = get_storage()
-
-    with storage.connection() as conn:
-        for row in df.iter_rows(named=True):
-            conn.execute(
-                """
-                INSERT INTO reference_cache (symbol, as_of_date, payload, source)
-                VALUES (%s, %s, %s, %s)
-                ON CONFLICT (symbol, as_of_date, source)
-                DO UPDATE SET payload = EXCLUDED.payload
-                """,
-                [row["symbol"], row["as_of_date"], row["payload"], "alphavantage"],
-            )
-        conn.commit()
-
-    return symbols_stored
+    return _upsert_reference_cache(storage, df, "alphavantage")
 
 
 @celery_app.task(name="refresh_alphavantage_reference_backup", bind=True)

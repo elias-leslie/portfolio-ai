@@ -56,13 +56,14 @@
             "backend/app/watchlist/storage.py"
           ],
           "steps": [
-            "Create get_watchlist_symbols() method in watchlist/storage.py",
-            "Replace 4 duplicate SELECT DISTINCT queries (lines 416-418, 645-647, 718-720, 861-863)",
-            "Run: cd backend && .venv/bin/ruff check app/tasks/reference_tasks.py",
-            "Run: cd backend && .venv/bin/pytest tests/ -k reference -x --tb=short",
-            "Verify: No duplicate SELECT DISTINCT symbol FROM watchlist_items"
+            "FOUND: get_watchlist_symbols_cached() already exists in app/utils/watchlist_cache.py",
+            "Added import for get_watchlist_symbols_cached to reference_tasks.py",
+            "Replaced 4 duplicate SELECT DISTINCT queries with cached function calls",
+            "Run: cd backend && .venv/bin/ruff check - PASSED",
+            "Run: cd backend && .venv/bin/pytest tests/ -k reference - PASSED (10 passed, 17 skipped)",
+            "Commit: 0549fafc"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "2.2",
