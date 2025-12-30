@@ -114,6 +114,27 @@ def calculate_sharpe_ratio(
     return Decimal(str(round(sharpe, 4)))
 
 
+def calculate_simple_sharpe(daily_returns: list[float]) -> float:
+    """Calculate simplified Sharpe ratio from daily returns.
+
+    A simpler version without risk-free rate adjustment or annualization.
+    Useful for quick performance monitoring.
+
+    Args:
+        daily_returns: List of daily return/PnL values
+
+    Returns:
+        Sharpe ratio (0.0 if insufficient data or zero variance)
+    """
+    if len(daily_returns) <= 1:
+        return 0.0
+
+    mean_return = sum(daily_returns) / len(daily_returns)
+    variance = sum((r - mean_return) ** 2 for r in daily_returns) / len(daily_returns)
+    std_dev = variance**0.5
+    return mean_return / std_dev if std_dev > 0 else 0.0
+
+
 def calculate_win_rate(trades: list[BacktestTrade]) -> Decimal:
     """Calculate percentage of winning trades.
 

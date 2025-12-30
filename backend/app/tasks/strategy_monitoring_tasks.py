@@ -11,6 +11,7 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Literal
 
+from app.backtest.metrics import calculate_simple_sharpe
 from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.storage.connection import get_connection_manager
@@ -283,24 +284,8 @@ def _calculate_today_metrics(trades: list[dict[str, Any]], today: date) -> dict[
     }
 
 
-def _calculate_sharpe_ratio(daily_returns: list[float]) -> float:
-    """Calculate simplified Sharpe ratio from daily returns.
-
-    Uses mean/std without risk-free rate adjustment.
-
-    Args:
-        daily_returns: List of daily PnL values
-
-    Returns:
-        Sharpe ratio (0.0 if insufficient data)
-    """
-    if len(daily_returns) <= 1:
-        return 0.0
-
-    mean_return = sum(daily_returns) / len(daily_returns)
-    variance = sum((r - mean_return) ** 2 for r in daily_returns) / len(daily_returns)
-    std_dev = variance**0.5
-    return mean_return / std_dev if std_dev > 0 else 0.0
+# Alias for backwards compatibility
+_calculate_sharpe_ratio = calculate_simple_sharpe
 
 
 def _calculate_max_drawdown(trades: list[dict[str, Any]]) -> float:

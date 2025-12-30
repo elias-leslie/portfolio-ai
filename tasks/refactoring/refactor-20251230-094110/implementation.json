@@ -364,7 +364,7 @@
             "Import and use in AgentPanel"
           ],
           "verification": "npm run build --prefix frontend",
-          "passes": false
+          "passes": true
         },
         {
           "id": "5.3",
