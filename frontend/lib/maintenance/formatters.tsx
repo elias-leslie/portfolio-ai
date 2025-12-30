@@ -1,6 +1,7 @@
 import React from 'react';
 import { CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { formatRelativeTime } from '@/lib/utils';
 import type { MaintenanceResult } from '@/lib/api/maintenance';
 
 export type TaskCategory = 'file' | 'cache' | 'data' | 'database' | 'system';
@@ -16,20 +17,12 @@ export function formatSize(mb: number | null): string {
 
 /**
  * Format last run time as relative string
+ * Uses shared formatRelativeTime but returns "—" instead of "Never" for null
  */
 export function formatLastRun(lastRun: MaintenanceResult | null): string {
   if (!lastRun?.startedAt) return "—";
-  const date = new Date(lastRun.startedAt);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / (1000 * 60));
-  const diffHours = Math.floor(diffMins / 60);
-  const diffDays = Math.floor(diffHours / 24);
-
-  if (diffDays > 0) return `${diffDays}d ago`;
-  if (diffHours > 0) return `${diffHours}h ago`;
-  if (diffMins > 0) return `${diffMins}m ago`;
-  return "Just now";
+  const result = formatRelativeTime(lastRun.startedAt);
+  return result === "Never" ? "—" : result;
 }
 
 /**
