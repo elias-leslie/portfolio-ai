@@ -280,13 +280,6 @@ export function MaintenanceTable() {
     }
   };
 
-  // Database task handlers - consolidated into single parameterized handler
-  const shouldShowDialog = (storageKey: string, isLiveOperation: boolean) => {
-    if (typeof window === "undefined") return true;
-    if (isLiveOperation) return true;
-    return !localStorage.getItem(storageKey);
-  };
-
   // Map of task id -> API function
   const dbTaskApiFunctions: Record<string, (dryRun: boolean) => Promise<MaintenanceResult>> = {
     cleanup_news: cleanupOldNews,

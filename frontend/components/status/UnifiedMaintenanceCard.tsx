@@ -52,6 +52,7 @@ import {
   type BackupRequirementCheck,
   type CacheStatusResponse,
 } from "@/lib/api/maintenance";
+import { shouldShowDialog } from "@/lib/utils/dialog-helpers";
 import { toast } from "sonner";
 
 // Unified maintenance item component for consistent display
@@ -304,13 +305,6 @@ export function UnifiedMaintenanceCard() {
     } finally {
       setTriggeringTask(null);
     }
-  };
-
-  // Database maintenance handlers - consolidated with factory pattern
-  const shouldShowDialog = (storageKey: string, isLiveOperation: boolean) => {
-    if (typeof window === "undefined") return true;
-    if (isLiveOperation) return true;
-    return !localStorage.getItem(storageKey);
   };
 
   // Factory for creating database task triggers with backup checks and dialogs

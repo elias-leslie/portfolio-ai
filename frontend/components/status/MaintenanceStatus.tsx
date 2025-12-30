@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { ExpandableCard } from "@/components/status/ExpandableCard";
 import { ServiceActionDialog } from "@/components/status/ServiceActionDialog";
 import { getMaintenanceLastRun, type MaintenanceResult, type LastRunSummary } from "@/lib/api/maintenance";
+import { shouldShowDialog } from "@/lib/utils/dialog-helpers";
 import { formatRelativeTime } from "@/lib/utils";
 
 interface ScheduledTask {
@@ -560,12 +561,6 @@ export function MaintenanceStatus() {
     } finally {
       setTasksLoading(false);
     }
-  };
-
-  // Check if user has disabled confirmation dialogs
-  const shouldShowDialog = (storageKey: string) => {
-    if (typeof window === "undefined") return true;
-    return !localStorage.getItem(storageKey);
   };
 
   // Generic trigger handler

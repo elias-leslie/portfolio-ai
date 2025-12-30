@@ -28,6 +28,7 @@ import {
   type LastRunSummary,
   type BackupRequirementCheck,
 } from "@/lib/api/maintenance";
+import { shouldShowDialog } from "@/lib/utils/dialog-helpers";
 import { toast } from "sonner";
 
 interface TaskSectionProps {
@@ -279,15 +280,6 @@ export function MaintenanceCard() {
     } finally {
       setIsFetching(false);
     }
-  };
-
-  // Check if user has disabled confirmation dialogs
-  // IMPORTANT: For live (non-dry-run) operations, ALWAYS show dialog - no localStorage bypass
-  const shouldShowDialog = (storageKey: string, isLiveOperation: boolean) => {
-    if (typeof window === "undefined") return true;
-    // Live operations always require confirmation - safety first
-    if (isLiveOperation) return true;
-    return !localStorage.getItem(storageKey);
   };
 
   const formatTaskSummary = (label: string, result?: MaintenanceResult | null) => {
