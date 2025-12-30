@@ -265,7 +265,7 @@ class Agent(ABC):
         self,
         run_id: str,
         started_at: datetime,
-        stop_reason: str,
+        stop_reason: str | None,
         tool_calls_made: list[ToolCallRecord],
         token_usage: dict[str, int] | None = None,
     ) -> AgentRunResult:
