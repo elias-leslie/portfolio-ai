@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Request
@@ -15,6 +14,8 @@ from app.agents.strategy_reviewer import StrategyReviewer
 from app.logging_config import get_logger
 from app.middleware.cache import cache_response
 from app.storage import get_storage
+from app.utils.db_helpers import generate_uuid
+from app.utils.formatters import utc_now_iso
 from app.utils.watchlist_cache import invalidate_all_watchlist_caches
 from app.watchlist._service.helpers import parse_json_field, safe_json_loads
 from app.watchlist.background_tasks import schedule_new_symbol_tasks, schedule_refresh_tasks
@@ -93,7 +94,7 @@ def _store_strategy_review(
     provider_disagreement: bool | None = None,
 ) -> str:
     """Store a strategy review in the database."""
-    review_id = str(uuid.uuid4())
+    review_id = generate_uuid()
     watchlist_repo.store_strategy_review(
         review_id=review_id,
         item_id=item_id,
@@ -150,7 +151,7 @@ def _store_legacy_review(
     Returns:
         Generated review ID
     """
-    review_id = str(uuid.uuid4())
+    review_id = generate_uuid()
     watchlist_repo.store_strategy_review(
         review_id=review_id,
         item_id=item_id,
@@ -261,8 +262,8 @@ async def create_watchlist_item(data: WatchlistItemCreate) -> WatchlistItemRespo
             raise HTTPException(status_code=409, detail=f"Symbol {symbol} already in watchlist")
 
         # Create item
-        item_id = str(uuid.uuid4())
-        now = datetime.now(UTC).isoformat()
+        item_id = generate_uuid()
+        now = utc_now_iso()
 
         watchlist_repo.create_item(item_id, symbol, data.note, now)
 
@@ -389,7 +390,7 @@ async def update_watchlist_item(item_id: str, data: WatchlistItemUpdate) -> Watc
         if items_df.is_empty():
             raise HTTPException(status_code=404, detail="Watchlist item not found")
 
-        now = datetime.now(UTC).isoformat()
+        now = utc_now_iso()
 
         # Update note
         watchlist_repo.update_item_note(item_id, data.note, now)
