@@ -213,7 +213,8 @@ def fetch_journal_logs(
 
 
 VALID_SERVICES = {"backend", "celery_worker", "celery_beat", "frontend", "redis", "postgresql"}
-VALID_LEVELS = {"CRITICAL", "ERROR", "WARN", "INFO", "DEBUG"}
+# Derive VALID_LEVELS from LOG_LEVEL_PRIORITY (excluding UNKNOWN which is internal-only)
+VALID_LEVELS = {level for level in LOG_LEVEL_PRIORITY if level != "UNKNOWN"}
 
 
 def _validate_log_params(lines: int, service: str | None, level: str | None) -> None:

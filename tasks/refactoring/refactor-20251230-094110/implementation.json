@@ -184,7 +184,7 @@
             "Replace magic number 7 with constant at lines 209, 248, 278, 297, 593"
           ],
           "verification": "ruff check backend/app/celery_schedules.py",
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.2",
@@ -205,7 +205,7 @@
             "Replace magic numbers at lines 593, 604, 626, 637, 658, 669, 681"
           ],
           "verification": "ruff check backend/app/celery_schedules.py",
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.3",
