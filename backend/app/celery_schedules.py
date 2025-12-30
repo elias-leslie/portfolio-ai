@@ -83,6 +83,18 @@ EXPIRY_50_MIN = 3000  # 50-minute expiry for longer tasks
 EXPIRY_1_HOUR = 3600  # Longer-running tasks
 EXPIRY_2_HOURS = 7200  # 2-hour expiry for daily cleanup tasks
 
+# Fear & Greed lookback period (days)
+FEAR_GREED_LOOKBACK_DAYS = 7
+
+# Cleanup task retention periods
+CLEANUP_LOGS_RETENTION_DAYS = 7
+CLEANUP_TEMP_FILES_RETENTION_HOURS = 24
+CLEANUP_NEWS_RETENTION_DAYS = 90
+CLEANUP_AGENT_RUNS_RETENTION_DAYS = 30
+CLEANUP_BACKUPS_KEEP_COUNT = 5
+CLEANUP_MODELS_KEEP_COUNT = 3
+CLEANUP_SOLUTION_STATE_RETENTION_DAYS = 14
+
 
 def get_beat_schedule() -> dict[str, dict[str, Any]]:
     """Get Celery Beat schedule configuration.
@@ -199,7 +211,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "populate-fear-greed-inputs-daily": {
             "task": "populate_fear_greed_inputs",
             "schedule": crontab(hour=2, minute=45),  # Daily at 02:45 UTC
-            "args": [7],  # Update last 7 days
+            "args": [FEAR_GREED_LOOKBACK_DAYS],  # Update last N days
             "options": {"expires": EXPIRY_1_HOUR},  # Task expires after 1 hour
             # Notes:
             # - Runs daily at 02:45 UTC (after indicators update at 02:30)
@@ -238,7 +250,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "refresh-fear-greed-morning": {
             "task": "populate_fear_greed_inputs",
             "schedule": crontab(hour=15, minute=15),  # Daily at 15:15 UTC (10:15 AM ET)
-            "args": [7],
+            "args": [FEAR_GREED_LOOKBACK_DAYS],
             "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Early Fear & Greed update with morning market data
@@ -268,7 +280,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "refresh-fear-greed-midday": {
             "task": "populate_fear_greed_inputs",
             "schedule": crontab(hour=17, minute=15),  # Daily at 17:15 UTC (12:15 PM ET)
-            "args": [7],
+            "args": [FEAR_GREED_LOOKBACK_DAYS],
             "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Midday Fear & Greed update with intraday market data
@@ -287,7 +299,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "update-fear-greed-after-close": {
             "task": "populate_fear_greed_inputs",
             "schedule": crontab(hour=21, minute=45),  # Daily at 21:45 UTC (4:45 PM ET, after close)
-            "args": [7],
+            "args": [FEAR_GREED_LOOKBACK_DAYS],
             "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Runs after market close (16:00 ET) to catch final closing data
@@ -583,7 +595,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "cleanup-old-logs-daily": {
             "task": "cleanup_old_logs_task",
             "schedule": crontab(hour=2, minute=0),  # Daily at 02:00 UTC
-            "args": [7],  # Delete logs older than 7 days
+            "args": [CLEANUP_LOGS_RETENTION_DAYS],  # Delete logs older than N days
             "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Runs daily at 02:00 UTC (before market data tasks)
@@ -594,7 +606,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "cleanup-temp-files-daily": {
             "task": "cleanup_temp_files_task",
             "schedule": crontab(hour=2, minute=15),  # Daily at 02:15 UTC
-            "args": [24],  # Delete temp files older than 24 hours
+            "args": [CLEANUP_TEMP_FILES_RETENTION_HOURS],  # Delete temp files older than N hours
             "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Runs daily at 02:15 UTC (15 min after log cleanup)
@@ -616,7 +628,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "cleanup-old-news-weekly": {
             "task": "cleanup_old_news_task",
             "schedule": crontab(day_of_week=0, hour=4, minute=0),  # Sunday 04:00 UTC
-            "args": [90],  # Delete news older than 90 days
+            "args": [CLEANUP_NEWS_RETENTION_DAYS],  # Delete news older than N days
             "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Runs weekly on Sunday at 04:00 UTC (after database vacuum)
@@ -627,7 +639,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "cleanup-old-agent-runs-weekly": {
             "task": "cleanup_old_agent_runs_task",
             "schedule": crontab(day_of_week=0, hour=4, minute=15),  # Sunday 04:15 UTC
-            "args": [30],  # Delete agent runs older than 30 days
+            "args": [CLEANUP_AGENT_RUNS_RETENTION_DAYS],  # Delete agent runs older than N days
             "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Runs weekly on Sunday at 04:15 UTC (after news cleanup)
@@ -648,7 +660,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "cleanup-old-backups-weekly": {
             "task": "cleanup_old_backups_task",
             "schedule": crontab(day_of_week=0, hour=4, minute=45),  # Sunday 04:45 UTC
-            "args": [5],  # Keep 5 most recent backups
+            "args": [CLEANUP_BACKUPS_KEEP_COUNT],  # Keep N most recent backups
             "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Runs weekly on Sunday at 04:45 UTC (after orphaned data cleanup)
@@ -659,7 +671,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "cleanup-old-models-weekly": {
             "task": "cleanup_old_models_task",
             "schedule": crontab(day_of_week=0, hour=5, minute=0),  # Sunday 05:00 UTC
-            "args": [3],  # Keep 3 most recent versions per model
+            "args": [CLEANUP_MODELS_KEEP_COUNT],  # Keep N most recent versions per model
             "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Runs weekly on Sunday at 05:00 UTC
@@ -671,7 +683,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         "cleanup-solution-state-weekly": {
             "task": "cleanup_solution_state_task",
             "schedule": crontab(day_of_week=0, hour=5, minute=15),  # Sunday 05:15 UTC
-            "args": [14],  # Keep 14 days of test artifacts
+            "args": [CLEANUP_SOLUTION_STATE_RETENTION_DAYS],  # Keep N days of test artifacts
             "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Runs weekly on Sunday at 05:15 UTC

@@ -163,7 +163,7 @@
             "Update MaintenanceTable.tsx, UnifiedMaintenanceCard.tsx, MaintenanceCard.tsx, MaintenanceStatus.tsx, app/status/page.tsx to import shared utility"
           ],
           "verification": "npm run lint --prefix frontend && npm run build --prefix frontend",
-          "passes": false
+          "passes": true
         }
       ]
     },
