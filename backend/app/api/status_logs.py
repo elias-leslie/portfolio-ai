@@ -216,6 +216,16 @@ VALID_SERVICES = {"backend", "celery_worker", "celery_beat", "frontend", "redis"
 # Derive VALID_LEVELS from LOG_LEVEL_PRIORITY (excluding UNKNOWN which is internal-only)
 VALID_LEVELS = {level for level in LOG_LEVEL_PRIORITY if level != "UNKNOWN"}
 
+# Service name to systemd unit mapping (single source of truth)
+SERVICE_UNIT_MAPPING: dict[str, str] = {
+    "backend": "portfolio-backend",
+    "celery_worker": "portfolio-celery",
+    "celery_beat": "portfolio-beat",
+    "frontend": "portfolio-frontend",
+    "redis": "redis-server",
+    "postgresql": "postgresql@16-main",
+}
+
 
 def _validate_log_params(lines: int, service: str | None, level: str | None) -> None:
     """Validate unified log query parameters.
@@ -354,18 +364,8 @@ async def get_unified_logs(
     _validate_log_params(lines, service, level)
 
     try:
-        # Map service names to systemd unit names
-        service_units = {
-            "backend": "portfolio-backend",
-            "celery_worker": "portfolio-celery",
-            "celery_beat": "portfolio-beat",
-            "frontend": "portfolio-frontend",
-            "redis": "redis-server",
-            "postgresql": "postgresql@16-main",
-        }
-
-        # Categorize units using helper
-        system_units, user_units = _categorize_units(service_units, service)
+        # Categorize units using helper (uses module-level SERVICE_UNIT_MAPPING)
+        system_units, user_units = _categorize_units(SERVICE_UNIT_MAPPING, service)
         fetch_limit = JOURNAL_FETCH_LIMIT
 
         # Fetch logs from both system and user units
@@ -376,7 +376,7 @@ async def get_unified_logs(
                 is_user_mode=False,
                 fetch_limit=fetch_limit,
                 since=since,
-                service_units=service_units,
+                service_units=SERVICE_UNIT_MAPPING,
             )
         )
         logs.extend(
@@ -385,7 +385,7 @@ async def get_unified_logs(
                 is_user_mode=True,
                 fetch_limit=fetch_limit,
                 since=since,
-                service_units=service_units,
+                service_units=SERVICE_UNIT_MAPPING,
             )
         )
 
