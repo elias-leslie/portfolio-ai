@@ -44,6 +44,7 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { SectionCard } from "@/components/shared/SectionCard";
 import { PageContainer } from "@/components/shared/PageContainer";
 import { getConnectionBadge, getConnectionBanner } from "@/lib/utils/connectionBadge";
+import { shouldShowDialog } from "@/lib/utils/dialog-helpers";
 
 // Storage key for realtime preference
 const REALTIME_STORAGE_KEY = "status.realtimeEnabled";
@@ -140,12 +141,6 @@ export default function StatusPage() {
         const timeout = window.setTimeout(() => setIsDataStale(true), 10000);
         return () => window.clearTimeout(timeout);
     }, [lastUpdateTimestamp]);
-
-    // Check if user has disabled confirmation dialogs
-    const shouldShowDialog = (storageKey: string) => {
-        if (typeof window === "undefined") return true;
-        return !localStorage.getItem(storageKey);
-    };
 
     // Restart service handler
     const handleRestartService = async (serviceName: string) => {
