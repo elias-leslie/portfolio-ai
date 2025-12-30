@@ -61,6 +61,34 @@ def calculate_max_drawdown(equity_curve: list[BacktestEquity]) -> Decimal:
     return max_dd
 
 
+def calculate_simple_max_drawdown(pnl_values: list[float]) -> float:
+    """Calculate maximum drawdown from cumulative PnL values.
+
+    A simpler version that works with raw PnL values (not equity curve objects).
+    Useful for strategy monitoring where we have trade-level PnL.
+
+    Args:
+        pnl_values: List of individual PnL values (profits/losses)
+
+    Returns:
+        Max drawdown as fraction (0.0 to 1.0)
+    """
+    if not pnl_values:
+        return 0.0
+
+    cumulative_pnl = 0.0
+    peak_pnl = 0.0
+    max_drawdown = 0.0
+
+    for pnl in pnl_values:
+        cumulative_pnl += pnl
+        peak_pnl = max(peak_pnl, cumulative_pnl)
+        drawdown = (peak_pnl - cumulative_pnl) / peak_pnl if peak_pnl > 0 else 0.0
+        max_drawdown = max(max_drawdown, drawdown)
+
+    return max_drawdown
+
+
 def calculate_sharpe_ratio(
     equity_curve: list[BacktestEquity], risk_free_rate: Decimal = Decimal("0.045")
 ) -> Decimal:

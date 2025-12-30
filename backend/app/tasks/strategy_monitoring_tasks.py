@@ -11,7 +11,7 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Literal
 
-from app.backtest.metrics import calculate_simple_sharpe
+from app.backtest.metrics import calculate_simple_max_drawdown, calculate_simple_sharpe
 from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.storage.connection import get_connection_manager
@@ -291,23 +291,16 @@ _calculate_sharpe_ratio = calculate_simple_sharpe
 def _calculate_max_drawdown(trades: list[dict[str, Any]]) -> float:
     """Calculate maximum drawdown from trade sequence.
 
+    Wrapper around calculate_simple_max_drawdown for backwards compatibility.
+
     Args:
         trades: List of trade dicts with 'pnl' key
 
     Returns:
         Max drawdown as fraction (0.0 to 1.0)
     """
-    cumulative_pnl = 0.0
-    peak_pnl = 0.0
-    max_drawdown = 0.0
-
-    for t in trades:
-        cumulative_pnl += t["pnl"]
-        peak_pnl = max(peak_pnl, cumulative_pnl)
-        drawdown = (peak_pnl - cumulative_pnl) / peak_pnl if peak_pnl > 0 else 0.0
-        max_drawdown = max(max_drawdown, drawdown)
-
-    return max_drawdown
+    pnl_values = [t["pnl"] for t in trades]
+    return calculate_simple_max_drawdown(pnl_values)
 
 
 def _calculate_rolling_metrics(

@@ -394,7 +394,7 @@
             "Adapt calling code in _calculate_rolling_metrics to match existing utility signature"
           ],
           "verification": "pytest backend/tests/tasks/test_strategy_monitoring.py -v",
-          "passes": false
+          "passes": true
         },
         {
           "id": "5.5",
