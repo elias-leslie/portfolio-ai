@@ -54,6 +54,7 @@ import {
   getCategoryBadge,
   type TaskCategory,
 } from "@/lib/maintenance/formatters";
+import { shouldShowDialog } from "@/lib/utils/dialog-helpers";
 
 // Unified task interface
 interface MaintenanceTask {

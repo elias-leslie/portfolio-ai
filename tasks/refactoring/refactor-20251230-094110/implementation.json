@@ -148,7 +148,7 @@
             "Replace line 928 inline calculation with calculate_duration_ms(request_start, datetime.now(UTC))"
           ],
           "verification": "pytest backend/tests/services/test_sitemap_service.py -v",
-          "passes": false
+          "passes": true
         },
         {
           "id": "2.5",
