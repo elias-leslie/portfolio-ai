@@ -22,13 +22,13 @@ import httpx
 from ..logging_config import get_logger
 from ..storage.connection import get_connection_manager
 from ..storage.sitemap_storage import get_sitemap_storage
+from ..utils.formatters import calculate_duration_ms
 from ..utils.port_discovery import (
     PortDiscovery,
     get_port_for_service,
 )
 from .health_check_strategies import (
     HealthCheckStrategy,
-    matches_pattern,
 )
 
 logger = get_logger(__name__)
@@ -897,7 +897,7 @@ class SitemapService:
             async with httpx.AsyncClient(timeout=timeout) as client:
                 request_start = datetime.now(UTC)
                 response = await client.request(method, url)
-                response_time_ms = int((datetime.now(UTC) - request_start).total_seconds() * 1000)
+                response_time_ms = calculate_duration_ms(request_start, datetime.now(UTC))
                 http_status = response.status_code
 
                 # Determine if this is an error using helper
