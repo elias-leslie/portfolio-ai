@@ -85,7 +85,7 @@ class MarketRepository:
 
     def get_fear_greed_history_data(
         self, days: int
-    ) -> list[tuple[Any, Any, Any, Any]]:
+    ) -> list[tuple[Any, ...]]:
         """Get Fear & Greed historical data with put/call ratio.
 
         Args:
@@ -109,7 +109,7 @@ class MarketRepository:
 
     def get_indicator_history_data(
         self, symbol: str, days: int
-    ) -> list[tuple[Any, Any]]:
+    ) -> list[tuple[Any, ...]]:
         """Get indicator historical data from day_bars.
 
         Args:
@@ -131,7 +131,7 @@ class MarketRepository:
             )
             return result.fetchall()
 
-    def get_market_trends_data(self, days: int) -> list[tuple[Any, Any]]:
+    def get_market_trends_data(self, days: int) -> list[tuple[Any, ...]]:
         """Get Fear & Greed daily scores for trend charts.
 
         Args:

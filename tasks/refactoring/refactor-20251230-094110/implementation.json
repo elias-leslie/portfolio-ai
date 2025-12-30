@@ -431,7 +431,7 @@
             "Fix any regressions"
           ],
           "verification": "pytest backend/tests/ -v --tb=short",
-          "passes": false
+          "passes": true
         },
         {
           "id": "6.2",
@@ -446,7 +446,7 @@
             "Ensure no errors"
           ],
           "verification": "npm run build --prefix frontend",
-          "passes": false
+          "passes": true
         },
         {
           "id": "6.3",
@@ -460,7 +460,7 @@
             "Ensure no new type errors introduced"
           ],
           "verification": "mypy backend/app/ --ignore-missing-imports --no-error-summary",
-          "passes": false
+          "passes": true
         }
       ]
     }
