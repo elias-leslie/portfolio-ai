@@ -110,13 +110,6 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         },
         # Future: Portfolio analytics refresh
         # Note: Commented example for future implementation
-        # "refresh-portfolio-analytics": {
-        #     "task": "refresh_portfolio_analytics",  # noqa: ERA001
-        #     "schedule": 60.0,  # Poll every 60 seconds  # noqa: ERA001
-        #     "args": ["default"],  # noqa: ERA001
-        #     "options": {"expires": 120},  # noqa: ERA001
-        #     # Task checks: portfolio_refresh_override → default_refresh_minutes → 15 min
-        # },
         "refresh-news-sentiment": {
             "task": "refresh_news_sentiment",
             "schedule": POLL_INTERVAL_30_MIN,  # Was 65s - too aggressive, caused CPU spikes

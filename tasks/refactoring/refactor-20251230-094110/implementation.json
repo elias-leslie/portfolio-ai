@@ -1,0 +1,468 @@
+{
+  "meta": {
+    "title": "Full Codebase Refactor - portfolio-ai",
+    "created": "2025-12-30",
+    "session_id": "refactor-20251230-094110",
+    "baseline_complexity": 1184.79,
+    "targets_analyzed": 10,
+    "total_issues": 57
+  },
+  "phases": [
+    {
+      "id": 1,
+      "name": "Dead Code Removal",
+      "goal": "Remove unused code, deprecated functions, and stale imports",
+      "tasks": [
+        {
+          "id": "1.1",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Remove deprecated _matches_pattern alias from sitemap_service.py",
+          "file": "backend/app/services/sitemap_service.py",
+          "steps": [
+            "Remove line 50: '_matches_pattern = matches_pattern'"
+          ],
+          "verification": "ruff check backend/app/services/sitemap_service.py",
+          "passes": false
+        },
+        {
+          "id": "1.2",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Remove dead LOG_PATHS and related functions from status_logs.py",
+          "file": "backend/app/api/status_logs.py",
+          "steps": [
+            "Remove LOG_PATHS dict (lines 23-39) - user services use journalctl not file logs",
+            "Remove ANSI_ESCAPE pattern (line 42) if only used by tail_log_file",
+            "Remove tail_log_file() function (lines 83-113)",
+            "Remove get_service_logs endpoint (lines 116-165) - deprecated by unified-logs",
+            "Run tests to verify no regressions"
+          ],
+          "verification": "pytest backend/tests/api/test_status_endpoints.py -v",
+          "passes": false
+        },
+        {
+          "id": "1.3",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Remove unused state variable in AgentPanel.tsx",
+          "file": "frontend/components/agents/AgentPanel.tsx",
+          "steps": [
+            "Remove line 53: const [, setActiveProvider] = useState<LLMProvider>('claude')",
+            "Update useWebSocketConnection options to not require setActiveProvider"
+          ],
+          "verification": "npm run lint --prefix frontend",
+          "passes": false
+        },
+        {
+          "id": "1.4",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Remove commented-out task from celery_schedules.py",
+          "file": "backend/app/celery_schedules.py",
+          "steps": [
+            "Remove lines 114-118 (commented 'refresh-portfolio-analytics' with ERA001 tags)"
+          ],
+          "verification": "ruff check backend/app/celery_schedules.py",
+          "passes": false
+        },
+        {
+          "id": "1.5",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Remove deprecated discover_backend_endpoints from sitemap_service.py",
+          "file": "backend/app/services/sitemap_service.py",
+          "steps": [
+            "Remove discover_backend_endpoints method (lines 301-323)",
+            "Verify no API callers exist",
+            "Method is superseded by discover_all_openapi_endpoints"
+          ],
+          "verification": "grep -r 'discover_backend_endpoints' backend/app/api/",
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "DRY Violation Fixes - Utilities",
+      "goal": "Consolidate duplicate utility code into shared modules",
+      "tasks": [
+        {
+          "id": "2.1",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Use existing generate_uuid() utility in watchlist.py",
+          "file": "backend/app/api/watchlist.py",
+          "steps": [
+            "Add import: from app.utils.db_helpers import generate_uuid",
+            "Replace str(uuid.uuid4()) with generate_uuid() at lines 96, 153, 264",
+            "Remove uuid import if no longer needed"
+          ],
+          "verification": "ruff check backend/app/api/watchlist.py && pytest backend/tests/api/test_watchlist.py -v",
+          "passes": false
+        },
+        {
+          "id": "2.2",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Use existing utc_now_iso() utility in watchlist.py",
+          "file": "backend/app/api/watchlist.py",
+          "steps": [
+            "Add import: from app.utils.formatters import utc_now_iso",
+            "Replace datetime.now(UTC).isoformat() with utc_now_iso() at lines 265, 392"
+          ],
+          "verification": "ruff check backend/app/api/watchlist.py",
+          "passes": false
+        },
+        {
+          "id": "2.3",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Use calculate_duration_ms utility in agents/base.py",
+          "file": "backend/app/agents/base.py",
+          "steps": [
+            "Import calculate_duration_ms from app.utils.formatters",
+            "Replace 3 instances of duration_ms = int(...total_seconds() * 1000) with calculate_duration_ms()",
+            "Locations: lines 192, 250, 287, 330"
+          ],
+          "verification": "pytest backend/tests/agents/ -v --tb=short",
+          "passes": false
+        },
+        {
+          "id": "2.4",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Use calculate_duration_ms utility in sitemap_service.py",
+          "file": "backend/app/services/sitemap_service.py",
+          "steps": [
+            "Import calculate_duration_ms from app.utils.formatters",
+            "Replace line 928 inline calculation with calculate_duration_ms(request_start, datetime.now(UTC))"
+          ],
+          "verification": "pytest backend/tests/services/test_sitemap_service.py -v",
+          "passes": false
+        },
+        {
+          "id": "2.5",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Consolidate duplicate shouldShowDialog in frontend",
+          "file": "frontend/lib/utils/dialog-helpers.ts",
+          "steps": [
+            "Create frontend/lib/utils/dialog-helpers.ts",
+            "Export shouldShowDialog(storageKey: string, isLiveOperation: boolean): boolean",
+            "Update MaintenanceTable.tsx, UnifiedMaintenanceCard.tsx, MaintenanceCard.tsx, MaintenanceStatus.tsx, app/status/page.tsx to import shared utility"
+          ],
+          "verification": "npm run lint --prefix frontend && npm run build --prefix frontend",
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "DRY Violation Fixes - Constants",
+      "goal": "Extract magic numbers and duplicated constants",
+      "tasks": [
+        {
+          "id": "3.1",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Define FEAR_GREED_LOOKBACK_DAYS constant in celery_schedules.py",
+          "file": "backend/app/celery_schedules.py",
+          "steps": [
+            "Add FEAR_GREED_LOOKBACK_DAYS = 7 after line 84",
+            "Replace magic number 7 with constant at lines 209, 248, 278, 297, 593"
+          ],
+          "verification": "ruff check backend/app/celery_schedules.py",
+          "passes": false
+        },
+        {
+          "id": "3.2",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Define cleanup retention constants in celery_schedules.py",
+          "file": "backend/app/celery_schedules.py",
+          "steps": [
+            "Add constants section after EXPIRY_* constants:",
+            "CLEANUP_LOGS_RETENTION_DAYS = 7",
+            "CLEANUP_TEMP_FILES_RETENTION_HOURS = 24",
+            "CLEANUP_NEWS_RETENTION_DAYS = 90",
+            "CLEANUP_AGENT_RUNS_RETENTION_DAYS = 30",
+            "CLEANUP_BACKUPS_KEEP_COUNT = 5",
+            "CLEANUP_MODELS_KEEP_COUNT = 3",
+            "CLEANUP_SOLUTION_STATE_RETENTION_DAYS = 14",
+            "Replace magic numbers at lines 593, 604, 626, 637, 658, 669, 681"
+          ],
+          "verification": "ruff check backend/app/celery_schedules.py",
+          "passes": false
+        },
+        {
+          "id": "3.3",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Consolidate log level constants in status_logs.py",
+          "file": "backend/app/api/status_logs.py",
+          "steps": [
+            "Create LOG_LEVELS constant as single source of truth",
+            "Derive VALID_LEVELS from LOG_LEVEL_PRIORITY.keys()",
+            "Update set_log_level to reference LOG_LEVELS constant"
+          ],
+          "verification": "ruff check backend/app/api/status_logs.py",
+          "passes": false
+        },
+        {
+          "id": "3.4",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Consolidate service-to-unit mapping in status_logs.py",
+          "file": "backend/app/api/status_logs.py",
+          "steps": [
+            "Create single SERVICE_UNIT_MAPPING constant at module level",
+            "Reference in get_unified_logs instead of inline dict (line 477-484)"
+          ],
+          "verification": "pytest backend/tests/api/test_status_endpoints.py -v",
+          "passes": false
+        },
+        {
+          "id": "3.5",
+          "tier": 3,
+          "model": "opus",
+          "parallelizable": false,
+          "description": "Extract hardcoded network config to centralized config",
+          "file": "backend/app/services/sitemap_service.py",
+          "steps": [
+            "Extract FRONTEND_HOST and BACKEND_HOST to backend/app/config.py or environment variables",
+            "Update sitemap_service.py, main.py, dev-companion/server.py, test_criteria_verifier.py",
+            "Use environment variable with fallback: os.getenv('FRONTEND_HOST', '192.168.8.233')"
+          ],
+          "verification": "pytest backend/tests/services/test_sitemap_service.py -v",
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Type Safety Improvements",
+      "goal": "Fix type annotation gaps and unsafe patterns",
+      "tasks": [
+        {
+          "id": "4.1",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Update UnifiedLogEntry to Pydantic v2 pattern in status_logs.py",
+          "file": "backend/app/api/status_logs.py",
+          "steps": [
+            "Replace 'class Config: frozen = False' with 'model_config = ConfigDict(validate_assignment=True)'",
+            "Import ConfigDict from pydantic"
+          ],
+          "verification": "ruff check backend/app/api/status_logs.py",
+          "passes": false
+        },
+        {
+          "id": "4.2",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Fix TypedDict access errors in reference_tasks.py",
+          "file": "backend/app/tasks/reference_tasks.py",
+          "steps": [
+            "Change ValuationMetricsDict access from metrics['key'] to metrics.get('key')",
+            "Fix lines 262-268 to use proper TypedDict access pattern"
+          ],
+          "verification": "mypy backend/app/tasks/reference_tasks.py --ignore-missing-imports",
+          "passes": false
+        },
+        {
+          "id": "4.3",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Add type check for payload in reference_tasks.py",
+          "file": "backend/app/tasks/reference_tasks.py",
+          "steps": [
+            "Add isinstance(payload, dict) check after json.loads in _process_cache_entries",
+            "Add debug log for non-dict payloads"
+          ],
+          "verification": "mypy backend/app/tasks/reference_tasks.py --ignore-missing-imports",
+          "passes": false
+        },
+        {
+          "id": "4.4",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Remove redundant type conversion in reference_tasks.py",
+          "file": "backend/app/tasks/reference_tasks.py",
+          "steps": [
+            "Remove lines 369-370 with redundant str() conversion after type guard",
+            "Pass symbol and source directly (type guard at line 336 already ensures strings)"
+          ],
+          "verification": "ruff check backend/app/tasks/reference_tasks.py",
+          "passes": false
+        },
+        {
+          "id": "4.5",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Initialize _message_sequence in Agent __init__",
+          "file": "backend/app/agents/base.py",
+          "steps": [
+            "Add 'self._message_sequence: dict[str, int] = {}' to __init__ method (after line 90)",
+            "Remove getattr calls at lines 727, 824",
+            "Replace with direct assignment"
+          ],
+          "verification": "pytest backend/tests/agents/ -v --tb=short",
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Modularization",
+      "goal": "Extract large components into smaller, focused modules",
+      "tasks": [
+        {
+          "id": "5.1",
+          "tier": 3,
+          "model": "opus",
+          "parallelizable": false,
+          "description": "Move SQL queries to MarketRepository in market.py",
+          "file": "backend/app/api/market.py",
+          "steps": [
+            "Add methods to MarketRepository: get_fear_greed_history_data(), get_indicator_history_data(), get_corporate_actions(), get_corporate_actions_summary()",
+            "Move SQL logic from API endpoints to repository methods",
+            "Update endpoints to call repository methods instead of direct storage.connection()"
+          ],
+          "verification": "pytest backend/tests/api/test_market.py -v",
+          "passes": false
+        },
+        {
+          "id": "5.2",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Extract PermissionRequestPanel component from AgentPanel.tsx",
+          "file": "frontend/components/agents/AgentPanel.tsx",
+          "steps": [
+            "Create PermissionRequestPanel.tsx with permission UI block (lines 460-487)",
+            "Props: { permission: PermissionRequest | null, onRespond: (allowed: boolean) => void }",
+            "Import and use in AgentPanel"
+          ],
+          "verification": "npm run build --prefix frontend",
+          "passes": false
+        },
+        {
+          "id": "5.3",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Extract parse_float utility from reference_tasks.py",
+          "file": "backend/app/tasks/reference_tasks.py",
+          "steps": [
+            "Extract nested parse_float function (lines 155-161) to backend/app/utils/formatters.py",
+            "Function signature: def parse_float(value: Any) -> float | None",
+            "Import and use in _extract_valuation_metrics"
+          ],
+          "verification": "ruff check backend/app/tasks/reference_tasks.py",
+          "passes": false
+        },
+        {
+          "id": "5.4",
+          "tier": 3,
+          "model": "opus",
+          "parallelizable": false,
+          "description": "Consolidate duplicate Sharpe ratio calculation",
+          "file": "backend/app/tasks/strategy_monitoring_tasks.py",
+          "steps": [
+            "Import calculate_sharpe_ratio from app.backtest.metrics",
+            "Remove _calculate_sharpe_ratio helper function (lines 286-304)",
+            "Adapt calling code in _calculate_rolling_metrics to match existing utility signature"
+          ],
+          "verification": "pytest backend/tests/tasks/test_strategy_monitoring.py -v",
+          "passes": false
+        },
+        {
+          "id": "5.5",
+          "tier": 3,
+          "model": "opus",
+          "parallelizable": false,
+          "description": "Consolidate duplicate max drawdown calculation",
+          "file": "backend/app/tasks/strategy_monitoring_tasks.py",
+          "steps": [
+            "Import calculate_max_drawdown from app.backtest.metrics",
+            "Remove _calculate_max_drawdown helper function (lines 306-326)",
+            "Create adapter function for data format conversion if needed"
+          ],
+          "verification": "pytest backend/tests/tasks/test_strategy_monitoring.py -v",
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Final Verification",
+      "goal": "Run full test suite and validate changes",
+      "tasks": [
+        {
+          "id": "6.1",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": false,
+          "description": "Run backend test suite",
+          "file": "backend/",
+          "steps": [
+            "Run: pytest backend/tests/ -v --tb=short",
+            "Ensure all tests pass",
+            "Fix any regressions"
+          ],
+          "verification": "pytest backend/tests/ -v --tb=short",
+          "passes": false
+        },
+        {
+          "id": "6.2",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": false,
+          "description": "Run frontend build and lint",
+          "file": "frontend/",
+          "steps": [
+            "Run: npm run lint --prefix frontend",
+            "Run: npm run build --prefix frontend",
+            "Ensure no errors"
+          ],
+          "verification": "npm run build --prefix frontend",
+          "passes": false
+        },
+        {
+          "id": "6.3",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": false,
+          "description": "Run type checker",
+          "file": "backend/",
+          "steps": [
+            "Run: mypy backend/app/ --ignore-missing-imports --no-error-summary",
+            "Ensure no new type errors introduced"
+          ],
+          "verification": "mypy backend/app/ --ignore-missing-imports --no-error-summary",
+          "passes": false
+        }
+      ]
+    }
+  ]
+}
