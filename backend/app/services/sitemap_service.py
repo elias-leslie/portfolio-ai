@@ -46,10 +46,6 @@ HEALTH_CHECK_TIMEOUT_PROBE = (
     5  # seconds for lightweight probe checks (enough to verify route exists)
 )
 
-# Alias for backward compatibility (pattern matching moved to health_check_strategies)
-_matches_pattern = matches_pattern
-
-
 # Delegate to HealthCheckStrategy class methods
 should_skip_health_check = HealthCheckStrategy.should_skip_health_check
 should_probe_check = HealthCheckStrategy.should_probe_check

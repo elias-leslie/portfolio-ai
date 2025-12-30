@@ -50,7 +50,6 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
   const [wsUrl, setWsUrl] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
-  const [, setActiveProvider] = useState<LLMProvider>('claude');
 
   // Chat state
   const [messages, setMessages] = useState<ChatMessage[]>([]);
