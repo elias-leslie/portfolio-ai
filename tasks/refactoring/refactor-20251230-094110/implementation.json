@@ -327,7 +327,7 @@
             "Replace with direct assignment"
           ],
           "verification": "pytest backend/tests/agents/ -v --tb=short",
-          "passes": false
+          "passes": true
         }
       ]
     },

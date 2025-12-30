@@ -76,3 +76,23 @@ def calculate_duration_ms(start: datetime, end: datetime) -> int:
         Duration in milliseconds as integer
     """
     return int((end - start).total_seconds() * 1000)
+
+
+def parse_float(value: Any) -> float | None:
+    """Safely parse a value to float.
+
+    Handles None, empty strings, "None" string, and invalid values
+    by returning None instead of raising exceptions.
+
+    Args:
+        value: Any value to parse (string, number, None, etc.)
+
+    Returns:
+        Parsed float or None if parsing fails
+    """
+    if value is None or value in {"None", ""}:
+        return None
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return None

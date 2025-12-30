@@ -22,6 +22,7 @@ from app.logging_config import get_logger
 from app.sources.alphavantage_source import AlphaVantageSource
 from app.sources.yfinance_source import YFinanceSource
 from app.storage import get_storage
+from app.utils.formatters import parse_float
 from app.utils.watchlist_cache import get_watchlist_symbols_cached
 
 logger = get_logger(__name__)
@@ -150,16 +151,6 @@ def _extract_valuation_metrics(payload: dict[str, Any]) -> ValuationMetricsDict:
     Returns:
         Dict with extracted metrics (values are None if not in payload)
     """
-
-    # Helper to parse string to float
-    def parse_float(value: Any) -> float | None:
-        if value is None or value in {"None", ""}:
-            return None
-        try:
-            return float(value)
-        except (ValueError, TypeError):
-            return None
-
     # Check if yfinance format (has 'trailingPE') or Alpha Vantage (has 'PERatio')
     if "trailingPE" in payload or "forwardPE" in payload:
         # yfinance format
