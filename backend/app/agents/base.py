@@ -89,6 +89,7 @@ class Agent(ABC):
         self.client = anthropic_client or Anthropic()  # Keep for tool calling support
         self.model = model
         self.agent_type = self.__class__.__name__
+        self._message_sequence: dict[str, int] = {}  # Tracks message sequence per run_id
 
     @abstractmethod
     def get_system_prompt(self) -> str:
@@ -725,7 +726,6 @@ class Agent(ABC):
             },
         )
         # Track message sequence for this run
-        self._message_sequence: dict[str, int] = getattr(self, "_message_sequence", {})
         self._message_sequence[run_id] = 0
 
     def _record_run_complete(
@@ -821,8 +821,7 @@ class Agent(ABC):
             token_count: Optional token count for this message
             metadata: Optional metadata (e.g., tool name, tool_use_id)
         """
-        # Get and increment sequence number
-        self._message_sequence = getattr(self, "_message_sequence", {})
+        # Get and increment sequence number (initialized in __init__)
         if run_id not in self._message_sequence:
             self._message_sequence[run_id] = 0
 

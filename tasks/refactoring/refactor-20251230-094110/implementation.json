@@ -270,7 +270,7 @@
             "Import ConfigDict from pydantic"
           ],
           "verification": "ruff check backend/app/api/status_logs.py",
-          "passes": false
+          "passes": true
         },
         {
           "id": "4.2",
@@ -284,7 +284,7 @@
             "Fix lines 262-268 to use proper TypedDict access pattern"
           ],
           "verification": "mypy backend/app/tasks/reference_tasks.py --ignore-missing-imports",
-          "passes": false
+          "passes": true
         },
         {
           "id": "4.3",
@@ -298,7 +298,7 @@
             "Add debug log for non-dict payloads"
           ],
           "verification": "mypy backend/app/tasks/reference_tasks.py --ignore-missing-imports",
-          "passes": false
+          "passes": true
         },
         {
           "id": "4.4",
@@ -312,7 +312,7 @@
             "Pass symbol and source directly (type guard at line 336 already ensures strings)"
           ],
           "verification": "ruff check backend/app/tasks/reference_tasks.py",
-          "passes": false
+          "passes": true
         },
         {
           "id": "4.5",
