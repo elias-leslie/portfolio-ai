@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..logging_config import get_logger
 
@@ -48,15 +48,12 @@ JOURNAL_FETCH_LIMIT = 10000
 class UnifiedLogEntry(BaseModel):
     """Single log entry from unified journald stream."""
 
+    model_config = ConfigDict(validate_assignment=True)
+
     timestamp: datetime = Field(description="Log entry timestamp (unified from journald)")
     service: str = Field(description="Service name (backend, celery_worker, postgresql, etc.)")
     level: str = Field(description="Log level (ERROR, WARN, INFO, DEBUG, UNKNOWN)")
     message: str = Field(description="Log message content")
-
-    class Config:
-        """Allow mutation for merging multi-line logs."""
-
-        frozen = False
 
 
 class UnifiedLogsResponse(BaseModel):

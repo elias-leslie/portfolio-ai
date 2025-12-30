@@ -249,7 +249,7 @@
             "Use environment variable with fallback: os.getenv('FRONTEND_HOST', '192.168.8.233')"
           ],
           "verification": "pytest backend/tests/services/test_sitemap_service.py -v",
-          "passes": false
+          "passes": true
         }
       ]
     },
