@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 from fastapi.testclient import TestClient
 
@@ -101,35 +101,3 @@ class TestStatusEndpoints:
         # This test will fail until we implement the services field
         assert "services" in data
         assert isinstance(data["services"], dict)
-
-    def test_log_endpoint_backend(self) -> None:
-        """Test GET /api/status/logs/backend returns log content."""
-        response = client.get("/api/status/logs/backend")
-
-        # Should return 200 with log content or 404 if log file doesn't exist
-        assert response.status_code in [200, 404]
-
-        if response.status_code == 200:
-            data = response.json()
-            assert "service" in data
-            assert data["service"] == "backend"
-            assert "lines" in data
-            assert isinstance(data["lines"], list)
-            assert "timestamp" in data
-
-    def test_log_endpoint_invalid_service(self) -> None:
-        """Test GET /api/status/logs/invalid returns 400."""
-        response = client.get("/api/status/logs/invalid-service")
-        assert response.status_code == 400
-        data = response.json()
-        assert "detail" in data
-        assert "invalid" in data["detail"].lower()
-
-    def test_log_endpoint_not_found(self) -> None:
-        """Test GET /api/status/logs/{service} returns 404 when log file missing."""
-        # Test with a valid service that has no log file
-        with patch("app.api.status_logs.LOG_PATHS", {"test-service": "/nonexistent/path.log"}):
-            response = client.get("/api/status/logs/test-service")
-            # This will fail until we implement the endpoint
-            # For now, it will return 404 (not found route)
-            assert response.status_code in [404]

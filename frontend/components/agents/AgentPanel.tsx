@@ -5,7 +5,7 @@ import { MessageSquare, Settings, Activity, Camera, Diamond, Star } from 'lucide
 // Note: We use a custom side panel instead of Sheet to allow non-overlay behavior (FEAT-220)
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { SettingsModal, LLMProvider } from './SettingsModal';
+import { SettingsModal } from './SettingsModal';
 import { StatusModal } from './StatusModal';
 import { AgentProvider, RoundtableOrder } from './AgentSelector';
 import { AgentMode } from './ModeSelector';

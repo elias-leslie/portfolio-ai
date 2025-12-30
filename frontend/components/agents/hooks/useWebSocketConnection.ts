@@ -52,7 +52,7 @@ export function useWebSocketConnection({
   setMessages,
   setIsLoading,
   setPendingPermission,
-  setActiveProvider,
+  setActiveProvider = () => {},
   setIsConnected,
   setConnectionError,
 }: UseWebSocketConnectionOptions) {
