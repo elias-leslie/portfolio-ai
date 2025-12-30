@@ -379,7 +379,7 @@
             "Import and use in _extract_valuation_metrics"
           ],
           "verification": "ruff check backend/app/tasks/reference_tasks.py",
-          "passes": false
+          "passes": true
         },
         {
           "id": "5.4",
