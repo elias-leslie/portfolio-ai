@@ -134,7 +134,6 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
     setMessages,
     setIsLoading,
     setPendingPermission,
-    setActiveProvider,
     setIsConnected,
     setConnectionError,
   });

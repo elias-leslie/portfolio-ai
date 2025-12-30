@@ -294,30 +294,6 @@ class SitemapService:
     # Discovery Methods
     # =========================================================================
 
-    async def discover_backend_endpoints(self) -> list[dict[str, Any]]:
-        """Parse /openapi.json to discover backend API endpoints.
-
-        Returns:
-            List of discovered endpoint dicts
-        """
-        logger.info("sitemap_discover_backend_start")
-        discovered = []
-
-        try:
-            backend_port = self.backend_port
-            async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
-                response = await client.get(f"http://{BACKEND_HOST}:{backend_port}/openapi.json")
-                response.raise_for_status()
-                openapi = response.json()
-
-            discovered = _extract_openapi_endpoints(openapi, backend_port)
-            logger.info("sitemap_discover_backend_complete", count=len(discovered))
-
-        except Exception as e:
-            logger.error("sitemap_discover_backend_failed", error=str(e))
-
-        return discovered
-
     async def discover_all_openapi_endpoints(self) -> list[dict[str, Any]]:
         """Discover API endpoints from ALL ports that have OpenAPI specs.
 

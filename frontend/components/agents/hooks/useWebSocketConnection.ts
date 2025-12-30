@@ -27,7 +27,7 @@ export interface UseWebSocketConnectionOptions {
   setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
   setIsLoading: Dispatch<SetStateAction<boolean>>;
   setPendingPermission: Dispatch<SetStateAction<PermissionRequest | null>>;
-  setActiveProvider: Dispatch<SetStateAction<LLMProvider>>;
+  setActiveProvider?: Dispatch<SetStateAction<LLMProvider>>;
   setIsConnected: Dispatch<SetStateAction<boolean>>;
   setConnectionError: Dispatch<SetStateAction<string | null>>;
 }

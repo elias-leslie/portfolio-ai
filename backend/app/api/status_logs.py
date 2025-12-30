@@ -20,27 +20,6 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/status", tags=["status", "logs"])
 
-# Log file paths for each service
-# Service names match health endpoint (underscore format)
-LOG_PATHS: dict[str, str] = {
-    "backend": "/var/log/portfolio-ai/backend.log",
-    "backend_error": "/var/log/portfolio-ai/backend-error.log",
-    "celery_worker": "/var/log/portfolio-ai/celery-worker.log",
-    "celery_worker_error": "/var/log/portfolio-ai/celery-worker-error.log",
-    "celery_beat": "/var/log/portfolio-ai/celery-beat.log",
-    "celery_beat_error": "/var/log/portfolio-ai/celery-beat-error.log",
-    "frontend": "/var/log/portfolio-ai/frontend.log",
-    "frontend_error": "/var/log/portfolio-ai/frontend-error.log",
-    "redis": "/var/log/redis/redis-server.log",  # System redis log
-    "postgresql": "/var/log/postgresql/postgresql-16-main.log",  # PostgreSQL log
-    # Aliases for backward compatibility (hyphen format)
-    "celery-worker": "/var/log/portfolio-ai/celery-worker.log",
-    "celery-beat": "/var/log/portfolio-ai/celery-beat.log",
-}
-
-# ANSI escape code pattern for stripping colors
-ANSI_ESCAPE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
-
 # Log level priority mapping for merging/comparison (higher = more severe)
 LOG_LEVEL_PRIORITY: dict[str, int] = {
     "CRITICAL": 5,
