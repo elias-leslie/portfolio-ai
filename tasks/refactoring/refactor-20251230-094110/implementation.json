@@ -349,7 +349,7 @@
             "Update endpoints to call repository methods instead of direct storage.connection()"
           ],
           "verification": "pytest backend/tests/api/test_market.py -v",
-          "passes": false
+          "passes": true
         },
         {
           "id": "5.2",

@@ -16,6 +16,7 @@ import { SessionsPanel } from './SessionsPanel';
 import { ChatInput } from './ChatInput';
 import { MessageBubble, ContentBlockView } from './MessageBubble';
 import { EvidenceMessageBubble } from './EvidenceMessageBubble';
+import { PermissionRequestPanel } from './PermissionRequestPanel';
 import {
   type ContentBlock,
   type PermissionRequest,
@@ -456,32 +457,10 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
 
         {/* Permission Request */}
         {pendingPermission && (
-          <div className="border-t border-warning bg-warning/30 p-4">
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 text-xl">⚠</div>
-              <div className="flex-1">
-                <h4 className="font-semibold text-warning mb-2">Permission Required</h4>
-                <p className="text-sm text-warning mb-2">
-                  Claude wants to use: <span className="font-mono font-bold">{pendingPermission.toolName}</span>
-                </p>
-                {pendingPermission.toolInput && Object.keys(pendingPermission.toolInput).length > 0 && (
-                  <div className="bg-surface/50 rounded p-2 mb-3 max-h-24 overflow-y-auto">
-                    <pre className="text-xs text-text whitespace-pre-wrap font-mono">
-                      {JSON.stringify(pendingPermission.toolInput, null, 2)}
-                    </pre>
-                  </div>
-                )}
-                <div className="flex gap-2">
-                  <Button onClick={() => handlePermissionResponse(true)} size="sm" className="bg-gain hover:bg-gain-strong">
-                    Allow
-                  </Button>
-                  <Button onClick={() => handlePermissionResponse(false)} size="sm" variant="destructive">
-                    Deny
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
+          <PermissionRequestPanel
+            permission={pendingPermission}
+            onRespond={handlePermissionResponse}
+          />
         )}
 
         {/* Input */}
