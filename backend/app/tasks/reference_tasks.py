@@ -259,13 +259,13 @@ def _update_valuation_metrics(symbol: str, source: str, payload: dict[str, Any])
             "pb_ratio", "peg_ratio", "dividend_yield", "payout_ratio",
         ]
         metrics_values = [
-            metrics["pe_ratio_trailing"],
-            metrics["pe_ratio_forward"],
-            metrics["ps_ratio"],
-            metrics["pb_ratio"],
-            metrics["peg_ratio"],
-            metrics["dividend_yield"],
-            metrics["payout_ratio"],
+            metrics.get("pe_ratio_trailing"),
+            metrics.get("pe_ratio_forward"),
+            metrics.get("ps_ratio"),
+            metrics.get("pb_ratio"),
+            metrics.get("peg_ratio"),
+            metrics.get("dividend_yield"),
+            metrics.get("payout_ratio"),
         ]
 
         base_update_sql = """
@@ -359,16 +359,24 @@ def _process_cache_entries() -> tuple[int, int]:
                 )
                 continue
 
+            # Type guard: ensure payload is a dict
+            if not isinstance(payload, dict):
+                logger.debug(
+                    "skipping_non_dict_payload",
+                    symbol=symbol,
+                    source=source,
+                    payload_type=type(payload).__name__,
+                )
+                continue
+
             # Extract and update metrics
             metrics = _extract_valuation_metrics(payload)
 
             # Only count as "updated" if we found at least one metric
             if any(v is not None for v in metrics.values()):
                 entries_updated += 1
-                # Ensure symbol and source are strings before passing
-                symbol_str = str(symbol) if symbol is not None else ""
-                source_str = str(source) if source is not None else ""
-                _update_valuation_metrics(symbol_str, source_str, payload)
+                # Type guard at line 336 ensures symbol and source are strings
+                _update_valuation_metrics(symbol, source, payload)
 
     return entries_processed, entries_updated
 
