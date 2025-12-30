@@ -409,7 +409,7 @@
             "Create adapter function for data format conversion if needed"
           ],
           "verification": "pytest backend/tests/tasks/test_strategy_monitoring.py -v",
-          "passes": false
+          "passes": true
         }
       ]
     },
