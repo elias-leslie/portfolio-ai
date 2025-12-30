@@ -105,7 +105,7 @@
             "Remove uuid import if no longer needed"
           ],
           "verification": "ruff check backend/app/api/watchlist.py && pytest backend/tests/api/test_watchlist.py -v",
-          "passes": false
+          "passes": true
         },
         {
           "id": "2.2",
@@ -119,7 +119,7 @@
             "Replace datetime.now(UTC).isoformat() with utc_now_iso() at lines 265, 392"
           ],
           "verification": "ruff check backend/app/api/watchlist.py",
-          "passes": false
+          "passes": true
         },
         {
           "id": "2.3",

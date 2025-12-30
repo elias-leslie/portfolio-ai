@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, TypedDict, cast
 from anthropic import Anthropic
 
 from ..logging_config import get_logger
+from ..utils.formatters import calculate_duration_ms
 from ..utils.json_helpers import json_serializer
 from .llm_client import LLMClient
 from .types import ToolInputDict
@@ -189,8 +190,8 @@ class Agent(ABC):
             Completion result dict
         """
         completed_at = datetime.now(UTC)
-        duration_s = (completed_at - started_at).total_seconds()
-        duration_ms = int(duration_s * 1000)
+        duration_ms = calculate_duration_ms(started_at, completed_at)
+        duration_s = duration_ms / 1000.0
 
         logger.info(
             "agent_run_completed",
@@ -247,7 +248,7 @@ class Agent(ABC):
         result = self.execute_tool(tool_name, tool_params)
 
         tool_end = datetime.now(UTC)
-        duration_ms = int((tool_end - tool_start).total_seconds() * 1000)
+        duration_ms = calculate_duration_ms(tool_start, tool_end)
 
         # Record in database
         self._record_tool_call(run_id, tool_name, tool_params, result, duration_ms)
@@ -284,7 +285,7 @@ class Agent(ABC):
             AgentRunResult with error status
         """
         completed_at = datetime.now(UTC)
-        duration_ms = int((completed_at - started_at).total_seconds() * 1000)
+        duration_ms = calculate_duration_ms(started_at, completed_at)
         error_msg = f"Unexpected stop reason: {stop_reason}"
 
         self._record_run_complete(
@@ -327,7 +328,7 @@ class Agent(ABC):
             AgentRunResult with max_iterations status
         """
         completed_at = datetime.now(UTC)
-        duration_ms = int((completed_at - started_at).total_seconds() * 1000)
+        duration_ms = calculate_duration_ms(started_at, completed_at)
 
         self._record_run_complete(
             run_id,
