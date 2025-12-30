@@ -400,21 +400,8 @@ async def get_market_trends(
     Returns:
         MarketTrendsResponse with dates and scores
     """
-    # Query fear_greed_daily table for historical data
-    with storage.connection() as conn:
-        result = conn.execute(
-            """
-            SELECT as_of_date, score
-            FROM fear_greed_daily
-            ORDER BY as_of_date DESC
-            LIMIT %s
-            """,
-            [days],
-        )
-        rows = result.fetchall()
-
-    # Reverse to get chronological order (oldest first)
-    rows = list(reversed(rows))
+    # Use repository for data access
+    rows = market_repo.get_market_trends_data(days)
 
     # Build response
     dates: list[str] = []
@@ -495,19 +482,8 @@ async def get_fear_greed_history(
 
     Includes put/call ratio overlay data when available.
     """
-    with storage.connection() as conn:
-        # Join with fear_greed_inputs to get put_call_ratio
-        result = conn.execute(
-            """
-            SELECT d.as_of_date, d.score, d.label, i.put_call_ratio
-            FROM fear_greed_daily d
-            LEFT JOIN fear_greed_inputs i ON d.as_of_date = i.as_of_date
-            WHERE d.as_of_date >= CURRENT_DATE - %s
-            ORDER BY d.as_of_date ASC
-            """,
-            [days],
-        )
-        rows = result.fetchall()
+    # Use repository for data access
+    rows = market_repo.get_fear_greed_history_data(days)
 
     dates: list[str] = []
     scores: list[float] = []
@@ -599,17 +575,8 @@ async def get_indicator_history(
     period_end = ""
 
     for key, symbol in indicators.items():
-        with storage.connection() as conn:
-            query_result = conn.execute(
-                """
-                SELECT date, close
-                FROM day_bars
-                WHERE symbol = %s AND date >= CURRENT_DATE - %s
-                ORDER BY date ASC
-                """,
-                [symbol, days],
-            )
-            rows = query_result.fetchall()
+        # Use repository for data access
+        rows = market_repo.get_indicator_history_data(symbol, days)
 
         data_points, period_start, period_end = build_indicator_data_points(
             rows, period_start, period_end
@@ -729,24 +696,8 @@ async def get_corporate_actions(
     Returns:
         List of corporate actions with amounts and dates.
     """
-
-    sql = """
-        SELECT symbol, action_type, action_date, repurchase_amount,
-               shares_repurchased, dividend_amount, source, updated_at
-        FROM corporate_actions
-        WHERE action_type = %s
-    """
-    params: list[Any] = [action_type]
-
-    if symbol:
-        sql += " AND symbol = %s"
-        params.append(symbol.upper())
-
-    sql += " ORDER BY action_date DESC LIMIT %s"
-    params.append(limit)
-
-    with storage.connection() as conn:
-        rows = conn.execute(sql, params).fetchall()
+    # Use repository for data access
+    rows = market_repo.get_corporate_actions(action_type, symbol, limit)
 
     actions = []
     for row in rows:
@@ -780,24 +731,8 @@ async def get_corporate_actions_summary(
     Returns:
         Aggregated buyback totals and counts.
     """
-
-    sql = """
-        SELECT symbol,
-               COUNT(*) FILTER (WHERE action_type = 'buyback') as buyback_count,
-               SUM(repurchase_amount) FILTER (WHERE action_type = 'buyback') as total_buybacks,
-               MAX(action_date) FILTER (WHERE action_type = 'buyback') as latest_buyback
-        FROM corporate_actions
-    """
-    params: list[Any] = []
-
-    if symbol:
-        sql += " WHERE symbol = %s"
-        params.append(symbol.upper())
-
-    sql += " GROUP BY symbol ORDER BY total_buybacks DESC NULLS LAST"
-
-    with storage.connection() as conn:
-        rows = conn.execute(sql, params).fetchall()
+    # Use repository for data access
+    rows = market_repo.get_corporate_actions_summary(symbol)
 
     summaries = []
     for row in rows:

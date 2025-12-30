@@ -82,3 +82,137 @@ class MarketRepository:
                 [days],
             )
             return result.fetchall()
+
+    def get_fear_greed_history_data(
+        self, days: int
+    ) -> list[tuple[Any, Any, Any, Any]]:
+        """Get Fear & Greed historical data with put/call ratio.
+
+        Args:
+            days: Number of days of history to fetch
+
+        Returns:
+            List of (as_of_date, score, label, put_call_ratio) tuples
+        """
+        with self.storage.connection() as conn:
+            result = conn.execute(
+                """
+                SELECT d.as_of_date, d.score, d.label, i.put_call_ratio
+                FROM fear_greed_daily d
+                LEFT JOIN fear_greed_inputs i ON d.as_of_date = i.as_of_date
+                WHERE d.as_of_date >= CURRENT_DATE - %s
+                ORDER BY d.as_of_date ASC
+                """,
+                [days],
+            )
+            return result.fetchall()
+
+    def get_indicator_history_data(
+        self, symbol: str, days: int
+    ) -> list[tuple[Any, Any]]:
+        """Get indicator historical data from day_bars.
+
+        Args:
+            symbol: The indicator symbol (e.g., '^GSPC', '^VIX')
+            days: Number of days of history to fetch
+
+        Returns:
+            List of (date, close) tuples
+        """
+        with self.storage.connection() as conn:
+            result = conn.execute(
+                """
+                SELECT date, close
+                FROM day_bars
+                WHERE symbol = %s AND date >= CURRENT_DATE - %s
+                ORDER BY date ASC
+                """,
+                [symbol, days],
+            )
+            return result.fetchall()
+
+    def get_market_trends_data(self, days: int) -> list[tuple[Any, Any]]:
+        """Get Fear & Greed daily scores for trend charts.
+
+        Args:
+            days: Number of days of history to fetch
+
+        Returns:
+            List of (as_of_date, score) tuples in chronological order
+        """
+        with self.storage.connection() as conn:
+            result = conn.execute(
+                """
+                SELECT as_of_date, score
+                FROM fear_greed_daily
+                ORDER BY as_of_date DESC
+                LIMIT %s
+                """,
+                [days],
+            )
+            rows = result.fetchall()
+        # Reverse to get chronological order (oldest first)
+        return list(reversed(rows))
+
+    def get_corporate_actions(
+        self,
+        action_type: str,
+        symbol: str | None = None,
+        limit: int = 50,
+    ) -> list[tuple[Any, ...]]:
+        """Get corporate actions (buybacks, dividends, splits).
+
+        Args:
+            action_type: Action type filter (buyback, dividend, split)
+            symbol: Optional symbol filter
+            limit: Maximum results to return
+
+        Returns:
+            List of action tuples
+        """
+        sql = """
+            SELECT symbol, action_type, action_date, repurchase_amount,
+                   shares_repurchased, dividend_amount, source, updated_at
+            FROM corporate_actions
+            WHERE action_type = %s
+        """
+        params: list[Any] = [action_type]
+
+        if symbol:
+            sql += " AND symbol = %s"
+            params.append(symbol.upper())
+
+        sql += " ORDER BY action_date DESC LIMIT %s"
+        params.append(limit)
+
+        with self.storage.connection() as conn:
+            return conn.execute(sql, params).fetchall()
+
+    def get_corporate_actions_summary(
+        self, symbol: str | None = None
+    ) -> list[tuple[Any, ...]]:
+        """Get summary of corporate actions by symbol.
+
+        Args:
+            symbol: Optional symbol filter
+
+        Returns:
+            List of (symbol, buyback_count, total_buybacks, latest_buyback) tuples
+        """
+        sql = """
+            SELECT symbol,
+                   COUNT(*) FILTER (WHERE action_type = 'buyback') as buyback_count,
+                   SUM(repurchase_amount) FILTER (WHERE action_type = 'buyback') as total_buybacks,
+                   MAX(action_date) FILTER (WHERE action_type = 'buyback') as latest_buyback
+            FROM corporate_actions
+        """
+        params: list[Any] = []
+
+        if symbol:
+            sql += " WHERE symbol = %s"
+            params.append(symbol.upper())
+
+        sql += " GROUP BY symbol ORDER BY total_buybacks DESC NULLS LAST"
+
+        with self.storage.connection() as conn:
+            return conn.execute(sql, params).fetchall()
