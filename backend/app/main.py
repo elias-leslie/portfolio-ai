@@ -141,18 +141,22 @@ app = FastAPI(
     redirect_slashes=False,
 )
 
+# Network configuration (from environment or fallback to defaults)
+_NETWORK_HOST = os.getenv("FRONTEND_HOST", "192.168.8.233")
+_TAILSCALE_HOST = os.getenv("TAILSCALE_HOST", "100.123.190.81")
+
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",  # Next.js dev server
         "http://127.0.0.1:3000",
-        "http://192.168.8.233:3000",  # Network access
-        "http://100.123.190.81:3000",  # Tailscale access
+        f"http://{_NETWORK_HOST}:3000",  # Network access
+        f"http://{_TAILSCALE_HOST}:3000",  # Tailscale access
         "https://localhost:3000",  # HTTPS dev server
         "https://127.0.0.1:3000",
-        "https://192.168.8.233:3000",  # HTTPS network access
-        "https://192.168.8.233",  # HTTPS port 443
+        f"https://{_NETWORK_HOST}:3000",  # HTTPS network access
+        f"https://{_NETWORK_HOST}",  # HTTPS port 443
     ],
     allow_credentials=True,
     allow_methods=["*"],

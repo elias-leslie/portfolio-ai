@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 from datetime import UTC, datetime
 from pathlib import Path
@@ -36,9 +37,9 @@ logger = get_logger(__name__)
 # Configuration
 HTTP_TIMEOUT = 10  # seconds
 
-# Network configuration
-FRONTEND_HOST = "192.168.8.233"  # Network IP for SSR routing
-BACKEND_HOST = "localhost"
+# Network configuration (from environment or fallback to defaults)
+FRONTEND_HOST = os.getenv("FRONTEND_HOST", "192.168.8.233")  # Network IP for SSR routing
+BACKEND_HOST = os.getenv("BACKEND_HOST", "localhost")
 
 # Timeouts for health checks
 HEALTH_CHECK_TIMEOUT_NORMAL = 10  # seconds for normal endpoints

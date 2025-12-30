@@ -234,7 +234,7 @@
             "Reference in get_unified_logs instead of inline dict (line 477-484)"
           ],
           "verification": "pytest backend/tests/api/test_status_endpoints.py -v",
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.5",
