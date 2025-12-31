@@ -291,21 +291,6 @@ def _calculate_today_metrics(trades: list[dict[str, Any]], today: date) -> dict[
 _calculate_sharpe_ratio = calculate_simple_sharpe
 
 
-def _calculate_max_drawdown(trades: list[dict[str, Any]]) -> float:
-    """Calculate maximum drawdown from trade sequence.
-
-    Wrapper around calculate_simple_max_drawdown for backwards compatibility.
-
-    Args:
-        trades: List of trade dicts with 'pnl' key
-
-    Returns:
-        Max drawdown as fraction (0.0 to 1.0)
-    """
-    pnl_values = [t["pnl"] for t in trades]
-    return calculate_simple_max_drawdown(pnl_values)
-
-
 def _calculate_rolling_metrics(
     conn: Any, strategy_id: str, window_days: int = 30
 ) -> dict[str, Any]:
@@ -386,7 +371,7 @@ def _calculate_rolling_metrics(
     # Sharpe ratio and max drawdown
     daily_returns = [t["pnl"] for t in trades]
     sharpe_ratio_30d = _calculate_sharpe_ratio(daily_returns)
-    max_drawdown = _calculate_max_drawdown(trades)
+    max_drawdown = calculate_simple_max_drawdown(daily_returns)
 
     return {
         **today_metrics,
