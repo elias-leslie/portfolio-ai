@@ -316,7 +316,7 @@
           "tier": 3,
           "model": "opus",
           "parallelizable": false,
-          "passes": false,
+          "passes": true,
           "description": "Extract useMaintenanceBatchRunner hook from MaintenanceTable",
           "file": "frontend/components/status/MaintenanceTable.tsx",
           "location": "handleRunAll function lines 247-307",
