@@ -201,21 +201,21 @@ class Agent(ABC):
             num_tool_calls=len(tool_calls_made),
             iterations=iteration + 1,
             duration_s=round(duration_s, 2),
-            status="completed",
+            status=AgentRunStatus.COMPLETED.value,
             token_usage=token_usage,
         )
 
         self._record_run_complete(
             run_id,
             completed_at,
-            "completed",
+            AgentRunStatus.COMPLETED.value,
             len(tool_calls_made),
             duration_ms=duration_ms,
             token_usage=token_usage,
         )
 
         return {
-            "status": "completed",
+            "status": AgentRunStatus.COMPLETED.value,
             "response": final_text,
             "tool_calls": tool_calls_made,
             "iterations": iteration + 1,
@@ -294,7 +294,7 @@ class Agent(ABC):
         self._record_run_complete(
             run_id,
             completed_at,
-            "error",
+            AgentRunStatus.ERROR.value,
             len(tool_calls_made),
             error_msg,
             duration_ms=duration_ms,
@@ -302,7 +302,7 @@ class Agent(ABC):
         )
 
         return {
-            "status": "error",
+            "status": AgentRunStatus.ERROR.value,
             "error": error_msg,
             "tool_calls": tool_calls_made,
             "run_id": run_id,
@@ -336,14 +336,14 @@ class Agent(ABC):
         self._record_run_complete(
             run_id,
             completed_at,
-            "max_iterations",
+            AgentRunStatus.MAX_ITERATIONS.value,
             len(tool_calls_made),
             duration_ms=duration_ms,
             token_usage=token_usage,
         )
 
         return {
-            "status": "max_iterations",
+            "status": AgentRunStatus.MAX_ITERATIONS.value,
             "tool_calls": tool_calls_made,
             "iterations": max_iterations,
             "run_id": run_id,

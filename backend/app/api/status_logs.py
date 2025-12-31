@@ -442,9 +442,15 @@ def get_log_level_config() -> LogLevelConfigResponse:
     """
     current_level = os.getenv("LOG_LEVEL", "INFO")
 
+    # Derive available levels from VALID_LEVELS, excluding WARNING alias
+    available_levels = sorted(
+        (level for level in VALID_LEVELS if level != "WARNING"),
+        key=lambda l: LOG_LEVEL_PRIORITY.get(l, 0),
+        reverse=True,
+    )
     return LogLevelConfigResponse(
         current_level=current_level,
-        available_levels=["DEBUG", "INFO", "WARN", "ERROR", "CRITICAL"],
+        available_levels=available_levels,
         configuration_method="API endpoint: POST /api/status/log-level",
         restart_required=True,
     )
@@ -566,8 +572,13 @@ def test_logging() -> TestLoggingResponse:
     logger.error("test_error_log", component="backend", test_type="structured")
     # Note: structlog doesn't have critical(), it maps to error()
 
+    # Derive levels list from VALID_LEVELS, excluding WARNING alias
+    levels_list = sorted(
+        (level for level in VALID_LEVELS if level != "WARNING"),
+        key=lambda l: LOG_LEVEL_PRIORITY.get(l, 0),
+    )
     return TestLoggingResponse(
         success=True,
-        message="Generated test logs at all levels (DEBUG, INFO, WARN, ERROR, CRITICAL)",
-        levels_tested=["DEBUG", "INFO", "WARN", "ERROR", "CRITICAL"],
+        message=f"Generated test logs at all levels ({', '.join(levels_list)})",
+        levels_tested=levels_list,
     )
