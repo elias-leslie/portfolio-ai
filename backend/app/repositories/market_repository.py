@@ -47,12 +47,12 @@ class MarketRepository:
                     SUM(negative_count) as neg_count,
                     SUM(article_count) as total_count
                 FROM news_summary_log
-                WHERE symbol = MARKET_SYMBOL
+                WHERE symbol = %s
                   AND window_end >= NOW() - INTERVAL '%s days'
                 GROUP BY DATE_TRUNC('hour', window_end)
                 ORDER BY period ASC
                 """,
-                [days],
+                [MARKET_SYMBOL, days],
             )
             return result.fetchall()
 
@@ -75,11 +75,11 @@ class MarketRepository:
                     negative_count as neg_count,
                     article_count as total_count
                 FROM news_summary_log
-                WHERE symbol = MARKET_SYMBOL
+                WHERE symbol = %s
                   AND window_end >= NOW() - INTERVAL '%s days'
                 ORDER BY DATE(window_end), window_end DESC
                 """,
-                [days],
+                [MARKET_SYMBOL, days],
             )
             return result.fetchall()
 
