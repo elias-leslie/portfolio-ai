@@ -3,3 +3,6 @@ export type { UseWebSocketConnectionOptions, UseWebSocketConnectionReturn } from
 
 export { useSessionManagement } from './useSessionManagement';
 export type { Session, UseSessionManagementOptions, UseSessionManagementReturn } from './useSessionManagement';
+
+export { useAgentPanelUI } from './useAgentPanelUI';
+export type { UseAgentPanelUIReturn } from './useAgentPanelUI';

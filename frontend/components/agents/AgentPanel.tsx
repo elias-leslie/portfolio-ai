@@ -23,7 +23,7 @@ import {
   type EvidenceData,
   type ChatMessage,
 } from './wsHandlers';
-import { useWebSocketConnection, useSessionManagement } from './hooks';
+import { useWebSocketConnection, useSessionManagement, useAgentPanelUI } from './hooks';
 import { getServerUrl, getWsUrl } from '@/lib/server-url';
 
 // SummitFlow API configuration
@@ -66,12 +66,20 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
   const [maxTurns, setMaxTurns] = useState<number>(10);
   const [currentRespondingAgent, setCurrentRespondingAgent] = useState<'claude' | 'gemini' | null>(null);
 
-  // UI state
-  const [showSessions, setShowSessions] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [showStatus, setShowStatus] = useState(false);
-  const [showTokenSummary, setShowTokenSummary] = useState(false);
-  const [showEvidenceCapture, setShowEvidenceCapture] = useState(false);
+  // UI state - extracted to hook for reusability
+  const {
+    showSessions,
+    showSettings,
+    showStatus,
+    showTokenSummary,
+    showEvidenceCapture,
+    setShowSessions,
+    setShowSettings,
+    setShowStatus,
+    setShowTokenSummary,
+    setShowEvidenceCapture,
+    toggleSessions,
+  } = useAgentPanelUI();
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -113,7 +121,7 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
   const createSession = useCallback(async () => {
     await createSessionBase();
     setShowSessions(false);
-  }, [createSessionBase]);
+  }, [createSessionBase, setShowSessions]);
 
   // Scroll to bottom
   useEffect(() => {
@@ -325,10 +333,7 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => {
-                  setShowSessions(!showSessions);
-                  setShowTokenSummary(false);
-                }}
+                onClick={toggleSessions}
                 className={cn(
                   "h-7 px-2 text-text-muted hover:text-text text-xs",
                   showSessions && "bg-surface-muted text-text"
