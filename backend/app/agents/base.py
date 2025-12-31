@@ -431,7 +431,9 @@ class Agent(ABC):
 
         except Exception as e:
             logger.error(f"Agent run {run_id} failed: {e}")
-            self._record_run_complete(run_id, datetime.now(UTC), AgentRunStatus.ERROR.value, 0, str(e))
+            self._record_run_complete(
+                run_id, datetime.now(UTC), AgentRunStatus.ERROR.value, 0, str(e)
+            )
             return {"status": AgentRunStatus.ERROR.value, "error": str(e), "run_id": run_id}
 
     def _run_with_llm_client(

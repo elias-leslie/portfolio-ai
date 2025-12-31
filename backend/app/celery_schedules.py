@@ -478,7 +478,9 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         # - 03:10 weekly-optimization-review (Monday only)
         "scan-system-capabilities": {
             "task": "scan_system_capabilities",
-            "schedule": crontab(hour=3, minute=0),  # Daily at 03:00 UTC (anchor for staggered tasks)
+            "schedule": crontab(
+                hour=3, minute=0
+            ),  # Daily at 03:00 UTC (anchor for staggered tasks)
             "options": {"expires": EXPIRY_30_MIN},  # Task expires after 30 minutes
             # Notes:
             # - Runs daily at 03:00 UTC (after data refresh tasks complete)
