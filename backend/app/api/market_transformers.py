@@ -5,8 +5,10 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any
 
+from app.api.market_data_sources import calculate_daily_change_pct
 from app.api.market_responses import SectorDataPoint, SectorHistory
 from app.constants import SECTOR_ETFS
+from app.storage import BaseStorage
 
 
 def build_indicator_data_points(

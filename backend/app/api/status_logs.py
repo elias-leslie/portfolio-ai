@@ -117,6 +117,23 @@ def _determine_log_level(entry: dict) -> str:
     return SYSLOG_PRIORITY_TO_LEVEL.get(priority, "UNKNOWN")
 
 
+def _is_systemd_control_message(message: str) -> bool:
+    """Check if message is a systemd control message (start/stop notifications).
+
+    Args:
+        message: Log message to check
+
+    Returns:
+        True if message is a systemd control message, False otherwise
+    """
+    return (
+        message.startswith("Starting ")
+        or message.startswith("Started ")
+        or message.startswith("Stopping ")
+        or message.startswith("Stopped ")
+    )
+
+
 def parse_journal_output(output: str, service_units: dict[str, str]) -> list[UnifiedLogEntry]:
     """Parse JSON output from journalctl into UnifiedLogEntry objects.
 
@@ -144,12 +161,7 @@ def parse_journal_output(output: str, service_units: dict[str, str]) -> list[Uni
                 continue
 
             # Skip systemd control messages (service start/stop notifications)
-            if (
-                message.startswith("Starting ")
-                or message.startswith("Started ")
-                or message.startswith("Stopping ")
-                or message.startswith("Stopped ")
-            ):
+            if _is_systemd_control_message(message):
                 continue
 
             log_level = _determine_log_level(entry)
