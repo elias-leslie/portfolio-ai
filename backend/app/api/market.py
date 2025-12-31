@@ -41,7 +41,7 @@ from app.constants import SECTOR_ETFS
 from app.logging_config import get_logger
 from app.market import intelligence
 from app.market.fear_greed_stub import get_fear_greed_score
-from app.market.options_context import PutCallContext
+from app.market.options_context import PutCallContext, calculate_putcall_context
 from app.market.sentiment import calculate_market_health
 from app.middleware.cache import cache_response
 from app.models.market_events import MarketEventCreate, MarketEventType, MarketEventUpdate
@@ -223,8 +223,6 @@ def _build_enriched_indicators(
     if putcall_data:
         put_call_ratio, putcall_timestamp = putcall_data
         putcall_date = date.fromisoformat(putcall_timestamp[:10])
-
-        from app.market.options_context import calculate_putcall_context  # noqa: PLC0415
 
         putcall_context: PutCallContext = calculate_putcall_context(
             put_call_ratio, putcall_date, storage
