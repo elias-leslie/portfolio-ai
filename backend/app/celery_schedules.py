@@ -136,6 +136,104 @@ def _create_intraday_refresh_tasks(
     }
 
 
+def _maintenance_tasks() -> dict[str, dict[str, Any]]:
+    """Automated maintenance tasks for system health.
+
+    These tasks maintain system health through automated cleanup and monitoring.
+    Includes log cleanup, temp file cleanup, database vacuum, news cleanup,
+    agent run cleanup, orphaned data cleanup, backup cleanup, model cleanup,
+    solution state cleanup, disk space checks, data source health, and database size tracking.
+
+    Returns:
+        Dict of Celery Beat task definitions for maintenance tasks
+    """
+    return {
+        "maintain-data-freshness": {
+            "task": "maintain_data_freshness",
+            "schedule": crontab(hour="*/2"),  # Every 2 hours
+            "options": {"expires": EXPIRY_1_HOUR},  # 1-hour expiry
+        },
+        "check-all-data-freshness": {
+            "task": "check_all_data_freshness",
+            "schedule": crontab(minute=0, hour="*/2"),  # Every 2 hours
+            "options": {"expires": EXPIRY_1_HOUR},
+        },
+        "cleanup-old-logs-daily": {
+            "task": "cleanup_old_logs_task",
+            "schedule": crontab(hour=2, minute=0),  # Daily at 02:00 UTC
+            "args": [CLEANUP_LOGS_RETENTION_DAYS],
+            "options": {"expires": EXPIRY_1_HOUR},
+        },
+        "cleanup-temp-files-daily": {
+            "task": "cleanup_temp_files_task",
+            "schedule": crontab(hour=2, minute=15),  # Daily at 02:15 UTC
+            "args": [CLEANUP_TEMP_FILES_RETENTION_HOURS],
+            "options": {"expires": EXPIRY_1_HOUR},
+        },
+        "vacuum-database-weekly": {
+            "task": "vacuum_database_task",
+            "schedule": crontab(day_of_week=0, hour=3, minute=30),  # Sunday 03:30 UTC
+            "args": [None],
+            "options": {"expires": EXPIRY_2_HOURS},
+        },
+        "cleanup-old-news-weekly": {
+            "task": "cleanup_old_news_task",
+            "schedule": crontab(day_of_week=0, hour=4, minute=0),  # Sunday 04:00 UTC
+            "args": [CLEANUP_NEWS_RETENTION_DAYS],
+            "options": {"expires": EXPIRY_1_HOUR},
+        },
+        "cleanup-old-agent-runs-weekly": {
+            "task": "cleanup_old_agent_runs_task",
+            "schedule": crontab(day_of_week=0, hour=4, minute=15),  # Sunday 04:15 UTC
+            "args": [CLEANUP_AGENT_RUNS_RETENTION_DAYS],
+            "options": {"expires": EXPIRY_1_HOUR},
+        },
+        "cleanup-orphaned-data-weekly": {
+            "task": "cleanup_orphaned_data_task",
+            "schedule": crontab(day_of_week=0, hour=4, minute=30),  # Sunday 04:30 UTC
+            "options": {"expires": EXPIRY_1_HOUR},
+        },
+        "cleanup-old-backups-weekly": {
+            "task": "cleanup_old_backups_task",
+            "schedule": crontab(day_of_week=0, hour=4, minute=45),  # Sunday 04:45 UTC
+            "args": [CLEANUP_BACKUPS_KEEP_COUNT],
+            "options": {"expires": EXPIRY_1_HOUR},
+        },
+        "cleanup-old-models-weekly": {
+            "task": "cleanup_old_models_task",
+            "schedule": crontab(day_of_week=0, hour=5, minute=0),  # Sunday 05:00 UTC
+            "args": [CLEANUP_MODELS_KEEP_COUNT],
+            "options": {"expires": EXPIRY_1_HOUR},
+        },
+        "cleanup-solution-state-weekly": {
+            "task": "cleanup_solution_state_task",
+            "schedule": crontab(day_of_week=0, hour=5, minute=15),  # Sunday 05:15 UTC
+            "args": [CLEANUP_SOLUTION_STATE_RETENTION_DAYS],
+            "options": {"expires": EXPIRY_1_HOUR},
+        },
+        "check-disk-space-periodic": {
+            "task": "check_disk_space_task",
+            "schedule": crontab(hour="*/6"),  # Every 6 hours
+            "options": {"expires": EXPIRY_10_MIN},
+        },
+        "check-data-source-health-periodic": {
+            "task": "check_data_source_health",
+            "schedule": crontab(minute=30, hour="*/6"),  # Every 6 hours at :30
+            "options": {"expires": EXPIRY_10_MIN},
+        },
+        "get-database-size-daily": {
+            "task": "get_database_size_task",
+            "schedule": crontab(hour=5, minute=30),  # Daily at 05:30 UTC
+            "options": {"expires": EXPIRY_10_MIN},
+        },
+        "refresh-sec-cik-cache-weekly": {
+            "task": "refresh_sec_cik_cache",
+            "schedule": crontab(hour=6, minute=0, day_of_week=0),  # Weekly on Sunday at 06:00 UTC
+            "options": {"expires": EXPIRY_1_HOUR},
+        },
+    }
+
+
 def _agent_tasks() -> dict[str, dict[str, Any]]:
     """Autonomous AI agent tasks.
 
@@ -585,175 +683,8 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         # Daily gap analysis workflow removed - migrated to feature-based tracking
         # Merge autonomous AI agent tasks
         **_agent_tasks(),
-        # ============================================================================
-        # AUTOMATED MAINTENANCE TASKS
-        # ============================================================================
-        # These tasks maintain system health through automated cleanup and monitoring
-        # ============================================================================
-        "maintain-data-freshness": {
-            "task": "maintain_data_freshness",
-            "schedule": crontab(hour="*/2"),  # Every 2 hours
-            "options": {"expires": EXPIRY_1_HOUR},  # 1-hour expiry
-        },
-        "check-all-data-freshness": {
-            "task": "check_all_data_freshness",
-            "schedule": crontab(minute=0, hour="*/2"),  # Every 2 hours
-            "options": {"expires": EXPIRY_1_HOUR},  # 1-hour expiry
-            # Notes:
-            # - Runs every 2 hours to monitor all critical tables
-            # - Checks: day_bars, technical_indicators, fear_greed_inputs,
-            #   fear_greed_daily, options_market_metrics, news_cache, reference_cache
-            # - Creates maintenance_log alerts for critically stale data
-            # - Trading day awareness: Skips weekend/holiday alerts for market data
-            # - Complements maintain-data-freshness (watchlist-specific)
-        },
-        "cleanup-old-logs-daily": {
-            "task": "cleanup_old_logs_task",
-            "schedule": crontab(hour=2, minute=0),  # Daily at 02:00 UTC
-            "args": [CLEANUP_LOGS_RETENTION_DAYS],  # Delete logs older than N days
-            "options": {"expires": EXPIRY_1_HOUR},
-            # Notes:
-            # - Runs daily at 02:00 UTC (before market data tasks)
-            # - Deletes rotated log files (.log.TIMESTAMP) older than 7 days
-            # - Searches /tmp and /var/log/portfolio-ai directories
-            # - Tracks bytes freed in maintenance_stats table
-        },
-        "cleanup-temp-files-daily": {
-            "task": "cleanup_temp_files_task",
-            "schedule": crontab(hour=2, minute=15),  # Daily at 02:15 UTC
-            "args": [CLEANUP_TEMP_FILES_RETENTION_HOURS],  # Delete temp files older than N hours
-            "options": {"expires": EXPIRY_1_HOUR},
-            # Notes:
-            # - Runs daily at 02:15 UTC (15 min after log cleanup)
-            # - Deletes temporary files matching patterns (portfolio-ai-*, celery-*, tmpfile*, *.tmp)
-            # - Only processes /tmp directory
-            # - Tracks bytes freed in maintenance_stats table
-        },
-        "vacuum-database-weekly": {
-            "task": "vacuum_database_task",
-            "schedule": crontab(day_of_week=0, hour=3, minute=30),  # Sunday 03:30 UTC
-            "args": [None],  # Vacuum all tables
-            "options": {"expires": EXPIRY_2_HOURS},  # 2 hour timeout for large databases
-            # Notes:
-            # - Runs weekly on Sunday at 03:30 UTC (after capability analysis)
-            # - VACUUM ANALYZE reclaims space and updates table statistics
-            # - Improves query performance by updating planner statistics
-            # - Can take several minutes for large tables
-        },
-        "cleanup-old-news-weekly": {
-            "task": "cleanup_old_news_task",
-            "schedule": crontab(day_of_week=0, hour=4, minute=0),  # Sunday 04:00 UTC
-            "args": [CLEANUP_NEWS_RETENTION_DAYS],  # Delete news older than N days
-            "options": {"expires": EXPIRY_1_HOUR},
-            # Notes:
-            # - Runs weekly on Sunday at 04:00 UTC (after database vacuum)
-            # - Deletes news articles from news_cache older than 90 days
-            # - Prevents unbounded growth of news_cache table
-            # - Tracks rows deleted in maintenance_stats table
-        },
-        "cleanup-old-agent-runs-weekly": {
-            "task": "cleanup_old_agent_runs_task",
-            "schedule": crontab(day_of_week=0, hour=4, minute=15),  # Sunday 04:15 UTC
-            "args": [CLEANUP_AGENT_RUNS_RETENTION_DAYS],  # Delete agent runs older than N days
-            "options": {"expires": EXPIRY_1_HOUR},
-            # Notes:
-            # - Runs weekly on Sunday at 04:15 UTC (after news cleanup)
-            # - Deletes agent runs and associated ideas older than 30 days
-            # - Prevents unbounded growth of agent_runs and agent_ideas tables
-            # - Tracks runs/ideas deleted in maintenance_stats table
-        },
-        "cleanup-orphaned-data-weekly": {
-            "task": "cleanup_orphaned_data_task",
-            "schedule": crontab(day_of_week=0, hour=4, minute=30),  # Sunday 04:30 UTC
-            "options": {"expires": EXPIRY_1_HOUR},
-            # Notes:
-            # - Runs weekly on Sunday at 04:30 UTC (after agent run cleanup)
-            # - Removes orphaned records (ideas without runs, insights without capabilities)
-            # - Maintains referential integrity after deletions
-            # - Tracks orphaned records deleted in maintenance_stats table
-        },
-        "cleanup-old-backups-weekly": {
-            "task": "cleanup_old_backups_task",
-            "schedule": crontab(day_of_week=0, hour=4, minute=45),  # Sunday 04:45 UTC
-            "args": [CLEANUP_BACKUPS_KEEP_COUNT],  # Keep N most recent backups
-            "options": {"expires": EXPIRY_1_HOUR},
-            # Notes:
-            # - Runs weekly on Sunday at 04:45 UTC (after orphaned data cleanup)
-            # - Deletes old SQL backups from backups/ directory
-            # - Keeps 5 most recent backups (configurable via args)
-            # - Tracks bytes freed in maintenance_stats table
-        },
-        "cleanup-old-models-weekly": {
-            "task": "cleanup_old_models_task",
-            "schedule": crontab(day_of_week=0, hour=5, minute=0),  # Sunday 05:00 UTC
-            "args": [CLEANUP_MODELS_KEEP_COUNT],  # Keep N most recent versions per model
-            "options": {"expires": EXPIRY_1_HOUR},
-            # Notes:
-            # - Runs weekly on Sunday at 05:00 UTC
-            # - Deletes old ML model versions from backend/models/
-            # - Keeps 3 most recent versions per model type (configurable via args)
-            # - Skips symlinks (active model pointers)
-            # - Tracks bytes freed in maintenance_stats table
-        },
-        "cleanup-solution-state-weekly": {
-            "task": "cleanup_solution_state_task",
-            "schedule": crontab(day_of_week=0, hour=5, minute=15),  # Sunday 05:15 UTC
-            "args": [CLEANUP_SOLUTION_STATE_RETENTION_DAYS],  # Keep N days of test artifacts
-            "options": {"expires": EXPIRY_1_HOUR},
-            # Notes:
-            # - Runs weekly on Sunday at 05:15 UTC
-            # - Deletes old test artifacts from solution_state/
-            # - Keeps 14 days of artifacts (configurable via args)
-            # - Only deletes directories matching YYYYMMDD-HHMMSS pattern
-            # - Tracks bytes freed in maintenance_stats table
-        },
-        "check-disk-space-periodic": {
-            "task": "check_disk_space_task",
-            "schedule": crontab(hour="*/6"),  # Every 6 hours
-            "options": {"expires": EXPIRY_10_MIN},
-            # Notes:
-            # - Runs every 6 hours (00:00, 06:00, 12:00, 18:00 UTC)
-            # - Checks disk usage for /, /tmp, /var/log partitions
-            # - Alerts (via logs) if any partition > 85% used
-            # - Tracks disk usage trends in maintenance_stats table
-            # - Critical for preventing disk space issues
-        },
-        "check-data-source-health-periodic": {
-            "task": "check_data_source_health",
-            "schedule": crontab(minute=30, hour="*/6"),  # Every 6 hours at :30
-            "options": {"expires": EXPIRY_10_MIN},
-            # Notes:
-            # - Runs every 6 hours at :30 (00:30, 06:30, 12:30, 18:30 UTC)
-            # - Tests each data source with SPY OHLCV fetch
-            # - Categorizes sources: healthy, degraded, down
-            # - Provides visibility into source availability
-            # - Complements multi-source fallback logging
-        },
-        "get-database-size-daily": {
-            "task": "get_database_size_task",
-            "schedule": crontab(hour=5, minute=30),  # Daily at 05:30 UTC
-            "options": {"expires": EXPIRY_10_MIN},
-            # Notes:
-            # - Runs daily at 05:30 UTC (after all cleanup tasks complete)
-            # - Gets total database size and top 10 largest tables
-            # - Tracks database growth trends in maintenance_stats table
-            # - Helps identify which tables are growing fastest
-        },
-        "refresh-sec-cik-cache-weekly": {
-            "task": "refresh_sec_cik_cache",
-            "schedule": crontab(hour=6, minute=0, day_of_week=0),  # Weekly on Sunday at 06:00 UTC
-            "options": {"expires": EXPIRY_1_HOUR},
-            # Notes:
-            # - Fetches ticker→CIK mapping from SEC EDGAR
-            # - Enables SEC filing lookups for all symbols
-            # - Weekly is sufficient as CIK mappings rarely change
-            # - Only new IPOs add new entries
-        },
-        # NOTE: Removed ghost tasks (functions never implemented):
-        # - check-workflow-failures-every-6h
-        # - monitor-api-rate-limits-every-6h
-        # - monitor-workflow-timeouts-every-6h
-        # Removed by /scrub_it on 2025-12-02
+        # Merge automated maintenance tasks
+        **_maintenance_tasks(),
         # ============================================================================
         # STRATEGY MONITORING & GENERATION (Task 4.8)
         # ============================================================================

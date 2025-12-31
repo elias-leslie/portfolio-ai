@@ -347,9 +347,11 @@
           "severity": "HIGH",
           "files_affected": ["backend/app/celery_schedules.py:99-1030"],
           "steps": [
-            "Read backend/app/celery_schedules.py",
-            "Create _user_configurable_tasks(), _market_data_tasks(), _maintenance_tasks(), _strategy_tasks(), _monitoring_tasks() helpers",
-            "Each returns a dict fragment that gets merged in get_beat_schedule()",
+            "✓ Created _user_configurable_tasks() helper (2 tasks)",
+            "✓ Created _agent_tasks() helper (2 tasks)",
+            "NEXT: Create _maintenance_tasks() helper (~18 tasks, lines 593-756)",
+            "NEXT: Create _strategy_tasks() helper (~15 tasks, lines 758-924)",
+            "NEXT: Create _monitoring_tasks() helper (~8 tasks, lines 926-1044)",
             "Update get_beat_schedule() to merge all helper results",
             "Run ruff check backend/app/celery_schedules.py"
           ],
