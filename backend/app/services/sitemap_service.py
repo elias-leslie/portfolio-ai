@@ -223,11 +223,6 @@ class SitemapService:
         self._storage = get_sitemap_storage()
 
     @property
-    def backend_port(self) -> int:
-        """Get the backend port (dynamically discovered or fallback)."""
-        return get_port_for_service("backend") or 8000
-
-    @property
     def frontend_port(self) -> int:
         """Get the frontend port (dynamically discovered or fallback)."""
         return get_port_for_service("frontend") or 3000
@@ -628,52 +623,6 @@ class SitemapService:
 
         return tabs
 
-    def import_from_api_capabilities(self) -> int:
-        """Import existing API capabilities into sitemap_entries.
-
-        Returns:
-            Number of entries imported
-        """
-        logger.info("sitemap_import_api_capabilities_start")
-
-        with self.conn_mgr.connection() as conn:
-            # Get existing API capabilities
-            result = conn.execute("""
-                SELECT endpoint_path, http_method, category, function_name
-                FROM api_capabilities
-            """)
-            api_caps = result.fetchall()
-
-            imported = 0
-            for row in api_caps:
-                endpoint_path, http_method, category, function_name = row
-                try:
-                    conn.execute(
-                        """
-                        INSERT INTO sitemap_entries (port, path, method, entry_type, source, title)
-                        VALUES (%s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (port, path, method) DO UPDATE SET
-                            title = EXCLUDED.title,
-                            updated_at = NOW()
-                    """,
-                        [
-                            self.backend_port,
-                            endpoint_path,
-                            http_method,
-                            "api_endpoint",
-                            "api_scanner",
-                            function_name or category,
-                        ],
-                    )
-                    imported += 1
-                except Exception as e:
-                    logger.debug("sitemap_import_row_failed", path=endpoint_path, error=str(e))
-
-            conn.commit()
-
-        logger.info("sitemap_import_api_capabilities_complete", imported=imported)
-        return imported
-
     async def run_discovery(self) -> dict[str, Any]:
         """Run comprehensive discovery across all service types.
 
@@ -681,7 +630,6 @@ class SitemapService:
         - OpenAPI: All ports with /openapi.json (backend, dev-companion, etc.)
         - Frontend: Crawl pages and parse Next.js app directory
         - WebSocket: Probe for WS endpoints on applicable ports
-        - API capabilities: Import from legacy api_capabilities table
 
         Returns:
             Summary of discovery results
@@ -699,7 +647,6 @@ class SitemapService:
 
         # Run sync discoveries
         nextjs_entries = self.discover_nextjs_routes()
-        api_imported = self.import_from_api_capabilities()
 
         # Combine all entries
         all_entries = all_openapi_entries + frontend_entries + websocket_entries + nextjs_entries
@@ -737,7 +684,6 @@ class SitemapService:
             "frontend_discovered": len(frontend_entries),
             "websocket_discovered": len(websocket_entries),
             "nextjs_discovered": len(nextjs_entries),
-            "api_imported": api_imported,
             "total_saved": saved,
         }
 

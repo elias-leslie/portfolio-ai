@@ -90,7 +90,6 @@ class DiscoveryResponse(BaseModel):
     frontend_discovered: int  # Crawler-discovered pages
     websocket_discovered: int = 0  # WebSocket endpoints
     nextjs_discovered: int = 0  # Next.js app directory routes
-    api_imported: int  # Legacy api_capabilities import
     total_saved: int
 
 
@@ -143,7 +142,6 @@ class DiscoveredPortsResponse(BaseModel):
     """Response for all discovered ports."""
 
     ports: list[DiscoveredPortResponse]
-    backend_port: int
     frontend_port: int
 
 
@@ -310,7 +308,6 @@ def get_discovered_ports() -> DiscoveredPortsResponse:
     ports = service.get_discovered_ports()
     return DiscoveredPortsResponse(
         ports=ports,  # type: ignore
-        backend_port=service.backend_port,
         frontend_port=service.frontend_port,
     )
 
@@ -325,6 +322,5 @@ def refresh_port_discovery() -> DiscoveredPortsResponse:
     ports = service.refresh_port_discovery()
     return DiscoveredPortsResponse(
         ports=ports,  # type: ignore
-        backend_port=service.backend_port,
         frontend_port=service.frontend_port,
     )
