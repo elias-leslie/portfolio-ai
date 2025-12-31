@@ -51,6 +51,7 @@ import {
   getCategoryBadge,
   type TaskCategory,
 } from "@/lib/maintenance/formatters";
+import { MaintenanceSummaryStats } from "./MaintenanceSummaryStats";
 
 // Unified task interface
 interface MaintenanceTask {
@@ -405,26 +406,12 @@ export function MaintenanceTable() {
         ) : (
           <div className="space-y-4">
             {/* Summary Stats */}
-            <div className="grid grid-cols-4 gap-4 p-4 bg-surface-muted/30 rounded-lg">
-              <div className="text-center">
-                <div className="text-xl font-bold">{formatSize(fileCleanup?.totalSizeMb || 0)}</div>
-                <div className="text-xs text-muted-foreground">Managed Files</div>
-              </div>
-              <div className="text-center">
-                <div className="text-xl font-bold">{formatSize(dbSize?.databaseSizeMb || 0)}</div>
-                <div className="text-xs text-muted-foreground">Database</div>
-              </div>
-              <div className="text-center">
-                <div className="text-xl font-bold">{formatSize(cacheStatus?.totalSizeMb || 0)}</div>
-                <div className="text-xs text-muted-foreground">Dev Caches</div>
-              </div>
-              <div className="text-center">
-                <div className="text-xl font-bold">
-                  {diskSpace?.partitions?.[0]?.usedPercentage?.toFixed(0) || "—"}%
-                </div>
-                <div className="text-xs text-muted-foreground">Disk Used</div>
-              </div>
-            </div>
+            <MaintenanceSummaryStats
+              filesSizeMb={fileCleanup?.totalSizeMb || 0}
+              databaseSizeMb={dbSize?.databaseSizeMb || 0}
+              cacheSizeMb={cacheStatus?.totalSizeMb || 0}
+              diskUsedPercentage={diskSpace?.partitions?.[0]?.usedPercentage ?? null}
+            />
 
             {/* Filter */}
             <div className="flex items-center gap-2">
