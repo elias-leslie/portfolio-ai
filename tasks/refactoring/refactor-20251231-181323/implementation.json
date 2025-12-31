@@ -294,7 +294,7 @@
           "tier": 3,
           "model": "opus",
           "parallelizable": false,
-          "passes": false,
+          "passes": true,
           "description": "Extract database operations from trigger_strategy_from_seed to storage layer",
           "file": "backend/app/tasks/strategy_monitoring_tasks.py",
           "location": "lines 906-1027, especially 950-968, 985-993, 1019-1023",

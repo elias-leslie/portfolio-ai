@@ -32,13 +32,11 @@ import { ExpandableCard } from "@/components/status/ExpandableCard";
 import { ServiceActionDialog } from "./ServiceActionDialog";
 import { TaskResultDisplay, BatchResultsDialog } from "./MaintenanceDialogs";
 import { useDialogState } from "./hooks/useDialogState";
-import {
-  triggerMaintenanceTask,
-  type MaintenanceResult,
-} from "@/lib/api/maintenance";
+import { type MaintenanceResult } from "@/lib/api/maintenance";
 import { useMaintenanceData } from "@/lib/hooks/useMaintenanceData";
 import { useMaintenanceBackupCheck } from "@/lib/hooks/useMaintenanceBackupCheck";
 import { useMaintenanceTaskRunner } from "@/lib/hooks/useMaintenanceTaskRunner";
+import { useMaintenanceBatchRunner } from "@/lib/hooks/useMaintenanceBatchRunner";
 import {
   TASK_CONFIGS,
   DB_TASK_API_FUNCTIONS,
@@ -124,6 +122,10 @@ export function MaintenanceTable() {
       onShowTaskResult: showTaskResult,
     }
   );
+
+  // Batch runner hook
+  const { runAll, isRunning: _isRunningBatch } = useMaintenanceBatchRunner();
+
   const [categoryFilter, setCategoryFilter] = useState<TaskCategory | "all">("all");
   const [sortKey, setSortKey] = useState<SortKey>("category");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
@@ -243,58 +245,12 @@ export function MaintenanceTable() {
     }
   };
 
-  // Run all tasks and collect results
+  // Run all tasks and collect results using the batch runner hook
   const handleRunAll = async () => {
     setIsRunningAll(true);
     setBatchResults([]);
-    const results: typeof batchResults = [];
 
-    for (const task of filteredTasks) {
-      // In dry run mode, SKIP tasks that don't support dryRun
-      if (dryRun && !task.supportsDryRun) {
-        results.push({
-          taskName: task.name,
-          taskId: task.taskName,
-          status: "success",
-          result: { skipped: true, reason: "Task does not support dry run preview" },
-        });
-        continue;
-      }
-
-      try {
-        let taskResult: Record<string, unknown> | null = null;
-
-        // Handle DB tasks via config-driven API lookup
-        const apiFunc = DB_TASK_API_FUNCTIONS[task.id];
-        if (apiFunc) {
-          const r = await apiFunc(dryRun);
-          taskResult = { ...r, ...r.summary };
-        } else {
-          // Regular Celery tasks
-          const result = await triggerMaintenanceTask(task.taskName, {
-            dryRun: dryRun,
-            waitForResult: true,
-            timeout: 60,
-          });
-          taskResult = result.result as Record<string, unknown> | null;
-        }
-
-        results.push({
-          taskName: task.name,
-          taskId: task.taskName,
-          status: "success",
-          result: taskResult,
-        });
-      } catch (error) {
-        results.push({
-          taskName: task.name,
-          taskId: task.taskName,
-          status: "error",
-          result: null,
-          error: error instanceof Error ? error.message : "Unknown error",
-        });
-      }
-    }
+    const results = await runAll(filteredTasks, dryRun, DB_TASK_API_FUNCTIONS);
 
     setIsRunningAll(false);
     setBatchResults(results);
