@@ -1,0 +1,521 @@
+{
+  "meta": {
+    "title": "Full Codebase Refactor - Portfolio AI",
+    "created": "2025-12-31",
+    "session_id": "refactor-20251231-094133",
+    "total_targets": 10,
+    "baseline_complexity": 1180.75
+  },
+  "phases": [
+    {
+      "id": 1,
+      "name": "Quick Fixes - Magic Values & Constants",
+      "goal": "Eliminate hardcoded values and improve type safety with minimal risk",
+      "tasks": [
+        {
+          "id": "1.1",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Fix timeout error message mismatch in status_logs.py",
+          "severity": "MEDIUM",
+          "files_affected": ["backend/app/api/status_logs.py:212", "backend/app/api/status_logs.py:413"],
+          "steps": [
+            "Read backend/app/api/status_logs.py",
+            "Change error message on line 413 from 'timed out after 30 seconds' to 'timed out after 15 seconds' to match actual timeout=15",
+            "Run ruff check backend/app/api/status_logs.py"
+          ],
+          "verification": "grep -n 'timed out after' backend/app/api/status_logs.py",
+          "passes": false
+        },
+        {
+          "id": "1.2",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Replace hardcoded log level lists with VALID_LEVELS constant in status_logs.py",
+          "severity": "LOW",
+          "files_affected": ["backend/app/api/status_logs.py:447", "backend/app/api/status_logs.py:572"],
+          "steps": [
+            "Read backend/app/api/status_logs.py",
+            "Replace hardcoded ['DEBUG', 'INFO', 'WARN', 'ERROR', 'CRITICAL'] at lines 447 and 572 with sorted(level for level in VALID_LEVELS if level != 'WARNING')",
+            "Run ruff check backend/app/api/status_logs.py"
+          ],
+          "verification": "grep -n \"\\['DEBUG', 'INFO'\" backend/app/api/status_logs.py | wc -l should be 0",
+          "passes": false
+        },
+        {
+          "id": "1.3",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Extract USER_MODE_SERVICES constant from status_logs.py to constants/services.py",
+          "severity": "MEDIUM",
+          "files_affected": ["backend/app/api/status_logs.py:268", "backend/app/api/status_logs.py:276", "backend/app/constants/services.py"],
+          "steps": [
+            "Read backend/app/constants/services.py",
+            "Add USER_MODE_SERVICES = frozenset({'celery_worker', 'celery_beat'})",
+            "Read backend/app/api/status_logs.py",
+            "Import USER_MODE_SERVICES from app.constants.services",
+            "Replace hardcoded ['celery_worker', 'celery_beat'] at lines 268 and 276 with USER_MODE_SERVICES",
+            "Run ruff check backend/app/api/status_logs.py"
+          ],
+          "verification": "grep -n 'USER_MODE_SERVICES' backend/app/constants/services.py && grep -n 'celery_worker.*celery_beat' backend/app/api/status_logs.py | wc -l should be 0",
+          "passes": false
+        },
+        {
+          "id": "1.4",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Fix redundant condition check in strategy_monitoring_tasks.py",
+          "severity": "LOW",
+          "files_affected": ["backend/app/tasks/strategy_monitoring_tasks.py:377"],
+          "steps": [
+            "Read backend/app/tasks/strategy_monitoring_tasks.py",
+            "Change line 377 from 'if not rows or len(rows) == 0:' to 'if not rows:'",
+            "Run ruff check backend/app/tasks/strategy_monitoring_tasks.py"
+          ],
+          "verification": "grep -n 'len(rows) == 0' backend/app/tasks/strategy_monitoring_tasks.py | wc -l should be 0",
+          "passes": false
+        },
+        {
+          "id": "1.5",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Extract AgentRunStatus enum from magic strings in base.py",
+          "severity": "MEDIUM",
+          "files_affected": ["backend/app/agents/base.py", "backend/app/agents/types.py"],
+          "steps": [
+            "Read backend/app/agents/types.py",
+            "Add AgentRunStatus enum with values: RUNNING, COMPLETED, ERROR, MAX_ITERATIONS",
+            "Read backend/app/agents/base.py",
+            "Import AgentRunStatus from types",
+            "Replace string literals 'completed', 'error', 'max_iterations', 'running' with enum members",
+            "Run ruff check backend/app/agents/base.py"
+          ],
+          "verification": "grep -c 'AgentRunStatus\\.' backend/app/agents/base.py should be >= 9",
+          "passes": false
+        },
+        {
+          "id": "1.6",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Remove VALID_EVENT_TYPES duplication - derive from MarketEventType",
+          "severity": "MEDIUM",
+          "files_affected": ["backend/app/api/market.py:100-107", "backend/app/models/market_events.py"],
+          "steps": [
+            "Read backend/app/models/market_events.py to understand MarketEventType",
+            "Read backend/app/api/market.py",
+            "Replace VALID_EVENT_TYPES set with typing.get_args(MarketEventType) derivation",
+            "Import get_args from typing and MarketEventType from models",
+            "Run ruff check backend/app/api/market.py"
+          ],
+          "verification": "grep -n 'VALID_EVENT_TYPES.*=' backend/app/api/market.py should show derivation pattern",
+          "passes": false
+        },
+        {
+          "id": "1.7",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Extract SUMMITFLOW_API constant to shared location in AgentPanel",
+          "severity": "MEDIUM",
+          "files_affected": ["frontend/components/agents/AgentPanel.tsx:30", "frontend/components/agents/EvidenceCaptureModal.tsx:35"],
+          "steps": [
+            "Read frontend/components/agents/AgentPanel.tsx",
+            "Create frontend/components/agents/constants.ts",
+            "Add export const SUMMITFLOW_API = process.env.NEXT_PUBLIC_SUMMITFLOW_API || 'http://localhost:8001'",
+            "Update AgentPanel.tsx to import SUMMITFLOW_API from ./constants",
+            "Update EvidenceCaptureModal.tsx to import SUMMITFLOW_API from ./constants",
+            "Remove duplicate constant declarations"
+          ],
+          "verification": "grep -rn 'SUMMITFLOW_API' frontend/components/agents/ | grep -v 'constants.ts' | grep 'const SUMMITFLOW_API' | wc -l should be 0",
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Dead Code & DRY Violations",
+      "goal": "Remove unused code and consolidate duplicate logic",
+      "tasks": [
+        {
+          "id": "2.1",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Remove dead code - adopt HealthCheckStrategy.get_check_decision() in sitemap_service.py",
+          "severity": "HIGH",
+          "files_affected": ["backend/app/services/sitemap_service.py:55-81", "backend/app/services/health_check_strategies.py"],
+          "steps": [
+            "Read backend/app/services/health_check_strategies.py to understand CheckDecision and get_check_decision",
+            "Read backend/app/services/sitemap_service.py",
+            "Replace _should_skip_entry() usage with HealthCheckStrategy.get_check_decision()",
+            "Update check_entry_health() to use CheckDecision.should_skip and CheckDecision.is_probe",
+            "Remove the now-unused _should_skip_entry() function",
+            "Run ruff check and pytest tests/unit/services/test_sitemap_service.py if exists"
+          ],
+          "verification": "grep -n '_should_skip_entry' backend/app/services/sitemap_service.py | wc -l should be 0",
+          "passes": false
+        },
+        {
+          "id": "2.2",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Stagger schedule collisions at 3:00 UTC in celery_schedules.py",
+          "severity": "MEDIUM",
+          "files_affected": ["backend/app/celery_schedules.py:228,486,892,902,950"],
+          "steps": [
+            "Read backend/app/celery_schedules.py",
+            "Identify all 5 tasks scheduled at hour=3, minute=0",
+            "Stagger them: scan-system-capabilities (3:00), calculate-fear-greed-daily (3:02), monitor-thesis-health-daily (3:05), daily-rules-validation (3:08), weekly-optimization-review (3:10)",
+            "Add comment explaining deliberate staggering to prevent future collisions",
+            "Run ruff check backend/app/celery_schedules.py"
+          ],
+          "verification": "grep -c 'hour=3, minute=0' backend/app/celery_schedules.py should be 1 or less",
+          "passes": false
+        },
+        {
+          "id": "2.3",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Create intraday refresh task helper in celery_schedules.py",
+          "severity": "MEDIUM",
+          "files_affected": ["backend/app/celery_schedules.py:159-316"],
+          "steps": [
+            "Read backend/app/celery_schedules.py",
+            "Extract helper function _create_intraday_refresh_tasks(time_label: str, hour: int, minute_offset: int)",
+            "Function generates the 3-task pattern (OHLCV refresh -> populate inputs -> calculate F&G)",
+            "Replace 4 repetitive task definitions with 4 function calls",
+            "Run ruff check backend/app/celery_schedules.py"
+          ],
+          "verification": "grep -c '_create_intraday_refresh_tasks' backend/app/celery_schedules.py should be >= 4",
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Type Safety & Error Handling",
+      "goal": "Improve type safety and standardize error handling patterns",
+      "tasks": [
+        {
+          "id": "3.1",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Fix synchronous setState in useEffect in AgentPanel.tsx",
+          "severity": "HIGH",
+          "files_affected": ["frontend/components/agents/AgentPanel.tsx:89-95"],
+          "steps": [
+            "Read frontend/components/agents/AgentPanel.tsx",
+            "Replace synchronous setState calls for serverUrl/wsUrl with lazy initialization",
+            "Use useState(() => getServerUrl()) pattern instead of useEffect + setState",
+            "Remove the useEffect that sets serverUrl/wsUrl",
+            "Run npm run lint --prefix frontend"
+          ],
+          "verification": "grep -A5 'useEffect.*serverUrl' frontend/components/agents/AgentPanel.tsx | wc -l should be 0",
+          "passes": false
+        },
+        {
+          "id": "3.2",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Fix type: ignore comments in market.py with proper typing",
+          "severity": "LOW",
+          "files_affected": ["backend/app/api/market.py:361,377,441"],
+          "steps": [
+            "Read backend/app/api/market.py",
+            "Define proper TypedDict for calculate_putcall_context return",
+            "Fix options_data['top_sectors'] type hint",
+            "Add explicit tuple unpacking types for repository methods",
+            "Remove type: ignore comments",
+            "Run mypy backend/app/api/market.py --no-error-summary"
+          ],
+          "verification": "grep -c 'type: ignore' backend/app/api/market.py should be reduced",
+          "passes": false
+        },
+        {
+          "id": "3.3",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Standardize datetime handling in strategy_monitoring_tasks.py",
+          "severity": "MEDIUM",
+          "files_affected": ["backend/app/tasks/strategy_monitoring_tasks.py:147,183,344,400"],
+          "steps": [
+            "Read backend/app/tasks/strategy_monitoring_tasks.py",
+            "Replace datetime.now() with datetime.now(UTC) at line 147",
+            "Replace date.today() with datetime.now(UTC).date() at lines 183, 344, 400",
+            "Ensure UTC is imported from datetime module",
+            "Run ruff check backend/app/tasks/strategy_monitoring_tasks.py"
+          ],
+          "verification": "grep -c 'date.today()' backend/app/tasks/strategy_monitoring_tasks.py should be 0",
+          "passes": false
+        },
+        {
+          "id": "3.4",
+          "tier": 3,
+          "model": "opus",
+          "parallelizable": false,
+          "description": "Create @handle_api_errors decorator for watchlist.py error handling",
+          "severity": "MEDIUM",
+          "files_affected": ["backend/app/api/watchlist.py", "backend/app/api/utils.py"],
+          "steps": [
+            "Read backend/app/api/utils.py",
+            "Create @handle_api_errors decorator that catches HTTPException (re-raise) and Exception (log + raise 500)",
+            "Read backend/app/api/watchlist.py",
+            "Apply decorator to all 10 endpoints that have try-except boilerplate",
+            "Remove inline try-except blocks",
+            "Run pytest tests/unit/api/test_watchlist.py if exists"
+          ],
+          "verification": "grep -c '@handle_api_errors' backend/app/api/watchlist.py should be >= 10",
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Function Extraction & Modularization",
+      "goal": "Break down large functions and improve single responsibility",
+      "tasks": [
+        {
+          "id": "4.1",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Extract _enrich_indicator_with_history to market_transformers.py",
+          "severity": "MEDIUM",
+          "files_affected": ["backend/app/api/market.py:298-323", "backend/app/api/market_transformers.py"],
+          "steps": [
+            "Read backend/app/api/market.py to find _enrich_indicator_with_history",
+            "Read backend/app/api/market_transformers.py",
+            "Move function to market_transformers.py as enrich_indicator_with_history()",
+            "Update market.py to import from market_transformers",
+            "Run pytest tests/unit/api/test_market.py if exists"
+          ],
+          "verification": "grep -c 'enrich_indicator_with_history' backend/app/api/market_transformers.py should be >= 1",
+          "passes": false
+        },
+        {
+          "id": "4.2",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Extract systemd message filtering helper in status_logs.py",
+          "severity": "LOW",
+          "files_affected": ["backend/app/api/status_logs.py:120-169"],
+          "steps": [
+            "Read backend/app/api/status_logs.py",
+            "Extract _is_systemd_control_message(message: str) -> bool helper",
+            "Update parse_journal_output to use the new helper",
+            "Run ruff check backend/app/api/status_logs.py"
+          ],
+          "verification": "grep -c '_is_systemd_control_message' backend/app/api/status_logs.py should be >= 1",
+          "passes": false
+        },
+        {
+          "id": "4.3",
+          "tier": 3,
+          "model": "opus",
+          "parallelizable": false,
+          "description": "Extract dual/legacy review handlers in watchlist.py review_strategy_signal",
+          "severity": "MEDIUM",
+          "files_affected": ["backend/app/api/watchlist.py:596-707"],
+          "steps": [
+            "Read backend/app/api/watchlist.py",
+            "Extract _handle_dual_review() function for lines 645-684",
+            "Extract _handle_legacy_review() function for lines 686-701",
+            "Refactor review_strategy_signal to use these helpers",
+            "Run pytest tests/unit/api/test_watchlist.py if exists"
+          ],
+          "verification": "grep -c '_handle_dual_review\\|_handle_legacy_review' backend/app/api/watchlist.py should be >= 2",
+          "passes": false
+        },
+        {
+          "id": "4.4",
+          "tier": 3,
+          "model": "opus",
+          "parallelizable": false,
+          "description": "Split celery_schedules.py get_beat_schedule into task category helpers",
+          "severity": "HIGH",
+          "files_affected": ["backend/app/celery_schedules.py:99-1030"],
+          "steps": [
+            "Read backend/app/celery_schedules.py",
+            "Create _user_configurable_tasks(), _market_data_tasks(), _maintenance_tasks(), _strategy_tasks(), _monitoring_tasks() helpers",
+            "Each returns a dict fragment that gets merged in get_beat_schedule()",
+            "Update get_beat_schedule() to merge all helper results",
+            "Run ruff check backend/app/celery_schedules.py"
+          ],
+          "verification": "grep -c 'def _.*_tasks()' backend/app/celery_schedules.py should be >= 5",
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Component Decomposition (Frontend)",
+      "goal": "Break down large React components into smaller, focused sub-components",
+      "tasks": [
+        {
+          "id": "5.1",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Extract MaintenanceSummaryStats component from MaintenanceTable.tsx",
+          "severity": "MEDIUM",
+          "files_affected": ["frontend/components/status/MaintenanceTable.tsx:408-427"],
+          "steps": [
+            "Read frontend/components/status/MaintenanceTable.tsx",
+            "Create frontend/components/status/MaintenanceSummaryStats.tsx",
+            "Extract lines 408-427 (summary stats grid) to new component",
+            "Import and use MaintenanceSummaryStats in MaintenanceTable",
+            "Run npm run lint --prefix frontend"
+          ],
+          "verification": "test -f frontend/components/status/MaintenanceSummaryStats.tsx",
+          "passes": false
+        },
+        {
+          "id": "5.2",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Extract useDialogState hook from MaintenanceTable.tsx",
+          "severity": "MEDIUM",
+          "files_affected": ["frontend/components/status/MaintenanceTable.tsx"],
+          "steps": [
+            "Read frontend/components/status/MaintenanceTable.tsx",
+            "Create frontend/components/status/hooks/useDialogState.ts",
+            "Extract 7 dialog-related useState calls into the hook",
+            "Update MaintenanceTable to use the new hook",
+            "Run npm run lint --prefix frontend"
+          ],
+          "verification": "test -f frontend/components/status/hooks/useDialogState.ts",
+          "passes": false
+        },
+        {
+          "id": "5.3",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Extract AgentPanelHeader component from AgentPanel.tsx",
+          "severity": "MEDIUM",
+          "files_affected": ["frontend/components/agents/AgentPanel.tsx:272-380"],
+          "steps": [
+            "Read frontend/components/agents/AgentPanel.tsx",
+            "Create frontend/components/agents/AgentPanelHeader.tsx",
+            "Extract header section (connection status, page context, sessions button, badges)",
+            "Define props interface with required callbacks",
+            "Update AgentPanel to use AgentPanelHeader",
+            "Run npm run lint --prefix frontend"
+          ],
+          "verification": "test -f frontend/components/agents/AgentPanelHeader.tsx",
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Repository Pattern & Data Access",
+      "goal": "Move raw SQL to storage layer following established patterns",
+      "tasks": [
+        {
+          "id": "6.1",
+          "tier": 3,
+          "model": "opus",
+          "parallelizable": false,
+          "description": "Create ReferenceRepository for reference_tasks.py SQL queries",
+          "severity": "HIGH",
+          "files_affected": ["backend/app/tasks/reference_tasks.py", "backend/app/repositories/reference_repository.py"],
+          "steps": [
+            "Read backend/app/repositories/market_repository.py as pattern example",
+            "Create backend/app/repositories/reference_repository.py",
+            "Add methods: get_latest_cache_entry(), upsert_valuation_metrics(), upsert_financial_health_scores(), upsert_risk_metrics(), get_stale_symbols()",
+            "Update reference_tasks.py to use new repository",
+            "Run pytest tests/unit/tasks/test_reference_tasks.py if exists"
+          ],
+          "verification": "test -f backend/app/repositories/reference_repository.py && grep -c 'reference_repository' backend/app/tasks/reference_tasks.py should be >= 1",
+          "passes": false
+        },
+        {
+          "id": "6.2",
+          "tier": 3,
+          "model": "opus",
+          "parallelizable": false,
+          "description": "Move raw SQL from strategy_monitoring_tasks.py to StrategyStorage",
+          "severity": "HIGH",
+          "files_affected": ["backend/app/tasks/strategy_monitoring_tasks.py:347-359,925-1023", "backend/app/strategies/storage.py"],
+          "steps": [
+            "Read backend/app/strategies/storage.py",
+            "Add storage.get_strategy_trades(strategy_id, cutoff_date) method",
+            "Add storage.get_strategy_seed(seed_id) method",
+            "Add storage.link_strategy_to_seed(strategy_id, seed_id) method",
+            "Update strategy_monitoring_tasks.py to use storage methods",
+            "Run pytest tests/unit/tasks/test_strategy_monitoring_tasks.py if exists"
+          ],
+          "verification": "grep -c 'conn.execute' backend/app/tasks/strategy_monitoring_tasks.py should be reduced",
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Final Verification",
+      "goal": "Ensure all changes maintain test coverage and functionality",
+      "tasks": [
+        {
+          "id": "7.1",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": false,
+          "description": "Run full backend test suite",
+          "severity": "HIGH",
+          "files_affected": [],
+          "steps": [
+            "cd backend && timeout 180 .venv/bin/pytest tests/ -x --tb=short",
+            "If failures, document which tests fail and whether pre-existing"
+          ],
+          "verification": "pytest exit code 0 or documented pre-existing failures",
+          "passes": false
+        },
+        {
+          "id": "7.2",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Run frontend lint and type check",
+          "severity": "HIGH",
+          "files_affected": [],
+          "steps": [
+            "cd frontend && npm run lint",
+            "cd frontend && npx tsc --noEmit",
+            "Document any new errors introduced"
+          ],
+          "verification": "No new lint or type errors",
+          "passes": false
+        },
+        {
+          "id": "7.3",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Run backend type check",
+          "severity": "HIGH",
+          "files_affected": [],
+          "steps": [
+            "cd backend && .venv/bin/mypy app/ --no-error-summary",
+            "Document any new errors introduced"
+          ],
+          "verification": "No new mypy errors",
+          "passes": false
+        }
+      ]
+    }
+  ]
+}

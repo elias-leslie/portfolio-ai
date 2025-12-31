@@ -410,7 +410,7 @@ async def get_unified_logs(
     except subprocess.TimeoutExpired as e:
         logger.error("unified_logs_timeout", error=str(e))
         raise HTTPException(
-            status_code=504, detail="Journalctl query timed out after 30 seconds"
+            status_code=504, detail="Journalctl query timed out after 15 seconds"
         ) from e
 
     except subprocess.CalledProcessError as e:

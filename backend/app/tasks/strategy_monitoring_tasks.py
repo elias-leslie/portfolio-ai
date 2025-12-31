@@ -374,7 +374,7 @@ def _calculate_rolling_metrics(
         "max_drawdown_30d": 0.0,
     }
 
-    if not rows or len(rows) == 0:
+    if not rows:
         # No trades in window
         return empty_metrics
 

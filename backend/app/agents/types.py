@@ -6,7 +6,17 @@ replacing loose dict[str, Any] with properly typed structures.
 
 from __future__ import annotations
 
+from enum import Enum
 from typing import TypedDict
+
+
+class AgentRunStatus(str, Enum):
+    """Status values for agent runs."""
+
+    RUNNING = "running"
+    COMPLETED = "completed"
+    ERROR = "error"
+    MAX_ITERATIONS = "max_iterations"
 
 
 class ToolInputDict(TypedDict, total=False):

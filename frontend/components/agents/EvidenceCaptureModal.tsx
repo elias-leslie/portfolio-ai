@@ -30,9 +30,7 @@ import {
   Crosshair,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-// SummitFlow API configuration
-const SUMMITFLOW_API = "/summitflow/api/projects/portfolio-ai";
+import { SUMMITFLOW_API } from "./constants";
 
 interface AcceptanceCriterion {
   id: string;

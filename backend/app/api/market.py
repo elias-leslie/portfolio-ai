@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from typing import Any, cast
+from typing import Any, Final, cast, get_args
 
 import yfinance as yf
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -96,15 +96,8 @@ price_fetcher = PriceDataFetcher(storage)
 # Market indicator symbols
 CORE_MARKET_SYMBOLS = ["^GSPC", "^VIX", "^TNX", "DX-Y.NYB"]
 
-# Valid market event types (must match MarketEventType Literal)
-VALID_EVENT_TYPES = {
-    "fomc_decision",
-    "cpi_release",
-    "nfp_release",
-    "fed_speech",
-    "pce_release",
-    "gdp_release",
-}
+# Valid market event types (derived from MarketEventType Literal)
+VALID_EVENT_TYPES: Final[frozenset[str]] = frozenset(get_args(MarketEventType))
 
 
 @dataclass

@@ -25,9 +25,7 @@ import {
 } from './wsHandlers';
 import { useWebSocketConnection, useSessionManagement, useAgentPanelUI } from './hooks';
 import { getServerUrl, getWsUrl } from '@/lib/server-url';
-
-// SummitFlow API configuration
-const SUMMITFLOW_API = "/summitflow/api/projects/portfolio-ai";
+import { SUMMITFLOW_API } from './constants';
 
 // AgentRole is now handled by ModeSelector
 
