@@ -14,6 +14,9 @@ from typing import TYPE_CHECKING, Any, TypedDict
 if TYPE_CHECKING:
     from celery import Task
 
+from psycopg.errors import OperationalError
+from requests.exceptions import RequestException
+
 from app.analytics.analyst_revisions import refresh_analyst_revisions_for_symbols
 from app.analytics.financial_health_scores import get_financial_health_scores
 from app.analytics.risk_metrics import calculate_symbol_beta, calculate_symbol_var
@@ -483,7 +486,7 @@ def _upsert_reference_cache(
     bind=True,
     name="refresh_yfinance_reference_data",
     max_retries=3,
-    autoretry_for=(Exception,),
+    autoretry_for=(RequestException, TimeoutError, OperationalError),
     retry_backoff=True,
     retry_backoff_max=600,
     retry_jitter=True,
