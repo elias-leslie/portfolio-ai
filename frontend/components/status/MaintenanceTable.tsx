@@ -37,10 +37,9 @@ import {
 } from "@/lib/api/maintenance";
 import { useMaintenanceData } from "@/lib/hooks/useMaintenanceData";
 import { useMaintenanceBackupCheck } from "@/lib/hooks/useMaintenanceBackupCheck";
-import { toast } from "sonner";
+import { useMaintenanceTaskRunner } from "@/lib/hooks/useMaintenanceTaskRunner";
 import {
   TASK_CONFIGS,
-  DB_TASK_DIALOG_CONFIGS,
   DB_TASK_API_FUNCTIONS,
   getTaskIcon,
   type TaskConfig,
@@ -52,7 +51,6 @@ import {
   getCategoryBadge,
   type TaskCategory,
 } from "@/lib/maintenance/formatters";
-import { shouldShowDialog } from "@/lib/utils/dialog-helpers";
 
 // Unified task interface
 interface MaintenanceTask {
@@ -91,11 +89,27 @@ export function MaintenanceTable() {
   } = useMaintenanceData();
 
   // Additional local state
-  const [triggeringTask, setTriggeringTask] = useState<string | null>(null);
   const [dryRun, setDryRun] = useState(true);
 
   // Backup check hook
   const { backupCheck, isCheckingBackup } = useMaintenanceBackupCheck(dryRun);
+
+  // Task runner hook
+  const { triggeringTask, triggerTask } = useMaintenanceTaskRunner(
+    dryRun,
+    backupCheck,
+    {
+      onTaskComplete: () => fetchAllData(),
+      onShowDialog: (config) => {
+        setActionDialogConfig(config);
+        setActionDialogOpen(true);
+      },
+      onShowTaskResult: (result) => {
+        setTaskResult(result);
+        setTaskResultOpen(true);
+      },
+    }
+  );
   const [categoryFilter, setCategoryFilter] = useState<TaskCategory | "all">("all");
   const [sortKey, setSortKey] = useState<SortKey>("category");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
@@ -238,96 +252,6 @@ export function MaintenanceTable() {
     }
   };
 
-  // File cleanup trigger handler
-  const handleFileCleanupTrigger = async (taskName: string, supportsDryRun: boolean = false) => {
-    setTriggeringTask(taskName);
-    const useDryRun = dryRun && supportsDryRun;
-    try {
-      const result = await triggerMaintenanceTask(taskName, {
-        dryRun: useDryRun,
-        waitForResult: true,
-        timeout: 60,
-      });
-
-      if (result.result) {
-        setTaskResult({
-          taskName,
-          dryRun: useDryRun,
-          result: result.result as Record<string, unknown>,
-        });
-        setTaskResultOpen(true);
-      }
-
-      const isDry = useDryRun ? " (dry run)" : "";
-      if (result.status === "completed") {
-        toast.success(`${taskName}${isDry}: ${result.message}`);
-      } else if (result.status === "timeout") {
-        toast.warning(`${taskName}${isDry}: Still running...`);
-      } else {
-        toast.success(result.message);
-      }
-
-      if (!useDryRun) {
-        setTimeout(fetchAllData, 2000);
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to trigger task";
-      toast.error(`Failed to trigger ${taskName}: ${message}`);
-    } finally {
-      setTriggeringTask(null);
-    }
-  };
-
-  const handleDatabaseTask = async (taskId: string) => {
-    const config = DB_TASK_DIALOG_CONFIGS[taskId];
-    const apiFunc = DB_TASK_API_FUNCTIONS[taskId];
-    if (!config || !apiFunc) return;
-
-    setTriggeringTask(taskId);
-    try {
-      const result = await apiFunc(dryRun);
-      const extracted = config.successExtractor(result);
-      const action = dryRun ? "would be processed" : "processed";
-      toast.success(`${config.title} ${result.status}: ${extracted} ${action}`);
-      await fetchAllData();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed";
-      toast.error(`${config.title} failed: ${message}`);
-    } finally {
-      setTriggeringTask(null);
-    }
-  };
-
-  // Trigger task with appropriate handler
-  const triggerTask = (task: MaintenanceTask) => {
-    const liveBlocked = !dryRun && backupCheck !== null && !backupCheck.canProceed;
-
-    if (liveBlocked && task.isDbTask) {
-      toast.error(`Cannot run: ${backupCheck?.blockingReason}`);
-      return;
-    }
-
-    // Database tasks have special handlers with dialog config
-    const dbConfig = DB_TASK_DIALOG_CONFIGS[task.id];
-    if (dbConfig) {
-      if (shouldShowDialog(dbConfig.storageKey, !dryRun)) {
-        setActionDialogConfig({
-          title: dbConfig.title,
-          description: dryRun ? dbConfig.dryRunDescription : dbConfig.liveDescription,
-          actionLabel: dryRun ? dbConfig.dryRunLabel : dbConfig.liveLabel,
-          onConfirm: () => handleDatabaseTask(task.id),
-          storageKey: dryRun ? dbConfig.storageKey : undefined,
-        });
-        setActionDialogOpen(true);
-      } else {
-        handleDatabaseTask(task.id);
-      }
-    } else {
-      // Regular file/data cleanup tasks
-      handleFileCleanupTrigger(task.taskName, task.supportsDryRun ?? false);
-    }
-  };
-
   // Run all tasks and collect results
   const handleRunAll = async () => {
     setIsRunningAll(true);
@@ -345,8 +269,6 @@ export function MaintenanceTable() {
         });
         continue;
       }
-
-      setTriggeringTask(task.taskName);
 
       try {
         let taskResult: Record<string, unknown> | null = null;
@@ -383,7 +305,6 @@ export function MaintenanceTable() {
       }
     }
 
-    setTriggeringTask(null);
     setIsRunningAll(false);
     setBatchResults(results);
     setBatchResultsOpen(true);
