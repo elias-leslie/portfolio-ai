@@ -96,6 +96,11 @@ price_fetcher = PriceDataFetcher(storage)
 # Market indicator symbols
 CORE_MARKET_SYMBOLS = ["^GSPC", "^VIX", "^TNX", "DX-Y.NYB"]
 
+# Valid market event types (must match MarketEventType Literal)
+VALID_EVENT_TYPES = {
+    "fomc_decision", "cpi_release", "nfp_release", "fed_speech", "pce_release", "gdp_release"
+}
+
 
 @dataclass
 class CoreMarketData:
@@ -831,8 +836,17 @@ async def get_market_events(
     start = date.fromisoformat(start_date) if start_date else None
     end = date.fromisoformat(end_date) if end_date else None
 
-    # Parse event types
-    types_list = cast(list[MarketEventType], event_types.split(",")) if event_types else None
+    # Parse and validate event types
+    types_list = None
+    if event_types:
+        parsed_types = [t.strip() for t in event_types.split(",")]
+        invalid_types = [t for t in parsed_types if t not in VALID_EVENT_TYPES]
+        if invalid_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid event type(s): {', '.join(invalid_types)}. Valid types: {', '.join(sorted(VALID_EVENT_TYPES))}"
+            )
+        types_list = cast(list[MarketEventType], parsed_types)
 
     response = svc_get_events(
         start_date=start,
@@ -924,6 +938,13 @@ async def create_market_event(
     Returns:
         Created event with ID
     """
+    # Validate event type
+    if event_type not in VALID_EVENT_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid event_type: {event_type}. Valid types: {', '.join(sorted(VALID_EVENT_TYPES))}"
+        )
+
     event = MarketEventCreate(
         event_type=cast(MarketEventType, event_type),
         event_date=event_date,

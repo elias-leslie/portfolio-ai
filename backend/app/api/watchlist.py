@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 
 from app.agents.multi_reviewer import DualReviewResult, MultiReviewer, ProviderReview
 from app.agents.strategy_reviewer import StrategyReviewer
+from app.api.utils import require_nonempty_df
 from app.logging_config import get_logger
 from app.middleware.cache import cache_response
 from app.storage import get_storage
@@ -391,8 +392,7 @@ async def update_watchlist_item(item_id: str, data: WatchlistItemUpdate) -> Watc
         # Check if exists
         items_df = watchlist_repo.get_item_by_id(item_id)
 
-        if items_df.is_empty():
-            raise HTTPException(status_code=404, detail="Watchlist item not found")
+        require_nonempty_df(items_df, "Watchlist item not found")
 
         now = utc_now_iso()
 
@@ -422,8 +422,7 @@ async def delete_watchlist_item(item_id: str) -> None:
         # Check if exists
         items_df = watchlist_repo.get_item_by_id(item_id)
 
-        if items_df.is_empty():
-            raise HTTPException(status_code=404, detail="Watchlist item not found")
+        require_nonempty_df(items_df, "Watchlist item not found")
 
         # Delete snapshots first (foreign key), then delete item
         watchlist_repo.delete_item(item_id)
@@ -457,8 +456,7 @@ async def get_score_history(item_id: str, days: int = 10) -> ScoreHistoryRespons
         # Get item info
         item_df = watchlist_repo.get_symbol_by_item_id(item_id)
 
-        if item_df.is_empty():
-            raise HTTPException(status_code=404, detail="Watchlist item not found")
+        require_nonempty_df(item_df, "Watchlist item not found")
 
         symbol = item_df.to_dicts()[0]["symbol"]
 
@@ -630,16 +628,14 @@ async def review_strategy_signal(item_id: str, dual: bool = True) -> dict[str, o
         # Fetch watchlist item
         items_df = watchlist_repo.get_item_with_snapshots(item_id)
 
-        if items_df.is_empty():
-            raise HTTPException(status_code=404, detail=f"Watchlist item {item_id} not found")
+        require_nonempty_df(items_df, f"Watchlist item {item_id} not found")
 
         # Get latest snapshot
         snapshots_df = watchlist_repo.get_latest_snapshot_for_review(item_id)
 
-        if snapshots_df.is_empty():
-            raise HTTPException(
-                status_code=404, detail=f"No snapshot found for item {item_id}. Run refresh first."
-            )
+        require_nonempty_df(
+            snapshots_df, f"No snapshot found for item {item_id}. Run refresh first."
+        )
 
         # Parse snapshot and build signal data using helper
         snapshot_row = snapshots_df.to_dicts()[0]
