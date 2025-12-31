@@ -74,8 +74,7 @@ def _generate_strategies_batch(
     """Generate strategies for a batch of symbols.
 
     Common helper to iterate over symbols and generate strategies,
-    used by weekly_strategy_generation, daily_strategy_refresh, and
-    trigger_strategies_for_top_watchlist.
+    used by weekly_strategy_generation and similar tasks.
 
     Args:
         symbols: List of symbols to process
@@ -646,36 +645,52 @@ def daily_strategy_refresh(max_symbols: int = 5) -> dict[str, Any]:
 
         logger.info(f"Found {len(symbols_to_generate)} symbols needing strategies")
 
-        results = []
-        generated_count = 0
-
+        # Separate symbols by force_regenerate flag
+        underperforming_symbols = []
+        missing_symbols = []
         for row in symbols_to_generate:
-            if generated_count >= max_symbols:
-                break
-
             symbol = str(row[0])
             reason = row[2]
+            if reason == "underperforming":
+                underperforming_symbols.append(symbol)
+            else:
+                missing_symbols.append(symbol)
 
-            # Force regenerate if underperforming
-            force = reason == "underperforming"
+        # Generate strategies using shared helper (in priority order)
+        all_results = []
+        total_generated = 0
 
-            logger.info(f"Generating strategy for {symbol} (reason: {reason})")
-            msg, result = _run_strategy_workflow(symbol, force_regenerate=force)
-            results.append(msg)
-            if result and result["status"] == "completed":
-                generated_count += 1
+        # First, regenerate underperforming strategies (force=True)
+        if underperforming_symbols and total_generated < max_symbols:
+            batch_result = _generate_strategies_batch(
+                symbols=underperforming_symbols,
+                max_count=max_symbols - total_generated,
+                force_regenerate=True,
+            )
+            all_results.extend(batch_result["results"])
+            total_generated += batch_result["generated_count"]
+
+        # Then, generate missing strategies (force=False)
+        if missing_symbols and total_generated < max_symbols:
+            batch_result = _generate_strategies_batch(
+                symbols=missing_symbols,
+                max_count=max_symbols - total_generated,
+                force_regenerate=False,
+            )
+            all_results.extend(batch_result["results"])
+            total_generated += batch_result["generated_count"]
 
         logger.info(
             "Daily strategy refresh complete",
             symbols_evaluated=len(symbols_to_generate),
-            strategies_generated=generated_count,
+            strategies_generated=total_generated,
         )
 
         return {
             "status": "completed",
             "symbols_evaluated": len(symbols_to_generate),
-            "strategies_generated": generated_count,
-            "details": results,
+            "strategies_generated": total_generated,
+            "details": all_results,
         }
 
     except Exception as e:
@@ -849,45 +864,38 @@ def trigger_strategies_for_top_watchlist(
             logger.info("trigger_strategies_no_watchlist_symbols")
             return {"status": "completed", "generated": 0, "reason": "No watchlist symbols"}
 
-        generated_count = 0
-        results = []
-
+        # Filter to symbols without active strategies
+        symbols_to_generate = []
         for symbol in top_symbols:
-            if generated_count >= remaining_budget:
-                break
-
-            # Check if active strategy exists
             existing = strategy_storage.get_active_strategy(symbol)
             if existing:
                 logger.debug(f"Skipping {symbol}: active strategy exists")
-                continue
+            else:
+                symbols_to_generate.append(symbol)
 
-            # Generate strategy
-            logger.info(f"Auto-generating strategy for {symbol}")
-            msg, result = _run_strategy_workflow(symbol, force_regenerate=False)
-            results.append(msg)
+        # Generate strategies using shared helper
+        # Note: Rate limit tracking is done post-generation
+        batch_result = _generate_strategies_batch(
+            symbols=symbols_to_generate,
+            max_count=remaining_budget,
+            force_regenerate=False,
+        )
 
-            if result and result["status"] == "completed":
-                generated_count += 1
-                # Increment daily rate limit counter
-                increment_daily_count("strategy_gen_daily")
-                logger.info(
-                    "strategy_auto_generated",
-                    symbol=symbol,
-                    strategy_id=result.get("strategy_id"),
-                )
+        # Update rate limit counter for successful generations
+        for _ in range(batch_result["generated_count"]):
+            increment_daily_count("strategy_gen_daily")
 
         logger.info(
             "trigger_strategies_for_top_watchlist_completed",
-            generated=generated_count,
-            remaining_budget=remaining_budget - generated_count,
+            generated=batch_result["generated_count"],
+            remaining_budget=remaining_budget - batch_result["generated_count"],
         )
 
         return {
             "status": "completed",
-            "generated": generated_count,
+            "generated": batch_result["generated_count"],
             "checked": len(top_symbols),
-            "details": results,
+            "details": batch_result["results"],
         }
 
     except Exception as e:
