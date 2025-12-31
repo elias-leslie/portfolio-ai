@@ -8,7 +8,7 @@ from typing import Any
 from app.api.market_data_sources import calculate_daily_change_pct
 from app.api.market_responses import SectorDataPoint, SectorHistory
 from app.constants import SECTOR_ETFS
-from app.storage import BaseStorage
+from app.storage import PortfolioStorage
 
 
 def build_indicator_data_points(
@@ -143,7 +143,7 @@ def enrich_indicator_with_history(
     indicator_data: Any,
     symbol: str,
     enrich_func: Any,
-    storage: BaseStorage,
+    storage: PortfolioStorage,
     health_score_data: Any,
     actual_data_dates: dict[str, Any],
 ) -> dict[str, Any]:

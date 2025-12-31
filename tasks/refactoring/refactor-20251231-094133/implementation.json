@@ -462,7 +462,7 @@
             "Run pytest tests/unit/tasks/test_strategy_monitoring_tasks.py if exists"
           ],
           "verification": "grep -c 'conn.execute' backend/app/tasks/strategy_monitoring_tasks.py should be reduced",
-          "passes": false
+          "passes": true
         }
       ]
     },
