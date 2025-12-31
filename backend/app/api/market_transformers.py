@@ -137,3 +137,37 @@ def get_sector_symbols() -> list[str]:
         List of sector ETF symbols
     """
     return list(SECTOR_ETFS.keys())
+
+
+def enrich_indicator_with_history(
+    indicator_data: Any,
+    symbol: str,
+    enrich_func: Any,
+    storage: BaseStorage,
+    health_score_data: Any,
+    actual_data_dates: dict[str, Any],
+) -> dict[str, Any]:
+    """Enrich indicator data with historical change and actual timestamp.
+
+    Args:
+        indicator_data: Raw indicator data from price fetcher
+        symbol: Market symbol (e.g., "^VIX", "^GSPC")
+        enrich_func: Intelligence function to enrich the indicator
+        storage: Storage instance for fetching historical data
+        health_score_data: Market health score data
+        actual_data_dates: Mapping of symbols to actual data timestamps
+
+    Returns:
+        Enriched indicator dict with history
+    """
+    # Calculate daily change percentage from day_bars historical data
+    change_pct = calculate_daily_change_pct(storage, symbol, indicator_data.price)
+
+    # Get actual data timestamp (from day_bars) instead of cache timestamp
+    actual_timestamp = actual_data_dates.get(symbol)
+    if actual_timestamp:
+        # Temporarily override cached_at with actual data date
+        indicator_data.cached_at = actual_timestamp
+
+    # Call the appropriate enrich function
+    return enrich_func(indicator_data, health_score_data, change_pct=change_pct)
