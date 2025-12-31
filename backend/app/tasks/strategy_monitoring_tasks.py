@@ -7,6 +7,7 @@ Runs daily to track live performance vs expected metrics.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Literal
@@ -914,110 +915,78 @@ def trigger_strategy_from_seed(seed_id: str, symbol: str) -> dict[str, Any]:
         Summary dict with generation result
     """
     logger.info(f"Generating strategy from seed {seed_id} for {symbol}")
+    storage = get_strategy_storage()
 
     try:
-        with get_connection_manager().connection() as conn:
-            # Get seed details
-            seed_row = conn.execute(
-                "SELECT thesis, confidence FROM strategy_seeds WHERE id = %s",
-                [seed_id],
-            ).fetchone()
+        # Get seed details from storage layer
+        seed_data = storage.get_strategy_seed(seed_id)
 
-            if not seed_row:
-                logger.error(f"Seed {seed_id} not found")
-                return {"status": "failed", "error": f"Seed {seed_id} not found"}
+        if not seed_data:
+            logger.error(f"Seed {seed_id} not found")
+            return {"status": "failed", "error": f"Seed {seed_id} not found"}
 
-            seed_thesis = str(seed_row[0]) if seed_row[0] else ""
-            seed_confidence = float(seed_row[1]) if seed_row[1] is not None else 0.0
+        seed_thesis, seed_confidence = seed_data
 
-            logger.info(
-                f"Processing seed: symbol={symbol}, confidence={seed_confidence}, "
-                f"thesis={seed_thesis[:100] if seed_thesis else ''}..."
-            )
+        logger.info(
+            f"Processing seed: symbol={symbol}, confidence={seed_confidence}, "
+            f"thesis={seed_thesis[:100] if seed_thesis else ''}..."
+        )
 
-            # Run strategy workflow using shared helper
-            _msg, result = _run_strategy_workflow(symbol, force_regenerate=False)
+        # Run strategy workflow using shared helper
+        _msg, result = _run_strategy_workflow(symbol, force_regenerate=False)
 
-            if result and result["status"] == "completed":
-                strategy_id = result.get("strategy_id")
+        if result and result["status"] == "completed":
+            strategy_id = result.get("strategy_id")
 
-                # Link strategy back to seed
-                if strategy_id:
-                    conn.execute(
-                        """
-                        UPDATE strategy_definitions
-                        SET seed_id = %s, seed_thesis = %s, seed_confidence = %s
-                        WHERE id = %s
-                        """,
-                        [seed_id, seed_thesis, seed_confidence, strategy_id],
-                    )
+            # Link strategy back to seed via storage layer
+            if strategy_id:
+                storage.link_strategy_to_seed(
+                    strategy_id=strategy_id,
+                    seed_id=seed_id,
+                    seed_thesis=seed_thesis,
+                    seed_confidence=seed_confidence,
+                )
 
-                    # Update seed status to converted
-                    conn.execute(
-                        """
-                        UPDATE strategy_seeds
-                        SET status = 'converted', strategy_id = %s, processed_at = NOW()
-                        WHERE id = %s
-                        """,
-                        [strategy_id, seed_id],
-                    )
-                    conn.commit()
-
-                    logger.info(
-                        f"Strategy {strategy_id} generated from seed {seed_id}",
-                        symbol=symbol,
-                        seed_confidence=seed_confidence,
-                    )
-
-                return {
-                    "status": "completed",
-                    "seed_id": seed_id,
-                    "strategy_id": strategy_id,
-                    "symbol": symbol,
-                    "message": f"Strategy generated from seed (confidence: {seed_confidence})",
-                }
-
-            # Strategy not generated (blocked, skipped, or error)
-            conn.execute(
-                """
-                UPDATE strategy_seeds
-                SET status = 'rejected', processed_at = NOW()
-                WHERE id = %s
-                """,
-                [seed_id],
-            )
-            conn.commit()
-
-            reason = (
-                result.get("message", result.get("status", "unknown"))
-                if result
-                else "workflow error"
-            )
-            logger.info(
-                f"Seed {seed_id} rejected: {reason}",
-                symbol=symbol,
-                workflow_status=result["status"] if result else "error",
-            )
+                logger.info(
+                    f"Strategy {strategy_id} generated from seed {seed_id}",
+                    symbol=symbol,
+                    seed_confidence=seed_confidence,
+                )
 
             return {
-                "status": "rejected",
+                "status": "completed",
                 "seed_id": seed_id,
+                "strategy_id": strategy_id,
                 "symbol": symbol,
-                "reason": reason,
+                "message": f"Strategy generated from seed (confidence: {seed_confidence})",
             }
+
+        # Strategy not generated (blocked, skipped, or error)
+        storage.reject_seed(seed_id)
+
+        reason = (
+            result.get("message", result.get("status", "unknown"))
+            if result
+            else "workflow error"
+        )
+        logger.info(
+            f"Seed {seed_id} rejected: {reason}",
+            symbol=symbol,
+            workflow_status=result["status"] if result else "error",
+        )
+
+        return {
+            "status": "rejected",
+            "seed_id": seed_id,
+            "symbol": symbol,
+            "reason": reason,
+        }
 
     except Exception as e:
         logger.exception("Strategy generation from seed failed", seed_id=seed_id, error=str(e))
 
         # Mark seed as failed but don't crash
-        try:
-            with get_connection_manager().connection() as conn:
-                conn.execute(
-                    "UPDATE strategy_seeds SET status = 'rejected', processed_at = NOW() WHERE id = %s",
-                    [seed_id],
-                )
-                conn.commit()
-        except Exception:
-            pass
+        with contextlib.suppress(Exception):
+            storage.reject_seed(seed_id)
 
         return {"status": "failed", "seed_id": seed_id, "error": str(e)}
