@@ -195,30 +195,22 @@ async def get_market_conditions(request: Request) -> MarketConditionsResponse:
 
     return MarketConditionsResponse(
         sp500={
-            "price": market_data.sp500_data.price if market_data.sp500_data else None,
+            "price": _extract_price(market_data.sp500_data),
             "change_pct": None,  # Would need historical data
-            "last_updated": market_data.sp500_data.cached_at.isoformat()
-            if market_data.sp500_data
-            else None,
+            "last_updated": _extract_timestamp(market_data.sp500_data),
         },
         vix={
-            "price": market_data.vix_data.price if market_data.vix_data else None,
+            "price": _extract_price(market_data.vix_data),
             "level": None,
-            "last_updated": market_data.vix_data.cached_at.isoformat()
-            if market_data.vix_data
-            else None,
+            "last_updated": _extract_timestamp(market_data.vix_data),
         },
         tnx={
-            "yield": market_data.tnx_data.price if market_data.tnx_data else None,
-            "last_updated": market_data.tnx_data.cached_at.isoformat()
-            if market_data.tnx_data
-            else None,
+            "yield": _extract_price(market_data.tnx_data),
+            "last_updated": _extract_timestamp(market_data.tnx_data),
         },
         dxy={
-            "price": market_data.dxy_data.price if market_data.dxy_data else None,
-            "last_updated": market_data.dxy_data.cached_at.isoformat()
-            if market_data.dxy_data
-            else None,
+            "price": _extract_price(market_data.dxy_data),
+            "last_updated": _extract_timestamp(market_data.dxy_data),
         },
         health=health_score,
     )
@@ -286,10 +278,10 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
 
     # Calculate market health score (existing logic)
     health_score_data = calculate_market_health(
-        vix_price=market_data.vix_data.price if market_data.vix_data else None,
-        sp500_price=market_data.sp500_data.price if market_data.sp500_data else None,
-        tnx_yield=market_data.tnx_data.price if market_data.tnx_data else None,
-        dxy_price=market_data.dxy_data.price if market_data.dxy_data else None,
+        vix_price=_extract_price(market_data.vix_data),
+        sp500_price=_extract_price(market_data.sp500_data),
+        tnx_yield=_extract_price(market_data.tnx_data),
+        dxy_price=_extract_price(market_data.dxy_data),
         sector_data={
             symbol: (price, change_pct, timestamp)
             for symbol, price, change_pct, timestamp in sector_data_list

@@ -274,13 +274,7 @@ def cleanup_old_logs_task(self: Task, days: int = 7, dry_run: bool = False) -> d
         cutoff_time = dt.datetime.now(dt.UTC) - dt.timedelta(days=days)
         cutoff_timestamp = cutoff_time.timestamp()
 
-        # Backend logs directory (actual log location)
-        backend_logs = Path(__file__).parent.parent.parent / "logs"
-        log_dirs = [
-            backend_logs,  # Primary: ~/portfolio-ai/backend/logs/
-            Path("/tmp"),  # Secondary: temp logs
-            Path("/var/log/portfolio-ai"),  # Legacy: system logs (if exists)
-        ]
+        log_dirs = _get_log_directories()
 
         for log_dir in log_dirs:
             if not log_dir.exists():

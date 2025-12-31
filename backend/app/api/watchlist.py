@@ -494,9 +494,7 @@ async def delete_watchlist_item(item_id: str) -> None:
         item_id: Watchlist item ID
     """
     # Check if exists
-    items_df = watchlist_repo.get_item_by_id(item_id)
-
-    require_nonempty_df(items_df, "Watchlist item not found")
+    _require_watchlist_item(item_id, watchlist_repo)
 
     # Delete snapshots first (foreign key), then delete item
     watchlist_repo.delete_item(item_id)
