@@ -105,7 +105,7 @@ def _store_strategy_review(
         is_valid=review.is_valid,
         disagreement=review.disagreement,
         token_usage_json=json.dumps(review.usage),
-        created_at=datetime.now(UTC),
+        created_at=utc_now_iso(),
         pair_id=pair_id,
         severity=severity,
         agreement=agreement,
@@ -166,7 +166,7 @@ def _store_legacy_review(
         if review_result.get("disagreement")
         else None,
         token_usage_json=json.dumps(review_result["usage"]),
-        created_at=datetime.now(UTC),
+        created_at=utc_now_iso(),
     )
     return review_id
 

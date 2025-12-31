@@ -291,7 +291,7 @@ class WatchlistRepository:
         is_valid: bool,
         disagreement: bool | None,
         token_usage_json: str,
-        created_at: datetime,
+        created_at: str,
         pair_id: str | None = None,
         severity: str | None = None,
         agreement: float | None = None,
@@ -309,7 +309,7 @@ class WatchlistRepository:
             is_valid: Whether the signal is valid
             disagreement: Whether LLM disagrees with signal
             token_usage_json: JSON string of token usage
-            created_at: Creation timestamp
+            created_at: ISO format creation timestamp (from utc_now_iso())
             pair_id: Review pair ID for dual reviews
             severity: Disagreement severity
             agreement: Agreement score
