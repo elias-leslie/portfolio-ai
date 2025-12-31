@@ -53,10 +53,6 @@ def _build_error_result(
     return result
 
 
-# Time calculation constants
-SECONDS_PER_DAY = 86400
-
-
 def _calculate_cutoff_timestamp(
     days: int | None = None,
     hours: int | None = None,
@@ -78,19 +74,6 @@ def _calculate_cutoff_timestamp(
         # Default to 30 days
         cutoff_time = dt.datetime.now(dt.UTC) - dt.timedelta(days=30)
     return cutoff_time, cutoff_time.timestamp()
-
-
-def _calculate_file_age_days(file_mtime: float) -> float:
-    """Calculate file age in days from its mtime.
-
-    Args:
-        file_mtime: File modification time as timestamp
-
-    Returns:
-        Age in days
-    """
-    now = dt.datetime.now(dt.UTC).timestamp()
-    return (now - file_mtime) / SECONDS_PER_DAY
 
 
 def _check_disk_space_impl() -> dict[str, Any]:
