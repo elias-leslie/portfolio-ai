@@ -159,7 +159,7 @@
             "Run ruff check and pytest tests/unit/services/test_sitemap_service.py if exists"
           ],
           "verification": "grep -n '_should_skip_entry' backend/app/services/sitemap_service.py | wc -l should be 0",
-          "passes": false
+          "passes": true
         },
         {
           "id": "2.2",

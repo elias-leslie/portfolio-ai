@@ -225,11 +225,11 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         },
         "calculate-fear-greed-daily": {
             "task": "calculate_fear_greed",
-            "schedule": crontab(hour=3, minute=0),  # Daily at 03:00 UTC
+            "schedule": crontab(hour=3, minute=2),  # Daily at 03:02 UTC (staggered from 3:00)
             "args": [None],  # Calculate for latest available date
             "options": {"expires": EXPIRY_1_HOUR},  # Task expires after 1 hour
             # Notes:
-            # - Runs daily at 03:00 UTC (after populate-fear-greed-inputs completes at 02:45)
+            # - Runs daily at 03:02 UTC (after populate-fear-greed-inputs completes at 02:45)
             # - Calculates Fear & Greed Index from inputs table
             # - Uses 252-day rolling window for percentile rankings
             # - Must run after populate-fear-greed-inputs-daily completes
@@ -481,9 +481,15 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
             # - Overwrites market-open value with end-of-day data
             # - Stores put_call_ratio in fear_greed_inputs table
         },
+        # Note: Tasks at 03:XX UTC are deliberately staggered to prevent resource contention:
+        # - 03:00 scan-system-capabilities (anchor)
+        # - 03:02 calculate-fear-greed-daily
+        # - 03:05 monitor-thesis-health-daily, scan-feature-capabilities
+        # - 03:08 daily-rules-validation
+        # - 03:10 weekly-optimization-review (Monday only)
         "scan-system-capabilities": {
             "task": "scan_system_capabilities",
-            "schedule": crontab(hour=3, minute=0),  # Daily at 03:00 UTC
+            "schedule": crontab(hour=3, minute=0),  # Daily at 03:00 UTC (anchor for staggered tasks)
             "options": {"expires": EXPIRY_30_MIN},  # Task expires after 30 minutes
             # Notes:
             # - Runs daily at 03:00 UTC (after data refresh tasks complete)
@@ -889,7 +895,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         # ============================================================================
         "daily-rules-validation": {
             "task": "daily_rules_validation",
-            "schedule": crontab(hour=3, minute=0),  # Daily at 03:00 UTC
+            "schedule": crontab(hour=3, minute=8),  # Daily at 03:08 UTC (staggered from 3:00)
             "options": {"expires": EXPIRY_10_MIN},
             # Notes:
             # - Validates all trading rules for logical consistency
@@ -899,7 +905,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         },
         "weekly-optimization-review": {
             "task": "weekly_optimization_review",
-            "schedule": crontab(hour=3, minute=0, day_of_week=1),  # Monday 03:00 UTC
+            "schedule": crontab(hour=3, minute=10, day_of_week=1),  # Monday 03:10 UTC (staggered)
             "options": {"expires": EXPIRY_30_MIN},
             # Notes:
             # - Analyzes recent trading performance vs rules configuration
@@ -947,14 +953,14 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         # ============================================================================
         "monitor-thesis-health-daily": {
             "task": "monitor_thesis_health",
-            "schedule": crontab(hour=3, minute=0),  # Daily at 03:00 UTC
+            "schedule": crontab(hour=3, minute=5),  # Daily at 03:05 UTC (staggered from 3:00)
             "options": {"expires": EXPIRY_30_MIN},  # 30-minute expiry
             # Notes:
             # - Evaluates invalidation triggers for all active theses
             # - Critical triggers (signal change, low cross-val): Invalidate thesis
             # - Non-critical triggers (sentiment shift): Flag for review
             # - Logs all actions to maintenance_log for audit trail
-            # - Runs after fear/greed calculation (02:45-03:00)
+            # - Runs after fear/greed calculation (02:45-03:02)
         },
         "process-invalidated-theses-daily": {
             "task": "process_invalidated_theses",
