@@ -110,9 +110,7 @@ def _interpret_response(
     return False, None
 
 
-def _build_check_url(
-    path: str, port: int, frontend_port: int
-) -> tuple[str, bool]:
+def _build_check_url(path: str, port: int, frontend_port: int) -> tuple[str, bool]:
     """Build URL for health check, substituting path parameters.
 
     Args:

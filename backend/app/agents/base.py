@@ -255,11 +255,13 @@ class Agent(ABC):
         self._record_tool_call(run_id, tool_name, tool_params, result, duration_ms)
 
         # Append to accumulated records
-        tool_calls_made.append({
-            "name": tool_name,
-            "input": tool_params,
-            "result": result,
-        })
+        tool_calls_made.append(
+            {
+                "name": tool_name,
+                "input": tool_params,
+                "result": result,
+            }
+        )
 
         return {"result": result, "duration_ms": duration_ms}
 
@@ -588,9 +590,7 @@ class Agent(ABC):
                 )
 
         # Max iterations reached
-        return self._handle_max_iterations(
-            run_id, started_at, max_iterations, tool_calls_made
-        )
+        return self._handle_max_iterations(run_id, started_at, max_iterations, tool_calls_made)
 
     def _process_tool_calls_llm(
         self,

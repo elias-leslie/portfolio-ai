@@ -10,7 +10,7 @@ from typing import Literal
 
 # Performance variance thresholds
 EXCEEDING_THRESHOLD = 0.9  # >= 90% of expected Sharpe
-MEETING_THRESHOLD = 0.7    # >= 70% of expected Sharpe
+MEETING_THRESHOLD = 0.7  # >= 70% of expected Sharpe
 
 PerformanceFlag = Literal["exceeding", "meeting", "underperforming", "no_data"]
 

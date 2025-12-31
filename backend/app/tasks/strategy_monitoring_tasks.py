@@ -46,14 +46,21 @@ def _run_strategy_workflow(
     from app.agents.workflows.strategy_research_workflow import strategy_research_workflow
 
     try:
-        result = asyncio.run(strategy_research_workflow(symbol=symbol, force_regenerate=force_regenerate))
+        result = asyncio.run(
+            strategy_research_workflow(symbol=symbol, force_regenerate=force_regenerate)
+        )
 
         if result["status"] == "completed":
             strategy_id = result.get("strategy_id", "unknown")
             logger.info("Strategy generated successfully", symbol=symbol, strategy_id=strategy_id)
             return f"Generated strategy for {symbol}: {strategy_id}", result
         msg = result.get("message", "unknown reason")
-        logger.info("Strategy generation skipped/blocked", symbol=symbol, status=result["status"], message=msg)
+        logger.info(
+            "Strategy generation skipped/blocked",
+            symbol=symbol,
+            status=result["status"],
+            message=msg,
+        )
         return f"Skipped {symbol}: {msg}", result
 
     except Exception as e:
@@ -93,9 +100,7 @@ def _evaluate_single_strategy(
         Tuple of (result_message_or_none, was_archived)
     """
     # Calculate rolling metrics from paper_trade_transactions
-    metrics = _calculate_rolling_metrics(
-        conn, strategy.id, window_days=DEFAULT_ROLLING_WINDOW_DAYS
-    )
+    metrics = _calculate_rolling_metrics(conn, strategy.id, window_days=DEFAULT_ROLLING_WINDOW_DAYS)
 
     # Compare to expected metrics
     expected_sharpe = float(strategy.expected_sharpe or 0.0)
@@ -104,9 +109,7 @@ def _evaluate_single_strategy(
 
     # Determine status
     days_since_activation = (
-        (datetime.now() - strategy.activation_date).days
-        if strategy.activation_date
-        else 0
+        (datetime.now() - strategy.activation_date).days if strategy.activation_date else 0
     )
 
     archived = False
@@ -152,7 +155,9 @@ def _evaluate_single_strategy(
         sharpe_ratio_30d=actual_sharpe,
         max_drawdown_30d=metrics["max_drawdown_30d"],
         status=status,
-        notes=f"Performance ratio: {performance_ratio:.2f}" if status == "underperforming" else None,
+        notes=f"Performance ratio: {performance_ratio:.2f}"
+        if status == "underperforming"
+        else None,
     )
 
     logger.info(
@@ -959,7 +964,11 @@ def trigger_strategy_from_seed(seed_id: str, symbol: str) -> dict[str, Any]:
             )
             conn.commit()
 
-            reason = result.get("message", result.get("status", "unknown")) if result else "workflow error"
+            reason = (
+                result.get("message", result.get("status", "unknown"))
+                if result
+                else "workflow error"
+            )
             logger.info(
                 f"Seed {seed_id} rejected: {reason}",
                 symbol=symbol,

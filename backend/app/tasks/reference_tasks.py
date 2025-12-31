@@ -62,9 +62,7 @@ def _dual_write_metrics(
     # Build metrics table INSERT with ON CONFLICT
     all_columns = ["symbol", "as_of_date", *metrics_columns]
     placeholders = ", ".join(["%s"] * len(all_columns))
-    update_set = ", ".join(
-        f"{col} = EXCLUDED.{col}" for col in metrics_columns
-    )
+    update_set = ", ".join(f"{col} = EXCLUDED.{col}" for col in metrics_columns)
     update_set += ", updated_at = NOW()"
     conflict_clause = ", ".join(conflict_keys)
 
@@ -100,12 +98,16 @@ def _get_watchlist_symbols_or_early_return(
 
     if not symbols:
         logger.info(log_event)
-        return [], storage, {
-            "task_id": task_id,
-            "symbols_processed": 0,
-            secondary_metric_name: 0,
-            "duration_seconds": 0,
-        }
+        return (
+            [],
+            storage,
+            {
+                "task_id": task_id,
+                "symbols_processed": 0,
+                secondary_metric_name: 0,
+                "duration_seconds": 0,
+            },
+        )
 
     return symbols, storage, None
 
@@ -246,8 +248,13 @@ def _update_valuation_metrics(symbol: str, source: str, payload: dict[str, Any])
 
         # Dual-write using shared helper
         metrics_columns = [
-            "pe_ratio_trailing", "pe_ratio_forward", "ps_ratio",
-            "pb_ratio", "peg_ratio", "dividend_yield", "payout_ratio",
+            "pe_ratio_trailing",
+            "pe_ratio_forward",
+            "ps_ratio",
+            "pb_ratio",
+            "peg_ratio",
+            "dividend_yield",
+            "payout_ratio",
         ]
         metrics_values = [
             metrics.get("pe_ratio_trailing"),
@@ -800,7 +807,12 @@ def refresh_financial_health_scores(self: Task) -> dict[str, int | str]:
                             base_table_update_sql=base_update_sql,
                             base_table_params=[*score_values, symbol, symbol],
                             metrics_table="financial_health_scores",
-                            metrics_columns=["f_score", "f_score_components", "z_score", "z_score_zone"],
+                            metrics_columns=[
+                                "f_score",
+                                "f_score_components",
+                                "z_score",
+                                "z_score_zone",
+                            ],
                             metrics_values=score_values,
                             conflict_keys=["symbol", "as_of_date"],
                         )

@@ -111,7 +111,9 @@ def _classify_trend_strength(
     return "neutral"
 
 
-def _analyze_momentum(macd_data: dict[str, Any] | float) -> Literal["accelerating", "steady", "decelerating"]:
+def _analyze_momentum(
+    macd_data: dict[str, Any] | float,
+) -> Literal["accelerating", "steady", "decelerating"]:
     """Classify momentum using MACD histogram.
 
     Args:
@@ -452,9 +454,7 @@ class ResearchAggregationService:
             "confidence": confidence,
         }
 
-    def _calculate_trend_duration(
-        self, symbol: str, trend_strength: str, sma_20: float
-    ) -> int:
+    def _calculate_trend_duration(self, symbol: str, trend_strength: str, sma_20: float) -> int:
         """Calculate trend duration in days above/below key moving average.
 
         Args:
@@ -496,9 +496,7 @@ class ResearchAggregationService:
                     break
         return trend_duration_days
 
-    def _analyze_volume_profile(
-        self, symbol: str
-    ) -> Literal["increasing", "stable", "decreasing"]:
+    def _analyze_volume_profile(self, symbol: str) -> Literal["increasing", "stable", "decreasing"]:
         """Analyze volume profile by comparing recent to average volume.
 
         Args:

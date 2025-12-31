@@ -131,9 +131,7 @@ class HealthCheckStrategy:
         return None
 
     @classmethod
-    def get_check_decision(
-        cls, path: str, method: str, has_path_params: bool
-    ) -> CheckDecision:
+    def get_check_decision(cls, path: str, method: str, has_path_params: bool) -> CheckDecision:
         """Determine the check strategy for an endpoint.
 
         Args:

@@ -83,9 +83,7 @@ class MarketRepository:
             )
             return result.fetchall()
 
-    def get_fear_greed_history_data(
-        self, days: int
-    ) -> list[tuple[Any, ...]]:
+    def get_fear_greed_history_data(self, days: int) -> list[tuple[Any, ...]]:
         """Get Fear & Greed historical data with put/call ratio.
 
         Args:
@@ -107,9 +105,7 @@ class MarketRepository:
             )
             return result.fetchall()
 
-    def get_indicator_history_data(
-        self, symbol: str, days: int
-    ) -> list[tuple[Any, ...]]:
+    def get_indicator_history_data(self, symbol: str, days: int) -> list[tuple[Any, ...]]:
         """Get indicator historical data from day_bars.
 
         Args:
@@ -188,9 +184,7 @@ class MarketRepository:
         with self.storage.connection() as conn:
             return conn.execute(sql, params).fetchall()
 
-    def get_corporate_actions_summary(
-        self, symbol: str | None = None
-    ) -> list[tuple[Any, ...]]:
+    def get_corporate_actions_summary(self, symbol: str | None = None) -> list[tuple[Any, ...]]:
         """Get summary of corporate actions by symbol.
 
         Args:

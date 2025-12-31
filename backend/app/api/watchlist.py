@@ -114,7 +114,9 @@ def _store_strategy_review(
     return review_id
 
 
-def _build_signal_data_from_snapshot(snapshot_row: dict[str, object], symbol: str) -> dict[str, object]:
+def _build_signal_data_from_snapshot(
+    snapshot_row: dict[str, object], symbol: str
+) -> dict[str, object]:
     """Build signal data dict from a snapshot row for LLM review.
 
     Args:
@@ -160,7 +162,9 @@ def _store_legacy_review(
         review_text=str(review_result["review"]),
         provider=str(review_result["provider"]),
         is_valid=bool(review_result["is_valid"]),
-        disagreement=bool(review_result["disagreement"]) if review_result.get("disagreement") else None,
+        disagreement=bool(review_result["disagreement"])
+        if review_result.get("disagreement")
+        else None,
         token_usage_json=json.dumps(review_result["usage"]),
         created_at=datetime.now(UTC),
     )

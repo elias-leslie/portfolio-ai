@@ -171,20 +171,28 @@ async def get_market_conditions(request: Request) -> MarketConditionsResponse:
         sp500={
             "price": market_data.sp500_data.price if market_data.sp500_data else None,
             "change_pct": None,  # Would need historical data
-            "last_updated": market_data.sp500_data.cached_at.isoformat() if market_data.sp500_data else None,
+            "last_updated": market_data.sp500_data.cached_at.isoformat()
+            if market_data.sp500_data
+            else None,
         },
         vix={
             "price": market_data.vix_data.price if market_data.vix_data else None,
             "level": None,
-            "last_updated": market_data.vix_data.cached_at.isoformat() if market_data.vix_data else None,
+            "last_updated": market_data.vix_data.cached_at.isoformat()
+            if market_data.vix_data
+            else None,
         },
         tnx={
             "yield": market_data.tnx_data.price if market_data.tnx_data else None,
-            "last_updated": market_data.tnx_data.cached_at.isoformat() if market_data.tnx_data else None,
+            "last_updated": market_data.tnx_data.cached_at.isoformat()
+            if market_data.tnx_data
+            else None,
         },
         dxy={
             "price": market_data.dxy_data.price if market_data.dxy_data else None,
-            "last_updated": market_data.dxy_data.cached_at.isoformat() if market_data.dxy_data else None,
+            "last_updated": market_data.dxy_data.cached_at.isoformat()
+            if market_data.dxy_data
+            else None,
         },
         health=health_score,
     )
