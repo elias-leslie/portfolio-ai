@@ -35,8 +35,13 @@ SERVICE_PROCESS_PATTERNS: dict[str, str] = {
 # Valid service names for API validation
 VALID_SERVICES: frozenset[str] = frozenset(SERVICE_UNIT_MAPPING.keys())
 
+# User-mode services (run via systemctl --user, not system-wide)
+# Used by status_logs.py for categorizing journalctl queries
+USER_MODE_SERVICES: frozenset[str] = frozenset({"celery_worker", "celery_beat"})
+
 __all__ = [
     "SERVICE_PROCESS_PATTERNS",
     "SERVICE_UNIT_MAPPING",
+    "USER_MODE_SERVICES",
     "VALID_SERVICES",
 ]

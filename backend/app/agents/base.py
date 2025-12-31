@@ -431,8 +431,8 @@ class Agent(ABC):
 
         except Exception as e:
             logger.error(f"Agent run {run_id} failed: {e}")
-            self._record_run_complete(run_id, datetime.now(UTC), "error", 0, str(e))
-            return {"status": "error", "error": str(e), "run_id": run_id}
+            self._record_run_complete(run_id, datetime.now(UTC), AgentRunStatus.ERROR.value, 0, str(e))
+            return {"status": AgentRunStatus.ERROR.value, "error": str(e), "run_id": run_id}
 
     def _run_with_llm_client(
         self, run_id: str, started_at: datetime, user_prompt: str, max_iterations: int
@@ -706,7 +706,7 @@ class Agent(ABC):
                 "agent_type": self.agent_type,
                 "started_at": started_at.isoformat() if started_at else None,
                 "completed_at": None,
-                "status": "running",
+                "status": AgentRunStatus.RUNNING.value,
                 "num_ideas": 0,
                 "cost_usd": 0.0,
                 "error_message": None,

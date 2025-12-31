@@ -12,7 +12,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..constants.services import SERVICE_UNIT_MAPPING, VALID_SERVICES
+from ..constants.services import SERVICE_UNIT_MAPPING, USER_MODE_SERVICES, VALID_SERVICES
 from ..logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -265,7 +265,7 @@ def _categorize_units(
     if service:
         # Single service filter
         unit = service_units.get(service, "")
-        if service in ["celery_worker", "celery_beat"]:
+        if service in USER_MODE_SERVICES:
             return [], [unit]
         return [unit], []
 
@@ -273,7 +273,7 @@ def _categorize_units(
     system_units = []
     user_units = []
     for svc, unit in service_units.items():
-        if svc in ["celery_worker", "celery_beat"]:
+        if svc in USER_MODE_SERVICES:
             user_units.append(unit)
         else:
             system_units.append(unit)
