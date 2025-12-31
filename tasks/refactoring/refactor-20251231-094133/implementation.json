@@ -301,7 +301,7 @@
             "Run pytest tests/unit/api/test_market.py if exists"
           ],
           "verification": "grep -c 'enrich_indicator_with_history' backend/app/api/market_transformers.py should be >= 1",
-          "passes": false
+          "passes": true
         },
         {
           "id": "4.2",
@@ -318,7 +318,7 @@
             "Run ruff check backend/app/api/status_logs.py"
           ],
           "verification": "grep -c '_is_systemd_control_message' backend/app/api/status_logs.py should be >= 1",
-          "passes": false
+          "passes": true
         },
         {
           "id": "4.3",

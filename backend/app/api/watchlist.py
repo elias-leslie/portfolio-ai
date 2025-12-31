@@ -172,6 +172,92 @@ def _store_legacy_review(
     return review_id
 
 
+async def _handle_dual_review(
+    signal_data: dict[str, object],
+    item_id: str,
+    snapshot_id: str | None,
+) -> dict:
+    """Handle dual-provider review flow (both Gemini and Claude).
+
+    Args:
+        signal_data: Signal data dict for LLM review
+        item_id: Watchlist item ID
+        snapshot_id: Snapshot ID
+
+    Returns:
+        Dual review response dict with both provider results
+    """
+    dual_result: DualReviewResult = await multi_reviewer.review_signal_dual(signal_data)
+
+    # Store both reviews
+    for review in [dual_result.gemini_review, dual_result.claude_review]:
+        if review and not review.error:
+            _store_strategy_review(
+                item_id=item_id,
+                snapshot_id=snapshot_id,
+                symbol=dual_result.symbol,
+                review=review,
+                pair_id=dual_result.review_pair_id,
+                severity=dual_result.disagreement_severity.value,
+                agreement=dual_result.agreement_score,
+                provider_disagreement=dual_result.provider_disagreement,
+            )
+
+    logger.info(
+        f"Dual strategy review logged for {dual_result.symbol}",
+        extra={
+            "symbol": dual_result.symbol,
+            "review_pair_id": dual_result.review_pair_id,
+            "agreement_score": dual_result.agreement_score,
+            "disagreement_severity": dual_result.disagreement_severity.value,
+            "provider_disagreement": dual_result.provider_disagreement,
+        },
+    )
+
+    return {
+        "symbol": dual_result.symbol,
+        "review_pair_id": dual_result.review_pair_id,
+        "gemini_review": _review_to_dict(dual_result.gemini_review),
+        "claude_review": _review_to_dict(dual_result.claude_review),
+        "agreement_score": dual_result.agreement_score,
+        "disagreement_severity": dual_result.disagreement_severity.value,
+        "provider_disagreement": dual_result.provider_disagreement,
+        "consensus_summary": dual_result.consensus_summary,
+    }
+
+
+async def _handle_legacy_review(
+    signal_data: dict[str, object],
+    item_id: str,
+    snapshot_id: str | None,
+) -> dict:
+    """Handle legacy single-provider review flow.
+
+    Args:
+        signal_data: Signal data dict for LLM review
+        item_id: Watchlist item ID
+        snapshot_id: Snapshot ID
+
+    Returns:
+        Legacy review response dict
+    """
+    review_result = await strategy_reviewer.review_signal(signal_data)
+
+    # Store review
+    _store_legacy_review(review_result, item_id, snapshot_id)
+
+    logger.info(
+        f"Strategy review logged for {review_result['symbol']}",
+        extra={
+            "symbol": review_result["symbol"],
+            "provider": review_result["provider"],
+            "disagreement": review_result["disagreement"],
+        },
+    )
+
+    return review_result
+
+
 # Endpoints
 @router.get("", response_model=WatchlistListResponse)
 @cache_response(ttl=60)  # 1 minute cache
@@ -600,61 +686,9 @@ async def review_strategy_signal(item_id: str, dual: bool = True) -> dict[str, o
     snapshot_row = snapshots_df.to_dicts()[0]
     symbol = str(items_df.to_dicts()[0]["symbol"])
     signal_data = _build_signal_data_from_snapshot(snapshot_row, symbol)
+    snapshot_id = snapshot_row.get("id")
 
     if dual:
-        # Get dual-provider LLM review (both Gemini and Claude)
-        dual_result: DualReviewResult = await multi_reviewer.review_signal_dual(signal_data)
+        return await _handle_dual_review(signal_data, item_id, snapshot_id)
 
-        # Store both reviews using module-level helper
-        snapshot_id = snapshot_row.get("id")
-        for review in [dual_result.gemini_review, dual_result.claude_review]:
-            if review and not review.error:
-                _store_strategy_review(
-                    item_id=item_id,
-                    snapshot_id=snapshot_id,
-                    symbol=dual_result.symbol,
-                    review=review,
-                    pair_id=dual_result.review_pair_id,
-                    severity=dual_result.disagreement_severity.value,
-                    agreement=dual_result.agreement_score,
-                    provider_disagreement=dual_result.provider_disagreement,
-                )
-
-        logger.info(
-            f"Dual strategy review logged for {dual_result.symbol}",
-            extra={
-                "symbol": dual_result.symbol,
-                "review_pair_id": dual_result.review_pair_id,
-                "agreement_score": dual_result.agreement_score,
-                "disagreement_severity": dual_result.disagreement_severity.value,
-                "provider_disagreement": dual_result.provider_disagreement,
-            },
-        )
-
-        return {
-            "symbol": dual_result.symbol,
-            "review_pair_id": dual_result.review_pair_id,
-            "gemini_review": _review_to_dict(dual_result.gemini_review),
-            "claude_review": _review_to_dict(dual_result.claude_review),
-            "agreement_score": dual_result.agreement_score,
-            "disagreement_severity": dual_result.disagreement_severity.value,
-            "provider_disagreement": dual_result.provider_disagreement,
-            "consensus_summary": dual_result.consensus_summary,
-        }
-
-    # Legacy single-provider path
-    review_result = await strategy_reviewer.review_signal(signal_data)
-
-    # Log review to database using helper
-    _store_legacy_review(review_result, item_id, snapshot_row.get("id"))
-
-    logger.info(
-        f"Strategy review logged for {review_result['symbol']}",
-        extra={
-            "symbol": review_result["symbol"],
-            "provider": review_result["provider"],
-            "disagreement": review_result["disagreement"],
-        },
-    )
-
-    return review_result
+    return await _handle_legacy_review(signal_data, item_id, snapshot_id)
