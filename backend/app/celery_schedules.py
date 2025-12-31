@@ -136,6 +136,176 @@ def _create_intraday_refresh_tasks(
     }
 
 
+def _strategy_tasks() -> dict[str, dict[str, Any]]:
+    """Strategy monitoring, portfolio analytics, and watchlist automation tasks.
+
+    Includes:
+    - Strategy performance evaluation and auto-promotion
+    - Strategy generation and evolution
+    - Signal generation and paper trading
+    - Portfolio risk analytics and drawdown tracking
+    - Watchlist candidate discovery and trimming
+    - Rules validation and optimization
+
+    Returns:
+        Dict of Celery Beat task definitions for strategy-related tasks
+    """
+    return {
+        # Strategy monitoring & generation
+        "evaluate-strategy-performance": {
+            "task": "app.tasks.strategy_monitoring_tasks.evaluate_strategy_performance",
+            "schedule": crontab(hour=4, minute=0),  # Daily at 04:00 UTC
+            "options": {"expires": EXPIRY_1_HOUR},
+        },
+        "auto-promote-strategies": {
+            "task": "app.tasks.strategy_monitoring_tasks.auto_promote_strategies",
+            "schedule": crontab(hour=4, minute=15),  # Daily at 04:15 UTC
+            "options": {"expires": EXPIRY_1_HOUR},
+        },
+        "generate-weekly-strategies": {
+            "task": "app.tasks.strategy_monitoring_tasks.weekly_strategy_generation",
+            "schedule": crontab(hour=5, minute=0, day_of_week=0),  # Sunday 05:00 UTC
+            "options": {"expires": EXPIRY_2_HOURS},
+        },
+        "weekly-strategy-evolution": {
+            "task": "app.tasks.strategy_monitoring_tasks.weekly_strategy_evolution",
+            "schedule": crontab(hour=6, minute=0, day_of_week=0),  # Sunday 06:00 UTC
+            "options": {"expires": EXPIRY_2_HOURS},
+        },
+        "daily-strategy-refresh": {
+            "task": "app.tasks.strategy_monitoring_tasks.daily_strategy_refresh",
+            "schedule": crontab(hour=5, minute=15),  # Daily at 05:15 UTC
+            "options": {"expires": EXPIRY_1_HOUR},
+        },
+        "generate-daily-strategy-signals": {
+            "task": "app.tasks.strategy_signal_tasks.generate_daily_strategy_signals",
+            "schedule": crontab(hour=21, minute=30),  # Daily at 21:30 UTC
+            "options": {"expires": EXPIRY_1_HOUR},
+        },
+        "auto-paper-trade-from-signals": {
+            "task": "app.tasks.strategy_signal_tasks.auto_paper_trade_from_signals",
+            "schedule": crontab(hour=21, minute=45),  # Daily at 21:45 UTC
+            "options": {"expires": EXPIRY_1_HOUR},
+        },
+        # Portfolio risk analytics
+        "update-portfolio-covariance-daily": {
+            "task": "update_portfolio_covariance",
+            "schedule": crontab(hour=5, minute=30),  # Daily at 05:30 UTC
+            "options": {"expires": EXPIRY_1_HOUR},
+        },
+        # Portfolio drawdown tracking
+        "save-portfolio-snapshots-daily": {
+            "task": "save_portfolio_snapshots",
+            "schedule": crontab(hour=21, minute=30),  # Daily at 21:30 UTC
+            "options": {"expires": EXPIRY_30_MIN},
+        },
+        # Watchlist automation
+        "discover-watchlist-candidates-daily": {
+            "task": "discover_watchlist_candidates",
+            "schedule": crontab(hour=8, minute=0),  # Daily at 08:00 UTC
+            "options": {"expires": EXPIRY_30_MIN},
+        },
+        "trim-underperforming-watchlist-daily": {
+            "task": "trim_underperforming_watchlist",
+            "schedule": crontab(hour=8, minute=30),  # Daily at 08:30 UTC
+            "options": {"expires": EXPIRY_30_MIN},
+        },
+        "generate-watchlist-daily-report": {
+            "task": "generate_daily_watchlist_report",
+            "schedule": crontab(hour=9, minute=0),  # Daily at 09:00 UTC
+            "options": {"expires": EXPIRY_30_MIN},
+        },
+        # Rules validation
+        "daily-rules-validation": {
+            "task": "daily_rules_validation",
+            "schedule": crontab(hour=3, minute=8),  # Daily at 03:08 UTC
+            "options": {"expires": EXPIRY_10_MIN},
+        },
+        "weekly-optimization-review": {
+            "task": "weekly_optimization_review",
+            "schedule": crontab(hour=3, minute=10, day_of_week=1),  # Monday 03:10 UTC
+            "options": {"expires": EXPIRY_30_MIN},
+        },
+    }
+
+
+def _monitoring_tasks() -> dict[str, dict[str, Any]]:
+    """Monitoring and lifecycle tasks for artifacts, theses, sitemap, and files.
+
+    Includes:
+    - Artifact refresh and cleanup
+    - Thesis health monitoring and processing
+    - Sitemap health checks and discovery
+    - File audit scanning
+
+    Returns:
+        Dict of Celery Beat task definitions for monitoring tasks
+    """
+    return {
+        # Artifact lifecycle
+        "refresh-expired-artifacts": {
+            "task": "refresh_expired_artifacts",
+            "schedule": crontab(hour=5, minute=30),  # Daily at 05:30 UTC
+            "options": {"expires": EXPIRY_1_HOUR},
+        },
+        "cleanup-old-artifact-versions": {
+            "task": "cleanup_old_versions",
+            "schedule": crontab(hour=6, minute=0),  # Daily at 06:00 UTC
+            "options": {"expires": EXPIRY_1_HOUR},
+            "kwargs": {"max_versions": 5, "dry_run": False},
+        },
+        "cleanup-debug-captures": {
+            "task": "cleanup_debug_captures",
+            "schedule": crontab(hour=6, minute=15),  # Daily at 06:15 UTC
+            "options": {"expires": EXPIRY_1_HOUR},
+            "kwargs": {"max_age_days": 7, "dry_run": False},
+        },
+        # Thesis monitoring
+        "monitor-thesis-health-daily": {
+            "task": "monitor_thesis_health",
+            "schedule": crontab(hour=3, minute=5),  # Daily at 03:05 UTC
+            "options": {"expires": EXPIRY_30_MIN},
+        },
+        "process-invalidated-theses-daily": {
+            "task": "process_invalidated_theses",
+            "schedule": crontab(hour=3, minute=15),  # Daily at 03:15 UTC
+            "options": {"expires": EXPIRY_30_MIN},
+        },
+        "archive-strategies-for-invalidated-theses": {
+            "task": "archive_strategies_for_invalidated_theses",
+            "schedule": crontab(hour=3, minute=30),  # Daily at 03:30 UTC
+            "options": {"expires": EXPIRY_30_MIN},
+        },
+        # Sitemap health
+        "check-sitemap-health-morning": {
+            "task": "check_sitemap_health",
+            "schedule": crontab(hour=8, minute=0),  # Daily at 08:00 UTC
+            "options": {"expires": EXPIRY_50_MIN},
+        },
+        "check-sitemap-health-evening": {
+            "task": "check_sitemap_health",
+            "schedule": crontab(hour=20, minute=0),  # Daily at 20:00 UTC
+            "options": {"expires": EXPIRY_50_MIN},
+        },
+        "discover-sitemap-entries-daily": {
+            "task": "discover_sitemap_entries",
+            "schedule": crontab(hour=3, minute=30),  # Daily at 03:30 UTC
+            "options": {"expires": EXPIRY_30_MIN},
+        },
+        "cleanup-sitemap-history-daily": {
+            "task": "cleanup_sitemap_history",
+            "schedule": crontab(hour=4, minute=0),  # Daily at 04:00 UTC
+            "options": {"expires": EXPIRY_10_MIN},
+        },
+        # File audit
+        "scan-files-daily": {
+            "task": "scan_files",
+            "schedule": crontab(hour=7, minute=30),  # Daily at 07:30 UTC
+            "options": {"expires": EXPIRY_30_MIN},
+        },
+    }
+
+
 def _maintenance_tasks() -> dict[str, dict[str, Any]]:
     """Automated maintenance tasks for system health.
 
@@ -685,292 +855,8 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         **_agent_tasks(),
         # Merge automated maintenance tasks
         **_maintenance_tasks(),
-        # ============================================================================
-        # STRATEGY MONITORING & GENERATION (Task 4.8)
-        # ============================================================================
-        "evaluate-strategy-performance": {
-            "task": "app.tasks.strategy_monitoring_tasks.evaluate_strategy_performance",
-            "schedule": crontab(hour=4, minute=0),  # Daily at 04:00 UTC
-            "options": {"expires": EXPIRY_1_HOUR},
-            # Notes:
-            # - Evaluates all active strategies daily
-            # - Calculates 30-day rolling metrics (Sharpe, win rate, drawdown)
-            # - Archives strategies with <70% expected performance for >30 days
-            # - Updates strategy_performance table with daily metrics
-        },
-        "auto-promote-strategies": {
-            "task": "app.tasks.strategy_monitoring_tasks.auto_promote_strategies",
-            "schedule": crontab(hour=4, minute=15),  # Daily at 04:15 UTC (after evaluation)
-            "options": {"expires": EXPIRY_1_HOUR},
-            # Notes:
-            # - Auto-promotes testing strategies to active after validation
-            # - Criteria: 3+ days old, expected Sharpe >= 1.0, no blocking issues
-            # - Runs after evaluate-strategy-performance to use fresh data
-        },
-        "generate-weekly-strategies": {
-            "task": "app.tasks.strategy_monitoring_tasks.weekly_strategy_generation",
-            "schedule": crontab(hour=5, minute=0, day_of_week=0),  # Sunday 05:00 UTC
-            "options": {"expires": EXPIRY_2_HOURS},
-            # Notes:
-            # - Full sweep of top 20 watchlist symbols
-            # - Skips symbols that already have active strategies
-            # - Runs strategy_research_workflow for each symbol
-            # - Commits generated strategies to git with research context
-        },
-        "weekly-strategy-evolution": {
-            "task": "app.tasks.strategy_monitoring_tasks.weekly_strategy_evolution",
-            "schedule": crontab(hour=6, minute=0, day_of_week=0),  # Sunday 06:00 UTC
-            "options": {"expires": EXPIRY_2_HOURS},
-            # Notes:
-            # - Evolves underperforming strategies via LLM analysis
-            # - Runs after weekly strategy generation (05:00)
-            # - Finds strategies performing <90% of expected Sharpe
-            # - LLM proposes mutations, tests via walk-forward backtest
-            # - Saves best mutation if it beats MAS (90% parent OR buy-hold)
-            # - Archives parent, creates child with lineage tracking
-            # - Limit: 5 strategies per week to control costs
-        },
-        "daily-strategy-refresh": {
-            "task": "app.tasks.strategy_monitoring_tasks.daily_strategy_refresh",
-            "schedule": crontab(hour=5, minute=15),  # Daily at 05:15 UTC
-            "options": {"expires": EXPIRY_1_HOUR},
-            # Notes:
-            # - Runs daily to catch new symbols and replace underperformers
-            # - Generates max 5 strategies per day (cost control)
-            # - Only for: symbols without strategy OR underperforming (Sharpe < 0.5)
-            # - More responsive than weekly-only approach
-        },
-        "generate-daily-strategy-signals": {
-            "task": "app.tasks.strategy_signal_tasks.generate_daily_strategy_signals",
-            "schedule": crontab(hour=21, minute=30),  # Daily at 21:30 UTC (after US market close)
-            "options": {"expires": EXPIRY_1_HOUR},
-            # Notes:
-            # - Generates trading signals for all active strategies
-            # - Evaluates current market data against strategy parameters
-            # - Stores signals in strategy_signals table
-            # - BUY signals can trigger auto paper trading (if enabled)
-        },
-        "auto-paper-trade-from-signals": {
-            "task": "app.tasks.strategy_signal_tasks.auto_paper_trade_from_signals",
-            "schedule": crontab(hour=21, minute=45),  # Daily at 21:45 UTC (after signals)
-            "options": {"expires": EXPIRY_1_HOUR},
-            # Notes:
-            # - Creates paper trades from BUY signals with strength >= 5
-            # - Skips if open position already exists for strategy+symbol
-            # - Links trades to strategies via strategy_id
-            # - Runs 15 minutes after signal generation to ensure signals are stored
-        },
-        # ============================================================================
-        # PORTFOLIO RISK ANALYTICS (GAP-020)
-        # ============================================================================
-        "update-portfolio-covariance-daily": {
-            "task": "update_portfolio_covariance",
-            "schedule": crontab(hour=5, minute=30),  # Daily at 05:30 UTC
-            "options": {"expires": EXPIRY_1_HOUR},
-            # Notes:
-            # - Runs daily at 05:30 UTC (after OHLCV data refresh completes)
-            # - Calculates pairwise covariance matrix for all watchlist/portfolio symbols
-            # - Uses 252-day (1 year) lookback for statistical significance
-            # - Enables proper portfolio volatility calculation: sigma = sqrt(w' * Cov * w)
-            # - Fixes GAP-020: Wrong portfolio risk math using weighted average
-            # - Results cached in portfolio_covariance table for 24 hours
-        },
-        # ============================================================================
-        # PORTFOLIO DRAWDOWN TRACKING (GAP-023)
-        # ============================================================================
-        "save-portfolio-snapshots-daily": {
-            "task": "save_portfolio_snapshots",
-            "schedule": crontab(hour=21, minute=30),  # Daily at 21:30 UTC (4:30 PM ET)
-            "options": {"expires": EXPIRY_30_MIN},
-            # Notes:
-            # - Runs daily at 21:30 UTC (30 min after market close at 4 PM ET)
-            # - Saves equity snapshots for all portfolio accounts
-            # - Tracks peak equity and calculates drawdown from peak
-            # - Enables portfolio-level trading halt at -10% drawdown
-            # - Historical snapshots enable equity curve visualization
-            # - Fixes GAP-023: No drawdown tracking
-        },
-        # ============================================================================
-        # WATCHLIST AUTOMATION (Tasks 0098)
-        # ============================================================================
-        # Discovery and trimming of watchlist based on market signals
-        # ============================================================================
-        "discover-watchlist-candidates-daily": {
-            "task": "discover_watchlist_candidates",
-            "schedule": crontab(hour=8, minute=0),  # Daily at 08:00 UTC (3 AM ET)
-            "options": {"expires": EXPIRY_30_MIN},
-            # Notes:
-            # - Discovers high-potential symbols from top gainers, volume spikes, news
-            # - Scoring: gainers (0-4), volume (0-4), news mentions (0-4) = 0-12
-            # - Threshold: discovery_score >= 6.0 (from rules.yaml)
-            # - Limits: Max 5 additions per day, respects max watchlist size (50)
-            # - Source tracking: source="discovery", auto_added=true
-        },
-        "trim-underperforming-watchlist-daily": {
-            "task": "trim_underperforming_watchlist",
-            "schedule": crontab(hour=8, minute=30),  # Daily at 08:30 UTC (30 min after discovery)
-            "options": {"expires": EXPIRY_30_MIN},
-            # Notes:
-            # - Removes underperforming symbols after minimum hold period
-            # - Criteria: avg_score < 4.0 AND days_watched >= 7
-            # - Excludes symbols owned in portfolio positions
-            # - Limits: Max 3 removals per day to prevent mass deletion
-            # - Can be disabled via rules.yaml: auto_trim_enabled: false
-        },
-        "generate-watchlist-daily-report": {
-            "task": "generate_daily_watchlist_report",
-            "schedule": crontab(hour=9, minute=0),  # Daily at 09:00 UTC (after discovery and trim)
-            "options": {"expires": EXPIRY_30_MIN},
-            # Notes:
-            # - Generates daily summary of watchlist changes
-            # - Tracks: symbols added, symbols removed, significant score changes (>10 points)
-            # - Stores report in watchlist_daily_reports table
-            # - Runs after discovery (08:00) and trim (08:30) complete
-            # - Used by frontend WatchlistDailyReport component
-        },
-        # ============================================================================
-        # RULES VALIDATION & OPTIMIZATION (Tier 3 Task 3.0)
-        # ============================================================================
-        # AI-powered validation of trading rules configuration
-        # ============================================================================
-        "daily-rules-validation": {
-            "task": "daily_rules_validation",
-            "schedule": crontab(hour=3, minute=8),  # Daily at 03:08 UTC (staggered from 3:00)
-            "options": {"expires": EXPIRY_10_MIN},
-            # Notes:
-            # - Validates all trading rules for logical consistency
-            # - Checks: threshold ranges, contradictions, position sizing, fee assumptions
-            # - Alerts on critical failures via maintenance_log
-            # - Ensures rules configuration doesn't break trading logic
-        },
-        "weekly-optimization-review": {
-            "task": "weekly_optimization_review",
-            "schedule": crontab(hour=3, minute=10, day_of_week=1),  # Monday 03:10 UTC (staggered)
-            "options": {"expires": EXPIRY_30_MIN},
-            # Notes:
-            # - Analyzes recent trading performance vs rules configuration
-            # - Identifies unused rules and threshold tuning opportunities
-            # - Generates optimization recommendations
-            # - Runs weekly to avoid over-fitting to short-term noise
-        },
-        # ============================================================================
-        # ARTIFACT LIFECYCLE TASKS
-        # ============================================================================
-        "refresh-expired-artifacts": {
-            "task": "refresh_expired_artifacts",
-            "schedule": crontab(hour=5, minute=30),  # Daily at 05:30 UTC
-            "options": {"expires": EXPIRY_1_HOUR},
-            # Notes:
-            # - Marks expired UI verification artifacts as needing refresh
-            # - Runs daily during low-activity hours
-            # - Artifacts expire 24 hours after capture
-        },
-        "cleanup-old-artifact-versions": {
-            "task": "cleanup_old_versions",
-            "schedule": crontab(hour=6, minute=0),  # Daily at 06:00 UTC
-            "options": {"expires": EXPIRY_1_HOUR},
-            "kwargs": {"max_versions": 5, "dry_run": False},
-            # Notes:
-            # - Deletes old artifact versions beyond retention limit
-            # - Keeps last 5 versions per feature/criterion
-            # - Runs after refresh task completes
-        },
-        "cleanup-debug-captures": {
-            "task": "cleanup_debug_captures",
-            "schedule": crontab(hour=6, minute=15),  # Daily at 06:15 UTC
-            "options": {"expires": EXPIRY_1_HOUR},
-            "kwargs": {"max_age_days": 7, "dry_run": False},
-            # Notes:
-            # - Deletes DBG-* debug capture directories older than 7 days
-            # - These are ad-hoc screenshots that don't need long retention
-            # - Runs after artifact version cleanup
-        },
-        # ============================================================================
-        # THESIS MONITORING & AUTOMATION (Task portfolio-ai-1ub)
-        # ============================================================================
-        # Automated thesis health monitoring, invalidation, and watchlist management
-        # Thesis invalidation drives strategy lifecycle (not the other way around)
-        # ============================================================================
-        "monitor-thesis-health-daily": {
-            "task": "monitor_thesis_health",
-            "schedule": crontab(hour=3, minute=5),  # Daily at 03:05 UTC (staggered from 3:00)
-            "options": {"expires": EXPIRY_30_MIN},  # 30-minute expiry
-            # Notes:
-            # - Evaluates invalidation triggers for all active theses
-            # - Critical triggers (signal change, low cross-val): Invalidate thesis
-            # - Non-critical triggers (sentiment shift): Flag for review
-            # - Logs all actions to maintenance_log for audit trail
-            # - Runs after fear/greed calculation (02:45-03:02)
-        },
-        "process-invalidated-theses-daily": {
-            "task": "process_invalidated_theses",
-            "schedule": crontab(hour=3, minute=15),  # Daily at 03:15 UTC (after health check)
-            "options": {"expires": EXPIRY_30_MIN},
-            # Notes:
-            # - Processes recently invalidated theses (last 24 hours)
-            # - Respects rules.yaml: auto_remove_on_invalidation (true/false)
-            # - Excludes portfolio holdings (exclude_portfolio_holdings: true)
-            # - Daily removal limit: max_daily_removals (default 3)
-            # - Uses existing remove_symbol_from_watchlist (triggers deletion_audit)
-        },
-        "archive-strategies-for-invalidated-theses": {
-            "task": "archive_strategies_for_invalidated_theses",
-            "schedule": crontab(hour=3, minute=30),  # Daily at 03:30 UTC (after processing)
-            "options": {"expires": EXPIRY_30_MIN},
-            # Notes:
-            # - Archives all active strategies for invalidated thesis symbols
-            # - Design: Thesis invalidation TRIGGERS strategy archival (not vice versa)
-            # - Uses existing strategy archive pattern (sets status='archived')
-            # - Logs strategy archival to maintenance_log for audit trail
-        },
-        # ============================================================================
-        # SITEMAP HEALTH MONITORING
-        # ============================================================================
-        # Dynamic endpoint discovery and health monitoring for all URLs
-        # ============================================================================
-        "check-sitemap-health-morning": {
-            "task": "check_sitemap_health",
-            "schedule": crontab(hour=8, minute=0),  # Daily at 08:00 UTC (3 AM ET)
-            "options": {"expires": EXPIRY_50_MIN},  # 50-minute expiry
-            # Notes:
-            # - HTTP-only reachability check for all sitemap entries (no Playwright)
-            # - Runs 2x daily (morning + evening) instead of hourly to reduce load
-            # - On-demand available via POST /api/sitemap/check-all
-        },
-        "check-sitemap-health-evening": {
-            "task": "check_sitemap_health",
-            "schedule": crontab(hour=20, minute=0),  # Daily at 20:00 UTC (3 PM ET)
-            "options": {"expires": EXPIRY_50_MIN},
-        },
-        "discover-sitemap-entries-daily": {
-            "task": "discover_sitemap_entries",
-            "schedule": crontab(hour=3, minute=30),  # Daily at 03:30 UTC
-            "options": {"expires": EXPIRY_30_MIN},  # 30-minute expiry
-            # Notes:
-            # - Discovers new endpoints from OpenAPI (/openapi.json) and frontend crawler
-            # - Imports from existing api_capabilities table
-            # - Runs daily to catch new pages/endpoints after deploys
-        },
-        "cleanup-sitemap-history-daily": {
-            "task": "cleanup_sitemap_history",
-            "schedule": crontab(hour=4, minute=0),  # Daily at 04:00 UTC
-            "options": {"expires": EXPIRY_10_MIN},  # 10-minute expiry
-            # Notes:
-            # - Deletes health history older than 7 days
-            # - Keeps sitemap_health_history table size manageable
-            # - Can also be triggered manually from Status page maintenance section
-        },
-        # ============================================================================
-        # FILE AUDIT SCAN
-        # ============================================================================
-        "scan-files-daily": {
-            "task": "scan_files",
-            "schedule": crontab(hour=7, minute=30),  # Daily at 07:30 UTC (2:30 AM ET)
-            "options": {"expires": EXPIRY_30_MIN},  # 30-minute expiry
-            # Notes:
-            # - Scans codebase files for audit (LOC, staleness, bloat detection)
-            # - Runs after heavy tasks complete (02:00-07:00 UTC)
-            # - Can also be triggered manually via POST /api/files/scan
-            # - Updates file_audit table with file metrics
-        },
+        # Merge strategy and portfolio tasks
+        **_strategy_tasks(),
+        # Merge monitoring and lifecycle tasks
+        **_monitoring_tasks(),
     }
