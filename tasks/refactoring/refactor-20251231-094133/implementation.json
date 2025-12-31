@@ -399,7 +399,7 @@
             "Run npm run lint --prefix frontend"
           ],
           "verification": "test -f frontend/components/status/hooks/useDialogState.ts",
-          "passes": false
+          "passes": true
         },
         {
           "id": "5.3",
