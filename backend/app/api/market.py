@@ -98,7 +98,12 @@ CORE_MARKET_SYMBOLS = ["^GSPC", "^VIX", "^TNX", "DX-Y.NYB"]
 
 # Valid market event types (must match MarketEventType Literal)
 VALID_EVENT_TYPES = {
-    "fomc_decision", "cpi_release", "nfp_release", "fed_speech", "pce_release", "gdp_release"
+    "fomc_decision",
+    "cpi_release",
+    "nfp_release",
+    "fed_speech",
+    "pce_release",
+    "gdp_release",
 }
 
 
@@ -854,7 +859,7 @@ async def get_market_events(
         if invalid_types:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid event type(s): {', '.join(invalid_types)}. Valid types: {', '.join(sorted(VALID_EVENT_TYPES))}"
+                detail=f"Invalid event type(s): {', '.join(invalid_types)}. Valid types: {', '.join(sorted(VALID_EVENT_TYPES))}",
             )
         types_list = cast(list[MarketEventType], parsed_types)
 
@@ -952,7 +957,7 @@ async def create_market_event(
     if event_type not in VALID_EVENT_TYPES:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid event_type: {event_type}. Valid types: {', '.join(sorted(VALID_EVENT_TYPES))}"
+            detail=f"Invalid event_type: {event_type}. Valid types: {', '.join(sorted(VALID_EVENT_TYPES))}",
         )
 
     event = MarketEventCreate(
