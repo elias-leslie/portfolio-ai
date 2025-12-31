@@ -101,6 +101,17 @@ CORE_MARKET_SYMBOLS = ["^GSPC", "^VIX", "^TNX", "DX-Y.NYB"]
 VALID_EVENT_TYPES: Final[frozenset[str]] = frozenset(get_args(MarketEventType))
 
 
+class OptionsActivityData(TypedDict):
+    """Return type for get_options_activity_metrics."""
+
+    near_term_pct: float
+    concentration_pct: float
+    near_term_signal: str
+    concentration_signal: str
+    top_sectors: list[dict[str, Any]]
+    last_updated: str
+
+
 @dataclass
 class CoreMarketData:
     """Core market indicators fetched from price service."""
@@ -347,18 +358,22 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
         # Calculate historical context
         from app.market.options_context import calculate_putcall_context  # noqa: PLC0415
 
-        putcall_context = calculate_putcall_context(put_call_ratio, putcall_date, storage)
+        putcall_context: PutCallContext = calculate_putcall_context(
+            put_call_ratio, putcall_date, storage
+        )
 
         enriched_indicators["putcall"] = intelligence.enrich_putcall_indicator(
             put_call_ratio,
             putcall_timestamp,
-            context=putcall_context,  # type: ignore[arg-type]
+            context=cast(dict[str, Any], putcall_context),
         )
 
     # Get Options Activity metrics from options_market_metrics table
     options_activity = None
-    options_data = get_options_activity_metrics(storage)
-    if options_data:
+    options_data_raw = get_options_activity_metrics(storage)
+    if options_data_raw:
+        # Cast to our TypedDict for proper type checking
+        options_data: OptionsActivityData = cast(OptionsActivityData, options_data_raw)
         # Type narrowing with validation (get_options_activity_metrics already validates types)
         near_term = options_data["near_term_pct"]
         concentration = options_data["concentration_pct"]
@@ -368,7 +383,7 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
                 near_term_signal=str(options_data["near_term_signal"]),
                 concentration_pct=float(concentration),
                 concentration_signal=str(options_data["concentration_signal"]),
-                top_sectors=options_data["top_sectors"],  # type: ignore[arg-type]
+                top_sectors=options_data["top_sectors"],
                 last_updated=str(options_data["last_updated"]),
             )
 

@@ -239,7 +239,7 @@
             "Run mypy backend/app/api/market.py --no-error-summary"
           ],
           "verification": "grep -c 'type: ignore' backend/app/api/market.py should be reduced",
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.3",
