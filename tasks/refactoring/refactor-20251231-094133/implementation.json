@@ -220,7 +220,7 @@
             "Run npm run lint --prefix frontend"
           ],
           "verification": "grep -A5 'useEffect.*serverUrl' frontend/components/agents/AgentPanel.tsx | wc -l should be 0",
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.2",
@@ -257,7 +257,7 @@
             "Run ruff check backend/app/tasks/strategy_monitoring_tasks.py"
           ],
           "verification": "grep -c 'date.today()' backend/app/tasks/strategy_monitoring_tasks.py should be 0",
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.4",
