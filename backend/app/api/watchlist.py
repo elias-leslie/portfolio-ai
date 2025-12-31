@@ -115,6 +115,20 @@ def _store_strategy_review(
     return review_id
 
 
+def _require_watchlist_item(item_id: str, watchlist_repo: WatchlistRepository) -> None:
+    """Validate that a watchlist item exists, raising HTTPException if not.
+
+    Args:
+        item_id: Watchlist item ID to validate
+        watchlist_repo: Repository instance to query
+
+    Raises:
+        HTTPException: 404 if item not found
+    """
+    items_df = watchlist_repo.get_item_by_id(item_id)
+    require_nonempty_df(items_df, "Watchlist item not found")
+
+
 def _build_signal_data_from_snapshot(
     snapshot_row: dict[str, object], symbol: str
 ) -> dict[str, object]:
@@ -457,9 +471,7 @@ async def update_watchlist_item(item_id: str, data: WatchlistItemUpdate) -> Watc
         Updated watchlist item
     """
     # Check if exists
-    items_df = watchlist_repo.get_item_by_id(item_id)
-
-    require_nonempty_df(items_df, "Watchlist item not found")
+    _require_watchlist_item(item_id, watchlist_repo)
 
     now = utc_now_iso()
 

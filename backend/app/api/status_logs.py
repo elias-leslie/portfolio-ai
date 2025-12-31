@@ -436,6 +436,22 @@ async def get_unified_logs(
         raise HTTPException(status_code=500, detail=f"Error retrieving unified logs: {e!s}") from e
 
 
+def _get_sorted_levels(reverse: bool = False) -> list[str]:
+    """Get sorted list of valid log levels (excluding WARNING alias).
+
+    Args:
+        reverse: If True, sort from highest to lowest priority (default: False)
+
+    Returns:
+        List of valid log levels sorted by priority
+    """
+    return sorted(
+        (level for level in VALID_LEVELS if level != "WARNING"),
+        key=lambda lvl: LOG_LEVEL_PRIORITY.get(lvl, 0),
+        reverse=reverse,
+    )
+
+
 class LogLevelConfigResponse(BaseModel):
     """Log level configuration information."""
 
@@ -455,11 +471,7 @@ def get_log_level_config() -> LogLevelConfigResponse:
     current_level = os.getenv("LOG_LEVEL", "INFO")
 
     # Derive available levels from VALID_LEVELS, excluding WARNING alias
-    available_levels = sorted(
-        (level for level in VALID_LEVELS if level != "WARNING"),
-        key=lambda lvl: LOG_LEVEL_PRIORITY.get(lvl, 0),
-        reverse=True,
-    )
+    available_levels = _get_sorted_levels(reverse=True)
     return LogLevelConfigResponse(
         current_level=current_level,
         available_levels=available_levels,
@@ -585,10 +597,7 @@ def test_logging() -> TestLoggingResponse:
     # Note: structlog doesn't have critical(), it maps to error()
 
     # Derive levels list from VALID_LEVELS, excluding WARNING alias
-    levels_list = sorted(
-        (level for level in VALID_LEVELS if level != "WARNING"),
-        key=lambda lvl: LOG_LEVEL_PRIORITY.get(lvl, 0),
-    )
+    levels_list = _get_sorted_levels()
     return TestLoggingResponse(
         success=True,
         message=f"Generated test logs at all levels ({', '.join(levels_list)})",

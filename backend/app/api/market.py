@@ -101,6 +101,17 @@ CORE_MARKET_SYMBOLS = ["^GSPC", "^VIX", "^TNX", "DX-Y.NYB"]
 VALID_EVENT_TYPES: Final[frozenset[str]] = frozenset(get_args(MarketEventType))
 
 
+# Helper functions for price/timestamp extraction
+def _extract_price(data: Any | None) -> float | None:
+    """Extract price from PriceData object, returning None if data is None."""
+    return data.price if data else None
+
+
+def _extract_timestamp(data: Any | None) -> str | None:
+    """Extract timestamp from PriceData object, returning None if data is None."""
+    return data.cached_at.isoformat() if data else None
+
+
 class OptionsActivityData(TypedDict):
     """Return type for get_options_activity_metrics."""
 
@@ -174,10 +185,10 @@ async def get_market_conditions(request: Request) -> MarketConditionsResponse:
 
     # Calculate market health score with sector data
     health_score = calculate_market_health(
-        vix_price=market_data.vix_data.price if market_data.vix_data else None,
-        sp500_price=market_data.sp500_data.price if market_data.sp500_data else None,
-        tnx_yield=market_data.tnx_data.price if market_data.tnx_data else None,
-        dxy_price=market_data.dxy_data.price if market_data.dxy_data else None,
+        vix_price=_extract_price(market_data.vix_data),
+        sp500_price=_extract_price(market_data.sp500_data),
+        tnx_yield=_extract_price(market_data.tnx_data),
+        dxy_price=_extract_price(market_data.dxy_data),
         sector_data=market_data.sector_data,
         current_timestamp=market_data.current_timestamp,
     )

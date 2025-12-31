@@ -35,6 +35,20 @@ logger = get_logger(__name__)
 # Helper functions (pure logic, no Celery)
 
 
+def _get_log_directories() -> list[Path]:
+    """Get list of log directories to check for cleanup operations.
+
+    Returns:
+        List of Path objects for log directories (backend logs, /tmp, legacy /var/log)
+    """
+    backend_logs = Path(__file__).parent.parent.parent / "logs"
+    return [
+        backend_logs,  # Primary: ~/portfolio-ai/backend/logs/
+        Path("/tmp"),  # Secondary: temp logs
+        Path("/var/log/portfolio-ai"),  # Legacy: system logs (if exists)
+    ]
+
+
 def _build_error_result(
     task_id: str,
     error: Exception,
@@ -162,13 +176,7 @@ def rotate_logs_task(self: Task, dry_run: bool = False) -> dict[str, int | str |
     try:
         files_rotated = 0
         would_rotate: list[dict[str, Any]] = []
-        # Backend logs directory (actual log location)
-        backend_logs = Path(__file__).parent.parent.parent / "logs"
-        log_dirs = [
-            backend_logs,  # Primary: ~/portfolio-ai/backend/logs/
-            Path("/tmp"),  # Secondary: temp logs
-            Path("/var/log/portfolio-ai"),  # Legacy: system logs (if exists)
-        ]
+        log_dirs = _get_log_directories()
 
         for log_dir in log_dirs:
             if not log_dir.exists():
