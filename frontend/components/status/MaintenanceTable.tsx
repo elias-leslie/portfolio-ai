@@ -30,7 +30,8 @@ import {
 } from "lucide-react";
 import { ExpandableCard } from "@/components/status/ExpandableCard";
 import { ServiceActionDialog } from "./ServiceActionDialog";
-import { TaskResultDisplay, BatchResultsDialog, type BatchResult } from "./MaintenanceDialogs";
+import { TaskResultDisplay, BatchResultsDialog } from "./MaintenanceDialogs";
+import { useDialogState } from "./hooks/useDialogState";
 import {
   triggerMaintenanceTask,
   type MaintenanceResult,
@@ -95,48 +96,37 @@ export function MaintenanceTable() {
   // Backup check hook
   const { backupCheck, isCheckingBackup } = useMaintenanceBackupCheck(dryRun);
 
+  // Dialog state hook
+  const {
+    actionDialogOpen,
+    actionDialogConfig,
+    setActionDialogOpen,
+    openActionDialog,
+    taskResultOpen,
+    taskResult,
+    setTaskResultOpen,
+    showTaskResult,
+    batchResultsOpen,
+    batchResults,
+    setBatchResultsOpen,
+    setBatchResults,
+    isRunningAll,
+    setIsRunningAll,
+  } = useDialogState();
+
   // Task runner hook
   const { triggeringTask, triggerTask } = useMaintenanceTaskRunner(
     dryRun,
     backupCheck,
     {
       onTaskComplete: () => fetchAllData(),
-      onShowDialog: (config) => {
-        setActionDialogConfig(config);
-        setActionDialogOpen(true);
-      },
-      onShowTaskResult: (result) => {
-        setTaskResult(result);
-        setTaskResultOpen(true);
-      },
+      onShowDialog: openActionDialog,
+      onShowTaskResult: showTaskResult,
     }
   );
   const [categoryFilter, setCategoryFilter] = useState<TaskCategory | "all">("all");
   const [sortKey, setSortKey] = useState<SortKey>("category");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
-
-  // Dialog state
-  const [actionDialogOpen, setActionDialogOpen] = useState(false);
-  const [actionDialogConfig, setActionDialogConfig] = useState<{
-    title: string;
-    description: string;
-    actionLabel: string;
-    onConfirm: () => void;
-    storageKey?: string;
-  } | null>(null);
-
-  // Task result dialog (single task)
-  const [taskResultOpen, setTaskResultOpen] = useState(false);
-  const [taskResult, setTaskResult] = useState<{
-    taskName: string;
-    dryRun: boolean;
-    result: Record<string, unknown> | null;
-  } | null>(null);
-
-  // Batch results dialog (Run All)
-  const [batchResultsOpen, setBatchResultsOpen] = useState(false);
-  const [batchResults, setBatchResults] = useState<BatchResult[]>([]);
-  const [isRunningAll, setIsRunningAll] = useState(false);
 
   const handleRefresh = () => {
     fetchAllData();

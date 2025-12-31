@@ -381,7 +381,7 @@
             "Run npm run lint --prefix frontend"
           ],
           "verification": "test -f frontend/components/status/MaintenanceSummaryStats.tsx",
-          "passes": false
+          "passes": true
         },
         {
           "id": "5.2",
