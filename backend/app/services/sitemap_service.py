@@ -29,6 +29,7 @@ from ..utils.port_discovery import (
     get_port_for_service,
 )
 from .health_check_strategies import (
+    CheckDecision,
     HealthCheckStrategy,
 )
 
@@ -47,37 +48,9 @@ HEALTH_CHECK_TIMEOUT_PROBE = (
     5  # seconds for lightweight probe checks (enough to verify route exists)
 )
 
-# Delegate to HealthCheckStrategy class methods
+# Legacy aliases for backwards compatibility (deprecated, use HealthCheckStrategy directly)
 should_skip_health_check = HealthCheckStrategy.should_skip_health_check
 should_probe_check = HealthCheckStrategy.should_probe_check
-
-
-def _should_skip_entry(
-    path: str, method: str, has_path_params: bool
-) -> tuple[bool, str | None, str | None]:
-    """Determine if an entry should be skipped or probed.
-
-    Returns:
-        Tuple of (should_skip, skip_message, probe_pattern)
-    """
-    is_streaming = "/stream" in path or "/ws" in path.lower() or method == "WS"
-    is_mutating = method in ("POST", "PUT", "DELETE", "PATCH")
-    skip_reason = should_skip_health_check(path)
-    probe_pattern = should_probe_check(path)
-
-    # Path parameter endpoints should ALWAYS use probe logic
-    if has_path_params and not probe_pattern:
-        probe_pattern = "path-param"
-
-    # Determine skip status and message
-    if is_streaming:
-        return True, "Skipped (streaming)", None
-    if is_mutating:
-        return True, "Skipped (mutating method)", None
-    if skip_reason:
-        return True, skip_reason, None
-
-    return False, None, probe_pattern
 
 
 def _interpret_response(
@@ -864,15 +837,17 @@ class SitemapService:
         error_details: dict[str, Any] = {}
         last_error_message = None
 
-        # Determine check type based on endpoint characteristics
-        should_skip, skip_msg, probe_pattern = _should_skip_entry(path, method, has_path_params)
+        # Use centralized strategy for check type determination
+        decision: CheckDecision = HealthCheckStrategy.get_check_decision(
+            path, method, has_path_params
+        )
 
         # 1. Skip entirely: streaming, mutating, or circular-risk endpoints
-        if should_skip:
+        if decision.should_skip:
             skip_result = HealthCheckResult(
                 health_status="healthy",
                 http_status=0,  # Indicates skipped, not actually checked
-                last_error_message=skip_msg,
+                last_error_message=decision.skip_message,
             )
             self._save_health_result(entry_id, skip_result)
             return {
@@ -888,8 +863,7 @@ class SitemapService:
 
         # 2. Determine timeout based on endpoint type
         # Probe endpoints get short timeout to avoid waiting for expensive operations
-        is_probe = probe_pattern is not None
-        timeout = HEALTH_CHECK_TIMEOUT_PROBE if is_probe else HEALTH_CHECK_TIMEOUT_NORMAL
+        timeout = HEALTH_CHECK_TIMEOUT_PROBE if decision.is_probe else HEALTH_CHECK_TIMEOUT_NORMAL
 
         try:
             # HTTP health check - probe or full depending on endpoint
@@ -901,7 +875,7 @@ class SitemapService:
 
                 # Determine if this is an error using helper
                 is_error, last_error_message = _interpret_response(
-                    response, is_probe, probe_pattern
+                    response, decision.is_probe, decision.probe_pattern
                 )
                 if is_error:
                     console_errors = 1
@@ -909,7 +883,7 @@ class SitemapService:
         except Exception as e:
             # Handle all exceptions using helper
             console_errors, console_warnings, last_error_message, error_details = (
-                _handle_check_exception(e, is_probe, probe_pattern, timeout)
+                _handle_check_exception(e, decision.is_probe, decision.probe_pattern, timeout)
             )
 
         # Build and save result
