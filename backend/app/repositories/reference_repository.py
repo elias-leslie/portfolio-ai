@@ -26,9 +26,7 @@ class ReferenceRepository:
         """
         self.storage = storage
 
-    def get_latest_cache_entry_date(
-        self, symbol: str, source: str
-    ) -> dt.date | None:
+    def get_latest_cache_entry_date(self, symbol: str, source: str) -> dt.date | None:
         """Get the as_of_date of the most recent cache entry for symbol/source.
 
         Args:
