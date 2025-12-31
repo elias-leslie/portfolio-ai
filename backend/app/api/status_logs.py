@@ -12,6 +12,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..constants.services import SERVICE_UNIT_MAPPING, VALID_SERVICES
 from ..logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -199,20 +200,9 @@ def fetch_journal_logs(
     return []
 
 
-VALID_SERVICES = {"backend", "celery_worker", "celery_beat", "frontend", "redis", "postgresql"}
 # Derive VALID_LEVELS from LOG_LEVEL_PRIORITY (excluding UNKNOWN which is internal-only)
 # Include "WARNING" as an alias for "WARN" for user convenience
 VALID_LEVELS = {level for level in LOG_LEVEL_PRIORITY if level != "UNKNOWN"} | {"WARNING"}
-
-# Service name to systemd unit mapping (single source of truth)
-SERVICE_UNIT_MAPPING: dict[str, str] = {
-    "backend": "portfolio-backend",
-    "celery_worker": "portfolio-celery",
-    "celery_beat": "portfolio-beat",
-    "frontend": "portfolio-frontend",
-    "redis": "redis-server",
-    "postgresql": "postgresql@16-main",
-}
 
 
 def _validate_log_params(lines: int, service: str | None, level: str | None) -> None:

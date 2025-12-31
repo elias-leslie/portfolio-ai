@@ -15,6 +15,11 @@ _env_file = Path.home() / ".env.local"
 if _env_file.exists():
     load_dotenv(_env_file)
 
+from app.constants.services import (  # noqa: E402
+    SERVICE_PROCESS_PATTERNS,
+    SERVICE_UNIT_MAPPING,
+    VALID_SERVICES,
+)
 from app.constants.symbols import (  # noqa: E402
     ALL_MARKET_SYMBOLS,
     BENCHMARK_SPY,
@@ -126,4 +131,7 @@ __all__ = [
     "SECTOR_ETFS",
     "SECTOR_ETF_SYMBOLS",
     "SECTOR_LABELS",
+    "SERVICE_PROCESS_PATTERNS",
+    "SERVICE_UNIT_MAPPING",
+    "VALID_SERVICES",
 ]
