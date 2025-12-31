@@ -70,6 +70,53 @@ class UnifiedLogsResponse(BaseModel):
     )
 
 
+def _extract_timestamp(entry: dict) -> datetime:
+    """Extract timestamp from journald entry (microsecond precision)."""
+    timestamp_us = int(entry.get("__REALTIME_TIMESTAMP", 0))
+    return datetime.fromtimestamp(timestamp_us / 1000000, tz=UTC)
+
+
+def _map_service_name(entry: dict, service_units: dict[str, str]) -> str:
+    """Map systemd unit to service name.
+
+    Args:
+        entry: Journald entry dict
+        service_units: Mapping of service names to unit names
+
+    Returns:
+        Service name or "unknown" if no match
+    """
+    unit = entry.get("_SYSTEMD_UNIT", "") or entry.get("UNIT", "")
+    for svc, unit_name in service_units.items():
+        if unit_name in unit:
+            return svc
+    return "unknown"
+
+
+def _extract_message(entry: dict) -> str | None:
+    """Extract and decode message from journald entry.
+
+    Args:
+        entry: Journald entry dict
+
+    Returns:
+        Decoded message string, or None if extraction fails
+    """
+    message_raw = entry.get("MESSAGE", "")
+    if isinstance(message_raw, list):
+        try:
+            return "".join(chr(b) if isinstance(b, int) else str(b) for b in message_raw)
+        except (ValueError, TypeError):
+            return None
+    return str(message_raw)
+
+
+def _determine_log_level(entry: dict) -> str:
+    """Determine log level from journald PRIORITY field."""
+    priority = int(entry.get("PRIORITY", 6))  # Default to info (6)
+    return SYSLOG_PRIORITY_TO_LEVEL.get(priority, "UNKNOWN")
+
+
 def parse_journal_output(output: str, service_units: dict[str, str]) -> list[UnifiedLogEntry]:
     """Parse JSON output from journalctl into UnifiedLogEntry objects.
 
@@ -88,37 +135,12 @@ def parse_journal_output(output: str, service_units: dict[str, str]) -> list[Uni
         try:
             entry = json.loads(line)
 
-            # Extract timestamp (microsecond precision from journald)
-            timestamp_us = int(entry.get("__REALTIME_TIMESTAMP", 0))
-            timestamp = datetime.fromtimestamp(timestamp_us / 1000000, tz=UTC)
+            timestamp = _extract_timestamp(entry)
+            service_name = _map_service_name(entry, service_units)
+            message = _extract_message(entry)
 
-            # Extract service name from systemd unit
-            # System services use _SYSTEMD_UNIT, user services might use _SYSTEMD_USER_UNIT?
-            # Actually journalctl -o json output keys are standard.
-            unit = entry.get("_SYSTEMD_UNIT", "") or entry.get("UNIT", "")
-
-            # Map unit name back to service name
-            service_name = "unknown"
-            for svc, unit_name in service_units.items():
-                # Check if unit name matches (relaxed matching for templated units like postgresql@)
-                if unit_name in unit:
-                    service_name = svc
-                    break
-
-            # Extract log message (keep newlines for multi-line messages)
-            # MESSAGE can be a string or list (for binary data)
-            message_raw = entry.get("MESSAGE", "")
-            if isinstance(message_raw, list):
-                # Binary message - convert bytes to string
-                try:
-                    message = "".join(chr(b) if isinstance(b, int) else str(b) for b in message_raw)
-                except (ValueError, TypeError):
-                    continue  # Skip if we can't decode
-            else:
-                message = str(message_raw)
-
-            # Skip empty messages
-            if not message.strip():
+            # Skip if message extraction failed or is empty
+            if message is None or not message.strip():
                 continue
 
             # Skip systemd control messages (service start/stop notifications)
@@ -130,11 +152,8 @@ def parse_journal_output(output: str, service_units: dict[str, str]) -> list[Uni
             ):
                 continue
 
-            # Use journald's native PRIORITY field (syslog levels)
-            priority = int(entry.get("PRIORITY", 6))  # Default to info (6)
-            log_level = SYSLOG_PRIORITY_TO_LEVEL.get(priority, "UNKNOWN")
+            log_level = _determine_log_level(entry)
 
-            # Collect log
             logs.append(
                 UnifiedLogEntry(
                     timestamp=timestamp,
