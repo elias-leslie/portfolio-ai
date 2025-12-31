@@ -24,8 +24,6 @@ logger = get_logger(__name__)
 # Strategy performance thresholds
 PERFORMANCE_RATIO_THRESHOLD = 0.7  # Archive if performance < 70% of expected
 DEFAULT_ROLLING_WINDOW_DAYS = 30  # Rolling window for metrics calculation
-UNDERPERFORMANCE_SHARPE_THRESHOLD = 0.5  # Sharpe ratio threshold for regeneration
-EVOLUTION_TRIGGER_THRESHOLD = 0.9  # 90% of expected performance triggers evolution
 
 
 def _run_strategy_workflow(

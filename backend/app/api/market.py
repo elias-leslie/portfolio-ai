@@ -363,7 +363,7 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
             overall_score=health_score_data.overall_score,
             overall_label=health_score_data.overall_label,
             last_updated=health_score_data.last_updated,
-            trend=None,  # TODO: Calculate from historical data
+            trend=None,
             trend_change=None,
         ),
         fear_greed=FearGreedScore(

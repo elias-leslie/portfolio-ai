@@ -104,16 +104,6 @@ def parse_journal_output(output: str, service_units: dict[str, str]) -> list[Uni
                     service_name = svc
                     break
 
-            # If unknown, try to guess from SYSLOG_IDENTIFIER
-            if service_name == "unknown":
-                identifier = entry.get("SYSLOG_IDENTIFIER", "")
-                if "portfolio" in identifier or "celery" in identifier:
-                    # Keep it but mark as unknown service
-                    pass
-                else:
-                    # Might be noise if we didn't filter by unit
-                    pass
-
             # Extract log message (keep newlines for multi-line messages)
             # MESSAGE can be a string or list (for binary data)
             message_raw = entry.get("MESSAGE", "")

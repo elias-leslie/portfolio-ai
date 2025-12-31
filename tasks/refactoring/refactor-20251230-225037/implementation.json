@@ -1,0 +1,405 @@
+{
+  "meta": {
+    "title": "Full Codebase Refactor - December 2025",
+    "created": "2025-12-30",
+    "session_id": "refactor-20251230-225037",
+    "targets_analyzed": 10,
+    "total_issues_found": 62,
+    "baseline_complexity": 1180.25
+  },
+  "phases": [
+    {
+      "id": 1,
+      "name": "Dead Code & Cleanup",
+      "goal": "Remove unused code and simplify without changing behavior",
+      "tasks": [
+        {
+          "id": "1.1",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "passes": false,
+          "description": "Remove unused constants UNDERPERFORMANCE_SHARPE_THRESHOLD and EVOLUTION_TRIGGER_THRESHOLD",
+          "file": "backend/app/tasks/strategy_monitoring_tasks.py",
+          "location": "lines 27-28",
+          "steps": [
+            "Read file to confirm constants are unused",
+            "Delete lines 27-28",
+            "Run ruff check to verify no errors",
+            "Commit"
+          ],
+          "verification": "ruff check app/tasks/strategy_monitoring_tasks.py"
+        },
+        {
+          "id": "1.2",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "passes": false,
+          "description": "Remove dead code in service name detection fallback (empty pass block)",
+          "file": "backend/app/api/status_logs.py",
+          "location": "lines 108-115",
+          "steps": [
+            "Read parse_journal_output function",
+            "Remove empty fallback logic block that only contains 'pass'",
+            "Run ruff check",
+            "Commit"
+          ],
+          "verification": "ruff check app/api/status_logs.py"
+        },
+        {
+          "id": "1.3",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "passes": false,
+          "description": "Remove TODO comment for trend calculation or create task",
+          "file": "backend/app/api/market.py",
+          "location": "line 366",
+          "steps": [
+            "Read line 366 context",
+            "Check if trend feature is tracked elsewhere",
+            "If not tracked, create st task for implementing trend calculation",
+            "Remove inline TODO comment",
+            "Commit"
+          ],
+          "verification": "grep -n 'TODO' app/api/market.py | wc -l"
+        },
+        {
+          "id": "1.4",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "passes": false,
+          "description": "Inline _calculate_max_drawdown wrapper function",
+          "file": "backend/app/tasks/strategy_monitoring_tasks.py",
+          "location": "lines 296-308",
+          "steps": [
+            "Read function and its single caller",
+            "Replace call at line 391 with direct calculate_simple_max_drawdown([t['pnl'] for t in trades])",
+            "Remove the wrapper function",
+            "Run pytest tests/tasks/test_strategy_monitoring.py -x",
+            "Commit"
+          ],
+          "verification": "grep -c '_calculate_max_drawdown' app/tasks/strategy_monitoring_tasks.py"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Constants & Config Consolidation",
+      "goal": "DRY principle - centralize duplicated constants",
+      "tasks": [
+        {
+          "id": "2.1",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "passes": false,
+          "description": "Consolidate VALID_LOG_LEVELS constant (duplicate in status_logs.py)",
+          "file": "backend/app/api/status_logs.py",
+          "location": "lines 214 and 486",
+          "steps": [
+            "Create VALID_LOG_LEVELS = frozenset({'DEBUG', 'INFO', 'WARN', 'WARNING', 'ERROR', 'CRITICAL'}) at module level",
+            "Replace both usages with the shared constant",
+            "Run ruff check",
+            "Commit"
+          ],
+          "verification": "grep -c 'VALID_LOG_LEVELS' app/api/status_logs.py"
+        },
+        {
+          "id": "2.2",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "passes": false,
+          "description": "Extract SERVICE_UNIT_MAPPING to shared constants",
+          "file": "backend/app/api/status_logs.py",
+          "location": "lines 217-224",
+          "steps": [
+            "Check if app/constants/ directory exists, create if needed",
+            "Create app/constants/services.py with SERVICE_UNIT_MAPPING",
+            "Update status_logs.py to import from shared module",
+            "Update service_monitor.py to import from shared module",
+            "Run tests for both modules",
+            "Commit"
+          ],
+          "verification": "grep -l 'SERVICE_UNIT_MAPPING' app/constants/services.py app/api/status_logs.py app/services/service_monitor.py"
+        },
+        {
+          "id": "2.3",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "passes": false,
+          "description": "Move dbTaskApiFunctions to maintenanceTaskConfig.ts",
+          "file": "frontend/components/status/MaintenanceTable.tsx",
+          "location": "lines 284-288",
+          "steps": [
+            "Add DB_TASK_API_FUNCTIONS export to maintenanceTaskConfig.ts",
+            "Update MaintenanceTable.tsx to import from config",
+            "Remove inline definition",
+            "Run npm run lint",
+            "Commit"
+          ],
+          "verification": "grep 'DB_TASK_API_FUNCTIONS' frontend/components/status/maintenanceTaskConfig.ts"
+        },
+        {
+          "id": "2.4",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "passes": false,
+          "description": "Standardize datetime generation in watchlist.py",
+          "file": "backend/app/api/watchlist.py",
+          "location": "lines 108, 169 vs 270, 397",
+          "steps": [
+            "Replace datetime.now(UTC) at lines 108, 169 with utc_now_iso()",
+            "Ensure utc_now_iso is imported from app.utils.formatters",
+            "Run ruff check",
+            "Commit"
+          ],
+          "verification": "grep -c 'datetime.now(UTC)' app/api/watchlist.py"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Error Handling & Type Safety",
+      "goal": "Improve exception handling and type safety",
+      "tasks": [
+        {
+          "id": "3.1",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "passes": false,
+          "description": "Create require_nonempty_df helper for watchlist.py",
+          "file": "backend/app/api/watchlist.py",
+          "location": "lines 210, 394, 425, 460, 468, 536, 633, 639",
+          "steps": [
+            "Create helper function require_nonempty_df(df, error_msg) in app/api/utils.py",
+            "Replace 8 occurrences in watchlist.py with helper call",
+            "Run pytest tests/api/test_watchlist.py",
+            "Commit"
+          ],
+          "verification": "grep -c 'require_nonempty_df' app/api/watchlist.py"
+        },
+        {
+          "id": "3.2",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "passes": false,
+          "description": "Narrow autoretry_for from Exception to specific exceptions",
+          "file": "backend/app/tasks/reference_tasks.py",
+          "location": "line 486 task decorator",
+          "steps": [
+            "Import RequestException, TimeoutError, OperationalError",
+            "Change autoretry_for=(Exception,) to autoretry_for=(RequestException, TimeoutError, OperationalError)",
+            "Run pytest tests/tasks/test_reference_tasks.py",
+            "Commit"
+          ],
+          "verification": "grep 'autoretry_for' app/tasks/reference_tasks.py"
+        },
+        {
+          "id": "3.3",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "passes": false,
+          "description": "Replace cast() with proper validation in market.py",
+          "file": "backend/app/api/market.py",
+          "location": "lines 349-350, 834, 927",
+          "steps": [
+            "Read each cast() usage",
+            "Replace with isinstance() checks or Pydantic validation",
+            "Run mypy on file",
+            "Commit"
+          ],
+          "verification": "grep -c 'cast(' app/api/market.py"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Helper Function Extraction",
+      "goal": "Extract reusable helpers from complex functions",
+      "tasks": [
+        {
+          "id": "4.1",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "passes": false,
+          "description": "Extract _enrich_indicator_with_history helper in market.py",
+          "file": "backend/app/api/market.py",
+          "location": "lines 292-324",
+          "steps": [
+            "Create helper function _enrich_indicator_with_history(storage, symbol, data, health_score_data, actual_data_dates)",
+            "Refactor repeated pattern for vix/sp500/tnx/dxy to use helper",
+            "Run pytest tests/api/test_market.py",
+            "Commit"
+          ],
+          "verification": "grep -c '_enrich_indicator_with_history' app/api/market.py"
+        },
+        {
+          "id": "4.2",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "passes": false,
+          "description": "Extract _generate_strategies_batch helper in strategy_monitoring_tasks.py",
+          "file": "backend/app/tasks/strategy_monitoring_tasks.py",
+          "location": "weekly_strategy_generation, daily_strategy_refresh, trigger_strategies_for_top_watchlist",
+          "steps": [
+            "Create _generate_strategies_batch(symbols, max_count, force_regenerate) helper",
+            "Refactor 3 tasks to call shared helper",
+            "Run pytest tests/tasks/test_strategy_monitoring.py",
+            "Commit"
+          ],
+          "verification": "grep -c '_generate_strategies_batch' app/tasks/strategy_monitoring_tasks.py"
+        },
+        {
+          "id": "4.3",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "passes": false,
+          "description": "Extract helper functions from parse_journal_output",
+          "file": "backend/app/api/status_logs.py",
+          "location": "lines 72-159",
+          "steps": [
+            "Extract _extract_timestamp(entry)",
+            "Extract _map_service_name(entry, service_units)",
+            "Extract _extract_message(entry)",
+            "Extract _determine_log_level(entry)",
+            "Refactor parse_journal_output to use helpers",
+            "Run pytest tests/api/test_status_logs.py",
+            "Commit"
+          ],
+          "verification": "grep -c 'def _extract_\\|def _map_\\|def _determine_' app/api/status_logs.py"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Frontend State Management",
+      "goal": "Extract custom hooks from bloated React components",
+      "tasks": [
+        {
+          "id": "5.1",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "passes": false,
+          "description": "Extract useAgentPanelUI hook from AgentPanel.tsx",
+          "file": "frontend/components/agents/AgentPanel.tsx",
+          "location": "lines 50-74 (UI state declarations)",
+          "steps": [
+            "Create frontend/components/agents/hooks/useAgentPanelUI.ts",
+            "Move showSessions, showSettings, showStatus, showTokenSummary, showEvidenceCapture states",
+            "Update AgentPanel to use the hook",
+            "Run npm run lint && npm run build",
+            "Commit"
+          ],
+          "verification": "test -f frontend/components/agents/hooks/useAgentPanelUI.ts"
+        },
+        {
+          "id": "5.2",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "passes": false,
+          "description": "Extract useMaintenanceTaskRunner hook",
+          "file": "frontend/components/status/MaintenanceTable.tsx",
+          "location": "lines 244-338 (task execution handlers)",
+          "steps": [
+            "Create frontend/lib/hooks/useMaintenanceTaskRunner.ts",
+            "Move handleFileCleanupTrigger, handleDatabaseTask, triggerTask logic",
+            "Expose { triggerTask, isTriggering } from hook",
+            "Update MaintenanceTable to use hook",
+            "Run npm run lint && npm run build",
+            "Commit"
+          ],
+          "verification": "test -f frontend/lib/hooks/useMaintenanceTaskRunner.ts"
+        },
+        {
+          "id": "5.3",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "passes": false,
+          "description": "Extract useMaintenanceBatchRunner hook",
+          "file": "frontend/components/status/MaintenanceTable.tsx",
+          "location": "lines 341-404 (handleRunAll)",
+          "steps": [
+            "Create frontend/lib/hooks/useMaintenanceBatchRunner.ts",
+            "Move handleRunAll logic to hook",
+            "Expose { runAll, isRunning, batchResults } from hook",
+            "Update MaintenanceTable to use hook",
+            "Run npm run lint && npm run build",
+            "Commit"
+          ],
+          "verification": "test -f frontend/lib/hooks/useMaintenanceBatchRunner.ts"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Final Verification",
+      "goal": "Ensure all changes work together",
+      "tasks": [
+        {
+          "id": "6.1",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "passes": false,
+          "description": "Run full backend test suite",
+          "file": "backend/",
+          "location": "all test files",
+          "steps": [
+            "cd backend && .venv/bin/pytest tests/ -x --tb=short",
+            "Fix any failures",
+            "Commit fixes if needed"
+          ],
+          "verification": ".venv/bin/pytest tests/ -x --tb=short"
+        },
+        {
+          "id": "6.2",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "passes": false,
+          "description": "Run full frontend build",
+          "file": "frontend/",
+          "location": "build output",
+          "steps": [
+            "cd frontend && npm run build",
+            "Fix any TypeScript errors",
+            "Commit fixes if needed"
+          ],
+          "verification": "npm run build"
+        },
+        {
+          "id": "6.3",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "passes": false,
+          "description": "Restart services and verify health",
+          "file": "scripts/",
+          "location": "restart.sh, status.sh",
+          "steps": [
+            "bash ~/portfolio-ai/scripts/restart.sh",
+            "Wait 30 seconds",
+            "bash ~/portfolio-ai/scripts/status.sh",
+            "Verify all services healthy"
+          ],
+          "verification": "bash ~/portfolio-ai/scripts/status.sh"
+        }
+      ]
+    }
+  ]
+}
