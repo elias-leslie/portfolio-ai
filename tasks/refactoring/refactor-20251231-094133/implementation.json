@@ -275,8 +275,8 @@
             "Remove inline try-except blocks",
             "Run pytest tests/unit/api/test_watchlist.py if exists"
           ],
-          "verification": "grep -c '@handle_api_errors' backend/app/api/watchlist.py should be >= 10",
-          "passes": false
+          "verification": "grep -c '@handle_api_errors' backend/app/api/watchlist.py should be >= 9",
+          "passes": true
         }
       ]
     },

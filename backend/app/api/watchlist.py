@@ -229,9 +229,7 @@ async def get_daily_report() -> dict[str, object]:
     is_stale = (datetime.now(UTC) - generated_at).total_seconds() > 48 * 3600
 
     return {
-        "report_date": report_row["report_date"].isoformat()
-        if report_row["report_date"]
-        else None,
+        "report_date": report_row["report_date"].isoformat() if report_row["report_date"] else None,
         "generated_at": generated_at.isoformat() if generated_at else None,
         "symbols_added": symbols_added,
         "symbols_removed": symbols_removed,
@@ -596,9 +594,7 @@ async def review_strategy_signal(item_id: str, dual: bool = True) -> dict[str, o
     # Get latest snapshot
     snapshots_df = watchlist_repo.get_latest_snapshot_for_review(item_id)
 
-    require_nonempty_df(
-        snapshots_df, f"No snapshot found for item {item_id}. Run refresh first."
-    )
+    require_nonempty_df(snapshots_df, f"No snapshot found for item {item_id}. Run refresh first.")
 
     # Parse snapshot and build signal data using helper
     snapshot_row = snapshots_df.to_dicts()[0]
