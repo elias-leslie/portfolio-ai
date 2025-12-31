@@ -418,7 +418,7 @@
             "Run npm run lint --prefix frontend"
           ],
           "verification": "test -f frontend/components/agents/AgentPanelHeader.tsx",
-          "passes": false
+          "passes": true
         }
       ]
     },

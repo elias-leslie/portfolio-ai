@@ -22,6 +22,7 @@ from app.analytics.financial_health_scores import get_financial_health_scores
 from app.analytics.risk_metrics import calculate_symbol_beta, calculate_symbol_var
 from app.celery_app import celery_app
 from app.logging_config import get_logger
+from app.repositories import ReferenceRepository
 from app.sources.alphavantage_source import AlphaVantageSource
 from app.sources.yfinance_source import YFinanceSource
 from app.storage import get_storage

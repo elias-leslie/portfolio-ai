@@ -4,5 +4,6 @@ Repositories handle all database queries, separating data access from business l
 """
 
 from .market_repository import MarketRepository
+from .reference_repository import ReferenceRepository
 
-__all__ = ["MarketRepository"]
+__all__ = ["MarketRepository", "ReferenceRepository"]
