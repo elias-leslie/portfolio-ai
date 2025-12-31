@@ -290,42 +290,52 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
         sector_data_list
     )
 
+    def _enrich_indicator_with_history(
+        indicator_data: Any,
+        symbol: str,
+        enrich_func: Any,
+    ) -> dict[str, Any]:
+        """Enrich indicator data with historical change and actual timestamp.
+
+        Args:
+            indicator_data: Raw indicator data from price fetcher
+            symbol: Market symbol (e.g., "^VIX", "^GSPC")
+            enrich_func: Intelligence function to enrich the indicator
+
+        Returns:
+            Enriched indicator dict with history
+        """
+        # Calculate daily change percentage from day_bars historical data
+        change_pct = calculate_daily_change_pct(storage, symbol, indicator_data.price)
+
+        # Get actual data timestamp (from day_bars) instead of cache timestamp
+        actual_timestamp = actual_data_dates.get(symbol)
+        if actual_timestamp:
+            # Temporarily override cached_at with actual data date
+            indicator_data.cached_at = actual_timestamp
+
+        # Call the appropriate enrich function
+        return enrich_func(indicator_data, health_score_data, change_pct=change_pct)
+
     # Enrich indicators with plain-language labels using intelligence helpers
     # Calculate daily change percentages from day_bars historical data
     # Use actual data timestamps (from day_bars) instead of cache timestamps
     enriched_indicators = {}
     if vix_data:
-        vix_change = calculate_daily_change_pct(storage, "^VIX", vix_data.price)
-        vix_timestamp = actual_data_dates.get("^VIX")
-        # Temporarily override cached_at with actual data date
-        if vix_timestamp:
-            vix_data.cached_at = vix_timestamp
-        enriched_indicators["vix"] = intelligence.enrich_vix_indicator(
-            vix_data, health_score_data, change_pct=vix_change
+        enriched_indicators["vix"] = _enrich_indicator_with_history(
+            vix_data, "^VIX", intelligence.enrich_vix_indicator
         )
     if sp500_data:
-        sp500_change = calculate_daily_change_pct(storage, "^GSPC", sp500_data.price)
-        sp500_timestamp = actual_data_dates.get("^GSPC")
-        if sp500_timestamp:
-            sp500_data.cached_at = sp500_timestamp
-        enriched_indicators["sp500"] = intelligence.enrich_sp500_indicator(
-            sp500_data, health_score_data, change_pct=sp500_change
+        enriched_indicators["sp500"] = _enrich_indicator_with_history(
+            sp500_data, "^GSPC", intelligence.enrich_sp500_indicator
         )
     if tnx_data:
-        tnx_change = calculate_daily_change_pct(storage, "^TNX", tnx_data.price)
-        tnx_timestamp = actual_data_dates.get("^TNX")
-        if tnx_timestamp:
-            tnx_data.cached_at = tnx_timestamp
-        enriched_indicators["tnx"] = intelligence.enrich_tnx_indicator(
-            tnx_data, health_score_data, change_pct=tnx_change
+        enriched_indicators["tnx"] = _enrich_indicator_with_history(
+            tnx_data, "^TNX", intelligence.enrich_tnx_indicator
         )
     if dxy_data:
-        dxy_change = calculate_daily_change_pct(storage, "DX-Y.NYB", dxy_data.price)
-        dxy_timestamp = actual_data_dates.get("DX-Y.NYB")
-        if dxy_timestamp:
-            dxy_data.cached_at = dxy_timestamp
-        enriched_indicators["dxy"] = intelligence.enrich_dxy_indicator(
-            dxy_data, health_score_data, change_pct=dxy_change
+        enriched_indicators["dxy"] = _enrich_indicator_with_history(
+            dxy_data, "DX-Y.NYB", intelligence.enrich_dxy_indicator
         )
 
     # Get Put/Call Ratio from fear_greed_inputs
