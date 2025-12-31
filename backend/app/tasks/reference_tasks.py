@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any, TypedDict
 if TYPE_CHECKING:
     from celery import Task
 
-from psycopg.errors import OperationalError
+from psycopg2 import OperationalError
 from requests.exceptions import RequestException
 
 from app.analytics.analyst_revisions import refresh_analyst_revisions_for_symbols

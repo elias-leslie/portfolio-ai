@@ -292,7 +292,7 @@
           "tier": 2,
           "model": "sonnet",
           "parallelizable": true,
-          "passes": false,
+          "passes": true,
           "description": "Extract useAgentPanelUI hook from AgentPanel.tsx",
           "file": "frontend/components/agents/AgentPanel.tsx",
           "location": "lines 50-74 (UI state declarations)",
