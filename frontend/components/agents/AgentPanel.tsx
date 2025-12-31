@@ -45,8 +45,11 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
   void _onOpenChange;
 
   // Server/connection state
-  const [serverUrl, setServerUrl] = useState<string | null>(null);
-  const [wsUrl, setWsUrl] = useState<string | null>(null);
+  const [serverUrl] = useState<string | null>(() => getServerUrl());
+  const [wsUrl] = useState<string | null>(() => {
+    const url = getServerUrl();
+    return url ? getWsUrl(url) : null;
+  });
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
@@ -82,15 +85,6 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const currentResponseRef = useRef<ContentBlock[]>([]);
-
-  // Initialize URLs on client
-  useEffect(() => {
-    const url = getServerUrl();
-    if (url) {
-      setServerUrl(url);
-      setWsUrl(getWsUrl(url));
-    }
-  }, []);
 
   // Keep ref in sync with state
   useEffect(() => {

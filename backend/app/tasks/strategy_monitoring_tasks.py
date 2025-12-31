@@ -144,7 +144,7 @@ def _evaluate_single_strategy(
 
     # Determine status
     days_since_activation = (
-        (datetime.now() - strategy.activation_date).days if strategy.activation_date else 0
+        (datetime.now(UTC) - strategy.activation_date).days if strategy.activation_date else 0
     )
 
     archived = False
@@ -180,7 +180,7 @@ def _evaluate_single_strategy(
     )
     strategy_storage.record_daily_performance(
         strategy_id=strategy.id,
-        date=date.today(),
+        date=datetime.now(UTC).date(),
         trades_today=metrics["trades_today"],
         wins_today=metrics["wins_today"],
         losses_today=metrics["losses_today"],
@@ -341,7 +341,7 @@ def _calculate_rolling_metrics(
     Returns:
         Dict with calculated metrics
     """
-    cutoff_date = date.today() - timedelta(days=window_days)
+    cutoff_date = datetime.now(UTC).date() - timedelta(days=window_days)
 
     try:
         result = conn.execute(
@@ -397,7 +397,7 @@ def _calculate_rolling_metrics(
         return empty_metrics
 
     # Calculate metrics using helpers
-    today = date.today()
+    today = datetime.now(UTC).date()
     today_metrics = _calculate_today_metrics(trades, today)
 
     # 30-day metrics

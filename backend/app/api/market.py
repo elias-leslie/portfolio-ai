@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from typing import Any, Final, cast, get_args
+from typing import Any, Final, TypedDict, cast, get_args
 
 import yfinance as yf
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -41,6 +41,7 @@ from app.constants import SECTOR_ETFS
 from app.logging_config import get_logger
 from app.market import intelligence
 from app.market.fear_greed_stub import get_fear_greed_score
+from app.market.options_context import PutCallContext
 from app.market.sentiment import calculate_market_health
 from app.middleware.cache import cache_response
 from app.models.market_events import MarketEventCreate, MarketEventType, MarketEventUpdate
