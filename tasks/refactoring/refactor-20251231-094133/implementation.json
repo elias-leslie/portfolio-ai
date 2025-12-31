@@ -484,7 +484,7 @@
             "If failures, document which tests fail and whether pre-existing"
           ],
           "verification": "pytest exit code 0 or documented pre-existing failures",
-          "passes": false
+          "passes": true
         },
         {
           "id": "7.2",
@@ -500,7 +500,7 @@
             "Document any new errors introduced"
           ],
           "verification": "No new lint or type errors",
-          "passes": false
+          "passes": true
         },
         {
           "id": "7.3",
@@ -515,7 +515,7 @@
             "Document any new errors introduced"
           ],
           "verification": "No new mypy errors",
-          "passes": false
+          "passes": true
         }
       ]
     }
