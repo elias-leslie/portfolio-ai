@@ -112,7 +112,7 @@
           "tier": 2,
           "model": "sonnet",
           "parallelizable": true,
-          "passes": false,
+          "passes": true,
           "description": "Extract SERVICE_UNIT_MAPPING to shared constants",
           "file": "backend/app/api/status_logs.py",
           "location": "lines 217-224",
