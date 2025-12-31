@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 
 from app.agents.multi_reviewer import DualReviewResult, MultiReviewer, ProviderReview
 from app.agents.strategy_reviewer import StrategyReviewer
-from app.api.utils import require_nonempty_df
+from app.api.utils import handle_api_errors, require_nonempty_df
 from app.logging_config import get_logger
 from app.middleware.cache import cache_response
 from app.storage import get_storage
@@ -175,6 +175,7 @@ def _store_legacy_review(
 # Endpoints
 @router.get("", response_model=WatchlistListResponse)
 @cache_response(ttl=60)  # 1 minute cache
+@handle_api_errors("fetch watchlist items")
 async def list_watchlist_items(request: Request) -> WatchlistListResponse:
     """
     List all watchlist items with current scores.
@@ -184,19 +185,16 @@ async def list_watchlist_items(request: Request) -> WatchlistListResponse:
     Returns:
         List of watchlist items with current scores
     """
-    try:
-        items = await run_in_threadpool(watchlist_service.get_items_with_scores)
+    items = await run_in_threadpool(watchlist_service.get_items_with_scores)
 
-        return WatchlistListResponse(
-            items=build_watchlist_item_responses(items),
-            total_count=len(items),
-        )
-    except Exception as e:
-        logger.error("Failed to list watchlist items", error=str(e))
-        raise HTTPException(status_code=500, detail=f"Failed to fetch watchlist: {e}") from e
+    return WatchlistListResponse(
+        items=build_watchlist_item_responses(items),
+        total_count=len(items),
+    )
 
 
 @router.get("/daily-report")
+@handle_api_errors("fetch daily report")
 async def get_daily_report() -> dict[str, object]:
     """
     Get the latest daily watchlist report.
@@ -204,50 +202,46 @@ async def get_daily_report() -> dict[str, object]:
     Returns:
         Latest report with symbols added, removed, and score changes
     """
-    try:
-        # Get latest report
-        report_df = watchlist_repo.get_latest_daily_report()
+    # Get latest report
+    report_df = watchlist_repo.get_latest_daily_report()
 
-        if report_df.is_empty():
-            return {
-                "report_date": None,
-                "generated_at": None,
-                "symbols_added": [],
-                "symbols_removed": [],
-                "score_changes": [],
-                "is_stale": True,
-            }
-
-        report_row = report_df.to_dicts()[0]
-
-        # Parse JSON fields with safe parsing
-        symbols_added = safe_json_loads(report_row["symbols_added"], [])
-        symbols_removed = safe_json_loads(report_row["symbols_removed"], [])
-        score_changes = safe_json_loads(report_row["score_changes"], [])
-
-        # Check if report is stale (>48 hours old)
-        generated_at = report_row["generated_at"]
-        if isinstance(generated_at, str):
-            generated_at = datetime.fromisoformat(generated_at)
-        is_stale = (datetime.now(UTC) - generated_at).total_seconds() > 48 * 3600
-
+    if report_df.is_empty():
         return {
-            "report_date": report_row["report_date"].isoformat()
-            if report_row["report_date"]
-            else None,
-            "generated_at": generated_at.isoformat() if generated_at else None,
-            "symbols_added": symbols_added,
-            "symbols_removed": symbols_removed,
-            "score_changes": score_changes,
-            "is_stale": is_stale,
+            "report_date": None,
+            "generated_at": None,
+            "symbols_added": [],
+            "symbols_removed": [],
+            "score_changes": [],
+            "is_stale": True,
         }
 
-    except Exception as e:
-        logger.error("Failed to get daily report", error=str(e))
-        raise HTTPException(status_code=500, detail=f"Failed to fetch daily report: {e}") from e
+    report_row = report_df.to_dicts()[0]
+
+    # Parse JSON fields with safe parsing
+    symbols_added = safe_json_loads(report_row["symbols_added"], [])
+    symbols_removed = safe_json_loads(report_row["symbols_removed"], [])
+    score_changes = safe_json_loads(report_row["score_changes"], [])
+
+    # Check if report is stale (>48 hours old)
+    generated_at = report_row["generated_at"]
+    if isinstance(generated_at, str):
+        generated_at = datetime.fromisoformat(generated_at)
+    is_stale = (datetime.now(UTC) - generated_at).total_seconds() > 48 * 3600
+
+    return {
+        "report_date": report_row["report_date"].isoformat()
+        if report_row["report_date"]
+        else None,
+        "generated_at": generated_at.isoformat() if generated_at else None,
+        "symbols_added": symbols_added,
+        "symbols_removed": symbols_removed,
+        "score_changes": score_changes,
+        "is_stale": is_stale,
+    }
 
 
 @router.post("", response_model=WatchlistItemResponse, status_code=201)
+@handle_api_errors("create watchlist item")
 async def create_watchlist_item(data: WatchlistItemCreate) -> WatchlistItemResponse:
     """
     Add a symbol to the watchlist.
@@ -258,47 +252,41 @@ async def create_watchlist_item(data: WatchlistItemCreate) -> WatchlistItemRespo
     Returns:
         Created watchlist item
     """
-    try:
-        # Validate and normalize symbol
-        symbol = validate_symbol(data.symbol)
+    # Validate and normalize symbol
+    symbol = validate_symbol(data.symbol)
 
-        # Check if already exists (globally - watchlist is user-level)
-        if watchlist_repo.check_item_exists(symbol):
-            raise HTTPException(status_code=409, detail=f"Symbol {symbol} already in watchlist")
+    # Check if already exists (globally - watchlist is user-level)
+    if watchlist_repo.check_item_exists(symbol):
+        raise HTTPException(status_code=409, detail=f"Symbol {symbol} already in watchlist")
 
-        # Create item
-        item_id = generate_uuid()
-        now = utc_now_iso()
+    # Create item
+    item_id = generate_uuid()
+    now = utc_now_iso()
 
-        watchlist_repo.create_item(item_id, symbol, data.note, now)
+    watchlist_repo.create_item(item_id, symbol, data.note, now)
 
-        # Invalidate all watchlist caches (Redis symbols + HTTP response)
-        invalidate_all_watchlist_caches()
+    # Invalidate all watchlist caches (Redis symbols + HTTP response)
+    invalidate_all_watchlist_caches()
 
-        logger.info("Watchlist item created", item_id=item_id, symbol=symbol)
+    logger.info("Watchlist item created", item_id=item_id, symbol=symbol)
 
-        # Trigger background data population for the new symbol
-        schedule_new_symbol_tasks(symbol)
+    # Trigger background data population for the new symbol
+    schedule_new_symbol_tasks(symbol)
 
-        return WatchlistItemResponse(
-            id=item_id,
-            symbol=symbol,
-            note=data.note,
-            created_at=now,
-            updated_at=now,
-            readiness_score=None,
-            confidence_level=None,
-            gap_warning=None,
-            timeframe_short_aligned=None,
-            timeframe_long_aligned=None,
-            volume_relative=None,
-            data_quality=None,
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Failed to create watchlist item", error=str(e))
-        raise HTTPException(status_code=500, detail=f"Failed to create item: {e}") from e
+    return WatchlistItemResponse(
+        id=item_id,
+        symbol=symbol,
+        note=data.note,
+        created_at=now,
+        updated_at=now,
+        readiness_score=None,
+        confidence_level=None,
+        gap_warning=None,
+        timeframe_short_aligned=None,
+        timeframe_long_aligned=None,
+        volume_relative=None,
+        data_quality=None,
+    )
 
 
 @router.get("/refresh-status", response_model=RefreshStatusResponse)
@@ -351,6 +339,7 @@ async def get_refresh_status() -> RefreshStatusResponse:
 
 
 @router.get("/{item_id}", response_model=WatchlistItemResponse)
+@handle_api_errors("fetch watchlist item")
 async def get_watchlist_item(item_id: str) -> WatchlistItemResponse:
     """
     Get a single watchlist item with current score and 7-day history.
@@ -361,22 +350,17 @@ async def get_watchlist_item(item_id: str) -> WatchlistItemResponse:
     Returns:
         Watchlist item with scores
     """
-    try:
-        # Use optimized single-item query instead of fetching all items
-        item = await run_in_threadpool(watchlist_service.get_item_with_score_by_id, item_id)
+    # Use optimized single-item query instead of fetching all items
+    item = await run_in_threadpool(watchlist_service.get_item_with_score_by_id, item_id)
 
-        if item is None:
-            raise HTTPException(status_code=404, detail="Watchlist item not found")
+    if item is None:
+        raise HTTPException(status_code=404, detail="Watchlist item not found")
 
-        return WatchlistItemResponse.from_service_dict(item)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Failed to get watchlist item", item_id=item_id, error=str(e))
-        raise HTTPException(status_code=500, detail=f"Failed to fetch item: {e}") from e
+    return WatchlistItemResponse.from_service_dict(item)
 
 
 @router.patch("/{item_id}", response_model=WatchlistItemResponse)
+@handle_api_errors("update watchlist item")
 async def update_watchlist_item(item_id: str, data: WatchlistItemUpdate) -> WatchlistItemResponse:
     """
     Update a watchlist item (currently only supports note updates).
@@ -388,29 +372,24 @@ async def update_watchlist_item(item_id: str, data: WatchlistItemUpdate) -> Watc
     Returns:
         Updated watchlist item
     """
-    try:
-        # Check if exists
-        items_df = watchlist_repo.get_item_by_id(item_id)
+    # Check if exists
+    items_df = watchlist_repo.get_item_by_id(item_id)
 
-        require_nonempty_df(items_df, "Watchlist item not found")
+    require_nonempty_df(items_df, "Watchlist item not found")
 
-        now = utc_now_iso()
+    now = utc_now_iso()
 
-        # Update note
-        watchlist_repo.update_item_note(item_id, data.note, now)
+    # Update note
+    watchlist_repo.update_item_note(item_id, data.note, now)
 
-        logger.info("Watchlist item updated", item_id=item_id)
+    logger.info("Watchlist item updated", item_id=item_id)
 
-        # Fetch updated item
-        return await get_watchlist_item(item_id)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Failed to update watchlist item", item_id=item_id, error=str(e))
-        raise HTTPException(status_code=500, detail=f"Failed to update item: {e}") from e
+    # Fetch updated item
+    return await get_watchlist_item(item_id)
 
 
 @router.delete("/{item_id}", status_code=204)
+@handle_api_errors("delete watchlist item")
 async def delete_watchlist_item(item_id: str) -> None:
     """
     Delete a watchlist item.
@@ -418,27 +397,22 @@ async def delete_watchlist_item(item_id: str) -> None:
     Args:
         item_id: Watchlist item ID
     """
-    try:
-        # Check if exists
-        items_df = watchlist_repo.get_item_by_id(item_id)
+    # Check if exists
+    items_df = watchlist_repo.get_item_by_id(item_id)
 
-        require_nonempty_df(items_df, "Watchlist item not found")
+    require_nonempty_df(items_df, "Watchlist item not found")
 
-        # Delete snapshots first (foreign key), then delete item
-        watchlist_repo.delete_item(item_id)
+    # Delete snapshots first (foreign key), then delete item
+    watchlist_repo.delete_item(item_id)
 
-        # Invalidate all watchlist caches (Redis symbols + HTTP response)
-        invalidate_all_watchlist_caches()
+    # Invalidate all watchlist caches (Redis symbols + HTTP response)
+    invalidate_all_watchlist_caches()
 
-        logger.info("Watchlist item deleted", item_id=item_id)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Failed to delete watchlist item", item_id=item_id, error=str(e))
-        raise HTTPException(status_code=500, detail=f"Failed to delete item: {e}") from e
+    logger.info("Watchlist item deleted", item_id=item_id)
 
 
 @router.get("/{item_id}/history", response_model=ScoreHistoryResponse)
+@handle_api_errors("fetch score history")
 async def get_score_history(item_id: str, days: int = 10) -> ScoreHistoryResponse:
     """
     Get score history for a watchlist item from snapshots.
@@ -452,69 +426,64 @@ async def get_score_history(item_id: str, days: int = 10) -> ScoreHistoryRespons
     Returns:
         Score history with price/technical scores extracted from snapshots
     """
-    try:
-        # Get item info
-        item_df = watchlist_repo.get_symbol_by_item_id(item_id)
+    # Get item info
+    item_df = watchlist_repo.get_symbol_by_item_id(item_id)
 
-        require_nonempty_df(item_df, "Watchlist item not found")
+    require_nonempty_df(item_df, "Watchlist item not found")
 
-        symbol = item_df.to_dicts()[0]["symbol"]
+    symbol = item_df.to_dicts()[0]["symbol"]
 
-        # Fetch snapshots from database using the normalized view
-        snapshots_df = watchlist_repo.get_snapshots_with_metrics(item_id)
+    # Fetch snapshots from database using the normalized view
+    snapshots_df = watchlist_repo.get_snapshots_with_metrics(item_id)
 
-        if snapshots_df.is_empty():
-            logger.warning("No snapshot data available", symbol=symbol, item_id=item_id)
-            return ScoreHistoryResponse(
-                item_id=item_id,
-                symbol=symbol,
-                history=[],
-            )
-
-        # Convert to WatchlistSnapshot objects
-        snapshots = []
-        for row in snapshots_df.to_dicts():
-            # Parse raw_metrics safely (JSON column might be string or dict)
-            raw_metrics = safe_json_loads(row.get("raw_metrics"), {})
-
-            snapshot = WatchlistSnapshot(
-                item_id=row["item_id"],
-                fetched_at=row["fetched_at"],
-                price=row.get("price"),
-                technical_score=row.get("technical_score"),
-                overall_score=row.get("overall_score"),
-                raw_metrics=raw_metrics,
-            )
-            snapshots.append(snapshot)
-
-        # Build timeline from snapshots
-        timeline = build_score_timeline(snapshots, window_days=days)
-
-        # Convert to API response format
-        history = []
-        for point in timeline:
-            history.append(
-                ScoreHistoryPoint(
-                    timestamp=point.date.isoformat(),
-                    overall=point.overall_score,
-                    price_score=point.price_score or 0.0,
-                    technical_score=point.technical_score or 0.0,
-                )
-            )
-
+    if snapshots_df.is_empty():
+        logger.warning("No snapshot data available", symbol=symbol, item_id=item_id)
         return ScoreHistoryResponse(
             item_id=item_id,
             symbol=symbol,
-            history=history,
+            history=[],
         )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Failed to get score history", item_id=item_id, error=str(e))
-        raise HTTPException(status_code=500, detail=f"Failed to get history: {e}") from e
+
+    # Convert to WatchlistSnapshot objects
+    snapshots = []
+    for row in snapshots_df.to_dicts():
+        # Parse raw_metrics safely (JSON column might be string or dict)
+        raw_metrics = safe_json_loads(row.get("raw_metrics"), {})
+
+        snapshot = WatchlistSnapshot(
+            item_id=row["item_id"],
+            fetched_at=row["fetched_at"],
+            price=row.get("price"),
+            technical_score=row.get("technical_score"),
+            overall_score=row.get("overall_score"),
+            raw_metrics=raw_metrics,
+        )
+        snapshots.append(snapshot)
+
+    # Build timeline from snapshots
+    timeline = build_score_timeline(snapshots, window_days=days)
+
+    # Convert to API response format
+    history = []
+    for point in timeline:
+        history.append(
+            ScoreHistoryPoint(
+                timestamp=point.date.isoformat(),
+                overall=point.overall_score,
+                price_score=point.price_score or 0.0,
+                technical_score=point.technical_score or 0.0,
+            )
+        )
+
+    return ScoreHistoryResponse(
+        item_id=item_id,
+        symbol=symbol,
+        history=history,
+    )
 
 
 @router.post("/refresh", response_model=RefreshResponse)
+@handle_api_errors("refresh watchlist scores")
 async def refresh_watchlist_scores(data: RefreshRequest) -> RefreshResponse:
     """
     Manually trigger a refresh of all watchlist scores.
@@ -525,75 +494,70 @@ async def refresh_watchlist_scores(data: RefreshRequest) -> RefreshResponse:
     Returns:
         Refresh status (200 OK for all success, 207 Multi-Status for partial success)
     """
-    try:
-        logger.info("Refresh request started")
+    logger.info("Refresh request started")
 
-        # Get all watchlist items
-        items_df = watchlist_repo.get_all_symbols()
+    # Get all watchlist items
+    items_df = watchlist_repo.get_all_symbols()
 
-        if items_df.is_empty():
-            return RefreshResponse(
-                status="success",
-                message="No items in watchlist",
-                refreshed_count=0,
-                failed_count=0,
-                failed=[],
-            )
+    if items_df.is_empty():
+        return RefreshResponse(
+            status="success",
+            message="No items in watchlist",
+            refreshed_count=0,
+            failed_count=0,
+            failed=[],
+        )
 
-        items = items_df.to_dicts()
-        symbols = [item["symbol"] for item in items]
-        logger.info("Refreshing symbols", symbols=symbols, count=len(symbols))
+    items = items_df.to_dicts()
+    symbols = [item["symbol"] for item in items]
+    logger.info("Refreshing symbols", symbols=symbols, count=len(symbols))
 
-        # Trigger background data refresh for ALL symbols
-        schedule_refresh_tasks(symbols)
+    # Trigger background data refresh for ALL symbols
+    schedule_refresh_tasks(symbols)
 
-        # Do immediate synchronous refresh with Redis progress tracking
-        result = refresh_watchlist_scores_service(storage)
-        success_count = result.get("success_count", 0)
-        failed_count = result.get("failed_count", 0)
-        failed_list = [FailedTickerInfo(**f) for f in result.get("failed", [])]
+    # Do immediate synchronous refresh with Redis progress tracking
+    result = refresh_watchlist_scores_service(storage)
+    success_count = result.get("success_count", 0)
+    failed_count = result.get("failed_count", 0)
+    failed_list = [FailedTickerInfo(**f) for f in result.get("failed", [])]
 
-        logger.info(
-            "Watchlist refresh completed",
-            success_count=success_count,
+    logger.info(
+        "Watchlist refresh completed",
+        success_count=success_count,
+        failed_count=failed_count,
+    )
+
+    # Determine status code based on results
+    if failed_count == 0:
+        # All success
+        return RefreshResponse(
+            status="success",
+            message=f"Refreshed all {success_count} items successfully",
+            refreshed_count=success_count,
+            failed_count=0,
+            failed=[],
+        )
+
+    if success_count > 0:
+        # Partial success - return 207 Multi-Status
+        response_data = RefreshResponse(
+            status="partial_success",
+            message=f"Refreshed {success_count} of {len(items)} items ({failed_count} failed)",
+            refreshed_count=success_count,
             failed_count=failed_count,
+            failed=failed_list,
         )
+        return JSONResponse(status_code=207, content=response_data.model_dump())  # type: ignore[return-value]
 
-        # Determine status code based on results
-        if failed_count == 0:
-            # All success
-            return RefreshResponse(
-                status="success",
-                message=f"Refreshed all {success_count} items successfully",
-                refreshed_count=success_count,
-                failed_count=0,
-                failed=[],
-            )
-
-        if success_count > 0:
-            # Partial success - return 207 Multi-Status
-            response_data = RefreshResponse(
-                status="partial_success",
-                message=f"Refreshed {success_count} of {len(items)} items ({failed_count} failed)",
-                refreshed_count=success_count,
-                failed_count=failed_count,
-                failed=failed_list,
-            )
-            return JSONResponse(status_code=207, content=response_data.model_dump())  # type: ignore[return-value]
-
-        # Complete failure - return 500
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to refresh any items ({failed_count} failed)",
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Failed to refresh watchlist scores", error=str(e))
-        raise HTTPException(status_code=500, detail=f"Failed to refresh scores: {e}") from e
+    # Complete failure - return 500
+    raise HTTPException(
+        status_code=500,
+        detail=f"Failed to refresh any items ({failed_count} failed)",
+    )
 
 
 @router.post("/{item_id}/review")
+@handle_api_errors("review strategy signal")
 async def review_strategy_signal(item_id: str, dual: bool = True) -> dict[str, object]:
     """Get LLM review of trading signal for a watchlist item.
 
@@ -624,84 +588,77 @@ async def review_strategy_signal(item_id: str, dual: bool = True) -> dict[str, o
             "usage": dict
         }
     """
-    try:
-        # Fetch watchlist item
-        items_df = watchlist_repo.get_item_with_snapshots(item_id)
+    # Fetch watchlist item
+    items_df = watchlist_repo.get_item_with_snapshots(item_id)
 
-        require_nonempty_df(items_df, f"Watchlist item {item_id} not found")
+    require_nonempty_df(items_df, f"Watchlist item {item_id} not found")
 
-        # Get latest snapshot
-        snapshots_df = watchlist_repo.get_latest_snapshot_for_review(item_id)
+    # Get latest snapshot
+    snapshots_df = watchlist_repo.get_latest_snapshot_for_review(item_id)
 
-        require_nonempty_df(
-            snapshots_df, f"No snapshot found for item {item_id}. Run refresh first."
-        )
+    require_nonempty_df(
+        snapshots_df, f"No snapshot found for item {item_id}. Run refresh first."
+    )
 
-        # Parse snapshot and build signal data using helper
-        snapshot_row = snapshots_df.to_dicts()[0]
-        symbol = str(items_df.to_dicts()[0]["symbol"])
-        signal_data = _build_signal_data_from_snapshot(snapshot_row, symbol)
+    # Parse snapshot and build signal data using helper
+    snapshot_row = snapshots_df.to_dicts()[0]
+    symbol = str(items_df.to_dicts()[0]["symbol"])
+    signal_data = _build_signal_data_from_snapshot(snapshot_row, symbol)
 
-        if dual:
-            # Get dual-provider LLM review (both Gemini and Claude)
-            dual_result: DualReviewResult = await multi_reviewer.review_signal_dual(signal_data)
+    if dual:
+        # Get dual-provider LLM review (both Gemini and Claude)
+        dual_result: DualReviewResult = await multi_reviewer.review_signal_dual(signal_data)
 
-            # Store both reviews using module-level helper
-            snapshot_id = snapshot_row.get("id")
-            for review in [dual_result.gemini_review, dual_result.claude_review]:
-                if review and not review.error:
-                    _store_strategy_review(
-                        item_id=item_id,
-                        snapshot_id=snapshot_id,
-                        symbol=dual_result.symbol,
-                        review=review,
-                        pair_id=dual_result.review_pair_id,
-                        severity=dual_result.disagreement_severity.value,
-                        agreement=dual_result.agreement_score,
-                        provider_disagreement=dual_result.provider_disagreement,
-                    )
+        # Store both reviews using module-level helper
+        snapshot_id = snapshot_row.get("id")
+        for review in [dual_result.gemini_review, dual_result.claude_review]:
+            if review and not review.error:
+                _store_strategy_review(
+                    item_id=item_id,
+                    snapshot_id=snapshot_id,
+                    symbol=dual_result.symbol,
+                    review=review,
+                    pair_id=dual_result.review_pair_id,
+                    severity=dual_result.disagreement_severity.value,
+                    agreement=dual_result.agreement_score,
+                    provider_disagreement=dual_result.provider_disagreement,
+                )
 
-            logger.info(
-                f"Dual strategy review logged for {dual_result.symbol}",
-                extra={
-                    "symbol": dual_result.symbol,
-                    "review_pair_id": dual_result.review_pair_id,
-                    "agreement_score": dual_result.agreement_score,
-                    "disagreement_severity": dual_result.disagreement_severity.value,
-                    "provider_disagreement": dual_result.provider_disagreement,
-                },
-            )
-
-            return {
+        logger.info(
+            f"Dual strategy review logged for {dual_result.symbol}",
+            extra={
                 "symbol": dual_result.symbol,
                 "review_pair_id": dual_result.review_pair_id,
-                "gemini_review": _review_to_dict(dual_result.gemini_review),
-                "claude_review": _review_to_dict(dual_result.claude_review),
                 "agreement_score": dual_result.agreement_score,
                 "disagreement_severity": dual_result.disagreement_severity.value,
                 "provider_disagreement": dual_result.provider_disagreement,
-                "consensus_summary": dual_result.consensus_summary,
-            }
-
-        # Legacy single-provider path
-        review_result = await strategy_reviewer.review_signal(signal_data)
-
-        # Log review to database using helper
-        _store_legacy_review(review_result, item_id, snapshot_row.get("id"))
-
-        logger.info(
-            f"Strategy review logged for {review_result['symbol']}",
-            extra={
-                "symbol": review_result["symbol"],
-                "provider": review_result["provider"],
-                "disagreement": review_result["disagreement"],
             },
         )
 
-        return review_result
+        return {
+            "symbol": dual_result.symbol,
+            "review_pair_id": dual_result.review_pair_id,
+            "gemini_review": _review_to_dict(dual_result.gemini_review),
+            "claude_review": _review_to_dict(dual_result.claude_review),
+            "agreement_score": dual_result.agreement_score,
+            "disagreement_severity": dual_result.disagreement_severity.value,
+            "provider_disagreement": dual_result.provider_disagreement,
+            "consensus_summary": dual_result.consensus_summary,
+        }
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to review signal for {item_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Review failed: {e}") from e
+    # Legacy single-provider path
+    review_result = await strategy_reviewer.review_signal(signal_data)
+
+    # Log review to database using helper
+    _store_legacy_review(review_result, item_id, snapshot_row.get("id"))
+
+    logger.info(
+        f"Strategy review logged for {review_result['symbol']}",
+        extra={
+            "symbol": review_result["symbol"],
+            "provider": review_result["provider"],
+            "disagreement": review_result["disagreement"],
+        },
+    )
+
+    return review_result
