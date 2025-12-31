@@ -445,7 +445,7 @@ def get_log_level_config() -> LogLevelConfigResponse:
     # Derive available levels from VALID_LEVELS, excluding WARNING alias
     available_levels = sorted(
         (level for level in VALID_LEVELS if level != "WARNING"),
-        key=lambda l: LOG_LEVEL_PRIORITY.get(l, 0),
+        key=lambda lvl: LOG_LEVEL_PRIORITY.get(lvl, 0),
         reverse=True,
     )
     return LogLevelConfigResponse(
@@ -575,7 +575,7 @@ def test_logging() -> TestLoggingResponse:
     # Derive levels list from VALID_LEVELS, excluding WARNING alias
     levels_list = sorted(
         (level for level in VALID_LEVELS if level != "WARNING"),
-        key=lambda l: LOG_LEVEL_PRIORITY.get(l, 0),
+        key=lambda lvl: LOG_LEVEL_PRIORITY.get(lvl, 0),
     )
     return TestLoggingResponse(
         success=True,
