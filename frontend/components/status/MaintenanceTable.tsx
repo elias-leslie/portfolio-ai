@@ -33,9 +33,6 @@ import { ServiceActionDialog } from "./ServiceActionDialog";
 import { TaskResultDisplay, BatchResultsDialog, type BatchResult } from "./MaintenanceDialogs";
 import {
   triggerMaintenanceTask,
-  cleanupOldNews,
-  vacuumDatabase,
-  validateIntegrity,
   type MaintenanceResult,
 } from "@/lib/api/maintenance";
 import { useMaintenanceData } from "@/lib/hooks/useMaintenanceData";
@@ -283,7 +280,7 @@ export function MaintenanceTable() {
 
   const handleDatabaseTask = async (taskId: string) => {
     const config = DB_TASK_DIALOG_CONFIGS[taskId];
-    const apiFunc = dbTaskApiFunctions[taskId];
+    const apiFunc = DB_TASK_API_FUNCTIONS[taskId];
     if (!config || !apiFunc) return;
 
     setTriggeringTask(taskId);
@@ -355,7 +352,7 @@ export function MaintenanceTable() {
         let taskResult: Record<string, unknown> | null = null;
 
         // Handle DB tasks via config-driven API lookup
-        const apiFunc = dbTaskApiFunctions[task.id];
+        const apiFunc = DB_TASK_API_FUNCTIONS[task.id];
         if (apiFunc) {
           const r = await apiFunc(dryRun);
           taskResult = { ...r, ...r.summary };
