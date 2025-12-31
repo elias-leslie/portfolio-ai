@@ -271,8 +271,7 @@ def cleanup_old_logs_task(self: Task, days: int = 7, dry_run: bool = False) -> d
         files_deleted = 0
         bytes_freed = 0
         would_delete: list[dict[str, Any]] = []
-        cutoff_time = dt.datetime.now(dt.UTC) - dt.timedelta(days=days)
-        cutoff_timestamp = cutoff_time.timestamp()
+        cutoff_time, cutoff_timestamp = _calculate_cutoff_timestamp(days=days)
 
         log_dirs = _get_log_directories()
 
@@ -379,8 +378,7 @@ def cleanup_temp_files_task(self: Task, hours: int = 24, dry_run: bool = False) 
         files_deleted = 0
         bytes_freed = 0
         would_delete: list[dict[str, Any]] = []
-        cutoff_time = dt.datetime.now(dt.UTC) - dt.timedelta(hours=hours)
-        cutoff_timestamp = cutoff_time.timestamp()
+        cutoff_time, cutoff_timestamp = _calculate_cutoff_timestamp(hours=hours)
 
         temp_dir = Path("/tmp")
 
@@ -820,8 +818,7 @@ def cleanup_solution_state_task(
             return early_result
 
         # Calculate cutoff date
-        cutoff_time = dt.datetime.now(dt.UTC) - dt.timedelta(days=keep_days)
-        cutoff_timestamp = cutoff_time.timestamp()
+        _cutoff_time, cutoff_timestamp = _calculate_cutoff_timestamp(days=keep_days)
         now = dt.datetime.now(dt.UTC).timestamp()
 
         # Find directories that look like timestamps (YYYYMMDD-HHMMSS format)
