@@ -575,23 +575,8 @@ def _fetch_stale_symbols() -> list[str]:
         List of symbols needing backup data
     """
     storage = get_storage()
-
-    with storage.connection() as conn:
-        result = conn.execute(
-            """
-            SELECT DISTINCT wi.symbol
-            FROM watchlist_items wi
-            LEFT JOIN (
-                SELECT symbol, MAX(as_of_date) as latest_date
-                FROM reference_cache
-                WHERE source = 'yfinance'
-                GROUP BY symbol
-            ) rc ON wi.symbol = rc.symbol
-            WHERE rc.symbol IS NULL
-               OR rc.latest_date < CURRENT_DATE - INTERVAL '7 days'
-            """
-        )
-        return [str(row[0]) for row in result.fetchall()]
+    repo = ReferenceRepository(storage)
+    return repo.get_stale_symbols(days_threshold=7)
 
 
 def _store_alphavantage_payload(symbols: list[str]) -> int:
