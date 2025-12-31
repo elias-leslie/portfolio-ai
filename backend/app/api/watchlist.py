@@ -70,6 +70,52 @@ def _build_not_refreshing_response() -> RefreshStatusResponse:
     )
 
 
+def _build_refresh_response(
+    success_count: int,
+    failed_count: int,
+    total_count: int,
+    failed_list: list[FailedTickerInfo],
+) -> tuple[int, dict[str, object]]:
+    """Build refresh response with appropriate status code.
+
+    Args:
+        success_count: Number of successfully refreshed items
+        failed_count: Number of failed items
+        total_count: Total number of items
+        failed_list: List of failed ticker information
+
+    Returns:
+        Tuple of (status_code, response_dict)
+    """
+    if failed_count == 0:
+        # All success
+        response = RefreshResponse(
+            status="success",
+            message=f"Refreshed all {success_count} items successfully",
+            refreshed_count=success_count,
+            failed_count=0,
+            failed=[],
+        )
+        return (200, response.model_dump())
+
+    if success_count > 0:
+        # Partial success - return 207 Multi-Status
+        response = RefreshResponse(
+            status="partial_success",
+            message=f"Refreshed {success_count} of {total_count} items ({failed_count} failed)",
+            refreshed_count=success_count,
+            failed_count=failed_count,
+            failed=failed_list,
+        )
+        return (207, response.model_dump())
+
+    # Complete failure - return 500
+    raise HTTPException(
+        status_code=500,
+        detail=f"Failed to refresh any items ({failed_count} failed)",
+    )
+
+
 def _review_to_dict(review: ProviderReview | None) -> dict[str, object] | None:
     """Convert a ProviderReview to a dictionary for JSON response."""
     if review is None:
@@ -621,33 +667,20 @@ async def refresh_watchlist_scores(data: RefreshRequest) -> RefreshResponse:
         failed_count=failed_count,
     )
 
-    # Determine status code based on results
-    if failed_count == 0:
-        # All success
-        return RefreshResponse(
-            status="success",
-            message=f"Refreshed all {success_count} items successfully",
-            refreshed_count=success_count,
-            failed_count=0,
-            failed=[],
-        )
-
-    if success_count > 0:
-        # Partial success - return 207 Multi-Status
-        response_data = RefreshResponse(
-            status="partial_success",
-            message=f"Refreshed {success_count} of {len(items)} items ({failed_count} failed)",
-            refreshed_count=success_count,
-            failed_count=failed_count,
-            failed=failed_list,
-        )
-        return JSONResponse(status_code=207, content=response_data.model_dump())  # type: ignore[return-value]
-
-    # Complete failure - return 500
-    raise HTTPException(
-        status_code=500,
-        detail=f"Failed to refresh any items ({failed_count} failed)",
+    # Build response using helper
+    status_code, response_data = _build_refresh_response(
+        success_count=success_count,
+        failed_count=failed_count,
+        total_count=len(items),
+        failed_list=failed_list,
     )
+
+    # Return with appropriate status code
+    if status_code == 200:
+        return RefreshResponse(**response_data)  # type: ignore[arg-type]
+
+    # 207 Multi-Status for partial success
+    return JSONResponse(status_code=status_code, content=response_data)  # type: ignore[return-value]
 
 
 @router.post("/{item_id}/review")

@@ -97,6 +97,22 @@ price_fetcher = PriceDataFetcher(storage)
 # Market indicator symbols
 CORE_MARKET_SYMBOLS = ["^GSPC", "^VIX", "^TNX", "DX-Y.NYB"]
 
+# Indicator symbol to key mapping
+INDICATOR_SYMBOLS: dict[str, str] = {
+    "vix": "^VIX",
+    "sp500": "^GSPC",
+    "tnx": "^TNX",
+    "dxy": "DX-Y.NYB",
+}
+
+# Enrichment functions by indicator key
+INDICATOR_ENRICH_FUNCS: dict[str, Any] = {
+    "vix": intelligence.enrich_vix_indicator,
+    "sp500": intelligence.enrich_sp500_indicator,
+    "tnx": intelligence.enrich_tnx_indicator,
+    "dxy": intelligence.enrich_dxy_indicator,
+}
+
 # Valid market event types (derived from MarketEventType Literal)
 VALID_EVENT_TYPES: Final[frozenset[str]] = frozenset(get_args(MarketEventType))
 
@@ -169,6 +185,58 @@ def _fetch_core_market_data() -> CoreMarketData:
         sector_data=sector_data,
         current_timestamp=current_timestamp,
     )
+
+
+def _build_enriched_indicators(
+    indicator_data: dict[str, Any],
+    health_score_data: Any,
+    actual_data_dates: dict[str, Any],
+    putcall_data: tuple[float, str] | None,
+) -> dict[str, Any]:
+    """Build enriched indicators dict with plain-language labels.
+
+    Args:
+        indicator_data: Dict with vix, sp500, tnx, dxy price data objects
+        health_score_data: Market health score with components
+        actual_data_dates: Mapping of symbols to actual data timestamps
+        putcall_data: Optional tuple of (put_call_ratio, timestamp)
+
+    Returns:
+        Dict of enriched indicators keyed by indicator name
+    """
+    enriched_indicators: dict[str, Any] = {}
+
+    # Enrich core indicators (VIX, S&P 500, TNX, DXY)
+    for key, symbol in INDICATOR_SYMBOLS.items():
+        data = indicator_data.get(key)
+        if data:
+            enriched_indicators[key] = enrich_indicator_with_history(
+                data,
+                symbol,
+                INDICATOR_ENRICH_FUNCS[key],
+                storage,
+                health_score_data,
+                actual_data_dates,
+            )
+
+    # Add Put/Call Ratio if available
+    if putcall_data:
+        put_call_ratio, putcall_timestamp = putcall_data
+        putcall_date = date.fromisoformat(putcall_timestamp[:10])
+
+        from app.market.options_context import calculate_putcall_context  # noqa: PLC0415
+
+        putcall_context: PutCallContext = calculate_putcall_context(
+            put_call_ratio, putcall_date, storage
+        )
+
+        enriched_indicators["putcall"] = intelligence.enrich_putcall_indicator(
+            put_call_ratio,
+            putcall_timestamp,
+            context=cast(dict[str, Any], putcall_context),
+        )
+
+    return enriched_indicators
 
 
 # API endpoints
@@ -289,12 +357,6 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
         current_timestamp=current_timestamp,
     )
 
-    # Extract data references for rest of function
-    vix_data = market_data.vix_data
-    sp500_data = market_data.sp500_data
-    tnx_data = market_data.tnx_data
-    dxy_data = market_data.dxy_data
-
     # Get Fear & Greed score (stub for now - local agent will implement)
     fg_reading = get_fear_greed_score()
 
@@ -303,66 +365,17 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
         sector_data_list
     )
 
-    # Enrich indicators with plain-language labels using intelligence helpers
-    # Calculate daily change percentages from day_bars historical data
-    # Use actual data timestamps (from day_bars) instead of cache timestamps
-    enriched_indicators = {}
-    if vix_data:
-        enriched_indicators["vix"] = enrich_indicator_with_history(
-            vix_data,
-            "^VIX",
-            intelligence.enrich_vix_indicator,
-            storage,
-            health_score_data,
-            actual_data_dates,
-        )
-    if sp500_data:
-        enriched_indicators["sp500"] = enrich_indicator_with_history(
-            sp500_data,
-            "^GSPC",
-            intelligence.enrich_sp500_indicator,
-            storage,
-            health_score_data,
-            actual_data_dates,
-        )
-    if tnx_data:
-        enriched_indicators["tnx"] = enrich_indicator_with_history(
-            tnx_data,
-            "^TNX",
-            intelligence.enrich_tnx_indicator,
-            storage,
-            health_score_data,
-            actual_data_dates,
-        )
-    if dxy_data:
-        enriched_indicators["dxy"] = enrich_indicator_with_history(
-            dxy_data,
-            "DX-Y.NYB",
-            intelligence.enrich_dxy_indicator,
-            storage,
-            health_score_data,
-            actual_data_dates,
-        )
-
-    # Get Put/Call Ratio from fear_greed_inputs
+    # Build enriched indicators using helper
+    indicator_data = {
+        "vix": market_data.vix_data,
+        "sp500": market_data.sp500_data,
+        "tnx": market_data.tnx_data,
+        "dxy": market_data.dxy_data,
+    }
     putcall_data = get_put_call_ratio_data(storage)
-    if putcall_data:
-        put_call_ratio, putcall_timestamp = putcall_data
-        # Extract date from timestamp for context calculation
-        putcall_date = date.fromisoformat(putcall_timestamp[:10])
-
-        # Calculate historical context
-        from app.market.options_context import calculate_putcall_context  # noqa: PLC0415
-
-        putcall_context: PutCallContext = calculate_putcall_context(
-            put_call_ratio, putcall_date, storage
-        )
-
-        enriched_indicators["putcall"] = intelligence.enrich_putcall_indicator(
-            put_call_ratio,
-            putcall_timestamp,
-            context=cast(dict[str, Any], putcall_context),
-        )
+    enriched_indicators = _build_enriched_indicators(
+        indicator_data, health_score_data, actual_data_dates, putcall_data
+    )
 
     # Get Options Activity metrics from options_market_metrics table
     options_activity = None
