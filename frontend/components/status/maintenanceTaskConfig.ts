@@ -4,6 +4,12 @@
 
 import React from "react";
 import {
+  cleanupOldNews,
+  vacuumDatabase,
+  validateIntegrity,
+  type MaintenanceResult,
+} from "@/lib/api/maintenance";
+import {
   FileText,
   Database,
   Brain,
@@ -333,4 +339,17 @@ export const DB_TASK_DIALOG_CONFIGS: Record<string, DbTaskDialogConfig> = {
       return `${errors} errors, ${warnings} warnings`;
     },
   },
+};
+
+/**
+ * Map of database task IDs to their API functions
+ * Used by MaintenanceTable to invoke database maintenance tasks
+ */
+export const DB_TASK_API_FUNCTIONS: Record<
+  string,
+  (dryRun: boolean) => Promise<MaintenanceResult>
+> = {
+  cleanup_news: cleanupOldNews,
+  vacuum_db: vacuumDatabase,
+  validate_integrity: validateIntegrity,
 };

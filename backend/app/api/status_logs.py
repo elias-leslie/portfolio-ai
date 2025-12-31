@@ -201,7 +201,8 @@ def fetch_journal_logs(
 
 VALID_SERVICES = {"backend", "celery_worker", "celery_beat", "frontend", "redis", "postgresql"}
 # Derive VALID_LEVELS from LOG_LEVEL_PRIORITY (excluding UNKNOWN which is internal-only)
-VALID_LEVELS = {level for level in LOG_LEVEL_PRIORITY if level != "UNKNOWN"}
+# Include "WARNING" as an alias for "WARN" for user convenience
+VALID_LEVELS = {level for level in LOG_LEVEL_PRIORITY if level != "UNKNOWN"} | {"WARNING"}
 
 # Service name to systemd unit mapping (single source of truth)
 SERVICE_UNIT_MAPPING: dict[str, str] = {
@@ -473,8 +474,7 @@ async def set_log_level(request: SetLogLevelRequest) -> SetLogLevelResponse:
     level = request.level.upper()
 
     # Validate level
-    valid_levels = {"DEBUG", "INFO", "WARN", "WARNING", "ERROR", "CRITICAL"}
-    if level not in valid_levels:
+    if level not in VALID_LEVELS:
         raise HTTPException(
             status_code=400,
             detail="Invalid log level. Must be one of: DEBUG, INFO, WARN, ERROR, CRITICAL",

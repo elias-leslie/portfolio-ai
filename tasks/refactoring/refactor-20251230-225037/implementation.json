@@ -70,7 +70,7 @@
           "tier": 1,
           "model": "haiku",
           "parallelizable": true,
-          "passes": false,
+          "passes": true,
           "description": "Inline _calculate_max_drawdown wrapper function",
           "file": "backend/app/tasks/strategy_monitoring_tasks.py",
           "location": "lines 296-308",

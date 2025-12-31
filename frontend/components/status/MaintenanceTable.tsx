@@ -44,6 +44,7 @@ import { toast } from "sonner";
 import {
   TASK_CONFIGS,
   DB_TASK_DIALOG_CONFIGS,
+  DB_TASK_API_FUNCTIONS,
   getTaskIcon,
   type TaskConfig,
 } from "./maintenanceTaskConfig";
@@ -278,13 +279,6 @@ export function MaintenanceTable() {
     } finally {
       setTriggeringTask(null);
     }
-  };
-
-  // Map of task id -> API function
-  const dbTaskApiFunctions: Record<string, (dryRun: boolean) => Promise<MaintenanceResult>> = {
-    cleanup_news: cleanupOldNews,
-    vacuum_db: vacuumDatabase,
-    validate_integrity: validateIntegrity,
   };
 
   const handleDatabaseTask = async (taskId: string) => {
