@@ -177,7 +177,7 @@
             "Run ruff check backend/app/celery_schedules.py"
           ],
           "verification": "grep -c 'hour=3, minute=0' backend/app/celery_schedules.py should be 1 or less",
-          "passes": false
+          "passes": true
         },
         {
           "id": "2.3",

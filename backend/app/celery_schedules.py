@@ -96,6 +96,46 @@ CLEANUP_MODELS_KEEP_COUNT = 3
 CLEANUP_SOLUTION_STATE_RETENTION_DAYS = 14
 
 
+def _create_intraday_refresh_tasks(
+    time_label: str, hour: int, minute_offset: int = 0
+) -> dict[str, dict[str, Any]]:
+    """Generate intraday OHLCV → Fear/Greed inputs → F&G calculation task chain.
+
+    Creates a 3-task pattern with 15-minute spacing:
+    - :00 refresh_daily_ohlcv (OHLCV data)
+    - :15 populate_fear_greed_inputs (F&G inputs)
+    - :30 calculate_fear_greed (F&G calculation)
+
+    Args:
+        time_label: Identifier for the refresh period (e.g., "morning", "midday")
+        hour: UTC hour to start the refresh chain
+        minute_offset: Additional minutes to add to the base schedule (default 0)
+
+    Returns:
+        Dict of 3 Celery Beat task definitions
+    """
+    return {
+        f"refresh-market-ohlcv-{time_label}": {
+            "task": "refresh_daily_ohlcv",
+            "schedule": crontab(hour=hour, minute=minute_offset),
+            "args": [ALL_MARKET_SYMBOLS],
+            "options": {"expires": EXPIRY_1_HOUR},
+        },
+        f"refresh-fear-greed-{time_label}": {
+            "task": "populate_fear_greed_inputs",
+            "schedule": crontab(hour=hour, minute=minute_offset + 15),
+            "args": [FEAR_GREED_LOOKBACK_DAYS],
+            "options": {"expires": EXPIRY_1_HOUR},
+        },
+        f"calculate-fear-greed-{time_label}": {
+            "task": "calculate_fear_greed",
+            "schedule": crontab(hour=hour, minute=minute_offset + 30),
+            "args": [None],
+            "options": {"expires": EXPIRY_1_HOUR},
+        },
+    }
+
+
 def get_beat_schedule() -> dict[str, dict[str, Any]]:
     """Get Celery Beat schedule configuration.
 
@@ -235,67 +275,16 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
             # - Must run after populate-fear-greed-inputs-daily completes
             # - Invalidates Redis cache automatically after successful calculation
         },
-        # Additional intraday runs to ensure data stays current during market hours
-        # 10:00 AM ET refresh - get "today's" data early in the trading day
-        "refresh-market-ohlcv-morning": {
-            "task": "refresh_daily_ohlcv",
-            "schedule": crontab(hour=15, minute=0),  # Daily at 15:00 UTC (10:00 AM ET)
-            "args": [ALL_MARKET_SYMBOLS],
-            "options": {"expires": EXPIRY_1_HOUR},
-            # Notes:
-            # - Early morning refresh to show TODAY's date on dashboard ASAP
-            # - 30 min after market open - enough for initial price discovery
-            # - Complements midday (12 PM) refresh which has more meaningful data
-        },
-        "refresh-fear-greed-morning": {
-            "task": "populate_fear_greed_inputs",
-            "schedule": crontab(hour=15, minute=15),  # Daily at 15:15 UTC (10:15 AM ET)
-            "args": [FEAR_GREED_LOOKBACK_DAYS],
-            "options": {"expires": EXPIRY_1_HOUR},
-            # Notes:
-            # - Early Fear & Greed update with morning market data
-            # - Runs after morning OHLCV refresh completes
-        },
-        "calculate-fear-greed-morning": {
-            "task": "calculate_fear_greed",
-            "schedule": crontab(hour=15, minute=30),  # Daily at 15:30 UTC (10:30 AM ET)
-            "args": [None],
-            "options": {"expires": EXPIRY_1_HOUR},
-            # Notes:
-            # - Early Fear & Greed calculation
-            # - Dashboard shows "today's" data by 10:30 AM ET
-        },
-        # 12:00 PM ET refresh - half-day data with more meaningful signals
-        "refresh-market-ohlcv-midday": {
-            "task": "refresh_daily_ohlcv",
-            "schedule": crontab(hour=17, minute=0),  # Daily at 17:00 UTC (12:00 PM ET, midday)
-            "args": [ALL_MARKET_SYMBOLS],  # Same symbols as morning refresh
-            "options": {"expires": EXPIRY_1_HOUR},
-            # Notes:
-            # - Midday refresh to get TODAY's market data during trading hours
-            # - Morning refresh (02:00 UTC) only gets previous day's close
-            # - This ensures Market Conditions shows TODAY's data, not yesterday's
-            # - Self-healing: Catches any failed morning fetches
-        },
-        "refresh-fear-greed-midday": {
-            "task": "populate_fear_greed_inputs",
-            "schedule": crontab(hour=17, minute=15),  # Daily at 17:15 UTC (12:15 PM ET)
-            "args": [FEAR_GREED_LOOKBACK_DAYS],
-            "options": {"expires": EXPIRY_1_HOUR},
-            # Notes:
-            # - Midday Fear & Greed update with intraday market data
-            # - Runs after midday OHLCV refresh completes
-            # - Ensures Fear & Greed shows TODAY's sentiment, not yesterday's
-        },
-        "calculate-fear-greed-midday": {
-            "task": "calculate_fear_greed",
-            "schedule": crontab(hour=17, minute=30),  # Daily at 17:30 UTC (12:30 PM ET)
-            "args": [None],
-            "options": {"expires": EXPIRY_1_HOUR},
-            # Notes:
-            # - Midday Fear & Greed calculation with fresh inputs
-            # - Invalidates Redis cache for immediate fresh data
-        },
+        # ============================================================================
+        # INTRADAY REFRESH TASKS (generated via helper)
+        # ============================================================================
+        # Uses _create_intraday_refresh_tasks() for consistent 3-task pattern:
+        # - refresh_daily_ohlcv → populate_fear_greed_inputs (+15m) → calculate_fear_greed (+30m)
+        # ============================================================================
+        # 10:00 AM ET (15:00 UTC) - Morning refresh for TODAY's data
+        **_create_intraday_refresh_tasks("morning", hour=15),
+        # 12:00 PM ET (17:00 UTC) - Midday refresh with meaningful half-day signals
+        **_create_intraday_refresh_tasks("midday", hour=17),
         "update-fear-greed-after-close": {
             "task": "populate_fear_greed_inputs",
             "schedule": crontab(hour=21, minute=45),  # Daily at 21:45 UTC (4:45 PM ET, after close)
