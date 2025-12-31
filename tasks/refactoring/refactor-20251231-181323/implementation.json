@@ -188,7 +188,7 @@
           "tier": 2,
           "model": "sonnet",
           "parallelizable": false,
-          "passes": false,
+          "passes": true,
           "description": "Use _calculate_cutoff_timestamp helper instead of inline calculations",
           "file": "backend/app/tasks/log_cleanup_tasks.py",
           "location": "lines 316-317, 430-431, 871-872",

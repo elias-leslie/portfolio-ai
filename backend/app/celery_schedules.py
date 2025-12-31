@@ -196,7 +196,7 @@ def _strategy_tasks() -> dict[str, dict[str, Any]]:
         # Portfolio drawdown tracking
         "save-portfolio-snapshots-daily": {
             "task": "save_portfolio_snapshots",
-            "schedule": crontab(hour=21, minute=30),  # Daily at 21:30 UTC
+            "schedule": crontab(hour=21, minute=33),  # Daily at 21:33 UTC (staggered)
             "options": {"expires": EXPIRY_30_MIN},
         },
         # Watchlist automation
@@ -245,7 +245,7 @@ def _monitoring_tasks() -> dict[str, dict[str, Any]]:
         # Artifact lifecycle
         "refresh-expired-artifacts": {
             "task": "refresh_expired_artifacts",
-            "schedule": crontab(hour=5, minute=30),  # Daily at 05:30 UTC
+            "schedule": crontab(hour=5, minute=33),  # Daily at 05:33 UTC (staggered)
             "options": {"expires": EXPIRY_1_HOUR},
         },
         "cleanup-old-artifact-versions": {
@@ -289,7 +289,7 @@ def _monitoring_tasks() -> dict[str, dict[str, Any]]:
         },
         "discover-sitemap-entries-daily": {
             "task": "discover_sitemap_entries",
-            "schedule": crontab(hour=3, minute=30),  # Daily at 03:30 UTC
+            "schedule": crontab(hour=3, minute=33),  # Daily at 03:33 UTC (staggered)
             "options": {"expires": EXPIRY_30_MIN},
         },
         "cleanup-sitemap-history-daily": {
@@ -393,7 +393,7 @@ def _maintenance_tasks() -> dict[str, dict[str, Any]]:
         },
         "get-database-size-daily": {
             "task": "get_database_size_task",
-            "schedule": crontab(hour=5, minute=30),  # Daily at 05:30 UTC
+            "schedule": crontab(hour=5, minute=36),  # Daily at 05:36 UTC (staggered)
             "options": {"expires": EXPIRY_10_MIN},
         },
         "refresh-sec-cik-cache-weekly": {
@@ -416,12 +416,12 @@ def _agent_tasks() -> dict[str, dict[str, Any]]:
     return {
         "run-discovery-agent-daily": {
             "task": "run_discovery_agent",
-            "schedule": crontab(hour=3, minute=30),  # Daily at 03:30 UTC
+            "schedule": crontab(hour=3, minute=36),  # Daily at 03:36 UTC (staggered)
             "options": {"expires": EXPIRY_30_MIN},  # 30-minute expiry
         },
         "run-portfolio-analyzer-daily": {
             "task": "run_portfolio_analyzer",
-            "schedule": crontab(hour=3, minute=30),  # Daily at 03:30 UTC
+            "schedule": crontab(hour=3, minute=39),  # Daily at 03:39 UTC (staggered)
             "options": {"expires": EXPIRY_30_MIN},  # 30-minute expiry
         },
     }
@@ -479,10 +479,10 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         # ============================================================================
         "update-paper-trades-daily": {
             "task": "update_paper_trades_task",
-            "schedule": crontab(hour=21, minute=30),  # Daily at 21:30 UTC (4:30 PM ET)
+            "schedule": crontab(hour=21, minute=36),  # Daily at 21:36 UTC (staggered)
             "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
-            # - Runs daily at 21:30 UTC (4:30 PM ET, market close + 30 min)
+            # - Runs daily at 21:36 UTC (4:36 PM ET, market close + 36 min, staggered)
             # - Not configurable by user (business logic requirement)
         },
         "profile-news-sources": {
@@ -687,10 +687,10 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         },
         "refresh-risk-metrics-daily": {
             "task": "refresh_risk_metrics",
-            "schedule": crontab(hour=5, minute=30),  # Daily at 05:30 UTC
+            "schedule": crontab(hour=5, minute=39),  # Daily at 05:39 UTC (staggered)
             "options": {"expires": EXPIRY_1_HOUR},  # Task expires after 1 hour
             # Notes:
-            # - Runs daily at 05:30 UTC (GAP-027, GAP-022)
+            # - Runs daily at 05:39 UTC (staggered, GAP-027, GAP-022)
             # - Calculates VaR/CVaR (historical simulation method)
             # - Calculates multi-window betas (90d, 1y, 2y)
             # - Requires day_bars data for historical returns
@@ -762,10 +762,10 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         },
         "fetch-putcall-ratio-market-close": {
             "task": "fetch_putcall_ratio",
-            "schedule": crontab(hour=21, minute=30),  # Daily at 21:30 UTC (4:30 PM ET)
+            "schedule": crontab(hour=21, minute=39),  # Daily at 21:39 UTC (staggered)
             "options": {"expires": EXPIRY_1_HOUR},  # Task expires after 1 hour
             # Notes:
-            # - Runs after market close to capture final daily sentiment
+            # - Runs after market close to capture final daily sentiment (staggered)
             # - Uses yfinance options chains (SPY+QQQ+IWM aggregate)
             # - Overwrites market-open value with end-of-day data
             # - Stores put_call_ratio in fear_greed_inputs table
