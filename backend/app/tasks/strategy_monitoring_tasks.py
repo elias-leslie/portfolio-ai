@@ -324,10 +324,6 @@ def _calculate_today_metrics(trades: list[dict[str, Any]], today: date) -> dict[
     }
 
 
-# Alias for backwards compatibility
-_calculate_sharpe_ratio = calculate_simple_sharpe
-
-
 def _calculate_rolling_metrics(
     conn: Any, strategy_id: str, window_days: int = 30
 ) -> dict[str, Any]:
@@ -407,7 +403,7 @@ def _calculate_rolling_metrics(
 
     # Sharpe ratio and max drawdown
     daily_returns = [t["pnl"] for t in trades]
-    sharpe_ratio_30d = _calculate_sharpe_ratio(daily_returns)
+    sharpe_ratio_30d = calculate_simple_sharpe(daily_returns)
     max_drawdown = calculate_simple_max_drawdown(daily_returns)
 
     return {

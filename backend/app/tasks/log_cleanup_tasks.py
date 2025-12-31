@@ -93,39 +93,6 @@ def _calculate_file_age_days(file_mtime: float) -> float:
     return (now - file_mtime) / SECONDS_PER_DAY
 
 
-def _build_missing_directory_result(
-    task_id: str,
-    log_id: str,
-    task_name: str,
-    dry_run: bool,
-    directory: Path,
-) -> dict[str, Any]:
-    """Build result for missing directory and log completion.
-
-    Args:
-        task_id: Task identifier
-        log_id: Log entry identifier
-        task_name: Name of the cleanup task
-        dry_run: Whether this is a dry run
-        directory: The missing directory path
-
-    Returns:
-        Result dict to return from task
-    """
-    logger.warning("directory_not_found", task=task_name, directory=str(directory))
-    result = {
-        "task_id": task_id,
-        "dry_run": dry_run,
-        "files_deleted": 0,
-        "bytes_freed": 0,
-        "message": f"{directory.name} directory not found",
-        "success": True,
-        "duration_seconds": 0.0,
-    }
-    log_maintenance_complete(log_id, task_name, True, result)
-    return result
-
-
 def _check_disk_space_impl() -> dict[str, Any]:
     """Check disk space usage and alert if >85%.
 

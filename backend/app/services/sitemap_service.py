@@ -48,9 +48,6 @@ HEALTH_CHECK_TIMEOUT_PROBE = (
     5  # seconds for lightweight probe checks (enough to verify route exists)
 )
 
-# Legacy aliases for backwards compatibility (deprecated, use HealthCheckStrategy directly)
-should_skip_health_check = HealthCheckStrategy.should_skip_health_check
-should_probe_check = HealthCheckStrategy.should_probe_check
 
 
 def _interpret_response(
