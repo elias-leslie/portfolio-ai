@@ -336,7 +336,7 @@
             "Run pytest tests/unit/api/test_watchlist.py if exists"
           ],
           "verification": "grep -c '_handle_dual_review\\|_handle_legacy_review' backend/app/api/watchlist.py should be >= 2",
-          "passes": false
+          "passes": true
         },
         {
           "id": "4.4",

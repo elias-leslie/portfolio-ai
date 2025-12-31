@@ -136,19 +136,39 @@ def _create_intraday_refresh_tasks(
     }
 
 
-def get_beat_schedule() -> dict[str, dict[str, Any]]:
-    """Get Celery Beat schedule configuration.
+def _agent_tasks() -> dict[str, dict[str, Any]]:
+    """Autonomous AI agent tasks.
+
+    Discovery Agent and Portfolio Analyzer generate investment ideas daily
+    at 03:30 UTC to fulfill VISION.md requirement for autonomous scheduling.
 
     Returns:
-        dict: Beat schedule with all periodic tasks
+        Dict of Celery Beat task definitions for AI agent tasks
     """
     return {
-        # ============================================================================
-        # USER-CONFIGURABLE BACKEND REFRESH TASKS
-        # ============================================================================
-        # These tasks poll frequently (60s) but honor user preference intervals
-        # Task logic checks: last_refresh_time + user_interval < now → execute
-        # ============================================================================
+        "run-discovery-agent-daily": {
+            "task": "run_discovery_agent",
+            "schedule": crontab(hour=3, minute=30),  # Daily at 03:30 UTC
+            "options": {"expires": EXPIRY_30_MIN},  # 30-minute expiry
+        },
+        "run-portfolio-analyzer-daily": {
+            "task": "run_portfolio_analyzer",
+            "schedule": crontab(hour=3, minute=30),  # Daily at 03:30 UTC
+            "options": {"expires": EXPIRY_30_MIN},  # 30-minute expiry
+        },
+    }
+
+
+def _user_configurable_tasks() -> dict[str, dict[str, Any]]:
+    """User-configurable backend refresh tasks.
+
+    These tasks poll frequently (60s) but honor user preference intervals.
+    Task logic checks: last_refresh_time + user_interval < now → execute
+
+    Returns:
+        Dict of Celery Beat task definitions for user-configurable refreshes
+    """
+    return {
         "refresh-watchlist-scores": {
             "task": "refresh_watchlist_scores",
             "schedule": POLL_INTERVAL_60_SEC,
@@ -172,6 +192,18 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
             # - Task checks: news_refresh_override → default_refresh_minutes → 15 min
             # - Uses optimized JOIN query from Issue #5 fix
         },
+    }
+
+
+def get_beat_schedule() -> dict[str, dict[str, Any]]:
+    """Get Celery Beat schedule configuration.
+
+    Returns:
+        dict: Beat schedule with all periodic tasks
+    """
+    return {
+        # Merge user-configurable tasks
+        **_user_configurable_tasks(),
         # ============================================================================
         # STATIC SCHEDULE TASKS (NOT CONFIGURABLE)
         # ============================================================================
@@ -551,22 +583,8 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
             # - Updates passed/verified_at/verification_output in database
         },
         # Daily gap analysis workflow removed - migrated to feature-based tracking
-        # ============================================================================
-        # AUTONOMOUS AI AGENT TASKS
-        # ============================================================================
-        # Discovery Agent and Portfolio Analyzer generate investment ideas daily
-        # at 03:30 UTC to fulfill VISION.md requirement for autonomous scheduling
-        # ============================================================================
-        "run-discovery-agent-daily": {
-            "task": "run_discovery_agent",
-            "schedule": crontab(hour=3, minute=30),  # Daily at 03:30 UTC
-            "options": {"expires": EXPIRY_30_MIN},  # 30-minute expiry
-        },
-        "run-portfolio-analyzer-daily": {
-            "task": "run_portfolio_analyzer",
-            "schedule": crontab(hour=3, minute=30),  # Daily at 03:30 UTC
-            "options": {"expires": EXPIRY_30_MIN},  # 30-minute expiry
-        },
+        # Merge autonomous AI agent tasks
+        **_agent_tasks(),
         # ============================================================================
         # AUTOMATED MAINTENANCE TASKS
         # ============================================================================
