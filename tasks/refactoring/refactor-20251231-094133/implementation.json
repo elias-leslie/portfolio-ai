@@ -443,7 +443,7 @@
             "Run pytest tests/unit/tasks/test_reference_tasks.py if exists"
           ],
           "verification": "test -f backend/app/repositories/reference_repository.py && grep -c 'reference_repository' backend/app/tasks/reference_tasks.py should be >= 1",
-          "passes": false
+          "passes": true
         },
         {
           "id": "6.2",

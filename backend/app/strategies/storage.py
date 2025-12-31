@@ -598,6 +598,114 @@ class StrategyStorage:
                 (performance_threshold, limit),
             ).fetchall()
 
+    def get_strategy_trades(
+        self,
+        strategy_id: str,
+        cutoff_date: date,
+    ) -> list[tuple[date, Decimal]]:
+        """Get trades for a strategy since cutoff date.
+
+        Args:
+            strategy_id: Strategy UUID
+            cutoff_date: Earliest date to include
+
+        Returns:
+            List of (trade_date, pnl) tuples
+        """
+        with self.conn.connection() as conn:
+            result = conn.execute(
+                """
+                SELECT
+                    o.created_at::DATE as trade_date,
+                    o.realized_pnl as pnl
+                FROM idea_outcomes o
+                WHERE o.realized_pnl IS NOT NULL
+                  AND o.created_at >= %s
+                  AND o.strategy_id = %s
+                ORDER BY o.created_at
+                """,
+                [cutoff_date, strategy_id],
+            )
+            return [(row[0], row[1]) for row in result.fetchall()]
+
+    def get_strategy_seed(self, seed_id: str) -> tuple[str, float] | None:
+        """Get strategy seed details.
+
+        Args:
+            seed_id: Seed UUID
+
+        Returns:
+            Tuple of (thesis, confidence) or None if not found
+        """
+        with self.conn.connection() as conn:
+            row = conn.execute(
+                "SELECT thesis, confidence FROM strategy_seeds WHERE id = %s",
+                [seed_id],
+            ).fetchone()
+
+            if not row:
+                return None
+
+            thesis = str(row[0]) if row[0] else ""
+            confidence = float(row[1]) if row[1] is not None else 0.0
+            return (thesis, confidence)
+
+    def link_strategy_to_seed(
+        self,
+        strategy_id: str,
+        seed_id: str,
+        seed_thesis: str,
+        seed_confidence: float,
+    ) -> None:
+        """Link a generated strategy back to its seed.
+
+        Updates strategy_definitions with seed info and marks seed as converted.
+
+        Args:
+            strategy_id: Strategy UUID
+            seed_id: Seed UUID
+            seed_thesis: Seed thesis text
+            seed_confidence: Seed confidence score
+        """
+        with self.conn.connection() as conn:
+            # Update strategy with seed info
+            conn.execute(
+                """
+                UPDATE strategy_definitions
+                SET seed_id = %s, seed_thesis = %s, seed_confidence = %s
+                WHERE id = %s
+                """,
+                [seed_id, seed_thesis, seed_confidence, strategy_id],
+            )
+
+            # Mark seed as converted
+            conn.execute(
+                """
+                UPDATE strategy_seeds
+                SET status = 'converted', strategy_id = %s, processed_at = NOW()
+                WHERE id = %s
+                """,
+                [strategy_id, seed_id],
+            )
+            conn.commit()
+
+    def reject_seed(self, seed_id: str) -> None:
+        """Mark a seed as rejected.
+
+        Args:
+            seed_id: Seed UUID
+        """
+        with self.conn.connection() as conn:
+            conn.execute(
+                """
+                UPDATE strategy_seeds
+                SET status = 'rejected', processed_at = NOW()
+                WHERE id = %s
+                """,
+                [seed_id],
+            )
+            conn.commit()
+
 
 # Singleton instance
 _storage_instance: StrategyStorage | None = None
