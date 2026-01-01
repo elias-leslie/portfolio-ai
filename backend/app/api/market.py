@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any, Final, TypedDict, cast, get_args
 
-import yfinance as yf
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from app.api.market_data_sources import (
@@ -71,6 +70,7 @@ from app.services.market_events_service import (
 from app.services.market_events_service import (
     update_market_event as svc_update_event,
 )
+from app.sources.yfinance_source import YFinanceSource
 from app.storage import get_storage
 from app.utils.formatters import format_db_date
 from app.utils.market_hours import (
@@ -755,7 +755,7 @@ async def get_sector_history(
 ) -> SectorHistoryResponse:
     """Get sector ETF historical data for performance charts.
 
-    Uses yfinance directly to ensure adjusted prices (accounting for splits/dividends).
+    Uses YFinanceSource to ensure adjusted prices (accounting for splits/dividends).
     This is necessary because DB stores prices at ingestion time which become stale
     after corporate actions like stock splits.
     """
@@ -767,47 +767,25 @@ async def get_sector_history(
     end_date = date.today()
     start_date = end_date - timedelta(days=days)
 
+    # Use YFinanceSource for data access (layer separation)
+    yf_source = YFinanceSource()
+
     for symbol, name in SECTOR_ETFS.items():
-        try:
-            # Fetch fresh adjusted prices from yfinance
-            ticker = yf.Ticker(symbol)
-            hist = ticker.history(
-                start=start_date.isoformat(),
-                end=(end_date + timedelta(days=1)).isoformat(),
-                auto_adjust=True,  # Critical: get split/dividend adjusted prices
-            )
+        # Fetch fresh adjusted prices via YFinanceSource
+        rows = yf_source.fetch_sector_history(symbol, start_date, end_date)
 
-            if hist.empty:
-                logger.warning("sector_history_no_data", symbol=symbol)
-                continue
-
-            # Convert to list of tuples (date, close) for build_sector_history
-            rows = [
-                (row.Index.date(), row.Close)
-                for row in hist.itertuples()
-                if row.Index is not None and row.Close is not None
-            ]
-
-            if not rows:
-                continue
-
-            # Skip this sector if price change is unrealistic (data quality issue)
-            if not _validate_sector_price_change(rows, symbol):
-                continue
-
-            sector_history, period_start, period_end = build_sector_history(
-                symbol, name, rows, period_start, period_end
-            )
-            sectors.append(sector_history)
-
-        except Exception as e:
-            logger.error(
-                "sector_history_fetch_error",
-                symbol=symbol,
-                error=str(e),
-                error_type=type(e).__name__,
-            )
+        if not rows:
+            logger.warning("sector_history_no_data", symbol=symbol)
             continue
+
+        # Skip this sector if price change is unrealistic (data quality issue)
+        if not _validate_sector_price_change(rows, symbol):
+            continue
+
+        sector_history, period_start, period_end = build_sector_history(
+            symbol, name, rows, period_start, period_end
+        )
+        sectors.append(sector_history)
 
     # Sort by current performance descending
     sectors = sort_sectors_by_performance(sectors)

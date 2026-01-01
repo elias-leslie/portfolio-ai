@@ -579,3 +579,48 @@ class YFinanceSource(BaseSource):
         result["institutional_summary"] = summary
 
         return result
+
+    def fetch_sector_history(
+        self,
+        symbol: str,
+        start_date: dt.date,
+        end_date: dt.date,
+    ) -> list[tuple[dt.date, float]]:
+        """Fetch historical close prices for a sector ETF.
+
+        Args:
+            symbol: Sector ETF symbol (e.g., "XLK", "XLF")
+            start_date: Start date for history
+            end_date: End date for history
+
+        Returns:
+            List of (date, close_price) tuples, empty if no data available
+        """
+        try:
+            ticker = yf.Ticker(symbol)
+            hist = ticker.history(
+                start=start_date.isoformat(),
+                end=(end_date + dt.timedelta(days=1)).isoformat(),
+                auto_adjust=True,
+            )
+
+            if hist.empty:
+                logger.debug("yfinance_sector_no_data", symbol=symbol)
+                return []
+
+            rows = [
+                (row.Index.date(), float(row.Close))
+                for row in hist.itertuples()
+                if row.Index is not None and row.Close is not None
+            ]
+
+            logger.debug("yfinance_sector_fetched", symbol=symbol, rows=len(rows))
+            return rows
+
+        except Exception as e:
+            logger.warning(
+                "yfinance_sector_fetch_error",
+                symbol=symbol,
+                error=str(e),
+            )
+            return []
