@@ -120,6 +120,29 @@ def _should_archive_strategy(performance_ratio: float, days_since_activation: in
     )
 
 
+def _filter_symbols_without_active_strategy(
+    symbols: list[str],
+    strategy_storage: Any,
+) -> list[str]:
+    """Filter out symbols that already have active strategies.
+
+    Args:
+        symbols: List of symbols to check
+        strategy_storage: Strategy storage instance
+
+    Returns:
+        List of symbols without active strategies
+    """
+    symbols_to_generate = []
+    for symbol in symbols:
+        existing = strategy_storage.get_active_strategy(symbol)
+        if existing:
+            logger.debug(f"Skipping {symbol}: active strategy exists")
+        else:
+            symbols_to_generate.append(symbol)
+    return symbols_to_generate
+
+
 def _evaluate_single_strategy(
     strategy: Any,
     conn: Any,
@@ -568,13 +591,7 @@ def weekly_strategy_generation() -> dict[str, Any]:
         logger.info(f"Evaluating {len(top_symbols)} top watchlist symbols")
 
         # Filter to symbols without active strategies
-        symbols_to_generate = []
-        for symbol in top_symbols:
-            existing = strategy_storage.get_active_strategy(symbol)
-            if existing:
-                logger.info(f"Skipping {symbol}: active strategy exists ({existing.name})")
-            else:
-                symbols_to_generate.append(symbol)
+        symbols_to_generate = _filter_symbols_without_active_strategy(top_symbols, strategy_storage)
 
         # Generate strategies using shared helper
         batch_result = _generate_strategies_batch(
@@ -862,13 +879,7 @@ def trigger_strategies_for_top_watchlist(
             return {"status": "completed", "generated": 0, "reason": "No watchlist symbols"}
 
         # Filter to symbols without active strategies
-        symbols_to_generate = []
-        for symbol in top_symbols:
-            existing = strategy_storage.get_active_strategy(symbol)
-            if existing:
-                logger.debug(f"Skipping {symbol}: active strategy exists")
-            else:
-                symbols_to_generate.append(symbol)
+        symbols_to_generate = _filter_symbols_without_active_strategy(top_symbols, strategy_storage)
 
         # Generate strategies using shared helper
         # Note: Rate limit tracking is done post-generation
