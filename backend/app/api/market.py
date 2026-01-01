@@ -96,6 +96,9 @@ CACHE_TTL_SHORT = 60  # 1 minute
 CACHE_TTL_MEDIUM = 300  # 5 minutes
 CACHE_TTL_LONG = 900  # 15 minutes
 
+# Historical data limits
+MAX_HISTORICAL_DAYS = 1825  # ~5 years
+
 # Market indicator symbols
 CORE_MARKET_SYMBOLS = ["^GSPC", "^VIX", "^TNX", "DX-Y.NYB"]
 
@@ -595,7 +598,7 @@ async def get_market_status_endpoint(request: Request) -> MarketStatusResponse:
 async def get_fear_greed_history(
     request: Request,
     days: int = Query(
-        365, ge=30, le=1825, description="Number of days of history (30-1825, ~5 years max)"
+        365, ge=30, le=MAX_HISTORICAL_DAYS, description="Number of days of history"
     ),
 ) -> FearGreedHistoryResponse:
     """Get Fear & Greed historical data for trend charts.
@@ -630,7 +633,7 @@ async def get_fear_greed_history(
 async def get_news_sentiment_history(
     request: Request,
     days: int = Query(
-        30, ge=1, le=1825, description="Number of days of history (1-1825, ~5 years max)"
+        30, ge=1, le=MAX_HISTORICAL_DAYS, description="Number of days of history"
     ),
     granularity: str = Query(
         "daily",
@@ -679,7 +682,7 @@ async def get_news_sentiment_history(
 async def get_indicator_history(
     request: Request,
     days: int = Query(
-        365, ge=30, le=1825, description="Number of days of history (30-1825, ~5 years max)"
+        365, ge=30, le=MAX_HISTORICAL_DAYS, description="Number of days of history"
     ),
 ) -> IndicatorHistoryResponse:
     """Get key indicator historical data for trend charts."""
@@ -711,7 +714,7 @@ async def get_indicator_history(
 async def get_sector_history(
     request: Request,
     days: int = Query(
-        365, ge=30, le=1825, description="Number of days of history (30-1825, ~5 years max)"
+        365, ge=30, le=MAX_HISTORICAL_DAYS, description="Number of days of history"
     ),
 ) -> SectorHistoryResponse:
     """Get sector ETF historical data for performance charts.
