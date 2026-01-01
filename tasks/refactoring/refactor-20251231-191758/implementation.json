@@ -272,7 +272,7 @@
             "Run market API tests to verify"
           ],
           "verification": "pytest tests/api/test_market.py -x -q",
-          "passes": false
+          "passes": true
         },
         {
           "id": "6.2",

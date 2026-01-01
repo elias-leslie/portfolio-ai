@@ -202,7 +202,8 @@ def parse_journal_output(output: str, service_units: dict[str, str]) -> list[Uni
                 )
             )
 
-        except (json.JSONDecodeError, KeyError, ValueError):
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            logger.debug("journal_entry_parse_failed", error=str(e), line=line[:100])
             continue
 
     return logs
