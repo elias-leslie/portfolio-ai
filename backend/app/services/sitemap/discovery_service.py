@@ -1,37 +1,27 @@
-"""Sitemap Service - Discovery and health monitoring for all endpoints.
+"""Sitemap Discovery Service - Endpoint and route discovery.
 
 This module provides:
 - Discovery of backend API endpoints (via OpenAPI)
+- Discovery of WebSocket endpoints (via probe)
 - Discovery of frontend pages (via crawling)
-- Health checks (HTTP status, console errors/warnings)
-- CRUD operations for sitemap entries
-- Import from existing api_capabilities table
+- Discovery of Next.js routes (via filesystem parsing)
 """
 
 from __future__ import annotations
 
-import asyncio
 import os
 import re
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import httpx
 
-from ..logging_config import get_logger
-from ..storage.connection import get_connection_manager
-from ..storage.sitemap_storage import get_sitemap_storage
-from ..utils.formatters import calculate_duration_ms
-from ..utils.port_discovery import (
+from ...logging_config import get_logger
+from ...utils.port_discovery import (
     PortDiscovery,
     get_port_for_service,
 )
-from ..utils.url_helpers import substitute_path_params
-from .health_check_strategies import (
-    CheckDecision,
-    HealthCheckStrategy,
-)
+from ...utils.url_helpers import substitute_path_params
 
 logger = get_logger(__name__)
 
@@ -51,12 +41,6 @@ TABS_TRIGGER_PATTERN = re.compile(r'<TabsTrigger[^>]*value=["\']([^"\']+)["\']')
 FRONTEND_HOST = os.getenv("FRONTEND_HOST", "192.168.8.233")  # Network IP for SSR routing
 BACKEND_HOST = os.getenv("BACKEND_HOST", "localhost")
 
-# Timeouts for health checks
-HEALTH_CHECK_TIMEOUT_NORMAL = 10  # seconds for normal endpoints
-HEALTH_CHECK_TIMEOUT_PROBE = (
-    5  # seconds for lightweight probe checks (enough to verify route exists)
-)
-
 # Frontend crawl patterns to skip (static assets and API calls)
 FRONTEND_CRAWL_SKIP_PATTERNS = [
     "/api/",
@@ -73,134 +57,6 @@ WEBSOCKET_PROBE_PATHS = ["/ws", "/ws/{session_id}", "/socket.io"]
 
 # Status codes that indicate WebSocket endpoint exists
 WS_ENDPOINT_STATUS_CODES = (403, 426, 400)
-
-# Batch size limit for health checks
-MAX_HEALTH_CHECK_BATCH_SIZE = 1000  # Limit prevents long-running health checks
-
-
-def _interpret_response(
-    response: httpx.Response, is_probe: bool, probe_pattern: str | None
-) -> tuple[bool, str | None]:
-    """Interpret HTTP response to determine if it's an error.
-
-    Returns:
-        Tuple of (is_error, error_message)
-    """
-    if is_probe:
-        # PROBE CHECK: Any response = route exists = not down
-        is_path_param_probe = probe_pattern == "path-param"
-        if response.status_code >= 500 and not is_path_param_probe:
-            return True, f"HTTP {response.status_code}"
-        return False, f"Probe OK ({probe_pattern}) - HTTP {response.status_code}"
-
-    # NORMAL CHECK: More strict validation
-    if response.status_code >= 500:
-        return True, f"HTTP {response.status_code}"
-
-    if response.status_code == 404:
-        try:
-            body = response.json()
-            if body.get("detail") == "Not Found":
-                return True, "Route not found"
-        except Exception:
-            return True, "HTTP 404"
-
-    return False, None
-
-
-def _build_check_url(path: str, port: int, frontend_port: int) -> tuple[str, bool]:
-    """Build URL for health check, substituting path parameters.
-
-    Args:
-        path: Endpoint path (may contain {param} placeholders)
-        port: Port number for the endpoint
-        frontend_port: Frontend port (for host selection)
-
-    Returns:
-        Tuple of (url, has_path_params)
-    """
-    test_path = path
-    has_path_params = "{" in path
-    if has_path_params:
-        # Substitute all path parameters with test values
-        test_path = substitute_path_params(path)
-
-    host = FRONTEND_HOST if port == frontend_port else BACKEND_HOST
-    url = f"http://{host}:{port}{test_path}"
-    return url, has_path_params
-
-
-def _handle_check_exception(
-    e: Exception, is_probe: bool, probe_pattern: str | None, timeout: float
-) -> tuple[int, int, str, dict[str, str]]:
-    """Handle exception from health check and return error details.
-
-    Args:
-        e: Exception that occurred
-        is_probe: Whether this was a probe check
-        probe_pattern: Probe pattern if applicable
-        timeout: Timeout value used
-
-    Returns:
-        Tuple of (console_errors, console_warnings, last_error_message, error_details)
-    """
-    error_details = {"exception": str(e)}
-
-    if isinstance(e, httpx.TimeoutException):
-        # Timeout handling depends on endpoint type
-        if is_probe:
-            # Probe timeout = endpoint is slow but might still work
-            return 0, 1, f"Probe timeout ({timeout}s) - {probe_pattern}", error_details
-        # Normal timeout = endpoint is too slow
-        return 1, 0, f"Timeout after {timeout}s", error_details
-
-    if isinstance(e, httpx.ConnectError):
-        # Connection refused/failed = endpoint is DOWN
-        return 1, 0, f"Connection failed: {e!s}"[:500], error_details
-
-    # Other exceptions
-    return 1, 0, str(e)[:500], error_details
-
-
-class HealthCheckResult:
-    """Container for health check results."""
-
-    __slots__ = (
-        "console_errors",
-        "console_warnings",
-        "error_details",
-        "health_status",
-        "http_status",
-        "last_error_message",
-        "response_time_ms",
-    )
-
-    def __init__(
-        self,
-        health_status: str = "healthy",
-        console_errors: int = 0,
-        console_warnings: int = 0,
-        http_status: int | None = None,
-        response_time_ms: int | None = None,
-        last_error_message: str | None = None,
-        error_details: dict[str, Any] | None = None,
-    ):
-        self.health_status = health_status
-        self.console_errors = console_errors
-        self.console_warnings = console_warnings
-        self.http_status = http_status
-        self.response_time_ms = response_time_ms
-        self.last_error_message = last_error_message
-        self.error_details = error_details or {}
-
-    def determine_status(self) -> None:
-        """Set health_status based on error/warning counts."""
-        if self.console_errors > 0:
-            self.health_status = "error"
-        elif self.console_warnings > 0:
-            self.health_status = "warning"
-        else:
-            self.health_status = "healthy"
 
 
 def _extract_openapi_endpoints(
@@ -242,49 +98,16 @@ def _extract_openapi_endpoints(
     return endpoints
 
 
-class SitemapService:
-    """Discovers and monitors sitemap entries."""
+class SitemapDiscoveryService:
+    """Discovers sitemap entries from various sources."""
 
     def __init__(self) -> None:
-        self.conn_mgr = get_connection_manager()
         self._port_discovery = PortDiscovery()
-        self._storage = get_sitemap_storage()
 
     @property
     def frontend_port(self) -> int:
         """Get the frontend port (dynamically discovered or fallback)."""
         return get_port_for_service("frontend") or 3000
-
-    def get_discovered_ports(self) -> list[dict[str, Any]]:
-        """Get all discovered ports with their metadata.
-
-        Returns:
-            List of port info dicts
-        """
-        ports = self._port_discovery.get_all_ports()
-        return [
-            {
-                "port": p.port,
-                "service_name": p.service_name,
-                "service_type": p.service_type,
-                "source": p.source,
-                "description": p.description,
-            }
-            for p in ports.values()
-        ]
-
-    def refresh_port_discovery(self) -> list[dict[str, Any]]:
-        """Force refresh of port discovery cache.
-
-        Returns:
-            List of newly discovered port info dicts
-        """
-        self._port_discovery.clear_cache()
-        return self.get_discovered_ports()
-
-    # =========================================================================
-    # Discovery Methods
-    # =========================================================================
 
     async def discover_all_openapi_endpoints(self) -> list[dict[str, Any]]:
         """Discover API endpoints from ALL ports that have OpenAPI specs.
@@ -636,268 +459,3 @@ class SitemapService:
             pass
 
         return tabs
-
-    async def run_discovery(self) -> dict[str, Any]:
-        """Run comprehensive discovery across all service types.
-
-        Discovery methods:
-        - OpenAPI: All ports with /openapi.json (backend, dev-companion, etc.)
-        - Frontend: Crawl pages and parse Next.js app directory
-        - WebSocket: Probe for WS endpoints on applicable ports
-
-        Returns:
-            Summary of discovery results
-        """
-        logger.info("sitemap_full_discovery_start")
-
-        # Run async discoveries in parallel
-        all_openapi_task = asyncio.create_task(self.discover_all_openapi_endpoints())
-        frontend_task = asyncio.create_task(self.discover_frontend_pages())
-        websocket_task = asyncio.create_task(self.discover_websocket_endpoints())
-
-        all_openapi_entries = await all_openapi_task
-        frontend_entries = await frontend_task
-        websocket_entries = await websocket_task
-
-        # Run sync discoveries
-        nextjs_entries = self.discover_nextjs_routes()
-
-        # Combine all entries
-        all_entries = all_openapi_entries + frontend_entries + websocket_entries + nextjs_entries
-
-        # Bulk save using storage layer
-        saved = self._storage.bulk_save_discovered_entries(all_entries)
-
-        result = {
-            "openapi_discovered": len(all_openapi_entries),
-            "frontend_discovered": len(frontend_entries),
-            "websocket_discovered": len(websocket_entries),
-            "nextjs_discovered": len(nextjs_entries),
-            "total_saved": saved,
-        }
-
-        logger.info("sitemap_full_discovery_complete", **result)
-        return result
-
-    # =========================================================================
-    # Health Check Methods
-    # =========================================================================
-
-    def _save_health_result(self, entry_id: int, result: HealthCheckResult) -> None:
-        """Save health check result to database (entry update + history).
-
-        Args:
-            entry_id: ID of sitemap entry
-            result: Health check result to save
-        """
-        self._storage.save_health_check_result(
-            entry_id=entry_id,
-            health_status=result.health_status,
-            console_errors=result.console_errors,
-            console_warnings=result.console_warnings,
-            http_status=result.http_status,
-            response_time_ms=result.response_time_ms,
-            last_error_message=result.last_error_message,
-            error_details=result.error_details,
-        )
-
-    async def check_entry_health(self, entry_id: int) -> dict[str, Any]:
-        """Check health of a single sitemap entry.
-
-        For frontend pages: HTTP fetch + console capture
-        For API endpoints: HTTP fetch only
-
-        Args:
-            entry_id: ID of sitemap entry to check
-
-        Returns:
-            Health check result dict
-        """
-        # Get entry details
-        entry = self.get_entry(entry_id)
-        if not entry:
-            return {"success": False, "error": "Entry not found"}
-
-        port = entry["port"]
-        path = entry["path"]
-        method = entry["method"]
-
-        # Build URL using helper
-        url, has_path_params = _build_check_url(path, port, self.frontend_port)
-
-        console_errors = 0
-        console_warnings = 0
-        http_status = None
-        response_time_ms = None
-        error_details: dict[str, Any] = {}
-        last_error_message = None
-
-        # Use centralized strategy for check type determination
-        decision: CheckDecision = HealthCheckStrategy.get_check_decision(
-            path, method, has_path_params
-        )
-
-        # 1. Skip entirely: streaming, mutating, or circular-risk endpoints
-        if decision.should_skip:
-            skip_result = HealthCheckResult(
-                health_status="healthy",
-                http_status=0,  # Indicates skipped, not actually checked
-                last_error_message=decision.skip_message,
-            )
-            self._save_health_result(entry_id, skip_result)
-            return {
-                "success": True,
-                "entry_id": entry_id,
-                "health_status": skip_result.health_status,
-                "console_errors": 0,
-                "console_warnings": 0,
-                "http_status": skip_result.http_status,
-                "response_time_ms": None,
-                "error": None,
-            }
-
-        # 2. Determine timeout based on endpoint type
-        # Probe endpoints get short timeout to avoid waiting for expensive operations
-        timeout = HEALTH_CHECK_TIMEOUT_PROBE if decision.is_probe else HEALTH_CHECK_TIMEOUT_NORMAL
-
-        try:
-            # HTTP health check - probe or full depending on endpoint
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                request_start = datetime.now(UTC)
-                response = await client.request(method, url)
-                response_time_ms = calculate_duration_ms(request_start, datetime.now(UTC))
-                http_status = response.status_code
-
-                # Determine if this is an error using helper
-                is_error, last_error_message = _interpret_response(
-                    response, decision.is_probe, decision.probe_pattern
-                )
-                if is_error:
-                    console_errors = 1
-
-        except Exception as e:
-            # Handle all exceptions using helper
-            console_errors, console_warnings, last_error_message, error_details = (
-                _handle_check_exception(e, decision.is_probe, decision.probe_pattern, timeout)
-            )
-
-        # Build and save result
-        result = HealthCheckResult(
-            console_errors=console_errors,
-            console_warnings=console_warnings,
-            http_status=http_status,
-            response_time_ms=response_time_ms,
-            last_error_message=last_error_message,
-            error_details=error_details,
-        )
-        result.determine_status()
-        self._save_health_result(entry_id, result)
-
-        return {
-            "success": True,
-            "entry_id": entry_id,
-            "health_status": result.health_status,
-            "console_errors": result.console_errors,
-            "console_warnings": result.console_warnings,
-            "http_status": result.http_status,
-            "response_time_ms": result.response_time_ms,
-        }
-
-    async def check_all_health(self) -> dict[str, Any]:
-        """Check health of all sitemap entries.
-
-        Returns:
-            Summary of health check results
-        """
-        logger.info("sitemap_check_all_health_start")
-
-        # Get all entries
-        entries, _total = self.get_entries(limit=MAX_HEALTH_CHECK_BATCH_SIZE)
-
-        checked = 0
-        healthy = 0
-        warnings = 0
-        errors = 0
-
-        for entry in entries:
-            result = await self.check_entry_health(entry["id"])
-            checked += 1
-
-            if result.get("health_status") == "healthy":
-                healthy += 1
-            elif result.get("health_status") == "warning":
-                warnings += 1
-            else:
-                errors += 1
-
-        result = {
-            "checked": checked,
-            "healthy": healthy,
-            "warnings": warnings,
-            "errors": errors,
-        }
-
-        logger.info("sitemap_check_all_health_complete", **result)
-        return result
-
-    # =========================================================================
-    # CRUD Operations (delegated to storage layer)
-    # =========================================================================
-
-    def get_entries(
-        self,
-        port: int | None = None,
-        health_status: str | None = None,
-        entry_type: str | None = None,
-        limit: int = 100,
-        offset: int = 0,
-    ) -> tuple[list[dict[str, Any]], int]:
-        """Get sitemap entries with filtering. Delegates to storage layer."""
-        return self._storage.get_entries(
-            port=port,
-            health_status=health_status,
-            entry_type=entry_type,
-            limit=limit,
-            offset=offset,
-        )
-
-    def get_entry(self, entry_id: int) -> dict[str, Any] | None:
-        """Get single entry by ID. Delegates to storage layer."""
-        return self._storage.get_entry(entry_id)
-
-    def get_health_summary(self) -> dict[str, Any]:
-        """Get aggregate health statistics. Delegates to storage layer."""
-        return self._storage.get_health_summary()
-
-    def register_entry(
-        self,
-        port: int,
-        path: str,
-        method: str = "GET",
-        entry_type: str = "manual",
-        title: str | None = None,
-    ) -> dict[str, Any] | None:
-        """Manually register a new sitemap entry. Delegates to storage layer."""
-        return self._storage.register_entry(
-            port=port,
-            path=path,
-            method=method,
-            entry_type=entry_type,
-            title=title,
-        )
-
-    def delete_entry(self, entry_id: int) -> bool:
-        """Remove a sitemap entry. Delegates to storage layer."""
-        return self._storage.delete_entry(entry_id)
-
-    # =========================================================================
-    # Maintenance (delegated to storage layer)
-    # =========================================================================
-
-    def cleanup_old_history(self, days: int = 7) -> int:
-        """Delete health history older than specified days. Delegates to storage layer."""
-        return self._storage.cleanup_old_history(days)
-
-    def get_history_stats(self) -> dict[str, Any]:
-        """Get health history statistics for maintenance UI. Delegates to storage layer."""
-        return self._storage.get_history_stats()

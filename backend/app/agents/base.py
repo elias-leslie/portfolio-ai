@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, TypedDict, cast
 from anthropic import Anthropic
 
 from ..logging_config import get_logger
+from ..repositories import AgentRunRepository
 from ..utils.formatters import calculate_duration_ms
 from ..utils.json_helpers import json_serializer
 from .llm_client import LLMClient
@@ -86,6 +87,7 @@ class Agent(ABC):
         llm_client: LLMClient | None = None,
         anthropic_client: Anthropic | None = None,
         model: str = "claude-sonnet-4-5",
+        repository: AgentRunRepository | None = None,
     ) -> None:
         """Initialize agent.
 
@@ -94,6 +96,7 @@ class Agent(ABC):
             llm_client: LLM client (DualProviderClient for CLI providers)
             anthropic_client: Anthropic client (deprecated, for backwards compatibility)
             model: Claude model to use
+            repository: AgentRunRepository instance (auto-created if not provided)
 
         Note:
             If llm_client is provided, it takes precedence over anthropic_client.
@@ -104,7 +107,7 @@ class Agent(ABC):
         self.client = anthropic_client or Anthropic()  # Keep for tool calling support
         self.model = model
         self.agent_type = self.__class__.__name__
-        self._message_sequence: dict[str, int] = {}  # Tracks message sequence per run_id
+        self.repository = repository or AgentRunRepository(storage)
 
     @abstractmethod
     def get_system_prompt(self) -> str:
@@ -791,34 +794,17 @@ class Agent(ABC):
             workflow_id: Associated workflow ID
             user_id: User ID for multi-user support
         """
-        self.storage.insert_dict(
-            "agent_runs",
-            {
-                "id": run_id,
-                "agent_type": self.agent_type,
-                "started_at": started_at.isoformat() if started_at else None,
-                "completed_at": None,
-                "status": AgentRunStatus.RUNNING.value,
-                "num_ideas": 0,
-                "cost_usd": 0.0,
-                "error_message": None,
-                "metadata": None,
-                "celery_task_id": None,
-                "provider": provider,
-                "model": model or self.model,
-                "cli_command": None,
-                "exit_code": None,
-                "duration_ms": None,
-                "token_usage": None,
-                "session_id": None,
-                "run_type": run_type,
-                "parent_run_id": parent_run_id,
-                "workflow_id": workflow_id,
-                "user_id": user_id,
-            },
+        self.repository.create_run(
+            run_id=run_id,
+            agent_type=self.agent_type,
+            model=model or self.model,
+            started_at=started_at,
+            provider=provider,
+            run_type=run_type,
+            parent_run_id=parent_run_id,
+            workflow_id=workflow_id,
+            user_id=user_id,
         )
-        # Track message sequence for this run
-        self._message_sequence[run_id] = 0
 
     def _record_run_complete(
         self,
@@ -843,31 +829,16 @@ class Agent(ABC):
             token_usage: Token usage stats {input_tokens, output_tokens, total_tokens}
             exit_code: CLI process exit code (if applicable)
         """
-        with self.storage.connection() as conn:
-            conn.execute(
-                """
-                UPDATE agent_runs
-                SET completed_at = ?,
-                    status = ?,
-                    num_ideas = ?,
-                    error_message = ?,
-                    duration_ms = ?,
-                    token_usage = ?,
-                    exit_code = ?
-                WHERE id = ?
-                """,
-                [
-                    completed_at,
-                    status,
-                    num_ideas,
-                    error_message,
-                    duration_ms,
-                    json.dumps(token_usage) if token_usage else None,
-                    exit_code or 0,
-                    run_id,
-                ],
-            )
-            conn.commit()  # Commit the update
+        self.repository.complete_run(
+            run_id=run_id,
+            completed_at=completed_at,
+            status=status,
+            num_ideas=num_ideas,
+            error_message=error_message,
+            duration_ms=duration_ms,
+            token_usage=token_usage,
+            exit_code=exit_code,
+        )
 
     def _record_tool_call(
         self,
@@ -878,22 +849,12 @@ class Agent(ABC):
         duration_ms: int,
     ) -> None:
         """Record tool call in database."""
-        tool_call_id = str(uuid.uuid4())
-
-        # Summarize result
-        result_summary = str(result)[:RESULT_SUMMARY_LENGTH]
-
-        self.storage.insert_dict(
-            "agent_tool_calls",
-            {
-                "id": tool_call_id,
-                "agent_run_id": run_id,
-                "tool_name": tool_name,
-                "parameters": json.dumps(parameters, default=json_serializer),
-                "response_summary": result_summary,
-                "duration_ms": duration_ms,
-                "called_at": datetime.now(UTC).isoformat(),
-            },
+        self.repository.record_tool_call(
+            run_id=run_id,
+            tool_name=tool_name,
+            parameters=parameters,
+            result=result,
+            duration_ms=duration_ms,
         )
 
     def _store_conversation_message(
@@ -913,18 +874,10 @@ class Agent(ABC):
             token_count: Optional token count for this message
             metadata: Optional metadata (e.g., tool name, tool_use_id)
         """
-        # Get and increment sequence number (initialized in _record_run_start)
-        sequence_num = self._message_sequence[run_id]
-        self._message_sequence[run_id] = sequence_num + 1
-
-        self.storage.insert_dict(
-            "agent_conversation_messages",
-            {
-                "agent_run_id": run_id,
-                "sequence_num": sequence_num,
-                "role": role,
-                "content": content,
-                "token_count": token_count,
-                "metadata": json.dumps(metadata) if metadata else None,
-            },
+        self.repository.store_message(
+            run_id=run_id,
+            role=role,
+            content=content,
+            token_count=token_count,
+            metadata=metadata,
         )

@@ -22,7 +22,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from ..logging_config import get_logger
-from ..services.sitemap_service import SitemapService
+from ..services.sitemap import SitemapService
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/sitemap", tags=["sitemap"])

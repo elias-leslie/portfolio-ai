@@ -14,7 +14,7 @@ from typing import Any
 
 from ..celery_app import celery_app
 from ..logging_config import get_logger
-from ..services.sitemap_service import SitemapService
+from ..services.sitemap import SitemapService
 
 logger = get_logger(__name__)
 

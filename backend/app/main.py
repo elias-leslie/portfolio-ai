@@ -32,7 +32,6 @@ from app.api import (
     indicators,
     layouts,
     maintenance,
-    market,
     ml,
     news,
     news_profiling,
@@ -57,6 +56,7 @@ from app.api import (
     watchlist,
     workflow_graph,
 )
+from app.api.market import router as market_router
 
 # vision_content_router, vision_goals_router removed - migrated to SummitFlow (portfolio-ai-5rz)
 from app.logging_config import SyslogPrefixFormatter, configure_logging, get_logger
@@ -175,7 +175,7 @@ app.include_router(celery_endpoints.router)
 app.include_router(maintenance.router)
 app.include_router(portfolio.router)
 # ideas.router removed - deprecated in favor of strategy-seeds (FEAT-218)
-app.include_router(market.router)
+app.include_router(market_router)
 app.include_router(news.router)
 app.include_router(news_profiling.router)
 app.include_router(preferences.router)
