@@ -46,6 +46,7 @@ import {
 } from "@/lib/maintenance/formatters";
 import { MaintenanceSummaryStats } from "./MaintenanceSummaryStats";
 import { MaintenanceTableToolbar } from "./MaintenanceTableToolbar";
+import { useTableSort } from "@/lib/hooks/useTableSort";
 
 // Unified task interface
 interface MaintenanceTask {
@@ -67,7 +68,6 @@ interface MaintenanceTask {
 
 // Sort configuration
 type SortKey = "name" | "category" | "sizeMb" | "fileCount" | "schedule" | "lastRun";
-type SortDirection = "asc" | "desc";
 
 export function MaintenanceTable() {
   // Use the maintenance data hook
@@ -122,8 +122,7 @@ export function MaintenanceTable() {
   const { runAll, isRunning: _isRunningBatch } = useMaintenanceBatchRunner();
 
   const [categoryFilter, setCategoryFilter] = useState<TaskCategory | "all">("all");
-  const [sortKey, setSortKey] = useState<SortKey>("category");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const { sortKey, sortDirection, toggleSort } = useTableSort<SortKey>("category");
 
   const handleRefresh = () => {
     fetchAllData();
@@ -229,16 +228,6 @@ export function MaintenanceTable() {
 
     return result;
   }, [tasks, categoryFilter, sortKey, sortDirection]);
-
-  // Toggle sort
-  const toggleSort = (key: SortKey) => {
-    if (sortKey === key) {
-      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDirection("asc");
-    }
-  };
 
   // Run all tasks and collect results using the batch runner hook
   const handleRunAll = async () => {

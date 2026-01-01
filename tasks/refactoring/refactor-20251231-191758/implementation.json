@@ -332,7 +332,7 @@
             "Run npm run lint to verify"
           ],
           "verification": "cd frontend && npm run lint -- --max-warnings=0 2>/dev/null || npm run lint",
-          "passes": false
+          "passes": true
         },
         {
           "id": "8.2",
