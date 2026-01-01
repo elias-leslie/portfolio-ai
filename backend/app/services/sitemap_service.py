@@ -342,15 +342,12 @@ class SitemapService:
             p for p in ports.values() if p.service_type in ("websocket", "backend", "unknown")
         ]
 
-        # Common WebSocket paths to probe
-        ws_paths = ["/ws", "/ws/{session_id}", "/socket.io"]
-
         async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
             for port_info in ws_candidates:
                 port = port_info.port
 
                 # Try WebSocket upgrade on common paths
-                for ws_path in ws_paths:
+                for ws_path in WEBSOCKET_PROBE_PATHS:
                     try:
                         # Check if endpoint exists (even without upgrade)
                         # FastAPI WebSocket endpoints return 403 for non-WS requests
