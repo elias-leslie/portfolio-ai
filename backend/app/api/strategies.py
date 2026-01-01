@@ -78,13 +78,9 @@ def _safe_float(value: Any) -> float | None:
         value: Value to convert (can be None, numeric, or any type)
 
     Returns:
-        Float value or None if value is None or falsy
+        Float value or None if value is None
     """
-    if value is None:
-        return None
-    if not value:  # Handles 0, False, empty strings, etc. but we want 0 as valid
-        return None if value == "" or value is False else float(value)
-    return float(value)
+    return float(value) if value is not None else None
 
 
 # ============================================================================
@@ -200,8 +196,8 @@ async def list_strategies(
         # Convert to list items (summary view) with performance variance
         items = []
         for s in strategies:
-            expected = float(s.expected_sharpe) if s.expected_sharpe else None
-            live = float(s.live_sharpe_ratio) if s.live_sharpe_ratio else None
+            expected = _safe_float(s.expected_sharpe)
+            live = _safe_float(s.live_sharpe_ratio)
 
             # Calculate performance variance using shared utility
             variance, flag = calculate_performance_status(expected, live, s.live_trades_count)
@@ -216,7 +212,7 @@ async def list_strategies(
                     version=s.version,
                     expected_sharpe=expected,
                     live_sharpe_ratio=live,
-                    live_win_rate=float(s.live_win_rate) if s.live_win_rate else None,
+                    live_win_rate=_safe_float(s.live_win_rate),
                     trades_count=s.live_trades_count,
                     created_at=_safe_datetime_to_iso(s.created_at),
                     activation_date=_safe_datetime_to_iso(s.activation_date),
@@ -283,8 +279,8 @@ async def get_strategy_summary() -> StrategySummary:
         underperforming = 0
 
         for s in strategies:
-            expected = float(s.expected_sharpe) if s.expected_sharpe else None
-            live = float(s.live_sharpe_ratio) if s.live_sharpe_ratio else None
+            expected = _safe_float(s.expected_sharpe)
+            live = _safe_float(s.live_sharpe_ratio)
             _, flag = calculate_performance_status(expected, live, s.live_trades_count)
             if flag == "exceeding":
                 exceeding += 1
@@ -348,9 +344,9 @@ async def get_strategy(strategy_id: str) -> StrategyDetail:
                 {
                     "date": _safe_datetime_to_iso(row[0]),
                     "trades_30d": row[1],
-                    "win_rate_30d": float(row[2]) if row[2] is not None else None,
-                    "sharpe_ratio_30d": float(row[3]) if row[3] is not None else None,
-                    "max_drawdown_30d": float(row[4]) if row[4] is not None else None,
+                    "win_rate_30d": _safe_float(row[2]),
+                    "sharpe_ratio_30d": _safe_float(row[3]),
+                    "max_drawdown_30d": _safe_float(row[4]),
                     "status": row[5],
                 }
             )
@@ -372,18 +368,12 @@ async def get_strategy(strategy_id: str) -> StrategyDetail:
             research_summary=strategy.research_summary,
             generation_reasoning=strategy.generation_reasoning,
             backtest_metrics=backtest_metrics_list,
-            expected_sharpe=float(strategy.expected_sharpe) if strategy.expected_sharpe else None,
-            expected_win_rate=float(strategy.expected_win_rate)
-            if strategy.expected_win_rate
-            else None,
-            expected_max_drawdown=float(strategy.expected_max_drawdown)
-            if strategy.expected_max_drawdown
-            else None,
+            expected_sharpe=_safe_float(strategy.expected_sharpe),
+            expected_win_rate=_safe_float(strategy.expected_win_rate),
+            expected_max_drawdown=_safe_float(strategy.expected_max_drawdown),
             live_trades_count=strategy.live_trades_count,
-            live_win_rate=float(strategy.live_win_rate) if strategy.live_win_rate else None,
-            live_sharpe_ratio=float(strategy.live_sharpe_ratio)
-            if strategy.live_sharpe_ratio
-            else None,
+            live_win_rate=_safe_float(strategy.live_win_rate),
+            live_sharpe_ratio=_safe_float(strategy.live_sharpe_ratio),
             status=strategy.status,
             version=strategy.version,
             created_at=_safe_datetime_to_iso(strategy.created_at),
@@ -596,16 +586,12 @@ async def get_strategy_performance(strategy_id: str) -> dict[str, Any]:
         return {
             "expected": {
                 "sharpe": expected_sharpe,
-                "win_rate": float(strategy.expected_win_rate)
-                if strategy.expected_win_rate
-                else None,
-                "max_drawdown": float(strategy.expected_max_drawdown)
-                if strategy.expected_max_drawdown
-                else None,
+                "win_rate": _safe_float(strategy.expected_win_rate),
+                "max_drawdown": _safe_float(strategy.expected_max_drawdown),
             },
             "actual_30d": {
                 "sharpe": actual_sharpe,
-                "win_rate": float(strategy.live_win_rate) if strategy.live_win_rate else None,
+                "win_rate": _safe_float(strategy.live_win_rate),
                 "trades_count": strategy.live_trades_count,
             },
             "performance_ratio": performance_ratio,
@@ -798,7 +784,7 @@ async def list_strategy_seeds(
                         id=str(row[0]),
                         symbol=str(row[1]),
                         thesis=str(row[2]),
-                        confidence=float(row[3]) if row[3] is not None else 0.0,
+                        confidence=_safe_float(row[3]) or 0.0,
                         status=str(row[4]),  # type: ignore[arg-type]
                         strategy_id=str(row[5]) if row[5] else None,
                         created_at=_safe_datetime_to_iso(row[6]) or "",
@@ -836,7 +822,7 @@ async def get_strategy_seed(seed_id: str) -> StrategySeedItem:
                 id=str(row[0]),
                 symbol=str(row[1]),
                 thesis=str(row[2]),
-                confidence=float(row[3]) if row[3] is not None else 0.0,
+                confidence=_safe_float(row[3]) or 0.0,
                 status=str(row[4]),  # type: ignore[arg-type]
                 strategy_id=str(row[5]) if row[5] else None,
                 created_at=_safe_datetime_to_iso(row[6]) or "",
@@ -871,7 +857,7 @@ async def get_strategy_evolution(strategy_id: str) -> dict[str, Any]:
                 seed_info = {
                     "id": str(seed_row[0]),
                     "thesis": str(seed_row[1]),
-                    "confidence": float(seed_row[2]) if seed_row[2] is not None else 0.0,
+                    "confidence": _safe_float(seed_row[2]) or 0.0,
                     "created_at": _safe_datetime_to_iso(seed_row[3]),
                 }
 
@@ -895,10 +881,10 @@ async def get_strategy_evolution(strategy_id: str) -> dict[str, Any]:
                         "id": str(row[0]),
                         "start_date": _safe_datetime_to_iso(row[1]),
                         "end_date": _safe_datetime_to_iso(row[2]),
-                        "sharpe_ratio": float(row[3]) if row[3] is not None else None,
-                        "total_return_pct": float(row[4]) if row[4] is not None else None,
-                        "max_drawdown_pct": float(row[5]) if row[5] is not None else None,
-                        "win_rate": float(row[6]) if row[6] is not None else None,
+                        "sharpe_ratio": _safe_float(row[3]),
+                        "total_return_pct": _safe_float(row[4]),
+                        "max_drawdown_pct": _safe_float(row[5]),
+                        "win_rate": _safe_float(row[6]),
                         "num_trades": int(row[7]) if row[7] else 0,
                         "status": str(row[8]),
                         "created_at": _safe_datetime_to_iso(row[9]),
@@ -949,9 +935,9 @@ async def get_strategy_evolution(strategy_id: str) -> dict[str, Any]:
                     {
                         "id": str(row[0]),
                         "symbol": str(row[1]),
-                        "entry_price": float(row[2]) if row[2] is not None else None,
-                        "exit_price": float(row[3]) if row[3] is not None else None,
-                        "return_pct": float(row[4]) if row[4] is not None else None,
+                        "entry_price": _safe_float(row[2]),
+                        "exit_price": _safe_float(row[3]),
+                        "return_pct": _safe_float(row[4]),
                         "status": str(row[5]),
                         "entry_date": _safe_datetime_to_iso(row[6]),
                     }
@@ -967,15 +953,9 @@ async def get_strategy_evolution(strategy_id: str) -> dict[str, Any]:
                 "signals": signals,
                 "trades": trades,
                 "performance": {
-                    "expected_sharpe": float(strategy.expected_sharpe)
-                    if strategy.expected_sharpe
-                    else None,
-                    "live_sharpe": float(strategy.live_sharpe_ratio)
-                    if strategy.live_sharpe_ratio
-                    else None,
-                    "live_win_rate": float(strategy.live_win_rate)
-                    if strategy.live_win_rate
-                    else None,
+                    "expected_sharpe": _safe_float(strategy.expected_sharpe),
+                    "live_sharpe": _safe_float(strategy.live_sharpe_ratio),
+                    "live_win_rate": _safe_float(strategy.live_win_rate),
                     "total_trades": strategy.live_trades_count or 0,
                 },
             }
