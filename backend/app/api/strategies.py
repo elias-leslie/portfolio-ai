@@ -752,10 +752,10 @@ async def list_strategy_seeds(
             params: list[Any] = []
 
             if status:
-                conditions.append(f"status = ${len(params) + 1}")
+                conditions.append("status = %s")
                 params.append(status)
             if symbol:
-                conditions.append(f"symbol = ${len(params) + 1}")
+                conditions.append("symbol = %s")
                 params.append(symbol.upper())
 
             where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
@@ -773,7 +773,7 @@ async def list_strategy_seeds(
                 FROM strategy_seeds
                 {where_clause}
                 ORDER BY created_at DESC
-                LIMIT ${len(params) + 1} OFFSET ${len(params) + 2}
+                LIMIT %s OFFSET %s
             """
             params.extend([limit, offset])
             rows = conn.execute(query, params).fetchall()
