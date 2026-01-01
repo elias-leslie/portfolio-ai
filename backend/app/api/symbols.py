@@ -30,6 +30,12 @@ PILLAR_WEIGHTS = {
     "performance": 0.05,
 }
 
+# Fear & Greed thresholds for recommendations
+FEAR_GREED_FEAR_THRESHOLD = 30
+FEAR_GREED_GREED_THRESHOLD = 70
+FEAR_GREED_DEFAULT = 50
+GAIN_PCT_TRIM_THRESHOLD = 20.0
+
 router = APIRouter(prefix="/api/symbols", tags=["symbols"])
 storage = get_storage()
 watchlist_service = WatchlistService(storage)
@@ -614,7 +620,7 @@ def _generate_recommendation(
     signal = watchlist.get("signal_type") if watchlist else None
     strength = (watchlist.get("signal_strength") if watchlist else None) or 0
     fear_greed_data = market.get("fear_greed") or {}
-    fear_greed = fear_greed_data.get("score", 50) if fear_greed_data else 50
+    fear_greed = fear_greed_data.get("score", FEAR_GREED_DEFAULT) if fear_greed_data else FEAR_GREED_DEFAULT
 
     reasoning = []
     action = "HOLD"
@@ -633,7 +639,7 @@ def _generate_recommendation(
         elif signal == "AVOID":
             action = "CONSIDER_SELLING"
             reasoning.append("Signal turned to AVOID")
-        elif gain_pct > 20:
+        elif gain_pct > GAIN_PCT_TRIM_THRESHOLD:
             action = "CONSIDER_TRIMMING"
             reasoning.append(f"Position up {gain_pct:.1f}% - consider taking profits")
         else:
@@ -657,9 +663,9 @@ def _generate_recommendation(
         reasoning.append("AVOID signal - do not initiate")
 
     # Market context
-    if fear_greed and fear_greed < 30:
+    if fear_greed and fear_greed < FEAR_GREED_FEAR_THRESHOLD:
         reasoning.append(f"Market in Fear ({fear_greed}) - consider smaller positions")
-    elif fear_greed and fear_greed > 70:
+    elif fear_greed and fear_greed > FEAR_GREED_GREED_THRESHOLD:
         reasoning.append(f"Market in Greed ({fear_greed}) - be cautious")
 
     return {
