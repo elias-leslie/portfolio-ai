@@ -177,6 +177,7 @@ def _handle_missing_directory(
     directory_path: Path,
     task_name: str,
     log_id: int,
+    counter_field_name: str = "files_deleted",
 ) -> dict[str, Any] | None:
     """Handle missing directory for cleanup tasks.
 
@@ -186,6 +187,7 @@ def _handle_missing_directory(
         directory_path: Path to the directory to check
         task_name: Name of the task (for logging)
         log_id: Maintenance log ID
+        counter_field_name: Name of the counter field (default 'files_deleted')
 
     Returns:
         Early result dict if directory doesn't exist, None otherwise
@@ -195,7 +197,7 @@ def _handle_missing_directory(
         early_result = {
             "task_id": task_id,
             "dry_run": dry_run,
-            "files_deleted": 0,
+            counter_field_name: 0,
             "bytes_freed": 0,
             "message": f"{task_name.replace('_', ' ').title()} directory not found",
             "success": True,
@@ -828,18 +830,10 @@ def cleanup_old_models_task(
         # Models directory
         models_dir = Path(__file__).parent.parent.parent / "models"
 
-        if not models_dir.exists():
-            logger.warning("models_directory_not_found", directory=str(models_dir))
-            early_result = {
-                "task_id": task_id,
-                "dry_run": dry_run,
-                "files_deleted": 0,
-                "bytes_freed": 0,
-                "message": "Models directory not found",
-                "success": True,
-                "duration_seconds": 0.0,
-            }
-            log_maintenance_complete(log_id, "cleanup_old_models_task", True, early_result)
+        early_result = _handle_missing_directory(
+            task_id, dry_run, models_dir, "cleanup_old_models_task", log_id
+        )
+        if early_result:
             return early_result
 
         # Group model files by base name (e.g., article_quality_v*.joblib)
@@ -966,18 +960,15 @@ def cleanup_solution_state_task(
         # Solution state directory
         solution_dir = Path(__file__).parent.parent.parent.parent / "solution_state"
 
-        if not solution_dir.exists():
-            logger.warning("solution_state_directory_not_found", directory=str(solution_dir))
-            early_result = {
-                "task_id": task_id,
-                "dry_run": dry_run,
-                "directories_deleted": 0,
-                "bytes_freed": 0,
-                "message": "Solution state directory not found",
-                "success": True,
-                "duration_seconds": 0.0,
-            }
-            log_maintenance_complete(log_id, "cleanup_solution_state_task", True, early_result)
+        early_result = _handle_missing_directory(
+            task_id,
+            dry_run,
+            solution_dir,
+            "cleanup_solution_state_task",
+            log_id,
+            counter_field_name="directories_deleted",
+        )
+        if early_result:
             return early_result
 
         # Calculate cutoff date

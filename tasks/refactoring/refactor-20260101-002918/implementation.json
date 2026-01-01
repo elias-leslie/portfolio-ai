@@ -181,7 +181,7 @@
             "Use helper in cleanup_old_models_task and cleanup_solution_state_task",
             "Run pytest tests/unit/tasks -k cleanup --tb=short"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.3",
