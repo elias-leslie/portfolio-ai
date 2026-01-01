@@ -122,7 +122,7 @@
             "Replace raw SQL at line 904 with repo.upsert_risk_metrics()",
             "Run pytest tests/unit/tasks -k reference --tb=short"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "2.3",
