@@ -870,6 +870,80 @@ class StrategyStorage:
             )
             conn.commit()
 
+    def list_seeds(
+        self,
+        status: str | None = None,
+        symbol: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[tuple[Any, ...]], int]:
+        """List strategy seeds with optional filtering.
+
+        Args:
+            status: Filter by status (optional)
+            symbol: Filter by symbol (optional)
+            limit: Maximum results (default 50)
+            offset: Number of results to skip (default 0)
+
+        Returns:
+            Tuple of (rows, total_count) where rows are tuples of:
+            (id, symbol, thesis, confidence, status, strategy_id, created_at, processed_at)
+        """
+        conditions = []
+        params: list[Any] = []
+
+        if status:
+            conditions.append("status = %s")
+            params.append(status)
+        if symbol:
+            conditions.append("symbol = %s")
+            params.append(symbol.upper())
+
+        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+
+        with self.conn.connection() as conn:
+            # Get total count
+            count_query = f"SELECT COUNT(*) FROM strategy_seeds {where_clause}"
+            count_row = conn.execute(count_query, params).fetchone()
+            total = int(count_row[0]) if count_row and count_row[0] is not None else 0
+
+            # Get seeds with pagination
+            query = f"""
+                SELECT id, symbol, thesis, confidence, status, strategy_id,
+                       created_at, processed_at
+                FROM strategy_seeds
+                {where_clause}
+                ORDER BY created_at DESC
+                LIMIT %s OFFSET %s
+            """
+            params.extend([limit, offset])
+            rows = conn.execute(query, params).fetchall()
+
+            return (rows, total)
+
+    def get_seed_by_id(self, seed_id: str) -> tuple[Any, ...] | None:
+        """Get a specific strategy seed by ID.
+
+        Args:
+            seed_id: Seed UUID
+
+        Returns:
+            Tuple of (id, symbol, thesis, confidence, status, strategy_id, created_at, processed_at)
+            or None if not found
+        """
+        with self.conn.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT id, symbol, thesis, confidence, status, strategy_id,
+                       created_at, processed_at
+                FROM strategy_seeds
+                WHERE id = %s
+                """,
+                [seed_id],
+            ).fetchone()
+
+            return row if row else None
+
 
 # Singleton instance
 _storage_instance: StrategyStorage | None = None

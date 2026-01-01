@@ -745,55 +745,25 @@ async def list_strategy_seeds(
     High-confidence seeds (>=7/10) automatically trigger strategy workflows.
     """
     try:
-        conn_mgr = get_connection_manager()
-        with conn_mgr.connection() as conn:
-            # Build query with filters
-            conditions = []
-            params: list[Any] = []
+        storage = get_strategy_storage()
+        rows, total = storage.list_seeds(status=status, symbol=symbol, limit=limit, offset=offset)
 
-            if status:
-                conditions.append("status = %s")
-                params.append(status)
-            if symbol:
-                conditions.append("symbol = %s")
-                params.append(symbol.upper())
-
-            where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-
-            # Get total count
-            count_query = f"SELECT COUNT(*) FROM strategy_seeds {where_clause}"
-            count_row = conn.execute(count_query, params).fetchone()
-            total_val = count_row[0] if count_row else 0
-            total = int(total_val) if isinstance(total_val, (int, float, str)) else 0
-
-            # Get seeds with pagination
-            query = f"""
-                SELECT id, symbol, thesis, confidence, status, strategy_id,
-                       created_at, processed_at
-                FROM strategy_seeds
-                {where_clause}
-                ORDER BY created_at DESC
-                LIMIT %s OFFSET %s
-            """
-            params.extend([limit, offset])
-            rows = conn.execute(query, params).fetchall()
-
-            seeds = []
-            for row in rows:
-                seeds.append(
-                    StrategySeedItem(
-                        id=str(row[0]),
-                        symbol=str(row[1]),
-                        thesis=str(row[2]),
-                        confidence=_safe_float(row[3]) or 0.0,
-                        status=str(row[4]),  # type: ignore[arg-type]
-                        strategy_id=str(row[5]) if row[5] else None,
-                        created_at=_safe_datetime_to_iso(row[6]) or "",
-                        processed_at=_safe_datetime_to_iso(row[7]),
-                    )
+        seeds = []
+        for row in rows:
+            seeds.append(
+                StrategySeedItem(
+                    id=str(row[0]),
+                    symbol=str(row[1]),
+                    thesis=str(row[2]),
+                    confidence=_safe_float(row[3]) or 0.0,
+                    status=str(row[4]),  # type: ignore[arg-type]
+                    strategy_id=str(row[5]) if row[5] else None,
+                    created_at=_safe_datetime_to_iso(row[6]) or "",
+                    processed_at=_safe_datetime_to_iso(row[7]),
                 )
+            )
 
-            return StrategySeedList(seeds=seeds, total=total)
+        return StrategySeedList(seeds=seeds, total=total)
 
     except Exception as e:
         logger.exception("Failed to list strategy seeds", error=str(e))

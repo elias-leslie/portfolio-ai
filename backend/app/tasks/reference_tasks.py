@@ -227,28 +227,20 @@ def _update_valuation_metrics(symbol: str, source: str, payload: dict[str, Any])
         return
 
     storage = get_storage()
+    repo = ReferenceRepository(storage)
+
+    # Find the most recent cache entry for this symbol/source
+    as_of_date = repo.get_latest_cache_entry_date(symbol, source)
+
+    if as_of_date is None:
+        logger.debug(
+            "no_cache_entry_found",
+            symbol=symbol,
+            source=source,
+        )
+        return
+
     with storage.connection() as conn:
-        # Find the most recent cache entry for this symbol/source
-        result = conn.execute(
-            """
-            SELECT as_of_date
-            FROM reference_cache
-            WHERE symbol = %s AND source = %s
-            ORDER BY as_of_date DESC
-            LIMIT 1
-            """,
-            [symbol, source],
-        ).fetchone()
-
-        if result is None:
-            logger.debug(
-                "no_cache_entry_found",
-                symbol=symbol,
-                source=source,
-            )
-            return
-
-        as_of_date = result[0]
 
         # Dual-write using shared helper
         metrics_columns = [
@@ -310,30 +302,23 @@ def _process_cache_entries() -> tuple[int, int]:
         Tuple of (entries_processed, entries_updated)
     """
     storage = get_storage()
+    repo = ReferenceRepository(storage)
     entries_processed = 0
     entries_updated = 0
 
-    with storage.connection() as conn:
-        # Get all cache entries with non-null payloads
-        results = conn.execute(
-            """
-            SELECT symbol, source, payload
-            FROM reference_cache
-            WHERE payload IS NOT NULL
-            ORDER BY symbol, source, as_of_date DESC
-            """
-        ).fetchall()
+    # Get all cache entries with non-null payloads
+    results = repo.get_cache_entries_with_payloads()
 
-        logger.info(
-            "valuation_metrics_found_entries",
-            total_entries=len(results),
-        )
+    logger.info(
+        "valuation_metrics_found_entries",
+        total_entries=len(results),
+    )
 
-        # Track which symbol/source combinations we've processed
-        # (only process most recent for each pair)
-        processed_pairs: set[tuple[str, str]] = set()
+    # Track which symbol/source combinations we've processed
+    # (only process most recent for each pair)
+    processed_pairs: set[tuple[str, str]] = set()
 
-        for symbol, source, payload_json in results:
+    for symbol, source, payload_json in results:
             # Type guard: ensure symbol and source are strings
             if not isinstance(symbol, str) or not isinstance(source, str):
                 continue
