@@ -192,6 +192,39 @@ def _validate_and_build_options_activity(options_data_raw: Any) -> OptionsActivi
     )
 
 
+def _validate_sector_price_change(rows: list[tuple[Any, float]], symbol: str) -> bool:
+    """Validate that sector price change is within reasonable bounds.
+
+    Checks if the percentage change between first and last price is realistic
+    (not > 60% loss or > 200% gain), which could indicate data issues.
+
+    Args:
+        rows: List of (date, close_price) tuples
+        symbol: Sector ETF symbol for logging
+
+    Returns:
+        True if price change is valid (within bounds), False if unrealistic
+    """
+    if len(rows) < 2:
+        return True
+
+    first_close = rows[0][1]
+    last_close = rows[-1][1]
+    pct_change = ((last_close - first_close) / first_close) * 100
+
+    if pct_change < SECTOR_MAX_LOSS_THRESHOLD or pct_change > SECTOR_MAX_GAIN_THRESHOLD:
+        logger.error(
+            "sector_history_unrealistic_change",
+            symbol=symbol,
+            first_close=first_close,
+            last_close=last_close,
+            pct_change=pct_change,
+        )
+        return False
+
+    return True
+
+
 @dataclass
 class CoreMarketData:
     """Core market indicators fetched from price service."""
@@ -714,21 +747,9 @@ async def get_sector_history(
             if not rows:
                 continue
 
-            # Validate: reject if pct change is unrealistic (> 60% loss or > 200% gain)
-            if len(rows) >= 2:
-                first_close = rows[0][1]
-                last_close = rows[-1][1]
-                pct_change = ((last_close - first_close) / first_close) * 100
-                if pct_change < SECTOR_MAX_LOSS_THRESHOLD or pct_change > SECTOR_MAX_GAIN_THRESHOLD:
-                    logger.error(
-                        "sector_history_unrealistic_change",
-                        symbol=symbol,
-                        first_close=first_close,
-                        last_close=last_close,
-                        pct_change=pct_change,
-                    )
-                    # Skip this sector rather than show bad data
-                    continue
+            # Skip this sector if price change is unrealistic (data quality issue)
+            if not _validate_sector_price_change(rows, symbol):
+                continue
 
             sector_history, period_start, period_end = build_sector_history(
                 symbol, name, rows, period_start, period_end
