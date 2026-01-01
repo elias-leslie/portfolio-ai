@@ -47,6 +47,11 @@ from app.watchlist.watchlist_service import WatchlistService
 
 logger = get_logger(__name__)
 
+# Watchlist constants
+DAILY_REPORT_STALE_HOURS = 48  # Consider daily report stale after 48 hours
+WATCHLIST_CACHE_TTL_SECONDS = 60  # Cache watchlist responses for 1 minute
+REDIS_WATCHLIST_REFRESH_KEY = "watchlist:refresh:global"  # Redis key for refresh lock
+
 router = APIRouter(prefix="/api/watchlist", tags=["watchlist"])
 
 # Initialize services
@@ -320,7 +325,7 @@ async def _handle_legacy_review(
 
 # Endpoints
 @router.get("", response_model=WatchlistListResponse)
-@cache_response(ttl=60)  # 1 minute cache
+@cache_response(ttl=WATCHLIST_CACHE_TTL_SECONDS)
 @handle_api_errors("fetch watchlist items")
 async def list_watchlist_items(request: Request) -> WatchlistListResponse:
     """
@@ -372,7 +377,7 @@ async def get_daily_report() -> dict[str, object]:
     generated_at = report_row["generated_at"]
     if isinstance(generated_at, str):
         generated_at = datetime.fromisoformat(generated_at)
-    is_stale = (datetime.now(UTC) - generated_at).total_seconds() > 48 * 3600
+    is_stale = (datetime.now(UTC) - generated_at).total_seconds() > DAILY_REPORT_STALE_HOURS * 3600
 
     return {
         "report_date": report_row["report_date"].isoformat() if report_row["report_date"] else None,
@@ -443,8 +448,7 @@ async def get_refresh_status() -> RefreshStatusResponse:
     """
     try:
         redis_client = _get_redis_client()
-        redis_key = "watchlist:refresh:global"
-        status_json = redis_client.get(redis_key)
+        status_json = redis_client.get(REDIS_WATCHLIST_REFRESH_KEY)
 
         if not status_json:
             # No refresh in progress

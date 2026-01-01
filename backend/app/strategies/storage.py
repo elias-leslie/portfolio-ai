@@ -22,6 +22,17 @@ from .models import (
 logger = logging.getLogger(__name__)
 
 
+# Strategy definitions table columns (matches CREATE TABLE order in migration 047)
+STRATEGY_COLUMNS = """
+    id, name, symbol, strategy_type,
+    parameters, research_summary, generation_reasoning,
+    backtest_metrics, expected_sharpe, expected_win_rate, expected_max_drawdown,
+    created_by, created_at, version,
+    status, activation_date, archive_date, archive_reason,
+    live_trades_count, live_win_rate, live_sharpe_ratio, last_used_at
+""".strip()
+
+
 class StrategyStorage:
     """Database operations for strategy management."""
 
@@ -125,8 +136,8 @@ class StrategyStorage:
         """
         with self.conn.connection() as conn:
             rows = conn.execute(
-                """
-                SELECT *
+                f"""
+                SELECT {STRATEGY_COLUMNS}
                 FROM strategy_definitions
                 WHERE id = %s
                 """,
@@ -149,8 +160,8 @@ class StrategyStorage:
         """
         with self.conn.connection() as conn:
             rows = conn.execute(
-                """
-                SELECT *
+                f"""
+                SELECT {STRATEGY_COLUMNS}
                 FROM strategy_definitions
                 WHERE symbol = %s AND status = 'active'
                 ORDER BY version DESC
