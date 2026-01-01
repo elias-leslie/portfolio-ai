@@ -668,6 +668,146 @@ class StrategyStorage:
             confidence = float(row[1]) if row[1] is not None else 0.0
             return (thesis, confidence)
 
+    def get_seed_by_strategy_id(self, strategy_id: str) -> dict[str, Any] | None:
+        """Get seed info for a strategy.
+
+        Args:
+            strategy_id: Strategy UUID
+
+        Returns:
+            Dict with seed info or None if no seed exists
+        """
+        with self.conn.connection() as conn:
+            row = conn.execute(
+                "SELECT id, thesis, confidence, created_at FROM strategy_seeds WHERE strategy_id = %s",
+                [strategy_id],
+            ).fetchone()
+
+            if not row:
+                return None
+
+            return {
+                "id": str(row[0]),
+                "thesis": str(row[1]),
+                "confidence": float(row[2]) if row[2] is not None else 0.0,
+                "created_at": row[3],
+            }
+
+    def get_backtest_runs(self, strategy_id: str, limit: int = 5) -> list[dict[str, Any]]:
+        """Get backtest runs for a strategy.
+
+        Args:
+            strategy_id: Strategy UUID
+            limit: Maximum number of runs to return
+
+        Returns:
+            List of backtest run dicts
+        """
+        with self.conn.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, start_date, end_date, sharpe_ratio, total_return_pct,
+                       max_drawdown_pct, win_rate, num_trades, status, created_at
+                FROM backtest_runs
+                WHERE strategy_definition_id = %s
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                [strategy_id, limit],
+            ).fetchall()
+
+        backtests = []
+        for row in rows:
+            backtests.append(
+                {
+                    "id": str(row[0]),
+                    "start_date": row[1],
+                    "end_date": row[2],
+                    "sharpe_ratio": float(row[3]) if row[3] is not None else None,
+                    "total_return_pct": float(row[4]) if row[4] is not None else None,
+                    "max_drawdown_pct": float(row[5]) if row[5] is not None else None,
+                    "win_rate": float(row[6]) if row[6] is not None else None,
+                    "num_trades": int(row[7]) if row[7] else 0,
+                    "status": str(row[8]),
+                    "created_at": row[9],
+                }
+            )
+        return backtests
+
+    def get_strategy_signals(self, strategy_id: str, limit: int = 10) -> list[dict[str, Any]]:
+        """Get recent signals for a strategy.
+
+        Args:
+            strategy_id: Strategy UUID
+            limit: Maximum number of signals to return
+
+        Returns:
+            List of signal dicts
+        """
+        with self.conn.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, signal_type, signal_strength, signal_date, reasons, created_at
+                FROM strategy_signals
+                WHERE strategy_id = %s
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                [strategy_id, limit],
+            ).fetchall()
+
+        signals = []
+        for row in rows:
+            signals.append(
+                {
+                    "id": str(row[0]),
+                    "signal_type": str(row[1]),
+                    "signal_strength": int(row[2]) if row[2] else None,
+                    "signal_date": row[3],
+                    "reasons": row[4] if row[4] else [],
+                    "created_at": row[5],
+                }
+            )
+        return signals
+
+    def get_symbol_trades(self, symbol: str, limit: int = 10) -> list[dict[str, Any]]:
+        """Get recent trades for a symbol.
+
+        Args:
+            symbol: Stock symbol
+            limit: Maximum number of trades to return
+
+        Returns:
+            List of trade dicts
+        """
+        with self.conn.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT io.idea_id, io.symbol, io.entry_price, io.exit_price,
+                       io.current_return_pct, io.status, io.entry_date
+                FROM idea_outcomes io
+                WHERE io.symbol = %s
+                ORDER BY io.entry_date DESC
+                LIMIT %s
+                """,
+                [symbol, limit],
+            ).fetchall()
+
+        trades = []
+        for row in rows:
+            trades.append(
+                {
+                    "id": str(row[0]),
+                    "symbol": str(row[1]),
+                    "entry_price": float(row[2]) if row[2] is not None else None,
+                    "exit_price": float(row[3]) if row[3] is not None else None,
+                    "return_pct": float(row[4]) if row[4] is not None else None,
+                    "status": str(row[5]),
+                    "entry_date": row[6],
+                }
+            )
+        return trades
+
     def link_strategy_to_seed(
         self,
         strategy_id: str,

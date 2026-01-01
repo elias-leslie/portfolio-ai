@@ -844,121 +844,68 @@ async def get_strategy_evolution(strategy_id: str) -> dict[str, Any]:
     """
     try:
         strategy = _get_strategy_or_404(strategy_id)
+        storage = get_strategy_storage()
 
-        conn_mgr = get_connection_manager()
-        with conn_mgr.connection() as conn:
-            # Get seed info if strategy originated from a seed
-            seed_info = None
-            seed_row = conn.execute(
-                "SELECT id, thesis, confidence, created_at FROM strategy_seeds WHERE strategy_id = %s",
-                [strategy_id],
-            ).fetchone()
-            if seed_row:
-                seed_info = {
-                    "id": str(seed_row[0]),
-                    "thesis": str(seed_row[1]),
-                    "confidence": _safe_float(seed_row[2]) or 0.0,
-                    "created_at": _safe_datetime_to_iso(seed_row[3]),
-                }
-
-            # Get backtest runs for this strategy
-            backtest_rows = conn.execute(
-                """
-                SELECT id, start_date, end_date, sharpe_ratio, total_return_pct,
-                       max_drawdown_pct, win_rate, num_trades, status, created_at
-                FROM backtest_runs
-                WHERE strategy_definition_id = %s
-                ORDER BY created_at DESC
-                LIMIT 5
-                """,
-                [strategy_id],
-            ).fetchall()
-
-            backtests = []
-            for row in backtest_rows:
-                backtests.append(
-                    {
-                        "id": str(row[0]),
-                        "start_date": _safe_datetime_to_iso(row[1]),
-                        "end_date": _safe_datetime_to_iso(row[2]),
-                        "sharpe_ratio": _safe_float(row[3]),
-                        "total_return_pct": _safe_float(row[4]),
-                        "max_drawdown_pct": _safe_float(row[5]),
-                        "win_rate": _safe_float(row[6]),
-                        "num_trades": int(row[7]) if row[7] else 0,
-                        "status": str(row[8]),
-                        "created_at": _safe_datetime_to_iso(row[9]),
-                    }
-                )
-
-            # Get recent signals
-            signal_rows = conn.execute(
-                """
-                SELECT id, signal_type, signal_strength, signal_date, reasons, created_at
-                FROM strategy_signals
-                WHERE strategy_id = %s
-                ORDER BY created_at DESC
-                LIMIT 10
-                """,
-                [strategy_id],
-            ).fetchall()
-
-            signals: list[dict[str, Any]] = []
-            for row in signal_rows:
-                signals.append(
-                    {
-                        "id": str(row[0]),
-                        "signal_type": str(row[1]),
-                        "signal_strength": int(row[2]) if row[2] else None,
-                        "signal_date": _safe_datetime_to_iso(row[3]),
-                        "reasons": row[4] if row[4] else [],
-                        "created_at": _safe_datetime_to_iso(row[5]),
-                    }
-                )
-
-            # Get recent trades (paper trades linked to this strategy)
-            trade_rows = conn.execute(
-                """
-                SELECT io.idea_id, io.symbol, io.entry_price, io.exit_price,
-                       io.current_return_pct, io.status, io.entry_date
-                FROM idea_outcomes io
-                WHERE io.symbol = %s
-                ORDER BY io.entry_date DESC
-                LIMIT 10
-                """,
-                [strategy.symbol],
-            ).fetchall()
-
-            trades = []
-            for row in trade_rows:
-                trades.append(
-                    {
-                        "id": str(row[0]),
-                        "symbol": str(row[1]),
-                        "entry_price": _safe_float(row[2]),
-                        "exit_price": _safe_float(row[3]),
-                        "return_pct": _safe_float(row[4]),
-                        "status": str(row[5]),
-                        "entry_date": _safe_datetime_to_iso(row[6]),
-                    }
-                )
-
-            return {
-                "strategy_id": strategy_id,
-                "name": strategy.name,
-                "symbol": strategy.symbol,
-                "status": strategy.status,
-                "seed": seed_info,
-                "backtests": backtests,
-                "signals": signals,
-                "trades": trades,
-                "performance": {
-                    "expected_sharpe": _safe_float(strategy.expected_sharpe),
-                    "live_sharpe": _safe_float(strategy.live_sharpe_ratio),
-                    "live_win_rate": _safe_float(strategy.live_win_rate),
-                    "total_trades": strategy.live_trades_count or 0,
-                },
+        # Get seed info if strategy originated from a seed
+        seed_raw = storage.get_seed_by_strategy_id(strategy_id)
+        seed_info = None
+        if seed_raw:
+            seed_info = {
+                "id": seed_raw["id"],
+                "thesis": seed_raw["thesis"],
+                "confidence": seed_raw["confidence"],
+                "created_at": _safe_datetime_to_iso(seed_raw["created_at"]),
             }
+
+        # Get backtest runs for this strategy
+        backtests_raw = storage.get_backtest_runs(strategy_id, limit=5)
+        backtests = [
+            {
+                **bt,
+                "start_date": _safe_datetime_to_iso(bt["start_date"]),
+                "end_date": _safe_datetime_to_iso(bt["end_date"]),
+                "created_at": _safe_datetime_to_iso(bt["created_at"]),
+            }
+            for bt in backtests_raw
+        ]
+
+        # Get recent signals
+        signals_raw = storage.get_strategy_signals(strategy_id, limit=10)
+        signals = [
+            {
+                **sig,
+                "signal_date": _safe_datetime_to_iso(sig["signal_date"]),
+                "created_at": _safe_datetime_to_iso(sig["created_at"]),
+            }
+            for sig in signals_raw
+        ]
+
+        # Get recent trades (paper trades linked to this strategy)
+        trades_raw = storage.get_symbol_trades(strategy.symbol, limit=10)
+        trades = [
+            {
+                **trade,
+                "entry_date": _safe_datetime_to_iso(trade["entry_date"]),
+            }
+            for trade in trades_raw
+        ]
+
+        return {
+            "strategy_id": strategy_id,
+            "name": strategy.name,
+            "symbol": strategy.symbol,
+            "status": strategy.status,
+            "seed": seed_info,
+            "backtests": backtests,
+            "signals": signals,
+            "trades": trades,
+            "performance": {
+                "expected_sharpe": _safe_float(strategy.expected_sharpe),
+                "live_sharpe": _safe_float(strategy.live_sharpe_ratio),
+                "live_win_rate": _safe_float(strategy.live_win_rate),
+                "total_trades": strategy.live_trades_count or 0,
+            },
+        }
 
     except HTTPException:
         raise
