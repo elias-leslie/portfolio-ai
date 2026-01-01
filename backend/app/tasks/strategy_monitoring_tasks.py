@@ -102,7 +102,7 @@ def _generate_strategies_batch(
         if generated_count >= max_count:
             break
 
-        logger.info(f"Generating strategy for {symbol}")
+        logger.info("Generating strategy for symbol", symbol=symbol)
         msg, result = _run_strategy_workflow(symbol, force_regenerate=force_regenerate)
         results.append(msg)
         if result and result["status"] == "completed":
@@ -147,7 +147,7 @@ def _filter_symbols_without_active_strategy(
     for symbol in symbols:
         existing = strategy_storage.get_active_strategy(symbol)
         if existing:
-            logger.debug(f"Skipping {symbol}: active strategy exists")
+            logger.debug("Skipping symbol with active strategy", symbol=symbol)
         else:
             symbols_to_generate.append(symbol)
     return symbols_to_generate
@@ -366,7 +366,7 @@ def evaluate_strategy_performance() -> dict[str, Any]:
                     "details": [],
                 }
 
-            logger.info(f"Evaluating {len(active_strategies)} active strategies")
+            logger.info("Evaluating active strategies", count=len(active_strategies))
 
             results = []
             archived_count = 0
@@ -467,7 +467,7 @@ def _calculate_rolling_metrics(
         )
         rows = result.fetchall()
     except Exception as e:
-        logger.warning(f"Could not query trades for strategy {strategy_id}: {e}")
+        logger.warning("Could not query trades for strategy", strategy_id=strategy_id, error=str(e))
         rows = []
 
     # Default return for no trades

@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -151,6 +151,20 @@ async def _store_agent_message(db: Database, session_id: str, content: str, agen
     )
     await db.increment_message_count(session_id)
     await db.add_participant(session_id, agent)
+
+
+def require_bridge() -> SessionBridge:
+    """Dependency that ensures bridge is available.
+
+    Raises:
+        HTTPException: 503 if bridge is not initialized
+
+    Returns:
+        The initialized SessionBridge instance
+    """
+    if not bridge:
+        raise HTTPException(status_code=503, detail="Service not ready")
+    return bridge
 
 
 # REST endpoints

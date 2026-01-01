@@ -568,20 +568,21 @@ async def get_strategy_performance(strategy_id: str) -> dict[str, Any]:
     try:
         strategy = _get_strategy_or_404(strategy_id)
 
-        # Calculate performance ratio
-        expected_sharpe = float(strategy.expected_sharpe or 0.0)
-        actual_sharpe = float(strategy.live_sharpe_ratio or 0.0)
-        performance_ratio = actual_sharpe / expected_sharpe if expected_sharpe > 0 else 0.0
+        # Calculate performance using shared utility
+        expected_sharpe = _safe_float(strategy.expected_sharpe)
+        actual_sharpe = _safe_float(strategy.live_sharpe_ratio)
+        performance_ratio, flag = calculate_performance_status(
+            expected_sharpe, actual_sharpe, strategy.live_trades_count
+        )
 
-        # Determine status
-        if strategy.live_trades_count == 0:
-            status = "no_live_data"
-        elif performance_ratio >= 0.9:
-            status = "exceeding_expectations"
-        elif performance_ratio >= 0.7:
-            status = "meeting_expectations"
-        else:
-            status = "underperforming"
+        # Map flag to status string for backward compatibility
+        status_map = {
+            "exceeding": "exceeding_expectations",
+            "meeting": "meeting_expectations",
+            "underperforming": "underperforming",
+            "no_data": "no_live_data",
+        }
+        status = status_map.get(flag, "no_live_data")
 
         return {
             "expected": {

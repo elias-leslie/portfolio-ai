@@ -17,7 +17,7 @@ from ..logging_config import get_logger
 from ..utils.formatters import calculate_duration_ms
 from ..utils.json_helpers import json_serializer
 from .llm_client import LLMClient
-from .types import AgentRunStatus, ToolInputDict
+from .types import AgentRunStatus, StopReason, ToolInputDict
 
 # Agent constants
 MAX_LLM_TOKENS = 4096  # Max tokens for LLM response

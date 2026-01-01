@@ -19,6 +19,13 @@ class AgentRunStatus(str, Enum):
     MAX_ITERATIONS = "max_iterations"
 
 
+class StopReason(str, Enum):
+    """Stop reason values for LLM responses."""
+
+    END_TURN = "end_turn"
+    TOOL_USE = "tool_use"
+
+
 class ToolInputDict(TypedDict, total=False):
     """Standard tool input dictionary passed to agents."""
 
