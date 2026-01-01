@@ -237,7 +237,7 @@
             "Update get_strategy_performance to use the helper",
             "Run pytest tests/unit/strategies --tb=short"
           ],
-          "passes": false
+          "passes": true
         }
       ]
     },

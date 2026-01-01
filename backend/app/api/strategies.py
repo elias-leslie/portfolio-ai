@@ -342,8 +342,6 @@ async def get_strategy(strategy_id: str) -> StrategyDetail:
             performance_history=performance_history,
         )
 
-    except HTTPException:
-        raise
     except Exception as e:
         logger.exception("Failed to get strategy", strategy_id=strategy_id, error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to get strategy: {e!s}") from e
@@ -505,8 +503,6 @@ async def update_strategy_status(
             "message": message,
         }
 
-    except HTTPException:
-        raise
     except Exception as e:
         logger.exception("Failed to update strategy status", strategy_id=strategy_id, error=str(e))
         raise HTTPException(
@@ -552,8 +548,6 @@ async def get_strategy_performance(strategy_id: str) -> dict[str, Any]:
             "status": status,
         }
 
-    except HTTPException:
-        raise
     except Exception as e:
         logger.exception(
             "Failed to get strategy performance", strategy_id=strategy_id, error=str(e)
@@ -602,8 +596,6 @@ async def get_strategy_signal(strategy_id: str) -> dict[str, Any]:
         signal_data["source"] = "generated"
         return signal_data
 
-    except HTTPException:
-        raise
     except Exception as e:
         logger.exception("Failed to get strategy signal", strategy_id=strategy_id, error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to get strategy signal: {e!s}") from e
@@ -636,8 +628,6 @@ async def generate_strategy_signal(strategy_id: str) -> dict[str, Any]:
         signal_data["source"] = "generated"
         return signal_data
 
-    except HTTPException:
-        raise
     except Exception as e:
         logger.exception(
             "Failed to generate strategy signal", strategy_id=strategy_id, error=str(e)
@@ -733,8 +723,6 @@ async def get_strategy_seed(seed_id: str) -> StrategySeedItem:
             processed_at=format_db_date(row[7]),
         )
 
-    except HTTPException:
-        raise
     except Exception as e:
         logger.exception("Failed to get strategy seed", seed_id=seed_id, error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to get strategy seed: {e!s}") from e
@@ -811,8 +799,6 @@ async def get_strategy_evolution(strategy_id: str) -> dict[str, Any]:
             },
         }
 
-    except HTTPException:
-        raise
     except Exception as e:
         logger.exception("Failed to get strategy evolution", strategy_id=strategy_id, error=str(e))
         raise HTTPException(
