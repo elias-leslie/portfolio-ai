@@ -447,7 +447,7 @@
             "Verify build succeeds"
           ],
           "verification": "cd frontend && npm run build",
-          "passes": false
+          "passes": true
         }
       ]
     }
