@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from contextlib import AbstractContextManager
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import polars as pl
 
@@ -122,6 +122,35 @@ class PortfolioStorage:
         with self.connection() as conn:
             conn.execute(sql, params)
             conn.commit()
+
+    # Research aggregation methods (delegate to QueryManager)
+    def get_news_data(self, symbol: str, start_date: str, end_date: str) -> pl.DataFrame:
+        """Fetch news articles from the cache."""
+        return self.query_mgr.get_news_data(symbol, start_date, end_date)
+
+    def get_ohlcv_data(self, symbol: str, limit: int = 60) -> pl.DataFrame:
+        """Fetch OHLCV data for trend analysis."""
+        return self.query_mgr.get_ohlcv_data(symbol, limit)
+
+    def get_current_price(self, symbol: str) -> float | None:
+        """Get current price for a symbol."""
+        return self.query_mgr.get_current_price(symbol)
+
+    def get_bar_count(self, symbol: str) -> int:
+        """Get total bar count for a symbol."""
+        return self.query_mgr.get_bar_count(symbol)
+
+    def get_fear_greed_latest(self) -> dict[str, Any]:
+        """Get latest Fear & Greed data."""
+        return self.query_mgr.get_fear_greed_latest()
+
+    def get_spy_and_vix_data(self) -> dict[str, float]:
+        """Get latest SPY and VIX prices."""
+        return self.query_mgr.get_spy_and_vix_data()
+
+    def get_symbol_sector(self, symbol: str) -> str:
+        """Get sector for a symbol from watchlist metadata."""
+        return self.query_mgr.get_symbol_sector(symbol)
 
 
 # Singleton instance

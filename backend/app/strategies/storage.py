@@ -144,10 +144,12 @@ class StrategyStorage:
                 (strategy_id,),
             ).fetchall()
 
-        if not rows:
-            return None
+            if not rows:
+                return None
 
-        return self._row_to_strategy_definition(self._convert_row(rows[0]))
+            result = rows_to_dicts(rows, conn)
+
+        return self._row_to_strategy_definition(result[0])
 
     def get_active_strategy(self, symbol: str) -> StrategyDefinition | None:
         """Get active strategy for symbol.
@@ -170,10 +172,12 @@ class StrategyStorage:
                 (symbol,),
             ).fetchall()
 
-        if not rows:
-            return None
+            if not rows:
+                return None
 
-        return self._row_to_strategy_definition(self._convert_row(rows[0]))
+            result = rows_to_dicts(rows, conn)
+
+        return self._row_to_strategy_definition(result[0])
 
     def get_top_watchlist_symbols(
         self,
@@ -260,7 +264,9 @@ class StrategyStorage:
                 tuple(params),
             ).fetchall()
 
-        return [self._row_to_strategy_definition(self._convert_row(row)) for row in rows]
+            result = rows_to_dicts(rows, conn)
+
+        return [self._row_to_strategy_definition(row) for row in result]
 
     def activate_strategy(self, strategy_id: str) -> None:
         """Activate strategy (sets status to 'active').
@@ -419,49 +425,6 @@ class StrategyStorage:
             """,
             (symbol,),
         )
-
-    def _convert_row(self, row: tuple[Any, ...]) -> dict[str, Any]:
-        """Convert database row tuple to dictionary.
-
-        Args:
-            row: Database row tuple from fetchall()
-
-        Returns:
-            Dictionary with column names as keys
-
-        Note: Column order must match the CREATE TABLE order in migration 047:
-            id, name, symbol, strategy_type,
-            parameters, research_summary, generation_reasoning,
-            backtest_metrics, expected_sharpe, expected_win_rate, expected_max_drawdown,
-            created_by, created_at, version,
-            status, activation_date, archive_date, archive_reason,
-            live_trades_count, live_win_rate, live_sharpe_ratio, last_used_at
-        """
-        column_names = [
-            "id",
-            "name",
-            "symbol",
-            "strategy_type",
-            "parameters",
-            "research_summary",
-            "generation_reasoning",
-            "backtest_metrics",
-            "expected_sharpe",
-            "expected_win_rate",
-            "expected_max_drawdown",
-            "created_by",
-            "created_at",  # Fixed order: created_at before version per schema
-            "version",
-            "status",
-            "activation_date",
-            "archive_date",
-            "archive_reason",
-            "live_trades_count",
-            "live_win_rate",
-            "live_sharpe_ratio",
-            "last_used_at",
-        ]
-        return dict(zip(column_names, row, strict=False))
 
     def _generate_strategy_name(self, symbol: str, strategy_type: str) -> str:
         """Generate strategy name.

@@ -18,8 +18,6 @@ from typing import Any, Literal
 
 from app.analytics.indicators import calculate_indicators_for_symbol
 from app.storage import PortfolioStorage
-from app.storage.connection import get_connection_manager
-from app.utils.db_helpers import rows_to_dicts
 from app.watchlist.fundamentals import (
     FundamentalData,
     calculate_fundamental_score,
@@ -152,7 +150,6 @@ class ResearchAggregationService:
     def __init__(self) -> None:
         """Initialize research aggregation service."""
         self.storage = PortfolioStorage()
-        self.conn = get_connection_manager()
 
     async def aggregate_research(self, symbol: str, lookback_days: int = 30) -> ResearchInsights:
         """Aggregate market research for a symbol.
@@ -252,23 +249,10 @@ class ResearchAggregationService:
         Returns:
             List of news article dicts with sentiment_score, published_at, headline
         """
-        with self.conn.connection() as conn:
-            result_wrapper = conn.execute(
-                """
-                SELECT
-                    sentiment_score,
-                    published_at,
-                    headline
-                FROM news_cache
-                WHERE symbol = %s
-                  AND published_at >= %s
-                  AND published_at <= %s
-                ORDER BY published_at DESC
-                """,
-                [symbol, str(start_date), str(end_date)],
-            )
-            rows = result_wrapper.fetchall()
-            return rows_to_dicts(rows, conn)
+        df = self.storage.get_news_data(symbol, str(start_date), str(end_date))
+        if df.is_empty():
+            return []
+        return df.to_dicts()
 
     def _calculate_sentiment_metrics(
         self, news_rows: list[dict[str, Any]], end_date: date
@@ -465,20 +449,11 @@ class ResearchAggregationService:
         Returns:
             Number of days in current trend
         """
-        with self.conn.connection() as conn:
-            result_wrapper = conn.execute(
-                """
-                SELECT date, close
-                FROM day_bars
-                WHERE symbol = %s
-                ORDER BY date DESC
-                LIMIT 60
-                """,
-                [symbol],
-            )
-            rows = result_wrapper.fetchall()
-            trend_rows = rows_to_dicts(rows, conn)
+        df = self.storage.get_ohlcv_data(symbol, limit=60)
+        if df.is_empty():
+            return 0
 
+        trend_rows = df.to_dicts()
         trend_duration_days = 0
         if trend_rows:
             for i, row in enumerate(trend_rows):
@@ -505,20 +480,11 @@ class ResearchAggregationService:
         Returns:
             Volume profile classification
         """
-        with self.conn.connection() as conn:
-            result_wrapper = conn.execute(
-                """
-                SELECT volume
-                FROM day_bars
-                WHERE symbol = %s
-                ORDER BY date DESC
-                LIMIT 20
-                """,
-                [symbol],
-            )
-            rows = result_wrapper.fetchall()
-            volume_rows = rows_to_dicts(rows, conn)
+        df = self.storage.get_ohlcv_data(symbol, limit=20)
+        if df.is_empty():
+            return "stable"
 
+        volume_rows = df.to_dicts()
         if volume_rows and len(volume_rows) >= 20:
             recent_5d_avg = sum(row["volume"] for row in volume_rows[:5]) / 5
             recent_20d_avg = sum(row["volume"] for row in volume_rows) / 20
@@ -556,20 +522,9 @@ class ResearchAggregationService:
             }
 
         # Get current price
-        with self.conn.connection() as conn:
-            result_wrapper = conn.execute(
-                """
-                SELECT close
-                FROM day_bars
-                WHERE symbol = %s
-                ORDER BY date DESC
-                LIMIT 1
-                """,
-                [symbol],
-            )
-            rows = result_wrapper.fetchall()
-            price_rows = rows_to_dicts(rows, conn)
-        current_price = float(price_rows[0]["close"]) if price_rows else 100.0
+        current_price = self.storage.get_current_price(symbol)
+        if current_price is None:
+            current_price = 100.0
 
         # Extract indicators
         rsi_14 = indicators.get("rsi_14", 50.0)
@@ -601,13 +556,7 @@ class ResearchAggregationService:
         }
 
         # Confidence (1.0 if we have 252 days of data)
-        with self.conn.connection() as conn:
-            result_wrapper = conn.execute(
-                "SELECT COUNT(*) as count FROM day_bars WHERE symbol = %s", [symbol]
-            )
-            rows = result_wrapper.fetchall()
-            bar_count = rows_to_dicts(rows, conn)
-        bar_count_val = bar_count[0]["count"] if bar_count else 0
+        bar_count_val = self.storage.get_bar_count(symbol)
         confidence = 1.0 if bar_count_val >= 252 else (bar_count_val / 252.0)
 
         return {
@@ -630,22 +579,8 @@ class ResearchAggregationService:
             Dict with macro context fields
         """
         # Query Fear & Greed from database
-        with self.conn.connection() as conn:
-            result_wrapper = conn.execute(
-                """
-                SELECT score, signal_count
-                FROM fear_greed_daily
-                ORDER BY as_of_date DESC
-                LIMIT 1
-                """
-            )
-            rows = result_wrapper.fetchall()
-            fg_rows = rows_to_dicts(rows, conn)
-
-        if fg_rows and fg_rows[0]["score"] is not None:
-            fear_greed_score = int(fg_rows[0]["score"])
-        else:
-            fear_greed_score = 50  # Neutral default
+        fg_data = self.storage.get_fear_greed_latest()
+        fear_greed_score = fg_data["score"]
 
         # Classify Fear & Greed
         if fear_greed_score <= 25:

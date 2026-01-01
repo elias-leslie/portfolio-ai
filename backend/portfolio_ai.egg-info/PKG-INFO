@@ -11,7 +11,7 @@ Requires-Dist: sqlalchemy==2.0.45
 Requires-Dist: psycopg2-binary==2.9.11
 Requires-Dist: polars==1.36.1
 Requires-Dist: pandas==2.3.3
-Requires-Dist: numpy==2.2.6
+Requires-Dist: numpy==2.3.5
 Requires-Dist: pyarrow==22.0.0
 Requires-Dist: yfinance==0.2.66
 Requires-Dist: requests==2.32.5
@@ -31,7 +31,7 @@ Requires-Dist: structlog==25.5.0
 Requires-Dist: tenacity==9.1.2
 Requires-Dist: click==8.3.1
 Requires-Dist: pandas-ta==0.4.71b0
-Requires-Dist: numba==0.61.2
+Requires-Dist: numba==0.63.1
 Requires-Dist: transformers==4.57.3
 Requires-Dist: torch==2.9.1
 Requires-Dist: huggingface-hub==0.34.0
@@ -47,4 +47,6 @@ Requires-Dist: mypy==1.19.0; extra == "dev"
 Requires-Dist: types-PyYAML==6.0.12.20250915; extra == "dev"
 Requires-Dist: types-requests==2.32.4.20250913; extra == "dev"
 Requires-Dist: pandas-stubs==2.3.3.251201; extra == "dev"
+Requires-Dist: radon==6.0.1; extra == "dev"
+Requires-Dist: pip-audit==2.10.0; extra == "dev"
 Requires-Dist: pre-commit==4.5.0; extra == "dev"

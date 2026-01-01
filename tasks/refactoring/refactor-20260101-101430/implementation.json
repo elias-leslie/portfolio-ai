@@ -137,7 +137,7 @@
           "tier": 2,
           "model": "sonnet",
           "parallelizable": true,
-          "passes": false,
+          "passes": true,
           "description": "Split strategy_monitoring_tasks.py into focused modules",
           "files_affected": [
             "backend/app/tasks/strategy_monitoring_tasks.py",
