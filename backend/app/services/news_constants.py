@@ -1,7 +1,6 @@
 """Shared constants for news services."""
 
-# Special symbol used for market-level news
-MARKET_SYMBOL = "__MARKET__"
+from app.constants import MARKET_SYMBOL
 
 # Backwards compatibility alias (deprecated, use MARKET_SYMBOL)
 MARKET_TICKER = MARKET_SYMBOL

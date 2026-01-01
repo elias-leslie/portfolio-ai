@@ -86,9 +86,6 @@ from app.utils.market_hours import (
 router = APIRouter(prefix="/api/market", tags=["market"])
 logger = get_logger(__name__)
 
-# Pseudo-symbol for market-wide events and readings (fear/greed history)
-MARKET_SYMBOL = "__MARKET__"
-
 # Initialize services
 storage = get_storage()
 market_repo = MarketRepository(storage)

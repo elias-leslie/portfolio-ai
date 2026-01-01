@@ -10,11 +10,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from app.constants import MARKET_SYMBOL
+
 if TYPE_CHECKING:
     from app.storage import PortfolioStorage
-
-# Pseudo-symbol for market-wide events and readings
-MARKET_SYMBOL = "__MARKET__"
 
 
 class MarketRepository:

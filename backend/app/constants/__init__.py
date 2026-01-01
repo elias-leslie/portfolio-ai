@@ -34,6 +34,12 @@ from app.constants.symbols import (  # noqa: E402
 )
 
 # =============================================================================
+# SPECIAL SYMBOLS
+# =============================================================================
+# Pseudo-symbol for market-wide events and readings (fear/greed history)
+MARKET_SYMBOL = "__MARKET__"
+
+# =============================================================================
 # FILE PATHS & DATABASE
 # =============================================================================
 DATABASE_URL = os.environ.get("PORTFOLIO_DB_URL")
@@ -124,6 +130,7 @@ __all__ = [
     "INDEX_TNX",
     "INDEX_VIX",
     "MARKET_INDICATORS",
+    "MARKET_SYMBOL",
     "MAX_API_RETRY_ATTEMPTS",
     "MAX_QUERY_LIMIT",
     "PERCENTAGE_DECIMAL_PLACES",
