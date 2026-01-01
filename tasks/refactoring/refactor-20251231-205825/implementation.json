@@ -132,7 +132,7 @@
             "Run ruff check and verify function works"
           ],
           "verification": "ruff check backend/app/tasks/log_cleanup_tasks.py",
-          "passes": false
+          "passes": true
         },
         {
           "id": "2.2",
@@ -148,7 +148,7 @@
             "Run ruff check to verify"
           ],
           "verification": "ruff check backend/app/tasks/log_cleanup_tasks.py",
-          "passes": false
+          "passes": true
         },
         {
           "id": "2.3",
@@ -163,7 +163,7 @@
             "Run ruff check to verify"
           ],
           "verification": "ruff check backend/app/services/sitemap_service.py",
-          "passes": false
+          "passes": true
         },
         {
           "id": "2.4",
@@ -179,7 +179,7 @@
             "Run ruff check to verify"
           ],
           "verification": "ruff check backend/app/services/sitemap_service.py",
-          "passes": false
+          "passes": true
         }
       ]
     },
