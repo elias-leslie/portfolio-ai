@@ -30,7 +30,7 @@
             "Remove _dual_write_metrics helper from reference_tasks.py",
             "Run pytest tests/unit/tasks -k reference --tb=short"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "1.2",
@@ -49,7 +49,7 @@
             "Remove get_connection_manager import from strategies.py",
             "Run pytest tests/unit/api -k strategies --tb=short"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "1.3",
@@ -69,7 +69,7 @@
             "Update all call sites in each file",
             "Run pytest tests/unit/api --tb=short -q"
           ],
-          "passes": false
+          "passes": true
         }
       ]
     },
