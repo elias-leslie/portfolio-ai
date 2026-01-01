@@ -373,7 +373,7 @@
             "Fix any test failures before proceeding"
           ],
           "verification": "cd /home/kasadis/portfolio-ai/backend && timeout 180 .venv/bin/pytest tests/ -x --tb=short -q",
-          "passes": false
+          "passes": true
         },
         {
           "id": "9.2",
@@ -388,7 +388,7 @@
             "Fix any build failures"
           ],
           "verification": "cd /home/kasadis/portfolio-ai/frontend && npm run build",
-          "passes": false
+          "passes": true
         }
       ]
     }
