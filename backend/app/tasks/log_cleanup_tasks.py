@@ -16,6 +16,7 @@ from __future__ import annotations
 import datetime as dt
 import re
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -144,7 +145,7 @@ def _record_cleanup_metric(metric_name: str, bytes_freed: int, dry_run: bool) ->
 
 def _cleanup_files(
     file_iterator: list[Path],
-    filter_func: callable,  # type: ignore[type-arg]
+    filter_func: Callable[[Path, Any], tuple[bool, dict[str, Any]]],
     dry_run: bool,
     logger_event: str,
 ) -> tuple[int, int, list[dict[str, Any]]]:
