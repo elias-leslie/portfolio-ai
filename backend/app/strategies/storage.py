@@ -25,6 +25,11 @@ logger = logging.getLogger(__name__)
 class StrategyStorage:
     """Database operations for strategy management."""
 
+    # Strategy performance thresholds
+    UNDERPERFORMING_SHARPE_THRESHOLD = 0.5
+    DEFAULT_PERFORMANCE_THRESHOLD = 0.9
+    PERFORMANCE_WINDOW_DAYS = 30
+
     def __init__(self) -> None:
         """Initialize strategy storage."""
         self.conn = get_connection_manager()
@@ -517,7 +522,7 @@ class StrategyStorage:
 
         Includes:
         1. Top watchlist symbols without active strategy
-        2. Symbols with underperforming strategies (30-day Sharpe < 0.5)
+        2. Symbols with underperforming strategies (30-day Sharpe < threshold)
 
         Args:
             max_symbols: Maximum number of symbols to return
@@ -527,7 +532,7 @@ class StrategyStorage:
         """
         with self.conn.connection() as conn:
             return conn.execute(
-                """
+                f"""
                 WITH latest_scores AS (
                     SELECT DISTINCT ON (wi.symbol)
                         wi.symbol,
@@ -546,9 +551,9 @@ class StrategyStorage:
                     FROM strategy_definitions sd
                     JOIN strategy_performance sp ON sd.id = sp.strategy_id
                     WHERE sd.status = 'active'
-                      AND sp.date >= CURRENT_DATE - INTERVAL '30 days'
+                      AND sp.date >= CURRENT_DATE - INTERVAL '{self.PERFORMANCE_WINDOW_DAYS} days'
                     GROUP BY sd.symbol
-                    HAVING AVG(sp.sharpe_ratio_30d) < 0.5
+                    HAVING AVG(sp.sharpe_ratio_30d) < {self.UNDERPERFORMING_SHARPE_THRESHOLD}
                 )
                 SELECT ls.symbol, ls.overall_score,
                        CASE
