@@ -319,51 +319,51 @@ def _process_cache_entries() -> tuple[int, int]:
     processed_pairs: set[tuple[str, str]] = set()
 
     for symbol, source, payload_json in results:
-            # Type guard: ensure symbol and source are strings
-            if not isinstance(symbol, str) or not isinstance(source, str):
-                continue
+        # Type guard: ensure symbol and source are strings
+        if not isinstance(symbol, str) or not isinstance(source, str):
+            continue
 
-            pair = (symbol, source)
+        pair = (symbol, source)
 
-            # Skip if we've already processed this symbol/source combo
-            if pair in processed_pairs:
-                continue
+        # Skip if we've already processed this symbol/source combo
+        if pair in processed_pairs:
+            continue
 
-            entries_processed += 1
-            processed_pairs.add(pair)
+        entries_processed += 1
+        processed_pairs.add(pair)
 
-            # Parse payload
-            try:
-                if isinstance(payload_json, str):
-                    payload = json.loads(payload_json)
-                else:
-                    payload = payload_json
-            except json.JSONDecodeError:
-                logger.warning(
-                    "invalid_json_payload",
-                    symbol=symbol,
-                    source=source,
-                )
-                continue
+        # Parse payload
+        try:
+            if isinstance(payload_json, str):
+                payload = json.loads(payload_json)
+            else:
+                payload = payload_json
+        except json.JSONDecodeError:
+            logger.warning(
+                "invalid_json_payload",
+                symbol=symbol,
+                source=source,
+            )
+            continue
 
-            # Type guard: ensure payload is a dict
-            if not isinstance(payload, dict):
-                logger.debug(
-                    "skipping_non_dict_payload",
-                    symbol=symbol,
-                    source=source,
-                    payload_type=type(payload).__name__,
-                )
-                continue
+        # Type guard: ensure payload is a dict
+        if not isinstance(payload, dict):
+            logger.debug(
+                "skipping_non_dict_payload",
+                symbol=symbol,
+                source=source,
+                payload_type=type(payload).__name__,
+            )
+            continue
 
-            # Extract and update metrics
-            metrics = _extract_valuation_metrics(payload)
+        # Extract and update metrics
+        metrics = _extract_valuation_metrics(payload)
 
-            # Only count as "updated" if we found at least one metric
-            if any(v is not None for v in metrics.values()):
-                entries_updated += 1
-                # Type guard at line 336 ensures symbol and source are strings
-                _update_valuation_metrics(symbol, source, payload)
+        # Only count as "updated" if we found at least one metric
+        if any(v is not None for v in metrics.values()):
+            entries_updated += 1
+            # Type guard ensures symbol and source are strings
+            _update_valuation_metrics(symbol, source, payload)
 
     return entries_processed, entries_updated
 
@@ -867,75 +867,52 @@ def refresh_risk_metrics(self: Task) -> dict[str, int | str]:
 
         logger.info("calculating_risk_metrics", num_symbols=len(symbols))
 
+        repo = ReferenceRepository(storage)
         symbols_updated = 0
         as_of_date = dt.date.today()
 
-        with storage.connection() as conn:
-            for symbol in symbols:
-                try:
-                    # Calculate VaR/CVaR
-                    var_result = calculate_symbol_var(storage, symbol)
+        for symbol in symbols:
+            try:
+                # Calculate VaR/CVaR
+                var_result = calculate_symbol_var(storage, symbol)
 
-                    # Calculate multi-window betas
-                    beta_result = calculate_symbol_beta(storage, symbol)
+                # Calculate multi-window betas
+                beta_result = calculate_symbol_beta(storage, symbol)
 
-                    # Skip if no valid metrics
-                    if var_result.var_95 is None and beta_result.beta_90d is None:
-                        continue
-
-                    # Upsert into symbol_risk_metrics
-                    conn.execute(
-                        """
-                        INSERT INTO symbol_risk_metrics (
-                            symbol, as_of_date,
-                            var_95, var_99, cvar_95, cvar_99,
-                            beta_90d, beta_1y, beta_2y, r_squared_1y,
-                            observations
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (symbol, as_of_date)
-                        DO UPDATE SET
-                            var_95 = EXCLUDED.var_95,
-                            var_99 = EXCLUDED.var_99,
-                            cvar_95 = EXCLUDED.cvar_95,
-                            cvar_99 = EXCLUDED.cvar_99,
-                            beta_90d = EXCLUDED.beta_90d,
-                            beta_1y = EXCLUDED.beta_1y,
-                            beta_2y = EXCLUDED.beta_2y,
-                            r_squared_1y = EXCLUDED.r_squared_1y,
-                            observations = EXCLUDED.observations
-                        """,
-                        [
-                            symbol,
-                            as_of_date.isoformat(),
-                            var_result.var_95,
-                            var_result.var_99,
-                            var_result.cvar_95,
-                            var_result.cvar_99,
-                            beta_result.beta_90d,
-                            beta_result.beta_1y,
-                            beta_result.beta_2y,
-                            beta_result.r_squared_1y,
-                            var_result.observations,
-                        ],
-                    )
-                    symbols_updated += 1
-
-                    logger.debug(
-                        "risk_metrics_calculated",
-                        symbol=symbol,
-                        var_95=var_result.var_95,
-                        beta_1y=beta_result.beta_1y,
-                    )
-
-                except Exception as e:
-                    logger.warning(
-                        "risk_metrics_symbol_error",
-                        symbol=symbol,
-                        error=str(e),
-                    )
+                # Skip if no valid metrics
+                if var_result.var_95 is None and beta_result.beta_90d is None:
                     continue
 
-            conn.commit()
+                # Upsert into symbol_risk_metrics using repository
+                repo.upsert_risk_metrics(
+                    symbol=symbol,
+                    as_of_date=as_of_date,
+                    var_95=var_result.var_95,
+                    var_99=var_result.var_99,
+                    cvar_95=var_result.cvar_95,
+                    cvar_99=var_result.cvar_99,
+                    beta_90d=beta_result.beta_90d,
+                    beta_1y=beta_result.beta_1y,
+                    beta_2y=beta_result.beta_2y,
+                    r_squared_1y=beta_result.r_squared_1y,
+                    observations=var_result.observations,
+                )
+                symbols_updated += 1
+
+                logger.debug(
+                    "risk_metrics_calculated",
+                    symbol=symbol,
+                    var_95=var_result.var_95,
+                    beta_1y=beta_result.beta_1y,
+                )
+
+            except Exception as e:
+                logger.warning(
+                    "risk_metrics_symbol_error",
+                    symbol=symbol,
+                    error=str(e),
+                )
+                continue
 
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
 

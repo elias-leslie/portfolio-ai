@@ -671,34 +671,9 @@ class SitemapService:
 
         # Combine all entries
         all_entries = all_openapi_entries + frontend_entries + websocket_entries + nextjs_entries
-        saved = 0
 
-        with self.conn_mgr.connection() as conn:
-            for entry in all_entries:
-                try:
-                    conn.execute(
-                        """
-                        INSERT INTO sitemap_entries (port, path, method, entry_type, source, title, discovered_at)
-                        VALUES (%s, %s, %s, %s, %s, %s, NOW())
-                        ON CONFLICT (port, path, method) DO UPDATE SET
-                            title = COALESCE(EXCLUDED.title, sitemap_entries.title),
-                            source = EXCLUDED.source,
-                            updated_at = NOW()
-                    """,
-                        [
-                            entry["port"],
-                            entry["path"],
-                            entry["method"],
-                            entry["entry_type"],
-                            entry["source"],
-                            entry.get("title"),
-                        ],
-                    )
-                    saved += 1
-                except Exception as e:
-                    logger.debug("sitemap_save_entry_failed", path=entry["path"], error=str(e))
-
-            conn.commit()
+        # Bulk save using storage layer
+        saved = self.storage.bulk_save_discovered_entries(all_entries)
 
         result = {
             "openapi_discovered": len(all_openapi_entries),
@@ -722,53 +697,16 @@ class SitemapService:
             entry_id: ID of sitemap entry
             result: Health check result to save
         """
-        with self.conn_mgr.connection() as conn:
-            # Update sitemap_entries
-            conn.execute(
-                """
-                UPDATE sitemap_entries SET
-                    health_status = %s,
-                    console_errors = %s,
-                    console_warnings = %s,
-                    http_status = %s,
-                    response_time_ms = %s,
-                    last_error_message = %s,
-                    last_checked_at = NOW(),
-                    updated_at = NOW()
-                WHERE id = %s
-            """,
-                [
-                    result.health_status,
-                    result.console_errors,
-                    result.console_warnings,
-                    result.http_status,
-                    result.response_time_ms,
-                    result.last_error_message,
-                    entry_id,
-                ],
-            )
-
-            # Insert into history
-            conn.execute(
-                """
-                INSERT INTO sitemap_health_history
-                    (sitemap_entry_id, checked_at, health_status, console_errors, console_warnings,
-                     http_status, response_time_ms, error_details)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """,
-                [
-                    entry_id,
-                    datetime.now(UTC),
-                    result.health_status,
-                    result.console_errors,
-                    result.console_warnings,
-                    result.http_status,
-                    result.response_time_ms,
-                    json.dumps(result.error_details) if result.error_details else None,
-                ],
-            )
-
-            conn.commit()
+        self.storage.save_health_check_result(
+            entry_id=entry_id,
+            health_status=result.health_status,
+            console_errors=result.console_errors,
+            console_warnings=result.console_warnings,
+            http_status=result.http_status,
+            response_time_ms=result.response_time_ms,
+            last_error_message=result.last_error_message,
+            error_details=result.error_details,
+        )
 
     async def check_entry_health(self, entry_id: int) -> dict[str, Any]:
         """Check health of a single sitemap entry.

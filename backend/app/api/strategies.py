@@ -774,31 +774,22 @@ async def list_strategy_seeds(
 async def get_strategy_seed(seed_id: str) -> StrategySeedItem:
     """Get a specific strategy seed by ID."""
     try:
-        conn_mgr = get_connection_manager()
-        with conn_mgr.connection() as conn:
-            row = conn.execute(
-                """
-                SELECT id, symbol, thesis, confidence, status, strategy_id,
-                       created_at, processed_at
-                FROM strategy_seeds
-                WHERE id = %s
-                """,
-                [seed_id],
-            ).fetchone()
+        storage = get_strategy_storage()
+        row = storage.get_seed_by_id(seed_id)
 
-            if not row:
-                raise HTTPException(status_code=404, detail=f"Seed {seed_id} not found")
+        if not row:
+            raise HTTPException(status_code=404, detail=f"Seed {seed_id} not found")
 
-            return StrategySeedItem(
-                id=str(row[0]),
-                symbol=str(row[1]),
-                thesis=str(row[2]),
-                confidence=_safe_float(row[3]) or 0.0,
-                status=str(row[4]),  # type: ignore[arg-type]
-                strategy_id=str(row[5]) if row[5] else None,
-                created_at=_safe_datetime_to_iso(row[6]) or "",
-                processed_at=_safe_datetime_to_iso(row[7]),
-            )
+        return StrategySeedItem(
+            id=str(row[0]),
+            symbol=str(row[1]),
+            thesis=str(row[2]),
+            confidence=_safe_float(row[3]) or 0.0,
+            status=str(row[4]),  # type: ignore[arg-type]
+            strategy_id=str(row[5]) if row[5] else None,
+            created_at=_safe_datetime_to_iso(row[6]) or "",
+            processed_at=_safe_datetime_to_iso(row[7]),
+        )
 
     except HTTPException:
         raise

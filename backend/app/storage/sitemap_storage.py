@@ -11,8 +11,9 @@ This module provides:
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from ..logging_config import get_logger
@@ -431,6 +432,116 @@ class SitemapStorage:
                     error_message,
                 ],
             )
+            conn.commit()
+
+    def bulk_save_discovered_entries(self, entries: list[dict[str, Any]]) -> int:
+        """Bulk save discovered sitemap entries with upsert logic.
+
+        Args:
+            entries: List of entry dicts with keys: port, path, method, entry_type, source, title
+
+        Returns:
+            Number of entries successfully saved
+        """
+        saved = 0
+        with self.conn_mgr.connection() as conn:
+            for entry in entries:
+                try:
+                    conn.execute(
+                        """
+                        INSERT INTO sitemap_entries (port, path, method, entry_type, source, title, discovered_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                        ON CONFLICT (port, path, method) DO UPDATE SET
+                            title = COALESCE(EXCLUDED.title, sitemap_entries.title),
+                            source = EXCLUDED.source,
+                            updated_at = NOW()
+                        """,
+                        [
+                            entry["port"],
+                            entry["path"],
+                            entry["method"],
+                            entry["entry_type"],
+                            entry["source"],
+                            entry.get("title"),
+                        ],
+                    )
+                    saved += 1
+                except Exception as e:
+                    logger.debug("sitemap_save_entry_failed", path=entry["path"], error=str(e))
+
+            conn.commit()
+
+        return saved
+
+    def save_health_check_result(
+        self,
+        entry_id: int,
+        health_status: str,
+        console_errors: int,
+        console_warnings: int,
+        http_status: int | None,
+        response_time_ms: float | None,
+        last_error_message: str | None,
+        error_details: dict[str, Any] | None = None,
+    ) -> None:
+        """Save health check result to database (entry update + history).
+
+        Args:
+            entry_id: ID of sitemap entry
+            health_status: Health status value
+            console_errors: Number of console errors
+            console_warnings: Number of console warnings
+            http_status: HTTP response code
+            response_time_ms: Response time in milliseconds
+            last_error_message: Error message if any
+            error_details: Additional error details for history
+        """
+        with self.conn_mgr.connection() as conn:
+            # Update sitemap_entries
+            conn.execute(
+                """
+                UPDATE sitemap_entries SET
+                    health_status = %s,
+                    console_errors = %s,
+                    console_warnings = %s,
+                    http_status = %s,
+                    response_time_ms = %s,
+                    last_error_message = %s,
+                    last_checked_at = NOW(),
+                    updated_at = NOW()
+                WHERE id = %s
+                """,
+                [
+                    health_status,
+                    console_errors,
+                    console_warnings,
+                    http_status,
+                    response_time_ms,
+                    last_error_message,
+                    entry_id,
+                ],
+            )
+
+            # Insert into history
+            conn.execute(
+                """
+                INSERT INTO sitemap_health_history
+                    (sitemap_entry_id, checked_at, health_status, console_errors, console_warnings,
+                     http_status, response_time_ms, error_details)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                [
+                    entry_id,
+                    datetime.now(UTC),
+                    health_status,
+                    console_errors,
+                    console_warnings,
+                    http_status,
+                    response_time_ms,
+                    json.dumps(error_details) if error_details else None,
+                ],
+            )
+
             conn.commit()
 
 
