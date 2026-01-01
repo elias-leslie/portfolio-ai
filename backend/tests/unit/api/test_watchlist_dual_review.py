@@ -105,15 +105,18 @@ class TestReviewStrategySignalDualMode:
         snapshot_df.is_empty.return_value = False
         snapshot_df.to_dicts.return_value = sample_snapshot
 
-        mock_storage.query.side_effect = [item_df, snapshot_df]
+        # Mock watchlist_repo methods
+        mock_repo = MagicMock()
+        mock_repo.get_item_with_snapshots.return_value = item_df
+        mock_repo.get_latest_snapshot_for_review.return_value = snapshot_df
 
         # Mock MultiReviewer
         mock_reviewer = AsyncMock()
         mock_reviewer.review_signal_dual.return_value = sample_dual_review_result
 
-        with patch("app.api.watchlist.storage", mock_storage), patch(
+        with patch("app.api.watchlist.watchlist_repo", mock_repo), patch(
             "app.api.watchlist.multi_reviewer", mock_reviewer
-        ), patch.object(mock_storage, "connection"):
+        ), patch("app.api.watchlist.storage", mock_storage):
             result = await review_strategy_signal(item_id="item-123", dual=True)
 
             # Verify response structure
@@ -143,7 +146,10 @@ class TestReviewStrategySignalDualMode:
         snapshot_df.is_empty.return_value = False
         snapshot_df.to_dicts.return_value = sample_snapshot
 
-        mock_storage.query.side_effect = [item_df, snapshot_df]
+        # Mock watchlist_repo methods
+        mock_repo = MagicMock()
+        mock_repo.get_item_with_snapshots.return_value = item_df
+        mock_repo.get_latest_snapshot_for_review.return_value = snapshot_df
 
         mock_reviewer = AsyncMock()
         mock_reviewer.review_signal_dual.return_value = sample_dual_review_result
@@ -151,9 +157,9 @@ class TestReviewStrategySignalDualMode:
         mock_conn = MagicMock()
         mock_storage.connection.return_value.__enter__.return_value = mock_conn
 
-        with patch("app.api.watchlist.storage", mock_storage), patch(
+        with patch("app.api.watchlist.watchlist_repo", mock_repo), patch(
             "app.api.watchlist.multi_reviewer", mock_reviewer
-        ):
+        ), patch("app.api.watchlist.storage", mock_storage):
             await review_strategy_signal(item_id="item-123", dual=True)
 
             # Verify that execute was called twice (once for each review)
@@ -174,9 +180,10 @@ class TestReviewStrategySignalDualMode:
         item_df = MagicMock()
         item_df.is_empty.return_value = True
 
-        mock_storage.query.return_value = item_df
+        mock_repo = MagicMock()
+        mock_repo.get_item_with_snapshots.return_value = item_df
 
-        with patch("app.api.watchlist.storage", mock_storage), pytest.raises(
+        with patch("app.api.watchlist.watchlist_repo", mock_repo), pytest.raises(
             HTTPException
         ) as exc_info:
             await review_strategy_signal(item_id="nonexistent-id", dual=True)
@@ -196,9 +203,11 @@ class TestReviewStrategySignalDualMode:
         snapshot_df = MagicMock()
         snapshot_df.is_empty.return_value = True
 
-        mock_storage.query.side_effect = [item_df, snapshot_df]
+        mock_repo = MagicMock()
+        mock_repo.get_item_with_snapshots.return_value = item_df
+        mock_repo.get_latest_snapshot_for_review.return_value = snapshot_df
 
-        with patch("app.api.watchlist.storage", mock_storage), pytest.raises(
+        with patch("app.api.watchlist.watchlist_repo", mock_repo), pytest.raises(
             HTTPException
         ) as exc_info:
             await review_strategy_signal(item_id="item-123", dual=True)
@@ -222,7 +231,9 @@ class TestReviewStrategySignalDualMode:
         snapshot_df.is_empty.return_value = False
         snapshot_df.to_dicts.return_value = sample_snapshot
 
-        mock_storage.query.side_effect = [item_df, snapshot_df]
+        mock_repo = MagicMock()
+        mock_repo.get_item_with_snapshots.return_value = item_df
+        mock_repo.get_latest_snapshot_for_review.return_value = snapshot_df
 
         # Create result with major disagreement
         disagreement_result = DualReviewResult(
@@ -251,9 +262,9 @@ class TestReviewStrategySignalDualMode:
         mock_reviewer = AsyncMock()
         mock_reviewer.review_signal_dual.return_value = disagreement_result
 
-        with patch("app.api.watchlist.storage", mock_storage), patch(
+        with patch("app.api.watchlist.watchlist_repo", mock_repo), patch(
             "app.api.watchlist.multi_reviewer", mock_reviewer
-        ), patch.object(mock_storage, "connection"):
+        ), patch("app.api.watchlist.storage", mock_storage):
             result = await review_strategy_signal(item_id="item-123", dual=True)
 
             assert result["disagreement_severity"] == "major"
@@ -277,7 +288,9 @@ class TestReviewStrategySignalDualMode:
         snapshot_df.is_empty.return_value = False
         snapshot_df.to_dicts.return_value = sample_snapshot
 
-        mock_storage.query.side_effect = [item_df, snapshot_df]
+        mock_repo = MagicMock()
+        mock_repo.get_item_with_snapshots.return_value = item_df
+        mock_repo.get_latest_snapshot_for_review.return_value = snapshot_df
 
         # Create result where one provider failed
         partial_result = DualReviewResult(
@@ -307,9 +320,9 @@ class TestReviewStrategySignalDualMode:
         mock_reviewer = AsyncMock()
         mock_reviewer.review_signal_dual.return_value = partial_result
 
-        with patch("app.api.watchlist.storage", mock_storage), patch(
+        with patch("app.api.watchlist.watchlist_repo", mock_repo), patch(
             "app.api.watchlist.multi_reviewer", mock_reviewer
-        ), patch.object(mock_storage, "connection"):
+        ), patch("app.api.watchlist.storage", mock_storage):
             result = await review_strategy_signal(item_id="item-123", dual=True)
 
             assert result["gemini_review"] is not None
@@ -332,14 +345,16 @@ class TestReviewStrategySignalDualMode:
         snapshot_df.is_empty.return_value = False
         snapshot_df.to_dicts.return_value = sample_snapshot
 
-        mock_storage.query.side_effect = [item_df, snapshot_df]
+        mock_repo = MagicMock()
+        mock_repo.get_item_with_snapshots.return_value = item_df
+        mock_repo.get_latest_snapshot_for_review.return_value = snapshot_df
 
         mock_reviewer = AsyncMock()
         mock_reviewer.review_signal_dual.return_value = sample_dual_review_result
 
-        with patch("app.api.watchlist.storage", mock_storage), patch(
+        with patch("app.api.watchlist.watchlist_repo", mock_repo), patch(
             "app.api.watchlist.multi_reviewer", mock_reviewer
-        ), patch.object(mock_storage, "connection"):
+        ), patch("app.api.watchlist.storage", mock_storage):
             # Call without dual parameter (should default to True)
             result = await review_strategy_signal(item_id="item-123")
 
@@ -365,14 +380,16 @@ class TestReviewStrategySignalDualMode:
         snapshot_df.is_empty.return_value = False
         snapshot_df.to_dicts.return_value = sample_snapshot
 
-        mock_storage.query.side_effect = [item_df, snapshot_df]
+        mock_repo = MagicMock()
+        mock_repo.get_item_with_snapshots.return_value = item_df
+        mock_repo.get_latest_snapshot_for_review.return_value = snapshot_df
 
         mock_reviewer = AsyncMock()
         mock_reviewer.review_signal_dual.return_value = sample_dual_review_result
 
-        with patch("app.api.watchlist.storage", mock_storage), patch(
+        with patch("app.api.watchlist.watchlist_repo", mock_repo), patch(
             "app.api.watchlist.multi_reviewer", mock_reviewer
-        ), patch.object(mock_storage, "connection"):
+        ), patch("app.api.watchlist.storage", mock_storage):
             await review_strategy_signal(item_id="item-123", dual=True)
 
             # Verify signal_data passed to reviewer
@@ -401,12 +418,14 @@ class TestReviewStrategySignalDualMode:
         snapshot_df.is_empty.return_value = False
         snapshot_df.to_dicts.return_value = sample_snapshot
 
-        mock_storage.query.side_effect = [item_df, snapshot_df]
+        mock_repo = MagicMock()
+        mock_repo.get_item_with_snapshots.return_value = item_df
+        mock_repo.get_latest_snapshot_for_review.return_value = snapshot_df
 
         mock_reviewer = AsyncMock()
         mock_reviewer.review_signal_dual.side_effect = Exception("Review failed")
 
-        with patch("app.api.watchlist.storage", mock_storage), patch(
+        with patch("app.api.watchlist.watchlist_repo", mock_repo), patch(
             "app.api.watchlist.multi_reviewer", mock_reviewer
         ), pytest.raises(HTTPException) as exc_info:
             await review_strategy_signal(item_id="item-123", dual=True)

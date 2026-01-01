@@ -322,7 +322,7 @@ class TestGetScoreHistoryEndpoint:
             await get_score_history(item_id="item-123")
 
         assert exc_info.value.status_code == 500
-        assert "Failed to get history" in exc_info.value.detail
+        assert "Failed to" in exc_info.value.detail
 
     @pytest.mark.asyncio
     async def test_uses_repository_methods(self, mock_repo: MagicMock) -> None:

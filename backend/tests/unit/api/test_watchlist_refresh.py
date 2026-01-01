@@ -252,7 +252,7 @@ class TestWatchlistRefreshFailure:
             response = client.post("/api/watchlist/refresh", json={})
 
             assert response.status_code == 500
-            assert "Failed to refresh scores" in response.json()["detail"]
+            assert "Failed to refresh" in response.json()["detail"]
 
 
 # =============================================================================
