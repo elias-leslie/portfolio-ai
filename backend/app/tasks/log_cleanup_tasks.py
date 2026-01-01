@@ -143,8 +143,8 @@ def _record_cleanup_metric(metric_name: str, bytes_freed: int, dry_run: bool) ->
 
 
 def _cleanup_files(
-    file_iterator,
-    filter_func,
+    file_iterator: list[Path],
+    filter_func: callable,  # type: ignore[type-arg]
     dry_run: bool,
     logger_event: str,
 ) -> tuple[int, int, list[dict[str, Any]]]:
@@ -486,7 +486,7 @@ def cleanup_old_logs_task(self: Task, days: int = 7, dry_run: bool = False) -> d
         log_dirs = _get_log_directories()
 
         # Collect all log files from all directories
-        all_log_files = []
+        all_log_files: list[Path] = []
         for log_dir in log_dirs:
             if not log_dir.exists():
                 logger.warning("log_directory_not_found", directory=str(log_dir))
@@ -495,7 +495,7 @@ def cleanup_old_logs_task(self: Task, days: int = 7, dry_run: bool = False) -> d
             all_log_files.extend(log_dir.glob("*.log.*"))
 
         # Define filter function for log files
-        def log_file_filter(file_path: Path, stat) -> tuple[bool, dict[str, Any]]:
+        def log_file_filter(file_path: Path, stat: Any) -> tuple[bool, dict[str, Any]]:
             mtime = stat.st_mtime
             if mtime < cutoff_timestamp:
                 age_days = (cutoff_time.timestamp() - mtime) / SECONDS_PER_DAY + days
@@ -564,9 +564,6 @@ def cleanup_temp_files_task(self: Task, hours: int = 24, dry_run: bool = False) 
     logger.info("cleanup_temp_files_started", task_id=task_id, hours=hours, dry_run=dry_run)
 
     try:
-        files_deleted = 0
-        bytes_freed = 0
-        would_delete: list[dict[str, Any]] = []
         cutoff_time, cutoff_timestamp = _calculate_cutoff_timestamp(hours=hours)
 
         temp_dir = Path("/tmp")
@@ -579,42 +576,26 @@ def cleanup_temp_files_task(self: Task, hours: int = 24, dry_run: bool = False) 
             "*.tmp",
         ]
 
+        # Collect all temp files matching patterns
+        all_temp_files: list[Path] = []
         for pattern in temp_patterns:
-            temp_files = list(temp_dir.glob(pattern))
+            for temp_file in temp_dir.glob(pattern):
+                # Skip directories
+                if not temp_file.is_dir():
+                    all_temp_files.append(temp_file)
 
-            for temp_file in temp_files:
-                try:
-                    # Skip directories for now
-                    if temp_file.is_dir():
-                        continue
+        # Define filter function for temp files
+        def temp_file_filter(file_path: Path, stat: Any) -> tuple[bool, dict[str, Any]]:
+            mtime = stat.st_mtime
+            if mtime < cutoff_timestamp:
+                age_hours = (cutoff_time.timestamp() - mtime) / SECONDS_PER_HOUR + hours
+                return True, {"age_hours": round(age_hours, 1)}
+            return False, {}
 
-                    # Check file modification time
-                    stat = temp_file.stat()
-                    mtime = stat.st_mtime
-                    if mtime < cutoff_timestamp:
-                        file_size = stat.st_size
-                        age_hours = (cutoff_time.timestamp() - mtime) / SECONDS_PER_HOUR + hours
-
-                        if dry_run:
-                            would_delete.append(
-                                {
-                                    "file": str(temp_file),
-                                    "size_bytes": file_size,
-                                    "age_hours": round(age_hours, 1),
-                                }
-                            )
-                            files_deleted += 1
-                            bytes_freed += file_size
-                        else:
-                            temp_file.unlink()
-                            files_deleted += 1
-                            bytes_freed += file_size
-                except Exception as file_error:
-                    logger.error(
-                        "temp_file_deletion_failed",
-                        file=str(temp_file),
-                        error=str(file_error),
-                    )
+        # Use helper to perform cleanup
+        files_deleted, bytes_freed, would_delete = _cleanup_files(
+            all_temp_files, temp_file_filter, dry_run, "temp_file"
+        )
 
         # Store metric in maintenance_stats (only if not dry run)
         _record_cleanup_metric("temp_cleanup_bytes_freed", bytes_freed, dry_run)
