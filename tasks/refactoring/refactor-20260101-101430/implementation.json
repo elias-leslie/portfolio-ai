@@ -272,7 +272,7 @@
           "tier": 1,
           "model": "haiku",
           "parallelizable": true,
-          "passes": false,
+          "passes": true,
           "description": "Extract model grouping helpers in log_cleanup_tasks.py",
           "files_affected": ["backend/app/tasks/log_cleanup_tasks.py"],
           "steps": [
@@ -290,7 +290,7 @@
           "tier": 1,
           "model": "haiku",
           "parallelizable": true,
-          "passes": false,
+          "passes": true,
           "description": "Extract frontend crawl helpers in sitemap_service.py",
           "files_affected": ["backend/app/services/sitemap_service.py"],
           "steps": [
@@ -309,7 +309,7 @@
           "tier": 1,
           "model": "haiku",
           "parallelizable": true,
-          "passes": false,
+          "passes": true,
           "description": "Extract row transformation helper for strategies API",
           "files_affected": ["backend/app/api/strategies.py"],
           "steps": [
