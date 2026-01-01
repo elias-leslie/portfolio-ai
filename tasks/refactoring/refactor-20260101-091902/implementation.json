@@ -261,7 +261,7 @@
             "Ensure each try block still has appropriate exception handling",
             "Run pytest tests/unit/api -k strategies --tb=short"
           ],
-          "passes": false
+          "passes": true
         }
       ]
     },
@@ -282,7 +282,7 @@
             "Document any pre-existing failures",
             "Verify all changed modules pass"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "6.2",
@@ -295,7 +295,7 @@
             "cd frontend && npm run build",
             "Verify no TypeScript errors"
           ],
-          "passes": false
+          "passes": true
         }
       ]
     }
