@@ -51,6 +51,7 @@ def _substitute_path_params(path: str, value: str = "test-probe-value") -> str:
     """
     return re.sub(r"\{[^}]+\}", value, path)
 
+
 # Network configuration (from environment or fallback to defaults)
 FRONTEND_HOST = os.getenv("FRONTEND_HOST", "192.168.8.233")  # Network IP for SSR routing
 BACKEND_HOST = os.getenv("BACKEND_HOST", "localhost")

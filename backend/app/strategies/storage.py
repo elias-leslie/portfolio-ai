@@ -591,7 +591,11 @@ class StrategyStorage:
         Returns:
             List of (id, symbol, name, expected_sharpe, actual_sharpe, performance_ratio) tuples
         """
-        threshold = performance_threshold if performance_threshold is not None else self.DEFAULT_PERFORMANCE_THRESHOLD
+        threshold = (
+            performance_threshold
+            if performance_threshold is not None
+            else self.DEFAULT_PERFORMANCE_THRESHOLD
+        )
         with self.conn.connection() as conn:
             return conn.execute(
                 f"""

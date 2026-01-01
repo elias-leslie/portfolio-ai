@@ -256,7 +256,9 @@ def fetch_journal_logs(
         cmd.extend(["-u", unit])
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=JOURNALCTL_TIMEOUT_SECONDS, check=False)
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=JOURNALCTL_TIMEOUT_SECONDS, check=False
+        )
         if result.returncode == 0:
             return parse_journal_output(result.stdout, service_units)
     except Exception as e:

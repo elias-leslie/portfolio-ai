@@ -384,7 +384,9 @@ def evaluate_strategy_performance() -> dict[str, Any]:
                         strategy_name=strategy.name,
                         error=str(e),
                     )
-                    results.append(f"Error evaluating {strategy.name}: {str(e)[:ERROR_MESSAGE_TRUNCATE]}")
+                    results.append(
+                        f"Error evaluating {strategy.name}: {str(e)[:ERROR_MESSAGE_TRUNCATE]}"
+                    )
 
             logger.info(
                 "Strategy performance evaluation complete",
