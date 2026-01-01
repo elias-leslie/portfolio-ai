@@ -903,22 +903,14 @@ async def get_strategy_evolution(strategy_id: str) -> dict[str, Any]:
 
             signals: list[dict[str, Any]] = []
             for row in signal_rows:
-                sig_created = row[5]
-                sig_created_str = (
-                    sig_created.isoformat() if isinstance(sig_created, datetime) else None
-                )
-                sig_date = row[3]
-                sig_date_str = (
-                    sig_date.isoformat() if isinstance(sig_date, (datetime, date)) else None
-                )
                 signals.append(
                     {
                         "id": str(row[0]),
                         "signal_type": str(row[1]),
                         "signal_strength": int(row[2]) if row[2] else None,
-                        "signal_date": sig_date_str,
+                        "signal_date": _safe_datetime_to_iso(row[3]),
                         "reasons": row[4] if row[4] else [],
-                        "created_at": sig_created_str,
+                        "created_at": _safe_datetime_to_iso(row[5]),
                     }
                 )
 
@@ -937,8 +929,6 @@ async def get_strategy_evolution(strategy_id: str) -> dict[str, Any]:
 
             trades = []
             for row in trade_rows:
-                entry_date = row[6]
-                entry_date_str = str(entry_date) if entry_date else None
                 trades.append(
                     {
                         "id": str(row[0]),
@@ -947,7 +937,7 @@ async def get_strategy_evolution(strategy_id: str) -> dict[str, Any]:
                         "exit_price": float(row[3]) if row[3] is not None else None,
                         "return_pct": float(row[4]) if row[4] is not None else None,
                         "status": str(row[5]),
-                        "entry_date": entry_date_str,
+                        "entry_date": _safe_datetime_to_iso(row[6]),
                     }
                 )
 
