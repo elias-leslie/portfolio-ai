@@ -586,16 +586,16 @@ async def get_strategy_performance(strategy_id: str) -> dict[str, Any]:
 
         return {
             "expected": {
-                "sharpe": expected_sharpe,
+                "sharpe": expected_sharpe or 0.0,
                 "win_rate": _safe_float(strategy.expected_win_rate),
                 "max_drawdown": _safe_float(strategy.expected_max_drawdown),
             },
             "actual_30d": {
-                "sharpe": actual_sharpe,
+                "sharpe": actual_sharpe or 0.0,
                 "win_rate": _safe_float(strategy.live_win_rate),
                 "trades_count": strategy.live_trades_count,
             },
-            "performance_ratio": performance_ratio,
+            "performance_ratio": performance_ratio or 0.0,
             "status": status,
         }
 

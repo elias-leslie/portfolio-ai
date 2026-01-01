@@ -565,7 +565,7 @@ def auto_promote_strategies(
                 "details": [],
             }
 
-        logger.info(f"Evaluating {len(testing_strategies)} testing strategies for promotion")
+        logger.info("Evaluating testing strategies for promotion", count=len(testing_strategies))
 
         results = []
         promoted_count = 0
@@ -581,7 +581,10 @@ def auto_promote_strategies(
 
                 if days_since_creation < min_days:
                     logger.debug(
-                        f"Skipping {strategy.name}: only {days_since_creation} days old (need {min_days})"
+                        "Skipping strategy - insufficient age",
+                        strategy_name=strategy.name,
+                        days_since_creation=days_since_creation,
+                        min_days=min_days,
                     )
                     continue
 
@@ -590,13 +593,19 @@ def auto_promote_strategies(
 
                 if expected_sharpe < min_sharpe:
                     logger.debug(
-                        f"Skipping {strategy.name}: Sharpe {expected_sharpe:.2f} < {min_sharpe}"
+                        "Skipping strategy - Sharpe below minimum",
+                        strategy_name=strategy.name,
+                        expected_sharpe=expected_sharpe,
+                        min_sharpe=min_sharpe,
                     )
                     continue
 
                 # Check for blocking issues (negative Sharpe = likely bad strategy)
                 if expected_sharpe < 0:
-                    logger.debug(f"Skipping {strategy.name}: negative expected Sharpe")
+                    logger.debug(
+                        "Skipping strategy - negative expected Sharpe",
+                        strategy_name=strategy.name,
+                    )
                     continue
 
                 # All criteria met - promote!
@@ -676,7 +685,7 @@ def weekly_strategy_generation() -> dict[str, Any]:
                 "details": [],
             }
 
-        logger.info(f"Evaluating {len(top_symbols)} top watchlist symbols")
+        logger.info("Evaluating top watchlist symbols", count=len(top_symbols))
 
         # Filter to symbols without active strategies
         symbols_to_generate = _filter_symbols_without_active_strategy(top_symbols, strategy_storage)
@@ -745,7 +754,7 @@ def daily_strategy_refresh(max_symbols: int = 5) -> dict[str, Any]:
                 "details": [],
             }
 
-        logger.info(f"Found {len(symbols_to_generate)} symbols needing strategies")
+        logger.info("Found symbols needing strategies", count=len(symbols_to_generate))
 
         # Separate symbols by force_regenerate flag
         underperforming_symbols = []
@@ -844,7 +853,7 @@ def weekly_strategy_evolution() -> dict[str, Any]:
                 "details": [],
             }
 
-        logger.info(f"Found {len(underperforming_strategies)} underperforming strategies")
+        logger.info("Found underperforming strategies", count=len(underperforming_strategies))
 
         results = []
         evolved_count = 0

@@ -175,11 +175,11 @@ async def health_check():
 
 
 @app.post("/sessions", response_model=SessionResponse)
-async def create_session(request: CreateSessionRequest):
+async def create_session(
+    request: CreateSessionRequest,
+    bridge: SessionBridge = Depends(require_bridge),
+):
     """Create a new session."""
-    if not bridge:
-        raise HTTPException(status_code=503, detail="Service not ready")
-
     session_id = await bridge.create_session(
         working_dir=request.working_dir,
         metadata=request.metadata,
@@ -193,11 +193,11 @@ async def create_session(request: CreateSessionRequest):
 
 
 @app.get("/sessions", response_model=list[SessionResponse])
-async def list_sessions(limit: int = 50):
+async def list_sessions(
+    limit: int = 50,
+    bridge: SessionBridge = Depends(require_bridge),
+):
     """List all sessions."""
-    if not bridge:
-        raise HTTPException(status_code=503, detail="Service not ready")
-
     sessions = await bridge.list_sessions(limit=limit)
     return [
         _session_to_response(s, is_active=s.get("is_active", False))
@@ -206,11 +206,11 @@ async def list_sessions(limit: int = 50):
 
 
 @app.get("/sessions/{session_id}", response_model=SessionResponse)
-async def get_session(session_id: str):
+async def get_session(
+    session_id: str,
+    bridge: SessionBridge = Depends(require_bridge),
+):
     """Get session details."""
-    if not bridge:
-        raise HTTPException(status_code=503, detail="Service not ready")
-
     session = await bridge.db.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -222,11 +222,11 @@ async def get_session(session_id: str):
 
 
 @app.delete("/sessions/{session_id}")
-async def delete_session(session_id: str):
+async def delete_session(
+    session_id: str,
+    bridge: SessionBridge = Depends(require_bridge),
+):
     """Delete a session."""
-    if not bridge:
-        raise HTTPException(status_code=503, detail="Service not ready")
-
     deleted = await bridge.delete_session(session_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -235,11 +235,12 @@ async def delete_session(session_id: str):
 
 
 @app.get("/sessions/{session_id}/history")
-async def get_session_history(session_id: str, limit: int = 100):
+async def get_session_history(
+    session_id: str,
+    limit: int = 100,
+    bridge: SessionBridge = Depends(require_bridge),
+):
     """Get message history for a session."""
-    if not bridge:
-        raise HTTPException(status_code=503, detail="Service not ready")
-
     messages = await bridge.get_session_history(session_id, limit=limit)
     return {"messages": messages}
 

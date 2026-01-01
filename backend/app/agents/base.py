@@ -603,12 +603,12 @@ class Agent(ABC):
             if iteration == 0:
                 self._update_provider_metadata(response, run_id)
 
-            if response.stop_reason == "end_turn":
+            if response.stop_reason == StopReason.END_TURN.value:
                 return self._handle_llm_end_turn_response(
                     run_id, started_at, response, tool_calls_made, iteration, total_token_usage
                 )
 
-            if response.stop_reason == "tool_use":
+            if response.stop_reason == StopReason.TOOL_USE.value:
                 current_prompt = self._handle_llm_tool_use_response(
                     run_id, response, tool_calls_made, conversation_history
                 )
@@ -650,13 +650,13 @@ class Agent(ABC):
                 messages=messages,  # type: ignore[arg-type]
             )
 
-            if response.stop_reason == "end_turn":
+            if response.stop_reason == StopReason.END_TURN.value:
                 final_text = self._extract_final_response(response)
                 return self._handle_completion(
                     run_id, started_at, tool_calls_made, iteration, final_text
                 )
 
-            if response.stop_reason == "tool_use":
+            if response.stop_reason == StopReason.TOOL_USE.value:
                 assistant_content, tool_results = self._process_tool_calls_anthropic(
                     response, run_id, tool_calls_made
                 )
