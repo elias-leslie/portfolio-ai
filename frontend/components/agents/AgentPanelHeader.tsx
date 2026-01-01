@@ -12,14 +12,14 @@ interface PageContext {
 }
 
 interface SessionInfo {
-  originalProvider?: AgentProvider | 'both';
+  originalProvider?: string | null;
 }
 
 interface AgentPanelHeaderProps {
   isConnected: boolean;
   pageContext?: PageContext;
   currentSessionId: string | null;
-  currentSession: SessionInfo | null;
+  currentSession?: SessionInfo | null;
   agentProvider: AgentProvider;
   showSessions: boolean;
   onShowEvidenceCapture: () => void;

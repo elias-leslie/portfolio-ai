@@ -15,7 +15,7 @@ import {
 
 interface BackupCheckResult {
   canProceed: boolean;
-  blockingReason?: string;
+  blockingReason?: string | null;
 }
 
 interface MaintenanceTableToolbarProps {

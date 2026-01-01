@@ -256,6 +256,9 @@ export function MaintenanceTable() {
   // Calculate current task index for toolbar progress display
   const currentTaskIndex = filteredTasks.findIndex(t => t.taskName === triggeringTask);
 
+  // Block live mode if backup check failed
+  const liveBlocked = !dryRun && backupCheck !== null && !backupCheck.canProceed;
+
   return (
     <>
       <ExpandableCard

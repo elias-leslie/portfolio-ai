@@ -351,7 +351,7 @@
             "Run npm run lint to verify"
           ],
           "verification": "cd frontend && npm run lint",
-          "passes": false
+          "passes": true
         }
       ]
     },
