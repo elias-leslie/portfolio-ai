@@ -143,65 +143,108 @@ def _filter_symbols_without_active_strategy(
     return symbols_to_generate
 
 
-def _evaluate_single_strategy(
+def _compute_performance_ratio(
     strategy: Any,
-    conn: Any,
-    strategy_storage: Any,
-) -> tuple[str | None, bool]:
-    """Evaluate a single strategy and update its metrics.
+    metrics: dict[str, Any],
+) -> tuple[float, float, float]:
+    """Compute performance metrics for strategy evaluation.
 
     Args:
-        strategy: Strategy object to evaluate
-        conn: Database connection
-        strategy_storage: Strategy storage instance
+        strategy: Strategy object
+        metrics: Calculated rolling metrics
 
     Returns:
-        Tuple of (result_message_or_none, was_archived)
+        Tuple of (expected_sharpe, actual_sharpe, performance_ratio)
     """
-    # Calculate rolling metrics from paper_trade_transactions
-    metrics = _calculate_rolling_metrics(conn, strategy.id, window_days=DEFAULT_ROLLING_WINDOW_DAYS)
-
-    # Compare to expected metrics
     expected_sharpe = float(strategy.expected_sharpe or 0.0)
     actual_sharpe = metrics["sharpe_ratio_30d"]
     performance_ratio = actual_sharpe / expected_sharpe if expected_sharpe > 0 else 0
+    return expected_sharpe, actual_sharpe, performance_ratio
 
-    # Determine status
+
+def _determine_archive_decision(
+    strategy: Any,
+    metrics: dict[str, Any],
+    strategy_storage: Any,
+) -> tuple[bool, str | None]:
+    """Determine if strategy should be archived and perform archival if needed.
+
+    Args:
+        strategy: Strategy object to evaluate
+        metrics: Calculated rolling metrics
+        strategy_storage: Strategy storage instance
+
+    Returns:
+        Tuple of (was_archived, result_message_or_none)
+    """
+    expected_sharpe, actual_sharpe, performance_ratio = _compute_performance_ratio(
+        strategy, metrics
+    )
+
     days_since_activation = (
         (datetime.now(UTC) - strategy.activation_date).days if strategy.activation_date else 0
     )
 
-    archived = False
-    result_msg: str | None = None
+    if not _should_archive_strategy(performance_ratio, days_since_activation):
+        return False, None
 
-    # Decision logic: Archive if underperforming for >30 days
-    if _should_archive_strategy(performance_ratio, days_since_activation):
-        reason = (
-            f"Underperforming: {actual_sharpe:.2f} Sharpe vs "
-            f"{expected_sharpe:.2f} expected ({performance_ratio:.1%})"
-        )
-        strategy_storage.archive_strategy(strategy.id, reason)
-        archived = True
-        result_msg = f"Archived {strategy.name}: {performance_ratio:.1%} of expected performance"
-        logger.warning(
-            "Strategy archived due to underperformance",
-            strategy_id=strategy.id,
-            strategy_name=strategy.name,
-            performance_ratio=performance_ratio,
-        )
-    else:
-        # Update live performance metrics
-        strategy_storage.update_live_performance(
-            strategy_id=strategy.id,
-            trades_count=metrics["trades_30d"],
-            win_rate=metrics["win_rate_30d"],
-            sharpe_ratio=actual_sharpe,
-        )
+    reason = (
+        f"Underperforming: {actual_sharpe:.2f} Sharpe vs "
+        f"{expected_sharpe:.2f} expected ({performance_ratio:.1%})"
+    )
+    strategy_storage.archive_strategy(strategy.id, reason)
+    logger.warning(
+        "Strategy archived due to underperformance",
+        strategy_id=strategy.id,
+        strategy_name=strategy.name,
+        performance_ratio=performance_ratio,
+    )
+    return True, f"Archived {strategy.name}: {performance_ratio:.1%} of expected performance"
 
-    # Record daily performance
+
+def _update_live_metrics_if_active(
+    strategy: Any,
+    metrics: dict[str, Any],
+    strategy_storage: Any,
+    archived: bool,
+) -> None:
+    """Update live performance metrics if strategy is not archived.
+
+    Args:
+        strategy: Strategy object
+        metrics: Calculated rolling metrics
+        strategy_storage: Strategy storage instance
+        archived: Whether strategy was archived
+    """
+    if archived:
+        return
+
+    strategy_storage.update_live_performance(
+        strategy_id=strategy.id,
+        trades_count=metrics["trades_30d"],
+        win_rate=metrics["win_rate_30d"],
+        sharpe_ratio=metrics["sharpe_ratio_30d"],
+    )
+
+
+def _record_and_emit_performance(
+    strategy: Any,
+    metrics: dict[str, Any],
+    strategy_storage: Any,
+) -> None:
+    """Record daily performance and emit event for downstream triggers.
+
+    Args:
+        strategy: Strategy object
+        metrics: Calculated rolling metrics
+        strategy_storage: Strategy storage instance
+    """
+    _, actual_sharpe, performance_ratio = _compute_performance_ratio(strategy, metrics)
+
     status: Literal["active", "underperforming"] = (
         "underperforming" if performance_ratio < PERFORMANCE_RATIO_THRESHOLD else "active"
     )
+
     strategy_storage.record_daily_performance(
         strategy_id=strategy.id,
         date=datetime.now(UTC).date(),
@@ -229,7 +272,6 @@ def _evaluate_single_strategy(
         status=status,
     )
 
-    # Emit event for downstream triggers (auto-003)
     from app.tasks.triggers import emit_event
 
     emit_event(
@@ -242,6 +284,40 @@ def _evaluate_single_strategy(
             "status": status,
         },
     )
+
+
+def _evaluate_single_strategy(
+    strategy: Any,
+    conn: Any,
+    strategy_storage: Any,
+) -> tuple[str | None, bool]:
+    """Evaluate a single strategy and update its metrics.
+
+    Orchestrates the evaluation workflow:
+    1. Calculate rolling metrics from paper_trade_transactions
+    2. Determine if strategy should be archived
+    3. Update live metrics if still active
+    4. Record daily performance and emit events
+
+    Args:
+        strategy: Strategy object to evaluate
+        conn: Database connection
+        strategy_storage: Strategy storage instance
+
+    Returns:
+        Tuple of (result_message_or_none, was_archived)
+    """
+    # Calculate rolling metrics from paper_trade_transactions
+    metrics = _calculate_rolling_metrics(conn, strategy.id, window_days=DEFAULT_ROLLING_WINDOW_DAYS)
+
+    # Determine if strategy should be archived
+    archived, result_msg = _determine_archive_decision(strategy, metrics, strategy_storage)
+
+    # Update live metrics if strategy wasn't archived
+    _update_live_metrics_if_active(strategy, metrics, strategy_storage, archived)
+
+    # Record daily performance and emit event
+    _record_and_emit_performance(strategy, metrics, strategy_storage)
 
     return result_msg, archived
 
