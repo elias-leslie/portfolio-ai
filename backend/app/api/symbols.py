@@ -20,6 +20,16 @@ from app.watchlist.watchlist_service import WatchlistService
 
 logger = get_logger(__name__)
 
+# Scoring pillar weights - must sum to 1.0
+PILLAR_WEIGHTS = {
+    "price": 0.22,
+    "technical": 0.22,
+    "fundamental": 0.26,
+    "catalyst": 0.17,
+    "options_flow": 0.08,
+    "performance": 0.05,
+}
+
 router = APIRouter(prefix="/api/symbols", tags=["symbols"])
 storage = get_storage()
 watchlist_service = WatchlistService(storage)
@@ -501,15 +511,7 @@ def _get_market_data() -> dict[str, Any]:
 def _build_scores_section(watchlist: dict[str, Any]) -> ScoresSection:
     """Build the scores section from watchlist data."""
     pillars = {}
-    pillar_weights = {
-        "price": 0.22,
-        "technical": 0.22,
-        "fundamental": 0.26,
-        "catalyst": 0.17,
-        "options_flow": 0.08,
-        "performance": 0.05,
-    }
-    for pillar, weight in pillar_weights.items():
+    for pillar, weight in PILLAR_WEIGHTS.items():
         score_key = f"{pillar}_score"
         pillars[pillar] = PillarScore(
             score=watchlist.get(score_key),

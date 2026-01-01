@@ -25,6 +25,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Permission display limits
+PERMISSION_DISPLAY_STRING_LIMIT = 200
+PERMISSION_DISPLAY_JSON_LIMIT = 500
+
 # Global instances
 db: Database | None = None
 bridge: SessionBridge | None = None
@@ -329,12 +333,12 @@ async def websocket_endpoint(
             # Format tool input for display (truncate long values)
             display_input = {}
             for key, value in tool_input.items():
-                if isinstance(value, str) and len(value) > 200:
-                    display_input[key] = value[:200] + "..."
+                if isinstance(value, str) and len(value) > PERMISSION_DISPLAY_STRING_LIMIT:
+                    display_input[key] = value[:PERMISSION_DISPLAY_STRING_LIMIT] + "..."
                 elif isinstance(value, (dict, list)):
                     serialized = json.dumps(value)
-                    if len(serialized) > 500:
-                        display_input[key] = serialized[:500] + "..."
+                    if len(serialized) > PERMISSION_DISPLAY_JSON_LIMIT:
+                        display_input[key] = serialized[:PERMISSION_DISPLAY_JSON_LIMIT] + "..."
                     else:
                         display_input[key] = value
                 else:

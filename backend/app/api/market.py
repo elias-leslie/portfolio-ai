@@ -91,6 +91,11 @@ storage = get_storage()
 market_repo = MarketRepository(storage)
 price_fetcher = PriceDataFetcher(storage)
 
+# Cache TTL constants (in seconds)
+CACHE_TTL_SHORT = 60  # 1 minute
+CACHE_TTL_MEDIUM = 300  # 5 minutes
+CACHE_TTL_LONG = 900  # 15 minutes
+
 # Market indicator symbols
 CORE_MARKET_SYMBOLS = ["^GSPC", "^VIX", "^TNX", "DX-Y.NYB"]
 
@@ -325,7 +330,7 @@ def _build_enriched_indicators(
 
 # API endpoints
 @router.get("/conditions", response_model=MarketConditionsResponse)
-@cache_response(ttl=300)  # 5 minutes cache
+@cache_response(ttl=CACHE_TTL_MEDIUM)
 async def get_market_conditions(request: Request) -> MarketConditionsResponse:
     """Get current market conditions with health scoring.
 
@@ -369,7 +374,7 @@ async def get_market_conditions(request: Request) -> MarketConditionsResponse:
 
 
 @router.get("/prices", response_model=PricesResponse)
-@cache_response(ttl=60)  # 1 minute cache
+@cache_response(ttl=CACHE_TTL_SHORT)
 async def get_prices(
     request: Request,
     symbols: str = Query(..., description="Comma-separated symbols"),
@@ -396,7 +401,7 @@ async def get_prices(
 
 
 @router.get("/intelligence", response_model=MarketIntelligenceResponse)
-@cache_response(ttl=60)  # 1 minute cache for fresh data
+@cache_response(ttl=CACHE_TTL_SHORT)
 async def get_market_intelligence(_request: Request) -> MarketIntelligenceResponse:
     """Get unified market intelligence with narrative, dual scoring, and sector rotation.
 

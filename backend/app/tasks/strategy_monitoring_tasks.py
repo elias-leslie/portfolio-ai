@@ -32,6 +32,10 @@ TOP_WATCHLIST_SYMBOLS = 20  # Top symbols to consider for weekly strategy genera
 TOP_WATCHLIST_TRIGGER_SYMBOLS = 10  # Top symbols to consider for trigger-based generation
 MAX_EVOLUTION_STRATEGIES = 5  # Maximum strategies to evolve per week
 
+# Strategy thresholds
+MIN_SHARPE_FOR_PROMOTION = 1.0  # Minimum expected Sharpe to auto-promote from testing
+EVOLUTION_PERFORMANCE_THRESHOLD = 0.9  # Performance ratio threshold for strategy evolution
+
 
 def _run_strategy_workflow(
     symbol: str,
@@ -526,7 +530,7 @@ def _calculate_rolling_metrics(
 @celery_app.task(name="app.tasks.strategy_monitoring_tasks.auto_promote_strategies")
 def auto_promote_strategies(
     min_days: int = 3,
-    min_sharpe: float = 1.0,
+    min_sharpe: float = MIN_SHARPE_FOR_PROMOTION,
 ) -> dict[str, Any]:
     """Auto-promote testing strategies that meet validation criteria.
 
@@ -828,7 +832,7 @@ def weekly_strategy_evolution() -> dict[str, Any]:
 
         # Find underperforming active strategies (performance < 90% of expected)
         underperforming_strategies = strategy_storage.get_underperforming_strategies(
-            performance_threshold=0.9, limit=MAX_EVOLUTION_STRATEGIES
+            performance_threshold=EVOLUTION_PERFORMANCE_THRESHOLD, limit=MAX_EVOLUTION_STRATEGIES
         )
 
         if not underperforming_strategies:
