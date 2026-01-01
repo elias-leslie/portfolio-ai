@@ -17,7 +17,6 @@ from pydantic import BaseModel, Field
 
 from app.agents.workflows.strategy_research_workflow import strategy_research_workflow
 from app.logging_config import get_logger
-from app.storage.connection import get_connection_manager
 from app.strategies.performance_utils import calculate_performance_status
 from app.strategies.storage import get_strategy_storage
 from app.tasks.strategy_monitoring_tasks import weekly_strategy_generation
@@ -292,32 +291,19 @@ async def get_strategy(strategy_id: str) -> StrategyDetail:
         storage = get_strategy_storage()
 
         # Get performance history (last 30 days)
-        conn_mgr = storage.conn
-        with conn_mgr.connection() as conn:
-            perf_rows = conn.execute(
-                """
-                SELECT date, trades_30d, win_rate_30d, sharpe_ratio_30d, max_drawdown_30d, status
-                FROM strategy_performance
-                WHERE strategy_id = %s
-                ORDER BY date DESC
-                LIMIT 30
-                """,
-                (strategy_id,),
-            ).fetchall()
+        perf_data = storage.get_performance_history(strategy_id, limit=30)
 
-        # Convert tuples to dicts for easy access
-        # Database returns tuples, map them to column names
+        # Format dates and parse floats
         performance_history = []
-        for row in perf_rows:
-            # row is a tuple: (date, trades_30d, win_rate_30d, sharpe_ratio_30d, max_drawdown_30d, status)
+        for row in perf_data:
             performance_history.append(
                 {
-                    "date": format_db_date(row[0]),
-                    "trades_30d": row[1],
-                    "win_rate_30d": parse_float(row[2]),
-                    "sharpe_ratio_30d": parse_float(row[3]),
-                    "max_drawdown_30d": parse_float(row[4]),
-                    "status": row[5],
+                    "date": format_db_date(row["date"]),
+                    "trades_30d": row["trades_30d"],
+                    "win_rate_30d": parse_float(row["win_rate_30d"]),
+                    "sharpe_ratio_30d": parse_float(row["sharpe_ratio_30d"]),
+                    "max_drawdown_30d": parse_float(row["max_drawdown_30d"]),
+                    "status": row["status"],
                 }
             )
 

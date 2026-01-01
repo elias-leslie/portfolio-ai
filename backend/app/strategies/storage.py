@@ -955,6 +955,46 @@ class StrategyStorage:
 
             return row if row else None
 
+    def get_performance_history(
+        self, strategy_id: str, limit: int = 30
+    ) -> list[dict[str, Any]]:
+        """Get performance history for a strategy.
+
+        Args:
+            strategy_id: Strategy UUID
+            limit: Maximum number of records to return (default 30)
+
+        Returns:
+            List of dicts with: date, trades_30d, win_rate_30d, sharpe_ratio_30d, max_drawdown_30d, status
+        """
+        with self.conn.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT date, trades_30d, win_rate_30d, sharpe_ratio_30d, max_drawdown_30d, status
+                FROM strategy_performance
+                WHERE strategy_id = %s
+                ORDER BY date DESC
+                LIMIT %s
+                """,
+                (strategy_id, limit),
+            ).fetchall()
+
+        # Convert tuples to dicts
+        performance_history = []
+        for row in rows:
+            performance_history.append(
+                {
+                    "date": row[0],
+                    "trades_30d": row[1],
+                    "win_rate_30d": row[2],
+                    "sharpe_ratio_30d": row[3],
+                    "max_drawdown_30d": row[4],
+                    "status": row[5],
+                }
+            )
+
+        return performance_history
+
 
 # Singleton instance
 _storage_instance: StrategyStorage | None = None

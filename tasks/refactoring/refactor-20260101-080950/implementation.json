@@ -27,7 +27,7 @@
             "Change self.storage to self._storage at lines 675 and 699",
             "Run pytest tests/unit/services -k sitemap --tb=short to verify"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "1.2",
@@ -45,7 +45,7 @@
             "Filter empty strings: symbol_list = [s for s in symbol_list if s]",
             "Run pytest tests/unit/api -k market --tb=short to verify"
           ],
-          "passes": false
+          "passes": true
         }
       ]
     },
