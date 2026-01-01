@@ -169,7 +169,7 @@
             "Run verification"
           ],
           "verification": "ruff check backend/app/api/strategies.py && pytest tests/api/test_strategies.py -x --tb=short -q",
-          "passes": false
+          "passes": true
         },
         {
           "id": "2.4",
@@ -228,7 +228,7 @@
             "Run verification"
           ],
           "verification": "ruff check backend/app/tasks/log_cleanup_tasks.py",
-          "passes": false
+          "passes": true
         },
         {
           "id": "2.8",
