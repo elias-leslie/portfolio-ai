@@ -87,7 +87,7 @@
             "Run verification"
           ],
           "verification": "ruff check backend/app/tasks/strategy_monitoring_tasks.py && pytest tests/tasks/ -k strategy -x --tb=short -q",
-          "passes": false
+          "passes": true
         },
         {
           "id": "1.6",
