@@ -391,6 +391,22 @@ class StrategyStorage:
                 ),
             )
 
+    def _ensure_symbol_exists(self, conn: Any, symbol: str) -> None:
+        """Ensure symbol exists in symbols table.
+
+        Args:
+            conn: Database connection
+            symbol: Stock symbol to check/insert
+        """
+        conn.execute(
+            """
+            INSERT INTO symbols (symbol, security_type, created_at)
+            VALUES (%s, 'equity', NOW())
+            ON CONFLICT (symbol) DO NOTHING
+            """,
+            (symbol,),
+        )
+
     def _convert_row(self, row: tuple[Any, ...]) -> dict[str, Any]:
         """Convert database row tuple to dictionary.
 
