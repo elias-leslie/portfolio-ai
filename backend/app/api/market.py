@@ -113,6 +113,10 @@ INDICATOR_ENRICH_FUNCS: dict[str, Any] = {
 # Valid market event types (derived from MarketEventType Literal)
 VALID_EVENT_TYPES: Final[frozenset[str]] = frozenset(get_args(MarketEventType))
 
+# Sector threshold constants for validation
+SECTOR_MAX_LOSS_THRESHOLD = -60.0
+SECTOR_MAX_GAIN_THRESHOLD = 200.0
+
 
 # Helper functions for price/timestamp extraction
 def _extract_price(data: Any | None) -> float | None:
@@ -699,7 +703,7 @@ async def get_sector_history(
                 first_close = rows[0][1]
                 last_close = rows[-1][1]
                 pct_change = ((last_close - first_close) / first_close) * 100
-                if pct_change < -60 or pct_change > 200:
+                if pct_change < SECTOR_MAX_LOSS_THRESHOLD or pct_change > SECTOR_MAX_GAIN_THRESHOLD:
                     logger.error(
                         "sector_history_unrealistic_change",
                         symbol=symbol,

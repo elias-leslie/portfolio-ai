@@ -46,6 +46,10 @@ SYSLOG_PRIORITY_TO_LEVEL: dict[int, str] = {
 MAX_LOG_LINES = 5000
 JOURNAL_FETCH_LIMIT = 10000
 
+# Subprocess timeout constants
+JOURNALCTL_TIMEOUT_SECONDS = 15
+SCRIPT_EXECUTION_TIMEOUT_SECONDS = 30
+
 # Valid 'since' patterns for journalctl (prevents command injection)
 VALID_SINCE_PATTERN = re.compile(
     r"^(\d+\s+(minute|hour|day|week)s?\s+ago|today|yesterday)$", re.IGNORECASE
@@ -252,7 +256,7 @@ def fetch_journal_logs(
         cmd.extend(["-u", unit])
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=15, check=False)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=JOURNALCTL_TIMEOUT_SECONDS, check=False)
         if result.returncode == 0:
             return parse_journal_output(result.stdout, service_units)
     except Exception as e:
@@ -563,7 +567,7 @@ async def set_log_level(request: SetLogLevelRequest) -> SetLogLevelResponse:
             ["bash", str(script_path), level],
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=SCRIPT_EXECUTION_TIMEOUT_SECONDS,
             check=False,
         )
 

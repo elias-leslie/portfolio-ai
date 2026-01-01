@@ -25,6 +25,12 @@ logger = get_logger(__name__)
 # Strategy performance thresholds
 PERFORMANCE_RATIO_THRESHOLD = 0.7  # Archive if performance < 70% of expected
 DEFAULT_ROLLING_WINDOW_DAYS = 30  # Rolling window for metrics calculation
+ERROR_MESSAGE_TRUNCATE = 100  # Truncate error messages to prevent log bloat
+
+# Strategy limits
+TOP_WATCHLIST_SYMBOLS = 20  # Top symbols to consider for weekly strategy generation
+TOP_WATCHLIST_TRIGGER_SYMBOLS = 10  # Top symbols to consider for trigger-based generation
+MAX_EVOLUTION_STRATEGIES = 5  # Maximum strategies to evolve per week
 
 
 def _run_strategy_workflow(
@@ -64,7 +70,7 @@ def _run_strategy_workflow(
 
     except Exception as e:
         logger.exception("Strategy generation failed", symbol=symbol, error=str(e))
-        return f"Error for {symbol}: {str(e)[:100]}", None
+        return f"Error for {symbol}: {str(e)[:ERROR_MESSAGE_TRUNCATE]}", None
 
 
 def _generate_strategies_batch(
@@ -378,7 +384,7 @@ def evaluate_strategy_performance() -> dict[str, Any]:
                         strategy_name=strategy.name,
                         error=str(e),
                     )
-                    results.append(f"Error evaluating {strategy.name}: {str(e)[:100]}")
+                    results.append(f"Error evaluating {strategy.name}: {str(e)[:ERROR_MESSAGE_TRUNCATE]}")
 
             logger.info(
                 "Strategy performance evaluation complete",
@@ -653,7 +659,7 @@ def weekly_strategy_generation() -> dict[str, Any]:
         strategy_storage = get_strategy_storage()
 
         # Get top 20 watchlist symbols ordered by highest overall score
-        top_symbols = strategy_storage.get_top_watchlist_symbols(limit=20)
+        top_symbols = strategy_storage.get_top_watchlist_symbols(limit=TOP_WATCHLIST_SYMBOLS)
 
         if not top_symbols:
             logger.info("No watchlist symbols found")
@@ -820,7 +826,7 @@ def weekly_strategy_evolution() -> dict[str, Any]:
 
         # Find underperforming active strategies (performance < 90% of expected)
         underperforming_strategies = strategy_storage.get_underperforming_strategies(
-            performance_threshold=0.9, limit=5
+            performance_threshold=0.9, limit=MAX_EVOLUTION_STRATEGIES
         )
 
         if not underperforming_strategies:
@@ -886,7 +892,7 @@ def weekly_strategy_evolution() -> dict[str, Any]:
 
             except Exception as e:
                 logger.exception("Strategy evolution error", symbol=symbol, error=str(e))
-                results.append(f"Error for {symbol}: {str(e)[:100]}")
+                results.append(f"Error for {symbol}: {str(e)[:ERROR_MESSAGE_TRUNCATE]}")
 
         logger.info(
             "Weekly strategy evolution complete",
@@ -908,7 +914,7 @@ def weekly_strategy_evolution() -> dict[str, Any]:
 
 @celery_app.task(name="app.tasks.strategy_monitoring_tasks.trigger_strategies_for_top_watchlist")
 def trigger_strategies_for_top_watchlist(
-    top_n: int = 10,
+    top_n: int = TOP_WATCHLIST_TRIGGER_SYMBOLS,
     max_per_day: int = 3,
 ) -> dict[str, Any]:
     """Generate strategies for top watchlist symbols that don't have one.

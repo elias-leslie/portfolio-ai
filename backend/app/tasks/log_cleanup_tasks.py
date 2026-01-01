@@ -34,6 +34,8 @@ logger = get_logger(__name__)
 # Constants
 LOG_ROTATION_SIZE_THRESHOLD_BYTES = 10 * 1024 * 1024  # 10MB
 DISK_ALERT_THRESHOLD_PERCENT = 85
+SECONDS_PER_DAY = 86400
+SECONDS_PER_HOUR = 3600
 
 # Helper functions (pure logic, no Celery)
 
@@ -298,7 +300,7 @@ def cleanup_old_logs_task(self: Task, days: int = 7, dry_run: bool = False) -> d
                     mtime = stat.st_mtime
                     if mtime < cutoff_timestamp:
                         file_size = stat.st_size
-                        age_days = (cutoff_time.timestamp() - mtime) / 86400 + days
+                        age_days = (cutoff_time.timestamp() - mtime) / SECONDS_PER_DAY + days
 
                         if dry_run:
                             would_delete.append(
@@ -412,7 +414,7 @@ def cleanup_temp_files_task(self: Task, hours: int = 24, dry_run: bool = False) 
                     mtime = stat.st_mtime
                     if mtime < cutoff_timestamp:
                         file_size = stat.st_size
-                        age_hours = (cutoff_time.timestamp() - mtime) / 3600 + hours
+                        age_hours = (cutoff_time.timestamp() - mtime) / SECONDS_PER_HOUR + hours
 
                         if dry_run:
                             would_delete.append(
@@ -572,7 +574,7 @@ def cleanup_old_backups_task(
         now = dt.datetime.now(dt.UTC).timestamp()
         for file_path, mtime, file_size in backup_files[keep_count:]:
             try:
-                age_days = (now - mtime) / 86400
+                age_days = (now - mtime) / SECONDS_PER_DAY
 
                 if dry_run:
                     would_delete.append(
@@ -847,7 +849,7 @@ def cleanup_solution_state_task(
                 if mtime < cutoff_timestamp:
                     # Calculate directory size
                     dir_size = sum(f.stat().st_size for f in entry.rglob("*") if f.is_file())
-                    age_days = (now - mtime) / 86400
+                    age_days = (now - mtime) / SECONDS_PER_DAY
 
                     if dry_run:
                         would_delete.append(
