@@ -48,6 +48,20 @@ HEALTH_CHECK_TIMEOUT_PROBE = (
     5  # seconds for lightweight probe checks (enough to verify route exists)
 )
 
+# Frontend crawl patterns to skip (static assets and API calls)
+FRONTEND_CRAWL_SKIP_PATTERNS = [
+    "/api/",
+    "/_next/",
+    "/static/",
+    ".js",
+    ".css",
+    ".png",
+    ".jpg",
+]
+
+# WebSocket probe paths to check
+WEBSOCKET_PROBE_PATHS = ["/ws", "/ws/{session_id}", "/socket.io"]
+
 
 def _interpret_response(
     response: httpx.Response, is_probe: bool, probe_pattern: str | None
@@ -426,19 +440,10 @@ class SitemapService:
                             links = re.findall(r'href=["\']([^"\']+)["\']', response.text)
                             for link in links:
                                 # Only follow internal links, skip static assets and API calls
-                                skip_patterns = [
-                                    "/api/",
-                                    "/_next/",
-                                    "/static/",
-                                    ".js",
-                                    ".css",
-                                    ".png",
-                                    ".jpg",
-                                ]
                                 if (
                                     link.startswith("/")
                                     and not link.startswith("//")
-                                    and not any(x in link for x in skip_patterns)
+                                    and not any(x in link for x in FRONTEND_CRAWL_SKIP_PATTERNS)
                                 ):
                                     clean_path = link.split("?")[0].split("#")[0]
                                     if clean_path not in visited:

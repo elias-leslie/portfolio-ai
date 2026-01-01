@@ -31,6 +31,9 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+# Constants
+LOG_ROTATION_SIZE_THRESHOLD_BYTES = 10 * 1024 * 1024  # 10MB
+DISK_ALERT_THRESHOLD_PERCENT = 85
 
 # Helper functions (pure logic, no Celery)
 
@@ -125,7 +128,7 @@ def check_disk_space_impl() -> dict[str, Any]:
             partitions_info.append(partition_info)
 
             # Alert if usage > 85%
-            if used_percentage > 85:
+            if used_percentage > DISK_ALERT_THRESHOLD_PERCENT:
                 alert = {
                     "partition": path,
                     "used_percentage": round(used_percentage, 2),
@@ -190,7 +193,7 @@ def rotate_logs_task(self: Task, dry_run: bool = False) -> dict[str, int | str |
                 try:
                     file_size = log_file.stat().st_size
                     # Check if file size > 10MB
-                    if file_size > 10 * 1024 * 1024:
+                    if file_size > LOG_ROTATION_SIZE_THRESHOLD_BYTES:
                         if dry_run:
                             would_rotate.append(
                                 {
