@@ -27,7 +27,7 @@
             "Run ruff check and pytest"
           ],
           "verification": "ruff check backend/app/api/symbols.py && pytest tests/api/test_symbols.py -x --tb=short -q",
-          "passes": false
+          "passes": true
         },
         {
           "id": "1.2",
