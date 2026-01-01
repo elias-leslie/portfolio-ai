@@ -23,7 +23,7 @@ from ...services.maintenance_tracker import (
     get_all_metrics_summary,
     get_cleanup_trends,
 )
-from ...tasks.log_cleanup_tasks import _check_disk_space_impl
+from ...tasks.log_cleanup_tasks import check_disk_space_impl
 from ...tasks.maintenance_tasks import _get_database_size_impl
 from ..maintenance_types import (
     DatabaseSizeResponseDict,
@@ -101,7 +101,7 @@ async def get_disk_space() -> DiskSpaceResponseDict:
     """
     try:
         # Call implementation directly (no Celery, immediate response)
-        result = _check_disk_space_impl()
+        result = check_disk_space_impl()
         return cast(DiskSpaceResponseDict, result)
 
     except Exception as e:

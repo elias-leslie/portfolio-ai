@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
@@ -44,6 +45,32 @@ SYSLOG_PRIORITY_TO_LEVEL: dict[int, str] = {
 # Fetch limits
 MAX_LOG_LINES = 5000
 JOURNAL_FETCH_LIMIT = 10000
+
+# Valid 'since' patterns for journalctl (prevents command injection)
+VALID_SINCE_PATTERN = re.compile(
+    r"^(\d+\s+(minute|hour|day|week)s?\s+ago|today|yesterday)$", re.IGNORECASE
+)
+
+
+def validate_since_parameter(since: str) -> str:
+    """Validate 'since' parameter against safe patterns.
+
+    Args:
+        since: Time range string (e.g., "5 minutes ago", "today")
+
+    Returns:
+        The validated 'since' string
+
+    Raises:
+        HTTPException: If the pattern is invalid
+    """
+    if not VALID_SINCE_PATTERN.match(since.strip()):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid 'since' parameter: '{since}'. "
+            "Must be like '5 minutes ago', '1 hour ago', 'today', or 'yesterday'.",
+        )
+    return since.strip()
 
 
 class UnifiedLogEntry(BaseModel):
@@ -203,13 +230,16 @@ def fetch_journal_logs(
     if not units:
         return []
 
+    # Validate 'since' parameter to prevent command injection
+    validated_since = validate_since_parameter(since)
+
     cmd = [
         "journalctl",
         "--no-pager",
         "-o",
         "json",
         "--since",
-        since,
+        validated_since,
         "-n",
         str(fetch_limit),
     ]

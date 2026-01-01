@@ -90,7 +90,7 @@ def _calculate_cutoff_timestamp(
     return cutoff_time, cutoff_time.timestamp()
 
 
-def _check_disk_space_impl() -> dict[str, Any]:
+def check_disk_space_impl() -> dict[str, Any]:
     """Check disk space usage and alert if >85%.
 
     Returns:
@@ -480,7 +480,7 @@ def check_disk_space_task(self: Task) -> dict[str, int | str | float | list[dict
     logger.info("check_disk_space_started", task_id=task_id)
 
     try:
-        result = _check_disk_space_impl()
+        result = check_disk_space_impl()
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
 
         result_dict: dict[str, int | str | float | list[dict[str, Any]]] = {
