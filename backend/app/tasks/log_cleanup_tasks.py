@@ -607,22 +607,22 @@ def cleanup_temp_files_task(self: Task, hours: int = 24, dry_run: bool = False) 
 
         duration = _calculate_duration(start_time)
 
-        result: dict[str, Any] = {
-            "task_id": task_id,
-            "dry_run": dry_run,
-            "files_deleted": files_deleted,
-            "bytes_freed": bytes_freed,
-            "bytes_freed_mb": _bytes_to_mb(bytes_freed),
-            "retention_hours": hours,
-            "duration_seconds": round(duration, 2),
-            "success": True,
-        }
-        if dry_run and would_delete:
-            result["would_delete"] = would_delete
+        result = _build_cleanup_result(
+            task_id=task_id,
+            dry_run=dry_run,
+            duration_seconds=duration,
+            task_specific_fields={
+                "files_deleted": files_deleted,
+                "bytes_freed": bytes_freed,
+                "bytes_freed_mb": _bytes_to_mb(bytes_freed),
+                "retention_hours": hours,
+            },
+            would_action_list=would_delete if dry_run else None,
+        )
 
         logger.info(
             "cleanup_temp_files_completed",
-            **{k: v for k, v in result.items() if k != "would_delete"},
+            **{k: v for k, v in result.items() if k != "would_action_list"},
         )
         log_maintenance_complete(log_id, "cleanup_temp_files_task", True, result)
         return result
@@ -764,23 +764,23 @@ def cleanup_old_backups_task(
 
         duration = _calculate_duration(start_time)
 
-        result: dict[str, Any] = {
-            "task_id": task_id,
-            "dry_run": dry_run,
-            "files_deleted": files_deleted,
-            "bytes_freed": bytes_freed,
-            "bytes_freed_mb": _bytes_to_mb(bytes_freed),
-            "keep_count": keep_count,
-            "total_backups": len(backup_files),
-            "duration_seconds": round(duration, 2),
-            "success": True,
-        }
-        if dry_run and would_delete:
-            result["would_delete"] = would_delete
+        result = _build_cleanup_result(
+            task_id=task_id,
+            dry_run=dry_run,
+            duration_seconds=duration,
+            task_specific_fields={
+                "files_deleted": files_deleted,
+                "bytes_freed": bytes_freed,
+                "bytes_freed_mb": _bytes_to_mb(bytes_freed),
+                "keep_count": keep_count,
+                "total_backups": len(backup_files),
+            },
+            would_action_list=would_delete if dry_run else None,
+        )
 
         logger.info(
             "cleanup_old_backups_completed",
-            **{k: v for k, v in result.items() if k != "would_delete"},
+            **{k: v for k, v in result.items() if k != "would_action_list"},
         )
         log_maintenance_complete(log_id, "cleanup_old_backups_task", True, result)
         return result
@@ -902,23 +902,23 @@ def cleanup_old_models_task(
 
         duration = _calculate_duration(start_time)
 
-        result: dict[str, Any] = {
-            "task_id": task_id,
-            "dry_run": dry_run,
-            "files_deleted": files_deleted,
-            "bytes_freed": bytes_freed,
-            "bytes_freed_mb": _bytes_to_mb(bytes_freed),
-            "keep_count": keep_count,
-            "model_groups": len(model_groups),
-            "duration_seconds": round(duration, 2),
-            "success": True,
-        }
-        if dry_run and would_delete:
-            result["would_delete"] = would_delete
+        result = _build_cleanup_result(
+            task_id=task_id,
+            dry_run=dry_run,
+            duration_seconds=duration,
+            task_specific_fields={
+                "files_deleted": files_deleted,
+                "bytes_freed": bytes_freed,
+                "bytes_freed_mb": _bytes_to_mb(bytes_freed),
+                "keep_count": keep_count,
+                "model_groups": len(model_groups),
+            },
+            would_action_list=would_delete if dry_run else None,
+        )
 
         logger.info(
             "cleanup_old_models_completed",
-            **{k: v for k, v in result.items() if k != "would_delete"},
+            **{k: v for k, v in result.items() if k != "would_action_list"},
         )
         log_maintenance_complete(log_id, "cleanup_old_models_task", True, result)
         return result
@@ -1034,22 +1034,22 @@ def cleanup_solution_state_task(
 
         duration = _calculate_duration(start_time)
 
-        result: dict[str, Any] = {
-            "task_id": task_id,
-            "dry_run": dry_run,
-            "directories_deleted": directories_deleted,
-            "bytes_freed": bytes_freed,
-            "bytes_freed_mb": _bytes_to_mb(bytes_freed),
-            "keep_days": keep_days,
-            "duration_seconds": round(duration, 2),
-            "success": True,
-        }
-        if dry_run and would_delete:
-            result["would_delete"] = would_delete
+        result = _build_cleanup_result(
+            task_id=task_id,
+            dry_run=dry_run,
+            duration_seconds=duration,
+            task_specific_fields={
+                "directories_deleted": directories_deleted,
+                "bytes_freed": bytes_freed,
+                "bytes_freed_mb": _bytes_to_mb(bytes_freed),
+                "keep_days": keep_days,
+            },
+            would_action_list=would_delete if dry_run else None,
+        )
 
         logger.info(
             "cleanup_solution_state_completed",
-            **{k: v for k, v in result.items() if k != "would_delete"},
+            **{k: v for k, v in result.items() if k != "would_action_list"},
         )
         log_maintenance_complete(log_id, "cleanup_solution_state_task", True, result)
         return result

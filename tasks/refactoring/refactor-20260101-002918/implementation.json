@@ -164,7 +164,7 @@
             "Update cleanup_temp_files_task, cleanup_old_backups_task, cleanup_old_models_task, cleanup_solution_state_task",
             "Run pytest tests/unit/tasks -k cleanup --tb=short"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.2",
