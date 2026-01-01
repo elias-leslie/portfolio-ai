@@ -328,15 +328,9 @@ async def get_strategy(strategy_id: str) -> StrategyDetail:
         performance_history = []
         for row in perf_rows:
             # row is a tuple: (date, trades_30d, win_rate_30d, sharpe_ratio_30d, max_drawdown_30d, status)
-            date_val = row[0]
-            if isinstance(date_val, datetime):
-                date_iso = date_val.isoformat()
-            else:
-                date_iso = str(date_val)
-
             performance_history.append(
                 {
-                    "date": date_iso,
+                    "date": _safe_datetime_to_iso(row[0]),
                     "trades_30d": row[1],
                     "win_rate_30d": float(row[2]) if row[2] is not None else None,
                     "sharpe_ratio_30d": float(row[3]) if row[3] is not None else None,
@@ -376,11 +370,9 @@ async def get_strategy(strategy_id: str) -> StrategyDetail:
             else None,
             status=strategy.status,
             version=strategy.version,
-            created_at=strategy.created_at.isoformat(),
-            activation_date=strategy.activation_date.isoformat()
-            if strategy.activation_date
-            else None,
-            archive_date=strategy.archive_date.isoformat() if strategy.archive_date else None,
+            created_at=_safe_datetime_to_iso(strategy.created_at),
+            activation_date=_safe_datetime_to_iso(strategy.activation_date),
+            archive_date=_safe_datetime_to_iso(strategy.archive_date),
             archive_reason=strategy.archive_reason,
             performance_history=performance_history,
         )
@@ -643,11 +635,6 @@ async def get_strategy_signal(strategy_id: str) -> dict[str, Any]:
             ).fetchone()
 
         if result:
-            generated_at_obj = result[4]
-            generated_at_str = None
-            if generated_at_obj is not None and hasattr(generated_at_obj, "isoformat"):
-                generated_at_str = generated_at_obj.isoformat()
-
             return {
                 "strategy_id": strategy_id,
                 "symbol": strategy.symbol,
@@ -655,7 +642,7 @@ async def get_strategy_signal(strategy_id: str) -> dict[str, Any]:
                 "signal_strength": result[1],
                 "reasons": result[2] or [],
                 "market_data": result[3] or {},
-                "generated_at": generated_at_str,
+                "generated_at": _safe_datetime_to_iso(result[4]),
                 "source": "stored",
             }
 
@@ -790,12 +777,6 @@ async def list_strategy_seeds(
 
             seeds = []
             for row in rows:
-                created = row[6]
-                processed = row[7]
-                created_str = (
-                    created.isoformat() if isinstance(created, datetime) else str(created or "")
-                )
-                processed_str = processed.isoformat() if isinstance(processed, datetime) else None
                 seeds.append(
                     StrategySeedItem(
                         id=str(row[0]),
@@ -804,8 +785,8 @@ async def list_strategy_seeds(
                         confidence=float(row[3]) if row[3] is not None else 0.0,
                         status=str(row[4]),  # type: ignore[arg-type]
                         strategy_id=str(row[5]) if row[5] else None,
-                        created_at=created_str,
-                        processed_at=processed_str,
+                        created_at=_safe_datetime_to_iso(row[6]) or "",
+                        processed_at=_safe_datetime_to_iso(row[7]),
                     )
                 )
 
@@ -835,12 +816,6 @@ async def get_strategy_seed(seed_id: str) -> StrategySeedItem:
             if not row:
                 raise HTTPException(status_code=404, detail=f"Seed {seed_id} not found")
 
-            created = row[6]
-            processed = row[7]
-            created_str = (
-                created.isoformat() if isinstance(created, datetime) else str(created or "")
-            )
-            processed_str = processed.isoformat() if isinstance(processed, datetime) else None
             return StrategySeedItem(
                 id=str(row[0]),
                 symbol=str(row[1]),
@@ -848,8 +823,8 @@ async def get_strategy_seed(seed_id: str) -> StrategySeedItem:
                 confidence=float(row[3]) if row[3] is not None else 0.0,
                 status=str(row[4]),  # type: ignore[arg-type]
                 strategy_id=str(row[5]) if row[5] else None,
-                created_at=created_str,
-                processed_at=processed_str,
+                created_at=_safe_datetime_to_iso(row[6]) or "",
+                processed_at=_safe_datetime_to_iso(row[7]),
             )
 
     except HTTPException:
@@ -877,15 +852,11 @@ async def get_strategy_evolution(strategy_id: str) -> dict[str, Any]:
                 [strategy_id],
             ).fetchone()
             if seed_row:
-                seed_created = seed_row[3]
-                seed_created_str = (
-                    seed_created.isoformat() if isinstance(seed_created, datetime) else None
-                )
                 seed_info = {
                     "id": str(seed_row[0]),
                     "thesis": str(seed_row[1]),
                     "confidence": float(seed_row[2]) if seed_row[2] is not None else 0.0,
-                    "created_at": seed_created_str,
+                    "created_at": _safe_datetime_to_iso(seed_row[3]),
                 }
 
             # Get backtest runs for this strategy

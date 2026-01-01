@@ -899,8 +899,7 @@ def cleanup_old_models_task(
                     )
 
         # Store metric in maintenance_stats (only if not dry run)
-        if bytes_freed > 0 and not dry_run:
-            record_maintenance_metric("model_cleanup_bytes_freed", bytes_freed, "bytes")
+        _record_cleanup_metric("model_cleanup_bytes_freed", bytes_freed, dry_run)
 
         duration = _calculate_duration(start_time)
 
@@ -1034,8 +1033,7 @@ def cleanup_solution_state_task(
                 )
 
         # Store metric in maintenance_stats (only if not dry run)
-        if bytes_freed > 0 and not dry_run:
-            record_maintenance_metric("solution_state_cleanup_bytes_freed", bytes_freed, "bytes")
+        _record_cleanup_metric("solution_state_cleanup_bytes_freed", bytes_freed, dry_run)
 
         duration = _calculate_duration(start_time)
 
@@ -1189,8 +1187,7 @@ def cleanup_cache_directories_task(self: Task, dry_run: bool = False) -> dict[st
                 )
 
         # Store metric in maintenance_stats (only if not dry run)
-        if bytes_freed > 0 and not dry_run:
-            record_maintenance_metric("cache_cleanup_bytes_freed", bytes_freed, "bytes")
+        _record_cleanup_metric("cache_cleanup_bytes_freed", bytes_freed, dry_run)
 
         duration = _calculate_duration(start_time)
 

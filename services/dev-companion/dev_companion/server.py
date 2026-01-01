@@ -1000,14 +1000,7 @@ async def handle_roundtable_message(
 
             # Store response if not a pass
             if action != "pass":
-                await bridge.db.add_message(
-                    session_id=session_id,
-                    role="assistant",
-                    content=next_message,
-                    agent=next_agent,
-                )
-                await bridge.db.increment_message_count(session_id)
-                await bridge.db.add_participant(session_id, next_agent)
+                await _store_agent_message(bridge.db, session_id, next_message, next_agent)
 
             # If review resulted in correction, end (user got both perspectives)
             if is_review and action == "correct":
