@@ -344,7 +344,7 @@
             "Run verification"
           ],
           "verification": "ruff check backend/app/agents/base.py && pytest tests/agents/ -x --tb=short -q",
-          "passes": false
+          "passes": true
         }
       ]
     },
