@@ -24,6 +24,20 @@ MAX_LLM_TOKENS = 4096  # Max tokens for LLM response
 TOOL_RESULT_TRUNCATE = 10000  # Max chars to store for tool results
 RESULT_SUMMARY_LENGTH = 500  # Max chars for result summary
 
+
+def _get_completion_metadata(started_at: datetime) -> tuple[datetime, int]:
+    """Calculate completion time and duration.
+
+    Args:
+        started_at: When the operation started
+
+    Returns:
+        Tuple of (completed_at, duration_ms)
+    """
+    completed_at = datetime.now(UTC)
+    duration_ms = calculate_duration_ms(started_at, completed_at)
+    return completed_at, duration_ms
+
 if TYPE_CHECKING:
     from app.storage.facade import PortfolioStorage
 
@@ -201,8 +215,7 @@ class Agent(ABC):
         Returns:
             Completion result dict
         """
-        completed_at = datetime.now(UTC)
-        duration_ms = calculate_duration_ms(started_at, completed_at)
+        completed_at, duration_ms = _get_completion_metadata(started_at)
         duration_s = duration_ms / 1000.0
 
         logger.info(
@@ -298,8 +311,7 @@ class Agent(ABC):
         Returns:
             AgentRunResult with error status
         """
-        completed_at = datetime.now(UTC)
-        duration_ms = calculate_duration_ms(started_at, completed_at)
+        completed_at, duration_ms = _get_completion_metadata(started_at)
         error_msg = f"Unexpected stop reason: {stop_reason}"
 
         self._record_run_complete(
@@ -341,8 +353,7 @@ class Agent(ABC):
         Returns:
             AgentRunResult with max_iterations status
         """
-        completed_at = datetime.now(UTC)
-        duration_ms = calculate_duration_ms(started_at, completed_at)
+        completed_at, duration_ms = _get_completion_metadata(started_at)
 
         self._record_run_complete(
             run_id,
