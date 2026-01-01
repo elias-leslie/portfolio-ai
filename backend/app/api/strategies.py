@@ -608,11 +608,7 @@ async def get_strategy_signal(strategy_id: str) -> dict[str, Any]:
         Current signal with type, strength, reasons, and timestamp
     """
     try:
-        storage = get_strategy_storage()
-        strategy = storage.get_strategy_by_id(strategy_id)
-
-        if not strategy:
-            raise HTTPException(status_code=404, detail=f"Strategy {strategy_id} not found")
+        strategy = _get_strategy_or_404(strategy_id)
 
         # Check for stored signal from today
         conn_mgr = get_connection_manager()

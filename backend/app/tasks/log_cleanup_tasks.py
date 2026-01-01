@@ -484,7 +484,7 @@ def cleanup_old_logs_task(self: Task, days: int = 7, dry_run: bool = False) -> d
         if bytes_freed > 0 and not dry_run:
             record_maintenance_metric("log_cleanup_bytes_freed", bytes_freed, "bytes")
 
-        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        duration = _calculate_duration(start_time)
 
         result = _build_cleanup_result(
             task_id=task_id,
@@ -507,7 +507,7 @@ def cleanup_old_logs_task(self: Task, days: int = 7, dry_run: bool = False) -> d
         return result
 
     except Exception as e:
-        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        duration = _calculate_duration(start_time)
         logger.error(
             "cleanup_old_logs_failed",
             task_id=task_id,
