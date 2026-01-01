@@ -321,6 +321,7 @@ class StrategyStorage:
                 """,
                 (trades_count, win_rate, sharpe_ratio, strategy_id),
             )
+            conn.commit()
 
     def record_daily_performance(
         self,
@@ -390,6 +391,7 @@ class StrategyStorage:
                     notes,
                 ),
             )
+            conn.commit()
 
     def _ensure_symbol_exists(self, conn: Any, symbol: str) -> None:
         """Ensure symbol exists in symbols table.

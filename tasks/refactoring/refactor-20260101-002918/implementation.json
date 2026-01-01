@@ -25,7 +25,7 @@
             "Use %s placeholders with tuple parameters instead of f-string interpolation",
             "Run pytest tests/unit/strategies -x --tb=short to verify"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "1.2",
@@ -70,7 +70,7 @@
             "Update lines 755, 758, 764, 770-776 to use consistent %s placeholders",
             "Run pytest tests/unit/api -k strategies --tb=short to verify"
           ],
-          "passes": false
+          "passes": true
         }
       ]
     },
