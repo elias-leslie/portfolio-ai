@@ -549,9 +549,10 @@ def generate_daily_watchlist_report_task(
         ]
 
         # Find symbols removed in last 24 hours (from deletion_audit)
+        # Note: deletion_audit stores symbol in metadata JSONB, not as separate column
         removed_df = storage.query(
             """
-            SELECT table_name, record_data, deleted_at
+            SELECT metadata->>'symbol' as symbol, deleted_at
             FROM deletion_audit
             WHERE table_name = 'watchlist_items'
               AND deleted_at >= $1
@@ -559,19 +560,13 @@ def generate_daily_watchlist_report_task(
             """,
             [yesterday],
         )
-        symbols_removed = []
-        for row in removed_df.iter_rows(named=True):
-            record_data = (
-                json.loads(row["record_data"])
-                if isinstance(row["record_data"], str)
-                else row["record_data"]
-            )
-            symbols_removed.append(
-                {
-                    "symbol": record_data.get("symbol", "UNKNOWN"),
-                    "removed_at": row["deleted_at"].isoformat() if row["deleted_at"] else None,
-                }
-            )
+        symbols_removed = [
+            {
+                "symbol": row["symbol"] or "UNKNOWN",
+                "removed_at": row["deleted_at"].isoformat() if row["deleted_at"] else None,
+            }
+            for row in removed_df.iter_rows(named=True)
+        ]
 
         # Find significant score changes (>10 points) in last 24 hours
         score_changes_df = storage.query(

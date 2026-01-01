@@ -6,7 +6,6 @@ of watchlist activity (additions, removals, score changes).
 
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
@@ -31,9 +30,7 @@ class TestGenerateDailyWatchlistReport:
     """Tests for generate_daily_watchlist_report_task."""
 
     @patch("app.tasks.watchlist_discovery.PortfolioStorage")
-    def test_report_with_additions_and_removals(
-        self, mock_storage_class: MagicMock
-    ) -> None:
+    def test_report_with_additions_and_removals(self, mock_storage_class: MagicMock) -> None:
         """Test report generation with symbols added and removed."""
         mock_storage = MagicMock()
         mock_storage_class.return_value = mock_storage
@@ -51,12 +48,9 @@ class TestGenerateDailyWatchlistReport:
         added_df = pl.DataFrame(added_data)
 
         # Mock symbols removed (from deletion_audit)
+        # Note: query extracts metadata->>'symbol' as symbol
         removed_data = {
-            "table_name": ["watchlist_items", "watchlist_items"],
-            "record_data": [
-                json.dumps({"symbol": "AMD"}),
-                json.dumps({"symbol": "INTC"}),
-            ],
+            "symbol": ["AMD", "INTC"],
             "deleted_at": [now - timedelta(hours=18), now - timedelta(hours=10)],
         }
         removed_df = pl.DataFrame(removed_data)
@@ -131,9 +125,7 @@ class TestGenerateDailyWatchlistReport:
         assert result["score_changes_count"] == 0
 
     @patch("app.tasks.watchlist_discovery.PortfolioStorage")
-    def test_report_with_score_changes_only(
-        self, mock_storage_class: MagicMock
-    ) -> None:
+    def test_report_with_score_changes_only(self, mock_storage_class: MagicMock) -> None:
         """Test report generation with score changes but no adds/removes."""
         mock_storage = MagicMock()
         mock_storage_class.return_value = mock_storage

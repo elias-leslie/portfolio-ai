@@ -1,11 +1,14 @@
-"""Trailing slash normalization middleware.
+"""Trailing slash redirect fix middleware.
 
-Normalizes request paths to strip trailing slashes, ensuring endpoints work
-regardless of whether the client includes a trailing slash or not.
+Fixes FastAPI's redirect_slashes behavior which sends absolute URLs.
+When FastAPI sends a 307 redirect with an absolute URL like http://127.0.0.1:8000/api/...,
+browsers following through a proxy (like Next.js rewrites) end up bypassing the proxy.
 
-This replaces nginx's implicit trailing slash handling that was lost when
-moving to Cloudflare Tunnel.
+This middleware intercepts those redirects and converts the Location header to a
+relative path, ensuring the browser stays within the proxy.
 """
+
+from urllib.parse import urlparse
 
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
@@ -13,23 +16,35 @@ from starlette.responses import Response
 
 
 class TrailingSlashMiddleware(BaseHTTPMiddleware):
-    """Middleware to strip trailing slashes from request paths.
+    """Middleware to fix absolute URLs in redirect responses.
 
-    FastAPI routes are inconsistent - some use "" and some use "/".
-    This middleware normalizes by stripping trailing slashes so both work.
+    FastAPI's redirect_slashes=True sends 307 redirects with absolute URLs
+    including the backend's host (e.g., http://127.0.0.1:8000/api/watchlist/).
+    When accessed through a proxy (Next.js rewrites, nginx), this causes the
+    browser to bypass the proxy.
 
-    Exceptions:
-    - Root path "/" is not modified
-    - Paths that would become empty are not modified
+    This middleware converts absolute redirect URLs to relative paths.
     """
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        # Get the path
-        path = request.scope.get("path", "")
+        response = await call_next(request)
 
-        # Strip trailing slash if path is not root and ends with /
-        if path != "/" and path.endswith("/"):
-            # Modify the scope's path
-            request.scope["path"] = path.rstrip("/")
+        # Only process redirect responses
+        if response.status_code in (301, 302, 307, 308):
+            location = response.headers.get("location")
+            if location:
+                parsed = urlparse(location)
+                # If it's an absolute URL to localhost/127.0.0.1, convert to relative
+                if parsed.netloc and ("localhost" in parsed.netloc or "127.0.0.1" in parsed.netloc):
+                    # Build relative URL (path + query + fragment)
+                    relative_url = parsed.path
+                    if parsed.query:
+                        relative_url += "?" + parsed.query
+                    if parsed.fragment:
+                        relative_url += "#" + parsed.fragment
 
-        return await call_next(request)
+                    # Create new response with fixed location
+                    # MutableHeaders approach for Starlette
+                    response.headers["location"] = relative_url
+
+        return response

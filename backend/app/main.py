@@ -61,6 +61,7 @@ from app.api.market import router as market_router
 
 # vision_content_router, vision_goals_router removed - migrated to SummitFlow (portfolio-ai-5rz)
 from app.logging_config import SyslogPrefixFormatter, configure_logging, get_logger
+from app.middleware.trailing_slash import TrailingSlashMiddleware
 from app.storage import get_storage
 from app.storage.credential_loader import load_credentials_from_database
 
@@ -138,7 +139,8 @@ app = FastAPI(
     description="AI-led investment intelligence platform with portfolio analytics and autonomous agents",
     version="1.0.0",
     lifespan=lifespan,
-    # Disable automatic trailing slash redirects to avoid redirect loops with proxy
+    # FastAPI's redirect_slashes sends absolute URLs which bypass proxies.
+    # TrailingSlashMiddleware fixes the Location header to use relative URLs.
     redirect_slashes=True,
 )
 
@@ -163,6 +165,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Fix redirect Location headers to use relative URLs (for proxy compatibility)
+# FastAPI's redirect_slashes sends absolute URLs like http://127.0.0.1:8000/...
+# which bypass the Next.js proxy when accessed through Cloudflare tunnels
+app.add_middleware(TrailingSlashMiddleware)
 
 # Add request ID middleware for structured logging
 app.add_middleware(RequestIDMiddleware)
