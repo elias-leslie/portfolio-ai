@@ -126,7 +126,7 @@
             "Remove the now-unused helper function",
             "Run pytest tests/unit/tasks -k reference --tb=short"
           ],
-          "passes": false
+          "passes": true
         }
       ]
     },

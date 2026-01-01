@@ -17,14 +17,16 @@ from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.storage.connection import get_connection_manager
 from app.storage.credential_loader import load_credentials_from_database
-from app.strategies.storage import get_strategy_storage
+from app.strategies.storage import (
+    StrategyStorage,
+    get_strategy_storage,
+)
 from app.utils.rate_limiter import check_daily_limit, increment_daily_count
 
 logger = get_logger(__name__)
 
 # Strategy performance thresholds
 PERFORMANCE_RATIO_THRESHOLD = 0.7  # Archive if performance < 70% of expected
-DEFAULT_ROLLING_WINDOW_DAYS = 30  # Rolling window for metrics calculation
 ERROR_MESSAGE_TRUNCATE = 100  # Truncate error messages to prevent log bloat
 
 # Strategy limits
@@ -34,7 +36,6 @@ MAX_EVOLUTION_STRATEGIES = 5  # Maximum strategies to evolve per week
 
 # Strategy thresholds
 MIN_SHARPE_FOR_PROMOTION = 1.0  # Minimum expected Sharpe to auto-promote from testing
-EVOLUTION_PERFORMANCE_THRESHOLD = 0.9  # Performance ratio threshold for strategy evolution
 
 
 def _run_strategy_workflow(
@@ -126,7 +127,7 @@ def _should_archive_strategy(performance_ratio: float, days_since_activation: in
     """
     return (
         performance_ratio < PERFORMANCE_RATIO_THRESHOLD
-        and days_since_activation > DEFAULT_ROLLING_WINDOW_DAYS
+        and days_since_activation > StrategyStorage.PERFORMANCE_WINDOW_DAYS
     )
 
 

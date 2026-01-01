@@ -397,18 +397,18 @@ def rotate_logs_task(self: Task, dry_run: bool = False) -> dict[str, int | str |
 
         duration = _calculate_duration(start_time)
 
-        result: dict[str, Any] = {
-            "task_id": task_id,
-            "dry_run": dry_run,
-            "files_rotated": files_rotated,
-            "duration_seconds": round(duration, 2),
-            "success": True,
-        }
-        if dry_run and would_rotate:
-            result["would_rotate"] = would_rotate
+        result = _build_cleanup_result(
+            task_id=task_id,
+            dry_run=dry_run,
+            duration_seconds=duration,
+            task_specific_fields={
+                "files_rotated": files_rotated,
+            },
+            would_action_list=would_rotate if dry_run else None,
+        )
 
         logger.info(
-            "rotate_logs_completed", **{k: v for k, v in result.items() if k != "would_rotate"}
+            "rotate_logs_completed", **{k: v for k, v in result.items() if k != "would_action_list"}
         )
         log_maintenance_complete(log_id, "rotate_logs_task", True, result)
         return result

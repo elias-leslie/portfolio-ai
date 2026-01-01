@@ -7,12 +7,12 @@ from __future__ import annotations
 
 import json
 import logging
-import uuid
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Literal
 
 from app.storage.connection import get_connection_manager
+from app.utils.db_helpers import generate_uuid, rows_to_dicts
 from app.utils.json_helpers import json_serializer
 
 from .models import (
@@ -77,7 +77,7 @@ class StrategyStorage:
         Returns:
             Strategy ID (UUID string)
         """
-        strategy_id = str(uuid.uuid4())
+        strategy_id = generate_uuid()
 
         # Generate name: {symbol}_{type}_{version}
         name = self._generate_strategy_name(symbol, strategy_type)
