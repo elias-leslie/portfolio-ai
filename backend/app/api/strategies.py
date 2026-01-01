@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 
 from app.agents.workflows.strategy_research_workflow import strategy_research_workflow
 from app.logging_config import get_logger
+from app.storage.connection import get_connection_manager
 from app.strategies.performance_utils import calculate_performance_status
 from app.strategies.storage import get_strategy_storage
 from app.tasks.strategy_monitoring_tasks import weekly_strategy_generation

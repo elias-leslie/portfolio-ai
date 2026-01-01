@@ -742,9 +742,15 @@ class StrategyStorage:
                     "id": str(row["id"]),
                     "start_date": row["start_date"],
                     "end_date": row["end_date"],
-                    "sharpe_ratio": float(row["sharpe_ratio"]) if row["sharpe_ratio"] is not None else None,
-                    "total_return_pct": float(row["total_return_pct"]) if row["total_return_pct"] is not None else None,
-                    "max_drawdown_pct": float(row["max_drawdown_pct"]) if row["max_drawdown_pct"] is not None else None,
+                    "sharpe_ratio": float(row["sharpe_ratio"])
+                    if row["sharpe_ratio"] is not None
+                    else None,
+                    "total_return_pct": float(row["total_return_pct"])
+                    if row["total_return_pct"] is not None
+                    else None,
+                    "max_drawdown_pct": float(row["max_drawdown_pct"])
+                    if row["max_drawdown_pct"] is not None
+                    else None,
                     "win_rate": float(row["win_rate"]) if row["win_rate"] is not None else None,
                     "num_trades": int(row["num_trades"]) if row["num_trades"] else 0,
                     "status": str(row["status"]),
@@ -783,7 +789,9 @@ class StrategyStorage:
                 {
                     "id": str(row["id"]),
                     "signal_type": str(row["signal_type"]),
-                    "signal_strength": int(row["signal_strength"]) if row["signal_strength"] else None,
+                    "signal_strength": int(row["signal_strength"])
+                    if row["signal_strength"]
+                    else None,
                     "signal_date": row["signal_date"],
                     "reasons": row["reasons"] if row["reasons"] else [],
                     "market_data": row["market_data"] if row["market_data"] else {},
@@ -823,9 +831,15 @@ class StrategyStorage:
                 {
                     "id": str(row["idea_id"]),
                     "symbol": str(row["symbol"]),
-                    "entry_price": float(row["entry_price"]) if row["entry_price"] is not None else None,
-                    "exit_price": float(row["exit_price"]) if row["exit_price"] is not None else None,
-                    "return_pct": float(row["current_return_pct"]) if row["current_return_pct"] is not None else None,
+                    "entry_price": float(row["entry_price"])
+                    if row["entry_price"] is not None
+                    else None,
+                    "exit_price": float(row["exit_price"])
+                    if row["exit_price"] is not None
+                    else None,
+                    "return_pct": float(row["current_return_pct"])
+                    if row["current_return_pct"] is not None
+                    else None,
                     "status": str(row["status"]),
                     "entry_date": row["entry_date"],
                 }
@@ -962,9 +976,7 @@ class StrategyStorage:
 
             return row if row else None
 
-    def get_performance_history(
-        self, strategy_id: str, limit: int = 30
-    ) -> list[dict[str, Any]]:
+    def get_performance_history(self, strategy_id: str, limit: int = 30) -> list[dict[str, Any]]:
         """Get performance history for a strategy.
 
         Args:

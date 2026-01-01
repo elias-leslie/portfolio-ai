@@ -435,8 +435,6 @@ def parse_valuation_metrics(self: Task) -> dict[str, int | str]:
         }
 
 
-
-
 @celery_app.task(
     bind=True,
     name="refresh_yfinance_reference_data",
