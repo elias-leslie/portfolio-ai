@@ -540,7 +540,7 @@ class StrategyStorage:
         """
         with self.conn.connection() as conn:
             return conn.execute(
-                f"""
+                """
                 WITH latest_scores AS (
                     SELECT DISTINCT ON (wi.symbol)
                         wi.symbol,
@@ -559,9 +559,9 @@ class StrategyStorage:
                     FROM strategy_definitions sd
                     JOIN strategy_performance sp ON sd.id = sp.strategy_id
                     WHERE sd.status = 'active'
-                      AND sp.date >= CURRENT_DATE - INTERVAL '{self.PERFORMANCE_WINDOW_DAYS} days'
+                      AND sp.date >= CURRENT_DATE - INTERVAL '%s days'
                     GROUP BY sd.symbol
-                    HAVING AVG(sp.sharpe_ratio_30d) < {self.UNDERPERFORMING_SHARPE_THRESHOLD}
+                    HAVING AVG(sp.sharpe_ratio_30d) < %s
                 )
                 SELECT ls.symbol, ls.overall_score,
                        CASE
@@ -576,7 +576,11 @@ class StrategyStorage:
                 ORDER BY ls.overall_score DESC NULLS LAST
                 LIMIT %s
                 """,
-                (max_symbols * 2,),  # Fetch extra in case some fail
+                (
+                    self.PERFORMANCE_WINDOW_DAYS,
+                    self.UNDERPERFORMING_SHARPE_THRESHOLD,
+                    max_symbols * 2,
+                ),  # Fetch extra in case some fail
             ).fetchall()
 
     def get_underperforming_strategies(
@@ -598,7 +602,7 @@ class StrategyStorage:
         )
         with self.conn.connection() as conn:
             return conn.execute(
-                f"""
+                """
                 SELECT DISTINCT sd.id, sd.symbol, sd.name,
                        sd.expected_sharpe,
                        AVG(sp.sharpe_ratio_30d) as actual_sharpe,
@@ -606,14 +610,14 @@ class StrategyStorage:
                 FROM strategy_definitions sd
                 JOIN strategy_performance sp ON sd.id = sp.strategy_id
                 WHERE sd.status = 'active'
-                  AND sp.date >= CURRENT_DATE - INTERVAL '{self.PERFORMANCE_WINDOW_DAYS} days'
+                  AND sp.date >= CURRENT_DATE - INTERVAL '%s days'
                   AND sd.expected_sharpe > 0
                 GROUP BY sd.id, sd.symbol, sd.name, sd.expected_sharpe
                 HAVING AVG(sp.sharpe_ratio_30d) / NULLIF(sd.expected_sharpe, 0) < %s
                 ORDER BY performance_ratio ASC
                 LIMIT %s
                 """,
-                (threshold, limit),
+                (self.PERFORMANCE_WINDOW_DAYS, threshold, limit),
             ).fetchall()
 
     def get_strategy_trades(
