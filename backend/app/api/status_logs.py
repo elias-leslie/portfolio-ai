@@ -101,7 +101,7 @@ class UnifiedLogsResponse(BaseModel):
     )
 
 
-def _extract_timestamp(entry: dict) -> datetime:
+def _extract_journald_timestamp(entry: dict) -> datetime:
     """Extract timestamp from journald entry (microsecond precision)."""
     timestamp_us = int(entry.get("__REALTIME_TIMESTAMP", 0))
     return datetime.fromtimestamp(timestamp_us / 1000000, tz=UTC)
@@ -183,7 +183,7 @@ def parse_journal_output(output: str, service_units: dict[str, str]) -> list[Uni
         try:
             entry = json.loads(line)
 
-            timestamp = _extract_timestamp(entry)
+            timestamp = _extract_journald_timestamp(entry)
             service_name = _map_service_name(entry, service_units)
             message = _extract_message(entry)
 

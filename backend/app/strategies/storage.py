@@ -1000,6 +1000,60 @@ class StrategyStorage:
             rows = result.fetchall()
             return rows_to_dicts(rows, conn)
 
+    def store_signal(self, signal_data: dict[str, Any]) -> str | None:
+        """Store a generated signal in the database.
+
+        Args:
+            signal_data: Signal data containing strategy_id, symbol, signal_type, etc.
+
+        Returns:
+            Signal ID (UUID string) or None if storage failed
+        """
+        if "error" in signal_data:
+            return None
+
+        try:
+            with self.conn.connection() as conn:
+                # Ensure symbol exists in symbols table (FK constraint)
+                conn.execute(
+                    """
+                    INSERT INTO symbols (symbol, security_type, created_at)
+                    VALUES (%s, 'equity', NOW())
+                    ON CONFLICT (symbol) DO NOTHING
+                    """,
+                    (signal_data["symbol"],),
+                )
+                result = conn.execute(
+                    """
+                    INSERT INTO strategy_signals (
+                        strategy_id, symbol, signal_date, signal_type,
+                        signal_strength, reasons, market_data
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (strategy_id, signal_date) DO UPDATE SET
+                        signal_type = EXCLUDED.signal_type,
+                        signal_strength = EXCLUDED.signal_strength,
+                        reasons = EXCLUDED.reasons,
+                        market_data = EXCLUDED.market_data,
+                        created_at = NOW()
+                    RETURNING id
+                    """,
+                    (
+                        signal_data["strategy_id"],
+                        signal_data["symbol"],
+                        str(date.today()),
+                        signal_data["signal_type"],
+                        signal_data["signal_strength"],
+                        signal_data["reasons"],
+                        json.dumps(signal_data["market_data"]),
+                    ),
+                ).fetchone()
+                conn.commit()
+                return str(result[0]) if result else None
+        except Exception:
+            logger.exception("Failed to store signal")
+            return None
+
 
 # Singleton instance
 _storage_instance: StrategyStorage | None = None

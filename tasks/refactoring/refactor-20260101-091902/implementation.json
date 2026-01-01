@@ -1,0 +1,303 @@
+{
+  "meta": {
+    "title": "Full Codebase Refactor Session",
+    "created": "2026-01-01",
+    "session_id": "refactor-20260101-091902",
+    "baseline_complexity": 1148.44,
+    "targets_analyzed": 10
+  },
+  "phases": [
+    {
+      "id": 1,
+      "name": "Critical Bugs & Layer Violations",
+      "goal": "Fix runtime issues and move raw SQL to proper layers",
+      "tasks": [
+        {
+          "id": "1.1",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Move _dual_write_metrics from reference_tasks.py to ReferenceRepository",
+          "files_affected": [
+            "backend/app/tasks/reference_tasks.py",
+            "backend/app/repositories/reference_repository.py"
+          ],
+          "steps": [
+            "Read reference_tasks.py lines 35-78 (_dual_write_metrics helper with raw SQL)",
+            "Add upsert_dual_write_metrics(table, metrics_dict, symbol) method to ReferenceRepository",
+            "Update _update_valuation_metrics (line 272) to use repository method",
+            "Update refresh_financial_health_scores (line 763) to use repository method",
+            "Remove _dual_write_metrics helper from reference_tasks.py",
+            "Run pytest tests/unit/tasks -k reference --tb=short"
+          ],
+          "passes": false
+        },
+        {
+          "id": "1.2",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Fix database connection handling in strategies.py generate_strategy_signal",
+          "files_affected": [
+            "backend/app/api/strategies.py",
+            "backend/app/strategies/storage.py"
+          ],
+          "steps": [
+            "Read strategies.py lines 634-639 (direct connection management in API layer)",
+            "Add store_signal(signal_data) method to StrategyStorage that handles its own connection/commit",
+            "Update generate_strategy_signal endpoint to call storage.store_signal()",
+            "Remove get_connection_manager import from strategies.py",
+            "Run pytest tests/unit/api -k strategies --tb=short"
+          ],
+          "passes": false
+        },
+        {
+          "id": "1.3",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Rename confusing _extract_timestamp functions to be more specific",
+          "files_affected": [
+            "backend/app/api/market.py",
+            "backend/app/api/status_logs.py"
+          ],
+          "steps": [
+            "Read market.py line 136 (_extract_timestamp extracts from PriceData)",
+            "Rename to _extract_price_timestamp in market.py",
+            "Read status_logs.py line 104 (_extract_timestamp extracts from journald entry)",
+            "Rename to _extract_journald_timestamp in status_logs.py",
+            "Update all call sites in each file",
+            "Run pytest tests/unit/api --tb=short -q"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "DRY Violations & Pattern Consolidation",
+      "goal": "Extract shared helpers and consolidate duplicate patterns",
+      "tasks": [
+        {
+          "id": "2.1",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Promote _get_watchlist_symbols_or_early_return to shared task utility",
+          "files_affected": [
+            "backend/app/tasks/reference_tasks.py",
+            "backend/app/utils/task_helpers.py"
+          ],
+          "steps": [
+            "Create backend/app/utils/task_helpers.py if it doesn't exist",
+            "Move _get_watchlist_symbols_or_early_return from reference_tasks.py (lines 81-116)",
+            "Rename to get_watchlist_symbols_or_early_return (public function)",
+            "Update imports in reference_tasks.py",
+            "Run pytest tests/unit/tasks -k reference --tb=short"
+          ],
+          "passes": false
+        },
+        {
+          "id": "2.2",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Share cleanup helpers between log_cleanup_tasks and maintenance_tasks",
+          "files_affected": [
+            "backend/app/tasks/log_cleanup_tasks.py",
+            "backend/app/tasks/maintenance_tasks.py",
+            "backend/app/utils/task_helpers.py"
+          ],
+          "steps": [
+            "Move _build_error_result, _calculate_duration from log_cleanup_tasks.py to task_helpers.py",
+            "Update log_cleanup_tasks.py to import from task_helpers",
+            "Update maintenance_tasks.py to use shared helpers instead of inline patterns",
+            "Verify all cleanup tasks still work",
+            "Run pytest tests/unit/tasks -k 'cleanup or maintenance' --tb=short"
+          ],
+          "passes": false
+        },
+        {
+          "id": "2.3",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Extract _substitute_path_params from sitemap_service to utils",
+          "files_affected": [
+            "backend/app/services/sitemap_service.py",
+            "backend/app/utils/url_helpers.py"
+          ],
+          "steps": [
+            "Create backend/app/utils/url_helpers.py",
+            "Move _substitute_path_params from sitemap_service.py (lines 41-51)",
+            "Rename to substitute_path_params (public function)",
+            "Update sitemap_service.py to import from utils",
+            "Run pytest tests/unit/services -k sitemap --tb=short"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Schedule Optimization",
+      "goal": "Stagger task collisions to prevent resource contention",
+      "tasks": [
+        {
+          "id": "3.1",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Stagger 04:00 UTC task collision (3 tasks)",
+          "files_affected": [
+            "backend/app/celery_schedules.py"
+          ],
+          "steps": [
+            "Find evaluate-strategy-performance, cleanup-sitemap-history-daily, refresh-yfinance-reference at 04:00",
+            "Stagger: evaluate at 04:00, cleanup at 04:02, refresh at 04:04",
+            "Add comments explaining staggering rationale",
+            "No tests needed - configuration only"
+          ],
+          "passes": false
+        },
+        {
+          "id": "3.2",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Stagger Sunday 06:00 UTC collision (3 weekly tasks)",
+          "files_affected": [
+            "backend/app/celery_schedules.py"
+          ],
+          "steps": [
+            "Find weekly-strategy-evolution, refresh-sec-cik-cache-weekly, ingest-fundamental-data-weekly",
+            "Stagger: evolution at 06:00, sec-cik at 06:05, fundamental at 06:10",
+            "Add comments explaining staggering",
+            "No tests needed - configuration only"
+          ],
+          "passes": false
+        },
+        {
+          "id": "3.3",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Stagger remaining daily collisions (08:00, 21:45)",
+          "files_affected": [
+            "backend/app/celery_schedules.py"
+          ],
+          "steps": [
+            "Find tasks at 08:00: discover-watchlist-candidates-daily, check-sitemap-health-morning",
+            "Stagger to 08:00 and 08:02",
+            "Find tasks at 21:45: auto-paper-trade-from-signals, update-fear-greed-after-close",
+            "Stagger to 21:45 and 21:47",
+            "Add comments",
+            "No tests needed"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Constant Extraction",
+      "goal": "Extract magic numbers and compile regex patterns",
+      "tasks": [
+        {
+          "id": "4.1",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Compile regex patterns in sitemap_service.py",
+          "files_affected": [
+            "backend/app/services/sitemap_service.py"
+          ],
+          "steps": [
+            "Find inline regex patterns at lines 51, 437-438, 456, 584, 590, 628, 637",
+            "Add module-level compiled patterns: PATH_PARAM_PATTERN, HTML_TITLE_PATTERN, HREF_PATTERN, etc.",
+            "Update functions to use compiled patterns",
+            "Run pytest tests/unit/services -k sitemap --tb=short"
+          ],
+          "passes": false
+        },
+        {
+          "id": "4.2",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Extract status_map to performance_utils.py",
+          "files_affected": [
+            "backend/app/api/strategies.py",
+            "backend/app/strategies/performance_utils.py"
+          ],
+          "steps": [
+            "Read strategies.py lines 536-542 (status_map dictionary)",
+            "Move to performance_utils.py as PERFORMANCE_STATUS_MAP constant",
+            "Add map_performance_flag_to_status(flag) helper function",
+            "Update get_strategy_performance to use the helper",
+            "Run pytest tests/unit/strategies --tb=short"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Error Handling Cleanup",
+      "goal": "Remove redundant patterns and standardize error handling",
+      "tasks": [
+        {
+          "id": "5.1",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Remove redundant 'except HTTPException: raise' blocks in strategies.py",
+          "files_affected": [
+            "backend/app/api/strategies.py"
+          ],
+          "steps": [
+            "Find 7 occurrences of 'except HTTPException: raise' pattern",
+            "Remove all - HTTPException propagates automatically in FastAPI",
+            "Ensure each try block still has appropriate exception handling",
+            "Run pytest tests/unit/api -k strategies --tb=short"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Final Verification",
+      "goal": "Run full test suite and verify all changes",
+      "tasks": [
+        {
+          "id": "6.1",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Run full backend test suite",
+          "files_affected": [],
+          "steps": [
+            "cd backend && timeout 120 .venv/bin/pytest tests/ -x --tb=short",
+            "Document any pre-existing failures",
+            "Verify all changed modules pass"
+          ],
+          "passes": false
+        },
+        {
+          "id": "6.2",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": false,
+          "description": "Run frontend build verification",
+          "files_affected": [],
+          "steps": [
+            "cd frontend && npm run build",
+            "Verify no TypeScript errors"
+          ],
+          "passes": false
+        }
+      ]
+    }
+  ]
+}

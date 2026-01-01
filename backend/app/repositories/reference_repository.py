@@ -347,3 +347,49 @@ class ReferenceRepository:
                 [symbol, as_of_date, payload, source],
             )
             conn.commit()
+
+    def upsert_dual_write_metrics(
+        self,
+        symbol: str,
+        as_of_date: dt.date | Any,
+        base_table_update_sql: str,
+        base_table_params: list[Any],
+        metrics_table: str,
+        metrics_columns: list[str],
+        metrics_values: list[Any],
+        conflict_keys: list[str],
+    ) -> None:
+        """Write metrics to both reference_cache and a dedicated metrics table.
+
+        This pattern is used for valuation metrics, financial health scores, etc.
+        where we want both the cached payload + structured metrics columns AND
+        a dedicated historical table for efficient queries.
+
+        Args:
+            symbol: Stock symbol
+            as_of_date: Date for the metrics record
+            base_table_update_sql: SQL to update reference_cache
+            base_table_params: Parameters for base table update
+            metrics_table: Name of dedicated metrics table
+            metrics_columns: Column names for metrics table (excluding symbol, as_of_date)
+            metrics_values: Values for metrics columns
+            conflict_keys: Columns for ON CONFLICT clause
+        """
+        with self.storage.connection() as conn:
+            # Update reference_cache (base table)
+            conn.execute(base_table_update_sql, base_table_params)
+
+            # Build metrics table INSERT with ON CONFLICT
+            all_columns = ["symbol", "as_of_date", *metrics_columns]
+            placeholders = ", ".join(["%s"] * len(all_columns))
+            update_set = ", ".join(f"{col} = EXCLUDED.{col}" for col in metrics_columns)
+            update_set += ", updated_at = NOW()"
+            conflict_clause = ", ".join(conflict_keys)
+
+            insert_sql = f"""
+                INSERT INTO {metrics_table} ({", ".join(all_columns)})
+                VALUES ({placeholders})
+                ON CONFLICT ({conflict_clause}) DO UPDATE SET {update_set}
+            """
+            conn.execute(insert_sql, [symbol, as_of_date, *metrics_values])
+            conn.commit()

@@ -133,7 +133,7 @@ def _extract_price(data: Any | None) -> float | None:
     return data.price if data else None
 
 
-def _extract_timestamp(data: Any | None) -> str | None:
+def _extract_price_timestamp(data: Any | None) -> str | None:
     """Extract timestamp from PriceData object, returning None if data is None."""
     return data.cached_at.isoformat() if data else None
 
@@ -423,20 +423,20 @@ async def get_market_conditions(request: Request) -> MarketConditionsResponse:
         sp500={
             "price": _extract_price(market_data.sp500_data),
             "change_pct": None,  # Would need historical data
-            "last_updated": _extract_timestamp(market_data.sp500_data),
+            "last_updated": _extract_price_timestamp(market_data.sp500_data),
         },
         vix={
             "price": _extract_price(market_data.vix_data),
             "level": None,
-            "last_updated": _extract_timestamp(market_data.vix_data),
+            "last_updated": _extract_price_timestamp(market_data.vix_data),
         },
         tnx={
             "yield": _extract_price(market_data.tnx_data),
-            "last_updated": _extract_timestamp(market_data.tnx_data),
+            "last_updated": _extract_price_timestamp(market_data.tnx_data),
         },
         dxy={
             "price": _extract_price(market_data.dxy_data),
-            "last_updated": _extract_timestamp(market_data.dxy_data),
+            "last_updated": _extract_price_timestamp(market_data.dxy_data),
         },
         health=health_score,
     )
