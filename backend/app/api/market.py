@@ -160,6 +160,38 @@ class OptionsActivityData(TypedDict):
     last_updated: str
 
 
+def _validate_and_build_options_activity(options_data_raw: Any) -> OptionsActivityMetrics | None:
+    """Validate raw options data and build OptionsActivityMetrics.
+
+    Args:
+        options_data_raw: Raw options data from get_options_activity_metrics
+
+    Returns:
+        OptionsActivityMetrics if data is valid, None otherwise
+    """
+    if not options_data_raw:
+        return None
+
+    # Cast to our TypedDict for proper type checking
+    options_data: OptionsActivityData = cast(OptionsActivityData, options_data_raw)
+
+    # Type narrowing with validation (get_options_activity_metrics already validates types)
+    near_term = options_data["near_term_pct"]
+    concentration = options_data["concentration_pct"]
+
+    if not isinstance(near_term, (int, float)) or not isinstance(concentration, (int, float)):
+        return None
+
+    return OptionsActivityMetrics(
+        near_term_pct=float(near_term),
+        near_term_signal=str(options_data["near_term_signal"]),
+        concentration_pct=float(concentration),
+        concentration_signal=str(options_data["concentration_signal"]),
+        top_sectors=options_data["top_sectors"],
+        last_updated=str(options_data["last_updated"]),
+    )
+
+
 @dataclass
 class CoreMarketData:
     """Core market indicators fetched from price service."""
@@ -397,23 +429,7 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
     )
 
     # Get Options Activity metrics from options_market_metrics table
-    options_activity = None
-    options_data_raw = get_options_activity_metrics(storage)
-    if options_data_raw:
-        # Cast to our TypedDict for proper type checking
-        options_data: OptionsActivityData = cast(OptionsActivityData, options_data_raw)
-        # Type narrowing with validation (get_options_activity_metrics already validates types)
-        near_term = options_data["near_term_pct"]
-        concentration = options_data["concentration_pct"]
-        if isinstance(near_term, (int, float)) and isinstance(concentration, (int, float)):
-            options_activity = OptionsActivityMetrics(
-                near_term_pct=float(near_term),
-                near_term_signal=str(options_data["near_term_signal"]),
-                concentration_pct=float(concentration),
-                concentration_signal=str(options_data["concentration_signal"]),
-                top_sectors=options_data["top_sectors"],
-                last_updated=str(options_data["last_updated"]),
-            )
+    options_activity = _validate_and_build_options_activity(get_options_activity_metrics(storage))
 
     # Build response
     return MarketIntelligenceResponse(
