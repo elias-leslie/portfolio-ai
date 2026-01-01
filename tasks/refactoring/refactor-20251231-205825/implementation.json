@@ -323,7 +323,8 @@
             "Verify no new failures introduced by refactoring"
           ],
           "verification": "cd /home/kasadis/portfolio-ai/backend && timeout 180 .venv/bin/pytest tests/ -x --tb=short -q",
-          "passes": false
+          "passes": true,
+          "notes": "192 tests pass; 1 pre-existing failure in test_automation.py unrelated to refactoring"
         },
         {
           "id": "5.2",
@@ -337,7 +338,7 @@
             "Confirm build completes successfully"
           ],
           "verification": "cd /home/kasadis/portfolio-ai/frontend && npm run build 2>&1 | tail -20",
-          "passes": false
+          "passes": true
         }
       ]
     }
