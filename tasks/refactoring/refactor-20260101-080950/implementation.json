@@ -71,7 +71,7 @@
             "Update get_strategy endpoint to call storage method",
             "Run pytest tests/unit/strategies -x --tb=short"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "2.2",
