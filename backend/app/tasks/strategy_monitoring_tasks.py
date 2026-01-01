@@ -21,6 +21,11 @@ from app.strategies.storage import (
     StrategyStorage,
     get_strategy_storage,
 )
+from app.tasks.types import (
+    StrategyMonitoringResultDict,
+    build_strategy_failure,
+    build_strategy_success,
+)
 from app.utils.rate_limiter import check_daily_limit, increment_daily_count
 
 logger = get_logger(__name__)
@@ -334,7 +339,7 @@ def _evaluate_single_strategy(
 
 
 @celery_app.task(name="app.tasks.strategy_monitoring_tasks.evaluate_strategy_performance")
-def evaluate_strategy_performance() -> dict[str, Any]:
+def evaluate_strategy_performance() -> StrategyMonitoringResultDict:
     """Evaluate all active strategies and archive underperformers.
 
     Schedule: Daily at 04:00 UTC (after market data updated)
@@ -360,16 +365,11 @@ def evaluate_strategy_performance() -> dict[str, Any]:
 
             if not active_strategies:
                 logger.info("No active strategies to evaluate")
-                return {
-                    "status": "completed",
-                    "strategies_evaluated": 0,
-                    "strategies_archived": 0,
-                    "details": [],
-                }
+                return build_strategy_success(details=[])
 
             logger.info("Evaluating active strategies", count=len(active_strategies))
 
-            results = []
+            results: list[str] = []
             archived_count = 0
 
             for strategy in active_strategies:
@@ -399,19 +399,15 @@ def evaluate_strategy_performance() -> dict[str, Any]:
                 strategies_archived=archived_count,
             )
 
-            return {
-                "status": "completed",
-                "strategies_evaluated": len(active_strategies),
-                "strategies_archived": archived_count,
-                "details": results,
-            }
+            return build_strategy_success(
+                strategies_evaluated=len(active_strategies),
+                strategies_archived=archived_count,
+                details=results,
+            )
 
     except Exception as e:
         logger.exception("Strategy performance evaluation failed", error=str(e))
-        return {
-            "status": "failed",
-            "error": str(e),
-        }
+        return build_strategy_failure(e)
 
 
 def _calculate_today_metrics(trades: list[dict[str, Any]], today: date) -> dict[str, Any]:
@@ -521,7 +517,7 @@ def _calculate_rolling_metrics(
 def auto_promote_strategies(
     min_days: int = 3,
     min_sharpe: float = MIN_SHARPE_FOR_PROMOTION,
-) -> dict[str, Any]:
+) -> StrategyMonitoringResultDict:
     """Auto-promote testing strategies that meet validation criteria.
 
     Schedule: Daily at 04:15 UTC (after performance evaluation)
@@ -548,16 +544,11 @@ def auto_promote_strategies(
 
         if not testing_strategies:
             logger.info("No testing strategies to evaluate")
-            return {
-                "status": "completed",
-                "strategies_evaluated": 0,
-                "strategies_promoted": 0,
-                "details": [],
-            }
+            return build_strategy_success(details=[])
 
         logger.info("Evaluating testing strategies for promotion", count=len(testing_strategies))
 
-        results = []
+        results: list[str] = []
         promoted_count = 0
 
         for strategy in testing_strategies:
@@ -626,20 +617,19 @@ def auto_promote_strategies(
             strategies_promoted=promoted_count,
         )
 
-        return {
-            "status": "completed",
-            "strategies_evaluated": len(testing_strategies),
-            "strategies_promoted": promoted_count,
-            "details": results,
-        }
+        return build_strategy_success(
+            strategies_evaluated=len(testing_strategies),
+            strategies_promoted=promoted_count,
+            details=results,
+        )
 
     except Exception as e:
         logger.exception("Auto-promotion failed", error=str(e))
-        return {"status": "failed", "error": str(e)}
+        return build_strategy_failure(e)
 
 
 @celery_app.task(name="app.tasks.strategy_monitoring_tasks.weekly_strategy_generation")
-def weekly_strategy_generation() -> dict[str, Any]:
+def weekly_strategy_generation() -> StrategyMonitoringResultDict:
     """Generate new strategies for top watchlist symbols.
 
     Schedule: Weekly on Sunday at 05:00 UTC
@@ -668,12 +658,7 @@ def weekly_strategy_generation() -> dict[str, Any]:
 
         if not top_symbols:
             logger.info("No watchlist symbols found")
-            return {
-                "status": "completed",
-                "symbols_evaluated": 0,
-                "strategies_generated": 0,
-                "details": [],
-            }
+            return build_strategy_success(details=[])
 
         logger.info("Evaluating top watchlist symbols", count=len(top_symbols))
 
@@ -693,19 +678,15 @@ def weekly_strategy_generation() -> dict[str, Any]:
             strategies_generated=batch_result["generated_count"],
         )
 
-        return {
-            "status": "completed",
-            "symbols_evaluated": len(top_symbols),
-            "strategies_generated": batch_result["generated_count"],
-            "details": batch_result["results"],
-        }
+        return build_strategy_success(
+            symbols_evaluated=len(top_symbols),
+            strategies_generated=batch_result["generated_count"],
+            details=batch_result["results"],
+        )
 
     except Exception as e:
         logger.exception("Weekly strategy generation failed", error=str(e))
-        return {
-            "status": "failed",
-            "error": str(e),
-        }
+        return build_strategy_failure(e)
 
 
 @celery_app.task(name="app.tasks.strategy_monitoring_tasks.daily_strategy_refresh")
