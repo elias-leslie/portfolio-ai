@@ -254,11 +254,12 @@ class MessageCreate(BaseModel):
 
 
 @app.post("/sessions/{session_id}/messages")
-async def add_message(session_id: str, msg: MessageCreate):
+async def add_message(
+    session_id: str,
+    msg: MessageCreate,
+    bridge: SessionBridge = Depends(require_bridge),
+):
     """Add a message to session history (for evidence, system messages, etc)."""
-    if not bridge:
-        raise HTTPException(status_code=503, detail="Service not ready")
-
     await bridge.db.add_message(
         session_id=session_id,
         role=msg.role,

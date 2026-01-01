@@ -1025,7 +1025,7 @@ def trigger_strategy_from_seed(seed_id: str, symbol: str) -> dict[str, Any]:
     Returns:
         Summary dict with generation result
     """
-    logger.info(f"Generating strategy from seed {seed_id} for {symbol}")
+    logger.info("Generating strategy from seed", seed_id=seed_id, symbol=symbol)
     storage = get_strategy_storage()
 
     try:
@@ -1033,14 +1033,16 @@ def trigger_strategy_from_seed(seed_id: str, symbol: str) -> dict[str, Any]:
         seed_data = storage.get_strategy_seed(seed_id)
 
         if not seed_data:
-            logger.error(f"Seed {seed_id} not found")
+            logger.error("Seed not found", seed_id=seed_id)
             return {"status": "failed", "error": f"Seed {seed_id} not found"}
 
         seed_thesis, seed_confidence = seed_data
 
         logger.info(
-            f"Processing seed: symbol={symbol}, confidence={seed_confidence}, "
-            f"thesis={seed_thesis[:100] if seed_thesis else ''}..."
+            "Processing seed",
+            symbol=symbol,
+            seed_confidence=seed_confidence,
+            thesis_preview=seed_thesis[:100] if seed_thesis else "",
         )
 
         # Run strategy workflow using shared helper
@@ -1059,7 +1061,9 @@ def trigger_strategy_from_seed(seed_id: str, symbol: str) -> dict[str, Any]:
                 )
 
                 logger.info(
-                    f"Strategy {strategy_id} generated from seed {seed_id}",
+                    "Strategy generated from seed",
+                    strategy_id=strategy_id,
+                    seed_id=seed_id,
                     symbol=symbol,
                     seed_confidence=seed_confidence,
                 )
@@ -1079,7 +1083,9 @@ def trigger_strategy_from_seed(seed_id: str, symbol: str) -> dict[str, Any]:
             result.get("message", result.get("status", "unknown")) if result else "workflow error"
         )
         logger.info(
-            f"Seed {seed_id} rejected: {reason}",
+            "Seed rejected",
+            seed_id=seed_id,
+            reason=reason,
             symbol=symbol,
             workflow_status=result["status"] if result else "error",
         )
