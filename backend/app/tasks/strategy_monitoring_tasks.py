@@ -867,9 +867,12 @@ def weekly_strategy_evolution() -> dict[str, Any]:
             performance_ratio = float(row[5] or 0.0)
 
             logger.info(
-                f"Attempting evolution: {symbol} {name} "
-                f"(Sharpe: {actual_sharpe:.2f} vs expected {expected_sharpe:.2f}, "
-                f"ratio: {performance_ratio:.1%})"
+                "Attempting strategy evolution",
+                symbol=symbol,
+                strategy_name=name,
+                actual_sharpe=actual_sharpe,
+                expected_sharpe=expected_sharpe,
+                performance_ratio=performance_ratio,
             )
 
             try:
