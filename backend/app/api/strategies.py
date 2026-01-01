@@ -55,27 +55,6 @@ def _get_strategy_or_404(strategy_id: str):
     return strategy
 
 
-def _row_to_seed_item(row: tuple) -> StrategySeedItem:
-    """Transform database row into StrategySeedItem.
-
-    Args:
-        row: Database row tuple with (id, symbol, thesis, confidence, status, strategy_id, created_at, processed_at)
-
-    Returns:
-        StrategySeedItem object
-    """
-    return StrategySeedItem(
-        id=str(row[0]),
-        symbol=str(row[1]),
-        thesis=str(row[2]),
-        confidence=parse_float(row[3]) or 0.0,
-        status=str(row[4]),  # type: ignore[arg-type]
-        strategy_id=str(row[5]) if row[5] else None,
-        created_at=format_db_date(row[6]) or "",
-        processed_at=format_db_date(row[7]),
-    )
-
-
 # ============================================================================
 # Request/Response Models
 # ============================================================================
