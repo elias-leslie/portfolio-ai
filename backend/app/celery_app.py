@@ -61,10 +61,10 @@ from app.tasks import (  # noqa: E402, F401
     agent_tasks,
     backtest_tasks,
     capability_tasks,
+    cleanup,
     data_freshness_tasks,
     # gap_analysis_tasks removed - migrated to [DEBT] subtasks on features
     ingestion,
-    log_cleanup_tasks,
     maintenance_tasks,
     ml_training_tasks,
     news_profiling_tasks,

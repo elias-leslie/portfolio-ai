@@ -23,7 +23,7 @@ from ...services.maintenance_tracker import (
     get_all_metrics_summary,
     get_cleanup_trends,
 )
-from ...tasks.log_cleanup_tasks import check_disk_space_impl
+from ...tasks.cleanup.disk_monitoring import check_disk_space_impl
 from ...tasks.maintenance_tasks import _get_database_size_impl
 from ..maintenance_types import (
     DatabaseSizeResponseDict,

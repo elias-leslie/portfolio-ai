@@ -17,9 +17,9 @@ from . import (
     agent_tasks,
     artifact_tasks,  # Evidence capture cleanup
     capability_tasks,
+    cleanup,  # Cleanup tasks (log rotation, temp files, artifacts, disk monitoring)
     # file_scan removed - use SummitFlow for file browsing
     ingestion,
-    log_cleanup_tasks,
     maintenance_tasks,
     ml_training_tasks,
     news_profiling_tasks,
@@ -52,10 +52,10 @@ __all__ = [
     "backfill_technical_indicators",
     "calculate_fear_greed",
     "capability_tasks",
+    "cleanup",
     # file_scan removed - use SummitFlow for file browsing
     "ingest_historical_ohlcv",
     "ingestion",
-    "log_cleanup_tasks",
     "maintenance_tasks",
     "ml_training_tasks",
     "news_profiling_tasks",

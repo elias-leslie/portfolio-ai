@@ -5,7 +5,7 @@
 # These values control how long data is kept before cleanup.
 #
 # Schedule: Configured in backend/app/celery_app.py beat_schedule
-# Tasks: Implemented in backend/app/tasks/maintenance_tasks.py and log_cleanup_tasks.py
+# Tasks: Implemented in backend/app/tasks/maintenance_tasks.py and cleanup/ modules
 
 # Retention Periods
 # -----------------

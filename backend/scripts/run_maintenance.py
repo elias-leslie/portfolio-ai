@@ -42,7 +42,7 @@ sys.path.insert(0, str(backend_dir))
 
 from app.logging_config import get_logger  # noqa: E402
 from app.storage.connection import get_connection_manager  # noqa: E402
-from app.tasks.log_cleanup_tasks import (  # noqa: E402
+from app.tasks.cleanup import (  # noqa: E402
     check_disk_space_task,
     cleanup_old_logs_task,
     cleanup_temp_files_task,
