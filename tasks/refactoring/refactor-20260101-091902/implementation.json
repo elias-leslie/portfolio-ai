@@ -115,7 +115,7 @@
             "Verify all cleanup tasks still work",
             "Run pytest tests/unit/tasks -k 'cleanup or maintenance' --tb=short"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "2.3",

@@ -27,6 +27,7 @@ from ..utils.port_discovery import (
     PortDiscovery,
     get_port_for_service,
 )
+from ..utils.url_helpers import substitute_path_params
 from .health_check_strategies import (
     CheckDecision,
     HealthCheckStrategy,
@@ -36,20 +37,6 @@ logger = get_logger(__name__)
 
 # Configuration
 HTTP_TIMEOUT = 10  # seconds
-
-
-def _substitute_path_params(path: str, value: str = "test-probe-value") -> str:
-    """Substitute path parameter placeholders with a test value.
-
-    Args:
-        path: Path that may contain {param} placeholders
-        value: Value to substitute for each placeholder
-
-    Returns:
-        Path with all {param} replaced by value
-    """
-    return re.sub(r"\{[^}]+\}", value, path)
-
 
 # Network configuration (from environment or fallback to defaults)
 FRONTEND_HOST = os.getenv("FRONTEND_HOST", "192.168.8.233")  # Network IP for SSR routing
@@ -127,7 +114,7 @@ def _build_check_url(path: str, port: int, frontend_port: int) -> tuple[str, boo
     has_path_params = "{" in path
     if has_path_params:
         # Substitute all path parameters with test values
-        test_path = _substitute_path_params(path)
+        test_path = substitute_path_params(path)
 
     host = FRONTEND_HOST if port == frontend_port else BACKEND_HOST
     url = f"http://{host}:{port}{test_path}"
@@ -370,7 +357,7 @@ class SitemapService:
                     try:
                         # Check if endpoint exists (even without upgrade)
                         # FastAPI WebSocket endpoints return 403 for non-WS requests
-                        test_path = _substitute_path_params(ws_path, "test")
+                        test_path = substitute_path_params(ws_path, "test")
                         response = await client.get(
                             f"http://{BACKEND_HOST}:{port}{test_path}",
                             headers={"Upgrade": "websocket", "Connection": "Upgrade"},
