@@ -181,6 +181,65 @@ def _handle_missing_directory(
     return None
 
 
+def _get_cache_targets(project_root: Path) -> list[dict[str, Any]]:
+    """Get list of cache targets for cleanup operations.
+
+    Args:
+        project_root: Root path of the project
+
+    Returns:
+        List of cache target configurations with name, path, pattern, and recursive flags
+    """
+    return [
+        # Python caches (recursive __pycache__ cleanup)
+        {
+            "name": "Python bytecode cache",
+            "path": project_root / "backend",
+            "pattern": "__pycache__",
+            "recursive": True,
+        },
+        {
+            "name": "Services Python cache",
+            "path": project_root / "services",
+            "pattern": "__pycache__",
+            "recursive": True,
+        },
+        # Linter/test caches (single directories)
+        {
+            "name": "Ruff cache",
+            "path": project_root / "backend" / ".ruff_cache",
+            "pattern": None,
+            "recursive": False,
+        },
+        {
+            "name": "Pytest cache",
+            "path": project_root / "backend" / ".pytest_cache",
+            "pattern": None,
+            "recursive": False,
+        },
+        {
+            "name": "Mypy cache",
+            "path": project_root / "backend" / ".mypy_cache",
+            "pattern": None,
+            "recursive": False,
+        },
+        # Frontend cache (only .next/cache, not server)
+        {
+            "name": "Next.js cache",
+            "path": project_root / "frontend" / ".next" / "cache",
+            "pattern": None,
+            "recursive": False,
+        },
+        # Claude transient memory
+        {
+            "name": "Claude memory backups",
+            "path": project_root / ".claude" / "backups" / "memory",
+            "pattern": None,
+            "recursive": False,
+        },
+    ]
+
+
 def check_disk_space_impl() -> dict[str, Any]:
     """Check disk space usage and alert if >85%.
 
@@ -1030,55 +1089,8 @@ def cleanup_cache_directories_task(self: Task, dry_run: bool = False) -> dict[st
         # Project root
         project_root = Path(__file__).parent.parent.parent.parent
 
-        # Define cache targets with their cleanup strategy
-        cache_targets = [
-            # Python caches (recursive __pycache__ cleanup)
-            {
-                "name": "Python bytecode cache",
-                "path": project_root / "backend",
-                "pattern": "__pycache__",
-                "recursive": True,
-            },
-            {
-                "name": "Services Python cache",
-                "path": project_root / "services",
-                "pattern": "__pycache__",
-                "recursive": True,
-            },
-            # Linter/test caches (single directories)
-            {
-                "name": "Ruff cache",
-                "path": project_root / "backend" / ".ruff_cache",
-                "pattern": None,
-                "recursive": False,
-            },
-            {
-                "name": "Pytest cache",
-                "path": project_root / "backend" / ".pytest_cache",
-                "pattern": None,
-                "recursive": False,
-            },
-            {
-                "name": "Mypy cache",
-                "path": project_root / "backend" / ".mypy_cache",
-                "pattern": None,
-                "recursive": False,
-            },
-            # Frontend cache (only .next/cache, not server)
-            {
-                "name": "Next.js cache",
-                "path": project_root / "frontend" / ".next" / "cache",
-                "pattern": None,
-                "recursive": False,
-            },
-            # Claude transient memory
-            {
-                "name": "Claude memory backups",
-                "path": project_root / ".claude" / "backups" / "memory",
-                "pattern": None,
-                "recursive": False,
-            },
-        ]
+        # Get cache targets with their cleanup strategy
+        cache_targets = _get_cache_targets(project_root)
 
         for target in cache_targets:
             target_name = str(target["name"])
