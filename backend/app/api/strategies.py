@@ -10,7 +10,6 @@ Provides REST API for:
 
 from __future__ import annotations
 
-from datetime import date, datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query
@@ -23,6 +22,7 @@ from app.strategies.performance_utils import calculate_performance_status
 from app.strategies.storage import get_strategy_storage
 from app.tasks.strategy_monitoring_tasks import weekly_strategy_generation
 from app.tasks.strategy_signal_tasks import generate_signal_for_strategy, store_signal
+from app.utils.formatters import format_db_date, parse_float
 
 logger = get_logger(__name__)
 
@@ -53,34 +53,6 @@ def _get_strategy_or_404(strategy_id: str):
     return strategy
 
 
-def _safe_datetime_to_iso(dt: Any) -> str | None:
-    """Convert datetime/date to ISO string, handling None and various types.
-
-    Args:
-        dt: Datetime, date, or None value
-
-    Returns:
-        ISO format string or None
-    """
-    if dt is None:
-        return None
-    if isinstance(dt, (datetime, date)):
-        return dt.isoformat()
-    if hasattr(dt, "isoformat"):
-        return dt.isoformat()
-    return str(dt)
-
-
-def _safe_float(value: Any) -> float | None:
-    """Safely convert value to float or return None.
-
-    Args:
-        value: Value to convert (can be None, numeric, or any type)
-
-    Returns:
-        Float value or None if value is None
-    """
-    return float(value) if value is not None else None
 
 
 # ============================================================================
@@ -196,8 +168,8 @@ async def list_strategies(
         # Convert to list items (summary view) with performance variance
         items = []
         for s in strategies:
-            expected = _safe_float(s.expected_sharpe)
-            live = _safe_float(s.live_sharpe_ratio)
+            expected = parse_float(s.expected_sharpe)
+            live = parse_float(s.live_sharpe_ratio)
 
             # Calculate performance variance using shared utility
             variance, flag = calculate_performance_status(expected, live, s.live_trades_count)
@@ -212,10 +184,10 @@ async def list_strategies(
                     version=s.version,
                     expected_sharpe=expected,
                     live_sharpe_ratio=live,
-                    live_win_rate=_safe_float(s.live_win_rate),
+                    live_win_rate=parse_float(s.live_win_rate),
                     trades_count=s.live_trades_count,
-                    created_at=_safe_datetime_to_iso(s.created_at),
-                    activation_date=_safe_datetime_to_iso(s.activation_date),
+                    created_at=format_db_date(s.created_at),
+                    activation_date=format_db_date(s.activation_date),
                     performance_variance=variance,
                     performance_flag=flag,
                 ).model_dump()
@@ -279,8 +251,8 @@ async def get_strategy_summary() -> StrategySummary:
         underperforming = 0
 
         for s in strategies:
-            expected = _safe_float(s.expected_sharpe)
-            live = _safe_float(s.live_sharpe_ratio)
+            expected = parse_float(s.expected_sharpe)
+            live = parse_float(s.live_sharpe_ratio)
             _, flag = calculate_performance_status(expected, live, s.live_trades_count)
             if flag == "exceeding":
                 exceeding += 1
@@ -342,11 +314,11 @@ async def get_strategy(strategy_id: str) -> StrategyDetail:
             # row is a tuple: (date, trades_30d, win_rate_30d, sharpe_ratio_30d, max_drawdown_30d, status)
             performance_history.append(
                 {
-                    "date": _safe_datetime_to_iso(row[0]),
+                    "date": format_db_date(row[0]),
                     "trades_30d": row[1],
-                    "win_rate_30d": _safe_float(row[2]),
-                    "sharpe_ratio_30d": _safe_float(row[3]),
-                    "max_drawdown_30d": _safe_float(row[4]),
+                    "win_rate_30d": parse_float(row[2]),
+                    "sharpe_ratio_30d": parse_float(row[3]),
+                    "max_drawdown_30d": parse_float(row[4]),
                     "status": row[5],
                 }
             )
@@ -368,17 +340,17 @@ async def get_strategy(strategy_id: str) -> StrategyDetail:
             research_summary=strategy.research_summary,
             generation_reasoning=strategy.generation_reasoning,
             backtest_metrics=backtest_metrics_list,
-            expected_sharpe=_safe_float(strategy.expected_sharpe),
-            expected_win_rate=_safe_float(strategy.expected_win_rate),
-            expected_max_drawdown=_safe_float(strategy.expected_max_drawdown),
+            expected_sharpe=parse_float(strategy.expected_sharpe),
+            expected_win_rate=parse_float(strategy.expected_win_rate),
+            expected_max_drawdown=parse_float(strategy.expected_max_drawdown),
             live_trades_count=strategy.live_trades_count,
-            live_win_rate=_safe_float(strategy.live_win_rate),
-            live_sharpe_ratio=_safe_float(strategy.live_sharpe_ratio),
+            live_win_rate=parse_float(strategy.live_win_rate),
+            live_sharpe_ratio=parse_float(strategy.live_sharpe_ratio),
             status=strategy.status,
             version=strategy.version,
-            created_at=_safe_datetime_to_iso(strategy.created_at),
-            activation_date=_safe_datetime_to_iso(strategy.activation_date),
-            archive_date=_safe_datetime_to_iso(strategy.archive_date),
+            created_at=format_db_date(strategy.created_at),
+            activation_date=format_db_date(strategy.activation_date),
+            archive_date=format_db_date(strategy.archive_date),
             archive_reason=strategy.archive_reason,
             performance_history=performance_history,
         )
@@ -569,8 +541,8 @@ async def get_strategy_performance(strategy_id: str) -> dict[str, Any]:
         strategy = _get_strategy_or_404(strategy_id)
 
         # Calculate performance using shared utility
-        expected_sharpe = _safe_float(strategy.expected_sharpe)
-        actual_sharpe = _safe_float(strategy.live_sharpe_ratio)
+        expected_sharpe = parse_float(strategy.expected_sharpe)
+        actual_sharpe = parse_float(strategy.live_sharpe_ratio)
         performance_ratio, flag = calculate_performance_status(
             expected_sharpe, actual_sharpe, strategy.live_trades_count
         )
@@ -587,12 +559,12 @@ async def get_strategy_performance(strategy_id: str) -> dict[str, Any]:
         return {
             "expected": {
                 "sharpe": expected_sharpe or 0.0,
-                "win_rate": _safe_float(strategy.expected_win_rate),
-                "max_drawdown": _safe_float(strategy.expected_max_drawdown),
+                "win_rate": parse_float(strategy.expected_win_rate),
+                "max_drawdown": parse_float(strategy.expected_max_drawdown),
             },
             "actual_30d": {
                 "sharpe": actual_sharpe or 0.0,
-                "win_rate": _safe_float(strategy.live_win_rate),
+                "win_rate": parse_float(strategy.live_win_rate),
                 "trades_count": strategy.live_trades_count,
             },
             "performance_ratio": performance_ratio or 0.0,
@@ -645,7 +617,7 @@ async def get_strategy_signal(strategy_id: str) -> dict[str, Any]:
                 "signal_strength": result[1],
                 "reasons": result[2] or [],
                 "market_data": result[3] or {},
-                "generated_at": _safe_datetime_to_iso(result[4]),
+                "generated_at": format_db_date(result[4]),
                 "source": "stored",
             }
 
@@ -755,11 +727,11 @@ async def list_strategy_seeds(
                     id=str(row[0]),
                     symbol=str(row[1]),
                     thesis=str(row[2]),
-                    confidence=_safe_float(row[3]) or 0.0,
+                    confidence=parse_float(row[3]) or 0.0,
                     status=str(row[4]),  # type: ignore[arg-type]
                     strategy_id=str(row[5]) if row[5] else None,
-                    created_at=_safe_datetime_to_iso(row[6]) or "",
-                    processed_at=_safe_datetime_to_iso(row[7]),
+                    created_at=format_db_date(row[6]) or "",
+                    processed_at=format_db_date(row[7]),
                 )
             )
 
@@ -784,11 +756,11 @@ async def get_strategy_seed(seed_id: str) -> StrategySeedItem:
             id=str(row[0]),
             symbol=str(row[1]),
             thesis=str(row[2]),
-            confidence=_safe_float(row[3]) or 0.0,
+            confidence=parse_float(row[3]) or 0.0,
             status=str(row[4]),  # type: ignore[arg-type]
             strategy_id=str(row[5]) if row[5] else None,
-            created_at=_safe_datetime_to_iso(row[6]) or "",
-            processed_at=_safe_datetime_to_iso(row[7]),
+            created_at=format_db_date(row[6]) or "",
+            processed_at=format_db_date(row[7]),
         )
 
     except HTTPException:
@@ -816,7 +788,7 @@ async def get_strategy_evolution(strategy_id: str) -> dict[str, Any]:
                 "id": seed_raw["id"],
                 "thesis": seed_raw["thesis"],
                 "confidence": seed_raw["confidence"],
-                "created_at": _safe_datetime_to_iso(seed_raw["created_at"]),
+                "created_at": format_db_date(seed_raw["created_at"]),
             }
 
         # Get backtest runs for this strategy
@@ -824,9 +796,9 @@ async def get_strategy_evolution(strategy_id: str) -> dict[str, Any]:
         backtests = [
             {
                 **bt,
-                "start_date": _safe_datetime_to_iso(bt["start_date"]),
-                "end_date": _safe_datetime_to_iso(bt["end_date"]),
-                "created_at": _safe_datetime_to_iso(bt["created_at"]),
+                "start_date": format_db_date(bt["start_date"]),
+                "end_date": format_db_date(bt["end_date"]),
+                "created_at": format_db_date(bt["created_at"]),
             }
             for bt in backtests_raw
         ]
@@ -836,8 +808,8 @@ async def get_strategy_evolution(strategy_id: str) -> dict[str, Any]:
         signals = [
             {
                 **sig,
-                "signal_date": _safe_datetime_to_iso(sig["signal_date"]),
-                "created_at": _safe_datetime_to_iso(sig["created_at"]),
+                "signal_date": format_db_date(sig["signal_date"]),
+                "created_at": format_db_date(sig["created_at"]),
             }
             for sig in signals_raw
         ]
@@ -847,7 +819,7 @@ async def get_strategy_evolution(strategy_id: str) -> dict[str, Any]:
         trades = [
             {
                 **trade,
-                "entry_date": _safe_datetime_to_iso(trade["entry_date"]),
+                "entry_date": format_db_date(trade["entry_date"]),
             }
             for trade in trades_raw
         ]
@@ -862,9 +834,9 @@ async def get_strategy_evolution(strategy_id: str) -> dict[str, Any]:
             "signals": signals,
             "trades": trades,
             "performance": {
-                "expected_sharpe": _safe_float(strategy.expected_sharpe),
-                "live_sharpe": _safe_float(strategy.live_sharpe_ratio),
-                "live_win_rate": _safe_float(strategy.live_win_rate),
+                "expected_sharpe": parse_float(strategy.expected_sharpe),
+                "live_sharpe": parse_float(strategy.live_sharpe_ratio),
+                "live_win_rate": parse_float(strategy.live_win_rate),
                 "total_trades": strategy.live_trades_count or 0,
             },
         }
