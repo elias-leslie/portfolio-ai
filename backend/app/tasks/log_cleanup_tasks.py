@@ -77,6 +77,38 @@ def _build_error_result(
     return result
 
 
+def _build_cleanup_result(
+    task_id: str,
+    dry_run: bool,
+    duration_seconds: float,
+    task_specific_fields: dict[str, Any],
+    would_action_list: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Build standardized success result dict for cleanup tasks.
+
+    Args:
+        task_id: The Celery task ID
+        dry_run: Whether this was a dry run
+        duration_seconds: Task execution duration in seconds
+        task_specific_fields: Task-specific fields to merge (e.g., files_deleted, bytes_freed)
+        would_action_list: Optional list of actions that would be taken in dry run mode
+
+    Returns:
+        Standardized result dict with task_id, dry_run, duration_seconds, success=True,
+        and all task-specific fields merged in
+    """
+    result: dict[str, Any] = {
+        "task_id": task_id,
+        "dry_run": dry_run,
+        "duration_seconds": round(duration_seconds, 2),
+        "success": True,
+        **task_specific_fields,
+    }
+    if would_action_list and len(would_action_list) > 0:
+        result["would_action_list"] = would_action_list
+    return result
+
+
 def _calculate_cutoff_timestamp(
     days: int | None = None,
     hours: int | None = None,

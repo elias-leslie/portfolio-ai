@@ -62,6 +62,9 @@ FRONTEND_CRAWL_SKIP_PATTERNS = [
 # WebSocket probe paths to check
 WEBSOCKET_PROBE_PATHS = ["/ws", "/ws/{session_id}", "/socket.io"]
 
+# Status codes that indicate WebSocket endpoint exists
+WS_ENDPOINT_STATUS_CODES = (403, 426, 400)
+
 
 def _interpret_response(
     response: httpx.Response, is_probe: bool, probe_pattern: str | None
@@ -358,7 +361,7 @@ class SitemapService:
                         )
 
                         # 403 or 426 indicates WebSocket endpoint exists
-                        if response.status_code in (403, 426, 400):
+                        if response.status_code in WS_ENDPOINT_STATUS_CODES:
                             discovered.append(
                                 {
                                     "port": port,
