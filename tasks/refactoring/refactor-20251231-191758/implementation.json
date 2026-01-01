@@ -309,7 +309,7 @@
             "Run ruff check to verify"
           ],
           "verification": "ruff check backend/app/celery_schedules.py",
-          "passes": false
+          "passes": true
         }
       ]
     },

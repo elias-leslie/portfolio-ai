@@ -21,11 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  RefreshCw,
-  PlayCircle,
   Loader2,
-  ShieldCheck,
-  ShieldAlert,
   ArrowUpDown,
 } from "lucide-react";
 import { ExpandableCard } from "@/components/status/ExpandableCard";
@@ -51,6 +47,7 @@ import {
   type TaskCategory,
 } from "@/lib/maintenance/formatters";
 import { MaintenanceSummaryStats } from "./MaintenanceSummaryStats";
+import { MaintenanceTableToolbar } from "./MaintenanceTableToolbar";
 
 // Unified task interface
 interface MaintenanceTask {
