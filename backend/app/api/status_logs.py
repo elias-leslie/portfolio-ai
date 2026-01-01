@@ -271,6 +271,18 @@ def fetch_journal_logs(
 VALID_LEVELS = {level for level in LOG_LEVEL_PRIORITY if level != "UNKNOWN"} | {"WARNING"}
 
 
+def normalize_log_level(level: str) -> str:
+    """Normalize log level to standard form.
+
+    Args:
+        level: Log level string (may be "WARNING" alias)
+
+    Returns:
+        Normalized log level ("WARNING" -> "WARN", others unchanged)
+    """
+    return "WARN" if level == "WARNING" else level
+
+
 def _validate_log_params(lines: int, service: str | None, level: str | None) -> None:
     """Validate unified log query parameters.
 
@@ -554,9 +566,8 @@ async def set_log_level(request: SetLogLevelRequest) -> SetLogLevelResponse:
             detail="Invalid log level. Must be one of: DEBUG, INFO, WARN, ERROR, CRITICAL",
         )
 
-    # Normalize WARNING to WARN
-    if level == "WARNING":
-        level = "WARN"
+    # Normalize WARNING to WARN using helper
+    level = normalize_log_level(level)
 
     try:
         # Run script to update systemd configs

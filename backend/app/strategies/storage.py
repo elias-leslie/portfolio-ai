@@ -80,15 +80,7 @@ class StrategyStorage:
         backtest_metrics_json = json.dumps(backtest_metrics, default=json_serializer)
 
         with self.conn.connection() as conn:
-            # Ensure symbol exists in symbols table (FK constraint)
-            conn.execute(
-                """
-                INSERT INTO symbols (symbol, security_type, created_at)
-                VALUES (%s, 'equity', NOW())
-                ON CONFLICT (symbol) DO NOTHING
-                """,
-                (symbol,),
-            )
+            self._ensure_symbol_exists(conn, symbol)
             conn.execute(
                 """
                 INSERT INTO strategy_definitions (

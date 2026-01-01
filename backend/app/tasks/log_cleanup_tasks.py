@@ -132,6 +132,20 @@ def _calculate_cutoff_timestamp(
     return cutoff_time, cutoff_time.timestamp()
 
 
+def _calculate_directory_size(directory: Path) -> tuple[int, int]:
+    """Calculate total size and file count of a directory.
+
+    Args:
+        directory: Path to the directory to measure
+
+    Returns:
+        Tuple of (total_bytes, file_count)
+    """
+    total_bytes = sum(f.stat().st_size for f in directory.rglob("*") if f.is_file())
+    file_count = sum(1 for f in directory.rglob("*") if f.is_file())
+    return total_bytes, file_count
+
+
 def _handle_missing_directory(
     task_id: str,
     dry_run: bool,
@@ -909,7 +923,7 @@ def cleanup_solution_state_task(
                 mtime = entry.stat().st_mtime
                 if mtime < cutoff_timestamp:
                     # Calculate directory size
-                    dir_size = sum(f.stat().st_size for f in entry.rglob("*") if f.is_file())
+                    dir_size, _file_count = _calculate_directory_size(entry)
                     age_days = (now - mtime) / SECONDS_PER_DAY
 
                     if dry_run:
@@ -1089,8 +1103,7 @@ def cleanup_cache_directories_task(self: Task, dry_run: bool = False) -> dict[st
                         continue
 
                     # Calculate size before deletion
-                    dir_size = sum(f.stat().st_size for f in cache_dir.rglob("*") if f.is_file())
-                    file_count = sum(1 for f in cache_dir.rglob("*") if f.is_file())
+                    dir_size, file_count = _calculate_directory_size(cache_dir)
 
                     if dry_run:
                         details.append(
