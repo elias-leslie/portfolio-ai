@@ -504,7 +504,7 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
 
 
 @router.get("/trends", response_model=MarketTrendsResponse)
-@cache_response(ttl=60)  # 1 minute cache for fresh data
+@cache_response(ttl=CACHE_TTL_SHORT)
 async def get_market_trends(
     request: Request,
     days: int = Query(30, ge=1, le=365, description="Number of days of historical data"),
@@ -546,7 +546,7 @@ async def get_market_trends(
 
 
 @router.get("/status", response_model=MarketStatusResponse)
-@cache_response(ttl=60)  # Cache for 1 minute
+@cache_response(ttl=CACHE_TTL_SHORT)
 async def get_market_status_endpoint(request: Request) -> MarketStatusResponse:
     """Get current market status and trading day information.
 
@@ -591,7 +591,7 @@ async def get_market_status_endpoint(request: Request) -> MarketStatusResponse:
 
 
 @router.get("/fear-greed-history", response_model=FearGreedHistoryResponse)
-@cache_response(ttl=60)  # 1 minute cache for fresh data
+@cache_response(ttl=CACHE_TTL_SHORT)
 async def get_fear_greed_history(
     request: Request,
     days: int = Query(
@@ -626,7 +626,7 @@ async def get_fear_greed_history(
 
 
 @router.get("/news-sentiment-history", response_model=NewsSentimentHistoryResponse)
-@cache_response(ttl=60)  # 1 minute cache
+@cache_response(ttl=CACHE_TTL_SHORT)
 async def get_news_sentiment_history(
     request: Request,
     days: int = Query(
@@ -675,7 +675,7 @@ async def get_news_sentiment_history(
 
 
 @router.get("/indicator-history", response_model=IndicatorHistoryResponse)
-@cache_response(ttl=60)  # 1 minute cache for fresh data
+@cache_response(ttl=CACHE_TTL_SHORT)
 async def get_indicator_history(
     request: Request,
     days: int = Query(
@@ -707,7 +707,7 @@ async def get_indicator_history(
 
 
 @router.get("/sector-history", response_model=SectorHistoryResponse)
-@cache_response(ttl=300)  # 5 minute cache (fetches from yfinance which is slower)
+@cache_response(ttl=CACHE_TTL_MEDIUM)
 async def get_sector_history(
     request: Request,
     days: int = Query(
@@ -853,7 +853,7 @@ async def get_corporate_actions_summary(
 
 
 @router.get("/movers", response_model=MarketMoversResponse)
-@cache_response(ttl=900)  # 15 minute cache
+@cache_response(ttl=CACHE_TTL_LONG)
 async def get_market_movers(
     request: Request,
     count: int = Query(10, ge=1, le=25, description="Number of gainers/losers to return"),
@@ -941,7 +941,7 @@ async def get_market_events(
 
 
 @router.get("/events/chart")
-@cache_response(ttl=300)  # 5 minutes cache
+@cache_response(ttl=CACHE_TTL_MEDIUM)
 async def get_market_events_for_chart(
     request: Request,
     days: int = Query(365, ge=7, le=730, description="Number of days of history"),
