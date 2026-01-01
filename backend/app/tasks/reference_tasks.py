@@ -241,7 +241,6 @@ def _update_valuation_metrics(symbol: str, source: str, payload: dict[str, Any])
         return
 
     with storage.connection() as conn:
-
         # Dual-write using shared helper
         metrics_columns = [
             "pe_ratio_trailing",

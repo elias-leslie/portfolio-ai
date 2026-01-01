@@ -38,6 +38,7 @@ def _get_completion_metadata(started_at: datetime) -> tuple[datetime, int]:
     duration_ms = calculate_duration_ms(started_at, completed_at)
     return completed_at, duration_ms
 
+
 if TYPE_CHECKING:
     from app.storage.facade import PortfolioStorage
 
