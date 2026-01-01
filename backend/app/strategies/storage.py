@@ -721,7 +721,7 @@ class StrategyStorage:
             List of backtest run dicts
         """
         with self.conn.connection() as conn:
-            rows = conn.execute(
+            result = conn.execute(
                 """
                 SELECT id, start_date, end_date, sharpe_ratio, total_return_pct,
                        max_drawdown_pct, win_rate, num_trades, status, created_at
@@ -731,22 +731,24 @@ class StrategyStorage:
                 LIMIT %s
                 """,
                 [strategy_id, limit],
-            ).fetchall()
+            )
+            rows = result.fetchall()
+            backtests_raw = rows_to_dicts(rows, conn)
 
         backtests = []
-        for row in rows:
+        for row in backtests_raw:
             backtests.append(
                 {
-                    "id": str(row[0]),
-                    "start_date": row[1],
-                    "end_date": row[2],
-                    "sharpe_ratio": float(row[3]) if row[3] is not None else None,
-                    "total_return_pct": float(row[4]) if row[4] is not None else None,
-                    "max_drawdown_pct": float(row[5]) if row[5] is not None else None,
-                    "win_rate": float(row[6]) if row[6] is not None else None,
-                    "num_trades": int(row[7]) if row[7] else 0,
-                    "status": str(row[8]),
-                    "created_at": row[9],
+                    "id": str(row["id"]),
+                    "start_date": row["start_date"],
+                    "end_date": row["end_date"],
+                    "sharpe_ratio": float(row["sharpe_ratio"]) if row["sharpe_ratio"] is not None else None,
+                    "total_return_pct": float(row["total_return_pct"]) if row["total_return_pct"] is not None else None,
+                    "max_drawdown_pct": float(row["max_drawdown_pct"]) if row["max_drawdown_pct"] is not None else None,
+                    "win_rate": float(row["win_rate"]) if row["win_rate"] is not None else None,
+                    "num_trades": int(row["num_trades"]) if row["num_trades"] else 0,
+                    "status": str(row["status"]),
+                    "created_at": row["created_at"],
                 }
             )
         return backtests
@@ -762,7 +764,7 @@ class StrategyStorage:
             List of signal dicts
         """
         with self.conn.connection() as conn:
-            rows = conn.execute(
+            result = conn.execute(
                 """
                 SELECT id, signal_type, signal_strength, signal_date, reasons, market_data, created_at
                 FROM strategy_signals
@@ -771,19 +773,21 @@ class StrategyStorage:
                 LIMIT %s
                 """,
                 [strategy_id, limit],
-            ).fetchall()
+            )
+            rows = result.fetchall()
+            signals_raw = rows_to_dicts(rows, conn)
 
         signals = []
-        for row in rows:
+        for row in signals_raw:
             signals.append(
                 {
-                    "id": str(row[0]),
-                    "signal_type": str(row[1]),
-                    "signal_strength": int(row[2]) if row[2] else None,
-                    "signal_date": row[3],
-                    "reasons": row[4] if row[4] else [],
-                    "market_data": row[5] if row[5] else {},
-                    "created_at": row[6],
+                    "id": str(row["id"]),
+                    "signal_type": str(row["signal_type"]),
+                    "signal_strength": int(row["signal_strength"]) if row["signal_strength"] else None,
+                    "signal_date": row["signal_date"],
+                    "reasons": row["reasons"] if row["reasons"] else [],
+                    "market_data": row["market_data"] if row["market_data"] else {},
+                    "created_at": row["created_at"],
                 }
             )
         return signals
@@ -799,7 +803,7 @@ class StrategyStorage:
             List of trade dicts
         """
         with self.conn.connection() as conn:
-            rows = conn.execute(
+            result = conn.execute(
                 """
                 SELECT io.idea_id, io.symbol, io.entry_price, io.exit_price,
                        io.current_return_pct, io.status, io.entry_date
@@ -809,19 +813,21 @@ class StrategyStorage:
                 LIMIT %s
                 """,
                 [symbol, limit],
-            ).fetchall()
+            )
+            rows = result.fetchall()
+            trades_raw = rows_to_dicts(rows, conn)
 
         trades = []
-        for row in rows:
+        for row in trades_raw:
             trades.append(
                 {
-                    "id": str(row[0]),
-                    "symbol": str(row[1]),
-                    "entry_price": float(row[2]) if row[2] is not None else None,
-                    "exit_price": float(row[3]) if row[3] is not None else None,
-                    "return_pct": float(row[4]) if row[4] is not None else None,
-                    "status": str(row[5]),
-                    "entry_date": row[6],
+                    "id": str(row["idea_id"]),
+                    "symbol": str(row["symbol"]),
+                    "entry_price": float(row["entry_price"]) if row["entry_price"] is not None else None,
+                    "exit_price": float(row["exit_price"]) if row["exit_price"] is not None else None,
+                    "return_pct": float(row["current_return_pct"]) if row["current_return_pct"] is not None else None,
+                    "status": str(row["status"]),
+                    "entry_date": row["entry_date"],
                 }
             )
         return trades
@@ -969,7 +975,7 @@ class StrategyStorage:
             List of dicts with: date, trades_30d, win_rate_30d, sharpe_ratio_30d, max_drawdown_30d, status
         """
         with self.conn.connection() as conn:
-            rows = conn.execute(
+            result = conn.execute(
                 """
                 SELECT date, trades_30d, win_rate_30d, sharpe_ratio_30d, max_drawdown_30d, status
                 FROM strategy_performance
@@ -978,23 +984,9 @@ class StrategyStorage:
                 LIMIT %s
                 """,
                 (strategy_id, limit),
-            ).fetchall()
-
-        # Convert tuples to dicts
-        performance_history = []
-        for row in rows:
-            performance_history.append(
-                {
-                    "date": row[0],
-                    "trades_30d": row[1],
-                    "win_rate_30d": row[2],
-                    "sharpe_ratio_30d": row[3],
-                    "max_drawdown_30d": row[4],
-                    "status": row[5],
-                }
             )
-
-        return performance_history
+            rows = result.fetchall()
+            return rows_to_dicts(rows, conn)
 
 
 # Singleton instance
