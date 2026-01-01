@@ -752,7 +752,7 @@ def cleanup_old_backups_task(
         if bytes_freed > 0 and not dry_run:
             record_maintenance_metric("backup_cleanup_bytes_freed", bytes_freed, "bytes")
 
-        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        duration = _calculate_duration(start_time)
 
         result: dict[str, Any] = {
             "task_id": task_id,
@@ -776,7 +776,7 @@ def cleanup_old_backups_task(
         return result
 
     except Exception as e:
-        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        duration = _calculate_duration(start_time)
         logger.error(
             "cleanup_old_backups_failed",
             task_id=task_id,
@@ -893,7 +893,7 @@ def cleanup_old_models_task(
         if bytes_freed > 0 and not dry_run:
             record_maintenance_metric("model_cleanup_bytes_freed", bytes_freed, "bytes")
 
-        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        duration = _calculate_duration(start_time)
 
         result: dict[str, Any] = {
             "task_id": task_id,
@@ -917,7 +917,7 @@ def cleanup_old_models_task(
         return result
 
     except Exception as e:
-        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        duration = _calculate_duration(start_time)
         logger.error(
             "cleanup_old_models_failed",
             task_id=task_id,
@@ -1028,7 +1028,7 @@ def cleanup_solution_state_task(
         if bytes_freed > 0 and not dry_run:
             record_maintenance_metric("solution_state_cleanup_bytes_freed", bytes_freed, "bytes")
 
-        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        duration = _calculate_duration(start_time)
 
         result: dict[str, Any] = {
             "task_id": task_id,
@@ -1051,7 +1051,7 @@ def cleanup_solution_state_task(
         return result
 
     except Exception as e:
-        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        duration = _calculate_duration(start_time)
         logger.error(
             "cleanup_solution_state_failed",
             task_id=task_id,
@@ -1183,7 +1183,7 @@ def cleanup_cache_directories_task(self: Task, dry_run: bool = False) -> dict[st
         if bytes_freed > 0 and not dry_run:
             record_maintenance_metric("cache_cleanup_bytes_freed", bytes_freed, "bytes")
 
-        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        duration = _calculate_duration(start_time)
 
         result: dict[str, Any] = {
             "task_id": task_id,
@@ -1205,7 +1205,7 @@ def cleanup_cache_directories_task(self: Task, dry_run: bool = False) -> dict[st
         return result
 
     except Exception as e:
-        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        duration = _calculate_duration(start_time)
         logger.error(
             "cleanup_cache_directories_failed",
             task_id=task_id,
