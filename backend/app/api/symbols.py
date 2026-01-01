@@ -681,6 +681,23 @@ def _generate_recommendation(
     }
 
 
+def _fetch_all_data(
+    symbol: str, include_market: bool, include_paper_trades: bool, include_strategies: bool
+) -> dict[str, Any]:
+    """Fetch all data sources for symbol intelligence.
+
+    Returns dict with keys: watchlist, portfolio, paper_trades, strategies, news, market
+    """
+    return {
+        "watchlist": _get_watchlist_data(symbol),
+        "portfolio": _get_portfolio_data(symbol),
+        "paper_trades": _get_paper_trades_data(symbol) if include_paper_trades else None,
+        "strategies": _get_strategies_data(symbol) if include_strategies else None,
+        "news": _get_news_data(symbol),
+        "market": _get_market_data() if include_market else {},
+    }
+
+
 def _build_response(
     symbol: str, include_market: bool, include_paper_trades: bool, include_strategies: bool
 ) -> SymbolIntelligenceResponse:
@@ -688,12 +705,13 @@ def _build_response(
     symbol = symbol.upper()
 
     # Fetch all data
-    watchlist = _get_watchlist_data(symbol)
-    portfolio = _get_portfolio_data(symbol)
-    paper_trades = _get_paper_trades_data(symbol) if include_paper_trades else None
-    strategies = _get_strategies_data(symbol) if include_strategies else None
-    news = _get_news_data(symbol)
-    market = _get_market_data() if include_market else {}
+    data = _fetch_all_data(symbol, include_market, include_paper_trades, include_strategies)
+    watchlist = data["watchlist"]
+    portfolio = data["portfolio"]
+    paper_trades = data["paper_trades"]
+    strategies = data["strategies"]
+    news = data["news"]
+    market = data["market"]
 
     # Build response
     response = SymbolIntelligenceResponse(symbol=symbol, generated_at=datetime.now(UTC))
