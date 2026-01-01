@@ -366,7 +366,7 @@
             "Run verification"
           ],
           "verification": "ruff check backend/app/agents/types.py backend/app/agents/base.py && pytest tests/agents/ -x --tb=short -q",
-          "passes": false
+          "passes": true
         },
         {
           "id": "4.2",
@@ -381,7 +381,7 @@
             "Run verification"
           ],
           "verification": "ruff check backend/app/api/strategies.py && pytest tests/api/test_strategies.py -x --tb=short -q",
-          "passes": false
+          "passes": true
         },
         {
           "id": "4.3",
@@ -396,7 +396,7 @@
             "Run verification"
           ],
           "verification": "cd services/dev-companion && ruff check dev_companion/server.py",
-          "passes": false
+          "passes": true
         },
         {
           "id": "4.4",
@@ -410,7 +410,7 @@
             "Run verification"
           ],
           "verification": "ruff check backend/app/tasks/strategy_monitoring_tasks.py",
-          "passes": false
+          "passes": true
         }
       ]
     },
