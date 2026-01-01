@@ -18,7 +18,9 @@
           "model": "sonnet",
           "parallelizable": true,
           "description": "Fix SQL injection risk in strategies/storage.py - f-string SQL interpolation",
-          "files_affected": ["backend/app/strategies/storage.py"],
+          "files_affected": [
+            "backend/app/strategies/storage.py"
+          ],
           "steps": [
             "Read storage.py lines 560-615",
             "Replace f-string INTERVAL clauses with parameterized queries at lines 562, 564, 609",
@@ -33,7 +35,9 @@
           "model": "haiku",
           "parallelizable": true,
           "description": "Add missing conn.commit() in update_live_performance and record_daily_performance",
-          "files_affected": ["backend/app/strategies/storage.py"],
+          "files_affected": [
+            "backend/app/strategies/storage.py"
+          ],
           "steps": [
             "Read storage.py lines 296-392",
             "Add conn.commit() after execute() in update_live_performance (around line 323)",
@@ -48,7 +52,9 @@
           "model": "haiku",
           "parallelizable": true,
           "description": "Fix phantom column reference live_metrics_updated_at in storage.py",
-          "files_affected": ["backend/app/strategies/storage.py"],
+          "files_affected": [
+            "backend/app/strategies/storage.py"
+          ],
           "steps": [
             "Read storage.py line 319 and models.py lines 160-194",
             "Check if live_metrics_updated_at column exists in database schema",
@@ -63,7 +69,9 @@
           "model": "sonnet",
           "parallelizable": true,
           "description": "Fix SQL placeholder inconsistency in list_strategy_seeds endpoint",
-          "files_affected": ["backend/app/api/strategies.py"],
+          "files_affected": [
+            "backend/app/api/strategies.py"
+          ],
           "steps": [
             "Read strategies.py lines 735-800",
             "Replace dynamic dollar-sign placeholders ($1, $2) with standard %s format",
@@ -85,7 +93,10 @@
           "model": "sonnet",
           "parallelizable": true,
           "description": "Move sitemap SQL to storage layer - run_discovery and _save_health_result",
-          "files_affected": ["backend/app/services/sitemap_service.py", "backend/app/storage/sitemap_storage.py"],
+          "files_affected": [
+            "backend/app/services/sitemap_service.py",
+            "backend/app/storage/sitemap_storage.py"
+          ],
           "steps": [
             "Read sitemap_service.py lines 676-770",
             "Create bulk_save_discovered_entries() in sitemap_storage.py",
@@ -93,7 +104,7 @@
             "Update sitemap_service.py to call storage methods instead of raw SQL",
             "Run pytest tests/unit/services -k sitemap --tb=short"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "2.2",
@@ -101,7 +112,9 @@
           "model": "sonnet",
           "parallelizable": true,
           "description": "Complete reference_tasks repository pattern adoption",
-          "files_affected": ["backend/app/tasks/reference_tasks.py"],
+          "files_affected": [
+            "backend/app/tasks/reference_tasks.py"
+          ],
           "steps": [
             "Read reference_tasks.py lines 232-325, 784-921",
             "Replace raw SQL at line 232 with repo.get_latest_cache_entry_date()",
@@ -117,7 +130,10 @@
           "model": "sonnet",
           "parallelizable": true,
           "description": "Move strategy seeds queries to StrategyStorage",
-          "files_affected": ["backend/app/api/strategies.py", "backend/app/strategies/storage.py"],
+          "files_affected": [
+            "backend/app/api/strategies.py",
+            "backend/app/strategies/storage.py"
+          ],
           "steps": [
             "Read strategies.py lines 736-837",
             "Add list_seeds() and get_seed_by_id() methods to StrategyStorage",
@@ -139,7 +155,9 @@
           "model": "haiku",
           "parallelizable": true,
           "description": "Use _build_cleanup_result in log_cleanup_tasks.py consistently",
-          "files_affected": ["backend/app/tasks/log_cleanup_tasks.py"],
+          "files_affected": [
+            "backend/app/tasks/log_cleanup_tasks.py"
+          ],
           "steps": [
             "Read log_cleanup_tasks.py lines 610-628, 767-786, 905-924, 1037-1055",
             "Replace manual result dict construction with _build_cleanup_result() helper",
@@ -154,7 +172,9 @@
           "model": "haiku",
           "parallelizable": true,
           "description": "Extend _handle_missing_directory for cleanup_old_models and cleanup_solution_state",
-          "files_affected": ["backend/app/tasks/log_cleanup_tasks.py"],
+          "files_affected": [
+            "backend/app/tasks/log_cleanup_tasks.py"
+          ],
           "steps": [
             "Read log_cleanup_tasks.py lines 174-206, 831-843, 969-981",
             "Add counter_field_name parameter to _handle_missing_directory (default='files_deleted')",
@@ -169,7 +189,9 @@
           "model": "sonnet",
           "parallelizable": true,
           "description": "Create status response helpers in strategy_monitoring_tasks.py",
-          "files_affected": ["backend/app/tasks/strategy_monitoring_tasks.py"],
+          "files_affected": [
+            "backend/app/tasks/strategy_monitoring_tasks.py"
+          ],
           "steps": [
             "Read strategy_monitoring_tasks.py - identify status dict construction patterns",
             "Create _create_completed_response(evaluated, generated, details) helper",
@@ -185,7 +207,9 @@
           "model": "haiku",
           "parallelizable": true,
           "description": "Replace _safe_float and _safe_datetime_to_iso with shared formatters in strategies.py",
-          "files_affected": ["backend/app/api/strategies.py"],
+          "files_affected": [
+            "backend/app/api/strategies.py"
+          ],
           "steps": [
             "Read strategies.py lines 56-83",
             "Import parse_float and format_db_date from app.utils.formatters",
@@ -209,7 +233,9 @@
           "model": "sonnet",
           "parallelizable": true,
           "description": "Extract HTTP client creation helper in sitemap_service.py",
-          "files_affected": ["backend/app/services/sitemap_service.py"],
+          "files_affected": [
+            "backend/app/services/sitemap_service.py"
+          ],
           "steps": [
             "Read sitemap_service.py lines 320, 365, 423, 834",
             "Create _get_http_client() async context manager",
@@ -224,7 +250,9 @@
           "model": "sonnet",
           "parallelizable": true,
           "description": "Extract completion metadata helper in base.py agent",
-          "files_affected": ["backend/app/agents/base.py"],
+          "files_affected": [
+            "backend/app/agents/base.py"
+          ],
           "steps": [
             "Read base.py lines 204-205, 301-302, 344-345",
             "Create _get_completion_metadata(started_at) helper returning (completed_at, duration_ms)",
@@ -239,7 +267,9 @@
           "model": "sonnet",
           "parallelizable": true,
           "description": "Extract _serialize_tool_result helper in base.py",
-          "files_affected": ["backend/app/agents/base.py"],
+          "files_affected": [
+            "backend/app/agents/base.py"
+          ],
           "steps": [
             "Read base.py lines 398, 717, 749, 880",
             "Create _serialize_tool_result(result) helper encapsulating json.dumps with json_serializer",
@@ -254,7 +284,9 @@
           "model": "sonnet",
           "parallelizable": true,
           "description": "Fix yfinance direct usage in market.py get_sector_history",
-          "files_affected": ["backend/app/api/market.py"],
+          "files_affected": [
+            "backend/app/api/market.py"
+          ],
           "steps": [
             "Read market.py lines 773-810",
             "Move sector history fetching to app/sources/yfinance_source.py",
@@ -277,7 +309,9 @@
           "model": "haiku",
           "parallelizable": true,
           "description": "Extract magic numbers in watchlist.py (stale threshold, cache TTL, Redis key)",
-          "files_affected": ["backend/app/api/watchlist.py"],
+          "files_affected": [
+            "backend/app/api/watchlist.py"
+          ],
           "steps": [
             "Read watchlist.py - find hardcoded values 48*3600, 60, 'watchlist:refresh:global'",
             "Add DAILY_REPORT_STALE_HOURS = 48, WATCHLIST_CACHE_TTL_SECONDS = 60",
@@ -293,7 +327,9 @@
           "model": "haiku",
           "parallelizable": true,
           "description": "Extract regex pattern constants in sitemap_service.py",
-          "files_affected": ["backend/app/services/sitemap_service.py"],
+          "files_affected": [
+            "backend/app/services/sitemap_service.py"
+          ],
           "steps": [
             "Read sitemap_service.py - find regex patterns for title, tabs, etc.",
             "Add DEFAULT_CRAWL_MAX_DEPTH = 3",
@@ -309,7 +345,9 @@
           "model": "haiku",
           "parallelizable": true,
           "description": "Replace SELECT * with explicit column lists in strategies/storage.py",
-          "files_affected": ["backend/app/strategies/storage.py"],
+          "files_affected": [
+            "backend/app/strategies/storage.py"
+          ],
           "steps": [
             "Read storage.py lines 129, 153, 243",
             "Replace SELECT * with explicit column lists matching _convert_row expectations",
@@ -324,7 +362,9 @@
           "model": "haiku",
           "parallelizable": true,
           "description": "Fix counter increment duplication in log_cleanup_tasks.py",
-          "files_affected": ["backend/app/tasks/log_cleanup_tasks.py"],
+          "files_affected": [
+            "backend/app/tasks/log_cleanup_tasks.py"
+          ],
           "steps": [
             "Read log_cleanup_tasks.py lines 478-483, 592-597, 744-749, 880-885",
             "Refactor to increment counters unconditionally AFTER if/else block",
