@@ -580,28 +580,19 @@ async def get_strategy_signal(strategy_id: str) -> dict[str, Any]:
         strategy = _get_strategy_or_404(strategy_id)
 
         # Check for stored signal from today
-        conn_mgr = get_connection_manager()
-        with conn_mgr.connection() as conn:
-            result = conn.execute(
-                """
-                SELECT signal_type, signal_strength, reasons, market_data, created_at
-                FROM strategy_signals
-                WHERE strategy_id = %s
-                ORDER BY signal_date DESC
-                LIMIT 1
-                """,
-                (strategy_id,),
-            ).fetchone()
+        storage = get_strategy_storage()
+        signals = storage.get_strategy_signals(strategy_id, limit=1)
 
-        if result:
+        if signals:
+            signal = signals[0]
             return {
                 "strategy_id": strategy_id,
                 "symbol": strategy.symbol,
-                "signal_type": result[0],
-                "signal_strength": result[1],
-                "reasons": result[2] or [],
-                "market_data": result[3] or {},
-                "generated_at": format_db_date(result[4]),
+                "signal_type": signal["signal_type"],
+                "signal_strength": signal["signal_strength"],
+                "reasons": signal["reasons"],
+                "market_data": signal["market_data"],
+                "generated_at": format_db_date(signal["created_at"]),
                 "source": "stored",
             }
 

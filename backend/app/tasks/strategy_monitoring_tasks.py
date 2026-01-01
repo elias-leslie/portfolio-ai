@@ -318,7 +318,7 @@ def _evaluate_single_strategy(
         Tuple of (result_message_or_none, was_archived)
     """
     # Calculate rolling metrics from paper_trade_transactions
-    metrics = _calculate_rolling_metrics(conn, strategy.id, window_days=DEFAULT_ROLLING_WINDOW_DAYS)
+    metrics = _calculate_rolling_metrics(strategy_storage, strategy.id, window_days=DEFAULT_ROLLING_WINDOW_DAYS)
 
     # Determine if strategy should be archived
     archived, result_msg = _determine_archive_decision(strategy, metrics, strategy_storage)
@@ -437,12 +437,12 @@ def _calculate_today_metrics(trades: list[dict[str, Any]], today: date) -> dict[
 
 
 def _calculate_rolling_metrics(
-    conn: Any, strategy_id: str, window_days: int = 30
+    strategy_storage: Any, strategy_id: str, window_days: int = 30
 ) -> dict[str, Any]:
     """Calculate rolling performance metrics for a strategy.
 
     Args:
-        conn: Database connection
+        strategy_storage: Strategy storage instance
         strategy_id: Strategy UUID
         window_days: Rolling window size (default 30 days)
 
@@ -452,20 +452,7 @@ def _calculate_rolling_metrics(
     cutoff_date = datetime.now(UTC).date() - timedelta(days=window_days)
 
     try:
-        result = conn.execute(
-            """
-            SELECT
-                o.created_at::DATE as trade_date,
-                o.realized_pnl as pnl
-            FROM idea_outcomes o
-            WHERE o.realized_pnl IS NOT NULL
-              AND o.created_at >= %s
-              AND o.strategy_id = %s
-            ORDER BY o.created_at
-            """,
-            [cutoff_date, strategy_id],
-        )
-        rows = result.fetchall()
+        rows = strategy_storage.get_strategy_trades(strategy_id, cutoff_date)
     except Exception as e:
         logger.warning("Could not query trades for strategy", strategy_id=strategy_id, error=str(e))
         rows = []

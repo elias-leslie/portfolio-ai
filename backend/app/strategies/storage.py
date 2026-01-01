@@ -764,7 +764,7 @@ class StrategyStorage:
         with self.conn.connection() as conn:
             rows = conn.execute(
                 """
-                SELECT id, signal_type, signal_strength, signal_date, reasons, created_at
+                SELECT id, signal_type, signal_strength, signal_date, reasons, market_data, created_at
                 FROM strategy_signals
                 WHERE strategy_id = %s
                 ORDER BY created_at DESC
@@ -782,7 +782,8 @@ class StrategyStorage:
                     "signal_strength": int(row[2]) if row[2] else None,
                     "signal_date": row[3],
                     "reasons": row[4] if row[4] else [],
-                    "created_at": row[5],
+                    "market_data": row[5] if row[5] else {},
+                    "created_at": row[6],
                 }
             )
         return signals

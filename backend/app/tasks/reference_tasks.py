@@ -488,8 +488,17 @@ def refresh_yfinance_reference_data(self: Task) -> dict[str, int | str]:
                 "duration_seconds": (dt.datetime.now(dt.UTC) - start_time).total_seconds(),
             }
 
-        # Store in reference_cache table using shared helper
-        symbols_updated = _upsert_reference_cache(storage, df, "yfinance")
+        # Store in reference_cache table using repository method
+        repo = ReferenceRepository(storage)
+        symbols_updated = 0
+        for row in df.iter_rows(named=True):
+            repo.upsert_reference_cache(
+                symbol=row["symbol"],
+                as_of_date=row["as_of_date"],
+                payload=row["payload"],
+                source="yfinance",
+            )
+            symbols_updated += 1
 
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
 
@@ -555,7 +564,17 @@ def _store_alphavantage_payload(symbols: list[str]) -> int:
         return 0
 
     storage = get_storage()
-    return _upsert_reference_cache(storage, df, "alphavantage")
+    repo = ReferenceRepository(storage)
+    rows_upserted = 0
+    for row in df.iter_rows(named=True):
+        repo.upsert_reference_cache(
+            symbol=row["symbol"],
+            as_of_date=row["as_of_date"],
+            payload=row["payload"],
+            source="alphavantage",
+        )
+        rows_upserted += 1
+    return rows_upserted
 
 
 @celery_app.task(name="refresh_alphavantage_reference_backup", bind=True)
