@@ -192,3 +192,4 @@ class StrategyDefinition(BaseModel):
     live_win_rate: Decimal | None = None
     live_sharpe_ratio: Decimal | None = None
     last_used_at: datetime | None = None
+    live_metrics_updated_at: datetime | None = None
