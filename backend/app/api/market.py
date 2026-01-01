@@ -641,9 +641,7 @@ async def get_market_status_endpoint(request: Request) -> MarketStatusResponse:
 @cache_response(ttl=CACHE_TTL_SHORT)
 async def get_fear_greed_history(
     request: Request,
-    days: int = Query(
-        365, ge=30, le=MAX_HISTORICAL_DAYS, description="Number of days of history"
-    ),
+    days: int = Query(365, ge=30, le=MAX_HISTORICAL_DAYS, description="Number of days of history"),
 ) -> FearGreedHistoryResponse:
     """Get Fear & Greed historical data for trend charts.
 
@@ -676,9 +674,7 @@ async def get_fear_greed_history(
 @cache_response(ttl=CACHE_TTL_SHORT)
 async def get_news_sentiment_history(
     request: Request,
-    days: int = Query(
-        30, ge=1, le=MAX_HISTORICAL_DAYS, description="Number of days of history"
-    ),
+    days: int = Query(30, ge=1, le=MAX_HISTORICAL_DAYS, description="Number of days of history"),
     granularity: str = Query(
         "daily",
         description="Data granularity: 'daily' for day-level, 'hourly' for hour-level",
@@ -725,9 +721,7 @@ async def get_news_sentiment_history(
 @cache_response(ttl=CACHE_TTL_SHORT)
 async def get_indicator_history(
     request: Request,
-    days: int = Query(
-        365, ge=30, le=MAX_HISTORICAL_DAYS, description="Number of days of history"
-    ),
+    days: int = Query(365, ge=30, le=MAX_HISTORICAL_DAYS, description="Number of days of history"),
 ) -> IndicatorHistoryResponse:
     """Get key indicator historical data for trend charts."""
     result_data: dict[str, list[dict[str, Any]]] = {}
@@ -757,9 +751,7 @@ async def get_indicator_history(
 @cache_response(ttl=CACHE_TTL_MEDIUM)
 async def get_sector_history(
     request: Request,
-    days: int = Query(
-        365, ge=30, le=MAX_HISTORICAL_DAYS, description="Number of days of history"
-    ),
+    days: int = Query(365, ge=30, le=MAX_HISTORICAL_DAYS, description="Number of days of history"),
 ) -> SectorHistoryResponse:
     """Get sector ETF historical data for performance charts.
 

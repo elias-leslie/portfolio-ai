@@ -544,9 +544,7 @@ class Agent(ABC):
         )
 
         # Process tool calls and format results for next turn
-        tool_results = self._process_tool_calls_llm(
-            run_id, response.tool_calls, tool_calls_made
-        )
+        tool_results = self._process_tool_calls_llm(run_id, response.tool_calls, tool_calls_made)
         current_prompt = self._format_tool_results(tool_results)
 
         # Update conversation history

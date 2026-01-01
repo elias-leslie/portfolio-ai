@@ -701,7 +701,9 @@ def _generate_recommendation(
     signal = watchlist.get("signal_type") if watchlist else None
     strength = (watchlist.get("signal_strength") if watchlist else None) or 0
     fear_greed_data = market.get("fear_greed") or {}
-    fear_greed = fear_greed_data.get("score", FEAR_GREED_DEFAULT) if fear_greed_data else FEAR_GREED_DEFAULT
+    fear_greed = (
+        fear_greed_data.get("score", FEAR_GREED_DEFAULT) if fear_greed_data else FEAR_GREED_DEFAULT
+    )
 
     # Route to appropriate helper based on position status
     if held:
