@@ -1,0 +1,374 @@
+{
+  "meta": {
+    "title": "Full Codebase Refactor Session",
+    "created": "2026-01-01",
+    "session_id": "refactor-20260101-080950",
+    "baseline_complexity": 1148.42,
+    "targets_analyzed": 10
+  },
+  "phases": [
+    {
+      "id": 1,
+      "name": "Critical Bugs & Data Integrity",
+      "goal": "Fix runtime bugs and data integrity issues",
+      "tasks": [
+        {
+          "id": "1.1",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Fix storage property access bug in sitemap_service.py (self.storage vs self._storage)",
+          "files_affected": [
+            "backend/app/services/sitemap_service.py"
+          ],
+          "steps": [
+            "Read sitemap_service.py lines 255, 675, 699",
+            "Verify self._storage is the initialized attribute (line 255)",
+            "Change self.storage to self._storage at lines 675 and 699",
+            "Run pytest tests/unit/services -k sitemap --tb=short to verify"
+          ],
+          "passes": false
+        },
+        {
+          "id": "1.2",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Add missing symbol count validation for comma-separated inputs in market.py",
+          "files_affected": [
+            "backend/app/api/market.py"
+          ],
+          "steps": [
+            "Read market.py line 452 (symbols.split pattern)",
+            "Add MAX_SYMBOLS_PER_REQUEST = 50 constant at module level",
+            "After symbol_list creation, add: if len(symbol_list) > MAX_SYMBOLS_PER_REQUEST: raise HTTPException(400, f'Maximum {MAX_SYMBOLS_PER_REQUEST} symbols allowed')",
+            "Filter empty strings: symbol_list = [s for s in symbol_list if s]",
+            "Run pytest tests/unit/api -k market --tb=short to verify"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Layer Boundary Violations",
+      "goal": "Move raw SQL from API/tasks to storage/repository layer",
+      "tasks": [
+        {
+          "id": "2.1",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Move raw SQL query in strategies.py to StrategyStorage.get_performance_history()",
+          "files_affected": [
+            "backend/app/api/strategies.py",
+            "backend/app/strategies/storage.py"
+          ],
+          "steps": [
+            "Read strategies.py lines 297-306 (raw SQL for strategy_performance)",
+            "Add get_performance_history(strategy_id, limit) method to StrategyStorage",
+            "Return list of dicts with date, trades_30d, win_rate_30d, etc.",
+            "Update get_strategy endpoint to call storage method",
+            "Run pytest tests/unit/strategies -x --tb=short"
+          ],
+          "passes": false
+        },
+        {
+          "id": "2.2",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Use existing get_strategy_signals() for single signal retrieval in strategies.py",
+          "files_affected": [
+            "backend/app/api/strategies.py"
+          ],
+          "steps": [
+            "Read strategies.py lines 599-608 (raw SQL for strategy_signals)",
+            "Verify storage.get_strategy_signals exists (storage.py:754)",
+            "Replace raw SQL with storage.get_strategy_signals(strategy_id, limit=1)",
+            "Handle empty result case for HTTPException(404)",
+            "Run pytest tests/unit/api -k strategies --tb=short"
+          ],
+          "passes": false
+        },
+        {
+          "id": "2.3",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Replace raw SQL in strategy_monitoring_tasks with storage.get_strategy_trades()",
+          "files_affected": [
+            "backend/app/tasks/strategy_monitoring_tasks.py"
+          ],
+          "steps": [
+            "Read strategy_monitoring_tasks.py lines 455-467 (raw SQL in _calculate_rolling_metrics)",
+            "Verify storage.get_strategy_trades exists (storage.py:651-663)",
+            "Import get_strategy_storage and call storage.get_strategy_trades(strategy_id, cutoff_date)",
+            "Transform result to match existing usage pattern",
+            "Run pytest tests/unit/tasks -k strategy --tb=short"
+          ],
+          "passes": false
+        },
+        {
+          "id": "2.4",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Replace _upsert_reference_cache helper with repository method",
+          "files_affected": [
+            "backend/app/tasks/reference_tasks.py"
+          ],
+          "steps": [
+            "Read reference_tasks.py lines 456-464 (_upsert_reference_cache helper)",
+            "Verify repo.upsert_reference_cache exists (reference_repository.py:324-349)",
+            "Replace _upsert_reference_cache calls with repo.upsert_reference_cache()",
+            "Remove the now-unused helper function",
+            "Run pytest tests/unit/tasks -k reference --tb=short"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "DRY Violations & Pattern Consolidation",
+      "goal": "Eliminate duplicate code and use existing helpers",
+      "tasks": [
+        {
+          "id": "3.1",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Replace manual row-to-dict loops with rows_to_dicts in strategies/storage.py",
+          "files_affected": [
+            "backend/app/strategies/storage.py"
+          ],
+          "steps": [
+            "Import rows_to_dicts from app.utils.db_helpers",
+            "Replace manual dict construction in get_backtest_runs (lines 737-751)",
+            "Replace manual dict construction in get_strategy_signals (lines 776-788)",
+            "Replace manual dict construction in get_symbol_trades (lines 813-826)",
+            "Run pytest tests/unit/strategies -x --tb=short"
+          ],
+          "passes": false
+        },
+        {
+          "id": "3.2",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Use generate_uuid() utility in strategies/storage.py",
+          "files_affected": [
+            "backend/app/strategies/storage.py"
+          ],
+          "steps": [
+            "Read storage.py line 80 (str(uuid.uuid4()) usage)",
+            "Import generate_uuid from app.utils.db_helpers",
+            "Replace str(uuid.uuid4()) with generate_uuid()",
+            "Run pytest tests/unit/strategies -x --tb=short"
+          ],
+          "passes": false
+        },
+        {
+          "id": "3.3",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": true,
+          "description": "Unify strategy monitoring performance constants with StrategyStorage",
+          "files_affected": [
+            "backend/app/tasks/strategy_monitoring_tasks.py"
+          ],
+          "steps": [
+            "Read strategy_monitoring_tasks.py lines 26-27, 37 (PERFORMANCE_RATIO_THRESHOLD, EVOLUTION_PERFORMANCE_THRESHOLD, DEFAULT_ROLLING_WINDOW_DAYS)",
+            "Read storage.py lines 40-42 (DEFAULT_PERFORMANCE_THRESHOLD, PERFORMANCE_WINDOW_DAYS)",
+            "Import constants from StrategyStorage where applicable",
+            "Keep PERFORMANCE_RATIO_THRESHOLD (0.7) as task-specific if it represents archival threshold (different from 0.9 evolution threshold)",
+            "Run pytest tests/unit/tasks -k strategy --tb=short"
+          ],
+          "passes": false
+        },
+        {
+          "id": "3.4",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Standardize rotate_logs_task to use _build_cleanup_result helper",
+          "files_affected": [
+            "backend/app/tasks/log_cleanup_tasks.py"
+          ],
+          "steps": [
+            "Read log_cleanup_tasks.py lines 400-408 (rotate_logs_task result construction)",
+            "Verify _build_cleanup_result helper signature and usage at line 174",
+            "Refactor rotate_logs_task to use _build_cleanup_result with would_action_list",
+            "Replace 'would_rotate' key with 'would_action_list' for consistency",
+            "Run pytest tests/unit/tasks -k cleanup --tb=short"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Schedule Optimization",
+      "goal": "Fix schedule collisions and improve observability",
+      "tasks": [
+        {
+          "id": "4.1",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Stagger 04:00 UTC task collisions in celery_schedules.py",
+          "files_affected": [
+            "backend/app/celery_schedules.py"
+          ],
+          "steps": [
+            "Read celery_schedules.py lines 163, 303, 627 (all crontab(hour=4, minute=0))",
+            "Stagger: evaluate-strategy-performance at 04:00, cleanup-sitemap-history at 04:05, refresh-yfinance-reference at 04:10",
+            "Update comments to document staggering rationale",
+            "No tests needed - schedule changes are configuration"
+          ],
+          "passes": false
+        },
+        {
+          "id": "4.2",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Stagger 04:30 UTC and 03:05 UTC task collisions",
+          "files_affected": [
+            "backend/app/celery_schedules.py"
+          ],
+          "steps": [
+            "Read celery_schedules.py lines 638, 823 (both at 04:30)",
+            "Stagger: parse-valuation-metrics at 04:30, daily-qa-scan at 04:35",
+            "Read lines 272, 806 (both at 03:05)",
+            "Stagger: monitor-thesis-health at 03:05, scan-feature-capabilities at 03:07",
+            "Update comments for staggering documentation"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Magic Numbers & Constants",
+      "goal": "Extract hardcoded values to named constants",
+      "tasks": [
+        {
+          "id": "5.1",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Extract cache TTL and staleness constants in reference_tasks.py",
+          "files_affected": [
+            "backend/app/tasks/reference_tasks.py"
+          ],
+          "steps": [
+            "Read reference_tasks.py lines 101, 563 (ttl_seconds=60, days_threshold=7)",
+            "Add WATCHLIST_CACHE_TTL_SECONDS = 60 at module level",
+            "Add REFERENCE_DATA_STALENESS_DAYS = 7 at module level",
+            "Update usages to reference constants",
+            "Run pytest tests/unit/tasks -k reference --tb=short"
+          ],
+          "passes": false
+        },
+        {
+          "id": "5.2",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Extract tool result formatting constants in agents/base.py",
+          "files_affected": [
+            "backend/app/agents/base.py"
+          ],
+          "steps": [
+            "Read base.py lines 756, 762, 765-767",
+            "Add TOOL_RESULTS_HEADER = 'TOOL RESULTS:' constant",
+            "Add SEPARATOR_LENGTH = 60 constant",
+            "Add TOOL_RESULTS_PROMPT as multi-line constant",
+            "Update _format_tool_results to use constants",
+            "Run pytest tests/unit/agents -x --tb=short"
+          ],
+          "passes": false
+        },
+        {
+          "id": "5.3",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Move status_map to performance_utils.py in strategies.py",
+          "files_affected": [
+            "backend/app/api/strategies.py",
+            "backend/app/strategies/performance_utils.py"
+          ],
+          "steps": [
+            "Read strategies.py lines 549-555 (status_map dictionary)",
+            "Move to performance_utils.py as FLAG_TO_STATUS_MAP constant",
+            "Add map_flag_to_status(flag: str) -> str helper function",
+            "Update strategies.py to import and use the helper",
+            "Run pytest tests/unit/strategies -x --tb=short"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Remove Unnecessary Code",
+      "goal": "Clean up redundant patterns and dead code",
+      "tasks": [
+        {
+          "id": "6.1",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": true,
+          "description": "Remove redundant HTTPException re-raise blocks in strategies.py",
+          "files_affected": [
+            "backend/app/api/strategies.py"
+          ],
+          "steps": [
+            "Read strategies.py lines 356-357, 519-520, 572-573, 631-632, 667-668, 764-765, 842-843",
+            "Identify pattern: except HTTPException: raise (7 occurrences)",
+            "Remove all 7 blocks - HTTPExceptions propagate automatically",
+            "Run pytest tests/unit/api -k strategies --tb=short"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Final Verification",
+      "goal": "Run full test suite and verify all changes",
+      "tasks": [
+        {
+          "id": "7.1",
+          "tier": 2,
+          "model": "sonnet",
+          "parallelizable": false,
+          "description": "Run full backend test suite",
+          "files_affected": [],
+          "steps": [
+            "cd backend && timeout 120 .venv/bin/pytest tests/ -x --tb=short",
+            "Document test results and any pre-existing failures",
+            "Verify all changed modules pass their tests"
+          ],
+          "passes": false
+        },
+        {
+          "id": "7.2",
+          "tier": 1,
+          "model": "haiku",
+          "parallelizable": false,
+          "description": "Run frontend build verification",
+          "files_affected": [],
+          "steps": [
+            "cd frontend && npm run build",
+            "Verify build succeeds with no TypeScript errors"
+          ],
+          "passes": false
+        }
+      ]
+    }
+  ]
+}

@@ -98,6 +98,7 @@ CACHE_TTL_LONG = 900  # 15 minutes
 
 # Historical data limits
 MAX_HISTORICAL_DAYS = 1825  # ~5 years
+MAX_SYMBOLS_PER_REQUEST = 50  # Prevent DoS with large symbol lists
 
 # Market indicator symbols
 CORE_MARKET_SYMBOLS = ["^GSPC", "^VIX", "^TNX", "DX-Y.NYB"]
@@ -448,8 +449,19 @@ async def get_prices(
     symbols: str = Query(..., description="Comma-separated symbols"),
 ) -> PricesResponse:
     """Get current prices for stock symbols."""
-    # Parse symbols
-    symbol_list = [s.strip().upper() for s in symbols.split(",")]
+    # Parse symbols and filter empty strings
+    symbol_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+
+    # Validate non-empty list
+    if not symbol_list:
+        raise HTTPException(status_code=400, detail="No valid symbols provided")
+
+    # Validate symbol count to prevent DoS
+    if len(symbol_list) > MAX_SYMBOLS_PER_REQUEST:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Maximum {MAX_SYMBOLS_PER_REQUEST} symbols allowed, got {len(symbol_list)}",
+        )
 
     # Fetch price data
     price_data = price_fetcher.fetch_price_data(symbol_list)
