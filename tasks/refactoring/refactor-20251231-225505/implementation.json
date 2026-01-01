@@ -42,7 +42,7 @@
             "Run verification"
           ],
           "verification": "ruff check backend/app/api/symbols.py && pytest tests/api/test_symbols.py -x --tb=short -q",
-          "passes": false
+          "passes": true
         },
         {
           "id": "1.3",
@@ -72,7 +72,7 @@
             "Run verification"
           ],
           "verification": "ruff check backend/app/api/market.py",
-          "passes": false
+          "passes": true
         },
         {
           "id": "1.5",
@@ -102,7 +102,7 @@
             "Run ruff check"
           ],
           "verification": "cd services/dev-companion && ruff check dev_companion/server.py",
-          "passes": false
+          "passes": true
         },
         {
           "id": "1.7",
@@ -117,7 +117,7 @@
             "Update all usages"
           ],
           "verification": "node .claude/skills/task-manager/check.js --help",
-          "passes": false
+          "passes": true
         }
       ]
     },
