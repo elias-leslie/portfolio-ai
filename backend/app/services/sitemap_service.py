@@ -65,6 +65,9 @@ WEBSOCKET_PROBE_PATHS = ["/ws", "/ws/{session_id}", "/socket.io"]
 # Status codes that indicate WebSocket endpoint exists
 WS_ENDPOINT_STATUS_CODES = (403, 426, 400)
 
+# Batch size limit for health checks
+MAX_HEALTH_CHECK_BATCH_SIZE = 1000  # Limit prevents long-running health checks
+
 
 def _interpret_response(
     response: httpx.Response, is_probe: bool, probe_pattern: str | None
@@ -864,7 +867,7 @@ class SitemapService:
         logger.info("sitemap_check_all_health_start")
 
         # Get all entries
-        entries, _total = self.get_entries(limit=1000)
+        entries, _total = self.get_entries(limit=MAX_HEALTH_CHECK_BATCH_SIZE)
 
         checked = 0
         healthy = 0

@@ -132,6 +132,41 @@ def _calculate_cutoff_timestamp(
     return cutoff_time, cutoff_time.timestamp()
 
 
+def _handle_missing_directory(
+    task_id: str,
+    dry_run: bool,
+    directory_path: Path,
+    task_name: str,
+    log_id: int,
+) -> dict[str, Any] | None:
+    """Handle missing directory for cleanup tasks.
+
+    Args:
+        task_id: The Celery task ID
+        dry_run: Whether this was a dry run
+        directory_path: Path to the directory to check
+        task_name: Name of the task (for logging)
+        log_id: Maintenance log ID
+
+    Returns:
+        Early result dict if directory doesn't exist, None otherwise
+    """
+    if not directory_path.exists():
+        logger.warning(f"{task_name}_directory_not_found", directory=str(directory_path))
+        early_result = {
+            "task_id": task_id,
+            "dry_run": dry_run,
+            "files_deleted": 0,
+            "bytes_freed": 0,
+            "message": f"{task_name.replace('_', ' ').title()} directory not found",
+            "success": True,
+            "duration_seconds": 0.0,
+        }
+        log_maintenance_complete(log_id, task_name, True, early_result)
+        return early_result
+    return None
+
+
 def check_disk_space_impl() -> dict[str, Any]:
     """Check disk space usage and alert if >85%.
 
@@ -576,19 +611,12 @@ def cleanup_old_backups_task(
         # Backups directory
         backup_dir = Path(__file__).parent.parent.parent.parent / "backups"
 
-        if not backup_dir.exists():
-            logger.warning("backup_directory_not_found", directory=str(backup_dir))
-            early_result = {
-                "task_id": task_id,
-                "dry_run": dry_run,
-                "files_deleted": 0,
-                "bytes_freed": 0,
-                "message": "Backup directory not found",
-                "success": True,
-                "duration_seconds": 0.0,
-            }
-            log_maintenance_complete(log_id, "cleanup_old_backups_task", True, early_result)
-            return early_result
+        # Check if directory exists
+        early_exit = _handle_missing_directory(
+            task_id, dry_run, backup_dir, "cleanup_old_backups_task", log_id
+        )
+        if early_exit:
+            return early_exit
 
         # Find all backup files (SQL dumps)
         backup_patterns = ["*.sql", "*.sql.gz", "*.sql.bz2"]
