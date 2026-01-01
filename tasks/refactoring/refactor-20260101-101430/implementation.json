@@ -164,7 +164,7 @@
           "tier": 2,
           "model": "sonnet",
           "parallelizable": true,
-          "passes": false,
+          "passes": true,
           "description": "Extract AgentRunRepository from base.py",
           "files_affected": [
             "backend/app/agents/base.py",
@@ -189,7 +189,7 @@
           "tier": 2,
           "model": "sonnet",
           "parallelizable": true,
-          "passes": false,
+          "passes": true,
           "description": "Split sitemap_service.py into focused modules",
           "files_affected": [
             "backend/app/services/sitemap_service.py",
