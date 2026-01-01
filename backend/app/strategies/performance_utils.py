@@ -14,6 +14,26 @@ MEETING_THRESHOLD = 0.7  # >= 70% of expected Sharpe
 
 PerformanceFlag = Literal["exceeding", "meeting", "underperforming", "no_data"]
 
+# Map performance flags to status strings for API responses
+PERFORMANCE_STATUS_MAP: dict[str, str] = {
+    "exceeding": "exceeding_expectations",
+    "meeting": "meeting_expectations",
+    "underperforming": "underperforming",
+    "no_data": "no_live_data",
+}
+
+
+def map_performance_flag_to_status(flag: PerformanceFlag) -> str:
+    """Map a performance flag to its API status string.
+
+    Args:
+        flag: Performance classification flag
+
+    Returns:
+        Human-readable status string for API responses
+    """
+    return PERFORMANCE_STATUS_MAP.get(flag, "no_live_data")
+
 
 def calculate_performance_status(
     expected_sharpe: float | None,
