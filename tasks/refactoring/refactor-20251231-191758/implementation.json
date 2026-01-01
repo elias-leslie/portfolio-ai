@@ -155,7 +155,7 @@
             "Run tests to verify no regressions"
           ],
           "verification": "pytest tests/api/test_market.py tests/repositories/ -x -q",
-          "passes": false
+          "passes": true
         }
       ]
     },
