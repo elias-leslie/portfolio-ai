@@ -364,7 +364,7 @@
           "tier": 2,
           "model": "sonnet",
           "parallelizable": true,
-          "passes": false,
+          "passes": true,
           "description": "Split strategies.py API - extract seeds router",
           "files_affected": [
             "backend/app/api/strategies.py",

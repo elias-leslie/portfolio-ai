@@ -15,10 +15,10 @@ from .review_router import router as review_router
 # Create main router with prefix and tags
 router = APIRouter(prefix="/api/watchlist", tags=["watchlist"])
 
-# Include all domain routers
-router.include_router(crud_router)
-router.include_router(refresh_router)
-router.include_router(reports_router)
-router.include_router(review_router)
+# Include all domain routers - use prefix="" to explicitly allow empty paths
+router.include_router(crud_router, prefix="")
+router.include_router(refresh_router, prefix="")
+router.include_router(reports_router, prefix="")
+router.include_router(review_router, prefix="")
 
 __all__ = ["router"]
