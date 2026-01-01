@@ -594,7 +594,7 @@ def cleanup_temp_files_task(self: Task, hours: int = 24, dry_run: bool = False) 
         if bytes_freed > 0 and not dry_run:
             record_maintenance_metric("temp_cleanup_bytes_freed", bytes_freed, "bytes")
 
-        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        duration = _calculate_duration(start_time)
 
         result: dict[str, Any] = {
             "task_id": task_id,
@@ -617,7 +617,7 @@ def cleanup_temp_files_task(self: Task, hours: int = 24, dry_run: bool = False) 
         return result
 
     except Exception as e:
-        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        duration = _calculate_duration(start_time)
         logger.error(
             "cleanup_temp_files_failed",
             task_id=task_id,
@@ -644,7 +644,7 @@ def check_disk_space_task(self: Task) -> dict[str, int | str | float | list[dict
 
     try:
         result = check_disk_space_impl()
-        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        duration = _calculate_duration(start_time)
 
         result_dict: dict[str, int | str | float | list[dict[str, Any]]] = {
             "task_id": task_id,
@@ -656,7 +656,7 @@ def check_disk_space_task(self: Task) -> dict[str, int | str | float | list[dict
         return result_dict
 
     except Exception as e:
-        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        duration = _calculate_duration(start_time)
         logger.error(
             "check_disk_space_failed",
             task_id=task_id,

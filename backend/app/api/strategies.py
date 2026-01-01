@@ -668,11 +668,7 @@ async def generate_strategy_signal(strategy_id: str) -> dict[str, Any]:
         Newly generated signal
     """
     try:
-        storage = get_strategy_storage()
-        strategy = storage.get_strategy_by_id(strategy_id)
-
-        if not strategy:
-            raise HTTPException(status_code=404, detail=f"Strategy {strategy_id} not found")
+        strategy = _get_strategy_or_404(strategy_id)
 
         # Generate fresh signal
         signal_data = generate_signal_for_strategy(strategy_id, strategy.symbol)
@@ -852,11 +848,7 @@ async def get_strategy_evolution(strategy_id: str) -> dict[str, Any]:
     Shows: Seed -> Backtest -> Strategy -> Signals -> Trades -> Performance
     """
     try:
-        storage = get_strategy_storage()
-        strategy = storage.get_strategy_by_id(strategy_id)
-
-        if not strategy:
-            raise HTTPException(status_code=404, detail=f"Strategy {strategy_id} not found")
+        strategy = _get_strategy_or_404(strategy_id)
 
         conn_mgr = get_connection_manager()
         with conn_mgr.connection() as conn:
