@@ -25,6 +25,12 @@ const nextConfig: NextConfig = {
         source: "/dev-companion/:path*",
         destination: "http://127.0.0.1:9999/:path*",
       },
+      // Watchlist root endpoint - explicitly add trailing slash
+      // (Next.js :path* strips trailing slashes, but FastAPI expects them)
+      {
+        source: "/api/watchlist",
+        destination: "http://127.0.0.1:8000/api/watchlist/",
+      },
       // General catch-all for all API routes
       // Backend middleware normalizes trailing slashes
       {
