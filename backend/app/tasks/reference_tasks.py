@@ -27,47 +27,9 @@ from app.sources.alphavantage_source import AlphaVantageSource
 from app.sources.yfinance_source import YFinanceSource
 from app.storage import get_storage
 from app.utils.formatters import parse_float
-from app.utils.watchlist_cache import get_watchlist_symbols_cached
+from app.utils.task_helpers import get_watchlist_symbols_or_early_return
 
 logger = get_logger(__name__)
-
-
-def _get_watchlist_symbols_or_early_return(
-    task_id: str | None,
-    log_event: str,
-    secondary_metric_name: str = "symbols_updated",
-) -> tuple[list[str], Any, dict[str, int | str] | None]:
-    """Get watchlist symbols or return early response if none found.
-
-    Common boilerplate pattern used by Celery tasks that process watchlist symbols.
-
-    Args:
-        task_id: Celery task ID for response
-        log_event: Log event name for empty list (e.g., "no_watchlist_symbols_for_health_scores")
-        secondary_metric_name: Name of secondary metric in response (default: "symbols_updated")
-
-    Returns:
-        Tuple of (symbols_list, storage, early_return_response_or_none)
-        If symbols is empty, early_return_response contains the response dict.
-        Otherwise, early_return_response is None.
-    """
-    storage = get_storage()
-    symbols = get_watchlist_symbols_cached(storage, account_id=None, ttl_seconds=60)
-
-    if not symbols:
-        logger.info(log_event)
-        return (
-            [],
-            storage,
-            {
-                "task_id": task_id,
-                "symbols_processed": 0,
-                secondary_metric_name: 0,
-                "duration_seconds": 0,
-            },
-        )
-
-    return symbols, storage, None
 
 
 class ValuationMetricsDict(TypedDict, total=False):
@@ -413,7 +375,7 @@ def refresh_yfinance_reference_data(self: Task) -> dict[str, int | str]:
 
     try:
         # Get watchlist symbols with early return if none found
-        symbols, storage, early_return = _get_watchlist_symbols_or_early_return(
+        symbols, storage, early_return = get_watchlist_symbols_or_early_return(
             task_id, "no_watchlist_symbols_found"
         )
         if early_return:
@@ -607,7 +569,7 @@ def refresh_analyst_revisions(self: Task) -> dict[str, int | str]:
 
     try:
         # Get watchlist symbols with early return if none found
-        symbols, storage, early_return = _get_watchlist_symbols_or_early_return(
+        symbols, storage, early_return = get_watchlist_symbols_or_early_return(
             task_id, "no_watchlist_symbols_for_analyst_revisions", "records_saved"
         )
         if early_return:
@@ -671,7 +633,7 @@ def refresh_financial_health_scores(self: Task) -> dict[str, int | str]:
 
     try:
         # Get watchlist symbols with early return if none found
-        symbols, storage, early_return = _get_watchlist_symbols_or_early_return(
+        symbols, storage, early_return = get_watchlist_symbols_or_early_return(
             task_id, "no_watchlist_symbols_for_health_scores"
         )
         if early_return:
@@ -790,7 +752,7 @@ def refresh_risk_metrics(self: Task) -> dict[str, int | str]:
 
     try:
         # Get watchlist symbols with early return if none found
-        symbols, storage, early_return = _get_watchlist_symbols_or_early_return(
+        symbols, storage, early_return = get_watchlist_symbols_or_early_return(
             task_id, "no_watchlist_symbols_for_risk_metrics"
         )
         if early_return:
