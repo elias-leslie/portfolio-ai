@@ -965,9 +965,7 @@ def trigger_strategy_from_seed(seed_id: str, symbol: str) -> dict[str, Any]:
         storage.reject_seed(seed_id)
 
         reason = (
-            result.get("message", result.get("status", "unknown"))
-            if result
-            else "workflow error"
+            result.get("message", result.get("status", "unknown")) if result else "workflow error"
         )
         logger.info(
             f"Seed {seed_id} rejected: {reason}",

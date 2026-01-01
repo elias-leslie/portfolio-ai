@@ -49,7 +49,6 @@ HEALTH_CHECK_TIMEOUT_PROBE = (
 )
 
 
-
 def _interpret_response(
     response: httpx.Response, is_probe: bool, probe_pattern: str | None
 ) -> tuple[bool, str | None]:

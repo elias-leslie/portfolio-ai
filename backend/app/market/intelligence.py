@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 from app.market import plain_language
 
 if TYPE_CHECKING:
-    from app.market.options_context import PutCallContext
+    pass
 from app.market.sentiment import MarketHealthScore
 from app.models.market_intelligence import EnrichedIndicator, SectorInfo
 from app.portfolio.models import PriceData
