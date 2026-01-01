@@ -72,7 +72,7 @@ async def trigger_strategy_research(
         else:
             # Run daily refresh for top symbols
             task = celery_app.send_task(
-                "app.tasks.strategy_monitoring_tasks.daily_strategy_refresh",
+                "app.tasks.strategy.generation_tasks.daily_strategy_refresh",
                 kwargs={"max_symbols": 5},
             )
             message = "Started strategy research for top 5 watchlist symbols"
@@ -157,7 +157,7 @@ async def trigger_full_pipeline(
         # Stage 1: Strategy research (optional)
         if not skip_research:
             task1 = celery_app.send_task(
-                "app.tasks.strategy_monitoring_tasks.daily_strategy_refresh",
+                "app.tasks.strategy.generation_tasks.daily_strategy_refresh",
                 kwargs={"max_symbols": 5},
             )
             tasks["strategy_research"] = {

@@ -96,7 +96,7 @@ class TestStrategyResearchEndpoint:
         # Verify correct Celery task called
         mock_celery_app.send_task.assert_called_once()
         call_args = mock_celery_app.send_task.call_args
-        assert call_args[0][0] == "app.tasks.strategy_monitoring_tasks.daily_strategy_refresh"
+        assert call_args[0][0] == "app.tasks.strategy.generation_tasks.daily_strategy_refresh"
         assert call_args[1]["kwargs"]["max_symbols"] == 5
 
     def test_trigger_strategy_research_with_symbol(

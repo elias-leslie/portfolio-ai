@@ -119,7 +119,7 @@ def _trigger_strategy_generation_for_top_symbols() -> None:
             return
 
         # Import and dispatch strategy generation task
-        from .strategy_monitoring_tasks import (
+        from .strategy.generation_tasks import (
             trigger_strategies_for_top_watchlist,
         )
 

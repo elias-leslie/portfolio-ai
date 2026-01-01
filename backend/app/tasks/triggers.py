@@ -112,7 +112,7 @@ def _on_seed_created(payload: dict[str, Any]) -> None:
 
     # Only trigger for high-confidence seeds
     if confidence >= 7:
-        from app.tasks.strategy_monitoring_tasks import (
+        from app.tasks.strategy.generation_tasks import (
             trigger_strategy_from_seed,
         )
 

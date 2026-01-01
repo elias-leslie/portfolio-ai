@@ -108,7 +108,7 @@
           "tier": 2,
           "model": "sonnet",
           "parallelizable": true,
-          "passes": false,
+          "passes": true,
           "description": "Split log_cleanup_tasks.py into domain-specific modules",
           "files_affected": [
             "backend/app/tasks/log_cleanup_tasks.py",

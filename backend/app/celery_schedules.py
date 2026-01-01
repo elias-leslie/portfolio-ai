@@ -160,28 +160,28 @@ def _strategy_tasks() -> dict[str, dict[str, Any]]:
         # Strategy monitoring & generation
         # Staggered: evaluate at 04:00, yfinance at 04:02, sitemap cleanup at 04:04
         "evaluate-strategy-performance": {
-            "task": "app.tasks.strategy_monitoring_tasks.evaluate_strategy_performance",
+            "task": "app.tasks.strategy.performance_tasks.evaluate_strategy_performance",
             "schedule": crontab(hour=4, minute=0),  # Daily at 04:00 UTC
             "options": {"expires": EXPIRY_1_HOUR},
         },
         "auto-promote-strategies": {
-            "task": "app.tasks.strategy_monitoring_tasks.auto_promote_strategies",
+            "task": "app.tasks.strategy.performance_tasks.auto_promote_strategies",
             "schedule": crontab(hour=4, minute=15),  # Daily at 04:15 UTC
             "options": {"expires": EXPIRY_1_HOUR},
         },
         "generate-weekly-strategies": {
-            "task": "app.tasks.strategy_monitoring_tasks.weekly_strategy_generation",
+            "task": "app.tasks.strategy.generation_tasks.weekly_strategy_generation",
             "schedule": crontab(hour=5, minute=0, day_of_week=0),  # Sunday 05:00 UTC
             "options": {"expires": EXPIRY_2_HOURS},
         },
         # Staggered Sunday 06:XX: evolution at 06:00, sec-cik at 06:05, fundamental at 06:10
         "weekly-strategy-evolution": {
-            "task": "app.tasks.strategy_monitoring_tasks.weekly_strategy_evolution",
+            "task": "app.tasks.strategy.evolution_tasks.weekly_strategy_evolution",
             "schedule": crontab(hour=6, minute=0, day_of_week=0),  # Sunday 06:00 UTC
             "options": {"expires": EXPIRY_2_HOURS},
         },
         "daily-strategy-refresh": {
-            "task": "app.tasks.strategy_monitoring_tasks.daily_strategy_refresh",
+            "task": "app.tasks.strategy.generation_tasks.daily_strategy_refresh",
             "schedule": crontab(hour=5, minute=15),  # Daily at 05:15 UTC
             "options": {"expires": EXPIRY_1_HOUR},
         },

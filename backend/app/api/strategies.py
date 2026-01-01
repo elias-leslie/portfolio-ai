@@ -22,7 +22,7 @@ from app.strategies.performance_utils import (
     map_performance_flag_to_status,
 )
 from app.strategies.storage import get_strategy_storage
-from app.tasks.strategy_monitoring_tasks import weekly_strategy_generation
+from app.tasks.strategy.generation_tasks import weekly_strategy_generation
 from app.tasks.strategy_signal_tasks import generate_signal_for_strategy
 from app.utils.formatters import format_db_date, parse_float
 

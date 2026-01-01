@@ -75,8 +75,8 @@ from app.tasks import (  # noqa: E402, F401
     rules_validation_tasks,  # NEW: Rules validation and optimization
     sitemap_tasks,  # NEW: Sitemap health monitoring
     source_health_tasks,
+    strategy,  # Strategy performance, generation, and evolution tasks
     strategy_metrics_tasks,
-    strategy_monitoring_tasks,
     strategy_signal_tasks,
     verify_criteria,  # NEW: Acceptance criteria auto-verification
     watchlist_discovery,  # NEW: Watchlist auto-discovery and trimming
