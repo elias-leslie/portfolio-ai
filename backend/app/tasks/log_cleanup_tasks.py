@@ -14,6 +14,7 @@ All tasks are designed to be:
 from __future__ import annotations
 
 import datetime as dt
+import re
 import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -843,8 +844,6 @@ def cleanup_old_models_task(
 
         # Group model files by base name (e.g., article_quality_v*.joblib)
         # Pattern: {model_name}_v{date}.joblib
-        import re
-
         model_groups: dict[str, list[tuple[Path, str, int]]] = {}
         model_pattern = re.compile(r"^(.+)_v(\d{8})\.joblib$")
 
@@ -986,8 +985,6 @@ def cleanup_solution_state_task(
         now = dt.datetime.now(dt.UTC).timestamp()
 
         # Find directories that look like timestamps (YYYYMMDD-HHMMSS format)
-        import re
-
         timestamp_pattern = re.compile(r"^\d{8}-\d{6}$")
 
         for entry in solution_dir.iterdir():

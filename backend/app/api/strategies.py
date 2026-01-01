@@ -71,6 +71,22 @@ def _safe_datetime_to_iso(dt: Any) -> str | None:
     return str(dt)
 
 
+def _safe_float(value: Any) -> float | None:
+    """Safely convert value to float or return None.
+
+    Args:
+        value: Value to convert (can be None, numeric, or any type)
+
+    Returns:
+        Float value or None if value is None or falsy
+    """
+    if value is None:
+        return None
+    if not value:  # Handles 0, False, empty strings, etc. but we want 0 as valid
+        return None if value == "" or value is False else float(value)
+    return float(value)
+
+
 # ============================================================================
 # Request/Response Models
 # ============================================================================
