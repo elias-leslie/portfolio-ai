@@ -874,22 +874,18 @@ async def get_strategy_evolution(strategy_id: str) -> dict[str, Any]:
 
             backtests = []
             for row in backtest_rows:
-                bt_created = row[9]
-                bt_created_str = (
-                    bt_created.isoformat() if isinstance(bt_created, datetime) else None
-                )
                 backtests.append(
                     {
                         "id": str(row[0]),
-                        "start_date": str(row[1]) if row[1] else None,
-                        "end_date": str(row[2]) if row[2] else None,
+                        "start_date": _safe_datetime_to_iso(row[1]),
+                        "end_date": _safe_datetime_to_iso(row[2]),
                         "sharpe_ratio": float(row[3]) if row[3] is not None else None,
                         "total_return_pct": float(row[4]) if row[4] is not None else None,
                         "max_drawdown_pct": float(row[5]) if row[5] is not None else None,
                         "win_rate": float(row[6]) if row[6] is not None else None,
                         "num_trades": int(row[7]) if row[7] else 0,
                         "status": str(row[8]),
-                        "created_at": bt_created_str,
+                        "created_at": _safe_datetime_to_iso(row[9]),
                     }
                 )
 
