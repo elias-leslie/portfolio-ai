@@ -823,10 +823,7 @@ class Agent(ABC):
             token_count: Optional token count for this message
             metadata: Optional metadata (e.g., tool name, tool_use_id)
         """
-        # Get and increment sequence number (initialized in __init__)
-        if run_id not in self._message_sequence:
-            self._message_sequence[run_id] = 0
-
+        # Get and increment sequence number (initialized in _record_run_start)
         sequence_num = self._message_sequence[run_id]
         self._message_sequence[run_id] = sequence_num + 1
 

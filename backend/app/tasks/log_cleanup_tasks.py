@@ -38,6 +38,11 @@ DISK_ALERT_THRESHOLD_PERCENT = 85
 # Helper functions (pure logic, no Celery)
 
 
+def _bytes_to_mb(bytes_value: int) -> float:
+    """Convert bytes to megabytes, rounded to 2 decimal places."""
+    return round(bytes_value / (1024 * 1024), 2)
+
+
 def _get_log_directories() -> list[Path]:
     """Get list of log directories to check for cleanup operations.
 
@@ -132,7 +137,7 @@ def check_disk_space_impl() -> dict[str, Any]:
                 alert = {
                     "partition": path,
                     "used_percentage": round(used_percentage, 2),
-                    "free_mb": round(stat.free / (1024 * 1024), 2),
+                    "free_mb": _bytes_to_mb(stat.free),
                 }
                 alerts.append(alert)
                 logger.warning("disk_space_alert", **alert)
@@ -199,7 +204,7 @@ def rotate_logs_task(self: Task, dry_run: bool = False) -> dict[str, int | str |
                                 {
                                     "file": str(log_file),
                                     "size_bytes": file_size,
-                                    "size_mb": round(file_size / (1024 * 1024), 2),
+                                    "size_mb": _bytes_to_mb(file_size),
                                 }
                             )
                             files_rotated += 1
@@ -332,7 +337,7 @@ def cleanup_old_logs_task(self: Task, days: int = 7, dry_run: bool = False) -> d
             "dry_run": dry_run,
             "files_deleted": files_deleted,
             "bytes_freed": bytes_freed,
-            "bytes_freed_mb": round(bytes_freed / (1024 * 1024), 2),
+            "bytes_freed_mb": _bytes_to_mb(bytes_freed),
             "retention_days": days,
             "duration_seconds": round(duration, 2),
             "success": True,

@@ -608,18 +608,11 @@ async def get_indicator_history(
     ),
 ) -> IndicatorHistoryResponse:
     """Get key indicator historical data for trend charts."""
-    indicators = {
-        "sp500": "^GSPC",
-        "vix": "^VIX",
-        "tnx": "^TNX",
-        "dxy": "DX-Y.NYB",
-    }
-
     result_data: dict[str, list[dict[str, Any]]] = {}
     period_start = ""
     period_end = ""
 
-    for key, symbol in indicators.items():
+    for key, symbol in INDICATOR_SYMBOLS.items():
         # Use repository for data access
         rows = market_repo.get_indicator_history_data(symbol, days)
 
