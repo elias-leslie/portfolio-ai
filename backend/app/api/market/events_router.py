@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Any, Final, cast, get_args
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
 from app.logging_config import get_logger
 from app.middleware.cache import cache_response
@@ -100,7 +100,7 @@ async def get_market_events(
 @router.get("/events/chart")
 @cache_response(ttl=CACHE_TTL_MEDIUM)
 async def get_market_events_for_chart(
-    request: Any,
+    request: Request,
     days: int = Query(365, ge=7, le=730, description="Number of days of history"),
 ) -> dict[str, Any]:
     """Get market events formatted for chart overlay.

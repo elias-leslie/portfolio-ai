@@ -139,7 +139,7 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
     # Disable automatic trailing slash redirects to avoid redirect loops with proxy
-    redirect_slashes=False,
+    redirect_slashes=True,
 )
 
 # Network configuration (from environment or fallback to defaults)
@@ -185,7 +185,7 @@ app.include_router(sitemap.router)
 app.include_router(analytics.router)
 app.include_router(indicators.router)
 app.include_router(valuation.router)
-app.include_router(watchlist.router)
+app.include_router(watchlist.router, prefix="/api/watchlist")
 app.include_router(ml.router)
 app.include_router(capabilities.router)
 # gaps.router removed - trading requirements migrated to Features

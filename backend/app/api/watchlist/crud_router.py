@@ -36,7 +36,7 @@ watchlist_service = WatchlistService(storage)
 watchlist_repo = WatchlistRepository(storage)
 
 
-@router.get("", response_model=WatchlistListResponse)
+@router.get("/", response_model=WatchlistListResponse)
 @cache_response(ttl=WATCHLIST_CACHE_TTL_SECONDS)
 @handle_api_errors("fetch watchlist items")
 async def list_watchlist_items(request: Request) -> WatchlistListResponse:
@@ -77,7 +77,7 @@ async def get_watchlist_item(item_id: str) -> WatchlistItemResponse:
     return WatchlistItemResponse.from_service_dict(item)
 
 
-@router.post("", response_model=WatchlistItemResponse, status_code=201)
+@router.post("/", response_model=WatchlistItemResponse, status_code=201)
 @handle_api_errors("create watchlist item")
 async def create_watchlist_item(data: WatchlistItemCreate) -> WatchlistItemResponse:
     """

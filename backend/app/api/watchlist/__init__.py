@@ -12,13 +12,13 @@ from .refresh_router import router as refresh_router
 from .reports_router import router as reports_router
 from .review_router import router as review_router
 
-# Create main router with prefix and tags
-router = APIRouter(prefix="/api/watchlist", tags=["watchlist"])
+# Create main router (prefix applied in main.py)
+router = APIRouter(tags=["watchlist"])
 
-# Include all domain routers - use prefix="" to explicitly allow empty paths
-router.include_router(crud_router, prefix="")
-router.include_router(refresh_router, prefix="")
-router.include_router(reports_router, prefix="")
-router.include_router(review_router, prefix="")
+# Include all domain routers - specific routes first, catch-all {item_id} last
+router.include_router(reports_router)  # /daily-report - must be before crud_router's /{item_id}
+router.include_router(refresh_router)  # /refresh - specific route
+router.include_router(review_router)  # /review - specific route
+router.include_router(crud_router)  # /{item_id} - catch-all, must be last
 
 __all__ = ["router"]
