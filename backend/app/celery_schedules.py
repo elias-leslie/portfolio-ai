@@ -371,13 +371,13 @@ def _maintenance_tasks() -> dict[str, dict[str, Any]]:
         },
         "cleanup-old-models-weekly": {
             "task": "cleanup_old_models_task",
-            "schedule": crontab(day_of_week=0, hour=5, minute=0),  # Sunday 05:00 UTC
+            "schedule": crontab(day_of_week=0, hour=5, minute=5),  # Sunday 05:05 UTC
             "args": [CLEANUP_MODELS_KEEP_COUNT],
             "options": {"expires": EXPIRY_1_HOUR},
         },
         "cleanup-solution-state-weekly": {
             "task": "cleanup_solution_state_task",
-            "schedule": crontab(day_of_week=0, hour=5, minute=15),  # Sunday 05:15 UTC
+            "schedule": crontab(day_of_week=0, hour=5, minute=25),  # Sunday 05:25 UTC
             "args": [CLEANUP_SOLUTION_STATE_RETENTION_DAYS],
             "options": {"expires": EXPIRY_1_HOUR},
         },
@@ -652,10 +652,10 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         },
         "update-earnings-surprises-weekly": {
             "task": "update_earnings_surprises",
-            "schedule": crontab(hour=5, minute=0, day_of_week=0),  # Sundays at 05:00 UTC
+            "schedule": crontab(hour=5, minute=10, day_of_week=0),  # Sundays at 05:10 UTC
             "options": {"expires": EXPIRY_2_HOURS},  # Task expires after 2 hours
             # Notes:
-            # - Runs weekly on Sundays at 05:00 UTC (GAP-003)
+            # - Runs weekly on Sundays at 05:10 UTC (GAP-003, staggered)
             # - Fetches earnings surprise data (EPS estimate vs actual) from Finnhub
             # - Auto-discovers all watchlist + portfolio symbols
             # - Weekly is sufficient since earnings are quarterly events
@@ -675,10 +675,10 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         },
         "refresh-financial-health-scores-weekly": {
             "task": "refresh_financial_health_scores",
-            "schedule": crontab(hour=5, minute=0, day_of_week=0),  # Sundays at 05:00 UTC
+            "schedule": crontab(hour=5, minute=15, day_of_week=0),  # Sundays at 05:15 UTC
             "options": {"expires": EXPIRY_2_HOURS},  # Task expires after 2 hours
             # Notes:
-            # - Runs weekly on Sundays at 05:00 UTC (GAP-008, GAP-009)
+            # - Runs weekly on Sundays at 05:15 UTC (GAP-008, GAP-009, staggered)
             # - Calculates Piotroski F-Score (9-point quality metric)
             # - Calculates Altman Z-Score (bankruptcy prediction)
             # - Uses yfinance balance sheet and income statement data
@@ -839,9 +839,10 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         # ============================================================================
         "verify-acceptance-criteria": {
             "task": "verify_all_acceptance_criteria",
-            "schedule": crontab(hour=5, minute=0, day_of_week=0),  # Weekly on Sunday at 05:00 UTC
+            "schedule": crontab(hour=5, minute=20, day_of_week=0),  # Weekly on Sunday at 05:20 UTC
             "options": {"expires": EXPIRY_2_HOURS},  # 2 hour expiry for thorough check
             # Notes:
+            # - Runs weekly on Sundays at 05:20 UTC (staggered)
             # - Changed from daily to weekly to reduce Playwright/browser load
             # - On-demand available via POST /api/capabilities/verify-all
             # - Auto-verifies acceptance criteria by type:
