@@ -272,7 +272,7 @@
             "Run ruff check and pytest tests/api/test_market.py -x -q to verify"
           ],
           "verification": "ruff check backend/app/api/market.py && timeout 60 pytest tests/api/test_market.py -x -q --tb=short",
-          "passes": false
+          "passes": true
         },
         {
           "id": "4.2",
@@ -287,7 +287,7 @@
             "Run ruff check to verify"
           ],
           "verification": "ruff check backend/app/tasks/log_cleanup_tasks.py",
-          "passes": false
+          "passes": true
         },
         {
           "id": "4.3",
@@ -302,7 +302,7 @@
             "Run ruff check and pytest tests/api/test_market.py -x -q to verify"
           ],
           "verification": "ruff check backend/app/api/market.py && timeout 60 pytest tests/api/test_market.py -x -q --tb=short",
-          "passes": false
+          "passes": true
         }
       ]
     },
