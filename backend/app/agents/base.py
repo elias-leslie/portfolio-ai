@@ -137,6 +137,17 @@ class Agent(ABC):
                 final_text += block.text
         return final_text
 
+    def _extract_output_tokens(self, response: LLMResponse) -> int | None:
+        """Extract completion tokens from LLM response.
+
+        Args:
+            response: LLM response with usage info
+
+        Returns:
+            Completion token count, or None if unavailable
+        """
+        return response.usage.get("completion_tokens") if response.usage else None
+
     def _accumulate_token_usage(
         self, response: LLMResponse, total_token_usage: dict[str, int]
     ) -> None:
@@ -487,7 +498,7 @@ class Agent(ABC):
 
             if response.stop_reason == "end_turn":
                 # Store assistant's final response
-                output_tokens = response.usage.get("completion_tokens") if response.usage else None
+                output_tokens = self._extract_output_tokens(response)
                 self._store_conversation_message(
                     run_id, "assistant", response.content, token_count=output_tokens
                 )
@@ -503,7 +514,7 @@ class Agent(ABC):
 
             if response.stop_reason == "tool_use":
                 # Store assistant's response with tool calls
-                output_tokens = response.usage.get("completion_tokens") if response.usage else None
+                output_tokens = self._extract_output_tokens(response)
                 self._store_conversation_message(
                     run_id,
                     "assistant",
