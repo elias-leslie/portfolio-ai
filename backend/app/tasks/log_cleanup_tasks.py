@@ -158,6 +158,18 @@ def _calculate_duration(start_time: dt.datetime) -> float:
     return (dt.datetime.now(dt.UTC) - start_time).total_seconds()
 
 
+def _record_cleanup_metric(metric_name: str, bytes_freed: int, dry_run: bool) -> None:
+    """Record cleanup metric in maintenance_stats if bytes were freed and not a dry run.
+
+    Args:
+        metric_name: Name of the metric to record
+        bytes_freed: Number of bytes freed by the cleanup operation
+        dry_run: Whether this was a dry run
+    """
+    if bytes_freed > 0 and not dry_run:
+        record_maintenance_metric(metric_name, bytes_freed, "bytes")
+
+
 def _handle_missing_directory(
     task_id: str,
     dry_run: bool,
@@ -481,8 +493,7 @@ def cleanup_old_logs_task(self: Task, days: int = 7, dry_run: bool = False) -> d
                     )
 
         # Store metric in maintenance_stats (only if not dry run)
-        if bytes_freed > 0 and not dry_run:
-            record_maintenance_metric("log_cleanup_bytes_freed", bytes_freed, "bytes")
+        _record_cleanup_metric("log_cleanup_bytes_freed", bytes_freed, dry_run)
 
         duration = _calculate_duration(start_time)
 
@@ -591,8 +602,7 @@ def cleanup_temp_files_task(self: Task, hours: int = 24, dry_run: bool = False) 
                     )
 
         # Store metric in maintenance_stats (only if not dry run)
-        if bytes_freed > 0 and not dry_run:
-            record_maintenance_metric("temp_cleanup_bytes_freed", bytes_freed, "bytes")
+        _record_cleanup_metric("temp_cleanup_bytes_freed", bytes_freed, dry_run)
 
         duration = _calculate_duration(start_time)
 
@@ -749,8 +759,7 @@ def cleanup_old_backups_task(
                 )
 
         # Store metric in maintenance_stats (only if not dry run)
-        if bytes_freed > 0 and not dry_run:
-            record_maintenance_metric("backup_cleanup_bytes_freed", bytes_freed, "bytes")
+        _record_cleanup_metric("backup_cleanup_bytes_freed", bytes_freed, dry_run)
 
         duration = _calculate_duration(start_time)
 

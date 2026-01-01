@@ -53,6 +53,24 @@ def _get_strategy_or_404(strategy_id: str):
     return strategy
 
 
+def _safe_datetime_to_iso(dt: Any) -> str | None:
+    """Convert datetime/date to ISO string, handling None and various types.
+
+    Args:
+        dt: Datetime, date, or None value
+
+    Returns:
+        ISO format string or None
+    """
+    if dt is None:
+        return None
+    if isinstance(dt, (datetime, date)):
+        return dt.isoformat()
+    if hasattr(dt, "isoformat"):
+        return dt.isoformat()
+    return str(dt)
+
+
 # ============================================================================
 # Request/Response Models
 # ============================================================================
@@ -184,8 +202,8 @@ async def list_strategies(
                     live_sharpe_ratio=live,
                     live_win_rate=float(s.live_win_rate) if s.live_win_rate else None,
                     trades_count=s.live_trades_count,
-                    created_at=s.created_at.isoformat(),
-                    activation_date=s.activation_date.isoformat() if s.activation_date else None,
+                    created_at=_safe_datetime_to_iso(s.created_at),
+                    activation_date=_safe_datetime_to_iso(s.activation_date),
                     performance_variance=variance,
                     performance_flag=flag,
                 ).model_dump()

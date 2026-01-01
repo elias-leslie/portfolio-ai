@@ -134,6 +134,25 @@ def _session_to_response(session: dict, is_active: bool = False) -> SessionRespo
     )
 
 
+async def _store_agent_message(db: Database, session_id: str, content: str, agent: str) -> None:
+    """Store an agent message and update session metadata.
+
+    Args:
+        db: Database instance
+        session_id: Session identifier
+        content: Message content
+        agent: Agent name (e.g., "claude", "gemini")
+    """
+    await db.add_message(
+        session_id=session_id,
+        role="assistant",
+        content=content,
+        agent=agent,
+    )
+    await db.increment_message_count(session_id)
+    await db.add_participant(session_id, agent)
+
+
 # REST endpoints
 @app.get("/health")
 async def health_check():
@@ -455,19 +474,12 @@ async def websocket_endpoint(
 
                     # Store assistant response
                     if response_text_parts:
-                        await bridge.db.add_message(
-                            session_id=session_id,
-                            role="assistant",
-                            content="".join(response_text_parts),
-                            agent=provider,
+                        await _store_agent_message(
+                            bridge.db, session_id, "".join(response_text_parts), provider
                         )
 
                     # Set original_provider on first message (only if not already set)
                     await bridge.db.set_original_provider(session_id, provider)
-
-                    # Increment message count and add participant
-                    await bridge.db.increment_message_count(session_id)
-                    await bridge.db.add_participant(session_id, provider)
 
                     # Persist SDK/Gemini session ID for conversation continuity
                     sdk_id = getattr(session, "sdk_session_id", None) or getattr(
@@ -928,14 +940,7 @@ async def handle_roundtable_message(
         first_message, addressing, _ = parse_agent_response(first_response_raw)
 
         # Store first response (use clean message for display)
-        await bridge.db.add_message(
-            session_id=session_id,
-            role="assistant",
-            content=first_message,
-            agent=first_agent,
-        )
-        await bridge.db.increment_message_count(session_id)
-        await bridge.db.add_participant(session_id, first_agent)
+        await _store_agent_message(bridge.db, session_id, first_message, first_agent)
 
         logger.info(f"Roundtable: {first_agent} addressing: {addressing}")
 
