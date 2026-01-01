@@ -447,19 +447,17 @@ class Agent(ABC):
             )
             return {"status": AgentRunStatus.ERROR.value, "error": str(e), "run_id": run_id}
 
-    def _run_with_llm_client(
-        self, run_id: str, started_at: datetime, user_prompt: str, max_iterations: int
-    ) -> AgentRunResult:
-        """Run agent using LLM client with JSON-based tool calling protocol.
+    def _initialize_llm_conversation(
+        self, run_id: str, user_prompt: str
+    ) -> tuple[list[dict[str, object]], str, list[ToolCallRecord], dict[str, int]]:
+        """Initialize LLM conversation state and store initial messages.
 
         Args:
             run_id: Unique run identifier
-            started_at: Run start timestamp
             user_prompt: User's prompt/request
-            max_iterations: Maximum tool call iterations
 
         Returns:
-            Agent run result dict
+            Tuple of (conversation_history, current_prompt, tool_calls_made, total_token_usage)
         """
         conversation_history: list[dict[str, object]] = []
         current_prompt = user_prompt
@@ -477,6 +475,115 @@ class Agent(ABC):
 
         # Store initial user message
         self._store_conversation_message(run_id, "user", user_prompt)
+
+        return conversation_history, current_prompt, tool_calls_made, total_token_usage
+
+    def _handle_llm_end_turn_response(
+        self,
+        run_id: str,
+        started_at: datetime,
+        response: LLMResponse,
+        tool_calls_made: list[ToolCallRecord],
+        iteration: int,
+        total_token_usage: dict[str, int],
+    ) -> AgentRunResult:
+        """Handle end_turn response from LLM client.
+
+        Args:
+            run_id: Unique run identifier
+            started_at: Run start timestamp
+            response: LLM response with end_turn stop reason
+            tool_calls_made: List of tool calls made during the run
+            iteration: Current iteration number
+            total_token_usage: Accumulated token usage
+
+        Returns:
+            Agent run result dict
+        """
+        # Store assistant's final response
+        output_tokens = self._extract_output_tokens(response)
+        self._store_conversation_message(
+            run_id, "assistant", response.content, token_count=output_tokens
+        )
+        # Agent finished - provide final answer
+        return self._handle_completion(
+            run_id,
+            started_at,
+            tool_calls_made,
+            iteration,
+            response.content,
+            total_token_usage,
+        )
+
+    def _handle_llm_tool_use_response(
+        self,
+        run_id: str,
+        response: LLMResponse,
+        tool_calls_made: list[ToolCallRecord],
+        conversation_history: list[dict[str, object]],
+    ) -> str:
+        """Handle tool_use response from LLM client.
+
+        Args:
+            run_id: Unique run identifier
+            response: LLM response with tool_use stop reason
+            tool_calls_made: List of tool calls made (modified in place)
+            conversation_history: Conversation history (modified in place)
+
+        Returns:
+            Formatted tool results as prompt for next turn
+        """
+        # Store assistant's response with tool calls
+        output_tokens = self._extract_output_tokens(response)
+        self._store_conversation_message(
+            run_id,
+            "assistant",
+            response.content,
+            token_count=output_tokens,
+            metadata={"has_tool_calls": True},
+        )
+
+        # Process tool calls and format results for next turn
+        tool_results = self._process_tool_calls_llm(
+            run_id, response.tool_calls, tool_calls_made
+        )
+        current_prompt = self._format_tool_results(tool_results)
+
+        # Update conversation history
+        conversation_history.append(
+            {
+                "role": "assistant",
+                "content": response.content,
+                "tool_calls": response.tool_calls,
+            }
+        )
+        conversation_history.append(
+            {
+                "role": "user",
+                "content": current_prompt,
+            }
+        )
+
+        return current_prompt
+
+    def _run_with_llm_client(
+        self, run_id: str, started_at: datetime, user_prompt: str, max_iterations: int
+    ) -> AgentRunResult:
+        """Run agent using LLM client with JSON-based tool calling protocol.
+
+        Args:
+            run_id: Unique run identifier
+            started_at: Run start timestamp
+            user_prompt: User's prompt/request
+            max_iterations: Maximum tool call iterations
+
+        Returns:
+            Agent run result dict
+        """
+        # Initialize conversation state
+        conversation_history, current_prompt, tool_calls_made, total_token_usage = (
+            self._initialize_llm_conversation(run_id, user_prompt)
+        )
 
         for iteration in range(max_iterations):
             # Generate with tools
@@ -497,51 +604,13 @@ class Agent(ABC):
                 self._update_provider_metadata(response, run_id)
 
             if response.stop_reason == "end_turn":
-                # Store assistant's final response
-                output_tokens = self._extract_output_tokens(response)
-                self._store_conversation_message(
-                    run_id, "assistant", response.content, token_count=output_tokens
-                )
-                # Agent finished - provide final answer
-                return self._handle_completion(
-                    run_id,
-                    started_at,
-                    tool_calls_made,
-                    iteration,
-                    response.content,
-                    total_token_usage,
+                return self._handle_llm_end_turn_response(
+                    run_id, started_at, response, tool_calls_made, iteration, total_token_usage
                 )
 
             if response.stop_reason == "tool_use":
-                # Store assistant's response with tool calls
-                output_tokens = self._extract_output_tokens(response)
-                self._store_conversation_message(
-                    run_id,
-                    "assistant",
-                    response.content,
-                    token_count=output_tokens,
-                    metadata={"has_tool_calls": True},
-                )
-
-                # Process tool calls and format results for next turn
-                tool_results = self._process_tool_calls_llm(
-                    run_id, response.tool_calls, tool_calls_made
-                )
-                current_prompt = self._format_tool_results(tool_results)
-
-                # Update conversation history
-                conversation_history.append(
-                    {
-                        "role": "assistant",
-                        "content": response.content,
-                        "tool_calls": response.tool_calls,
-                    }
-                )
-                conversation_history.append(
-                    {
-                        "role": "user",
-                        "content": current_prompt,
-                    }
+                current_prompt = self._handle_llm_tool_use_response(
+                    run_id, response, tool_calls_made, conversation_history
                 )
 
             else:
