@@ -249,7 +249,7 @@
             "Run tests to verify no regressions"
           ],
           "verification": "pytest tests/tasks/ -x -q",
-          "passes": false
+          "passes": true
         }
       ]
     },

@@ -125,6 +125,26 @@ def _extract_timestamp(data: Any | None) -> str | None:
     return data.cached_at.isoformat() if data else None
 
 
+def _validate_event_type(event_type: str) -> MarketEventType:
+    """Validate and cast event type string to MarketEventType.
+
+    Args:
+        event_type: Event type string to validate
+
+    Returns:
+        Validated MarketEventType
+
+    Raises:
+        HTTPException: If event_type is not in VALID_EVENT_TYPES
+    """
+    if event_type not in VALID_EVENT_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid event_type: {event_type}. Valid types: {', '.join(sorted(VALID_EVENT_TYPES))}",
+        )
+    return cast(MarketEventType, event_type)
+
+
 class OptionsActivityData(TypedDict):
     """Return type for get_options_activity_metrics."""
 
@@ -858,16 +878,11 @@ async def get_market_events(
     end = date.fromisoformat(end_date) if end_date else None
 
     # Parse and validate event types
-    types_list = None
+    types_list: list[MarketEventType] | None = None
     if event_types:
         parsed_types = [t.strip() for t in event_types.split(",")]
-        invalid_types = [t for t in parsed_types if t not in VALID_EVENT_TYPES]
-        if invalid_types:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid event type(s): {', '.join(invalid_types)}. Valid types: {', '.join(sorted(VALID_EVENT_TYPES))}",
-            )
-        types_list = cast(list[MarketEventType], parsed_types)
+        # Validate each type - raises HTTPException if any invalid
+        types_list = [_validate_event_type(t) for t in parsed_types]
 
     response = svc_get_events(
         start_date=start,
@@ -960,14 +975,10 @@ async def create_market_event(
         Created event with ID
     """
     # Validate event type
-    if event_type not in VALID_EVENT_TYPES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid event_type: {event_type}. Valid types: {', '.join(sorted(VALID_EVENT_TYPES))}",
-        )
+    validated_type = _validate_event_type(event_type)
 
     event = MarketEventCreate(
-        event_type=cast(MarketEventType, event_type),
+        event_type=validated_type,
         event_date=event_date,
         event_time=event_time,
         title=title,
