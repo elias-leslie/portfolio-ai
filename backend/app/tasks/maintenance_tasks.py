@@ -22,6 +22,7 @@ from app.sources.sec_cik_fetcher import fetch_and_save as fetch_cik_mapping
 from app.storage import get_storage
 from app.storage.connection import get_connection_manager
 from app.tasks.maintenance_logging import log_maintenance_complete, log_maintenance_start
+from app.utils.task_helpers import calculate_duration
 
 if TYPE_CHECKING:
     from celery import Task
@@ -130,7 +131,7 @@ def vacuum_database_task(
 
         if dry_run:
             # In dry run mode, just report which tables would be vacuumed
-            duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+            duration = calculate_duration(start_time)
             dry_result = {
                 "task_id": task_id,
                 "dry_run": True,
@@ -171,7 +172,7 @@ def vacuum_database_task(
                 )
                 # Continue with next table
 
-        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        duration = calculate_duration(start_time)
 
         result: dict[str, Any] = {
             "task_id": task_id,
@@ -187,7 +188,7 @@ def vacuum_database_task(
         return result
 
     except Exception as e:
-        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        duration = calculate_duration(start_time)
         logger.error(
             "vacuum_database_failed",
             task_id=task_id,
@@ -241,7 +242,7 @@ def cleanup_old_news_task(self: Task, days: int = 90, dry_run: bool = False) -> 
                 ).fetchone()
                 rows_to_delete = result[0] if result else 0
 
-                duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+                duration = calculate_duration(start_time)
                 dry_result = {
                     "task_id": task_id,
                     "dry_run": True,
@@ -266,7 +267,7 @@ def cleanup_old_news_task(self: Task, days: int = 90, dry_run: bool = False) -> 
             rows_deleted = conn._cursor.rowcount
             conn.commit()
 
-        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        duration = calculate_duration(start_time)
 
         result_dict: dict[str, Any] = {
             "task_id": task_id,
@@ -283,7 +284,7 @@ def cleanup_old_news_task(self: Task, days: int = 90, dry_run: bool = False) -> 
         return result_dict
 
     except Exception as e:
-        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        duration = calculate_duration(start_time)
         logger.error(
             "cleanup_old_news_failed",
             task_id=task_id,
@@ -339,7 +340,7 @@ def cleanup_old_agent_runs_task(
                 ).fetchone()
                 runs_to_delete = count_row[0] if count_row else 0
 
-                duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+                duration = calculate_duration(start_time)
                 dry_result = {
                     "task_id": task_id,
                     "dry_run": True,
@@ -378,7 +379,7 @@ def cleanup_old_agent_runs_task(
             else:
                 runs_deleted = 0
 
-        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        duration = calculate_duration(start_time)
 
         result_dict: dict[str, Any] = {
             "task_id": task_id,
@@ -395,7 +396,7 @@ def cleanup_old_agent_runs_task(
         return result_dict
 
     except Exception as e:
-        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        duration = calculate_duration(start_time)
         logger.error(
             "cleanup_old_agent_runs_failed",
             task_id=task_id,
@@ -463,7 +464,7 @@ def cleanup_orphaned_data_task(self: Task, dry_run: bool = False) -> dict[str, A
                 ).fetchone()
                 zombie_runs = result[0] if result else 0
 
-                duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+                duration = calculate_duration(start_time)
                 dry_result = {
                     "task_id": task_id,
                     "dry_run": True,
@@ -510,7 +511,7 @@ def cleanup_orphaned_data_task(self: Task, dry_run: bool = False) -> dict[str, A
 
             conn.commit()
 
-        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        duration = calculate_duration(start_time)
 
         result_dict: dict[str, Any] = {
             "task_id": task_id,
@@ -526,7 +527,7 @@ def cleanup_orphaned_data_task(self: Task, dry_run: bool = False) -> dict[str, A
         return result_dict
 
     except Exception as e:
-        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        duration = calculate_duration(start_time)
         logger.error(
             "cleanup_orphaned_data_failed",
             task_id=task_id,
@@ -559,7 +560,7 @@ def get_database_size_task(self: Task) -> dict[str, int | str | float | list[dic
 
     try:
         result = _get_database_size_impl()
-        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        duration = calculate_duration(start_time)
 
         result_dict: dict[str, int | str | float | list[dict[str, Any]]] = {
             "task_id": task_id,
@@ -571,7 +572,7 @@ def get_database_size_task(self: Task) -> dict[str, int | str | float | list[dic
         return result_dict
 
     except Exception as e:
-        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        duration = calculate_duration(start_time)
         logger.error(
             "get_database_size_failed",
             task_id=task_id,
@@ -606,7 +607,7 @@ def refresh_sec_cik_cache(self: Task) -> dict[str, Any]:
         storage = get_storage()
         mapping = fetch_cik_mapping(storage)
 
-        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        duration = calculate_duration(start_time)
 
         result_dict: dict[str, Any] = {
             "task_id": task_id,
@@ -619,7 +620,7 @@ def refresh_sec_cik_cache(self: Task) -> dict[str, Any]:
         return result_dict
 
     except Exception as e:
-        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        duration = calculate_duration(start_time)
         logger.error(
             "refresh_sec_cik_cache_failed",
             task_id=task_id,

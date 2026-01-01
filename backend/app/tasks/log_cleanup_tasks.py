@@ -26,6 +26,7 @@ from app.tasks.maintenance_logging import (
     log_maintenance_start,
     record_maintenance_metric,
 )
+from app.utils.task_helpers import build_error_result, calculate_duration
 
 if TYPE_CHECKING:
     from celery import Task
@@ -58,24 +59,6 @@ def _get_log_directories() -> list[Path]:
         Path("/tmp"),  # Secondary: temp logs
         Path("/var/log/portfolio-ai"),  # Legacy: system logs (if exists)
     ]
-
-
-def _build_error_result(
-    task_id: str,
-    error: Exception,
-    duration_seconds: float,
-    dry_run: bool | None = None,
-) -> dict[str, Any]:
-    """Build standardized error result dict for cleanup tasks."""
-    result: dict[str, Any] = {
-        "task_id": task_id,
-        "error": str(error),
-        "success": False,
-        "duration_seconds": round(duration_seconds, 2),
-    }
-    if dry_run is not None:
-        result["dry_run"] = dry_run
-    return result
 
 
 def _build_cleanup_result(
@@ -145,18 +128,6 @@ def _calculate_directory_size(directory: Path) -> tuple[int, int]:
     total_bytes = sum(f.stat().st_size for f in directory.rglob("*") if f.is_file())
     file_count = sum(1 for f in directory.rglob("*") if f.is_file())
     return total_bytes, file_count
-
-
-def _calculate_duration(start_time: dt.datetime) -> float:
-    """Calculate duration in seconds from start time to now.
-
-    Args:
-        start_time: The start time to calculate duration from
-
-    Returns:
-        Duration in seconds (as float)
-    """
-    return (dt.datetime.now(dt.UTC) - start_time).total_seconds()
 
 
 def _record_cleanup_metric(metric_name: str, bytes_freed: int, dry_run: bool) -> None:
@@ -395,7 +366,7 @@ def rotate_logs_task(self: Task, dry_run: bool = False) -> dict[str, int | str |
                         error=str(file_error),
                     )
 
-        duration = _calculate_duration(start_time)
+        duration = calculate_duration(start_time)
 
         result = _build_cleanup_result(
             task_id=task_id,
@@ -414,7 +385,7 @@ def rotate_logs_task(self: Task, dry_run: bool = False) -> dict[str, int | str |
         return result
 
     except Exception as e:
-        duration = _calculate_duration(start_time)
+        duration = calculate_duration(start_time)
         logger.error(
             "rotate_logs_failed",
             task_id=task_id,
@@ -422,7 +393,7 @@ def rotate_logs_task(self: Task, dry_run: bool = False) -> dict[str, int | str |
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
         )
-        error_result = _build_error_result(task_id, e, duration, dry_run=dry_run)
+        error_result = build_error_result(task_id, e, duration, dry_run=dry_run)
         log_maintenance_complete(log_id, "rotate_logs_task", False, error_result, str(e))
         return error_result
 
@@ -498,7 +469,7 @@ def cleanup_old_logs_task(self: Task, days: int = 7, dry_run: bool = False) -> d
         # Store metric in maintenance_stats (only if not dry run)
         _record_cleanup_metric("log_cleanup_bytes_freed", bytes_freed, dry_run)
 
-        duration = _calculate_duration(start_time)
+        duration = calculate_duration(start_time)
 
         result = _build_cleanup_result(
             task_id=task_id,
@@ -521,7 +492,7 @@ def cleanup_old_logs_task(self: Task, days: int = 7, dry_run: bool = False) -> d
         return result
 
     except Exception as e:
-        duration = _calculate_duration(start_time)
+        duration = calculate_duration(start_time)
         logger.error(
             "cleanup_old_logs_failed",
             task_id=task_id,
@@ -529,7 +500,7 @@ def cleanup_old_logs_task(self: Task, days: int = 7, dry_run: bool = False) -> d
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
         )
-        error_result = _build_error_result(task_id, e, duration, dry_run=dry_run)
+        error_result = build_error_result(task_id, e, duration, dry_run=dry_run)
         log_maintenance_complete(log_id, "cleanup_old_logs_task", False, error_result, str(e))
         return error_result
 
@@ -607,7 +578,7 @@ def cleanup_temp_files_task(self: Task, hours: int = 24, dry_run: bool = False) 
         # Store metric in maintenance_stats (only if not dry run)
         _record_cleanup_metric("temp_cleanup_bytes_freed", bytes_freed, dry_run)
 
-        duration = _calculate_duration(start_time)
+        duration = calculate_duration(start_time)
 
         result = _build_cleanup_result(
             task_id=task_id,
@@ -630,7 +601,7 @@ def cleanup_temp_files_task(self: Task, hours: int = 24, dry_run: bool = False) 
         return result
 
     except Exception as e:
-        duration = _calculate_duration(start_time)
+        duration = calculate_duration(start_time)
         logger.error(
             "cleanup_temp_files_failed",
             task_id=task_id,
@@ -638,7 +609,7 @@ def cleanup_temp_files_task(self: Task, hours: int = 24, dry_run: bool = False) 
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
         )
-        error_result = _build_error_result(task_id, e, duration, dry_run=dry_run)
+        error_result = build_error_result(task_id, e, duration, dry_run=dry_run)
         log_maintenance_complete(log_id, "cleanup_temp_files_task", False, error_result, str(e))
         return error_result
 
@@ -657,7 +628,7 @@ def check_disk_space_task(self: Task) -> dict[str, int | str | float | list[dict
 
     try:
         result = check_disk_space_impl()
-        duration = _calculate_duration(start_time)
+        duration = calculate_duration(start_time)
 
         result_dict: dict[str, int | str | float | list[dict[str, Any]]] = {
             "task_id": task_id,
@@ -669,7 +640,7 @@ def check_disk_space_task(self: Task) -> dict[str, int | str | float | list[dict
         return result_dict
 
     except Exception as e:
-        duration = _calculate_duration(start_time)
+        duration = calculate_duration(start_time)
         logger.error(
             "check_disk_space_failed",
             task_id=task_id,
@@ -677,7 +648,7 @@ def check_disk_space_task(self: Task) -> dict[str, int | str | float | list[dict
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
         )
-        return _build_error_result(task_id, e, duration)
+        return build_error_result(task_id, e, duration)
 
 
 @celery_app.task(name="cleanup_old_backups_task", bind=True)
@@ -764,7 +735,7 @@ def cleanup_old_backups_task(
         # Store metric in maintenance_stats (only if not dry run)
         _record_cleanup_metric("backup_cleanup_bytes_freed", bytes_freed, dry_run)
 
-        duration = _calculate_duration(start_time)
+        duration = calculate_duration(start_time)
 
         result = _build_cleanup_result(
             task_id=task_id,
@@ -788,7 +759,7 @@ def cleanup_old_backups_task(
         return result
 
     except Exception as e:
-        duration = _calculate_duration(start_time)
+        duration = calculate_duration(start_time)
         logger.error(
             "cleanup_old_backups_failed",
             task_id=task_id,
@@ -796,7 +767,7 @@ def cleanup_old_backups_task(
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
         )
-        error_result = _build_error_result(task_id, e, duration, dry_run=dry_run)
+        error_result = build_error_result(task_id, e, duration, dry_run=dry_run)
         log_maintenance_complete(log_id, "cleanup_old_backups_task", False, error_result, str(e))
         return error_result
 
@@ -894,7 +865,7 @@ def cleanup_old_models_task(
         # Store metric in maintenance_stats (only if not dry run)
         _record_cleanup_metric("model_cleanup_bytes_freed", bytes_freed, dry_run)
 
-        duration = _calculate_duration(start_time)
+        duration = calculate_duration(start_time)
 
         result = _build_cleanup_result(
             task_id=task_id,
@@ -918,7 +889,7 @@ def cleanup_old_models_task(
         return result
 
     except Exception as e:
-        duration = _calculate_duration(start_time)
+        duration = calculate_duration(start_time)
         logger.error(
             "cleanup_old_models_failed",
             task_id=task_id,
@@ -926,7 +897,7 @@ def cleanup_old_models_task(
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
         )
-        error_result = _build_error_result(task_id, e, duration, dry_run=dry_run)
+        error_result = build_error_result(task_id, e, duration, dry_run=dry_run)
         log_maintenance_complete(log_id, "cleanup_old_models_task", False, error_result, str(e))
         return error_result
 
@@ -1023,7 +994,7 @@ def cleanup_solution_state_task(
         # Store metric in maintenance_stats (only if not dry run)
         _record_cleanup_metric("solution_state_cleanup_bytes_freed", bytes_freed, dry_run)
 
-        duration = _calculate_duration(start_time)
+        duration = calculate_duration(start_time)
 
         result = _build_cleanup_result(
             task_id=task_id,
@@ -1046,7 +1017,7 @@ def cleanup_solution_state_task(
         return result
 
     except Exception as e:
-        duration = _calculate_duration(start_time)
+        duration = calculate_duration(start_time)
         logger.error(
             "cleanup_solution_state_failed",
             task_id=task_id,
@@ -1054,7 +1025,7 @@ def cleanup_solution_state_task(
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
         )
-        error_result = _build_error_result(task_id, e, duration, dry_run=dry_run)
+        error_result = build_error_result(task_id, e, duration, dry_run=dry_run)
         log_maintenance_complete(log_id, "cleanup_solution_state_task", False, error_result, str(e))
         return error_result
 
@@ -1177,7 +1148,7 @@ def cleanup_cache_directories_task(self: Task, dry_run: bool = False) -> dict[st
         # Store metric in maintenance_stats (only if not dry run)
         _record_cleanup_metric("cache_cleanup_bytes_freed", bytes_freed, dry_run)
 
-        duration = _calculate_duration(start_time)
+        duration = calculate_duration(start_time)
 
         result: dict[str, Any] = {
             "task_id": task_id,
@@ -1199,7 +1170,7 @@ def cleanup_cache_directories_task(self: Task, dry_run: bool = False) -> dict[st
         return result
 
     except Exception as e:
-        duration = _calculate_duration(start_time)
+        duration = calculate_duration(start_time)
         logger.error(
             "cleanup_cache_directories_failed",
             task_id=task_id,
@@ -1207,7 +1178,7 @@ def cleanup_cache_directories_task(self: Task, dry_run: bool = False) -> dict[st
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
         )
-        error_result = _build_error_result(task_id, e, duration, dry_run=dry_run)
+        error_result = build_error_result(task_id, e, duration, dry_run=dry_run)
         log_maintenance_complete(
             log_id, "cleanup_cache_directories_task", False, error_result, str(e)
         )

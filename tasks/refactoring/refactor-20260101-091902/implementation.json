@@ -95,7 +95,7 @@
             "Update imports in reference_tasks.py",
             "Run pytest tests/unit/tasks -k reference --tb=short"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "2.2",

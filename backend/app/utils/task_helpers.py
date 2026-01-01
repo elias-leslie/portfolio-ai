@@ -6,11 +6,54 @@ reducing code duplication and standardizing patterns.
 
 from __future__ import annotations
 
+import datetime as dt
+from typing import Any
+
 from app.logging_config import get_logger
 from app.storage import PortfolioStorage, get_storage
 from app.utils.watchlist_cache import get_watchlist_symbols_cached
 
 logger = get_logger(__name__)
+
+
+def build_error_result(
+    task_id: str,
+    error: Exception,
+    duration_seconds: float,
+    dry_run: bool | None = None,
+) -> dict[str, Any]:
+    """Build standardized error result dict for cleanup/maintenance tasks.
+
+    Args:
+        task_id: The Celery task ID
+        error: The exception that occurred
+        duration_seconds: Task execution duration in seconds
+        dry_run: Whether this was a dry run (optional, omitted if None)
+
+    Returns:
+        Standardized error result dict
+    """
+    result: dict[str, Any] = {
+        "task_id": task_id,
+        "error": str(error),
+        "success": False,
+        "duration_seconds": round(duration_seconds, 2),
+    }
+    if dry_run is not None:
+        result["dry_run"] = dry_run
+    return result
+
+
+def calculate_duration(start_time: dt.datetime) -> float:
+    """Calculate duration in seconds from start time to now.
+
+    Args:
+        start_time: The start time to calculate duration from (must be UTC-aware)
+
+    Returns:
+        Duration in seconds (as float)
+    """
+    return (dt.datetime.now(dt.UTC) - start_time).total_seconds()
 
 
 def get_watchlist_symbols_or_early_return(
