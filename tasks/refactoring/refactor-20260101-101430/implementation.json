@@ -79,7 +79,7 @@
           "tier": 2,
           "model": "sonnet",
           "parallelizable": true,
-          "passes": false,
+          "passes": true,
           "description": "Split market.py API into domain-based routers",
           "files_affected": [
             "backend/app/api/market.py",
