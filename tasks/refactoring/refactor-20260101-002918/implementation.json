@@ -140,7 +140,7 @@
             "Update API endpoints to call storage methods",
             "Run pytest tests/unit/api -k strategies --tb=short"
           ],
-          "passes": false
+          "passes": true
         }
       ]
     },
