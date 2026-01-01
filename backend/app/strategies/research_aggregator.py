@@ -597,34 +597,10 @@ class ResearchAggregationService:
         # Determine market regime (simplified logic)
         # Query SPY trend and VIX
         spy_indicators = calculate_indicators_for_symbol("SPY", indicators=["sma_200"])
-        with self.conn.connection() as conn:
-            result_wrapper = conn.execute(
-                """
-                SELECT close
-                FROM day_bars
-                WHERE symbol = 'SPY'
-                ORDER BY date DESC
-                LIMIT 1
-                """
-            )
-            rows = result_wrapper.fetchall()
-            spy_price_rows = rows_to_dicts(rows, conn)
-
-            result_wrapper = conn.execute(
-                """
-                SELECT close as vix_close
-                FROM day_bars
-                WHERE symbol = '^VIX'
-                ORDER BY date DESC
-                LIMIT 1
-                """
-            )
-            rows = result_wrapper.fetchall()
-            vix_rows = rows_to_dicts(rows, conn)
-
-        spy_price = float(spy_price_rows[0]["close"]) if spy_price_rows else 450.0
+        market_data = self.storage.get_spy_and_vix_data()
+        spy_price = market_data["spy_close"]
         spy_sma_200 = spy_indicators.get("sma_200", spy_price)
-        vix_close = float(vix_rows[0]["vix_close"]) if vix_rows else 15.0
+        vix_close = market_data["vix_close"]
 
         # Market regime classification
         if vix_close > 30:
@@ -664,28 +640,7 @@ class ResearchAggregationService:
             Dict with sector strength fields
         """
         # Query sector from watchlist metadata (stored as JSON) or fallback to Unknown
-        # Note: watchlist_items has no 'sector' column - sector is stored in metadata JSON
-        sector = "Unknown"
-        try:
-            with self.conn.connection() as conn:
-                result_wrapper = conn.execute(
-                    """
-                    SELECT metadata
-                    FROM watchlist_items
-                    WHERE symbol = %s
-                    LIMIT 1
-                    """,
-                    [symbol],
-                )
-                rows = result_wrapper.fetchall()
-                meta_rows = rows_to_dicts(rows, conn)
-
-            if meta_rows and meta_rows[0].get("metadata"):
-                metadata = meta_rows[0]["metadata"]
-                if isinstance(metadata, dict):
-                    sector = metadata.get("sector", "Unknown")
-        except Exception as e:
-            logger.warning(f"Could not fetch sector for {symbol}: {e}")
+        sector = self.storage.get_symbol_sector(symbol)
 
         # If no sector mapping, return defaults
         if sector == "Unknown" or not sector:
@@ -736,23 +691,11 @@ class ResearchAggregationService:
         Returns:
             30-day return percentage
         """
-        with self.conn.connection() as conn:
-            result_wrapper = conn.execute(
-                """
-                SELECT close
-                FROM day_bars
-                WHERE symbol = %s
-                ORDER BY date DESC
-                LIMIT 31
-                """,
-                [symbol],
-            )
-            rows_tuple = result_wrapper.fetchall()
-            rows = rows_to_dicts(rows_tuple, conn)
-
-        if not rows or len(rows) < 2:
+        df = self.storage.get_ohlcv_data(symbol, limit=31)
+        if df.is_empty() or len(df) < 2:
             return 0.0
 
+        rows = df.to_dicts()
         current_price = float(rows[0]["close"])
         price_30d_ago = float(rows[-1]["close"])
 
