@@ -49,6 +49,7 @@ from app.api import (
     status,
     status_stream,
     strategies,
+    strategy_seeds,
     symbols,
     test_feature,
     thesis,
@@ -192,7 +193,7 @@ app.include_router(backtest.router)
 app.include_router(paper_trades.router)
 app.include_router(paper_trading.router)
 app.include_router(strategies.router)  # Task 4.9: Strategy management API
-app.include_router(strategies.seeds_router)  # FEAT-218: Strategy seeds API
+app.include_router(strategy_seeds.router)  # FEAT-218: Strategy seeds API
 app.include_router(recommendations.router)  # Task 0087: Trade recommendations
 app.include_router(layouts.router)  # Task 0042: Customizable dashboard layouts
 app.include_router(agents.router)  # Task 0077: Agent telemetry dashboard

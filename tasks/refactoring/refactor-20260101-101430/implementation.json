@@ -333,7 +333,7 @@
           "tier": 2,
           "model": "sonnet",
           "parallelizable": true,
-          "passes": false,
+          "passes": true,
           "description": "Split watchlist.py API into domain routers",
           "files_affected": [
             "backend/app/api/watchlist.py",
