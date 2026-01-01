@@ -110,6 +110,30 @@ class MessageRequest(BaseModel):
     message: str
 
 
+def _session_to_response(session: dict, is_active: bool = False) -> SessionResponse:
+    """Convert a database session dict to SessionResponse.
+
+    Args:
+        session: Session dictionary from database
+        is_active: Whether the session is currently active
+
+    Returns:
+        SessionResponse model
+    """
+    return SessionResponse(
+        id=session["id"],
+        working_dir=session["working_dir"],
+        created_at=session["created_at"],
+        updated_at=session["updated_at"],
+        is_active=is_active,
+        metadata=session.get("metadata", {}),
+        original_provider=session.get("original_provider"),
+        message_count=session.get("message_count", 0),
+        description=session.get("description"),
+        participants=session.get("participants", []),
+    )
+
+
 # REST endpoints
 @app.get("/health")
 async def health_check():
@@ -132,17 +156,7 @@ async def create_session(request: CreateSessionRequest):
     if not session:
         raise HTTPException(status_code=500, detail="Failed to create session")
 
-    return SessionResponse(
-        id=session["id"],
-        working_dir=session["working_dir"],
-        created_at=session["created_at"],
-        updated_at=session["updated_at"],
-        metadata=session.get("metadata", {}),
-        original_provider=session.get("original_provider"),
-        message_count=session.get("message_count", 0),
-        description=session.get("description"),
-        participants=session.get("participants", []),
-    )
+    return _session_to_response(session)
 
 
 @app.get("/sessions", response_model=list[SessionResponse])
@@ -153,18 +167,7 @@ async def list_sessions(limit: int = 50):
 
     sessions = await bridge.list_sessions(limit=limit)
     return [
-        SessionResponse(
-            id=s["id"],
-            working_dir=s["working_dir"],
-            created_at=s["created_at"],
-            updated_at=s["updated_at"],
-            is_active=s.get("is_active", False),
-            metadata=s.get("metadata", {}),
-            original_provider=s.get("original_provider"),
-            message_count=s.get("message_count", 0),
-            description=s.get("description"),
-            participants=s.get("participants", []),
-        )
+        _session_to_response(s, is_active=s.get("is_active", False))
         for s in sessions
     ]
 
@@ -179,17 +182,9 @@ async def get_session(session_id: str):
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    return SessionResponse(
-        id=session["id"],
-        working_dir=session["working_dir"],
-        created_at=session["created_at"],
-        updated_at=session["updated_at"],
-        is_active=session_id in bridge._active_sessions,
-        metadata=session.get("metadata", {}),
-        original_provider=session.get("original_provider"),
-        message_count=session.get("message_count", 0),
-        description=session.get("description"),
-        participants=session.get("participants", []),
+    return _session_to_response(
+        session,
+        is_active=session_id in bridge._active_sessions
     )
 
 

@@ -30,6 +30,30 @@ router = APIRouter(prefix="/api/strategies", tags=["strategies"])
 
 
 # ============================================================================
+# Helper Functions
+# ============================================================================
+
+
+def _get_strategy_or_404(strategy_id: str):
+    """Get strategy by ID or raise 404 if not found.
+
+    Args:
+        strategy_id: Strategy UUID
+
+    Returns:
+        Strategy object
+
+    Raises:
+        HTTPException: 404 if strategy not found
+    """
+    storage = get_strategy_storage()
+    strategy = storage.get_strategy_by_id(strategy_id)
+    if not strategy:
+        raise HTTPException(status_code=404, detail=f"Strategy {strategy_id} not found")
+    return strategy
+
+
+# ============================================================================
 # Request/Response Models
 # ============================================================================
 
@@ -264,11 +288,8 @@ async def get_strategy(strategy_id: str) -> StrategyDetail:
         Complete strategy details including parameters and performance history
     """
     try:
+        strategy = _get_strategy_or_404(strategy_id)
         storage = get_strategy_storage()
-        strategy = storage.get_strategy_by_id(strategy_id)
-
-        if not strategy:
-            raise HTTPException(status_code=404, detail=f"Strategy {strategy_id} not found")
 
         # Get performance history (last 30 days)
         conn_mgr = storage.conn
@@ -480,11 +501,8 @@ async def update_strategy_status(
         Updated strategy summary
     """
     try:
+        strategy = _get_strategy_or_404(strategy_id)
         storage = get_strategy_storage()
-        strategy = storage.get_strategy_by_id(strategy_id)
-
-        if not strategy:
-            raise HTTPException(status_code=404, detail=f"Strategy {strategy_id} not found")
 
         if request.status == "active":
             storage.activate_strategy(strategy_id)
@@ -532,11 +550,7 @@ async def get_strategy_performance(strategy_id: str) -> dict[str, Any]:
         Performance comparison with expected vs actual metrics
     """
     try:
-        storage = get_strategy_storage()
-        strategy = storage.get_strategy_by_id(strategy_id)
-
-        if not strategy:
-            raise HTTPException(status_code=404, detail=f"Strategy {strategy_id} not found")
+        strategy = _get_strategy_or_404(strategy_id)
 
         # Calculate performance ratio
         expected_sharpe = float(strategy.expected_sharpe or 0.0)

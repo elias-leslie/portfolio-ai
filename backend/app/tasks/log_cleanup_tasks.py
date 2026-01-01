@@ -146,6 +146,18 @@ def _calculate_directory_size(directory: Path) -> tuple[int, int]:
     return total_bytes, file_count
 
 
+def _calculate_duration(start_time: dt.datetime) -> float:
+    """Calculate duration in seconds from start time to now.
+
+    Args:
+        start_time: The start time to calculate duration from
+
+    Returns:
+        Duration in seconds (as float)
+    """
+    return (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+
+
 def _handle_missing_directory(
     task_id: str,
     dry_run: bool,
@@ -368,7 +380,7 @@ def rotate_logs_task(self: Task, dry_run: bool = False) -> dict[str, int | str |
                         error=str(file_error),
                     )
 
-        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        duration = _calculate_duration(start_time)
 
         result: dict[str, Any] = {
             "task_id": task_id,
@@ -387,7 +399,7 @@ def rotate_logs_task(self: Task, dry_run: bool = False) -> dict[str, int | str |
         return result
 
     except Exception as e:
-        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        duration = _calculate_duration(start_time)
         logger.error(
             "rotate_logs_failed",
             task_id=task_id,
