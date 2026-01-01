@@ -38,6 +38,15 @@ logger = get_logger(__name__)
 # Configuration
 HTTP_TIMEOUT = 10  # seconds
 
+# Compiled regex patterns for HTML/TSX parsing
+HTML_TITLE_PATTERN = re.compile(r"<title>([^<]+)</title>", re.IGNORECASE)
+HREF_PATTERN = re.compile(r'href=["\']([^"\']+)["\']')
+METADATA_TITLE_PATTERN = re.compile(r'title:\s*["\']([^"\']+)["\']')
+PAGE_HEADER_TITLE_PATTERN = re.compile(r'<PageHeader[^>]*title=["\']([^"\']+)["\']')
+TAB_VALUE_TYPE_PATTERN = re.compile(r"type\s+TabValue\s*=\s*([^;]+);")
+QUOTED_STRING_PATTERN = re.compile(r'["\']([^"\']+)["\']')
+TABS_TRIGGER_PATTERN = re.compile(r'<TabsTrigger[^>]*value=["\']([^"\']+)["\']')
+
 # Network configuration (from environment or fallback to defaults)
 FRONTEND_HOST = os.getenv("FRONTEND_HOST", "192.168.8.233")  # Network IP for SSR routing
 BACKEND_HOST = os.getenv("BACKEND_HOST", "localhost")
@@ -421,9 +430,7 @@ class SitemapService:
                     if response.status_code == 200:
                         # Get page title from HTML
                         title = None
-                        title_match = re.search(
-                            r"<title>([^<]+)</title>", response.text, re.IGNORECASE
-                        )
+                        title_match = HTML_TITLE_PATTERN.search(response.text)
                         if title_match:
                             title = title_match.group(1).strip()
 
@@ -440,7 +447,7 @@ class SitemapService:
 
                         # Extract internal links for crawling
                         if depth < max_depth:
-                            links = re.findall(r'href=["\']([^"\']+)["\']', response.text)
+                            links = HREF_PATTERN.findall(response.text)
                             for link in links:
                                 # Only follow internal links, skip static assets and API calls
                                 if (
@@ -568,13 +575,13 @@ class SitemapService:
 
             # Look for metadata title
             # export const metadata = { title: "Watchlist" }
-            metadata_match = re.search(r'title:\s*["\']([^"\']+)["\']', content)
+            metadata_match = METADATA_TITLE_PATTERN.search(content)
             if metadata_match:
                 return metadata_match.group(1)
 
             # Look for PageHeader title prop
             # <PageHeader title="Watchlist"
-            header_match = re.search(r'<PageHeader[^>]*title=["\']([^"\']+)["\']', content)
+            header_match = PAGE_HEADER_TITLE_PATTERN.search(content)
             if header_match:
                 return header_match.group(1)
 
@@ -612,16 +619,16 @@ class SitemapService:
                 return tabs
 
             # Look for TabValue type definition (e.g. type TabValue = "x" | "y")
-            tabvalue_match = re.search(r"type\s+TabValue\s*=\s*([^;]+);", content)
+            tabvalue_match = TAB_VALUE_TYPE_PATTERN.search(content)
             if tabvalue_match:
                 values_str = tabvalue_match.group(1)
                 # Extract quoted strings
-                tabs = re.findall(r'["\']([^"\']+)["\']', values_str)
+                tabs = QUOTED_STRING_PATTERN.findall(values_str)
                 return tabs
 
             # Look for TabsTrigger values
             # <TabsTrigger value="workflows">
-            trigger_matches = re.findall(r'<TabsTrigger[^>]*value=["\']([^"\']+)["\']', content)
+            trigger_matches = TABS_TRIGGER_PATTERN.findall(content)
             if trigger_matches:
                 return list(set(trigger_matches))
 

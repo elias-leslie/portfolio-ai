@@ -158,7 +158,7 @@
             "Add comments explaining staggering rationale",
             "No tests needed - configuration only"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.2",
@@ -175,7 +175,7 @@
             "Add comments explaining staggering",
             "No tests needed - configuration only"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "3.3",
@@ -194,7 +194,7 @@
             "Add comments",
             "No tests needed"
           ],
-          "passes": false
+          "passes": true
         }
       ]
     },
