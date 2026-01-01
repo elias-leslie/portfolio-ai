@@ -80,7 +80,8 @@
           "parallelizable": true,
           "description": "Use existing get_strategy_signals() for single signal retrieval in strategies.py",
           "files_affected": [
-            "backend/app/api/strategies.py"
+            "backend/app/api/strategies.py",
+            "backend/app/strategies/storage.py"
           ],
           "steps": [
             "Read strategies.py lines 599-608 (raw SQL for strategy_signals)",
@@ -89,7 +90,7 @@
             "Handle empty result case for HTTPException(404)",
             "Run pytest tests/unit/api -k strategies --tb=short"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "2.3",
@@ -107,7 +108,7 @@
             "Transform result to match existing usage pattern",
             "Run pytest tests/unit/tasks -k strategy --tb=short"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "2.4",
