@@ -572,20 +572,21 @@ class StrategyStorage:
             ).fetchall()
 
     def get_underperforming_strategies(
-        self, performance_threshold: float = 0.9, limit: int = 5
+        self, performance_threshold: float | None = None, limit: int = 5
     ) -> list[tuple[Any, ...]]:
         """Get active strategies with performance below threshold.
 
         Args:
-            performance_threshold: Min ratio of actual/expected Sharpe (default 0.9 = 90%)
+            performance_threshold: Min ratio of actual/expected Sharpe (default uses DEFAULT_PERFORMANCE_THRESHOLD)
             limit: Maximum number of strategies to return
 
         Returns:
             List of (id, symbol, name, expected_sharpe, actual_sharpe, performance_ratio) tuples
         """
+        threshold = performance_threshold if performance_threshold is not None else self.DEFAULT_PERFORMANCE_THRESHOLD
         with self.conn.connection() as conn:
             return conn.execute(
-                """
+                f"""
                 SELECT DISTINCT sd.id, sd.symbol, sd.name,
                        sd.expected_sharpe,
                        AVG(sp.sharpe_ratio_30d) as actual_sharpe,
@@ -593,14 +594,14 @@ class StrategyStorage:
                 FROM strategy_definitions sd
                 JOIN strategy_performance sp ON sd.id = sp.strategy_id
                 WHERE sd.status = 'active'
-                  AND sp.date >= CURRENT_DATE - INTERVAL '30 days'
+                  AND sp.date >= CURRENT_DATE - INTERVAL '{self.PERFORMANCE_WINDOW_DAYS} days'
                   AND sd.expected_sharpe > 0
                 GROUP BY sd.id, sd.symbol, sd.name, sd.expected_sharpe
                 HAVING AVG(sp.sharpe_ratio_30d) / NULLIF(sd.expected_sharpe, 0) < %s
                 ORDER BY performance_ratio ASC
                 LIMIT %s
                 """,
-                (performance_threshold, limit),
+                (threshold, limit),
             ).fetchall()
 
     def get_strategy_trades(
