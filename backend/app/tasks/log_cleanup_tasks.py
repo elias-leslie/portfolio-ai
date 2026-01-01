@@ -142,6 +142,71 @@ def _record_cleanup_metric(metric_name: str, bytes_freed: int, dry_run: bool) ->
         record_maintenance_metric(metric_name, bytes_freed, "bytes")
 
 
+def _cleanup_files(
+    file_iterator,
+    filter_func,
+    dry_run: bool,
+    logger_event: str,
+) -> tuple[int, int, list[dict[str, Any]]]:
+    """Generic file cleanup helper that encapsulates file iteration, deletion, and tracking.
+
+    Iterates through files, applies filter function to each, and either tracks deletions
+    (dry_run) or performs actual deletion and logs the action.
+
+    Args:
+        file_iterator: Iterator yielding file paths to potentially delete
+        filter_func: Callable that takes (file_path, stat_result) and returns
+                     (should_delete: bool, metadata: dict[str, Any]) or (False, {}) if should skip
+        dry_run: If True, only track would_delete instead of actually deleting
+        logger_event: Event name for logging success/error messages
+
+    Returns:
+        Tuple of (files_deleted: int, bytes_freed: int, would_delete: list[dict])
+    """
+    files_deleted = 0
+    bytes_freed = 0
+    would_delete: list[dict[str, Any]] = []
+
+    for file_path in file_iterator:
+        try:
+            stat = file_path.stat()
+            should_delete, metadata = filter_func(file_path, stat)
+
+            if not should_delete:
+                continue
+
+            file_size = stat.st_size
+
+            if dry_run:
+                would_delete.append(
+                    {
+                        "file": str(file_path),
+                        "size_bytes": file_size,
+                        **metadata,
+                    }
+                )
+                files_deleted += 1
+                bytes_freed += file_size
+            else:
+                file_path.unlink()
+                files_deleted += 1
+                bytes_freed += file_size
+                logger.info(
+                    f"{logger_event}_deleted",
+                    file=str(file_path),
+                    size_bytes=file_size,
+                )
+
+        except Exception as file_error:
+            logger.error(
+                f"{logger_event}_deletion_failed",
+                file=str(file_path),
+                error=str(file_error),
+            )
+
+    return files_deleted, bytes_freed, would_delete
+
+
 def _handle_missing_directory(
     task_id: str,
     dry_run: bool,
@@ -416,55 +481,31 @@ def cleanup_old_logs_task(self: Task, days: int = 7, dry_run: bool = False) -> d
     logger.info("cleanup_old_logs_started", task_id=task_id, days=days, dry_run=dry_run)
 
     try:
-        files_deleted = 0
-        bytes_freed = 0
-        would_delete: list[dict[str, Any]] = []
         cutoff_time, cutoff_timestamp = _calculate_cutoff_timestamp(days=days)
 
         log_dirs = _get_log_directories()
 
+        # Collect all log files from all directories
+        all_log_files = []
         for log_dir in log_dirs:
             if not log_dir.exists():
                 logger.warning("log_directory_not_found", directory=str(log_dir))
                 continue
-
             # Find all rotated log files (.log.TIMESTAMP, .log.1, .log.2, etc.)
-            log_files = list(log_dir.glob("*.log.*"))
+            all_log_files.extend(log_dir.glob("*.log.*"))
 
-            for log_file in log_files:
-                try:
-                    # Check file modification time
-                    stat = log_file.stat()
-                    mtime = stat.st_mtime
-                    if mtime < cutoff_timestamp:
-                        file_size = stat.st_size
-                        age_days = (cutoff_time.timestamp() - mtime) / SECONDS_PER_DAY + days
+        # Define filter function for log files
+        def log_file_filter(file_path: Path, stat) -> tuple[bool, dict[str, Any]]:
+            mtime = stat.st_mtime
+            if mtime < cutoff_timestamp:
+                age_days = (cutoff_time.timestamp() - mtime) / SECONDS_PER_DAY + days
+                return True, {"age_days": round(age_days, 1)}
+            return False, {}
 
-                        if dry_run:
-                            would_delete.append(
-                                {
-                                    "file": str(log_file),
-                                    "size_bytes": file_size,
-                                    "age_days": round(age_days, 1),
-                                }
-                            )
-                            files_deleted += 1
-                            bytes_freed += file_size
-                        else:
-                            log_file.unlink()
-                            files_deleted += 1
-                            bytes_freed += file_size
-                            logger.info(
-                                "log_file_deleted",
-                                file=str(log_file),
-                                size_bytes=file_size,
-                            )
-                except Exception as file_error:
-                    logger.error(
-                        "log_deletion_failed",
-                        file=str(log_file),
-                        error=str(file_error),
-                    )
+        # Use helper to perform cleanup
+        files_deleted, bytes_freed, would_delete = _cleanup_files(
+            all_log_files, log_file_filter, dry_run, "log_file"
+        )
 
         # Store metric in maintenance_stats (only if not dry run)
         _record_cleanup_metric("log_cleanup_bytes_freed", bytes_freed, dry_run)

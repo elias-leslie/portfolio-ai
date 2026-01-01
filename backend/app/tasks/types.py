@@ -6,6 +6,7 @@ Replaces loose dict[str, Any] with properly typed result dictionaries.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import TypedDict
 
 
@@ -126,3 +127,86 @@ class WatchlistResultDict(TaskResultDict, total=False):
     processed: int
     failed: int
     markets_open: bool
+
+
+class StrategyMonitoringResultDict(TaskResultDict, total=False):
+    """Result from strategy monitoring and evaluation tasks."""
+
+    evaluated: int
+    generated: int
+    promoted: int
+    archived: int
+    evolved: int
+
+
+# Task result builder functions
+
+
+def build_task_success(
+    message: str = "Task completed successfully",
+    *,
+    evaluated: int | None = None,
+    generated: int | None = None,
+    promoted: int | None = None,
+    archived: int | None = None,
+    evolved: int | None = None,
+    details: dict[str, int | float | str | list[object] | None] | None = None,
+) -> TaskResultDict:
+    """Build a standardized success result dictionary.
+
+    Args:
+        message: Human-readable status message
+        evaluated: Number of items evaluated (optional)
+        generated: Number of items generated (optional)
+        promoted: Number of items promoted (optional)
+        archived: Number of items archived (optional)
+        evolved: Number of items evolved (optional)
+        details: Additional metadata (optional)
+
+    Returns:
+        TaskResultDict with status="success" and provided fields
+    """
+    result: TaskResultDict = {
+        "status": "success",
+        "message": message,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
+    # Add optional numeric fields if provided
+    data: dict[str, int | float | str | list[object] | None] = {}
+    if evaluated is not None:
+        data["evaluated"] = evaluated
+    if generated is not None:
+        data["generated"] = generated
+    if promoted is not None:
+        data["promoted"] = promoted
+    if archived is not None:
+        data["archived"] = archived
+    if evolved is not None:
+        data["evolved"] = evolved
+
+    # Merge additional details if provided
+    if details:
+        data.update(details)
+
+    if data:
+        result["data"] = data
+
+    return result
+
+
+def build_task_failure(error: Exception) -> TaskResultDict:
+    """Build a standardized failure result dictionary.
+
+    Args:
+        error: Exception that caused the task failure
+
+    Returns:
+        TaskResultDict with status="error" and error message
+    """
+    return {
+        "status": "error",
+        "message": "Task failed",
+        "error": str(error),
+        "timestamp": datetime.utcnow().isoformat(),
+    }
