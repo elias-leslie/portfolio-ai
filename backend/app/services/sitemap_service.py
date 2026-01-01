@@ -672,7 +672,7 @@ class SitemapService:
         all_entries = all_openapi_entries + frontend_entries + websocket_entries + nextjs_entries
 
         # Bulk save using storage layer
-        saved = self.storage.bulk_save_discovered_entries(all_entries)
+        saved = self._storage.bulk_save_discovered_entries(all_entries)
 
         result = {
             "openapi_discovered": len(all_openapi_entries),
@@ -696,7 +696,7 @@ class SitemapService:
             entry_id: ID of sitemap entry
             result: Health check result to save
         """
-        self.storage.save_health_check_result(
+        self._storage.save_health_check_result(
             entry_id=entry_id,
             health_status=result.health_status,
             console_errors=result.console_errors,
