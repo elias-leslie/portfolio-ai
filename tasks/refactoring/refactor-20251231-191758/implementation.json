@@ -179,7 +179,7 @@
             "Run ruff check to verify"
           ],
           "verification": "ruff check backend/app/celery_schedules.py",
-          "passes": false
+          "passes": true
         },
         {
           "id": "4.2",
@@ -195,7 +195,7 @@
             "Run ruff check to verify"
           ],
           "verification": "ruff check backend/app/celery_schedules.py",
-          "passes": false
+          "passes": true
         }
       ]
     },
@@ -217,7 +217,7 @@
             "Run agent tests to verify"
           ],
           "verification": "pytest tests/agents/ -x -q",
-          "passes": false
+          "passes": true
         },
         {
           "id": "5.2",
@@ -232,7 +232,7 @@
             "Run strategy tests to verify"
           ],
           "verification": "pytest tests/tasks/test_strategy_monitoring.py -x -q 2>/dev/null || echo 'Tests may not exist'",
-          "passes": false
+          "passes": true
         },
         {
           "id": "5.3",
