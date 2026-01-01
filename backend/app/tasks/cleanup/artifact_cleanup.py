@@ -163,6 +163,66 @@ def _handle_missing_directory(
     return None
 
 
+def _group_model_files_by_name(
+    models_dir: Path,
+) -> dict[str, list[tuple[Path, str, int]]]:
+    """Group model files by base name, extracting version dates.
+
+    Expects files matching pattern: {model_name}_v{date}.joblib (e.g., article_quality_v20250101.joblib)
+
+    Args:
+        models_dir: Path to the models directory
+
+    Returns:
+        Dict mapping model_name -> list of (Path, date_str, file_size) tuples
+    """
+    model_groups: dict[str, list[tuple[Path, str, int]]] = {}
+    model_pattern = re.compile(r"^(.+)_v(\d{8})\.joblib$")
+
+    for f in models_dir.glob("*.joblib"):
+        if f.is_symlink():
+            # Skip symlinks (like article_quality_v1.joblib -> latest)
+            continue
+        match = model_pattern.match(f.name)
+        if match:
+            model_name = match.group(1)
+            date_str = match.group(2)
+            file_size = f.stat().st_size
+            if model_name not in model_groups:
+                model_groups[model_name] = []
+            model_groups[model_name].append((f, date_str, file_size))
+
+    return model_groups
+
+
+def _get_old_model_versions(
+    model_groups: dict[str, list[tuple[Path, str, int]]],
+    keep_count: int,
+) -> list[tuple[Path, str, str, int]]:
+    """Extract old model versions to delete from grouped models.
+
+    Sorts each group by date (newest first) and returns all versions beyond keep_count.
+
+    Args:
+        model_groups: Dict mapping model_name -> list of (Path, date_str, file_size) tuples
+        keep_count: Number of recent versions to keep per model type
+
+    Returns:
+        List of (file_path, model_name, date_str, file_size) tuples for deletion
+    """
+    old_versions: list[tuple[Path, str, str, int]] = []
+
+    for model_name, versions in model_groups.items():
+        # Sort by date (newest first)
+        versions.sort(key=lambda x: x[1], reverse=True)
+
+        # Collect versions beyond keep_count
+        for file_path, date_str, file_size in versions[keep_count:]:
+            old_versions.append((file_path, model_name, date_str, file_size))
+
+    return old_versions
+
+
 @celery_app.task(name="cleanup_old_backups_task", bind=True)
 def cleanup_old_backups_task(
     self: Task, keep_count: int = 5, dry_run: bool = False
@@ -319,60 +379,41 @@ def cleanup_old_models_task(
         if early_result:
             return early_result
 
-        # Group model files by base name (e.g., article_quality_v*.joblib)
-        # Pattern: {model_name}_v{date}.joblib
-        model_groups: dict[str, list[tuple[Path, str, int]]] = {}
-        model_pattern = re.compile(r"^(.+)_v(\d{8})\.joblib$")
+        # Group model files by base name and extract old versions
+        model_groups = _group_model_files_by_name(models_dir)
+        old_versions = _get_old_model_versions(model_groups, keep_count)
 
-        for f in models_dir.glob("*.joblib"):
-            if f.is_symlink():
-                # Skip symlinks (like article_quality_v1.joblib -> latest)
-                continue
-            match = model_pattern.match(f.name)
-            if match:
-                model_name = match.group(1)
-                date_str = match.group(2)
-                file_size = f.stat().st_size
-                if model_name not in model_groups:
-                    model_groups[model_name] = []
-                model_groups[model_name].append((f, date_str, file_size))
-
-        # For each model group, keep only the N most recent
-        for model_name, versions in model_groups.items():
-            # Sort by date (newest first)
-            versions.sort(key=lambda x: x[1], reverse=True)
-
-            # Delete versions beyond keep_count
-            for file_path, date_str, file_size in versions[keep_count:]:
-                try:
-                    if dry_run:
-                        would_delete.append(
-                            {
-                                "file": str(file_path),
-                                "model_name": model_name,
-                                "version_date": date_str,
-                                "size_bytes": file_size,
-                            }
-                        )
-                        files_deleted += 1
-                        bytes_freed += file_size
-                    else:
-                        file_path.unlink()
-                        files_deleted += 1
-                        bytes_freed += file_size
-                        logger.info(
-                            "model_file_deleted",
-                            file=str(file_path),
-                            model_name=model_name,
-                            version_date=date_str,
-                            size_bytes=file_size,
-                        )
-                except Exception as file_error:
-                    logger.error(
-                        "model_deletion_failed",
-                        file=str(file_path),
-                        error=str(file_error),
+        # Delete old versions
+        for file_path, model_name, date_str, file_size in old_versions:
+            try:
+                if dry_run:
+                    would_delete.append(
+                        {
+                            "file": str(file_path),
+                            "model_name": model_name,
+                            "version_date": date_str,
+                            "size_bytes": file_size,
+                        }
                     )
+                    files_deleted += 1
+                    bytes_freed += file_size
+                else:
+                    file_path.unlink()
+                    files_deleted += 1
+                    bytes_freed += file_size
+                    logger.info(
+                        "model_file_deleted",
+                        file=str(file_path),
+                        model_name=model_name,
+                        version_date=date_str,
+                        size_bytes=file_size,
+                    )
+            except Exception as file_error:
+                logger.error(
+                    "model_deletion_failed",
+                    file=str(file_path),
+                    error=str(file_error),
+                )
 
         # Store metric in maintenance_stats (only if not dry run)
         _record_cleanup_metric("model_cleanup_bytes_freed", bytes_freed, dry_run)

@@ -55,6 +55,27 @@ def _get_strategy_or_404(strategy_id: str):
     return strategy
 
 
+def _row_to_seed_item(row: tuple) -> StrategySeedItem:
+    """Transform database row into StrategySeedItem.
+
+    Args:
+        row: Database row tuple with (id, symbol, thesis, confidence, status, strategy_id, created_at, processed_at)
+
+    Returns:
+        StrategySeedItem object
+    """
+    return StrategySeedItem(
+        id=str(row[0]),
+        symbol=str(row[1]),
+        thesis=str(row[2]),
+        confidence=parse_float(row[3]) or 0.0,
+        status=str(row[4]),  # type: ignore[arg-type]
+        strategy_id=str(row[5]) if row[5] else None,
+        created_at=format_db_date(row[6]) or "",
+        processed_at=format_db_date(row[7]),
+    )
+
+
 # ============================================================================
 # Request/Response Models
 # ============================================================================
@@ -680,21 +701,7 @@ async def list_strategy_seeds(
         storage = get_strategy_storage()
         rows, total = storage.list_seeds(status=status, symbol=symbol, limit=limit, offset=offset)
 
-        seeds = []
-        for row in rows:
-            seeds.append(
-                StrategySeedItem(
-                    id=str(row[0]),
-                    symbol=str(row[1]),
-                    thesis=str(row[2]),
-                    confidence=parse_float(row[3]) or 0.0,
-                    status=str(row[4]),  # type: ignore[arg-type]
-                    strategy_id=str(row[5]) if row[5] else None,
-                    created_at=format_db_date(row[6]) or "",
-                    processed_at=format_db_date(row[7]),
-                )
-            )
-
+        seeds = [_row_to_seed_item(row) for row in rows]
         return StrategySeedList(seeds=seeds, total=total)
 
     except Exception as e:
@@ -712,16 +719,7 @@ async def get_strategy_seed(seed_id: str) -> StrategySeedItem:
         if not row:
             raise HTTPException(status_code=404, detail=f"Seed {seed_id} not found")
 
-        return StrategySeedItem(
-            id=str(row[0]),
-            symbol=str(row[1]),
-            thesis=str(row[2]),
-            confidence=parse_float(row[3]) or 0.0,
-            status=str(row[4]),  # type: ignore[arg-type]
-            strategy_id=str(row[5]) if row[5] else None,
-            created_at=format_db_date(row[6]) or "",
-            processed_at=format_db_date(row[7]),
-        )
+        return _row_to_seed_item(row)
 
     except Exception as e:
         logger.exception("Failed to get strategy seed", seed_id=seed_id, error=str(e))

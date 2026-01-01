@@ -98,6 +98,80 @@ def _extract_openapi_endpoints(
     return endpoints
 
 
+def _should_visit_link(link: str, visited: set[str]) -> bool:
+    """Check if a link should be visited during frontend crawl.
+
+    Filters out:
+    - External links (// prefix)
+    - Static assets (.js, .css, .png, .jpg)
+    - API calls (/api/)
+    - Next.js internals (/_next/)
+    - Static directory (/static/)
+    - Already visited links
+
+    Args:
+        link: The href value to check
+        visited: Set of already visited paths
+
+    Returns:
+        True if link should be queued for crawling
+    """
+    if not link.startswith("/") or link.startswith("//"):
+        return False
+    if any(x in link for x in FRONTEND_CRAWL_SKIP_PATTERNS):
+        return False
+    # Extract clean path (remove query and fragments)
+    clean_path = link.split("?")[0].split("#")[0]
+    return clean_path not in visited
+
+
+def _extract_page_metadata(response_text: str) -> dict[str, str | None]:
+    """Extract page metadata from HTML response.
+
+    Looks for page title in <title> tag.
+
+    Args:
+        response_text: The HTML response body
+
+    Returns:
+        Dict with 'title' key and extracted title or None
+    """
+    title = None
+    title_match = HTML_TITLE_PATTERN.search(response_text)
+    if title_match:
+        title = title_match.group(1).strip()
+    return {"title": title}
+
+
+def _queue_internal_links(
+    response_text: str,
+    current_depth: int,
+    max_depth: int,
+    visited: set[str],
+    to_visit: list[tuple[str, int]],
+) -> None:
+    """Extract internal links from HTML and queue them for crawling.
+
+    Processes href attributes, filters out invalid links, and appends
+    valid internal links to the to_visit queue for deeper crawling.
+
+    Args:
+        response_text: The HTML response body
+        current_depth: Current crawl depth
+        max_depth: Maximum allowed crawl depth
+        visited: Set of already visited paths
+        to_visit: Queue of (path, depth) tuples to visit
+    """
+    if current_depth >= max_depth:
+        return
+
+    links = HREF_PATTERN.findall(response_text)
+    for link in links:
+        if _should_visit_link(link, visited):
+            clean_path = link.split("?")[0].split("#")[0]
+            to_visit.append((clean_path, current_depth + 1))
+
+
 class SitemapDiscoveryService:
     """Discovers sitemap entries from various sources."""
 
@@ -251,11 +325,8 @@ class SitemapDiscoveryService:
                     response = await client.get(url)
 
                     if response.status_code == 200:
-                        # Get page title from HTML
-                        title = None
-                        title_match = HTML_TITLE_PATTERN.search(response.text)
-                        if title_match:
-                            title = title_match.group(1).strip()
+                        # Extract page metadata
+                        metadata = _extract_page_metadata(response.text)
 
                         discovered.append(
                             {
@@ -264,23 +335,14 @@ class SitemapDiscoveryService:
                                 "method": "GET",
                                 "entry_type": "frontend_page",
                                 "source": "crawler",
-                                "title": title,
+                                "title": metadata["title"],
                             }
                         )
 
-                        # Extract internal links for crawling
-                        if depth < max_depth:
-                            links = HREF_PATTERN.findall(response.text)
-                            for link in links:
-                                # Only follow internal links, skip static assets and API calls
-                                if (
-                                    link.startswith("/")
-                                    and not link.startswith("//")
-                                    and not any(x in link for x in FRONTEND_CRAWL_SKIP_PATTERNS)
-                                ):
-                                    clean_path = link.split("?")[0].split("#")[0]
-                                    if clean_path not in visited:
-                                        to_visit.append((clean_path, depth + 1))
+                        # Queue internal links for crawling
+                        _queue_internal_links(
+                            response.text, depth, max_depth, visited, to_visit
+                        )
 
                 except Exception as e:
                     logger.debug("sitemap_crawl_page_failed", path=path, error=str(e))

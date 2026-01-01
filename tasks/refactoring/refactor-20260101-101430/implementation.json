@@ -222,7 +222,7 @@
           "tier": 2,
           "model": "sonnet",
           "parallelizable": true,
-          "passes": false,
+          "passes": true,
           "description": "Refactor research_aggregator.py to use storage layer",
           "files_affected": [
             "backend/app/strategies/research_aggregator.py",
@@ -247,7 +247,7 @@
           "tier": 1,
           "model": "haiku",
           "parallelizable": true,
-          "passes": false,
+          "passes": true,
           "description": "Replace _convert_row with rows_to_dicts in StrategyStorage",
           "files_affected": ["backend/app/strategies/storage.py"],
           "steps": [
