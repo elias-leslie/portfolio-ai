@@ -158,6 +158,7 @@ def _strategy_tasks() -> dict[str, dict[str, Any]]:
     """
     return {
         # Strategy monitoring & generation
+        # Staggered: evaluate at 04:00, yfinance at 04:02, sitemap cleanup at 04:04
         "evaluate-strategy-performance": {
             "task": "app.tasks.strategy_monitoring_tasks.evaluate_strategy_performance",
             "schedule": crontab(hour=4, minute=0),  # Daily at 04:00 UTC
@@ -173,6 +174,7 @@ def _strategy_tasks() -> dict[str, dict[str, Any]]:
             "schedule": crontab(hour=5, minute=0, day_of_week=0),  # Sunday 05:00 UTC
             "options": {"expires": EXPIRY_2_HOURS},
         },
+        # Staggered Sunday 06:XX: evolution at 06:00, sec-cik at 06:05, fundamental at 06:10
         "weekly-strategy-evolution": {
             "task": "app.tasks.strategy_monitoring_tasks.weekly_strategy_evolution",
             "schedule": crontab(hour=6, minute=0, day_of_week=0),  # Sunday 06:00 UTC
@@ -188,6 +190,7 @@ def _strategy_tasks() -> dict[str, dict[str, Any]]:
             "schedule": crontab(hour=21, minute=30),  # Daily at 21:30 UTC
             "options": {"expires": EXPIRY_1_HOUR},
         },
+        # Staggered 21:45-21:47: paper trade at 21:45, fear-greed at 21:47
         "auto-paper-trade-from-signals": {
             "task": "app.tasks.strategy_signal_tasks.auto_paper_trade_from_signals",
             "schedule": crontab(hour=21, minute=45),  # Daily at 21:45 UTC
@@ -206,6 +209,7 @@ def _strategy_tasks() -> dict[str, dict[str, Any]]:
             "options": {"expires": EXPIRY_30_MIN},
         },
         # Watchlist automation
+        # Staggered 08:XX: discover at 08:00, sitemap-health at 08:02
         "discover-watchlist-candidates-daily": {
             "task": "discover_watchlist_candidates",
             "schedule": crontab(hour=8, minute=0),  # Daily at 08:00 UTC
@@ -285,7 +289,7 @@ def _monitoring_tasks() -> dict[str, dict[str, Any]]:
         # Sitemap health
         "check-sitemap-health-morning": {
             "task": "check_sitemap_health",
-            "schedule": crontab(hour=8, minute=0),  # Daily at 08:00 UTC
+            "schedule": crontab(hour=8, minute=2),  # Daily at 08:02 UTC (staggered)
             "options": {"expires": EXPIRY_50_MIN},
         },
         "check-sitemap-health-evening": {
@@ -300,7 +304,7 @@ def _monitoring_tasks() -> dict[str, dict[str, Any]]:
         },
         "cleanup-sitemap-history-daily": {
             "task": "cleanup_sitemap_history",
-            "schedule": crontab(hour=4, minute=0),  # Daily at 04:00 UTC
+            "schedule": crontab(hour=4, minute=4),  # Daily at 04:04 UTC (staggered)
             "options": {"expires": EXPIRY_10_MIN},
         },
         # File audit
@@ -404,7 +408,9 @@ def _maintenance_tasks() -> dict[str, dict[str, Any]]:
         },
         "refresh-sec-cik-cache-weekly": {
             "task": "refresh_sec_cik_cache",
-            "schedule": crontab(hour=6, minute=0, day_of_week=0),  # Weekly on Sunday at 06:00 UTC
+            "schedule": crontab(
+                hour=6, minute=5, day_of_week=0
+            ),  # Weekly on Sunday at 06:05 UTC (staggered)
             "options": {"expires": EXPIRY_1_HOUR},
         },
     }
@@ -593,7 +599,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         **_create_intraday_refresh_tasks("midday", hour=17),
         "update-fear-greed-after-close": {
             "task": "populate_fear_greed_inputs",
-            "schedule": crontab(hour=21, minute=45),  # Daily at 21:45 UTC (4:45 PM ET, after close)
+            "schedule": crontab(hour=21, minute=47),  # Daily at 21:47 UTC (staggered)
             "args": [FEAR_GREED_LOOKBACK_DAYS],
             "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
@@ -624,7 +630,7 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         },
         "refresh-yfinance-reference": {
             "task": "refresh_yfinance_reference_data",
-            "schedule": crontab(hour=4, minute=0),  # Daily at 04:00 UTC
+            "schedule": crontab(hour=4, minute=2),  # Daily at 04:02 UTC (staggered)
             "options": {"expires": EXPIRY_1_HOUR},
             # Notes:
             # - Runs daily at 04:00 UTC
@@ -705,7 +711,9 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
         },
         "ingest-fundamental-data-weekly": {
             "task": "app.tasks.ingestion.fundamental_ingestion.ingest_fundamental_data",
-            "schedule": crontab(hour=6, minute=0, day_of_week=0),  # Sundays at 06:00 UTC
+            "schedule": crontab(
+                hour=6, minute=10, day_of_week=0
+            ),  # Sundays at 06:10 UTC (staggered)
             "options": {"expires": EXPIRY_2_HOURS},
             # Notes:
             # - Runs weekly on Sundays at 06:00 UTC

@@ -134,7 +134,7 @@
             "Update sitemap_service.py to import from utils",
             "Run pytest tests/unit/services -k sitemap --tb=short"
           ],
-          "passes": false
+          "passes": true
         }
       ]
     },
