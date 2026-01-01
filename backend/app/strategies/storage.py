@@ -251,7 +251,7 @@ class StrategyStorage:
         with self.conn.connection() as conn:
             rows = conn.execute(
                 f"""
-                SELECT *
+                SELECT {STRATEGY_COLUMNS}
                 FROM strategy_definitions
                 {where_clause}
                 ORDER BY created_at DESC
