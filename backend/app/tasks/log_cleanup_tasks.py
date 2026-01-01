@@ -366,21 +366,22 @@ def cleanup_old_logs_task(self: Task, days: int = 7, dry_run: bool = False) -> d
 
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
 
-        result: dict[str, Any] = {
-            "task_id": task_id,
-            "dry_run": dry_run,
-            "files_deleted": files_deleted,
-            "bytes_freed": bytes_freed,
-            "bytes_freed_mb": _bytes_to_mb(bytes_freed),
-            "retention_days": days,
-            "duration_seconds": round(duration, 2),
-            "success": True,
-        }
-        if dry_run and would_delete:
-            result["would_delete"] = would_delete
+        result = _build_cleanup_result(
+            task_id=task_id,
+            dry_run=dry_run,
+            duration_seconds=duration,
+            task_specific_fields={
+                "files_deleted": files_deleted,
+                "bytes_freed": bytes_freed,
+                "bytes_freed_mb": _bytes_to_mb(bytes_freed),
+                "retention_days": days,
+            },
+            would_action_list=would_delete if dry_run else None,
+        )
 
         logger.info(
-            "cleanup_old_logs_completed", **{k: v for k, v in result.items() if k != "would_delete"}
+            "cleanup_old_logs_completed",
+            **{k: v for k, v in result.items() if k != "would_action_list"},
         )
         log_maintenance_complete(log_id, "cleanup_old_logs_task", True, result)
         return result
