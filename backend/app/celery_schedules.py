@@ -39,6 +39,12 @@ PREVIOUSLY DISABLED TASKS (now fixed):
     Fixed 2025-12-01: Now uses yfinance options chains (SPY+QQQ+IWM aggregate).
     See backend/app/tasks/market_data/options_pipeline.py for implementation.
 
+REMOVED TASKS (migrated elsewhere):
+-----------------------------------
+  - AI analyzer and gap detection: Migrated to [DEBT] subtasks on features.
+    See tasks/tasks-tech-debt-to-feature-subtasks-migration.md
+  - Daily gap analysis workflow: Migrated to feature-based tracking.
+
 MARKET HOURS AWARENESS:
 -----------------------
 The system is market-hours aware to prevent thrashing on weekends/holidays:
@@ -807,8 +813,6 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
             # - Detects inconsistencies (passes=true but tasks incomplete)
             # - Enables /capabilities → Features tab monitoring
         },
-        # AI analyzer and gap detection tasks removed - migrated to [DEBT] subtasks on features
-        # See tasks/tasks-tech-debt-to-feature-subtasks-migration.md
         # ============================================================================
         # QA SYSTEM DAILY SCANS
         # ============================================================================
@@ -851,7 +855,6 @@ def get_beat_schedule() -> dict[str, dict[str, Any]]:
             #   * UI criteria: Takes screenshots via browser automation
             # - Updates passed/verified_at/verification_output in database
         },
-        # Daily gap analysis workflow removed - migrated to feature-based tracking
         # Merge autonomous AI agent tasks
         **_agent_tasks(),
         # Merge automated maintenance tasks
