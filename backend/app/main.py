@@ -24,7 +24,7 @@ from app.api import (
     # claude_progress removed - Beads handles session tracking
     cross_validation,
     db_inspect,
-    disagreements,
+    # disagreements removed - feature disabled (no data, unused)
     # files removed - use SummitFlow for file browsing
     # gaps removed - migrated to [DEBT] subtasks on features
     health,

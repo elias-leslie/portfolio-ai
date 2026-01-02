@@ -4,11 +4,8 @@ import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, PlusCircle, Search } from "lucide-react";
 import { WatchlistTable } from "@/components/watchlist/WatchlistTable";
-import { WatchlistDailyReport } from "@/components/watchlist/WatchlistDailyReport";
 import { AddSymbolModal } from "@/components/watchlist/AddSymbolModal";
 import { useWatchlist, useRefreshWatchlist } from "@/lib/hooks/useWatchlist";
-import { useDisagreements } from "@/lib/hooks/useDisagreements";
-import { DisagreementAlert, DisagreementCard } from "@/components/disagreements";
 import { toast } from "sonner";
 import {
   Select,
@@ -47,7 +44,6 @@ export default function WatchlistPage() {
 
   const { data: watchlistData, isLoading, error } = useWatchlist();
   const refreshMutation = useRefreshWatchlist();
-  const { data: disagreementsData } = useDisagreements(7, undefined, 20);
 
   // Save filters to localStorage when they change
   useEffect(() => {
@@ -173,22 +169,6 @@ export default function WatchlistPage() {
         }
       />
 
-      {/* Major Disagreement Alerts */}
-      {disagreementsData?.items
-        .filter((d) => d.disagreementSeverity === "major")
-        .slice(0, 3)
-        .map((disagreement) => (
-          <DisagreementAlert
-            key={disagreement.reviewPairId}
-            symbol={disagreement.symbol}
-            severity={disagreement.disagreementSeverity as "minor" | "major"}
-            geminiReview={disagreement.geminiReview}
-            claudeReview={disagreement.claudeReview}
-            agreementScore={disagreement.agreementScore}
-            className="mb-4"
-          />
-        ))}
-
       <div className="flex flex-wrap gap-2">
         <Select value={signalFilter} onValueChange={(value) => setSignalFilter(value as SignalFilter)}>
           <SelectTrigger className="w-[160px]">
@@ -250,35 +230,6 @@ export default function WatchlistPage() {
           )}
         </div>
       </div>
-
-      {/* Daily Watchlist Report */}
-      <WatchlistDailyReport />
-
-      {/* Recent LLM Disagreements Section */}
-      {disagreementsData && (
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold text-text mb-3">
-            Recent LLM Review Disagreements
-          </h2>
-          {disagreementsData.items.length > 0 ? (
-            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-              {disagreementsData.items.slice(0, 6).map((disagreement) => (
-                <DisagreementCard
-                  key={disagreement.reviewPairId}
-                  item={disagreement}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-lg border border-status-success/20 bg-status-success/5 p-4">
-              <div className="flex items-center gap-2 text-sm text-text-muted">
-                <span className="text-status-success">✓</span>
-                <span>No LLM disagreements detected in last 7 days</span>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Error State */}
       {error && (
