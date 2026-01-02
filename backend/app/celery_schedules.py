@@ -220,11 +220,7 @@ def _strategy_tasks() -> dict[str, dict[str, Any]]:
             "schedule": crontab(hour=8, minute=30),  # Daily at 08:30 UTC
             "options": {"expires": EXPIRY_30_MIN},
         },
-        "generate-watchlist-daily-report": {
-            "task": "generate_daily_watchlist_report",
-            "schedule": crontab(hour=9, minute=0),  # Daily at 09:00 UTC
-            "options": {"expires": EXPIRY_30_MIN},
-        },
+        # generate-watchlist-daily-report removed - feature disabled (never executed, no data)
         # Rules validation
         "daily-rules-validation": {
             "task": "daily_rules_validation",

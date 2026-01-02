@@ -205,7 +205,7 @@ app.include_router(recommendations.router)  # Task 0087: Trade recommendations
 app.include_router(layouts.router)  # Task 0042: Customizable dashboard layouts
 app.include_router(agents.router)  # Task 0077: Agent telemetry dashboard
 app.include_router(automation.router)  # Manual pipeline triggers
-app.include_router(disagreements.router)  # Task 0003: Multi-LLM disagreement detection
+# disagreements.router removed - feature disabled (no data, unused)
 app.include_router(sources.router)  # Task 0088: API sources registry for agents
 app.include_router(rules.router)  # Trading rules viewer
 # artifacts.router removed - migrated to SummitFlow (portfolio-ai-5rz)

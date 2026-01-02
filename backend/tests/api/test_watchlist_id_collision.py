@@ -16,7 +16,6 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.storage import get_storage
 
-
 # Use a unique prefix to avoid conflicts with other tests
 TEST_SYMBOL_PREFIX = "ZZTEST"
 NUM_CONCURRENT_REQUESTS = 10  # Reduced from 100 - enough to test concurrency
