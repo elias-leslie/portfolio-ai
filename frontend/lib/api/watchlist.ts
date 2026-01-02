@@ -270,20 +270,18 @@ export async function refreshWatchlistScores(): Promise<RefreshResponse> {
 
 /**
  * Get 7-day score history for a watchlist item
+ *
+ * NOTE: Backend endpoint /api/watchlist/{itemId}/history doesn't exist.
+ * Stubbed to return empty to avoid 404 spam.
  */
 export async function fetchScoreHistory(
     itemId: string,
 ): Promise<ScoreHistoryResponse> {
-    try {
-        return await apiRequest<ScoreHistoryResponse>(
-            `/api/watchlist/${itemId}/history`,
-        );
-    } catch {
-        // History endpoint may not exist yet, return empty response
-        return {
-            itemId: itemId,
-            symbol: "",
-            history: [],
-        };
-    }
+    // Backend endpoint doesn't exist - return empty immediately
+    // TODO: Implement /api/watchlist/{itemId}/history on backend if history feature is needed
+    return {
+        itemId: itemId,
+        symbol: "",
+        history: [],
+    };
 }
