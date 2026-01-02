@@ -4,17 +4,21 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
-from pydantic import BaseModel, Field
 
-from app.api.utils import handle_api_errors
+from app.api.utils import handle_api_errors, require_nonempty_df
 from app.logging_config import get_logger
 from app.middleware.cache import cache_response
 from app.storage import get_storage
 from app.utils.db_helpers import generate_uuid
 from app.utils.formatters import utc_now_iso
 from app.utils.watchlist_cache import invalidate_all_watchlist_caches
+from app.watchlist._service.helpers import safe_json_loads
 from app.watchlist.background_tasks import schedule_new_symbol_tasks
+from app.watchlist.history import build_score_timeline
+from app.watchlist.models import WatchlistSnapshot
 from app.watchlist.response_builders import (
+    ScoreHistoryPoint,
+    ScoreHistoryResponse,
     WatchlistItemCreate,
     WatchlistItemResponse,
     WatchlistItemUpdate,
@@ -26,24 +30,6 @@ from app.watchlist.watchlist_repository import WatchlistRepository
 from app.watchlist.watchlist_service import WatchlistService
 
 from .helpers import WATCHLIST_CACHE_TTL_SECONDS, _require_watchlist_item
-
-
-class ScoreHistoryEntry(BaseModel):
-    """Single entry in score history."""
-
-    timestamp: str
-    overall: float
-    price_score: float = Field(serialization_alias="priceScore")
-    technical_score: float = Field(serialization_alias="technicalScore")
-
-
-class ScoreHistoryResponse(BaseModel):
-    """Response for score history endpoint."""
-
-    item_id: str = Field(serialization_alias="itemId")
-    symbol: str
-    history: list[ScoreHistoryEntry]
-
 
 logger = get_logger(__name__)
 
@@ -98,41 +84,66 @@ async def get_watchlist_item(item_id: str) -> WatchlistItemResponse:
 
 @router.get("/{item_id}/history", response_model=ScoreHistoryResponse)
 @handle_api_errors("fetch score history")
-async def get_score_history(item_id: str) -> ScoreHistoryResponse:
+async def get_score_history(item_id: str, days: int = 10) -> ScoreHistoryResponse:
     """
-    Get score history for a watchlist item (last 30 snapshots).
+    Get score history for a watchlist item from snapshots.
+
+    Fetches historical snapshots and extracts scores from raw_metrics JSONB.
+    Aggregates to daily averages using build_score_timeline().
 
     Args:
         item_id: Watchlist item ID
+        days: Number of days of history to return (default 10)
 
     Returns:
-        Score history with timestamps and scores
+        Score history with price/technical scores extracted from snapshots
     """
-    # Get symbol for the item
-    symbol_df = await run_in_threadpool(watchlist_repo.get_symbol_by_item_id, item_id)
-    if symbol_df.is_empty():
-        raise HTTPException(status_code=404, detail="Watchlist item not found")
-    symbol = symbol_df["symbol"][0]
+    # Get item info
+    item_df = await run_in_threadpool(watchlist_repo.get_symbol_by_item_id, item_id)
 
-    # Get snapshots with full metrics
+    require_nonempty_df(item_df, "Watchlist item not found")
+
+    symbol = item_df.to_dicts()[0]["symbol"]
+
+    # Fetch snapshots from database using the normalized view
     snapshots_df = await run_in_threadpool(watchlist_repo.get_snapshots_with_metrics, item_id)
 
-    history: list[ScoreHistoryEntry] = []
-    for row in snapshots_df.iter_rows(named=True):
-        # Extract price score from raw_metrics if available
-        price_score = 0.0
-        raw_metrics = row.get("raw_metrics")
-        if raw_metrics and isinstance(raw_metrics, dict):
-            price_data = raw_metrics.get("price", {})
-            if isinstance(price_data, dict):
-                price_score = float(price_data.get("score", 0.0))
+    if snapshots_df.is_empty():
+        logger.warning("No snapshot data available", symbol=symbol, item_id=item_id)
+        return ScoreHistoryResponse(
+            item_id=item_id,
+            symbol=symbol,
+            history=[],
+        )
 
+    # Convert to WatchlistSnapshot objects
+    snapshots = []
+    for row in snapshots_df.to_dicts():
+        # Parse raw_metrics safely (JSON column might be string or dict)
+        raw_metrics = safe_json_loads(row.get("raw_metrics"), {})
+
+        snapshot = WatchlistSnapshot(
+            item_id=row["item_id"],
+            fetched_at=row["fetched_at"],
+            price=row.get("price"),
+            technical_score=row.get("technical_score"),
+            overall_score=row.get("overall_score"),
+            raw_metrics=raw_metrics,
+        )
+        snapshots.append(snapshot)
+
+    # Build timeline from snapshots (aggregates to daily averages)
+    timeline = build_score_timeline(snapshots, window_days=days)
+
+    # Convert to API response format
+    history = []
+    for point in timeline:
         history.append(
-            ScoreHistoryEntry(
-                timestamp=str(row.get("fetched_at", "")),
-                overall=float(row.get("overall_score", 0) or 0),
-                price_score=price_score,
-                technical_score=float(row.get("technical_score", 0) or 0),
+            ScoreHistoryPoint(
+                timestamp=point.date.isoformat(),
+                overall=point.overall_score,
+                price_score=point.price_score or 0.0,
+                technical_score=point.technical_score or 0.0,
             )
         )
 
