@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
+from pydantic import BaseModel, Field
 
 from app.api.utils import handle_api_errors
 from app.logging_config import get_logger
@@ -25,6 +26,24 @@ from app.watchlist.watchlist_repository import WatchlistRepository
 from app.watchlist.watchlist_service import WatchlistService
 
 from .helpers import WATCHLIST_CACHE_TTL_SECONDS, _require_watchlist_item
+
+
+class ScoreHistoryEntry(BaseModel):
+    """Single entry in score history."""
+
+    timestamp: str
+    overall: float
+    price_score: float = Field(serialization_alias="priceScore")
+    technical_score: float = Field(serialization_alias="technicalScore")
+
+
+class ScoreHistoryResponse(BaseModel):
+    """Response for score history endpoint."""
+
+    item_id: str = Field(serialization_alias="itemId")
+    symbol: str
+    history: list[ScoreHistoryEntry]
+
 
 logger = get_logger(__name__)
 
@@ -75,6 +94,53 @@ async def get_watchlist_item(item_id: str) -> WatchlistItemResponse:
         raise HTTPException(status_code=404, detail="Watchlist item not found")
 
     return WatchlistItemResponse.from_service_dict(item)
+
+
+@router.get("/{item_id}/history", response_model=ScoreHistoryResponse)
+@handle_api_errors("fetch score history")
+async def get_score_history(item_id: str) -> ScoreHistoryResponse:
+    """
+    Get score history for a watchlist item (last 30 snapshots).
+
+    Args:
+        item_id: Watchlist item ID
+
+    Returns:
+        Score history with timestamps and scores
+    """
+    # Get symbol for the item
+    symbol_df = await run_in_threadpool(watchlist_repo.get_symbol_by_item_id, item_id)
+    if symbol_df.is_empty():
+        raise HTTPException(status_code=404, detail="Watchlist item not found")
+    symbol = symbol_df["symbol"][0]
+
+    # Get snapshots with full metrics
+    snapshots_df = await run_in_threadpool(watchlist_repo.get_snapshots_with_metrics, item_id)
+
+    history: list[ScoreHistoryEntry] = []
+    for row in snapshots_df.iter_rows(named=True):
+        # Extract price score from raw_metrics if available
+        price_score = 0.0
+        raw_metrics = row.get("raw_metrics")
+        if raw_metrics and isinstance(raw_metrics, dict):
+            price_data = raw_metrics.get("price", {})
+            if isinstance(price_data, dict):
+                price_score = float(price_data.get("score", 0.0))
+
+        history.append(
+            ScoreHistoryEntry(
+                timestamp=str(row.get("fetched_at", "")),
+                overall=float(row.get("overall_score", 0) or 0),
+                price_score=price_score,
+                technical_score=float(row.get("technical_score", 0) or 0),
+            )
+        )
+
+    return ScoreHistoryResponse(
+        item_id=item_id,
+        symbol=symbol,
+        history=history,
+    )
 
 
 @router.post("/", response_model=WatchlistItemResponse, status_code=201)
