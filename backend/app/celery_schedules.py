@@ -460,11 +460,12 @@ def _user_configurable_tasks() -> dict[str, dict[str, Any]]:
         # Note: Commented example for future implementation
         "refresh-news-sentiment": {
             "task": "refresh_news_sentiment",
-            "schedule": POLL_INTERVAL_30_MIN,  # Was 65s - too aggressive, caused CPU spikes
+            "schedule": crontab(minute=25),  # Hourly at :25 (was 30min, caused CPU spikes)
             "args": ["default"],
-            "options": {"expires": EXPIRY_28_MIN},  # Slightly less than schedule interval
+            "options": {"expires": EXPIRY_50_MIN},  # 50 min expiry for hourly schedule
             # Notes:
-            # - Changed from 65s to 30min to reduce Gemini API load and CPU usage
+            # - Changed from 30min to hourly to reduce CPU load (task takes 4-5 min)
+            # - Runs at :25 to avoid collision with other hourly tasks
             # - Task checks: news_refresh_override → default_refresh_minutes → 15 min
             # - Uses optimized JOIN query from Issue #5 fix
         },

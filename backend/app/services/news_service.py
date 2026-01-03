@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -30,6 +31,9 @@ from .news_sentiment import FinBertSentimentAnalyzer, VaderSentimentAnalyzer
 from .news_vendor_manager import NewsVendorManager
 
 logger = get_logger(__name__)
+
+# Max parallel symbol fetches to avoid vendor API rate limits
+MAX_PARALLEL_SYMBOLS = 5
 
 
 class NewsService:
@@ -193,14 +197,42 @@ class NewsService:
         max_articles: int = DEFAULT_MAX_ARTICLES,
         force_refresh: bool = False,
     ) -> dict[str, NewsBundle]:
-        """Get news bundles for a collection of symbols."""
+        """Get news bundles for a collection of symbols.
+
+        Uses ThreadPoolExecutor to fetch symbols in parallel, significantly
+        reducing wall time for large watchlists. HTTP I/O overlaps between
+        threads while CPU-bound work (FinBERT) naturally serializes via GIL.
+        """
+        symbol_list = [s.upper() for s in symbols]
+        if not symbol_list:
+            return {}
+
         bundles: dict[str, NewsBundle] = {}
-        for symbol in symbols:
-            bundles[symbol.upper()] = self.get_news_intelligence(
+
+        def fetch_single(symbol: str) -> tuple[str, NewsBundle]:
+            return symbol, self.get_news_intelligence(
                 symbol,
                 max_articles=max_articles,
                 force_refresh=force_refresh,
             )
+
+        # Use thread pool for parallel I/O (HTTP fetches overlap)
+        # Limit workers to avoid vendor rate limits
+        max_workers = min(MAX_PARALLEL_SYMBOLS, len(symbol_list))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(fetch_single, sym): sym for sym in symbol_list}
+            for future in as_completed(futures):
+                try:
+                    symbol, bundle = future.result()
+                    bundles[symbol] = bundle
+                except Exception as exc:
+                    symbol = futures[future]
+                    logger.warning(
+                        "parallel_news_fetch_failed",
+                        symbol=symbol,
+                        error=str(exc),
+                    )
+
         return bundles
 
     def get_custom_news(
