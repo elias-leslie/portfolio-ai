@@ -14,7 +14,7 @@ from app.agents.multi_reviewer import (
     DualReviewResult,
     ProviderReview,
 )
-from app.api.watchlist import review_strategy_signal
+from app.api.watchlist.review_router import review_strategy_signal
 
 
 class TestReviewStrategySignalDualMode:
@@ -114,9 +114,11 @@ class TestReviewStrategySignalDualMode:
         mock_reviewer = AsyncMock()
         mock_reviewer.review_signal_dual.return_value = sample_dual_review_result
 
-        with patch("app.api.watchlist.watchlist_repo", mock_repo), patch(
-            "app.api.watchlist.multi_reviewer", mock_reviewer
-        ), patch("app.api.watchlist.storage", mock_storage):
+        with (
+            patch("app.api.watchlist.watchlist_repo", mock_repo),
+            patch("app.api.watchlist.multi_reviewer", mock_reviewer),
+            patch("app.api.watchlist.storage", mock_storage),
+        ):
             result = await review_strategy_signal(item_id="item-123", dual=True)
 
             # Verify response structure
@@ -157,9 +159,11 @@ class TestReviewStrategySignalDualMode:
         mock_conn = MagicMock()
         mock_storage.connection.return_value.__enter__.return_value = mock_conn
 
-        with patch("app.api.watchlist.watchlist_repo", mock_repo), patch(
-            "app.api.watchlist.multi_reviewer", mock_reviewer
-        ), patch("app.api.watchlist.storage", mock_storage):
+        with (
+            patch("app.api.watchlist.watchlist_repo", mock_repo),
+            patch("app.api.watchlist.multi_reviewer", mock_reviewer),
+            patch("app.api.watchlist.storage", mock_storage),
+        ):
             await review_strategy_signal(item_id="item-123", dual=True)
 
             # Verify that execute was called twice (once for each review)
@@ -183,9 +187,10 @@ class TestReviewStrategySignalDualMode:
         mock_repo = MagicMock()
         mock_repo.get_item_with_snapshots.return_value = item_df
 
-        with patch("app.api.watchlist.watchlist_repo", mock_repo), pytest.raises(
-            HTTPException
-        ) as exc_info:
+        with (
+            patch("app.api.watchlist.watchlist_repo", mock_repo),
+            pytest.raises(HTTPException) as exc_info,
+        ):
             await review_strategy_signal(item_id="nonexistent-id", dual=True)
 
         assert exc_info.value.status_code == 404
@@ -207,9 +212,10 @@ class TestReviewStrategySignalDualMode:
         mock_repo.get_item_with_snapshots.return_value = item_df
         mock_repo.get_latest_snapshot_for_review.return_value = snapshot_df
 
-        with patch("app.api.watchlist.watchlist_repo", mock_repo), pytest.raises(
-            HTTPException
-        ) as exc_info:
+        with (
+            patch("app.api.watchlist.watchlist_repo", mock_repo),
+            pytest.raises(HTTPException) as exc_info,
+        ):
             await review_strategy_signal(item_id="item-123", dual=True)
 
         assert exc_info.value.status_code == 404
@@ -262,9 +268,11 @@ class TestReviewStrategySignalDualMode:
         mock_reviewer = AsyncMock()
         mock_reviewer.review_signal_dual.return_value = disagreement_result
 
-        with patch("app.api.watchlist.watchlist_repo", mock_repo), patch(
-            "app.api.watchlist.multi_reviewer", mock_reviewer
-        ), patch("app.api.watchlist.storage", mock_storage):
+        with (
+            patch("app.api.watchlist.watchlist_repo", mock_repo),
+            patch("app.api.watchlist.multi_reviewer", mock_reviewer),
+            patch("app.api.watchlist.storage", mock_storage),
+        ):
             result = await review_strategy_signal(item_id="item-123", dual=True)
 
             assert result["disagreement_severity"] == "major"
@@ -320,9 +328,11 @@ class TestReviewStrategySignalDualMode:
         mock_reviewer = AsyncMock()
         mock_reviewer.review_signal_dual.return_value = partial_result
 
-        with patch("app.api.watchlist.watchlist_repo", mock_repo), patch(
-            "app.api.watchlist.multi_reviewer", mock_reviewer
-        ), patch("app.api.watchlist.storage", mock_storage):
+        with (
+            patch("app.api.watchlist.watchlist_repo", mock_repo),
+            patch("app.api.watchlist.multi_reviewer", mock_reviewer),
+            patch("app.api.watchlist.storage", mock_storage),
+        ):
             result = await review_strategy_signal(item_id="item-123", dual=True)
 
             assert result["gemini_review"] is not None
@@ -352,9 +362,11 @@ class TestReviewStrategySignalDualMode:
         mock_reviewer = AsyncMock()
         mock_reviewer.review_signal_dual.return_value = sample_dual_review_result
 
-        with patch("app.api.watchlist.watchlist_repo", mock_repo), patch(
-            "app.api.watchlist.multi_reviewer", mock_reviewer
-        ), patch("app.api.watchlist.storage", mock_storage):
+        with (
+            patch("app.api.watchlist.watchlist_repo", mock_repo),
+            patch("app.api.watchlist.multi_reviewer", mock_reviewer),
+            patch("app.api.watchlist.storage", mock_storage),
+        ):
             # Call without dual parameter (should default to True)
             result = await review_strategy_signal(item_id="item-123")
 
@@ -387,9 +399,11 @@ class TestReviewStrategySignalDualMode:
         mock_reviewer = AsyncMock()
         mock_reviewer.review_signal_dual.return_value = sample_dual_review_result
 
-        with patch("app.api.watchlist.watchlist_repo", mock_repo), patch(
-            "app.api.watchlist.multi_reviewer", mock_reviewer
-        ), patch("app.api.watchlist.storage", mock_storage):
+        with (
+            patch("app.api.watchlist.watchlist_repo", mock_repo),
+            patch("app.api.watchlist.multi_reviewer", mock_reviewer),
+            patch("app.api.watchlist.storage", mock_storage),
+        ):
             await review_strategy_signal(item_id="item-123", dual=True)
 
             # Verify signal_data passed to reviewer
@@ -407,7 +421,10 @@ class TestReviewStrategySignalDualMode:
 
     @pytest.mark.asyncio
     async def test_raises_500_on_review_failure(
-        self, mock_storage: MagicMock, sample_watchlist_item: list[dict], sample_snapshot: list[dict]
+        self,
+        mock_storage: MagicMock,
+        sample_watchlist_item: list[dict],
+        sample_snapshot: list[dict],
     ) -> None:
         """Test that 500 error is raised when review fails."""
         item_df = MagicMock()
@@ -425,9 +442,11 @@ class TestReviewStrategySignalDualMode:
         mock_reviewer = AsyncMock()
         mock_reviewer.review_signal_dual.side_effect = Exception("Review failed")
 
-        with patch("app.api.watchlist.watchlist_repo", mock_repo), patch(
-            "app.api.watchlist.multi_reviewer", mock_reviewer
-        ), pytest.raises(HTTPException) as exc_info:
+        with (
+            patch("app.api.watchlist.watchlist_repo", mock_repo),
+            patch("app.api.watchlist.multi_reviewer", mock_reviewer),
+            pytest.raises(HTTPException) as exc_info,
+        ):
             await review_strategy_signal(item_id="item-123", dual=True)
 
         assert exc_info.value.status_code == 500

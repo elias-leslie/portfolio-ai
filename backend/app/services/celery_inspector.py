@@ -12,7 +12,6 @@ import pickle
 from datetime import datetime
 from typing import Any, Literal
 
-from app.celery_app import celery_app
 from app.storage.connection import ConnectionManager
 
 
@@ -74,6 +73,9 @@ def get_active_tasks() -> list[dict[str, Any]]:
             "kwargs": JSON string,
         }, ...]
     """
+    # Lazy import to avoid circular dependency with app.tasks
+    from app.celery_app import celery_app  # noqa: PLC0415
+
     inspect = celery_app.control.inspect(timeout=2.0)
     try:
         active = inspect.active()
@@ -131,6 +133,9 @@ def get_pending_tasks() -> list[dict[str, Any]]:
             "kwargs": JSON string,
         }, ...]
     """
+    # Lazy import to avoid circular dependency with app.tasks
+    from app.celery_app import celery_app  # noqa: PLC0415
+
     inspect = celery_app.control.inspect(timeout=2.0)
     try:
         reserved = inspect.reserved()
