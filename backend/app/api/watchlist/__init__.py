@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from .crud_router import get_score_history
 from .crud_router import router as crud_router
 from .refresh_router import router as refresh_router
 
@@ -21,4 +22,4 @@ router.include_router(refresh_router)  # /refresh - specific route
 router.include_router(review_router)  # /review - specific route
 router.include_router(crud_router)  # /{item_id} - catch-all, must be last
 
-__all__ = ["router"]
+__all__ = ["get_score_history", "router"]
