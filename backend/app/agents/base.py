@@ -197,6 +197,34 @@ class Agent(ABC):
                 )
                 conn.commit()
 
+    def _log_completion(
+        self,
+        run_id: str,
+        tool_calls_made: list[ToolCallRecord],
+        iteration: int,
+        duration_ms: int,
+        token_usage: dict[str, int] | None,
+    ) -> None:
+        """Log agent run completion.
+
+        Args:
+            run_id: Unique run identifier
+            tool_calls_made: List of tool calls made
+            iteration: Current iteration number
+            duration_ms: Execution duration in milliseconds
+            token_usage: Token usage stats from LLM response
+        """
+        logger.info(
+            "agent_run_completed",
+            run_id=run_id,
+            agent_type=self.agent_type,
+            num_tool_calls=len(tool_calls_made),
+            iterations=iteration + 1,
+            duration_s=round(duration_ms / 1000.0, 2),
+            status=AgentRunStatus.COMPLETED.value,
+            token_usage=token_usage,
+        )
+
     def _handle_completion(
         self,
         run_id: str,
@@ -220,18 +248,8 @@ class Agent(ABC):
             Completion result dict
         """
         completed_at, duration_ms = _get_completion_metadata(started_at)
-        duration_s = duration_ms / 1000.0
 
-        logger.info(
-            "agent_run_completed",
-            run_id=run_id,
-            agent_type=self.agent_type,
-            num_tool_calls=len(tool_calls_made),
-            iterations=iteration + 1,
-            duration_s=round(duration_s, 2),
-            status=AgentRunStatus.COMPLETED.value,
-            token_usage=token_usage,
-        )
+        self._log_completion(run_id, tool_calls_made, iteration, duration_ms, token_usage)
 
         self._record_run_complete(
             run_id,
@@ -530,6 +548,45 @@ class Agent(ABC):
             total_token_usage,
         )
 
+    def _dispatch_llm_stop_reason(
+        self,
+        run_id: str,
+        started_at: datetime,
+        response: LLMResponse,
+        tool_calls_made: list[ToolCallRecord],
+        conversation_history: list[dict[str, object]],
+        iteration: int,
+        total_token_usage: dict[str, int],
+    ) -> AgentRunResult | str:
+        """Dispatch LLM response based on stop reason.
+
+        Args:
+            run_id: Unique run identifier
+            started_at: Run start timestamp
+            response: LLM response to dispatch
+            tool_calls_made: List of tool calls made
+            conversation_history: Conversation history (modified if tool_use)
+            iteration: Current iteration number
+            total_token_usage: Accumulated token usage
+
+        Returns:
+            AgentRunResult if done (end_turn or error), or str prompt if continuing
+        """
+        if response.stop_reason == StopReason.END_TURN.value:
+            return self._handle_llm_end_turn_response(
+                run_id, started_at, response, tool_calls_made, iteration, total_token_usage
+            )
+
+        if response.stop_reason == StopReason.TOOL_USE.value:
+            return self._handle_llm_tool_use_response(
+                run_id, response, tool_calls_made, conversation_history
+            )
+
+        # Unexpected stop reason
+        return self._handle_unexpected_stop_reason(
+            run_id, started_at, response.stop_reason, tool_calls_made, total_token_usage
+        )
+
     def _handle_llm_tool_use_response(
         self,
         run_id: str,
@@ -616,25 +673,72 @@ class Agent(ABC):
             if iteration == 0:
                 self._update_provider_metadata(response, run_id)
 
-            if response.stop_reason == StopReason.END_TURN.value:
-                return self._handle_llm_end_turn_response(
-                    run_id, started_at, response, tool_calls_made, iteration, total_token_usage
-                )
+            # Dispatch based on stop reason
+            result = self._dispatch_llm_stop_reason(
+                run_id,
+                started_at,
+                response,
+                tool_calls_made,
+                conversation_history,
+                iteration,
+                total_token_usage,
+            )
 
-            if response.stop_reason == StopReason.TOOL_USE.value:
-                current_prompt = self._handle_llm_tool_use_response(
-                    run_id, response, tool_calls_made, conversation_history
-                )
-
+            # If result is a string, it's the next prompt; continue the loop
+            if isinstance(result, str):
+                current_prompt = result
             else:
-                # Unexpected stop reason
-                return self._handle_unexpected_stop_reason(
-                    run_id, started_at, response.stop_reason, tool_calls_made, total_token_usage
-                )
+                # Otherwise it's a final AgentRunResult
+                return result
 
         # Max iterations reached
         return self._handle_max_iterations(
             run_id, started_at, max_iterations, tool_calls_made, total_token_usage
+        )
+
+    def _dispatch_anthropic_stop_reason(
+        self,
+        run_id: str,
+        started_at: datetime,
+        response: object,
+        tool_calls_made: list[ToolCallRecord],
+        messages: list[dict[str, object]],
+        iteration: int,
+    ) -> AgentRunResult | None:
+        """Dispatch Anthropic API response based on stop reason.
+
+        Args:
+            run_id: Unique run identifier
+            started_at: Run start timestamp
+            response: Anthropic API response
+            tool_calls_made: List of tool calls made
+            messages: Conversation messages (modified if tool_use)
+            iteration: Current iteration number
+
+        Returns:
+            AgentRunResult if done (end_turn or error), or None if continuing
+        """
+        if response.stop_reason == StopReason.END_TURN.value:  # type: ignore[attr-defined]
+            final_text = self._extract_final_response(response)
+            return self._handle_completion(
+                run_id, started_at, tool_calls_made, iteration, final_text
+            )
+
+        if response.stop_reason == StopReason.TOOL_USE.value:  # type: ignore[attr-defined]
+            assistant_content, tool_results = self._process_tool_calls_anthropic(
+                response, run_id, tool_calls_made
+            )
+            # Continue conversation with tool results
+            messages.append({"role": "assistant", "content": assistant_content})
+            messages.append({"role": "user", "content": tool_results})
+            return None  # Continue loop
+
+        # Unexpected stop reason
+        return self._handle_unexpected_stop_reason(
+            run_id,
+            started_at,
+            response.stop_reason,  # type: ignore[attr-defined]
+            tool_calls_made,
         )
 
     def _run_with_anthropic_api(
@@ -651,7 +755,7 @@ class Agent(ABC):
         Returns:
             Agent run result dict
         """
-        messages = [{"role": "user", "content": user_prompt}]
+        messages: list[dict[str, object]] = [{"role": "user", "content": user_prompt}]
         tool_calls_made: list[ToolCallRecord] = []
 
         for iteration in range(max_iterations):
@@ -663,29 +767,72 @@ class Agent(ABC):
                 messages=messages,  # type: ignore[arg-type]
             )
 
-            if response.stop_reason == StopReason.END_TURN.value:
-                final_text = self._extract_final_response(response)
-                return self._handle_completion(
-                    run_id, started_at, tool_calls_made, iteration, final_text
-                )
+            result = self._dispatch_anthropic_stop_reason(
+                run_id, started_at, response, tool_calls_made, messages, iteration
+            )
 
-            if response.stop_reason == StopReason.TOOL_USE.value:
-                assistant_content, tool_results = self._process_tool_calls_anthropic(
-                    response, run_id, tool_calls_made
-                )
-
-                # Continue conversation with tool results
-                messages.append({"role": "assistant", "content": assistant_content})  # type: ignore[dict-item]
-                messages.append({"role": "user", "content": tool_results})  # type: ignore[dict-item]
-
-            else:
-                # Unexpected stop reason
-                return self._handle_unexpected_stop_reason(
-                    run_id, started_at, response.stop_reason, tool_calls_made
-                )
+            if result is not None:
+                return result
 
         # Max iterations reached
         return self._handle_max_iterations(run_id, started_at, max_iterations, tool_calls_made)
+
+    def _store_tool_call_message(
+        self, run_id: str, tool_name: str, tool_params: ToolInputDict
+    ) -> None:
+        """Store a tool call message in conversation history.
+
+        Args:
+            run_id: Current agent run ID
+            tool_name: Name of the tool being called
+            tool_params: Tool parameters
+        """
+        self._store_conversation_message(
+            run_id,
+            "tool_call",
+            json.dumps(
+                {"name": tool_name, "parameters": tool_params},
+                default=json_serializer,
+            ),
+            metadata={"tool_name": tool_name},
+        )
+
+    def _store_tool_result_message(
+        self, run_id: str, tool_name: str, exec_result: ToolExecutionResult
+    ) -> None:
+        """Store a tool result message in conversation history.
+
+        Args:
+            run_id: Current agent run ID
+            tool_name: Name of the tool
+            exec_result: Tool execution result with result and duration_ms
+        """
+        result_str = json.dumps(exec_result["result"], default=json_serializer)
+        self._store_conversation_message(
+            run_id,
+            "tool_result",
+            result_str[:TOOL_RESULT_TRUNCATE],
+            metadata={"tool_name": tool_name, "duration_ms": exec_result["duration_ms"]},
+        )
+
+    def _build_tool_result_dict(
+        self, tool_name: str, tool_params: ToolInputDict, exec_result: ToolExecutionResult
+    ) -> dict[str, object]:
+        """Build a tool result dict for the results list.
+
+        Args:
+            tool_name: Name of the tool
+            tool_params: Tool parameters
+            exec_result: Tool execution result
+
+        Returns:
+            Dict with name, parameters, and result
+        """
+        return {
+            "name": tool_name,
+            "parameters": tool_params,
+            "result": exec_result["result"],
+        }
 
     def _process_tool_calls_llm(
         self,
@@ -713,37 +860,18 @@ class Agent(ABC):
             tool_params = cast(ToolInputDict, tool_call["parameters"])
 
             # Store tool call message (before execution)
-            self._store_conversation_message(
-                run_id,
-                "tool_call",
-                json.dumps(
-                    {"name": tool_name, "parameters": tool_params},
-                    default=json_serializer,
-                ),
-                metadata={"tool_name": tool_name},
-            )
+            self._store_tool_call_message(run_id, tool_name, tool_params)
 
             # Execute and record using shared helper
             exec_result = self._execute_and_record_tool(
                 run_id, tool_name, tool_params, tool_calls_made
             )
 
-            # Store tool result message (truncate long results)
-            result_str = json.dumps(exec_result["result"], default=json_serializer)
-            self._store_conversation_message(
-                run_id,
-                "tool_result",
-                result_str[:TOOL_RESULT_TRUNCATE],
-                metadata={"tool_name": tool_name, "duration_ms": exec_result["duration_ms"]},
-            )
+            # Store tool result message
+            self._store_tool_result_message(run_id, tool_name, exec_result)
 
-            tool_results.append(
-                {
-                    "name": tool_name,
-                    "parameters": tool_params,
-                    "result": exec_result["result"],
-                }
-            )
+            # Build result dict
+            tool_results.append(self._build_tool_result_dict(tool_name, tool_params, exec_result))
 
         return tool_results
 
