@@ -9,8 +9,8 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from agent_hub import AgentHubClient as SDKClient  # type: ignore[import-not-found]
-from agent_hub.exceptions import AgentHubError  # type: ignore[import-not-found]
+from agent_hub import AgentHubClient as SDKClient
+from agent_hub.exceptions import AgentHubError
 
 from ...logging_config import get_logger
 from .base_client import LLMClient, LLMResponse

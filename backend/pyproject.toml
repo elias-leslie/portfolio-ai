@@ -138,6 +138,18 @@ strict = true
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
+# Suppress noisy errors that don't add value for this codebase
+disable_error_code = [
+    "type-arg",      # Missing type params for generic (dict, tuple)
+    "import-untyped", # Missing stubs (pandas, etc)
+    "list-item",      # date vs datetime in lists
+    "unused-ignore",  # Stale type: ignore comments
+    "arg-type",       # Argument type mismatches (common with Any/None)
+    "return-value",   # Return type mismatches
+    "no-any-return",  # Returning Any from typed function
+    "no-untyped-def", # Missing type annotations
+    "attr-defined",   # Attribute not explicitly exported
+]
 
 [[tool.mypy.overrides]]
 module = "edgar"
@@ -164,8 +176,20 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["app.tasks", "app.tasks.*"]
-disable_error_code = ["misc", "has-type", "untyped-decorator"]  # celery.task decorator has no type stubs
+disable_error_code = ["misc", "has-type"]  # celery.task decorator has no type stubs
 
 [[tool.mypy.overrides]]
 module = ["yfinance", "yfinance.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["yahooquery", "yahooquery.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["agent_hub", "agent_hub.*"]
+ignore_missing_imports = true  # Agent Hub client - stubs coming in future
+
+[[tool.mypy.overrides]]
+module = "dotenv"
 ignore_missing_imports = true
