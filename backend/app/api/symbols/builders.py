@@ -1,0 +1,287 @@
+"""Response builders for symbol intelligence.
+
+Transforms raw data into typed response sections.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from .models import (
+    AlertIndicator,
+    CompanySection,
+    KeyEvent,
+    MarketSection,
+    NewsArticle,
+    NewsSection,
+    PaperTradeInfo,
+    PaperTradesSection,
+    PillarScore,
+    PortfolioContext,
+    PortfolioSection,
+    PositionInfo,
+    ScoresSection,
+    SignalSection,
+    StrategiesSection,
+    StrategyInfo,
+    TradingSection,
+    TrendSection,
+)
+
+# Scoring pillar weights - must sum to 1.0
+PILLAR_WEIGHTS = {
+    "price": 0.22,
+    "technical": 0.22,
+    "fundamental": 0.26,
+    "catalyst": 0.17,
+    "options_flow": 0.08,
+    "performance": 0.05,
+}
+
+
+def build_scores_section(watchlist: dict[str, Any]) -> ScoresSection:
+    """Build the scores section from watchlist data."""
+    pillars = {}
+    for pillar, weight in PILLAR_WEIGHTS.items():
+        score_key = f"{pillar}_score"
+        pillars[pillar] = PillarScore(
+            score=watchlist.get(score_key),
+            weight=weight,
+            sub_scores=watchlist.get(f"{pillar}_sub_scores"),
+            metadata=watchlist.get(f"{pillar}_metadata"),
+            stale=watchlist.get(f"{pillar}_stale", False) or False,
+        )
+
+    return ScoresSection(
+        overall=watchlist.get("overall_score"),
+        signal_type=watchlist.get("signal_type"),
+        signal_strength=watchlist.get("signal_strength"),
+        pillars=pillars,
+        data_quality={
+            "overall_pct": watchlist.get("data_quality_overall_pct"),
+            "pillars": watchlist.get("data_quality_pillars"),
+        },
+    )
+
+
+def build_signal_section(watchlist: dict[str, Any]) -> SignalSection:
+    """Build the signal section from watchlist data."""
+    return SignalSection(
+        type=watchlist.get("signal_type"),
+        strength=watchlist.get("signal_strength"),
+        reasons={
+            "bullish": watchlist.get("signal_reasons_bullish") or [],
+            "bearish": watchlist.get("signal_reasons_bearish") or [],
+        },
+        avoid_flags=watchlist.get("avoid_flag_count") or 0,
+    )
+
+
+def build_trading_section(watchlist: dict[str, Any]) -> TradingSection:
+    """Build the trading section from watchlist data."""
+    return TradingSection(
+        style=watchlist.get("recommended_style"),
+        confidence=watchlist.get("style_confidence"),
+        holding_period=watchlist.get("optimal_holding_period"),
+        risk_level=watchlist.get("risk_level"),
+        entry_price=watchlist.get("entry_price"),
+        stop_loss=watchlist.get("stop_loss"),
+        profit_target=watchlist.get("profit_target"),
+        position_size_shares=watchlist.get("position_size_shares"),
+        position_size_dollars=(
+            watchlist.get("position_size_shares", 0) * watchlist.get("entry_price", 0)
+            if watchlist.get("position_size_shares") and watchlist.get("entry_price")
+            else None
+        ),
+    )
+
+
+def build_company_section(watchlist: dict[str, Any]) -> CompanySection:
+    """Build the company section from watchlist data."""
+    earnings_date = watchlist.get("earnings_date")
+    return CompanySection(
+        health=watchlist.get("company_health"),
+        earnings_date=str(earnings_date) if earnings_date else None,
+        earnings_days_away=watchlist.get("earnings_days_away"),
+    )
+
+
+def build_trends_section(watchlist: dict[str, Any]) -> TrendSection:
+    """Build the trends section from watchlist data."""
+    return TrendSection(
+        short_term_aligned=watchlist.get("timeframe_short_aligned"),
+        long_term_aligned=watchlist.get("timeframe_long_aligned"),
+        volume_relative=watchlist.get("volume_relative"),
+    )
+
+
+def build_alerts(watchlist: dict[str, Any]) -> list[AlertIndicator]:
+    """Build the alerts list from watchlist data."""
+    priority_indicators = watchlist.get("priority_indicators") or []
+    return [
+        AlertIndicator(
+            icon=ind.get("icon", ""),
+            label=ind.get("label", ""),
+            tooltip=ind.get("tooltip"),
+            priority=ind.get("priority", 0),
+            category=ind.get("category"),
+        )
+        for ind in priority_indicators
+        if isinstance(ind, dict)
+    ]
+
+
+def build_news_section_from_watchlist(watchlist: dict[str, Any]) -> NewsSection | None:
+    """Build the news section from watchlist news intelligence."""
+    news_intel = watchlist.get("news_intelligence") or {}
+    if not news_intel:
+        return None
+
+    recent_articles_raw = news_intel.get("recent_articles") or []
+    return NewsSection(
+        sentiment_score=news_intel.get("sentiment_score"),
+        sentiment_label=news_intel.get("sentiment_label"),
+        article_count_24h=news_intel.get("article_count_24h") or 0,
+        headline=news_intel.get("headline"),
+        key_events=[
+            KeyEvent(
+                icon=e.get("icon", "") if isinstance(e, dict) else "",
+                text=e.get("text", "") if isinstance(e, dict) else str(e),
+                time_ago=e.get("time_ago", "") if isinstance(e, dict) else "",
+            )
+            for e in (news_intel.get("key_events") or [])[:3]
+        ],
+        recent_articles=[
+            NewsArticle(
+                headline=a.get("headline", ""),
+                source=a.get("source"),
+                published_at=a.get("published_at"),
+            )
+            for a in recent_articles_raw[:5]
+            if isinstance(a, dict)
+        ],
+    )
+
+
+def build_news_section_fallback(news: dict[str, Any]) -> NewsSection:
+    """Build a fallback news section from news summary data."""
+    return NewsSection(
+        sentiment_score=news.get("sentiment_score"),
+        article_count_24h=news.get("article_count") or 0,
+    )
+
+
+def build_portfolio_section(
+    position: dict[str, Any] | None, summary: dict[str, Any] | None
+) -> PortfolioSection:
+    """Build the portfolio section from position and summary data."""
+    if position:
+        current_price = position.get("current_price") or position.get("cost_basis") or 0
+        current_value = position.get("shares", 0) * current_price
+        cost_total = position.get("shares", 0) * position.get("cost_basis", 0)
+        gain = current_value - cost_total
+        gain_pct = (gain / cost_total * 100) if cost_total else 0
+        total_value = (summary.get("total_value") if summary else None) or current_value
+
+        return PortfolioSection(
+            held=True,
+            position=PositionInfo(
+                shares=position.get("shares", 0),
+                cost_basis=position.get("cost_basis", 0),
+                current_value=current_value,
+                gain=gain,
+                gain_pct=gain_pct,
+                weight_pct=(current_value / total_value * 100) if total_value else 0,
+            ),
+            context=PortfolioContext(
+                total_value=total_value,
+                num_holdings=summary.get("num_holdings", 0) if summary else 0,
+            ),
+        )
+
+    return PortfolioSection(
+        held=False,
+        context=PortfolioContext(
+            total_value=(summary.get("total_value") or 0) if summary else 0,
+            num_holdings=(summary.get("num_holdings") or 0) if summary else 0,
+        )
+        if summary
+        else None,
+    )
+
+
+def build_paper_trades_section(paper_trades: dict[str, Any]) -> PaperTradesSection:
+    """Build the paper trades section from paper trades data."""
+    open_pos = paper_trades.get("open_trade")
+    closed = paper_trades.get("closed_trades") or []
+
+    return PaperTradesSection(
+        open_position=PaperTradeInfo(
+            entry_price=open_pos.get("entry_price", 0),
+            return_pct=open_pos.get("current_return_pct"),
+            holding_days=open_pos.get("holding_days"),
+            status="open",
+        )
+        if open_pos
+        else None,
+        closed_trades=[
+            PaperTradeInfo(
+                entry_price=t.get("entry_price", 0),
+                exit_price=t.get("exit_price"),
+                return_pct=t.get("realized_return_pct"),
+                holding_days=t.get("holding_days"),
+                status="closed",
+            )
+            for t in closed[:5]
+        ],
+        win_rate=paper_trades.get("win_rate"),
+        avg_return=paper_trades.get("avg_return"),
+    )
+
+
+def build_strategies_section(strategies: dict[str, Any]) -> StrategiesSection | None:
+    """Build the strategies section from strategies data."""
+    strats = strategies.get("strategies")
+    if not strats:
+        return None
+
+    best = strategies.get("best")
+
+    return StrategiesSection(
+        active_count=strategies["active_count"],
+        strategies=[
+            StrategyInfo(
+                id=str(s["id"]),
+                name=s["name"],
+                strategy_type=s["strategy_type"],
+                expected_sharpe=s.get("expected_sharpe"),
+                live_sharpe=s.get("live_sharpe_ratio"),
+                win_rate=s.get("live_win_rate"),
+            )
+            for s in strats[:3]
+        ],
+        best_strategy=StrategyInfo(
+            id=str(best["id"]),
+            name=best["name"],
+            strategy_type=best["strategy_type"],
+            expected_sharpe=best.get("expected_sharpe"),
+            live_sharpe=best.get("live_sharpe_ratio"),
+            win_rate=best.get("live_win_rate"),
+        )
+        if best
+        else None,
+    )
+
+
+def build_market_section(market: dict[str, Any]) -> MarketSection | None:
+    """Build the market section from market data."""
+    if not market:
+        return None
+
+    fg = market.get("fear_greed") or {}
+    return MarketSection(
+        fear_greed_score=fg.get("score"),
+        fear_greed_label=fg.get("label"),
+        vix=market.get("vix"),
+        sp500_change=market.get("sp500_change"),
+    )
