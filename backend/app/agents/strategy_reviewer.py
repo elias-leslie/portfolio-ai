@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from app.storage.facade import PortfolioStorage
 
 from ..logging_config import get_logger
-from .llm_client import ClaudeCLIClient, GeminiCLIClient, LLMClient, LLMResponse
+from .llm_client import AgentHubAPIClient, LLMClient, LLMResponse
 from .strategy_reviewer_prompts import (
     GUARDRAILS,
     build_review_prompt,
@@ -40,13 +40,17 @@ class StrategyReviewer:
         self._clients: dict[str, LLMClient | None] = {}
 
     def _get_client(self, name: str) -> LLMClient | None:
-        """Lazy-load LLM client to avoid import-time failures."""
+        """Lazy-load LLM client via Agent Hub."""
         if name not in self._clients:
             try:
-                if name == "gemini":
-                    self._clients[name] = GeminiCLIClient()
-                elif name == "claude":
-                    self._clients[name] = ClaudeCLIClient()
+                if name in ("gemini", "claude"):
+                    # Use Agent Hub for all providers
+                    model = (
+                        "gemini-3-flash-preview"
+                        if name == "gemini"
+                        else "claude-sonnet-4-5-20250514"
+                    )
+                    self._clients[name] = AgentHubAPIClient(model=model)
                 else:
                     self._clients[name] = None
             except RuntimeError:

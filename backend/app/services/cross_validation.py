@@ -18,8 +18,8 @@ from typing import Any, TypedDict
 
 from pydantic import BaseModel, Field
 
+from ..agents.clients.agent_hub_client import AgentHubAPIClient
 from ..agents.clients.base_client import LLMClient, LLMResponse
-from ..agents.clients.gemini_client import GeminiCLIClient
 from ..logging_config import get_logger
 from ..storage.connection import get_connection_manager
 
@@ -157,7 +157,7 @@ class CrossValidationService:
         """Ensure generator client is initialized."""
         if self._generator is None and not self._generator_initialized:
             try:
-                self._generator = GeminiCLIClient()
+                self._generator = AgentHubAPIClient(model="gemini-3-flash-preview")
                 self._generator_initialized = True
             except RuntimeError as e:
                 logger.warning("gemini_not_available", error=str(e))
@@ -169,13 +169,10 @@ class CrossValidationService:
     def _ensure_validator(self) -> LLMClient:
         """Ensure validator client is initialized."""
         if self._validator is None and not self._validator_initialized:
-            # Import here to avoid circular dependency
             try:
-                from ..agents.clients.claude_client import ClaudeCLIClient  # noqa: PLC0415
-
-                self._validator = ClaudeCLIClient()
+                self._validator = AgentHubAPIClient(model="claude-sonnet-4-5-20250514")
                 self._validator_initialized = True
-            except (ImportError, RuntimeError) as e:
+            except RuntimeError as e:
                 logger.warning("claude_not_available", error=str(e))
                 self._validator_initialized = True
         if self._validator is None:

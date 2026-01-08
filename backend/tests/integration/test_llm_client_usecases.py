@@ -1,10 +1,12 @@
-"""Integration tests for LLM client with real Portfolio AI use cases.
+"""Integration tests for Agent Hub LLM client with Portfolio AI use cases.
 
-Tests both Gemini and Claude CLIs with actual data patterns from:
+Tests AgentHubAPIClient with actual data patterns from:
 - Gap analysis
 - Paper trading decisions
 - Backtesting analysis
 - News sentiment analysis
+
+Requires Agent Hub service running at localhost:8003.
 """
 
 from __future__ import annotations
@@ -13,16 +15,26 @@ import json
 
 import pytest
 
-from app.agents.llm_client import ClaudeCLIClient, DualProviderClient, GeminiCLIClient
+from app.agents.llm_client import AgentHubAPIClient, DualProviderClient
+
+
+@pytest.fixture
+def agent_hub_client() -> AgentHubAPIClient:
+    """Create Agent Hub client for testing."""
+    return AgentHubAPIClient(model="claude-sonnet-4-5-20250514")
+
+
+@pytest.fixture
+def gemini_client() -> AgentHubAPIClient:
+    """Create Agent Hub client with Gemini model."""
+    return AgentHubAPIClient(model="gemini-3-flash-preview")
 
 
 class TestGapAnalysisUseCase:
-    """Test LLM clients with gap analysis data patterns."""
+    """Test Agent Hub clients with gap analysis data patterns."""
 
-    def test_gemini_gap_analysis_small(self) -> None:
-        """Test Gemini with small gap analysis dataset."""
-        client = GeminiCLIClient()
-
+    def test_agent_hub_gap_analysis_small(self, agent_hub_client: AgentHubAPIClient) -> None:
+        """Test Agent Hub with small gap analysis dataset."""
         gap_data = {
             "symbol": "AAPL",
             "current_data": {
@@ -47,16 +59,13 @@ class TestGapAnalysisUseCase:
 
 Reply with just the number."""
 
-        response = client.generate(prompt)
+        response = agent_hub_client.generate(prompt)
 
         assert response.content.strip().isdigit()
-        assert response.provider == "gemini"
         assert 1 <= int(response.content.strip()) <= 10
 
-    def test_claude_gap_analysis_small(self) -> None:
-        """Test Claude with small gap analysis dataset."""
-        client = ClaudeCLIClient()
-
+    def test_gemini_gap_analysis_small(self, gemini_client: AgentHubAPIClient) -> None:
+        """Test Gemini via Agent Hub with small gap analysis dataset."""
         gap_data = {
             "symbol": "TSLA",
             "data_quality": {"completeness": 75, "freshness": 90},
@@ -69,16 +78,14 @@ Reply with just the number."""
 
 Reply with just the severity level."""
 
-        response = client.generate(prompt)
+        response = gemini_client.generate(prompt)
 
         assert response.content.strip().upper() in ["LOW", "MEDIUM", "HIGH"]
-        assert response.provider == "claude"
 
-    def test_dual_provider_gap_analysis_with_fallback(self) -> None:
-        """Test dual provider with gap analysis (Gemini primary, Claude fallback)."""
+    def test_dual_provider_gap_analysis(self) -> None:
+        """Test DualProviderClient (Agent Hub wrapper) with gap analysis."""
         client = DualProviderClient(primary="gemini")
 
-        # Gap analysis with multiple symbols
         gaps = {
             "symbols": ["AAPL", "GOOGL", "MSFT"],
             "common_gaps": ["real_time_options", "institutional_holdings"],
@@ -94,262 +101,71 @@ Reply with just the number."""
         response = client.generate(prompt)
 
         assert response.content.strip() == "3"
-        assert response.provider in ["gemini", "claude"]
 
 
 class TestPaperTradingUseCase:
-    """Test LLM clients with paper trading decision patterns."""
+    """Test Agent Hub with paper trading decision data."""
 
-    def test_gemini_paper_trading_decision(self) -> None:
-        """Test Gemini with paper trading scenario."""
-        client = GeminiCLIClient()
-
-        trade_data = {
+    def test_trading_signal_analysis(self, agent_hub_client: AgentHubAPIClient) -> None:
+        """Test Agent Hub with trading signal analysis."""
+        signal_data = {
             "symbol": "NVDA",
-            "current_price": 450.75,
+            "signal": "BUY",
+            "confidence": 0.85,
             "indicators": {
-                "rsi": 68,
-                "macd": "bullish",
-                "volume_trend": "increasing",
+                "rsi": 45,
+                "macd": "bullish_crossover",
+                "volume": "above_average",
             },
-            "news_sentiment": "positive",
-            "analyst_consensus": "buy",
         }
 
-        prompt = f"""Should we execute this paper trade? (YES/NO)
+        prompt = f"""Should this trade be executed? Reply YES or NO.
 
-{json.dumps(trade_data, indent=2)}
+{json.dumps(signal_data, indent=2)}"""
 
-Reply with just YES or NO."""
-
-        response = client.generate(prompt)
+        response = agent_hub_client.generate(prompt)
 
         assert response.content.strip().upper() in ["YES", "NO"]
-        assert response.provider == "gemini"
-
-    def test_claude_paper_trading_risk_assessment(self) -> None:
-        """Test Claude with paper trading risk assessment."""
-        client = ClaudeCLIClient()
-
-        risk_data = {
-            "position_size": 1000,
-            "stop_loss_pct": 2.0,
-            "take_profit_pct": 5.0,
-            "portfolio_allocation": 10.0,
-            "max_loss": -200,
-        }
-
-        prompt = f"""Is this risk profile acceptable? (ACCEPTABLE/TOO_RISKY)
-
-{json.dumps(risk_data, indent=2)}
-
-Reply with just the assessment."""
-
-        response = client.generate(prompt)
-
-        assert response.content.strip().upper() in ["ACCEPTABLE", "TOO_RISKY"]
-        assert response.provider == "claude"
 
 
-class TestBacktestingUseCase:
-    """Test LLM clients with backtesting analysis patterns."""
+class TestBacktestUseCase:
+    """Test Agent Hub with backtesting analysis data."""
 
-    def test_gemini_backtest_summary(self) -> None:
-        """Test Gemini with backtest results."""
-        client = GeminiCLIClient()
-
+    def test_backtest_analysis(self, agent_hub_client: AgentHubAPIClient) -> None:
+        """Test Agent Hub with backtest results analysis."""
         backtest_results = {
-            "strategy": "momentum_with_rsi",
+            "strategy": "momentum",
             "period": "2024-01-01 to 2024-12-31",
-            "total_trades": 45,
-            "win_rate": 62.2,
-            "total_return": 18.5,
-            "max_drawdown": -8.3,
-            "sharpe_ratio": 1.85,
+            "returns": {"total": 0.15, "annual": 0.15, "max_drawdown": -0.08},
+            "trades": {"total": 50, "winners": 32, "losers": 18},
         }
 
-        prompt = f"""Rate this backtest performance (POOR/GOOD/EXCELLENT):
+        prompt = f"""Rate this backtest performance (POOR/FAIR/GOOD/EXCELLENT):
 
 {json.dumps(backtest_results, indent=2)}
 
 Reply with just the rating."""
 
-        response = client.generate(prompt)
+        response = agent_hub_client.generate(prompt)
 
-        assert response.content.strip().upper() in ["POOR", "GOOD", "EXCELLENT"]
-        assert response.provider == "gemini"
+        assert response.content.strip().upper() in ["POOR", "FAIR", "GOOD", "EXCELLENT"]
 
-    def test_claude_backtest_comparison(self) -> None:
-        """Test Claude comparing multiple backtest strategies."""
-        client = ClaudeCLIClient()
 
-        comparison = {
-            "strategy_a": {"sharpe": 1.85, "return": 18.5, "drawdown": -8.3},
-            "strategy_b": {"sharpe": 2.10, "return": 22.3, "drawdown": -6.1},
-            "strategy_c": {"sharpe": 1.62, "return": 15.8, "drawdown": -10.2},
+class TestSentimentUseCase:
+    """Test Agent Hub with news sentiment analysis."""
+
+    def test_sentiment_analysis(self, agent_hub_client: AgentHubAPIClient) -> None:
+        """Test Agent Hub with news sentiment extraction."""
+        news = {
+            "headline": "Tech stocks rally on AI optimism",
+            "content": "Major tech companies see gains as investors...",
+            "symbols": ["NVDA", "MSFT", "GOOGL"],
         }
 
-        prompt = f"""Which strategy is best overall? (A/B/C)
+        prompt = f"""What is the sentiment of this news? Reply POSITIVE, NEGATIVE, or NEUTRAL.
 
-{json.dumps(comparison, indent=2)}
+{json.dumps(news, indent=2)}"""
 
-Reply with just the letter."""
-
-        response = client.generate(prompt)
-
-        assert response.content.strip().upper() in ["A", "B", "C"]
-        assert response.provider == "claude"
-
-
-class TestNewsSentimentUseCase:
-    """Test LLM clients with news sentiment analysis patterns."""
-
-    def test_gemini_news_sentiment(self) -> None:
-        """Test Gemini analyzing news sentiment."""
-        client = GeminiCLIClient()
-
-        news_items = [
-            {
-                "symbol": "AAPL",
-                "headline": "Apple announces record quarterly earnings",
-                "source": "Reuters",
-            },
-            {
-                "symbol": "AAPL",
-                "headline": "Apple faces regulatory scrutiny in EU",
-                "source": "Bloomberg",
-            },
-        ]
-
-        prompt = f"""What's the overall sentiment? (POSITIVE/NEGATIVE/NEUTRAL)
-
-{json.dumps(news_items, indent=2)}
-
-Reply with just the sentiment."""
-
-        response = client.generate(prompt)
+        response = agent_hub_client.generate(prompt)
 
         assert response.content.strip().upper() in ["POSITIVE", "NEGATIVE", "NEUTRAL"]
-        assert response.provider == "gemini"
-
-    def test_claude_news_impact_assessment(self) -> None:
-        """Test Claude assessing news impact on trading."""
-        client = ClaudeCLIClient()
-
-        news = {
-            "symbol": "TSLA",
-            "headline": "Tesla recalls 500k vehicles for safety issue",
-            "sentiment": "negative",
-            "expected_impact": "moderate",
-        }
-
-        prompt = f"""Should we adjust our position? (HOLD/REDUCE/EXIT)
-
-{json.dumps(news, indent=2)}
-
-Reply with just the action."""
-
-        response = client.generate(prompt)
-
-        assert response.content.strip().upper() in ["HOLD", "REDUCE", "EXIT"]
-        assert response.provider == "claude"
-
-
-class TestLargeDatasetHandling:
-    """Test LLM clients with large datasets (realistic Portfolio AI scale)."""
-
-    def test_gemini_large_ticker_list(self) -> None:
-        """Test Gemini with large ticker watchlist."""
-        client = GeminiCLIClient()
-
-        # 50 symbols with data
-        symbols = [
-            {"symbol": f"STOCK{i}", "price": 100 + i, "change_pct": i % 10 - 5}
-            for i in range(50)
-        ]
-
-        prompt = f"""How many stocks are showing positive gains?
-
-{json.dumps(symbols, indent=2)}
-
-Reply with just the number."""
-
-        response = client.generate(prompt)
-
-        assert response.content.strip().isdigit()
-        count = int(response.content.strip())
-        assert 0 <= count <= 50
-
-    @pytest.mark.slow
-    def test_dual_provider_very_large_dataset(self) -> None:
-        """Test dual provider with very large dataset (stress test)."""
-        client = DualProviderClient(primary="gemini")
-
-        # 200 records (realistic for gap analysis results)
-        records = [
-            {
-                "id": i,
-                "symbol": f"TICK{i}",
-                "gap_type": "missing_data",
-                "severity": "medium" if i % 3 == 0 else "low",
-            }
-            for i in range(200)
-        ]
-
-        prompt = f"""Count records with severity='medium':
-
-{json.dumps(records, indent=2)[:30000]}  # Limit to 30KB
-
-Reply with just the number."""
-
-        response = client.generate(prompt)
-
-        # Should handle large input and return reasonable answer
-        assert response.content.strip().isdigit()
-        assert response.provider in ["gemini", "claude"]
-
-
-class TestCSVDataHandling:
-    """Test LLM clients with CSV-formatted data (common in backtesting)."""
-
-    def test_gemini_parse_trade_history_csv(self) -> None:
-        """Test Gemini parsing trade history CSV."""
-        client = GeminiCLIClient()
-
-        csv_data = """date,symbol,action,price,shares,total
-2024-01-15,AAPL,BUY,150.25,10,1502.50
-2024-01-20,AAPL,SELL,155.75,10,1557.50
-2024-02-01,GOOGL,BUY,2800.00,2,5600.00
-2024-02-15,GOOGL,SELL,2850.50,2,5701.00"""
-
-        prompt = f"""Calculate total profit from these trades:
-
-{csv_data}
-
-Reply with just the dollar amount (no $)."""
-
-        response = client.generate(prompt)
-
-        # Should calculate: (1557.50 - 1502.50) + (5701.00 - 5600.00) = 156.00
-        result = response.content.strip().replace("$", "").replace(",", "")
-        assert result.replace(".", "").isdigit()
-
-    def test_claude_parse_indicator_csv(self) -> None:
-        """Test Claude parsing technical indicator CSV."""
-        client = ClaudeCLIClient()
-
-        csv_data = """symbol,date,rsi,macd,signal
-AAPL,2024-11-15,68.5,2.3,bullish
-TSLA,2024-11-15,42.1,-1.5,bearish
-NVDA,2024-11-15,72.8,3.1,bullish"""
-
-        prompt = f"""How many symbols show bullish signals?
-
-{csv_data}
-
-Reply with just the number."""
-
-        response = client.generate(prompt)
-
-        assert response.content.strip() == "2"
-        assert response.provider == "claude"

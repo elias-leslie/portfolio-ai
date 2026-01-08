@@ -21,9 +21,7 @@ class TestMultiReviewer:
     def reviewer(self) -> MultiReviewer:
         """Create MultiReviewer instance with mocked clients."""
         mock_storage = MagicMock()
-        with patch("app.agents.multi_reviewer.GeminiCLIClient"), patch(
-            "app.agents.multi_reviewer.ClaudeCLIClient"
-        ):
+        with patch("app.agents.multi_reviewer.AgentHubAPIClient"):
             return MultiReviewer(mock_storage)
 
     @pytest.fixture
@@ -88,9 +86,7 @@ class TestMultiReviewer:
         assert severity == DisagreementSeverity.NONE
         assert provider_disagreement is False
 
-    def test_compute_consensus_minor_disagreement(
-        self, reviewer: MultiReviewer
-    ) -> None:
+    def test_compute_consensus_minor_disagreement(self, reviewer: MultiReviewer) -> None:
         """Test consensus computation for minor disagreement."""
         gemini = ProviderReview(
             provider="gemini",
@@ -107,7 +103,7 @@ class TestMultiReviewer:
             usage={},
         )
 
-        agreement_score, severity, provider_disagreement = reviewer._compute_consensus(
+        _agreement_score, severity, _provider_disagreement = reviewer._compute_consensus(
             gemini, claude
         )
 
@@ -118,9 +114,7 @@ class TestMultiReviewer:
             DisagreementSeverity.MAJOR,  # May be major depending on keyword distribution
         )
 
-    def test_compute_consensus_major_disagreement(
-        self, reviewer: MultiReviewer
-    ) -> None:
+    def test_compute_consensus_major_disagreement(self, reviewer: MultiReviewer) -> None:
         """Test consensus computation for major disagreement."""
         gemini = ProviderReview(
             provider="gemini",
@@ -178,17 +172,13 @@ class TestMultiReviewer:
         rationale = "Strong momentum signal"
         assert reviewer._detect_rules_disagreement(review, rationale) is True
 
-    def test_detect_rules_disagreement_not_found(
-        self, reviewer: MultiReviewer
-    ) -> None:
+    def test_detect_rules_disagreement_not_found(self, reviewer: MultiReviewer) -> None:
         """Test rules disagreement detection when rationale already mentions concerns."""
         review = "Risk noted as mentioned in the analysis."
         rationale = "Strong momentum but risk of volatility"
         assert reviewer._detect_rules_disagreement(review, rationale) is False
 
-    def test_generate_consensus_summary_agreement(
-        self, reviewer: MultiReviewer
-    ) -> None:
+    def test_generate_consensus_summary_agreement(self, reviewer: MultiReviewer) -> None:
         """Test summary generation for agreement."""
         gemini = ProviderReview(
             provider="gemini",
@@ -210,9 +200,7 @@ class TestMultiReviewer:
         )
         assert "agree" in summary.lower()
 
-    def test_generate_consensus_summary_major_disagreement(
-        self, reviewer: MultiReviewer
-    ) -> None:
+    def test_generate_consensus_summary_major_disagreement(self, reviewer: MultiReviewer) -> None:
         """Test summary generation for major disagreement."""
         gemini = ProviderReview(
             provider="gemini",

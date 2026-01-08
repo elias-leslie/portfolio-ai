@@ -178,7 +178,7 @@ class TestStrategyMutationLogic:
     """Tests for strategy mutation logic."""
 
     @pytest.mark.asyncio
-    @patch("app.agents.strategy_evolution_agent.GeminiCLIClient")
+    @patch("app.agents.strategy_evolution_agent.AgentHubAPIClient")
     async def test_propose_mutations_returns_valid_mutations(
         self,
         mock_client: Mock,
@@ -227,7 +227,7 @@ class TestStrategyMutationLogic:
         assert mutations[1].mutation_type == "weight_adjustment"
 
     @pytest.mark.asyncio
-    @patch("app.agents.strategy_evolution_agent.GeminiCLIClient")
+    @patch("app.agents.strategy_evolution_agent.AgentHubAPIClient")
     async def test_propose_mutations_limits_to_five(
         self,
         mock_client: Mock,
@@ -267,7 +267,7 @@ class TestStrategyMutationLogic:
         assert len(mutations) == 5
 
     @pytest.mark.asyncio
-    @patch("app.agents.strategy_evolution_agent.GeminiCLIClient")
+    @patch("app.agents.strategy_evolution_agent.AgentHubAPIClient")
     async def test_propose_mutations_handles_invalid_json(
         self,
         mock_client: Mock,
@@ -536,9 +536,15 @@ class TestEvolutionSelection:
         # Mock walk-forward with poor results (all below MAS)
         # MAS = max(1.5 * 0.9, 0.7) = 1.35
         mock_walk_forward.side_effect = [
-            BacktestMetrics(sharpe_ratio=1.0, win_rate=0.5, max_drawdown=0.2, total_return=0.1, num_trades=20),
-            BacktestMetrics(sharpe_ratio=1.1, win_rate=0.52, max_drawdown=0.19, total_return=0.11, num_trades=21),
-            BacktestMetrics(sharpe_ratio=1.2, win_rate=0.54, max_drawdown=0.18, total_return=0.12, num_trades=22),
+            BacktestMetrics(
+                sharpe_ratio=1.0, win_rate=0.5, max_drawdown=0.2, total_return=0.1, num_trades=20
+            ),
+            BacktestMetrics(
+                sharpe_ratio=1.1, win_rate=0.52, max_drawdown=0.19, total_return=0.11, num_trades=21
+            ),
+            BacktestMetrics(
+                sharpe_ratio=1.2, win_rate=0.54, max_drawdown=0.18, total_return=0.12, num_trades=22
+            ),
         ]
 
         with (
@@ -677,11 +683,7 @@ class TestLineageTracking:
         # Mock performance data
         mock_conn = Mock()
         mock_conn.execute = Mock(
-            return_value=Mock(
-                fetchone=Mock(
-                    return_value=(20, 0.5, 30.0, 0.8, 0.20)
-                )
-            )
+            return_value=Mock(fetchone=Mock(return_value=(20, 0.5, 30.0, 0.8, 0.20)))
         )
         mock_conn.__enter__ = Mock(return_value=mock_conn)
         mock_conn.__exit__ = Mock(return_value=None)

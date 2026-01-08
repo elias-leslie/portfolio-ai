@@ -1,13 +1,10 @@
 """LLM client abstraction for provider-agnostic agent execution.
 
-This module provides a unified interface for calling different LLM providers
-(Gemini CLI, Claude CLI) with automatic failover support.
+MIGRATED TO AGENT HUB: All LLM requests now go through Agent Hub service.
+Native Claude/Gemini CLI clients have been removed.
 
-Zero API costs - uses local CLI tools with cached credentials/OAuth.
-
-TODO: Replace with MCP server for multi-agent coordination.
-      See tasks/tasks-0100-multi-agent-mcp-architecture.md for migration plan.
-      MCP will provide: agent registry, tool routing, shared context, orchestration.
+Uses Agent Hub API which provides unified access to all providers
+with session management, caching, and cost tracking.
 """
 
 from __future__ import annotations
@@ -17,14 +14,10 @@ from typing import Any, Literal
 from ..logging_config import get_logger
 from .clients.agent_hub_client import AgentHubAPIClient
 from .clients.base_client import LLMClient, LLMResponse
-from .clients.claude_client import ClaudeCLIClient
-from .clients.gemini_client import GeminiCLIClient
 
 __all__ = [
     "AgentHubAPIClient",
-    "ClaudeCLIClient",
     "DualProviderClient",
-    "GeminiCLIClient",
     "LLMClient",
     "LLMResponse",
 ]
@@ -33,10 +26,11 @@ logger = get_logger(__name__)
 
 
 class DualProviderClient(LLMClient):
-    """Dual provider client with automatic failover.
+    """Single provider client using Agent Hub.
 
-    Tries primary provider first, falls back to secondary on failure.
-    Supports CLI providers (Claude/Gemini) and Agent Hub API.
+    DEPRECATED: Named 'DualProviderClient' for backwards compatibility only.
+    Fallback logic has been removed - uses Agent Hub API exclusively.
+    For new code, use AgentHubAPIClient directly.
     """
 
     def __init__(
@@ -44,78 +38,55 @@ class DualProviderClient(LLMClient):
         primary: Literal["claude", "gemini", "agent_hub"] = "agent_hub",
         claude_model: str = "claude-sonnet-4-5-20250514",
         gemini_model: str = "gemini-3-flash-preview",
-        use_agent_hub: bool = True,
+        use_agent_hub: bool = True,  # Kept for API compatibility, always True
         agent_hub_url: str = "http://localhost:8003",
     ) -> None:
-        """Initialize dual provider client.
+        """Initialize Agent Hub client.
 
         Args:
-            primary: Which provider to try first ("claude", "gemini", or "agent_hub")
-            claude_model: Claude model to use
-            gemini_model: Gemini model to use
-            use_agent_hub: If True, prefer Agent Hub over CLI clients
+            primary: Which provider to use ("claude", "gemini", or "agent_hub")
+            claude_model: Claude model to use (if primary="claude" or "agent_hub")
+            gemini_model: Gemini model to use (if primary="gemini")
+            use_agent_hub: Deprecated - always uses Agent Hub
             agent_hub_url: Agent Hub API base URL
         """
+        del use_agent_hub  # Always uses Agent Hub now
+
         self.primary = primary
-        self.providers: dict[str, LLMClient] = {}
 
-        # Initialize Agent Hub client (preferred)
-        if use_agent_hub:
-            try:
-                # Use the primary model for Agent Hub
-                model = (
-                    claude_model if "claude" in primary or primary == "agent_hub" else gemini_model
-                )
-                self.providers["agent_hub"] = AgentHubAPIClient(
-                    model=model,
-                    base_url=agent_hub_url,
-                )
-                logger.info("agent_hub_provider_initialized", model=model)
-            except RuntimeError as e:
-                logger.warning("agent_hub_provider_unavailable", error=str(e))
+        # Determine model based on primary provider
+        if primary == "gemini":
+            model = gemini_model
+        else:
+            model = claude_model
 
-        # Initialize Claude CLI (fallback)
-        try:
-            self.providers["claude"] = ClaudeCLIClient(model=claude_model)
-            logger.info("claude_provider_initialized")
-        except RuntimeError as e:
-            logger.warning("claude_provider_unavailable", error=str(e))
-
-        # Initialize Gemini CLI (fallback)
-        try:
-            self.providers["gemini"] = GeminiCLIClient(model=gemini_model)
-            logger.info("gemini_provider_initialized")
-        except RuntimeError as e:
-            logger.warning("gemini_provider_unavailable", error=str(e))
-
-        if not self.providers:
-            raise RuntimeError("No LLM providers available")
+        self._client = AgentHubAPIClient(
+            model=model,
+            base_url=agent_hub_url,
+        )
 
         logger.info(
-            "dual_provider_initialized",
+            "agent_hub_client_initialized",
             primary=primary,
-            available_providers=list(self.providers.keys()),
-            use_agent_hub=use_agent_hub,
+            model=model,
+            url=agent_hub_url,
         )
 
     def is_available(self) -> bool:
-        """Check if at least one provider is available.
+        """Check if Agent Hub is available.
 
         Returns:
-            True if any provider is operational
+            True if Agent Hub service is reachable
         """
-        return any(p.is_available() for p in self.providers.values())
+        return self._client.is_available()
 
     def get_model_name(self) -> str:
-        """Get primary provider's model name.
+        """Get model name.
 
         Returns:
             Model identifier
         """
-        if self.primary in self.providers:
-            return self.providers[self.primary].get_model_name()
-        # Fallback to first available
-        return next(iter(self.providers.values())).get_model_name()
+        return self._client.get_model_name()
 
     def generate(
         self,
@@ -126,9 +97,9 @@ class DualProviderClient(LLMClient):
         temperature: float = 1.0,
         **kwargs: Any,
     ) -> LLMResponse:
-        """Generate with automatic failover.
+        """Generate using Agent Hub API.
 
-        Tries primary provider first, falls back to secondary on error.
+        No fallback - if Agent Hub fails, error is raised.
 
         Args:
             prompt: User prompt
@@ -139,59 +110,20 @@ class DualProviderClient(LLMClient):
             **kwargs: Additional options
 
         Returns:
-            LLMResponse from whichever provider succeeded
+            LLMResponse from Agent Hub
 
         Raises:
-            RuntimeError: If all providers fail
+            RuntimeError: If generation fails
         """
-        # Determine provider order
-        if self.primary in {"agent_hub", "claude"}:
-            order = ["agent_hub", "claude", "gemini"]
-        else:
-            order = ["agent_hub", "gemini", "claude"]
+        return self._client.generate(
+            prompt=prompt,
+            system=system,
+            tools=tools,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            **kwargs,
+        )
 
-        # Filter to only available providers
-        order = [p for p in order if p in self.providers]
-
-        if not order:
-            raise RuntimeError("No providers available")
-
-        last_error = None
-
-        for provider_name in order:
-            provider = self.providers[provider_name]
-
-            try:
-                logger.info("attempting_generation", provider=provider_name)
-                response = provider.generate(
-                    prompt=prompt,
-                    system=system,
-                    tools=tools,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    **kwargs,
-                )
-
-                # Success!
-                fallback_used = provider_name != order[0]
-                logger.info(
-                    "generation_success",
-                    provider=provider_name,
-                    model=response.model,
-                    tokens=response.usage.get("total_tokens", 0),
-                    fallback_used=fallback_used,
-                )
-
-                return response
-
-            except RuntimeError as e:
-                logger.warning(
-                    "generation_failed",
-                    provider=provider_name,
-                    error=str(e),
-                )
-                last_error = e
-                continue
-
-        # All providers failed
-        raise RuntimeError(f"All providers failed. Last error: {last_error}")
+    def close(self) -> None:
+        """Close the client connection."""
+        self._client.close()

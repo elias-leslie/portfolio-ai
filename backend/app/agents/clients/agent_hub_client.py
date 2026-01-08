@@ -104,7 +104,7 @@ class AgentHubAPIClient(LLMClient):
         Args:
             prompt: User prompt
             system: System prompt (optional)
-            tools: Tool definitions (ignored - use generate_with_tools)
+            tools: Tool definitions for function calling
             max_tokens: Maximum tokens
             temperature: Sampling temperature
             **kwargs: Additional options
@@ -128,6 +128,7 @@ class AgentHubAPIClient(LLMClient):
             model=self.model,
             prompt_length=len(prompt),
             has_system=system is not None,
+            has_tools=tools is not None,
         )
 
         try:
@@ -136,6 +137,7 @@ class AgentHubAPIClient(LLMClient):
                 messages=messages,
                 max_tokens=max_tokens,
                 temperature=temperature,
+                tools=tools,
                 persist_session=False,  # Don't persist for CLI-style usage
             )
 
@@ -160,12 +162,21 @@ class AgentHubAPIClient(LLMClient):
                 provider=response.provider,
             )
 
+            # Extract tool calls if present
+            tool_calls = None
+            if hasattr(response, "tool_calls") and response.tool_calls:
+                tool_calls = [
+                    {"name": tc.name, "parameters": tc.input, "id": tc.id}
+                    for tc in response.tool_calls
+                ]
+
             return LLMResponse(
                 content=response.content,
                 provider=response.provider,
                 model=response.model,
                 usage=usage,
                 stop_reason=response.finish_reason or "end_turn",
+                tool_calls=tool_calls,
             )
 
         except AgentHubError as e:

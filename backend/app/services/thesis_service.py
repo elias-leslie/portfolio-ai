@@ -260,10 +260,10 @@ class ThesisService:
         Returns:
             ThesisValidation object
         """
-        from ..agents.clients.claude_client import ClaudeCLIClient  # noqa: PLC0415
+        from ..agents.clients.agent_hub_client import AgentHubAPIClient  # noqa: PLC0415
 
         try:
-            claude = ClaudeCLIClient()
+            claude = AgentHubAPIClient(model="claude-sonnet-4-5-20250514")
 
             # Build validation prompt
             intelligence_json = json.dumps(intelligence, indent=2)
