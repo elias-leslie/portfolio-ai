@@ -7,8 +7,7 @@ The implementation is split across several mixin modules for maintainability:
 - completion_handler.py: Run completion handling (success, error, max iterations)
 - tool_executor.py: Tool execution and recording
 - tool_formatting.py: Tool result formatting
-- llm_flow.py: LLM client conversation flow
-- anthropic_flow.py: Anthropic API conversation flow (legacy)
+- llm_flow.py: LLM client conversation flow (via Agent Hub)
 """
 
 from __future__ import annotations
@@ -18,11 +17,8 @@ from abc import ABC, abstractmethod
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, TypedDict
 
-from anthropic import Anthropic
-
 from ..logging_config import get_logger
 from ..repositories import AgentRunRepository
-from .anthropic_flow import AnthropicFlowMixin
 from .completion_handler import CompletionHandlerMixin
 from .llm_client import LLMClient
 from .llm_flow import LLMFlowMixin
@@ -77,22 +73,20 @@ class Agent(
     ToolExecutorMixin,
     ToolFormattingMixin,
     LLMFlowMixin,
-    AnthropicFlowMixin,
 ):
     """Base class for AI agents.
 
     Provides common functionality for tool calling, execution tracking,
-    and interaction with Claude API. Implementation is split across mixins
-    for maintainability.
+    and LLM client integration via Agent Hub. Implementation is split across
+    mixins for maintainability.
 
-    Mixin order matters - later mixins can override earlier ones.
+    All LLM requests go through Agent Hub service.
     """
 
     def __init__(
         self,
         storage: PortfolioStorage,
-        llm_client: LLMClient | None = None,
-        anthropic_client: Anthropic | None = None,
+        llm_client: LLMClient,
         model: str = "claude-sonnet-4-5",
         repository: AgentRunRepository | None = None,
     ) -> None:
@@ -100,18 +94,12 @@ class Agent(
 
         Args:
             storage: PortfolioStorage instance
-            llm_client: LLM client (DualProviderClient for CLI providers)
-            anthropic_client: Anthropic client (deprecated, for backwards compatibility)
+            llm_client: LLM client (routes to Agent Hub)
             model: Claude model to use
             repository: AgentRunRepository instance (auto-created if not provided)
-
-        Note:
-            If llm_client is provided, it takes precedence over anthropic_client.
-            Tool calling currently requires anthropic_client (CLI tool support coming soon).
         """
         self.storage = storage
         self.llm_client = llm_client
-        self.client = anthropic_client or Anthropic()
         self.model = model
         self.agent_type = self.__class__.__name__
         self.repository = repository or AgentRunRepository(storage)
@@ -160,13 +148,8 @@ class Agent(
         run_id = str(uuid.uuid4())
         started_at = datetime.now(UTC)
 
-        # Determine provider and model
-        provider = None
+        provider = "agent_hub"
         model = self.model
-        if self.llm_client:
-            provider = "cli"  # Placeholder, will be updated after first response
-        else:
-            provider = "anthropic_api"
 
         logger.info(
             "agent_run_started",
@@ -180,10 +163,7 @@ class Agent(
         self._record_run_start(run_id, started_at, provider=provider, model=model)
 
         try:
-            # Use LLM client if provided, otherwise fall back to Anthropic API
-            if self.llm_client:
-                return self._run_with_llm_client(run_id, started_at, user_prompt, max_iterations)
-            return self._run_with_anthropic_api(run_id, started_at, user_prompt, max_iterations)
+            return self._run_with_llm_client(run_id, started_at, user_prompt, max_iterations)
 
         except Exception as e:
             logger.error(f"Agent run {run_id} failed: {e}")

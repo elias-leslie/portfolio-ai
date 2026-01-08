@@ -75,7 +75,6 @@ class ToolResultDict(TypedDict, total=False):
 class AgentInitKwargs(TypedDict, total=False):
     """Keyword arguments passed to agent __init__."""
 
-    anthropic_client: object
     model: str
     kwargs: object
 
