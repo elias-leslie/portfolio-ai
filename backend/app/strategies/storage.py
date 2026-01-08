@@ -18,6 +18,11 @@ from app.utils.json_helpers import json_serializer
 from .models import (
     StrategyDefinition,
 )
+from .strategy_performance import get_performance_storage
+from .strategy_queries import get_strategy_queries
+from .strategy_seeds import get_seed_storage
+from .strategy_signals import get_signal_storage
+from .strategy_trades import get_trade_storage
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +49,11 @@ class StrategyStorage:
     def __init__(self) -> None:
         """Initialize strategy storage."""
         self.conn = get_connection_manager()
+        self._seed_storage = get_seed_storage()
+        self._performance_storage = get_performance_storage()
+        self._signal_storage = get_signal_storage()
+        self._queries = get_strategy_queries()
+        self._trade_storage = get_trade_storage()
 
     def store_strategy(
         self,
@@ -317,33 +327,15 @@ class StrategyStorage:
         win_rate: float,
         sharpe_ratio: float,
     ) -> None:
-        """Update live performance metrics.
-
-        Args:
-            strategy_id: Strategy UUID
-            trades_count: Total live trades
-            win_rate: Current win rate (0-1)
-            sharpe_ratio: Current Sharpe ratio
-        """
-        with self.conn.connection() as conn:
-            conn.execute(
-                """
-                UPDATE strategy_definitions
-                SET live_trades_count = %s,
-                    live_win_rate = %s,
-                    live_sharpe_ratio = %s,
-                    last_used_at = NOW(),
-                    live_metrics_updated_at = NOW()
-                WHERE id = %s
-                """,
-                (trades_count, win_rate, sharpe_ratio, strategy_id),
-            )
-            conn.commit()
+        """Update live performance metrics. Delegates to PerformanceStorage."""
+        return self._performance_storage.update_live_performance(
+            strategy_id, trades_count, win_rate, sharpe_ratio
+        )
 
     def record_daily_performance(
         self,
         strategy_id: str,
-        date: date,
+        perf_date: date,
         trades_today: int,
         wins_today: int,
         losses_today: int,
@@ -355,60 +347,21 @@ class StrategyStorage:
         status: Literal["active", "underperforming"] = "active",
         notes: str | None = None,
     ) -> None:
-        """Record daily performance metrics.
-
-        Args:
-            strategy_id: Strategy UUID
-            date: Date of metrics
-            trades_today: Trades executed today
-            wins_today: Winning trades today
-            losses_today: Losing trades today
-            pnl_today: P&L for today
-            trades_30d: Rolling 30-day trade count
-            win_rate_30d: Rolling 30-day win rate
-            sharpe_ratio_30d: Rolling 30-day Sharpe ratio
-            max_drawdown_30d: Rolling 30-day max drawdown
-            status: Performance status (default: active)
-            notes: Optional notes
-        """
-        with self.conn.connection() as conn:
-            conn.execute(
-                """
-                INSERT INTO strategy_performance (
-                    strategy_id, date,
-                    trades_today, wins_today, losses_today, pnl_today,
-                    trades_30d, win_rate_30d, sharpe_ratio_30d, max_drawdown_30d,
-                    status, notes
-                )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (strategy_id, date) DO UPDATE SET
-                    trades_today = EXCLUDED.trades_today,
-                    wins_today = EXCLUDED.wins_today,
-                    losses_today = EXCLUDED.losses_today,
-                    pnl_today = EXCLUDED.pnl_today,
-                    trades_30d = EXCLUDED.trades_30d,
-                    win_rate_30d = EXCLUDED.win_rate_30d,
-                    sharpe_ratio_30d = EXCLUDED.sharpe_ratio_30d,
-                    max_drawdown_30d = EXCLUDED.max_drawdown_30d,
-                    status = EXCLUDED.status,
-                    notes = EXCLUDED.notes
-                """,
-                (
-                    strategy_id,
-                    str(date),
-                    trades_today,
-                    wins_today,
-                    losses_today,
-                    float(pnl_today),
-                    trades_30d,
-                    win_rate_30d,
-                    sharpe_ratio_30d,
-                    max_drawdown_30d,
-                    status,
-                    notes,
-                ),
-            )
-            conn.commit()
+        """Record daily performance metrics. Delegates to PerformanceStorage."""
+        return self._performance_storage.record_daily_performance(
+            strategy_id,
+            perf_date,
+            trades_today,
+            wins_today,
+            losses_today,
+            pnl_today,
+            trades_30d,
+            win_rate_30d,
+            sharpe_ratio_30d,
+            max_drawdown_30d,
+            status,
+            notes,
+        )
 
     def _ensure_symbol_exists(self, conn: Any, symbol: str) -> None:
         """Ensure symbol exists in symbols table.
@@ -502,312 +455,42 @@ class StrategyStorage:
         )
 
     def get_symbols_needing_strategies(self, max_symbols: int) -> list[tuple[Any, ...]]:
-        """Get symbols that need strategy generation.
-
-        Includes:
-        1. Top watchlist symbols without active strategy
-        2. Symbols with underperforming strategies (30-day Sharpe < threshold)
-
-        Args:
-            max_symbols: Maximum number of symbols to return
-
-        Returns:
-            List of (symbol, overall_score, reason) tuples
-        """
-        with self.conn.connection() as conn:
-            return conn.execute(
-                """
-                WITH latest_scores AS (
-                    SELECT DISTINCT ON (wi.symbol)
-                        wi.symbol,
-                        ws.overall_score
-                    FROM watchlist_items wi
-                    LEFT JOIN watchlist_snapshots_v ws ON wi.id = ws.item_id
-                    ORDER BY wi.symbol, ws.fetched_at DESC
-                ),
-                active_strategies AS (
-                    SELECT symbol, id, expected_sharpe
-                    FROM strategy_definitions
-                    WHERE status = 'active'
-                ),
-                underperforming AS (
-                    SELECT DISTINCT sd.symbol
-                    FROM strategy_definitions sd
-                    JOIN strategy_performance sp ON sd.id = sp.strategy_id
-                    WHERE sd.status = 'active'
-                      AND sp.date >= CURRENT_DATE - INTERVAL '%s days'
-                    GROUP BY sd.symbol
-                    HAVING AVG(sp.sharpe_ratio_30d) < %s
-                )
-                SELECT ls.symbol, ls.overall_score,
-                       CASE
-                           WHEN acts.id IS NULL THEN 'no_strategy'
-                           WHEN under.symbol IS NOT NULL THEN 'underperforming'
-                           ELSE 'active'
-                       END as reason
-                FROM latest_scores ls
-                LEFT JOIN active_strategies acts ON ls.symbol = acts.symbol
-                LEFT JOIN underperforming under ON ls.symbol = under.symbol
-                WHERE acts.id IS NULL OR under.symbol IS NOT NULL
-                ORDER BY ls.overall_score DESC NULLS LAST
-                LIMIT %s
-                """,
-                (
-                    self.PERFORMANCE_WINDOW_DAYS,
-                    self.UNDERPERFORMING_SHARPE_THRESHOLD,
-                    max_symbols * 2,
-                ),  # Fetch extra in case some fail
-            ).fetchall()
+        """Get symbols that need strategy generation. Delegates to StrategyQueries."""
+        return self._queries.get_symbols_needing_strategies(max_symbols)
 
     def get_underperforming_strategies(
         self, performance_threshold: float | None = None, limit: int = 5
     ) -> list[tuple[Any, ...]]:
-        """Get active strategies with performance below threshold.
-
-        Args:
-            performance_threshold: Min ratio of actual/expected Sharpe (default uses DEFAULT_PERFORMANCE_THRESHOLD)
-            limit: Maximum number of strategies to return
-
-        Returns:
-            List of (id, symbol, name, expected_sharpe, actual_sharpe, performance_ratio) tuples
-        """
-        threshold = (
-            performance_threshold
-            if performance_threshold is not None
-            else self.DEFAULT_PERFORMANCE_THRESHOLD
-        )
-        with self.conn.connection() as conn:
-            return conn.execute(
-                """
-                SELECT DISTINCT sd.id, sd.symbol, sd.name,
-                       sd.expected_sharpe,
-                       AVG(sp.sharpe_ratio_30d) as actual_sharpe,
-                       AVG(sp.sharpe_ratio_30d) / NULLIF(sd.expected_sharpe, 0) as performance_ratio
-                FROM strategy_definitions sd
-                JOIN strategy_performance sp ON sd.id = sp.strategy_id
-                WHERE sd.status = 'active'
-                  AND sp.date >= CURRENT_DATE - INTERVAL '%s days'
-                  AND sd.expected_sharpe > 0
-                GROUP BY sd.id, sd.symbol, sd.name, sd.expected_sharpe
-                HAVING AVG(sp.sharpe_ratio_30d) / NULLIF(sd.expected_sharpe, 0) < %s
-                ORDER BY performance_ratio ASC
-                LIMIT %s
-                """,
-                (self.PERFORMANCE_WINDOW_DAYS, threshold, limit),
-            ).fetchall()
+        """Get active strategies with performance below threshold. Delegates to StrategyQueries."""
+        return self._queries.get_underperforming_strategies(performance_threshold, limit)
 
     def get_strategy_trades(
         self,
         strategy_id: str,
         cutoff_date: date,
-    ) -> list[tuple[date, Decimal]]:
-        """Get trades for a strategy since cutoff date.
-
-        Args:
-            strategy_id: Strategy UUID
-            cutoff_date: Earliest date to include
-
-        Returns:
-            List of (trade_date, pnl) tuples
-        """
-        with self.conn.connection() as conn:
-            result = conn.execute(
-                """
-                SELECT
-                    o.created_at::DATE as trade_date,
-                    o.realized_pnl as pnl
-                FROM idea_outcomes o
-                WHERE o.realized_pnl IS NOT NULL
-                  AND o.created_at >= %s
-                  AND o.strategy_id = %s
-                ORDER BY o.created_at
-                """,
-                [cutoff_date, strategy_id],
-            )
-            return [(row[0], row[1]) for row in result.fetchall()]
+    ) -> list[tuple[Any, Any]]:
+        """Get trades for a strategy since cutoff date. Delegates to TradeStorage."""
+        return self._trade_storage.get_strategy_trades(strategy_id, cutoff_date)
 
     def get_strategy_seed(self, seed_id: str) -> tuple[str, float] | None:
-        """Get strategy seed details.
-
-        Args:
-            seed_id: Seed UUID
-
-        Returns:
-            Tuple of (thesis, confidence) or None if not found
-        """
-        with self.conn.connection() as conn:
-            row = conn.execute(
-                "SELECT thesis, confidence FROM strategy_seeds WHERE id = %s",
-                [seed_id],
-            ).fetchone()
-
-            if not row:
-                return None
-
-            thesis = str(row[0]) if row[0] else ""
-            confidence = float(row[1]) if row[1] is not None else 0.0
-            return (thesis, confidence)
+        """Get strategy seed details. Delegates to SeedStorage."""
+        return self._seed_storage.get_strategy_seed(seed_id)
 
     def get_seed_by_strategy_id(self, strategy_id: str) -> dict[str, Any] | None:
-        """Get seed info for a strategy.
-
-        Args:
-            strategy_id: Strategy UUID
-
-        Returns:
-            Dict with seed info or None if no seed exists
-        """
-        with self.conn.connection() as conn:
-            row = conn.execute(
-                "SELECT id, thesis, confidence, created_at FROM strategy_seeds WHERE strategy_id = %s",
-                [strategy_id],
-            ).fetchone()
-
-            if not row:
-                return None
-
-            return {
-                "id": str(row[0]),
-                "thesis": str(row[1]),
-                "confidence": float(row[2]) if row[2] is not None else 0.0,
-                "created_at": row[3],
-            }
+        """Get seed info for a strategy. Delegates to SeedStorage."""
+        return self._seed_storage.get_seed_by_strategy_id(strategy_id)
 
     def get_backtest_runs(self, strategy_id: str, limit: int = 5) -> list[dict[str, Any]]:
-        """Get backtest runs for a strategy.
-
-        Args:
-            strategy_id: Strategy UUID
-            limit: Maximum number of runs to return
-
-        Returns:
-            List of backtest run dicts
-        """
-        with self.conn.connection() as conn:
-            result = conn.execute(
-                """
-                SELECT id, start_date, end_date, sharpe_ratio, total_return_pct,
-                       max_drawdown_pct, win_rate, num_trades, status, created_at
-                FROM backtest_runs
-                WHERE strategy_definition_id = %s
-                ORDER BY created_at DESC
-                LIMIT %s
-                """,
-                [strategy_id, limit],
-            )
-            rows = result.fetchall()
-            backtests_raw = rows_to_dicts(rows, conn)
-
-        backtests = []
-        for row in backtests_raw:
-            backtests.append(
-                {
-                    "id": str(row["id"]),
-                    "start_date": row["start_date"],
-                    "end_date": row["end_date"],
-                    "sharpe_ratio": float(row["sharpe_ratio"])
-                    if row["sharpe_ratio"] is not None
-                    else None,
-                    "total_return_pct": float(row["total_return_pct"])
-                    if row["total_return_pct"] is not None
-                    else None,
-                    "max_drawdown_pct": float(row["max_drawdown_pct"])
-                    if row["max_drawdown_pct"] is not None
-                    else None,
-                    "win_rate": float(row["win_rate"]) if row["win_rate"] is not None else None,
-                    "num_trades": int(row["num_trades"]) if row["num_trades"] else 0,
-                    "status": str(row["status"]),
-                    "created_at": row["created_at"],
-                }
-            )
-        return backtests
+        """Get backtest runs for a strategy. Delegates to TradeStorage."""
+        return self._trade_storage.get_backtest_runs(strategy_id, limit)
 
     def get_strategy_signals(self, strategy_id: str, limit: int = 10) -> list[dict[str, Any]]:
-        """Get recent signals for a strategy.
-
-        Args:
-            strategy_id: Strategy UUID
-            limit: Maximum number of signals to return
-
-        Returns:
-            List of signal dicts
-        """
-        with self.conn.connection() as conn:
-            result = conn.execute(
-                """
-                SELECT id, signal_type, signal_strength, signal_date, reasons, market_data, created_at
-                FROM strategy_signals
-                WHERE strategy_id = %s
-                ORDER BY created_at DESC
-                LIMIT %s
-                """,
-                [strategy_id, limit],
-            )
-            rows = result.fetchall()
-            signals_raw = rows_to_dicts(rows, conn)
-
-        signals = []
-        for row in signals_raw:
-            signals.append(
-                {
-                    "id": str(row["id"]),
-                    "signal_type": str(row["signal_type"]),
-                    "signal_strength": int(row["signal_strength"])
-                    if row["signal_strength"]
-                    else None,
-                    "signal_date": row["signal_date"],
-                    "reasons": row["reasons"] if row["reasons"] else [],
-                    "market_data": row["market_data"] if row["market_data"] else {},
-                    "created_at": row["created_at"],
-                }
-            )
-        return signals
+        """Get recent signals for a strategy. Delegates to SignalStorage."""
+        return self._signal_storage.get_strategy_signals(strategy_id, limit)
 
     def get_symbol_trades(self, symbol: str, limit: int = 10) -> list[dict[str, Any]]:
-        """Get recent trades for a symbol.
-
-        Args:
-            symbol: Stock symbol
-            limit: Maximum number of trades to return
-
-        Returns:
-            List of trade dicts
-        """
-        with self.conn.connection() as conn:
-            result = conn.execute(
-                """
-                SELECT io.idea_id, io.symbol, io.entry_price, io.exit_price,
-                       io.current_return_pct, io.status, io.entry_date
-                FROM idea_outcomes io
-                WHERE io.symbol = %s
-                ORDER BY io.entry_date DESC
-                LIMIT %s
-                """,
-                [symbol, limit],
-            )
-            rows = result.fetchall()
-            trades_raw = rows_to_dicts(rows, conn)
-
-        trades = []
-        for row in trades_raw:
-            trades.append(
-                {
-                    "id": str(row["idea_id"]),
-                    "symbol": str(row["symbol"]),
-                    "entry_price": float(row["entry_price"])
-                    if row["entry_price"] is not None
-                    else None,
-                    "exit_price": float(row["exit_price"])
-                    if row["exit_price"] is not None
-                    else None,
-                    "return_pct": float(row["current_return_pct"])
-                    if row["current_return_pct"] is not None
-                    else None,
-                    "status": str(row["status"]),
-                    "entry_date": row["entry_date"],
-                }
-            )
-        return trades
+        """Get recent trades for a symbol. Delegates to TradeStorage."""
+        return self._trade_storage.get_symbol_trades(symbol, limit)
 
     def link_strategy_to_seed(
         self,
@@ -816,54 +499,14 @@ class StrategyStorage:
         seed_thesis: str,
         seed_confidence: float,
     ) -> None:
-        """Link a generated strategy back to its seed.
-
-        Updates strategy_definitions with seed info and marks seed as converted.
-
-        Args:
-            strategy_id: Strategy UUID
-            seed_id: Seed UUID
-            seed_thesis: Seed thesis text
-            seed_confidence: Seed confidence score
-        """
-        with self.conn.connection() as conn:
-            # Update strategy with seed info
-            conn.execute(
-                """
-                UPDATE strategy_definitions
-                SET seed_id = %s, seed_thesis = %s, seed_confidence = %s
-                WHERE id = %s
-                """,
-                [seed_id, seed_thesis, seed_confidence, strategy_id],
-            )
-
-            # Mark seed as converted
-            conn.execute(
-                """
-                UPDATE strategy_seeds
-                SET status = 'converted', strategy_id = %s, processed_at = NOW()
-                WHERE id = %s
-                """,
-                [strategy_id, seed_id],
-            )
-            conn.commit()
+        """Link a generated strategy back to its seed. Delegates to SeedStorage."""
+        return self._seed_storage.link_strategy_to_seed(
+            strategy_id, seed_id, seed_thesis, seed_confidence
+        )
 
     def reject_seed(self, seed_id: str) -> None:
-        """Mark a seed as rejected.
-
-        Args:
-            seed_id: Seed UUID
-        """
-        with self.conn.connection() as conn:
-            conn.execute(
-                """
-                UPDATE strategy_seeds
-                SET status = 'rejected', processed_at = NOW()
-                WHERE id = %s
-                """,
-                [seed_id],
-            )
-            conn.commit()
+        """Mark a seed as rejected. Delegates to SeedStorage."""
+        return self._seed_storage.reject_seed(seed_id)
 
     def list_seeds(
         self,
@@ -872,150 +515,20 @@ class StrategyStorage:
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[tuple[Any, ...]], int]:
-        """List strategy seeds with optional filtering.
-
-        Args:
-            status: Filter by status (optional)
-            symbol: Filter by symbol (optional)
-            limit: Maximum results (default 50)
-            offset: Number of results to skip (default 0)
-
-        Returns:
-            Tuple of (rows, total_count) where rows are tuples of:
-            (id, symbol, thesis, confidence, status, strategy_id, created_at, processed_at)
-        """
-        conditions = []
-        params: list[Any] = []
-
-        if status:
-            conditions.append("status = %s")
-            params.append(status)
-        if symbol:
-            conditions.append("symbol = %s")
-            params.append(symbol.upper())
-
-        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-
-        with self.conn.connection() as conn:
-            # Get total count
-            count_query = f"SELECT COUNT(*) FROM strategy_seeds {where_clause}"
-            count_row = conn.execute(count_query, params).fetchone()
-            total = int(count_row[0]) if count_row and count_row[0] is not None else 0
-
-            # Get seeds with pagination
-            query = f"""
-                SELECT id, symbol, thesis, confidence, status, strategy_id,
-                       created_at, processed_at
-                FROM strategy_seeds
-                {where_clause}
-                ORDER BY created_at DESC
-                LIMIT %s OFFSET %s
-            """
-            params.extend([limit, offset])
-            rows = conn.execute(query, params).fetchall()
-
-            return (rows, total)
+        """List strategy seeds with optional filtering. Delegates to SeedStorage."""
+        return self._seed_storage.list_seeds(status, symbol, limit, offset)
 
     def get_seed_by_id(self, seed_id: str) -> tuple[Any, ...] | None:
-        """Get a specific strategy seed by ID.
-
-        Args:
-            seed_id: Seed UUID
-
-        Returns:
-            Tuple of (id, symbol, thesis, confidence, status, strategy_id, created_at, processed_at)
-            or None if not found
-        """
-        with self.conn.connection() as conn:
-            row = conn.execute(
-                """
-                SELECT id, symbol, thesis, confidence, status, strategy_id,
-                       created_at, processed_at
-                FROM strategy_seeds
-                WHERE id = %s
-                """,
-                [seed_id],
-            ).fetchone()
-
-            return row if row else None
+        """Get a specific strategy seed by ID. Delegates to SeedStorage."""
+        return self._seed_storage.get_seed_by_id(seed_id)
 
     def get_performance_history(self, strategy_id: str, limit: int = 30) -> list[dict[str, Any]]:
-        """Get performance history for a strategy.
-
-        Args:
-            strategy_id: Strategy UUID
-            limit: Maximum number of records to return (default 30)
-
-        Returns:
-            List of dicts with: date, trades_30d, win_rate_30d, sharpe_ratio_30d, max_drawdown_30d, status
-        """
-        with self.conn.connection() as conn:
-            result = conn.execute(
-                """
-                SELECT date, trades_30d, win_rate_30d, sharpe_ratio_30d, max_drawdown_30d, status
-                FROM strategy_performance
-                WHERE strategy_id = %s
-                ORDER BY date DESC
-                LIMIT %s
-                """,
-                (strategy_id, limit),
-            )
-            rows = result.fetchall()
-            return rows_to_dicts(rows, conn)
+        """Get performance history for a strategy. Delegates to PerformanceStorage."""
+        return self._performance_storage.get_performance_history(strategy_id, limit)
 
     def store_signal(self, signal_data: dict[str, Any]) -> str | None:
-        """Store a generated signal in the database.
-
-        Args:
-            signal_data: Signal data containing strategy_id, symbol, signal_type, etc.
-
-        Returns:
-            Signal ID (UUID string) or None if storage failed
-        """
-        if "error" in signal_data:
-            return None
-
-        try:
-            with self.conn.connection() as conn:
-                # Ensure symbol exists in symbols table (FK constraint)
-                conn.execute(
-                    """
-                    INSERT INTO symbols (symbol, security_type, created_at)
-                    VALUES (%s, 'equity', NOW())
-                    ON CONFLICT (symbol) DO NOTHING
-                    """,
-                    (signal_data["symbol"],),
-                )
-                result = conn.execute(
-                    """
-                    INSERT INTO strategy_signals (
-                        strategy_id, symbol, signal_date, signal_type,
-                        signal_strength, reasons, market_data
-                    )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (strategy_id, signal_date) DO UPDATE SET
-                        signal_type = EXCLUDED.signal_type,
-                        signal_strength = EXCLUDED.signal_strength,
-                        reasons = EXCLUDED.reasons,
-                        market_data = EXCLUDED.market_data,
-                        created_at = NOW()
-                    RETURNING id
-                    """,
-                    (
-                        signal_data["strategy_id"],
-                        signal_data["symbol"],
-                        str(date.today()),
-                        signal_data["signal_type"],
-                        signal_data["signal_strength"],
-                        signal_data["reasons"],
-                        json.dumps(signal_data["market_data"]),
-                    ),
-                ).fetchone()
-                conn.commit()
-                return str(result[0]) if result else None
-        except Exception:
-            logger.exception("Failed to store signal")
-            return None
+        """Store a generated signal in the database. Delegates to SignalStorage."""
+        return self._signal_storage.store_signal(signal_data)
 
 
 # Singleton instance
