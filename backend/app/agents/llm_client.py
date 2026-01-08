@@ -15,11 +15,13 @@ from __future__ import annotations
 from typing import Any, Literal
 
 from ..logging_config import get_logger
+from .clients.agent_hub_client import AgentHubAPIClient
 from .clients.base_client import LLMClient, LLMResponse
 from .clients.claude_client import ClaudeCLIClient
 from .clients.gemini_client import GeminiCLIClient
 
 __all__ = [
+    "AgentHubAPIClient",
     "ClaudeCLIClient",
     "DualProviderClient",
     "GeminiCLIClient",
@@ -34,33 +36,52 @@ class DualProviderClient(LLMClient):
     """Dual provider client with automatic failover.
 
     Tries primary provider first, falls back to secondary on failure.
-    Supports both Claude and Gemini CLIs.
+    Supports CLI providers (Claude/Gemini) and Agent Hub API.
     """
 
     def __init__(
         self,
-        primary: Literal["claude", "gemini"] = "gemini",
-        claude_model: str = "claude-sonnet-4-5",
+        primary: Literal["claude", "gemini", "agent_hub"] = "agent_hub",
+        claude_model: str = "claude-sonnet-4-5-20250514",
         gemini_model: str = "gemini-3-flash-preview",
+        use_agent_hub: bool = True,
+        agent_hub_url: str = "http://localhost:8003",
     ) -> None:
         """Initialize dual provider client.
 
         Args:
-            primary: Which provider to try first ("claude" or "gemini")
+            primary: Which provider to try first ("claude", "gemini", or "agent_hub")
             claude_model: Claude model to use
             gemini_model: Gemini model to use
+            use_agent_hub: If True, prefer Agent Hub over CLI clients
+            agent_hub_url: Agent Hub API base URL
         """
         self.primary = primary
         self.providers: dict[str, LLMClient] = {}
 
-        # Initialize Claude CLI
+        # Initialize Agent Hub client (preferred)
+        if use_agent_hub:
+            try:
+                # Use the primary model for Agent Hub
+                model = (
+                    claude_model if "claude" in primary or primary == "agent_hub" else gemini_model
+                )
+                self.providers["agent_hub"] = AgentHubAPIClient(
+                    model=model,
+                    base_url=agent_hub_url,
+                )
+                logger.info("agent_hub_provider_initialized", model=model)
+            except RuntimeError as e:
+                logger.warning("agent_hub_provider_unavailable", error=str(e))
+
+        # Initialize Claude CLI (fallback)
         try:
             self.providers["claude"] = ClaudeCLIClient(model=claude_model)
             logger.info("claude_provider_initialized")
         except RuntimeError as e:
             logger.warning("claude_provider_unavailable", error=str(e))
 
-        # Initialize Gemini CLI
+        # Initialize Gemini CLI (fallback)
         try:
             self.providers["gemini"] = GeminiCLIClient(model=gemini_model)
             logger.info("gemini_provider_initialized")
@@ -74,6 +95,7 @@ class DualProviderClient(LLMClient):
             "dual_provider_initialized",
             primary=primary,
             available_providers=list(self.providers.keys()),
+            use_agent_hub=use_agent_hub,
         )
 
     def is_available(self) -> bool:
@@ -123,10 +145,10 @@ class DualProviderClient(LLMClient):
             RuntimeError: If all providers fail
         """
         # Determine provider order
-        if self.primary == "claude":
-            order = ["claude", "gemini"]
+        if self.primary in {"agent_hub", "claude"}:
+            order = ["agent_hub", "claude", "gemini"]
         else:
-            order = ["gemini", "claude"]
+            order = ["agent_hub", "gemini", "claude"]
 
         # Filter to only available providers
         order = [p for p in order if p in self.providers]
