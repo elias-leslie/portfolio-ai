@@ -11,12 +11,17 @@ Environment="HOME=%h"
 Environment="NUMBA_CACHE_DIR=%h/.cache/numba"
 Environment="HF_HOME=%h/.cache/huggingface"
 EnvironmentFile=-%h/portfolio-ai/backend/.env
-ExecStart=%h/portfolio-ai/backend/.venv/bin/celery -A app.celery_app worker --loglevel=info --concurrency=4
+ExecStart=%h/portfolio-ai/backend/.venv/bin/celery -A app.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=100
 Restart=always
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=portfolio-celery
+
+# ZOMBIE PREVENTION: Kill all child processes when stopping
+KillMode=control-group
+KillSignal=SIGTERM
+TimeoutStopSec=30
 
 [Install]
 WantedBy=default.target

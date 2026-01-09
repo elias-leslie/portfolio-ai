@@ -18,5 +18,10 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=portfolio-beat
 
+# ZOMBIE PREVENTION: Kill all child processes when stopping
+KillMode=control-group
+KillSignal=SIGTERM
+TimeoutStopSec=10
+
 [Install]
 WantedBy=default.target
