@@ -234,6 +234,7 @@ class CrossValidationService:
                 system="You are a thorough AI output reviewer. Always respond with valid JSON.",
                 max_tokens=2048,
                 temperature=0.3,  # Lower temperature for consistent reviews
+                purpose="cross_validation",
             )
 
             # Parse JSON response
@@ -327,7 +328,7 @@ class CrossValidationService:
 
         # Generate with Gemini
         logger.info("gemini_generating", prompt_length=len(prompt))
-        response = generator.generate(prompt=prompt, system=system)
+        response = generator.generate(prompt=prompt, system=system, purpose="gemini_generation")
 
         # Validate with Claude
         result = self.validate(

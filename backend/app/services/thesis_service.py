@@ -238,6 +238,7 @@ class ThesisService:
                 system="You are an expert equity analyst. Always respond with valid JSON.",
                 max_tokens=4096,
                 temperature=0.7,  # Allow some creativity in reasoning
+                purpose="thesis_generation",
             )
 
             thesis_data = self._parse_json_response(response.content)
@@ -279,6 +280,7 @@ class ThesisService:
                 system="You are a thorough investment thesis reviewer. Always respond with valid JSON.",
                 max_tokens=2048,
                 temperature=0.3,  # Lower temperature for consistent reviews
+                purpose="thesis_validation",
             )
 
             validation_data = self._parse_json_response(response.content)

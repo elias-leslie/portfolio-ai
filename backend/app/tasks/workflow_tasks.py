@@ -44,6 +44,7 @@ def _execute_agent_with_error_handling(
     prompt: str,
     system: str,
     agent_name: str,
+    purpose: str | None = None,
 ) -> tuple[str | None, str | None]:
     """Execute an agent prompt with standardized error handling.
 
@@ -52,12 +53,13 @@ def _execute_agent_with_error_handling(
         prompt: The prompt to send
         system: System message for the agent
         agent_name: Name for logging purposes
+        purpose: Purpose of this request for session tracking
 
     Returns:
         Tuple of (output, error) - one will be None
     """
     try:
-        response = client.generate(prompt=prompt, system=system)
+        response = client.generate(prompt=prompt, system=system, purpose=purpose)
         output = response.content
         logger.info(f"{agent_name} analysis: {len(output)} chars")
         return output, None
@@ -516,6 +518,7 @@ Respond with JSON: {{"decision": "APPROVE|REJECT", "confidence": <0-100>, "reaso
             strategy_response = client.generate(
                 prompt=strategy_prompt,
                 system="You are a quantitative strategy analyst validating trades using real backtest data.",
+                purpose="strategy_validation",
             )
             strategy_output = strategy_response.content
             logger.info(f"Strategy agent analysis: {len(strategy_output)} chars")
@@ -563,6 +566,7 @@ Respond with JSON: {{"decision": "APPROVE|REJECT", "confidence": <0-100>, "reaso
             risk_response = client.generate(
                 prompt=risk_prompt,
                 system="You are a risk management analyst evaluating trade proposals.",
+                purpose="risk_evaluation",
             )
             risk_output = risk_response.content
             logger.info(f"Risk agent analysis: {len(risk_output)} chars")

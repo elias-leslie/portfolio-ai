@@ -334,6 +334,7 @@ Return JSON array with this schema:
             system="You are a quantitative trading strategy optimizer. Analyze underperforming strategies and propose concrete parameter improvements.",
             temperature=0.7,  # Allow some creativity
             max_tokens=2000,
+            purpose="strategy_evolution",
         )
 
         # Parse mutations
@@ -630,6 +631,7 @@ Focus on actionable insights (e.g., "too aggressive entries", "holding too long"
             system="You are a quantitative trading analyst. Diagnose strategy underperformance concisely.",
             temperature=0.3,
             max_tokens=200,
+            purpose="underperformance_diagnosis",
         )
 
         return response.content

@@ -97,6 +97,7 @@ class AgentHubAPIClient(LLMClient):
         tools: list[dict[str, Any]] | None = None,
         max_tokens: int = 4096,
         temperature: float = 1.0,
+        purpose: str | None = None,
         **kwargs: Any,
     ) -> LLMResponse:
         """Generate completion using Agent Hub API.
@@ -107,6 +108,7 @@ class AgentHubAPIClient(LLMClient):
             tools: Tool definitions for function calling
             max_tokens: Maximum tokens
             temperature: Sampling temperature
+            purpose: Purpose of this request for session tracking
             **kwargs: Additional options
 
         Returns:
@@ -129,6 +131,7 @@ class AgentHubAPIClient(LLMClient):
             prompt_length=len(prompt),
             has_system=system is not None,
             has_tools=tools is not None,
+            purpose=purpose,
         )
 
         try:
@@ -138,7 +141,8 @@ class AgentHubAPIClient(LLMClient):
                 max_tokens=max_tokens,
                 temperature=temperature,
                 tools=tools,
-                persist_session=False,  # Don't persist for CLI-style usage
+                project_id="portfolio-ai",
+                purpose=purpose,
             )
 
             duration_ms = int((time.time() - start_time) * 1000)

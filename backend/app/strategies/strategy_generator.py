@@ -140,6 +140,7 @@ Based on this research, generate a trading strategy configuration as valid JSON.
                 system=STRATEGY_GENERATOR_PROMPT,
                 max_tokens=2000,
                 temperature=0.3,  # Low temperature for consistent output
+                purpose="strategy_generation",
             )
 
             logger.info(
