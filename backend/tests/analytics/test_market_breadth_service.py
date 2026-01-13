@@ -115,30 +115,22 @@ class TestCalculateBreadthScore:
 
     def test_bullish_divergence_adds_point(self) -> None:
         """Bullish divergence should add 1."""
-        score = calculate_breadth_score(
-            BreadthSignal.MODERATE_DOWN, 0, "bullish_divergence"
-        )
+        score = calculate_breadth_score(BreadthSignal.MODERATE_DOWN, 0, "bullish_divergence")
         assert score == 0  # -1 + 1 = 0
 
     def test_bearish_divergence_subtracts(self) -> None:
         """Bearish divergence should subtract 1."""
-        score = calculate_breadth_score(
-            BreadthSignal.MODERATE_UP, 0, "bearish_divergence"
-        )
+        score = calculate_breadth_score(BreadthSignal.MODERATE_UP, 0, "bearish_divergence")
         assert score == 0  # 1 - 1 = 0
 
     def test_score_capped_at_2(self) -> None:
         """Score should not exceed 2."""
-        score = calculate_breadth_score(
-            BreadthSignal.THRUST_UP, 20, "bullish_divergence"
-        )
+        score = calculate_breadth_score(BreadthSignal.THRUST_UP, 20, "bullish_divergence")
         assert score <= 2
 
     def test_score_min_minus_2(self) -> None:
         """Score should not go below -2."""
-        score = calculate_breadth_score(
-            BreadthSignal.THRUST_DOWN, -20, "bearish_divergence"
-        )
+        score = calculate_breadth_score(BreadthSignal.THRUST_DOWN, -20, "bearish_divergence")
         assert score >= -2
 
 
@@ -149,11 +141,13 @@ class TestCalculateBreadthReading:
         """Should calculate breadth from database."""
         mock_storage = MagicMock()
         # 8 sectors: 6 up, 2 down
-        mock_df = pl.DataFrame({
-            "symbol": ["XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLU"],
-            "current_close": [100.0, 50.0, 60.0, 120.0, 90.0, 70.0, 80.0, 55.0],
-            "prev_close": [95.0, 48.0, 58.0, 118.0, 88.0, 68.0, 82.0, 57.0],
-        })
+        mock_df = pl.DataFrame(
+            {
+                "symbol": ["XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLU"],
+                "current_close": [100.0, 50.0, 60.0, 120.0, 90.0, 70.0, 80.0, 55.0],
+                "prev_close": [95.0, 48.0, 58.0, 118.0, 88.0, 68.0, 82.0, 57.0],
+            }
+        )
         mock_storage.query.return_value = mock_df
 
         result = calculate_breadth_reading(mock_storage, date(2025, 1, 15))
@@ -166,11 +160,13 @@ class TestCalculateBreadthReading:
     def test_returns_none_insufficient_data(self) -> None:
         """Should return None with < 8 sectors."""
         mock_storage = MagicMock()
-        mock_df = pl.DataFrame({
-            "symbol": ["XLK", "XLF"],
-            "current_close": [100.0, 50.0],
-            "prev_close": [95.0, 48.0],
-        })
+        mock_df = pl.DataFrame(
+            {
+                "symbol": ["XLK", "XLF"],
+                "current_close": [100.0, 50.0],
+                "prev_close": [95.0, 48.0],
+            }
+        )
         mock_storage.query.return_value = mock_df
 
         result = calculate_breadth_reading(mock_storage, date(2025, 1, 15))
@@ -184,11 +180,19 @@ class TestGetSpyReturns:
         """Should calculate 1d and 5d returns."""
         mock_storage = MagicMock()
         # Newest first: 100, 99, 98, 97, 96, 95 (going back)
-        mock_df = pl.DataFrame({
-            "date": [date(2025, 1, 6), date(2025, 1, 5), date(2025, 1, 4),
-                    date(2025, 1, 3), date(2025, 1, 2), date(2025, 1, 1)],
-            "close": [100.0, 99.0, 98.0, 97.0, 96.0, 95.0],
-        })
+        mock_df = pl.DataFrame(
+            {
+                "date": [
+                    date(2025, 1, 6),
+                    date(2025, 1, 5),
+                    date(2025, 1, 4),
+                    date(2025, 1, 3),
+                    date(2025, 1, 2),
+                    date(2025, 1, 1),
+                ],
+                "close": [100.0, 99.0, 98.0, 97.0, 96.0, 95.0],
+            }
+        )
         mock_storage.query.return_value = mock_df
 
         return_1d, return_5d = get_spy_returns(mock_storage, date(2025, 1, 6))
@@ -205,17 +209,21 @@ class TestAnalyzeMarketBreadth:
         mock_storage = MagicMock()
 
         # Breadth data DataFrame
-        breadth_df = pl.DataFrame({
-            "symbol": ["XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLU"],
-            "current_close": [100.0, 50.0, 60.0, 120.0, 90.0, 70.0, 80.0, 55.0],
-            "prev_close": [95.0, 48.0, 58.0, 118.0, 88.0, 68.0, 78.0, 53.0],
-        })
+        breadth_df = pl.DataFrame(
+            {
+                "symbol": ["XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLU"],
+                "current_close": [100.0, 50.0, 60.0, 120.0, 90.0, 70.0, 80.0, 55.0],
+                "prev_close": [95.0, 48.0, 58.0, 118.0, 88.0, 68.0, 78.0, 53.0],
+            }
+        )
 
         # SPY data DataFrame
-        spy_df = pl.DataFrame({
-            "date": [date(2025, 1, 15) - timedelta(days=i) for i in range(20)],
-            "close": [100.0 - i for i in range(20)],
-        })
+        spy_df = pl.DataFrame(
+            {
+                "date": [date(2025, 1, 15) - timedelta(days=i) for i in range(20)],
+                "close": [100.0 - i for i in range(20)],
+            }
+        )
 
         # Latest date DataFrame
         latest_df = pl.DataFrame({"max": [date(2025, 1, 15)]})

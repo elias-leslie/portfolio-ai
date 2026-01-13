@@ -340,9 +340,7 @@ class SitemapDiscoveryService:
                         )
 
                         # Queue internal links for crawling
-                        _queue_internal_links(
-                            response.text, depth, max_depth, visited, to_visit
-                        )
+                        _queue_internal_links(response.text, depth, max_depth, visited, to_visit)
 
                 except Exception as e:
                     logger.debug("sitemap_crawl_page_failed", path=path, error=str(e))

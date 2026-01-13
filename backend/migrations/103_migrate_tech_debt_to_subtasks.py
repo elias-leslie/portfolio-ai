@@ -15,7 +15,6 @@ Run: cd ~/portfolio-ai/backend && .venv/bin/python migrations/103_migrate_tech_d
 
 from __future__ import annotations
 
-import json
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -172,24 +171,23 @@ def migrate_insights() -> dict[str, int]:
                 else:
                     print(f"  -> ERROR: Feature {mapped_feature} not found")
                     stats["errors"] += 1
+            # Cross-cutting - check if we already created a DEBT feature for this table
+            elif table_name in created_debt_features:
+                feature_id = created_debt_features[table_name]
+                print(f"  -> Adding to existing debt feature {feature_id}")
+                create_debt_subtask(feature_id, insight)
+                mark_insight_migrated(insight_id, feature_id)
+                stats["skipped_duplicates"] += 1
             else:
-                # Cross-cutting - check if we already created a DEBT feature for this table
-                if table_name in created_debt_features:
-                    feature_id = created_debt_features[table_name]
-                    print(f"  -> Adding to existing debt feature {feature_id}")
-                    create_debt_subtask(feature_id, insight)
-                    mark_insight_migrated(insight_id, feature_id)
-                    stats["skipped_duplicates"] += 1
-                else:
-                    # Create new FEAT-DEBT feature
-                    debt_id = str(debt_feature_counter).zfill(3)
-                    print(f"  -> Creating FEAT-DEBT-{debt_id}")
-                    new_feature = create_debt_feature(insight, debt_id)
-                    feature_id = new_feature.get("feature_id", f"FEAT-DEBT-{debt_id}")
-                    created_debt_features[table_name] = feature_id
-                    debt_feature_counter += 1
-                    mark_insight_migrated(insight_id, feature_id)
-                    stats["created_debt_features"] += 1
+                # Create new FEAT-DEBT feature
+                debt_id = str(debt_feature_counter).zfill(3)
+                print(f"  -> Creating FEAT-DEBT-{debt_id}")
+                new_feature = create_debt_feature(insight, debt_id)
+                feature_id = new_feature.get("feature_id", f"FEAT-DEBT-{debt_id}")
+                created_debt_features[table_name] = feature_id
+                debt_feature_counter += 1
+                mark_insight_migrated(insight_id, feature_id)
+                stats["created_debt_features"] += 1
 
         except requests.RequestException as e:
             print(f"  -> ERROR: {e}")

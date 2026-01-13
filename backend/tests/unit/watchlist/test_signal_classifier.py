@@ -205,25 +205,27 @@ class TestClassifySignalIntegration:
 
     def test_buy_signal_excellent_fundamentals(self) -> None:
         """Test BUY signal with excellent fundamentals gets high strength."""
-        result = classify_signal({
-            "price": 150.0,
-            "ema_20": 145.0,
-            "sma_5": 148.0,
-            "sma_5_prev": 146.0,
-            "rsi_14": 55.0,
-            "macd": 2.5,
-            "volume": 10000000,
-            "volume_avg_20": 8000000,
-            "company_health": "EXCELLENT",
-            "news_sentiment": 0.5,
-            # Excellent fundamentals
-            "profit_margin": 0.35,
-            "revenue_growth": 0.30,
-            "debt_to_equity": 0.3,
-            # Strong analyst support
-            "recommendation_mean": 1.8,
-            "analyst_buy_pct": 0.80,
-        })
+        result = classify_signal(
+            {
+                "price": 150.0,
+                "ema_20": 145.0,
+                "sma_5": 148.0,
+                "sma_5_prev": 146.0,
+                "rsi_14": 55.0,
+                "macd": 2.5,
+                "volume": 10000000,
+                "volume_avg_20": 8000000,
+                "company_health": "EXCELLENT",
+                "news_sentiment": 0.5,
+                # Excellent fundamentals
+                "profit_margin": 0.35,
+                "revenue_growth": 0.30,
+                "debt_to_equity": 0.3,
+                # Strong analyst support
+                "recommendation_mean": 1.8,
+                "analyst_buy_pct": 0.80,
+            }
+        )
         assert result.signal_type == SignalType.BUY
         assert result.strength.value >= 8  # High strength
         # Check for fundamental reasons
@@ -232,73 +234,79 @@ class TestClassifySignalIntegration:
 
     def test_buy_signal_good_fundamentals(self) -> None:
         """Test BUY signal with good (not excellent) fundamentals gets medium strength."""
-        result = classify_signal({
-            "price": 150.0,
-            "ema_20": 145.0,
-            "sma_5": 148.0,
-            "sma_5_prev": 146.0,
-            "rsi_14": 55.0,
-            "macd": 2.5,
-            "volume": 10000000,
-            "volume_avg_20": 8000000,
-            "company_health": "GOOD",
-            "news_sentiment": 0.3,
-            # Good but not excellent fundamentals
-            "profit_margin": 0.12,
-            "revenue_growth": 0.10,
-            "debt_to_equity": 1.0,
-            # Moderate analyst support
-            "recommendation_mean": 2.3,
-            "analyst_buy_pct": 0.60,
-        })
+        result = classify_signal(
+            {
+                "price": 150.0,
+                "ema_20": 145.0,
+                "sma_5": 148.0,
+                "sma_5_prev": 146.0,
+                "rsi_14": 55.0,
+                "macd": 2.5,
+                "volume": 10000000,
+                "volume_avg_20": 8000000,
+                "company_health": "GOOD",
+                "news_sentiment": 0.3,
+                # Good but not excellent fundamentals
+                "profit_margin": 0.12,
+                "revenue_growth": 0.10,
+                "debt_to_equity": 1.0,
+                # Moderate analyst support
+                "recommendation_mean": 2.3,
+                "analyst_buy_pct": 0.60,
+            }
+        )
         assert result.signal_type == SignalType.BUY
         # Strength should be lower than excellent
         assert 5 <= result.strength.value <= 8
 
     def test_hold_signal_weak_fundamentals(self) -> None:
         """Test HOLD signal with weak fundamentals."""
-        result = classify_signal({
-            "price": 150.0,
-            "ema_20": 145.0,
-            "sma_5": 148.0,
-            "sma_5_prev": 146.0,
-            "rsi_14": 55.0,
-            "macd": 0.5,
-            "volume": 5000000,
-            "volume_avg_20": 8000000,  # Below average
-            "company_health": "WEAK",
-            "news_sentiment": -0.2,
-            # Weak fundamentals
-            "profit_margin": 0.02,
-            "revenue_growth": -0.05,
-            "debt_to_equity": 2.5,
-            # No analyst support
-            "recommendation_mean": 3.5,
-            "analyst_buy_pct": 0.30,
-        })
+        result = classify_signal(
+            {
+                "price": 150.0,
+                "ema_20": 145.0,
+                "sma_5": 148.0,
+                "sma_5_prev": 146.0,
+                "rsi_14": 55.0,
+                "macd": 0.5,
+                "volume": 5000000,
+                "volume_avg_20": 8000000,  # Below average
+                "company_health": "WEAK",
+                "news_sentiment": -0.2,
+                # Weak fundamentals
+                "profit_margin": 0.02,
+                "revenue_growth": -0.05,
+                "debt_to_equity": 2.5,
+                # No analyst support
+                "recommendation_mean": 3.5,
+                "analyst_buy_pct": 0.30,
+            }
+        )
         assert result.signal_type == SignalType.HOLD
         assert result.strength.value <= 5
 
     def test_signal_with_no_fundamental_data(self) -> None:
         """Test signal classification works when fundamental data is missing."""
-        result = classify_signal({
-            "price": 150.0,
-            "ema_20": 145.0,
-            "sma_5": 148.0,
-            "sma_5_prev": 146.0,
-            "rsi_14": 55.0,
-            "macd": 2.5,
-            "volume": 10000000,
-            "volume_avg_20": 8000000,
-            "company_health": "GOOD",
-            "news_sentiment": 0.3,
-            # No fundamental data
-            "profit_margin": None,
-            "revenue_growth": None,
-            "debt_to_equity": None,
-            "recommendation_mean": None,
-            "analyst_buy_pct": None,
-        })
+        result = classify_signal(
+            {
+                "price": 150.0,
+                "ema_20": 145.0,
+                "sma_5": 148.0,
+                "sma_5_prev": 146.0,
+                "rsi_14": 55.0,
+                "macd": 2.5,
+                "volume": 10000000,
+                "volume_avg_20": 8000000,
+                "company_health": "GOOD",
+                "news_sentiment": 0.3,
+                # No fundamental data
+                "profit_margin": None,
+                "revenue_growth": None,
+                "debt_to_equity": None,
+                "recommendation_mean": None,
+                "analyst_buy_pct": None,
+            }
+        )
         # Should still work, just with lower score
         assert result.signal_type in (SignalType.BUY, SignalType.HOLD)
         # Score should be lower without fundamental boost
@@ -310,16 +318,18 @@ class TestAvoidSignal:
 
     def test_avoid_signal_multiple_negatives(self) -> None:
         """Test AVOID signal when multiple negative indicators present."""
-        result = classify_signal({
-            "price": 140.0,  # Below EMA
-            "ema_20": 150.0,
-            "sma_5": 145.0,
-            "sma_5_prev": 148.0,  # Declining
-            "rsi_14": 25.0,
-            "macd": -5.0,
-            "volume": 5000000,
-            "volume_avg_20": 8000000,
-            "company_health": "WEAK",
-            "news_sentiment": -0.5,  # Significantly negative
-        })
+        result = classify_signal(
+            {
+                "price": 140.0,  # Below EMA
+                "ema_20": 150.0,
+                "sma_5": 145.0,
+                "sma_5_prev": 148.0,  # Declining
+                "rsi_14": 25.0,
+                "macd": -5.0,
+                "volume": 5000000,
+                "volume_avg_20": 8000000,
+                "company_health": "WEAK",
+                "news_sentiment": -0.5,  # Significantly negative
+            }
+        )
         assert result.signal_type == SignalType.AVOID

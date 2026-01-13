@@ -14,7 +14,7 @@ def verify_backend_e2e():
     storage = PortfolioStorage()
     tools = TradingTools(storage)
     run_id = str(uuid.uuid4())
-    
+
     # Create dummy agent_run
     print(f"Creating dummy agent_run {run_id}...")
     storage.insert_dict("agent_runs", {
@@ -23,7 +23,7 @@ def verify_backend_e2e():
         "status": "running",
         "started_at": date.today().isoformat()
     })
-    
+
     print("=== 1. Testing Paper Trade Creation ===")
     # Create a trade with "70" confidence (should be normalized to 0.7)
     print("Creating trade with confidence_score=75.0 (expecting 0.75)...")
@@ -39,15 +39,15 @@ def verify_backend_e2e():
         data_needed="None",
         risks="None"
     )
-    
+
     idea_id = result["idea_id"]
     print(f"Created idea {idea_id}")
-    
+
     # Verify in DB
     record = storage.query("SELECT confidence_score FROM agent_ideas WHERE id = %s", [idea_id]).to_dicts()[0]
     score = float(record["confidence_score"])
     print(f"Stored score: {score}")
-    
+
     if abs(score - 0.75) < 0.001:
         print("✅ Confidence score normalized correctly.")
     else:
@@ -78,7 +78,7 @@ def verify_backend_e2e():
         start_date=start_date,
         end_date=end_date
     )
-    
+
     if bt_result["status"] == "completed":
         print(f"✅ Backtest completed successfully.")
         print(f"Sharpe: {bt_result.get('sharpe_ratio')}")

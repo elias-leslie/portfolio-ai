@@ -11,7 +11,6 @@ Tests cover:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -22,7 +21,6 @@ from app.tasks.workflow_tasks import (
     research_corroboration_workflow,
 )
 
-
 # =============================================================================
 # Fixtures
 # =============================================================================
@@ -32,7 +30,9 @@ from app.tasks.workflow_tasks import (
 def mock_storage() -> MagicMock:
     """Create mock PortfolioStorage."""
     storage = MagicMock()
-    storage.query.return_value.to_dicts.return_value = [{"min_date": "2024-01-01", "max_date": "2025-12-11"}]
+    storage.query.return_value.to_dicts.return_value = [
+        {"min_date": "2024-01-01", "max_date": "2025-12-11"}
+    ]
     storage.query.return_value.is_empty.return_value = False
     return storage
 
@@ -458,9 +458,7 @@ class TestPaperTradeValidationWorkflow:
 
         with (
             patch("app.tasks.workflow_tasks.PortfolioStorage", return_value=mock_storage),
-            patch(
-                "app.tasks.ingestion.price_ingestion.ingest_historical_ohlcv"
-            ) as mock_ingest,
+            patch("app.tasks.ingestion.price_ingestion.ingest_historical_ohlcv") as mock_ingest,
         ):
             mock_ingest.delay = MagicMock()
             mock_ingest.delay.return_value = None

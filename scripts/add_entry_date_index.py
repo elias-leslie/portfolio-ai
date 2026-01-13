@@ -8,7 +8,7 @@ def add_index():
     index_name = "idx_outcomes_entry_date"
     table_name = "idea_outcomes"
     column_name = "entry_date"
-    
+
     with storage.connection() as conn:
         # Check if index exists
         exists = conn.execute(f"""
@@ -16,14 +16,14 @@ def add_index():
             FROM pg_indexes
             WHERE indexname = '{index_name}'
         """).fetchone()
-        
+
         if exists:
             logger.info(f"Index {index_name} already exists.")
             return
 
         logger.info(f"Creating index {index_name} on {table_name}({column_name})...")
         conn.execute(f"""
-            CREATE INDEX {index_name} 
+            CREATE INDEX {index_name}
             ON {table_name} ({column_name} DESC)
         """)
         conn.commit()

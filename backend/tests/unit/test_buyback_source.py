@@ -9,10 +9,9 @@ FEAT-175: Share Buybacks
 from __future__ import annotations
 
 import datetime as dt
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
-import pytest
 
 from app.sources.buyback_source import (
     fetch_and_store_buybacks,

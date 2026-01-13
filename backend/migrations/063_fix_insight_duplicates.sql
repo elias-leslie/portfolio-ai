@@ -11,13 +11,13 @@ WHERE id NOT IN (
 
 -- Step 2: Add unique constraint on the correct columns
 -- Use table_name instead of capability_id since capability_id changes on rescan
-CREATE UNIQUE INDEX IF NOT EXISTS idx_insights_unique_dedup 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_insights_unique_dedup
 ON capability_insights (capability_type, table_name, insight_type);
 
 -- Step 3: Also update insights for tables that now have data to "fixed" automatically
 -- This catches cases where data was populated but insight wasn't updated
 UPDATE capability_insights ci
-SET status = 'auto_resolved', 
+SET status = 'auto_resolved',
     status_reason = 'Table now has data (detected by migration 063)',
     fixed_at = NOW()
 FROM db_capabilities dc

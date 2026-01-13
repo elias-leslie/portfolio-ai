@@ -80,9 +80,13 @@ class TestGetOwnershipFromCache:
     def test_returns_metrics_when_found(self) -> None:
         """Should return OwnershipMetrics when data exists."""
         mock_storage = MagicMock()
-        mock_df = pl.DataFrame({
-            "payload": [json.dumps({"heldPercentInstitutions": 0.64, "heldPercentInsiders": 0.02})]
-        })
+        mock_df = pl.DataFrame(
+            {
+                "payload": [
+                    json.dumps({"heldPercentInstitutions": 0.64, "heldPercentInsiders": 0.02})
+                ]
+            }
+        )
         mock_storage.query.return_value = mock_df
 
         result = get_ownership_from_cache("AAPL", mock_storage)
@@ -113,9 +117,11 @@ class TestGetOwnershipFromCache:
     def test_handles_missing_fields(self) -> None:
         """Should handle missing ownership fields."""
         mock_storage = MagicMock()
-        mock_df = pl.DataFrame({
-            "payload": [json.dumps({"symbol": "TEST", "price": 100})]  # No ownership fields
-        })
+        mock_df = pl.DataFrame(
+            {
+                "payload": [json.dumps({"symbol": "TEST", "price": 100})]  # No ownership fields
+            }
+        )
         mock_storage.query.return_value = mock_df
 
         result = get_ownership_from_cache("TEST", mock_storage)
@@ -132,13 +138,15 @@ class TestGetOwnershipMetricsBatch:
     def test_returns_metrics_for_multiple_tickers(self) -> None:
         """Should return metrics for all found tickers."""
         mock_storage = MagicMock()
-        mock_df = pl.DataFrame({
-            "symbol": ["AAPL", "MSFT"],
-            "payload": [
-                json.dumps({"heldPercentInstitutions": 0.64, "heldPercentInsiders": 0.02}),
-                json.dumps({"heldPercentInstitutions": 0.72, "heldPercentInsiders": 0.01}),
-            ]
-        })
+        mock_df = pl.DataFrame(
+            {
+                "symbol": ["AAPL", "MSFT"],
+                "payload": [
+                    json.dumps({"heldPercentInstitutions": 0.64, "heldPercentInsiders": 0.02}),
+                    json.dumps({"heldPercentInstitutions": 0.72, "heldPercentInsiders": 0.01}),
+                ],
+            }
+        )
         mock_storage.query.return_value = mock_df
 
         result = get_ownership_metrics_batch(["AAPL", "MSFT", "UNKNOWN"], mock_storage)
@@ -158,13 +166,15 @@ class TestGetOwnershipMetricsBatch:
     def test_skips_invalid_rows(self) -> None:
         """Should skip rows with invalid JSON."""
         mock_storage = MagicMock()
-        mock_df = pl.DataFrame({
-            "symbol": ["GOOD", "BAD"],
-            "payload": [
-                json.dumps({"heldPercentInstitutions": 0.50}),
-                "invalid json",
-            ]
-        })
+        mock_df = pl.DataFrame(
+            {
+                "symbol": ["GOOD", "BAD"],
+                "payload": [
+                    json.dumps({"heldPercentInstitutions": 0.50}),
+                    "invalid json",
+                ],
+            }
+        )
         mock_storage.query.return_value = mock_df
 
         result = get_ownership_metrics_batch(["GOOD", "BAD"], mock_storage)

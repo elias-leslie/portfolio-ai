@@ -11,11 +11,11 @@ def inspect_schema():
         for table in ["idea_outcomes", "agent_ideas"]:
             print(f"\nIndexes on {table}:")
             result = conn.execute(f"""
-                SELECT indexname, indexdef 
-                FROM pg_indexes 
+                SELECT indexname, indexdef
+                FROM pg_indexes
                 WHERE tablename = '{table}'
             """).fetchall()
-            
+
             for row in result:
                 print(f"- {row[0]}: {row[1]}")
 

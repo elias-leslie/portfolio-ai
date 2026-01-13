@@ -1,6 +1,6 @@
 """Unit tests for walk-forward backtesting module."""
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
@@ -13,7 +13,6 @@ from app.backtest.walk_forward import (
     FoldMetrics,
     WalkForwardEngine,
     WalkForwardResult,
-    WalkForwardWindow,
 )
 
 

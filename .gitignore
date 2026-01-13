@@ -87,3 +87,6 @@ backend/models/
 .beads/beads.db
 .beads/bd.sock
 certs/
+
+# Dev tools output (TOON details)
+.dev-tools/

@@ -9,6 +9,7 @@ from app.agents.tool_executors_trading import TradingTools
 def mock_storage():
     return MagicMock()
 
+
 def test_execute_store_idea_normalization(mock_storage):
     tools = TradingTools(mock_storage)
 
@@ -23,7 +24,7 @@ def test_execute_store_idea_normalization(mock_storage):
         reward_estimate=10.0,
         portfolio_impact=5.0,
         data_needed="None",
-        risks="None"
+        risks="None",
     )
 
     # Verify stored value is 0.7
@@ -43,7 +44,7 @@ def test_execute_store_idea_normalization(mock_storage):
         reward_estimate=10.0,
         portfolio_impact=5.0,
         data_needed="None",
-        risks="None"
+        risks="None",
     )
 
     # Verify stored value is 0.8

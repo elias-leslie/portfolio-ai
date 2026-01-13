@@ -18,9 +18,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-def get_watchlist_data(
-    symbol: str, watchlist_service: WatchlistService
-) -> dict[str, Any] | None:
+def get_watchlist_data(symbol: str, watchlist_service: WatchlistService) -> dict[str, Any] | None:
     """Fetch watchlist data for symbol using the watchlist service."""
     try:
         items = watchlist_service.get_items_with_scores()

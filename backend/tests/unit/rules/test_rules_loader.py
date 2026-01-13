@@ -69,6 +69,7 @@ class TestRulesLoading:
 
         # Simulate cache expiration (mock time)
         import app.rules.loader as loader_module
+
         original_timestamp = loader_module._cache_timestamp
         loader_module._cache_timestamp = time.time() - (_CACHE_TTL_SECONDS + 1)
 

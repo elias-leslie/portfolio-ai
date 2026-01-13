@@ -26,8 +26,7 @@ def api_available() -> bool:
 
 
 pytestmark = pytest.mark.skipif(
-    not api_available(),
-    reason="API server not available for integration tests"
+    not api_available(), reason="API server not available for integration tests"
 )
 
 

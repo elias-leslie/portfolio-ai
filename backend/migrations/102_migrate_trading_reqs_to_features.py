@@ -32,7 +32,6 @@ sys.path.insert(0, str(backend_path))
 
 from app.storage.connection import get_connection_manager  # noqa: E402
 
-
 # Analysis type to vision goal mapping
 ANALYSIS_TYPE_TO_VISION_GOALS = {
     "technical_analysis": ["VG-INTEL"],
@@ -81,13 +80,15 @@ def generate_acceptance_criteria(req: dict) -> list[dict]:
     # Main criterion: desired state achieved
     desired = req.get("desired_state", "")
     if desired:
-        criteria.append({
-            "id": f"ac-{criterion_num:03d}",
-            "criterion": desired,
-            "verification": "Check database tables and data coverage",
-            "type": "db",
-            "passed": None,
-        })
+        criteria.append(
+            {
+                "id": f"ac-{criterion_num:03d}",
+                "criterion": desired,
+                "verification": "Check database tables and data coverage",
+                "type": "db",
+                "passed": None,
+            }
+        )
         criterion_num += 1
 
     # Tables exist criterion
@@ -95,37 +96,43 @@ def generate_acceptance_criteria(req: dict) -> list[dict]:
     for table in tables:
         if "(new table)" in table or table.endswith("(extend)"):
             table_name = table.replace(" (new table)", "").replace(" (extend)", "").strip()
-            criteria.append({
-                "id": f"ac-{criterion_num:03d}",
-                "criterion": f"Table {table_name} exists and is populated",
-                "verification": f"SELECT COUNT(*) FROM {table_name}",
-                "type": "db",
-                "passed": None,
-            })
+            criteria.append(
+                {
+                    "id": f"ac-{criterion_num:03d}",
+                    "criterion": f"Table {table_name} exists and is populated",
+                    "verification": f"SELECT COUNT(*) FROM {table_name}",
+                    "type": "db",
+                    "passed": None,
+                }
+            )
             criterion_num += 1
 
     # Coverage requirement criterion
     coverage_req = req.get("coverage_requirement", "")
     if coverage_req:
-        criteria.append({
-            "id": f"ac-{criterion_num:03d}",
-            "criterion": f"Coverage: {coverage_req}",
-            "verification": "Query data coverage percentage for watchlist",
-            "type": "db",
-            "passed": None,
-        })
+        criteria.append(
+            {
+                "id": f"ac-{criterion_num:03d}",
+                "criterion": f"Coverage: {coverage_req}",
+                "verification": "Query data coverage percentage for watchlist",
+                "type": "db",
+                "passed": None,
+            }
+        )
         criterion_num += 1
 
     # Freshness requirement criterion
     freshness_req = req.get("freshness_requirement", "")
     if freshness_req:
-        criteria.append({
-            "id": f"ac-{criterion_num:03d}",
-            "criterion": f"Data freshness: {freshness_req}",
-            "verification": "Check max(updated_at) against threshold",
-            "type": "backend",
-            "passed": None,
-        })
+        criteria.append(
+            {
+                "id": f"ac-{criterion_num:03d}",
+                "criterion": f"Data freshness: {freshness_req}",
+                "verification": "Check max(updated_at) against threshold",
+                "type": "backend",
+                "passed": None,
+            }
+        )
         criterion_num += 1
 
     return criteria
@@ -230,7 +237,7 @@ def insert_feature(conn, feature: dict) -> bool:
         # Check if feature already exists
         existing = conn.execute(
             "SELECT feature_id FROM feature_capabilities WHERE feature_id = %s",
-            (feature["feature_id"],)
+            (feature["feature_id"],),
         ).fetchone()
 
         if existing:
@@ -262,7 +269,7 @@ def insert_feature(conn, feature: dict) -> bool:
                 json.dumps(feature["acceptance_criteria"]),
                 json.dumps(feature["implementation_notes"]),
                 feature["health_status"],
-            )
+            ),
         )
         return True
     except Exception as e:
@@ -313,7 +320,7 @@ def main():
 
         conn.commit()
 
-    print(f"\n4. Migration complete!")
+    print("\n4. Migration complete!")
     print(f"   - Inserted: {inserted}")
     print(f"   - Skipped (already exist): {skipped}")
     print(f"   - Total: {inserted + skipped}")

@@ -12,10 +12,9 @@ Tests cover:
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -79,9 +78,7 @@ def mock_connection_manager(mock_connection: MagicMock) -> MagicMock:
 class TestStrategyResearchEndpoint:
     """Tests for POST /api/automation/run/strategy-research endpoint."""
 
-    def test_trigger_strategy_research_without_symbol(
-        self, mock_celery_app: MagicMock
-    ) -> None:
+    def test_trigger_strategy_research_without_symbol(self, mock_celery_app: MagicMock) -> None:
         """Test triggering strategy research for top watchlist symbols."""
         response = client.post("/api/automation/run/strategy-research")
 
@@ -99,13 +96,9 @@ class TestStrategyResearchEndpoint:
         assert call_args[0][0] == "app.tasks.strategy.generation_tasks.daily_strategy_refresh"
         assert call_args[1]["kwargs"]["max_symbols"] == 5
 
-    def test_trigger_strategy_research_with_symbol(
-        self, mock_celery_app: MagicMock
-    ) -> None:
+    def test_trigger_strategy_research_with_symbol(self, mock_celery_app: MagicMock) -> None:
         """Test triggering strategy research for specific symbol."""
-        response = client.post(
-            "/api/automation/run/strategy-research?symbol=AAPL&force=false"
-        )
+        response = client.post("/api/automation/run/strategy-research?symbol=AAPL&force=false")
 
         assert response.status_code == 200
         data = response.json()
@@ -121,13 +114,9 @@ class TestStrategyResearchEndpoint:
         assert call_args[0][0] == "run_strategy_research_for_symbol"
         assert call_args[1]["args"] == ["AAPL", False]
 
-    def test_trigger_strategy_research_with_force_flag(
-        self, mock_celery_app: MagicMock
-    ) -> None:
+    def test_trigger_strategy_research_with_force_flag(self, mock_celery_app: MagicMock) -> None:
         """Test triggering strategy research with force regeneration."""
-        response = client.post(
-            "/api/automation/run/strategy-research?symbol=TSLA&force=true"
-        )
+        response = client.post("/api/automation/run/strategy-research?symbol=TSLA&force=true")
 
         assert response.status_code == 200
         data = response.json()
@@ -149,9 +138,7 @@ class TestStrategyResearchEndpoint:
             assert response.status_code == 500
             assert "Celery unavailable" in response.json()["detail"]
 
-    def test_strategy_research_response_model_validation(
-        self, mock_celery_app: MagicMock
-    ) -> None:
+    def test_strategy_research_response_model_validation(self, mock_celery_app: MagicMock) -> None:
         """Test response model matches PipelineResponse schema."""
         response = client.post("/api/automation/run/strategy-research?symbol=NVDA")
 
@@ -206,9 +193,7 @@ class TestSignalGenerationEndpoint:
             assert response.status_code == 500
             assert "Task queue full" in response.json()["detail"]
 
-    def test_signal_generation_response_validation(
-        self, mock_celery_app: MagicMock
-    ) -> None:
+    def test_signal_generation_response_validation(self, mock_celery_app: MagicMock) -> None:
         """Test response model validation for signal generation."""
         response = client.post("/api/automation/run/signal-generation")
 
@@ -229,9 +214,7 @@ class TestSignalGenerationEndpoint:
 class TestAutoPaperTradeEndpoint:
     """Tests for POST /api/automation/run/auto-paper-trade endpoint."""
 
-    def test_trigger_auto_paper_trade_default_strength(
-        self, mock_celery_app: MagicMock
-    ) -> None:
+    def test_trigger_auto_paper_trade_default_strength(self, mock_celery_app: MagicMock) -> None:
         """Test triggering auto paper trade with default min_strength=5."""
         response = client.post("/api/automation/run/auto-paper-trade")
 
@@ -249,9 +232,7 @@ class TestAutoPaperTradeEndpoint:
         assert call_args[0][0] == "app.tasks.strategy_signal_tasks.auto_paper_trade_from_signals"
         assert call_args[1]["kwargs"]["min_signal_strength"] == 5
 
-    def test_trigger_auto_paper_trade_custom_strength(
-        self, mock_celery_app: MagicMock
-    ) -> None:
+    def test_trigger_auto_paper_trade_custom_strength(self, mock_celery_app: MagicMock) -> None:
         """Test triggering auto paper trade with custom min_strength."""
         response = client.post("/api/automation/run/auto-paper-trade?min_strength=8")
 
@@ -277,9 +258,7 @@ class TestAutoPaperTradeEndpoint:
 
         assert response.status_code == 422  # Validation error
 
-    def test_auto_paper_trade_strength_boundary_values(
-        self, mock_celery_app: MagicMock
-    ) -> None:
+    def test_auto_paper_trade_strength_boundary_values(self, mock_celery_app: MagicMock) -> None:
         """Test min_strength boundary values (1 and 10) are accepted."""
         # Test min boundary
         response = client.post("/api/automation/run/auto-paper-trade?min_strength=1")
@@ -333,9 +312,7 @@ class TestFullPipelineEndpoint:
         # Verify 3 Celery tasks called
         assert mock_celery_app.send_task.call_count == 3
 
-    def test_trigger_full_pipeline_skip_research(
-        self, mock_celery_app: MagicMock
-    ) -> None:
+    def test_trigger_full_pipeline_skip_research(self, mock_celery_app: MagicMock) -> None:
         """Test triggering full pipeline with skip_research=true."""
         response = client.post("/api/automation/run/full-pipeline?skip_research=true")
 
@@ -383,9 +360,7 @@ class TestFullPipelineEndpoint:
             assert response.status_code == 500
             assert "Invalid task config" in response.json()["detail"]
 
-    def test_full_pipeline_response_structure(
-        self, mock_celery_app: MagicMock
-    ) -> None:
+    def test_full_pipeline_response_structure(self, mock_celery_app: MagicMock) -> None:
         """Test full pipeline response structure validation."""
         response = client.post("/api/automation/run/full-pipeline")
 

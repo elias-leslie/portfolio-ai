@@ -27,8 +27,7 @@ def api_available() -> bool:
 
 
 pytestmark = pytest.mark.skipif(
-    not api_available(),
-    reason="API server not available for integration tests"
+    not api_available(), reason="API server not available for integration tests"
 )
 
 
@@ -103,7 +102,9 @@ class TestInsiderTransactionsEndpoint:
 
     def test_insider_transactions_limit_parameter(self) -> None:
         """Test insider transactions respects limit parameter."""
-        response = requests.get(f"{BASE_URL}/api/analytics/insider-transactions/AAPL?limit=5", timeout=10)
+        response = requests.get(
+            f"{BASE_URL}/api/analytics/insider-transactions/AAPL?limit=5", timeout=10
+        )
         if response.status_code == 200:
             data = response.json()
             assert len(data["transactions"]) <= 5
@@ -129,7 +130,9 @@ class TestInstitutionalHoldingsEndpoint:
 
     def test_institutional_holdings_top_n_parameter(self) -> None:
         """Test institutional holdings respects top_n parameter."""
-        response = requests.get(f"{BASE_URL}/api/analytics/institutional-holdings/AAPL?top_n=3", timeout=10)
+        response = requests.get(
+            f"{BASE_URL}/api/analytics/institutional-holdings/AAPL?top_n=3", timeout=10
+        )
         if response.status_code == 200:
             data = response.json()
             assert len(data["top_holders"]) <= 3

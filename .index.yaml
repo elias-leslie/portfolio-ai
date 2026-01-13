@@ -1,0 +1,23 @@
+project: portfolio-ai
+total_files: 1999
+folders:
+  (root): 23 files - config, docs, services, tests - (claude, env, gemini, gitattributes,
+    gitignore)
+  .claude: 74 files - api, components, config, docs, services, storage, tests - (js,
+    json, md, sh)
+  .gemini: 1 files - (json)
+  automation: 2 files - (json)
+  backend: 828 files - api, config, docs, models, services, storage, tests - (0, conf,
+    coverage, egg-info, example)
+  certs: 3 files - (pem)
+  config: 10 files - api, config - (yaml)
+  docs: 161 files - api, config, docs, services, storage, tests - (gitkeep, html,
+    json, last_update, md)
+  frontend: 329 files - api, components, config, docs, models, services, storage,
+    tests - (css, gitignore, json, local, md)
+  reports: 40 files - (gitkeep, json)
+  scripts: 103 files - api, config, docs, models, services, tests - (bak, conf, deprecated,
+    js, md)
+  services: 20 files - config, docs, services, storage, tests - (conf, md, py, toml)
+  tasks: 405 files - api, components, docs, models, storage, tests - (claude, example,
+    gitignore, json, md)

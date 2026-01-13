@@ -19,9 +19,7 @@ class TestGetNextEarningsDate:
         """Returns earnings date from cache."""
         storage = MagicMock()
         earnings_date = "2025-12-15T00:00:00"
-        storage.query.return_value = pl.DataFrame({
-            "payload": [{"earnings_date": earnings_date}]
-        })
+        storage.query.return_value = pl.DataFrame({"payload": [{"earnings_date": earnings_date}]})
 
         result = get_next_earnings_date(storage, "AAPL")
 
@@ -40,9 +38,7 @@ class TestGetNextEarningsDate:
     def test_null_earnings_date_returns_none(self) -> None:
         """Returns None when cached earnings_date is null."""
         storage = MagicMock()
-        storage.query.return_value = pl.DataFrame({
-            "payload": [{"earnings_date": None}]
-        })
+        storage.query.return_value = pl.DataFrame({"payload": [{"earnings_date": None}]})
 
         result = get_next_earnings_date(storage, "AAPL")
 
@@ -56,14 +52,11 @@ class TestCheckEarningsProximity:
         """Trade allowed when far from earnings."""
         storage = MagicMock()
         # Earnings 30 days away
-        future_date = datetime.now(UTC).replace(
-            hour=0, minute=0, second=0, microsecond=0
+        future_date = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        earnings_date = future_date.replace(tzinfo=None) + __import__("datetime").timedelta(days=30)
+        storage.query.return_value = pl.DataFrame(
+            {"payload": [{"earnings_date": earnings_date.isoformat()}]}
         )
-        earnings_date = (future_date.replace(tzinfo=None) +
-                        __import__("datetime").timedelta(days=30))
-        storage.query.return_value = pl.DataFrame({
-            "payload": [{"earnings_date": earnings_date.isoformat()}]
-        })
 
         is_ok, message, details = check_earnings_proximity(storage, "AAPL")
 
@@ -74,14 +67,11 @@ class TestCheckEarningsProximity:
         """Trade blocked when too close to earnings."""
         storage = MagicMock()
         # Earnings tomorrow
-        future_date = datetime.now(UTC).replace(
-            hour=0, minute=0, second=0, microsecond=0
+        future_date = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        earnings_date = future_date.replace(tzinfo=None) + __import__("datetime").timedelta(days=1)
+        storage.query.return_value = pl.DataFrame(
+            {"payload": [{"earnings_date": earnings_date.isoformat()}]}
         )
-        earnings_date = (future_date.replace(tzinfo=None) +
-                        __import__("datetime").timedelta(days=1))
-        storage.query.return_value = pl.DataFrame({
-            "payload": [{"earnings_date": earnings_date.isoformat()}]
-        })
 
         is_ok, message, details = check_earnings_proximity(storage, "AAPL")
 
@@ -93,12 +83,10 @@ class TestCheckEarningsProximity:
         """Trade blocked on earnings day."""
         storage = MagicMock()
         # Earnings today
-        today = datetime.now(UTC).replace(
-            hour=0, minute=0, second=0, microsecond=0, tzinfo=None
+        today = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
+        storage.query.return_value = pl.DataFrame(
+            {"payload": [{"earnings_date": today.isoformat()}]}
         )
-        storage.query.return_value = pl.DataFrame({
-            "payload": [{"earnings_date": today.isoformat()}]
-        })
 
         is_ok, message, details = check_earnings_proximity(storage, "AAPL")
 
@@ -109,14 +97,11 @@ class TestCheckEarningsProximity:
         """Trade allowed after earnings has passed."""
         storage = MagicMock()
         # Earnings 5 days ago
-        past_date = datetime.now(UTC).replace(
-            hour=0, minute=0, second=0, microsecond=0
+        past_date = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        earnings_date = past_date.replace(tzinfo=None) - __import__("datetime").timedelta(days=5)
+        storage.query.return_value = pl.DataFrame(
+            {"payload": [{"earnings_date": earnings_date.isoformat()}]}
         )
-        earnings_date = (past_date.replace(tzinfo=None) -
-                        __import__("datetime").timedelta(days=5))
-        storage.query.return_value = pl.DataFrame({
-            "payload": [{"earnings_date": earnings_date.isoformat()}]
-        })
 
         is_ok, message, details = check_earnings_proximity(storage, "AAPL")
 
@@ -141,14 +126,11 @@ class TestShouldBlockForEarnings:
         """Returns True (block) when too close to earnings."""
         storage = MagicMock()
         # Earnings tomorrow
-        future_date = datetime.now(UTC).replace(
-            hour=0, minute=0, second=0, microsecond=0
+        future_date = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        earnings_date = future_date.replace(tzinfo=None) + __import__("datetime").timedelta(days=1)
+        storage.query.return_value = pl.DataFrame(
+            {"payload": [{"earnings_date": earnings_date.isoformat()}]}
         )
-        earnings_date = (future_date.replace(tzinfo=None) +
-                        __import__("datetime").timedelta(days=1))
-        storage.query.return_value = pl.DataFrame({
-            "payload": [{"earnings_date": earnings_date.isoformat()}]
-        })
 
         should_block = should_block_for_earnings(storage, "AAPL")
 
@@ -158,14 +140,11 @@ class TestShouldBlockForEarnings:
         """Returns False (allow) when far from earnings."""
         storage = MagicMock()
         # Earnings 30 days away
-        future_date = datetime.now(UTC).replace(
-            hour=0, minute=0, second=0, microsecond=0
+        future_date = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        earnings_date = future_date.replace(tzinfo=None) + __import__("datetime").timedelta(days=30)
+        storage.query.return_value = pl.DataFrame(
+            {"payload": [{"earnings_date": earnings_date.isoformat()}]}
         )
-        earnings_date = (future_date.replace(tzinfo=None) +
-                        __import__("datetime").timedelta(days=30))
-        storage.query.return_value = pl.DataFrame({
-            "payload": [{"earnings_date": earnings_date.isoformat()}]
-        })
 
         should_block = should_block_for_earnings(storage, "AAPL")
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -93,9 +92,7 @@ class TestBuildScoreTimeline:
         assert today_point.technical_score is not None
         assert round(today_point.technical_score, 2) == 81.0
 
-    def test_respects_window_days_filter(
-        self, sample_snapshots: list[WatchlistSnapshot]
-    ) -> None:
+    def test_respects_window_days_filter(self, sample_snapshots: list[WatchlistSnapshot]) -> None:
         """Test that only snapshots within window_days are included."""
         now = datetime(2025, 12, 10, 12, 0, 0, tzinfo=UTC)
 

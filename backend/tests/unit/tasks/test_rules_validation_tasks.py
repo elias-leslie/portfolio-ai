@@ -116,9 +116,7 @@ class TestDailyRulesValidation:
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
             mock_conn._conn.cursor.return_value.__enter__.return_value = mock_cursor
-            mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = (
-                mock_conn
-            )
+            mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = mock_conn
 
             # Execute task
             result = daily_rules_validation()
@@ -162,9 +160,7 @@ class TestDailyRulesValidation:
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
             mock_conn._conn.cursor.return_value.__enter__.return_value = mock_cursor
-            mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = (
-                mock_conn
-            )
+            mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = mock_conn
 
             result = daily_rules_validation()
 
@@ -184,9 +180,7 @@ class TestDailyRulesValidation:
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
             mock_conn._conn.cursor.return_value.__enter__.return_value = mock_cursor
-            mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = (
-                mock_conn
-            )
+            mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = mock_conn
 
             result = daily_rules_validation()
 
@@ -213,9 +207,7 @@ class TestDailyRulesValidation:
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
             mock_conn._conn.cursor.return_value.__enter__.return_value = mock_cursor
-            mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = (
-                mock_conn
-            )
+            mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = mock_conn
 
             daily_rules_validation()
 
@@ -254,9 +246,7 @@ class TestDailyRulesValidation:
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
             mock_conn._conn.cursor.return_value.__enter__.return_value = mock_cursor
-            mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = (
-                mock_conn
-            )
+            mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = mock_conn
 
             daily_rules_validation()
 
@@ -294,9 +284,7 @@ class TestWeeklyOptimizationReview:
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
             mock_conn._conn.cursor.return_value.__enter__.return_value = mock_cursor
-            mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = (
-                mock_conn
-            )
+            mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = mock_conn
 
             result = weekly_optimization_review()
 
@@ -325,9 +313,7 @@ class TestWeeklyOptimizationReview:
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
             mock_conn._conn.cursor.return_value.__enter__.return_value = mock_cursor
-            mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = (
-                mock_conn
-            )
+            mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = mock_conn
 
             result = weekly_optimization_review()
 
@@ -354,9 +340,7 @@ class TestWeeklyOptimizationReview:
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
             mock_conn._conn.cursor.return_value.__enter__.return_value = mock_cursor
-            mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = (
-                mock_conn
-            )
+            mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = mock_conn
 
             weekly_optimization_review()
 
@@ -387,9 +371,7 @@ class TestPerformanceDataRetrieval:
     """Test _get_recent_performance_data helper function."""
 
     @patch("app.tasks.rules_validation_tasks.get_connection_manager")
-    def test_get_recent_performance_data_success(
-        self, mock_conn_mgr: MagicMock
-    ) -> None:
+    def test_get_recent_performance_data_success(self, mock_conn_mgr: MagicMock) -> None:
         """Performance data retrieval should return trade and signal stats."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
@@ -402,13 +384,15 @@ class TestPerformanceDataRetrieval:
             def __iter__(self) -> Any:
                 return iter(self._data.items())
 
-        trade_stats_row = MockRow({
-            "total_trades": 10,
-            "win_rate": 0.6,
-            "avg_pnl": 100.0,
-            "std_pnl": 50.0,
-            "max_drawdown": 15.0,
-        })
+        trade_stats_row = MockRow(
+            {
+                "total_trades": 10,
+                "win_rate": 0.6,
+                "avg_pnl": 100.0,
+                "std_pnl": 50.0,
+                "max_drawdown": 15.0,
+            }
+        )
 
         # Mock signal stats query
         signal_stats_rows = [
@@ -420,9 +404,7 @@ class TestPerformanceDataRetrieval:
         mock_cursor.fetchall.return_value = signal_stats_rows
 
         mock_conn._conn.cursor.return_value.__enter__.return_value = mock_cursor
-        mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = (
-            mock_conn
-        )
+        mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = mock_conn
 
         result = _get_recent_performance_data()
 
@@ -432,15 +414,11 @@ class TestPerformanceDataRetrieval:
         assert len(result["signal_stats"]) == 2
 
     @patch("app.tasks.rules_validation_tasks.get_connection_manager")
-    def test_get_recent_performance_data_handles_exception(
-        self, mock_conn_mgr: MagicMock
-    ) -> None:
+    def test_get_recent_performance_data_handles_exception(self, mock_conn_mgr: MagicMock) -> None:
         """Performance data retrieval should handle exceptions."""
         mock_conn = MagicMock()
         mock_conn._conn.cursor.side_effect = Exception("Connection error")
-        mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = (
-            mock_conn
-        )
+        mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = mock_conn
 
         result = _get_recent_performance_data()
 
@@ -448,9 +426,7 @@ class TestPerformanceDataRetrieval:
         assert result == {}
 
     @patch("app.tasks.rules_validation_tasks.get_connection_manager")
-    def test_get_recent_performance_data_30_day_window(
-        self, mock_conn_mgr: MagicMock
-    ) -> None:
+    def test_get_recent_performance_data_30_day_window(self, mock_conn_mgr: MagicMock) -> None:
         """Performance data should query last 30 days."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
@@ -463,18 +439,18 @@ class TestPerformanceDataRetrieval:
             def __iter__(self) -> Any:
                 return iter(self._data.items())
 
-        mock_cursor.fetchone.return_value = MockRow({
-            "total_trades": 0,
-            "win_rate": None,
-            "avg_pnl": None,
-            "std_pnl": None,
-            "max_drawdown": None,
-        })
+        mock_cursor.fetchone.return_value = MockRow(
+            {
+                "total_trades": 0,
+                "win_rate": None,
+                "avg_pnl": None,
+                "std_pnl": None,
+                "max_drawdown": None,
+            }
+        )
         mock_cursor.fetchall.return_value = []
         mock_conn._conn.cursor.return_value.__enter__.return_value = mock_cursor
-        mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = (
-            mock_conn
-        )
+        mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = mock_conn
 
         result = _get_recent_performance_data()
 
@@ -507,9 +483,7 @@ class TestTaskIntegration:
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
             mock_conn._conn.cursor.return_value.__enter__.return_value = mock_cursor
-            mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = (
-                mock_conn
-            )
+            mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = mock_conn
 
             weekly_optimization_review()
 

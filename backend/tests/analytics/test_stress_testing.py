@@ -90,12 +90,16 @@ class TestRunStressTest:
         # Financial should be hit harder than tech in 2008
         assert abs(fin_result.loss_pct) > abs(tech_result.loss_pct)
 
-    def test_tech_heavy_hit_hard_in_dotcom(self, tech_heavy_portfolio: list[dict[str, object]]) -> None:
+    def test_tech_heavy_hit_hard_in_dotcom(
+        self, tech_heavy_portfolio: list[dict[str, object]]
+    ) -> None:
         """Tech-heavy portfolio should be devastated in dot-com bust."""
         result = run_stress_test(tech_heavy_portfolio, StressScenario.DOT_COM_BUST_2000)
 
         # Should lose more than market
-        assert abs(result.portfolio_loss_pct) > abs(SCENARIO_DEFINITIONS[StressScenario.DOT_COM_BUST_2000].market_shock)
+        assert abs(result.portfolio_loss_pct) > abs(
+            SCENARIO_DEFINITIONS[StressScenario.DOT_COM_BUST_2000].market_shock
+        )
 
     def test_returns_worst_positions(self, sample_portfolio: list[dict[str, object]]) -> None:
         """Should identify worst-hit positions."""

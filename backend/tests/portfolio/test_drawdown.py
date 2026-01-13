@@ -109,12 +109,16 @@ class TestDrawdownMetrics:
             # Peak equity from snapshots
             MagicMock(
                 is_empty=lambda: False,
-                get_column=lambda col: [10000.0] if "equity" in col else [date.today() - timedelta(days=5)],
+                get_column=lambda col: [10000.0]
+                if "equity" in col
+                else [date.today() - timedelta(days=5)],
             ),
             # Underwater days - no peak at current
             MagicMock(is_empty=lambda: True),
             # First snapshot
-            MagicMock(is_empty=lambda: False, get_column=lambda x: [date.today() - timedelta(days=10)]),
+            MagicMock(
+                is_empty=lambda: False, get_column=lambda x: [date.today() - timedelta(days=10)]
+            ),
             # Max drawdown
             MagicMock(is_empty=lambda: False, get_column=lambda x: [8.0]),
         ]

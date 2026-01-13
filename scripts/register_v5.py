@@ -12,12 +12,12 @@ from app.services.artifact_manager import ARTIFACTS_BASE_DIR
 
 def register_version(feature_id, criterion_id, version):
     print(f"Registering version {version} for {feature_id}/{criterion_id}...")
-    
+
     artifact_dir = f"{feature_id}/{criterion_id}/v{version}"
     abs_path = ARTIFACTS_BASE_DIR / artifact_dir
     evidence_path = abs_path / "evidence.json"
     screenshot_path = abs_path / "screenshot.png"
-    
+
     if not evidence_path.exists():
         print(f"Evidence file not found: {evidence_path}")
         return
@@ -25,11 +25,11 @@ def register_version(feature_id, criterion_id, version):
     try:
         with open(evidence_path, 'r') as f:
             evidence_data = json.load(f)
-            
+
         screenshot_size = screenshot_path.stat().st_size if screenshot_path.exists() else 0
         evidence_size = evidence_path.stat().st_size
         total_size = screenshot_size + evidence_size
-        
+
         save_artifact(
             feature_id=feature_id,
             criterion_id=criterion_id,

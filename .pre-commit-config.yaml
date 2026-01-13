@@ -93,3 +93,28 @@ repos:
         language: system
         pass_filenames: false
         stages: [pre-commit]
+
+      # Frontend linting and type checking
+      - id: eslint
+        name: ESLint (frontend)
+        entry: bash -c 'cd frontend && npx eslint .'
+        language: system
+        types_or: [ts, tsx, javascript, jsx]
+        files: ^frontend/
+        pass_filenames: false
+
+      - id: tsc
+        name: TypeScript type check (frontend)
+        entry: bash -c 'cd frontend && npx tsc --noEmit'
+        language: system
+        types_or: [ts, tsx]
+        files: ^frontend/
+        pass_filenames: false
+
+      - id: prettier
+        name: Prettier format (frontend)
+        entry: bash -c 'cd frontend && npx prettier --write --ignore-unknown'
+        language: system
+        types_or: [ts, tsx, javascript, jsx, json, css, scss, html]
+        files: ^frontend/
+        pass_filenames: false

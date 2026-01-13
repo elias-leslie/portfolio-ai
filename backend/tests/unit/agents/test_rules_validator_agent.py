@@ -158,15 +158,12 @@ class TestThresholdRangeValidation:
         report = await validator.validate_rules(invalid_rules)
         assert report.overall_status == "critical"
         assert any(
-            e.field_path == "technical_thresholds.rsi_oversold"
-            and e.severity == "critical"
+            e.field_path == "technical_thresholds.rsi_oversold" and e.severity == "critical"
             for e in report.errors
         )
 
     @pytest.mark.asyncio
-    async def test_rsi_overbought_out_of_range(
-        self, validator: RulesValidatorAgent
-    ) -> None:
+    async def test_rsi_overbought_out_of_range(self, validator: RulesValidatorAgent) -> None:
         """RSI overbought < 0 should fail validation."""
         invalid_rules = TradingRules(
             version="1.0.0",
@@ -178,15 +175,12 @@ class TestThresholdRangeValidation:
         report = await validator.validate_rules(invalid_rules)
         assert report.overall_status == "critical"
         assert any(
-            e.field_path == "technical_thresholds.rsi_overbought"
-            and e.severity == "critical"
+            e.field_path == "technical_thresholds.rsi_overbought" and e.severity == "critical"
             for e in report.errors
         )
 
     @pytest.mark.asyncio
-    async def test_rsi_oversold_gte_overbought(
-        self, validator: RulesValidatorAgent
-    ) -> None:
+    async def test_rsi_oversold_gte_overbought(self, validator: RulesValidatorAgent) -> None:
         """RSI oversold >= overbought should fail validation."""
         invalid_rules = TradingRules(
             version="1.0.0",
@@ -197,14 +191,10 @@ class TestThresholdRangeValidation:
         )
         report = await validator.validate_rules(invalid_rules)
         assert report.overall_status == "critical"
-        assert any(
-            "oversold must be < overbought" in e.message for e in report.errors
-        )
+        assert any("oversold must be < overbought" in e.message for e in report.errors)
 
     @pytest.mark.asyncio
-    async def test_risk_percent_out_of_range(
-        self, validator: RulesValidatorAgent
-    ) -> None:
+    async def test_risk_percent_out_of_range(self, validator: RulesValidatorAgent) -> None:
         """Risk percent > 1.0 should fail validation."""
         invalid_rules = TradingRules(
             version="1.0.0",
@@ -215,15 +205,12 @@ class TestThresholdRangeValidation:
         report = await validator.validate_rules(invalid_rules)
         assert report.overall_status == "critical"
         assert any(
-            e.field_path == "position_sizing.default_risk_percent"
-            and e.severity == "critical"
+            e.field_path == "position_sizing.default_risk_percent" and e.severity == "critical"
             for e in report.errors
         )
 
     @pytest.mark.asyncio
-    async def test_max_position_percent_out_of_range(
-        self, validator: RulesValidatorAgent
-    ) -> None:
+    async def test_max_position_percent_out_of_range(self, validator: RulesValidatorAgent) -> None:
         """Max position percent > 1.0 should fail validation."""
         invalid_rules = TradingRules(
             version="1.0.0",
@@ -233,15 +220,10 @@ class TestThresholdRangeValidation:
         )
         report = await validator.validate_rules(invalid_rules)
         assert report.overall_status == "critical"
-        assert any(
-            e.field_path == "position_sizing.max_position_percent"
-            for e in report.errors
-        )
+        assert any(e.field_path == "position_sizing.max_position_percent" for e in report.errors)
 
     @pytest.mark.asyncio
-    async def test_drawdown_halt_out_of_range(
-        self, validator: RulesValidatorAgent
-    ) -> None:
+    async def test_drawdown_halt_out_of_range(self, validator: RulesValidatorAgent) -> None:
         """Drawdown halt > 100 should fail validation."""
         invalid_rules = TradingRules(
             version="1.0.0",
@@ -252,14 +234,11 @@ class TestThresholdRangeValidation:
         report = await validator.validate_rules(invalid_rules)
         assert report.overall_status == "critical"
         assert any(
-            e.field_path == "risk_management.portfolio_drawdown_halt_pct"
-            for e in report.errors
+            e.field_path == "risk_management.portfolio_drawdown_halt_pct" for e in report.errors
         )
 
     @pytest.mark.asyncio
-    async def test_news_sentiment_out_of_range(
-        self, validator: RulesValidatorAgent
-    ) -> None:
+    async def test_news_sentiment_out_of_range(self, validator: RulesValidatorAgent) -> None:
         """News sentiment > 1.0 should fail validation."""
         invalid_rules = TradingRules(
             version="1.0.0",
@@ -278,9 +257,7 @@ class TestContradictionValidation:
     """Test logical contradiction validation checks."""
 
     @pytest.mark.asyncio
-    async def test_min_risk_greater_than_max_risk(
-        self, validator: RulesValidatorAgent
-    ) -> None:
+    async def test_min_risk_greater_than_max_risk(self, validator: RulesValidatorAgent) -> None:
         """Min risk > max risk should fail validation."""
         invalid_rules = TradingRules(
             version="1.0.0",
@@ -291,14 +268,10 @@ class TestContradictionValidation:
         )
         report = await validator.validate_rules(invalid_rules)
         assert report.overall_status == "critical"
-        assert any(
-            "Min risk percent > max risk percent" in e.message for e in report.errors
-        )
+        assert any("Min risk percent > max risk percent" in e.message for e in report.errors)
 
     @pytest.mark.asyncio
-    async def test_drawdown_warnings_not_escalating(
-        self, validator: RulesValidatorAgent
-    ) -> None:
+    async def test_drawdown_warnings_not_escalating(self, validator: RulesValidatorAgent) -> None:
         """Drawdown warnings not escalating should produce warning."""
         invalid_rules = TradingRules(
             version="1.0.0",
@@ -310,14 +283,11 @@ class TestContradictionValidation:
         report = await validator.validate_rules(invalid_rules)
         assert report.overall_status == "warnings"
         assert any(
-            "should escalate" in e.message and e.severity == "warning"
-            for e in report.errors
+            "should escalate" in e.message and e.severity == "warning" for e in report.errors
         )
 
     @pytest.mark.asyncio
-    async def test_warning_level_2_exceeds_halt(
-        self, validator: RulesValidatorAgent
-    ) -> None:
+    async def test_warning_level_2_exceeds_halt(self, validator: RulesValidatorAgent) -> None:
         """Warning level 2 >= halt threshold should fail validation."""
         invalid_rules = TradingRules(
             version="1.0.0",
@@ -329,15 +299,10 @@ class TestContradictionValidation:
         )
         report = await validator.validate_rules(invalid_rules)
         assert report.overall_status == "critical"
-        assert any(
-            "Final warning must be < halt threshold" in e.message
-            for e in report.errors
-        )
+        assert any("Final warning must be < halt threshold" in e.message for e in report.errors)
 
     @pytest.mark.asyncio
-    async def test_scoring_weights_dont_sum_to_100(
-        self, validator: RulesValidatorAgent
-    ) -> None:
+    async def test_scoring_weights_dont_sum_to_100(self, validator: RulesValidatorAgent) -> None:
         """Scoring weights not summing to 100 should fail validation."""
         invalid_rules = TradingRules(
             version="1.0.0",
@@ -349,14 +314,10 @@ class TestContradictionValidation:
         )
         report = await validator.validate_rules(invalid_rules)
         assert report.overall_status == "critical"
-        assert any(
-            "Scoring weights must sum to 100" in e.message for e in report.errors
-        )
+        assert any("Scoring weights must sum to 100" in e.message for e in report.errors)
 
     @pytest.mark.asyncio
-    async def test_fundamental_weights_dont_sum_to_1(
-        self, validator: RulesValidatorAgent
-    ) -> None:
+    async def test_fundamental_weights_dont_sum_to_1(self, validator: RulesValidatorAgent) -> None:
         """Fundamental pillar weights not summing to 1.0 should fail."""
         invalid_rules = TradingRules(
             version="1.0.0",
@@ -369,19 +330,14 @@ class TestContradictionValidation:
         )
         report = await validator.validate_rules(invalid_rules)
         assert report.overall_status == "critical"
-        assert any(
-            "Fundamental pillar weights must sum to 1.0" in e.message
-            for e in report.errors
-        )
+        assert any("Fundamental pillar weights must sum to 1.0" in e.message for e in report.errors)
 
 
 class TestPositionSizingValidation:
     """Test position sizing validation checks."""
 
     @pytest.mark.asyncio
-    async def test_max_position_excessive_exposure(
-        self, validator: RulesValidatorAgent
-    ) -> None:
+    async def test_max_position_excessive_exposure(self, validator: RulesValidatorAgent) -> None:
         """Max position * typical positions > 100% should produce warning."""
         invalid_rules = TradingRules(
             version="1.0.0",
@@ -391,14 +347,10 @@ class TestPositionSizingValidation:
         )
         report = await validator.validate_rules(invalid_rules)
         assert report.overall_status == "warnings"
-        assert any(
-            ">100%" in e.message and e.severity == "warning" for e in report.errors
-        )
+        assert any(">100%" in e.message and e.severity == "warning" for e in report.errors)
 
     @pytest.mark.asyncio
-    async def test_sector_exposure_exceeds_100(
-        self, validator: RulesValidatorAgent
-    ) -> None:
+    async def test_sector_exposure_exceeds_100(self, validator: RulesValidatorAgent) -> None:
         """Sector exposure > 100% should fail validation."""
         invalid_rules = TradingRules(
             version="1.0.0",
@@ -408,14 +360,10 @@ class TestPositionSizingValidation:
         )
         report = await validator.validate_rules(invalid_rules)
         assert report.overall_status == "critical"
-        assert any(
-            "Max sector exposure >100%" in e.message for e in report.errors
-        )
+        assert any("Max sector exposure >100%" in e.message for e in report.errors)
 
     @pytest.mark.asyncio
-    async def test_position_percent_adv_excessive(
-        self, validator: RulesValidatorAgent
-    ) -> None:
+    async def test_position_percent_adv_excessive(self, validator: RulesValidatorAgent) -> None:
         """Position > 5% of ADV should produce warning."""
         invalid_rules = TradingRules(
             version="1.0.0",
@@ -425,18 +373,14 @@ class TestPositionSizingValidation:
         )
         report = await validator.validate_rules(invalid_rules)
         assert report.overall_status == "warnings"
-        assert any(
-            "5% of ADV may cause slippage" in e.message for e in report.errors
-        )
+        assert any("5% of ADV may cause slippage" in e.message for e in report.errors)
 
 
 class TestFeeAssumptionsValidation:
     """Test fee assumptions validation checks."""
 
     @pytest.mark.asyncio
-    async def test_zero_commission_unrealistic(
-        self, validator: RulesValidatorAgent
-    ) -> None:
+    async def test_zero_commission_unrealistic(self, validator: RulesValidatorAgent) -> None:
         """Zero commission should produce warning."""
         invalid_rules = TradingRules(
             version="1.0.0",
@@ -453,9 +397,7 @@ class TestFeeAssumptionsValidation:
         )
 
     @pytest.mark.asyncio
-    async def test_slippage_out_of_typical_range(
-        self, validator: RulesValidatorAgent
-    ) -> None:
+    async def test_slippage_out_of_typical_range(self, validator: RulesValidatorAgent) -> None:
         """Slippage outside 1-20 bps should produce warning."""
         invalid_rules = TradingRules(
             version="1.0.0",
@@ -465,9 +407,7 @@ class TestFeeAssumptionsValidation:
         )
         report = await validator.validate_rules(invalid_rules)
         assert report.overall_status == "warnings"
-        assert any(
-            "Slippage outside typical range" in e.message for e in report.errors
-        )
+        assert any("Slippage outside typical range" in e.message for e in report.errors)
 
     @pytest.mark.asyncio
     async def test_institutional_slippage_higher_than_retail(
@@ -483,10 +423,7 @@ class TestFeeAssumptionsValidation:
         )
         report = await validator.validate_rules(invalid_rules)
         assert report.overall_status == "warnings"
-        assert any(
-            "Institutional slippage should be < retail" in e.message
-            for e in report.errors
-        )
+        assert any("Institutional slippage should be < retail" in e.message for e in report.errors)
 
 
 class TestReportGeneration:
@@ -502,9 +439,7 @@ class TestReportGeneration:
         assert report.summary == "All validation checks passed. Rules configuration is valid."
 
     @pytest.mark.asyncio
-    async def test_overall_status_warnings(
-        self, validator: RulesValidatorAgent
-    ) -> None:
+    async def test_overall_status_warnings(self, validator: RulesValidatorAgent) -> None:
         """Report should be 'warnings' when only warnings exist."""
         rules_with_warnings = TradingRules(
             version="1.0.0",
@@ -520,9 +455,7 @@ class TestReportGeneration:
         assert "warning" in report.summary.lower()
 
     @pytest.mark.asyncio
-    async def test_overall_status_critical(
-        self, validator: RulesValidatorAgent
-    ) -> None:
+    async def test_overall_status_critical(self, validator: RulesValidatorAgent) -> None:
         """Report should be 'critical' when critical errors exist."""
         rules_with_critical = TradingRules(
             version="1.0.0",
@@ -535,9 +468,7 @@ class TestReportGeneration:
         assert "critical" in report.summary.lower()
 
     @pytest.mark.asyncio
-    async def test_summary_includes_counts(
-        self, validator: RulesValidatorAgent
-    ) -> None:
+    async def test_summary_includes_counts(self, validator: RulesValidatorAgent) -> None:
         """Summary should include error counts."""
         rules_with_errors = TradingRules(
             version="1.0.0",
@@ -578,9 +509,7 @@ class TestOptimizationRecommendations:
     """Test optimization recommendation generation."""
 
     @pytest.mark.asyncio
-    async def test_rsi_oversold_too_extreme(
-        self, validator: RulesValidatorAgent
-    ) -> None:
+    async def test_rsi_oversold_too_extreme(self, validator: RulesValidatorAgent) -> None:
         """RSI oversold < 25 should produce recommendation."""
         rules = TradingRules(
             version="1.0.0",
@@ -592,15 +521,12 @@ class TestOptimizationRecommendations:
         validator.rules = rules
         recommendations = await validator.generate_optimization_recommendations()
         assert any(
-            r.field_path == "technical_thresholds.rsi_oversold"
-            and r.suggested_value == 30
+            r.field_path == "technical_thresholds.rsi_oversold" and r.suggested_value == 30
             for r in recommendations
         )
 
     @pytest.mark.asyncio
-    async def test_max_position_too_conservative(
-        self, validator: RulesValidatorAgent
-    ) -> None:
+    async def test_max_position_too_conservative(self, validator: RulesValidatorAgent) -> None:
         """Max position < 5% should produce recommendation."""
         rules = TradingRules(
             version="1.0.0",
@@ -611,15 +537,12 @@ class TestOptimizationRecommendations:
         validator.rules = rules
         recommendations = await validator.generate_optimization_recommendations()
         assert any(
-            r.field_path == "position_sizing.max_position_percent"
-            and r.suggested_value == 0.10
+            r.field_path == "position_sizing.max_position_percent" and r.suggested_value == 0.10
             for r in recommendations
         )
 
     @pytest.mark.asyncio
-    async def test_recommendations_have_priorities(
-        self, validator: RulesValidatorAgent
-    ) -> None:
+    async def test_recommendations_have_priorities(self, validator: RulesValidatorAgent) -> None:
         """Recommendations should have priority levels."""
         rules = TradingRules(
             version="1.0.0",
@@ -635,9 +558,7 @@ class TestOptimizationRecommendations:
                 assert rec.priority in ["high", "medium", "low"]
 
     @pytest.mark.asyncio
-    async def test_recommendations_have_rationale(
-        self, validator: RulesValidatorAgent
-    ) -> None:
+    async def test_recommendations_have_rationale(self, validator: RulesValidatorAgent) -> None:
         """Recommendations should include rationale."""
         rules = TradingRules(
             version="1.0.0",
@@ -658,9 +579,7 @@ class TestValidationWithDefaultRules:
     """Test validation with default rules loaded from file."""
 
     @pytest.mark.asyncio
-    async def test_validate_without_rules_param(
-        self, validator: RulesValidatorAgent
-    ) -> None:
+    async def test_validate_without_rules_param(self, validator: RulesValidatorAgent) -> None:
         """Validation without rules param should load from file."""
         # This will load actual rules from config/trading_rules/v1.0.0/rules.yaml
         report = await validator.validate_rules()
@@ -670,9 +589,7 @@ class TestValidationWithDefaultRules:
         assert report.overall_status in ["valid", "warnings"]
 
     @pytest.mark.asyncio
-    async def test_validate_loads_rules_from_file(
-        self, validator: RulesValidatorAgent
-    ) -> None:
+    async def test_validate_loads_rules_from_file(self, validator: RulesValidatorAgent) -> None:
         """Validator should use get_rules() when no rules provided."""
         with patch("app.agents.rules_validator_agent.get_rules") as mock_get_rules:
             mock_get_rules.return_value = TradingRules(version="mocked")

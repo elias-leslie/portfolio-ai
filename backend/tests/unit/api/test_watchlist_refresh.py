@@ -99,9 +99,7 @@ class TestWatchlistRefreshSuccess:
         with (
             patch("app.api.watchlist.watchlist_repo", mock_repo),
             patch("app.api.watchlist.schedule_refresh_tasks") as mock_schedule,
-            patch(
-                "app.api.watchlist.refresh_watchlist_scores_service", mock_refresh_service
-            ),
+            patch("app.api.watchlist.refresh_watchlist_scores_service", mock_refresh_service),
         ):
             # Mock watchlist with 3 items
             mock_df = MagicMock()
@@ -149,9 +147,7 @@ class TestWatchlistRefreshPartialSuccess:
         with (
             patch("app.api.watchlist.watchlist_repo", mock_repo),
             patch("app.api.watchlist.schedule_refresh_tasks") as mock_schedule,
-            patch(
-                "app.api.watchlist.refresh_watchlist_scores_service", mock_refresh_service
-            ),
+            patch("app.api.watchlist.refresh_watchlist_scores_service", mock_refresh_service),
         ):
             # Mock watchlist with 3 items
             mock_df = MagicMock()
@@ -203,9 +199,7 @@ class TestWatchlistRefreshFailure:
         with (
             patch("app.api.watchlist.watchlist_repo", mock_repo),
             patch("app.api.watchlist.schedule_refresh_tasks") as mock_schedule,
-            patch(
-                "app.api.watchlist.refresh_watchlist_scores_service", mock_refresh_service
-            ),
+            patch("app.api.watchlist.refresh_watchlist_scores_service", mock_refresh_service),
         ):
             # Mock watchlist with 2 items
             mock_df = MagicMock()
@@ -270,9 +264,7 @@ class TestWatchlistRefreshBackgroundTasks:
         with (
             patch("app.api.watchlist.watchlist_repo", mock_repo),
             patch("app.api.watchlist.schedule_refresh_tasks") as mock_schedule,
-            patch(
-                "app.api.watchlist.refresh_watchlist_scores_service", mock_refresh_service
-            ),
+            patch("app.api.watchlist.refresh_watchlist_scores_service", mock_refresh_service),
         ):
             # Mock watchlist
             mock_df = MagicMock()

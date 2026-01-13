@@ -129,10 +129,12 @@ class TestGetRegimeHistory:
         """Should return regime history tuples."""
         mock_storage = MagicMock()
         today = date.today()
-        mock_df = pl.DataFrame({
-            "date": [today, today - timedelta(days=1), today - timedelta(days=2)],
-            "vix": [25, 22, 18],
-        })
+        mock_df = pl.DataFrame(
+            {
+                "date": [today, today - timedelta(days=1), today - timedelta(days=2)],
+                "vix": [25, 22, 18],
+            }
+        )
         mock_storage.query.return_value = mock_df
 
         history = get_regime_history(mock_storage)
@@ -154,9 +156,7 @@ class TestDetectRegimeTransition:
             (today - timedelta(days=2), VolatilityRegime.ELEVATED),
         ]
 
-        signal, duration, prev = detect_regime_transition(
-            VolatilityRegime.HIGH, history
-        )
+        signal, duration, prev = detect_regime_transition(VolatilityRegime.HIGH, history)
 
         assert signal == "entering_high"
         assert duration == 2
@@ -165,14 +165,9 @@ class TestDetectRegimeTransition:
     def test_no_transition_in_stable_regime(self) -> None:
         """Should not signal transition in stable regime."""
         today = date.today()
-        history = [
-            (today - timedelta(days=i), VolatilityRegime.NORMAL)
-            for i in range(10)
-        ]
+        history = [(today - timedelta(days=i), VolatilityRegime.NORMAL) for i in range(10)]
 
-        signal, duration, prev = detect_regime_transition(
-            VolatilityRegime.NORMAL, history
-        )
+        signal, duration, prev = detect_regime_transition(VolatilityRegime.NORMAL, history)
 
         assert signal is None
         assert duration == 10
@@ -180,9 +175,7 @@ class TestDetectRegimeTransition:
 
     def test_empty_history(self) -> None:
         """Should handle empty history."""
-        signal, duration, prev = detect_regime_transition(
-            VolatilityRegime.NORMAL, []
-        )
+        signal, duration, prev = detect_regime_transition(VolatilityRegime.NORMAL, [])
 
         assert signal is None
         assert duration == 0
@@ -200,10 +193,12 @@ class TestAnalyzeVolatilityRegime:
         mock_storage.query.side_effect = [
             pl.DataFrame({"vix": [25.0]}),  # Current VIX
             pl.DataFrame({"vix": [20, 22, 18, 25, 30]}),  # Historical for percentile
-            pl.DataFrame({
-                "date": [today, today - timedelta(days=1)],
-                "vix": [25, 22],
-            }),  # History
+            pl.DataFrame(
+                {
+                    "date": [today, today - timedelta(days=1)],
+                    "vix": [25, 22],
+                }
+            ),  # History
         ]
 
         analysis = analyze_volatility_regime(mock_storage)

@@ -222,7 +222,9 @@ class TestCalculateCorrelation:
                 for i in range(1, 6)  # Only 5 days
             ],
             "run2": [
-                NormalizedEquityPoint(date=date(2024, 1, i), cumulative_return_pct=Decimal(str(i * 2)))
+                NormalizedEquityPoint(
+                    date=date(2024, 1, i), cumulative_return_pct=Decimal(str(i * 2))
+                )
                 for i in range(1, 6)
             ],
         }
@@ -233,6 +235,7 @@ class TestCalculateCorrelation:
         """Curves moving in same direction should have positive correlation."""
         # Create curves with varying daily returns but same general direction
         import random
+
         random.seed(42)  # For reproducibility
 
         # Generate returns with some variance but same direction
@@ -242,14 +245,16 @@ class TestCalculateCorrelation:
             "run1": [
                 NormalizedEquityPoint(
                     date=date(2024, 1, i + 1),
-                    cumulative_return_pct=Decimal(str(sum(base_returns[:i+1])))
+                    cumulative_return_pct=Decimal(str(sum(base_returns[: i + 1]))),
                 )
                 for i in range(20)
             ],
             "run2": [
                 NormalizedEquityPoint(
                     date=date(2024, 1, i + 1),
-                    cumulative_return_pct=Decimal(str(sum(base_returns[:i+1]) * 1.2))  # Same direction, scaled
+                    cumulative_return_pct=Decimal(
+                        str(sum(base_returns[: i + 1]) * 1.2)
+                    ),  # Same direction, scaled
                 )
                 for i in range(20)
             ],
