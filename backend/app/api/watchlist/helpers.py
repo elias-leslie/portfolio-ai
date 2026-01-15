@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 
+from fastapi import HTTPException
+
 from app.agents.multi_reviewer import DualReviewResult, ProviderReview
 from app.api.utils import require_nonempty_df
 from app.logging_config import get_logger
@@ -55,7 +57,6 @@ def _build_refresh_response(
     Returns:
         Tuple of (status_code, response_dict)
     """
-    from fastapi import HTTPException
 
     if failed_count == 0:
         # All success

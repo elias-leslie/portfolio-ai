@@ -20,16 +20,12 @@ from app.tasks.cleanup.temp_cleanup import (
 )
 
 __all__ = [
-    # Log cleanup
-    "rotate_logs_task",
-    "cleanup_old_logs_task",
-    # Temp cleanup
-    "cleanup_temp_files_task",
+    "check_disk_space_task",
     "cleanup_cache_directories_task",
-    # Artifact cleanup
     "cleanup_old_backups_task",
+    "cleanup_old_logs_task",
     "cleanup_old_models_task",
     "cleanup_solution_state_task",
-    # Disk monitoring
-    "check_disk_space_task",
+    "cleanup_temp_files_task",
+    "rotate_logs_task",
 ]

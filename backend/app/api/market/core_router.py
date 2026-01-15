@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Any
+from typing import Any, TypedDict, cast
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from app.api.market_data_sources import (
     fetch_sector_data_with_changes,
@@ -275,7 +275,6 @@ def _validate_and_build_options_activity(options_data_raw: Any) -> OptionsActivi
     Returns:
         OptionsActivityMetrics if data is valid, None otherwise
     """
-    from typing import TypedDict, cast
 
     class OptionsActivityData(TypedDict):
         """Return type for get_options_activity_metrics."""
@@ -362,7 +361,6 @@ async def get_prices(
     symbols: str = Query(..., description="Comma-separated symbols"),
 ) -> PricesResponse:
     """Get current prices for stock symbols."""
-    from fastapi import HTTPException
 
     # Parse symbols and filter empty strings
     symbol_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]

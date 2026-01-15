@@ -17,6 +17,15 @@ const eslintConfig = defineConfig([
     files: ["**/*.{js,jsx,ts,tsx}"],
     ignores: ["eslint.config.mjs", "*.config.{js,mjs,ts}"],
     rules: {
+      // Allow underscore-prefixed variables to be unused (convention for intentionally unused params)
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
       // Custom rule: Prevent hardcoded Tailwind color utilities
       "no-restricted-syntax": [
         "error",

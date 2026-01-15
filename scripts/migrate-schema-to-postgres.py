@@ -16,7 +16,6 @@ import sys
 from pathlib import Path
 
 import psycopg2
-from psycopg2 import sql
 from psycopg2.extensions import connection as PgConnection
 
 # Add backend to path for imports

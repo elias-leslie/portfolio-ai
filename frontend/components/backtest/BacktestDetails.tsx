@@ -20,7 +20,13 @@ import {
   SortingState,
 } from "@tanstack/react-table";
 import { formatDate } from "@/lib/utils";
-import { ArrowUpIcon, ArrowDownIcon, TrendingUp, Loader2, BarChart2 } from "lucide-react";
+import {
+  ArrowUpIcon,
+  ArrowDownIcon,
+  TrendingUp,
+  Loader2,
+  BarChart2,
+} from "lucide-react";
 
 import { SectionCard } from "@/components/shared/SectionCard";
 import {
@@ -42,7 +48,12 @@ import {
   useCompareBacktests,
   useMonteCarloSimulation,
 } from "@/lib/hooks/useBacktestUI";
-import type { BacktestTrade, BacktestComparisonResponse, RunMetrics, MonteCarloResponse } from "@/lib/api/backtest-ui";
+import type {
+  BacktestTrade,
+  BacktestComparisonResponse,
+  RunMetrics,
+  MonteCarloResponse,
+} from "@/lib/api/backtest-ui";
 import { TradeDistributionChart } from "./TradeDistributionChart";
 import { MonthlyReturnsHeatmap } from "./MonthlyReturnsHeatmap";
 import {
@@ -114,7 +125,11 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
               style={{ backgroundColor: entry.color || LINE_COLORS[index] }}
             />
             <span className="text-xs font-medium text-text">
-              {entry.name}: {typeof entry.value === "number" ? entry.value.toFixed(2) : entry.value}%
+              {entry.name}:{" "}
+              {typeof entry.value === "number"
+                ? entry.value.toFixed(2)
+                : entry.value}
+              %
             </span>
           </div>
         ))}
@@ -134,7 +149,12 @@ interface MetricCardProps {
   isPositive?: boolean;
 }
 
-function MetricCard({ label, value, format: formatType = "number", isPositive }: MetricCardProps) {
+function MetricCard({
+  label,
+  value,
+  format: formatType = "number",
+  isPositive,
+}: MetricCardProps) {
   if (value === null || value === undefined) {
     return (
       <Card className="p-4">
@@ -167,7 +187,9 @@ function MetricCard({ label, value, format: formatType = "number", isPositive }:
     <Card className="p-4">
       <div className="text-xs font-medium text-text-muted mb-2">{label}</div>
       <div className="flex items-center gap-2">
-        <div className={`${colorClass} text-lg font-bold`}>{formattedValue}</div>
+        <div className={`${colorClass} text-lg font-bold`}>
+          {formattedValue}
+        </div>
         {shouldDetermineColor && (
           <div className={colorClass}>
             {isGain ? (
@@ -192,25 +214,25 @@ export function BacktestDetails({
   comparisonRunIds,
 }: BacktestDetailsProps) {
   const [tradeSorting, setTradeSorting] = useState<SortingState>([]);
-  const [monteCarloData, setMonteCarloData] = useState<MonteCarloResponse | null>(null);
+  const [monteCarloData, setMonteCarloData] =
+    useState<MonteCarloResponse | null>(null);
 
   // Fetch single run data
-  const { data: runData, isLoading: runLoading } = useBacktestRun(
-    runId || "",
-    { enabled: !!runId && !comparisonMode }
-  );
+  const { data: runData, isLoading: runLoading } = useBacktestRun(runId || "", {
+    enabled: !!runId && !comparisonMode,
+  });
 
   // Fetch equity curve for single run
   const { data: equityData, isLoading: equityLoading } = useBacktestEquity(
     runId || "",
-    { enabled: !!runId && !comparisonMode }
+    { enabled: !!runId && !comparisonMode },
   );
 
   // Fetch comparison data
-  const { data: comparisonData, isLoading: comparisonLoading } = useCompareBacktests(
-    comparisonRunIds,
-    { enabled: comparisonMode && comparisonRunIds.length >= 2 }
-  );
+  const { data: comparisonData, isLoading: comparisonLoading } =
+    useCompareBacktests(comparisonRunIds, {
+      enabled: comparisonMode && comparisonRunIds.length >= 2,
+    });
 
   // Monte Carlo simulation mutation
   const monteCarloMutation = useMonteCarloSimulation(runId || "");
@@ -218,12 +240,16 @@ export function BacktestDetails({
   // Handle Monte Carlo run
   const handleRunMonteCarlo = async () => {
     setMonteCarloData(null);
-    const result = await monteCarloMutation.mutateAsync({ numSimulations: 1000 });
+    const result = await monteCarloMutation.mutateAsync({
+      numSimulations: 1000,
+    });
     setMonteCarloData(result);
   };
 
   // Determine loading state
-  const isLoading = comparisonMode ? comparisonLoading : runLoading || equityLoading;
+  const isLoading = comparisonMode
+    ? comparisonLoading
+    : runLoading || equityLoading;
 
   // Handle no selection
   if (!runId && !comparisonMode) {
@@ -262,7 +288,10 @@ export function BacktestDetails({
         </SectionCard>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-24 bg-surface-muted/60 rounded-lg animate-pulse" />
+            <div
+              key={i}
+              className="h-24 bg-surface-muted/60 rounded-lg animate-pulse"
+            />
           ))}
         </div>
       </div>
@@ -290,14 +319,21 @@ export function BacktestDetails({
               data={transformComparisonData(comparisonData)}
               margin={{ top: 5, right: 30, bottom: 5, left: 0 }}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="var(--color-border)"
+              />
               <XAxis
                 dataKey="date"
                 tick={{ fontSize: 12, fill: "var(--color-text-muted)" }}
               />
               <YAxis
                 tick={{ fontSize: 12, fill: "var(--color-text-muted)" }}
-                label={{ value: "Return %", angle: -90, position: "insideLeft" }}
+                label={{
+                  value: "Return %",
+                  angle: -90,
+                  position: "insideLeft",
+                }}
               />
               <Tooltip content={<CustomTooltip />} />
               <Legend />
@@ -334,38 +370,54 @@ export function BacktestDetails({
             description="Return correlation between strategies"
           >
             <div className="rounded-md border border-border bg-surface/40 overflow-x-auto p-4">
-              <div className="grid gap-2" style={{ gridTemplateColumns: `auto repeat(${Object.keys(comparisonData.correlationMatrix).length}, 1fr)` }}>
+              <div
+                className="grid gap-2"
+                style={{
+                  gridTemplateColumns: `auto repeat(${Object.keys(comparisonData.correlationMatrix).length}, 1fr)`,
+                }}
+              >
                 {/* Header row */}
                 <div className="font-medium text-text-muted"></div>
                 {Object.keys(comparisonData.correlationMatrix).map((runId) => (
-                  <div key={runId} className="text-center text-xs font-medium text-text-muted">
+                  <div
+                    key={runId}
+                    className="text-center text-xs font-medium text-text-muted"
+                  >
                     {symbolMap[runId] || runId.slice(0, 8)}
                   </div>
                 ))}
                 {/* Data rows */}
-                {Object.entries(comparisonData.correlationMatrix).map(([rowId, correlations]) => (
-                  <>
-                    <div key={`label-${rowId}`} className="text-xs font-medium text-text-muted">
-                      {symbolMap[rowId] || rowId.slice(0, 8)}
-                    </div>
-                    {Object.entries(correlations).map(([colId, corr]) => (
+                {Object.entries(comparisonData.correlationMatrix).map(
+                  ([rowId, correlations]) => (
+                    <>
                       <div
-                        key={`${rowId}-${colId}`}
-                        className={cn(
-                          "text-center text-xs font-medium rounded px-2 py-1",
-                          corr >= 0.7 ? "bg-loss/20 text-loss" :
-                          corr >= 0.4 ? "bg-warning/20 text-warning" :
-                          "bg-gain/20 text-gain"
-                        )}
+                        key={`label-${rowId}`}
+                        className="text-xs font-medium text-text-muted"
                       >
-                        {corr.toFixed(2)}
+                        {symbolMap[rowId] || rowId.slice(0, 8)}
                       </div>
-                    ))}
-                  </>
-                ))}
+                      {Object.entries(correlations).map(([colId, corr]) => (
+                        <div
+                          key={`${rowId}-${colId}`}
+                          className={cn(
+                            "text-center text-xs font-medium rounded px-2 py-1",
+                            corr >= 0.7
+                              ? "bg-loss/20 text-loss"
+                              : corr >= 0.4
+                                ? "bg-warning/20 text-warning"
+                                : "bg-gain/20 text-gain",
+                          )}
+                        >
+                          {corr.toFixed(2)}
+                        </div>
+                      ))}
+                    </>
+                  ),
+                )}
               </div>
               <p className="mt-4 text-xs text-text-muted">
-                Low correlation (&lt;0.4) = good diversification • High correlation (&gt;0.7) = similar strategies
+                Low correlation (&lt;0.4) = good diversification • High
+                correlation (&gt;0.7) = similar strategies
               </p>
             </div>
           </SectionCard>
@@ -396,10 +448,13 @@ export function BacktestDetails({
   const equity = equityData || [];
 
   // Transform equity data for chart - calculate cumulative return from equity
-  const initialEquity = equity.length > 0 ? parseFloat(String(equity[0].equity)) : 100000;
+  const initialEquity =
+    equity.length > 0 ? parseFloat(String(equity[0].equity)) : 100000;
   const chartData = equity.map((point) => ({
     date: point.date,
-    return: ((parseFloat(String(point.equity)) - initialEquity) / initialEquity) * 100,
+    return:
+      ((parseFloat(String(point.equity)) - initialEquity) / initialEquity) *
+      100,
   }));
 
   return (
@@ -410,8 +465,7 @@ export function BacktestDetails({
           <div>
             <h2 className="text-2xl font-bold text-text">{run.symbol}</h2>
             <p className="text-sm text-text-muted mt-1">
-              {formatDate(run.startDate)} →{" "}
-              {formatDate(run.endDate)}
+              {formatDate(run.startDate)} → {formatDate(run.endDate)}
             </p>
             {run.createdAt && (
               <p className="text-xs text-text-muted mt-0.5 opacity-70">
@@ -425,8 +479,8 @@ export function BacktestDetails({
                 run.status === "completed"
                   ? "secondary"
                   : run.status === "failed"
-                  ? "destructive"
-                  : "default"
+                    ? "destructive"
+                    : "default"
               }
             >
               {run.status}
@@ -436,7 +490,9 @@ export function BacktestDetails({
                 <div
                   className={cn(
                     "text-2xl font-bold",
-                    parseFloat(String(run.totalReturnPct)) >= 0 ? "text-gain" : "text-loss"
+                    parseFloat(String(run.totalReturnPct)) >= 0
+                      ? "text-gain"
+                      : "text-loss",
                   )}
                 >
                   {parseFloat(String(run.totalReturnPct)) >= 0 ? "+" : ""}
@@ -461,14 +517,21 @@ export function BacktestDetails({
               data={chartData}
               margin={{ top: 5, right: 30, bottom: 5, left: 0 }}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="var(--color-border)"
+              />
               <XAxis
                 dataKey="date"
                 tick={{ fontSize: 12, fill: "var(--color-text-muted)" }}
               />
               <YAxis
                 tick={{ fontSize: 12, fill: "var(--color-text-muted)" }}
-                label={{ value: "Return %", angle: -90, position: "insideLeft" }}
+                label={{
+                  value: "Return %",
+                  angle: -90,
+                  position: "insideLeft",
+                }}
               />
               <Tooltip content={<CustomTooltip />} />
               <Line
@@ -504,7 +567,11 @@ export function BacktestDetails({
         />
         <MetricCard
           label="Max Drawdown"
-          value={run.maxDrawdownPct ? -parseFloat(run.maxDrawdownPct.toString()) : null}
+          value={
+            run.maxDrawdownPct
+              ? -parseFloat(run.maxDrawdownPct.toString())
+              : null
+          }
           format="percent"
           isPositive={false}
         />
@@ -518,11 +585,17 @@ export function BacktestDetails({
       {/* Additional Stats */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Card className="p-4">
-          <div className="text-xs font-medium text-text-muted mb-2">Num Trades</div>
-          <div className="text-2xl font-bold text-text">{run.numTrades || 0}</div>
+          <div className="text-xs font-medium text-text-muted mb-2">
+            Num Trades
+          </div>
+          <div className="text-2xl font-bold text-text">
+            {run.numTrades || 0}
+          </div>
         </Card>
         <Card className="p-4">
-          <div className="text-xs font-medium text-text-muted mb-2">Initial Capital</div>
+          <div className="text-xs font-medium text-text-muted mb-2">
+            Initial Capital
+          </div>
           <div className="text-sm font-bold text-text">
             {new Intl.NumberFormat("en-US", {
               style: "currency",
@@ -532,7 +605,9 @@ export function BacktestDetails({
           </div>
         </Card>
         <Card className="p-4">
-          <div className="text-xs font-medium text-text-muted mb-2">Final Equity</div>
+          <div className="text-xs font-medium text-text-muted mb-2">
+            Final Equity
+          </div>
           <div className="text-sm font-bold text-text">
             {run.finalEquity
               ? new Intl.NumberFormat("en-US", {
@@ -544,8 +619,12 @@ export function BacktestDetails({
           </div>
         </Card>
         <Card className="p-4">
-          <div className="text-xs font-medium text-text-muted mb-2">Strategy</div>
-          <div className="text-sm font-bold text-text capitalize">{run.strategyName}</div>
+          <div className="text-xs font-medium text-text-muted mb-2">
+            Strategy
+          </div>
+          <div className="text-sm font-bold text-text capitalize">
+            {run.strategyName}
+          </div>
         </Card>
       </div>
 
@@ -553,7 +632,9 @@ export function BacktestDetails({
       {trades.length > 0 && (
         <TradeDistributionChart
           trades={trades}
-          profitFactor={run.profitFactor ? parseFloat(String(run.profitFactor)) : null}
+          profitFactor={
+            run.profitFactor ? parseFloat(String(run.profitFactor)) : null
+          }
         />
       )}
 
@@ -567,7 +648,11 @@ export function BacktestDetails({
           title="Trade History"
           description={`${trades.length} trades executed`}
         >
-          <TradesTable trades={trades} sorting={tradeSorting} onSortingChange={setTradeSorting} />
+          <TradesTable
+            trades={trades}
+            sorting={tradeSorting}
+            onSortingChange={setTradeSorting}
+          />
         </SectionCard>
       )}
 
@@ -595,7 +680,8 @@ export function BacktestDetails({
             <div className="flex flex-col items-center justify-center py-8">
               <BarChart2 className="h-12 w-12 text-text-muted/50 mb-4" />
               <p className="text-sm text-text-muted mb-4">
-                Run 1,000 simulations to estimate probability distribution of returns
+                Run 1,000 simulations to estimate probability distribution of
+                returns
               </p>
               <Button onClick={handleRunMonteCarlo} variant="outline">
                 <BarChart2 className="mr-2 h-4 w-4" />
@@ -644,7 +730,8 @@ function TradesTable({ trades, sorting, onSortingChange }: TradesTableProps) {
     {
       accessorKey: "entry_date",
       header: "Entry Date",
-      cell: ({ row }) => formatDate(row.original.entryDate as unknown as string),
+      cell: ({ row }) =>
+        formatDate(row.original.entryDate as unknown as string),
     },
     {
       accessorKey: "entry_price",
@@ -672,7 +759,11 @@ function TradesTable({ trades, sorting, onSortingChange }: TradesTableProps) {
       cell: ({ row }) => {
         const pnl = parseToNumber(row.original.pnlPct);
         return pnl !== null ? (
-          <span className={pnl >= 0 ? "text-gain font-medium" : "text-loss font-medium"}>
+          <span
+            className={
+              pnl >= 0 ? "text-gain font-medium" : "text-loss font-medium"
+            }
+          >
             {formatPercentValue(pnl)}
           </span>
         ) : (
@@ -695,6 +786,7 @@ function TradesTable({ trades, sorting, onSortingChange }: TradesTableProps) {
     },
   ];
 
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is a known React Compiler limitation
   const table = useReactTable({
     data: trades,
     columns,
@@ -722,7 +814,10 @@ function TradesTable({ trades, sorting, onSortingChange }: TradesTableProps) {
                 <TableHead key={header.id}>
                   {header.isPlaceholder
                     ? null
-                    : flexRender(header.column.columnDef.header, header.getContext())}
+                    : flexRender(
+                        header.column.columnDef.header,
+                        header.getContext(),
+                      )}
                 </TableHead>
               ))}
             </TableRow>
@@ -763,26 +858,30 @@ function TradesTable({ trades, sorting, onSortingChange }: TradesTableProps) {
  * Converts multiple runs' equity curves into a single chart dataset
  */
 function transformComparisonData(
-  comparisonData: BacktestComparisonResponse
+  comparisonData: BacktestComparisonResponse,
 ): ChartDataPoint[] {
   const dateMap = new Map<string, ChartDataPoint>();
 
   // Iterate through each run's equity curve
-  Object.entries(comparisonData.equityCurves).forEach(([runId, equityPoints]) => {
-    equityPoints.forEach((point) => {
-      const dateStr = point.date;
-      if (!dateMap.has(dateStr)) {
-        dateMap.set(dateStr, { date: dateStr });
-      }
+  Object.entries(comparisonData.equityCurves).forEach(
+    ([runId, equityPoints]) => {
+      equityPoints.forEach((point) => {
+        const dateStr = point.date;
+        if (!dateMap.has(dateStr)) {
+          dateMap.set(dateStr, { date: dateStr });
+        }
 
-      const chartPoint = dateMap.get(dateStr)!;
-      chartPoint[`return_${runId}`] = parseFloat(point.cumulativeReturnPct.toString());
-    });
-  });
+        const chartPoint = dateMap.get(dateStr)!;
+        chartPoint[`return_${runId}`] = parseFloat(
+          point.cumulativeReturnPct.toString(),
+        );
+      });
+    },
+  );
 
   // Convert map to sorted array
   return Array.from(dateMap.values()).sort(
-    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
   );
 }
 
@@ -799,7 +898,10 @@ function RankBadge({ rank }: { rank: number | null }) {
   };
 
   return (
-    <Badge variant={variants[rank] || "outline"} className="text-xs font-medium">
+    <Badge
+      variant={variants[rank] || "outline"}
+      className="text-xs font-medium"
+    >
       #{rank}
     </Badge>
   );
@@ -829,17 +931,29 @@ function MetricsComparisonTable({ metrics }: { metrics: RunMetrics[] }) {
           {metrics.map((m) => (
             <TableRow key={m.runId}>
               <TableCell className="font-medium">{m.symbol}</TableCell>
-              <TableCell className={cn(
-                parseFloat(m.totalReturnPct || "0") >= 0 ? "text-gain" : "text-loss",
-                "font-medium"
-              )}>
+              <TableCell
+                className={cn(
+                  parseFloat(m.totalReturnPct || "0") >= 0
+                    ? "text-gain"
+                    : "text-loss",
+                  "font-medium",
+                )}
+              >
                 {formatPercentValue(m.totalReturnPct)}
               </TableCell>
-              <TableCell><RankBadge rank={m.returnRank} /></TableCell>
+              <TableCell>
+                <RankBadge rank={m.returnRank} />
+              </TableCell>
               <TableCell>{formatNumber(m.sharpeRatio)}</TableCell>
-              <TableCell><RankBadge rank={m.sharpeRank} /></TableCell>
-              <TableCell className="text-loss">{formatPercentValue(m.maxDrawdownPct)}</TableCell>
-              <TableCell><RankBadge rank={m.drawdownRank} /></TableCell>
+              <TableCell>
+                <RankBadge rank={m.sharpeRank} />
+              </TableCell>
+              <TableCell className="text-loss">
+                {formatPercentValue(m.maxDrawdownPct)}
+              </TableCell>
+              <TableCell>
+                <RankBadge rank={m.drawdownRank} />
+              </TableCell>
               <TableCell>{formatPercentValue(m.winRate)}</TableCell>
               <TableCell>{m.numTrades ?? "—"}</TableCell>
             </TableRow>
@@ -861,38 +975,56 @@ function MonteCarloResults({ data }: { data: MonteCarloResponse }) {
       {/* Key Statistics Cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <Card className="p-4">
-          <div className="text-xs font-medium text-text-muted mb-2">Median Return</div>
-          <div className={cn(
-            "text-lg font-bold",
-            stats.percentile50 >= 0 ? "text-gain" : "text-loss"
-          )}>
-            {stats.percentile50 >= 0 ? "+" : ""}{stats.percentile50.toFixed(2)}%
+          <div className="text-xs font-medium text-text-muted mb-2">
+            Median Return
+          </div>
+          <div
+            className={cn(
+              "text-lg font-bold",
+              stats.percentile50 >= 0 ? "text-gain" : "text-loss",
+            )}
+          >
+            {stats.percentile50 >= 0 ? "+" : ""}
+            {stats.percentile50.toFixed(2)}%
           </div>
         </Card>
         <Card className="p-4">
-          <div className="text-xs font-medium text-text-muted mb-2">95% Confidence</div>
+          <div className="text-xs font-medium text-text-muted mb-2">
+            95% Confidence
+          </div>
           <div className="text-sm font-medium text-text">
             {stats.percentile5.toFixed(1)}% to {stats.percentile95.toFixed(1)}%
           </div>
         </Card>
         <Card className="p-4">
-          <div className="text-xs font-medium text-text-muted mb-2">Prob. of Loss</div>
-          <div className={cn(
-            "text-lg font-bold",
-            stats.probabilityOfLoss <= 20 ? "text-gain" :
-            stats.probabilityOfLoss <= 40 ? "text-warning" : "text-loss"
-          )}>
+          <div className="text-xs font-medium text-text-muted mb-2">
+            Prob. of Loss
+          </div>
+          <div
+            className={cn(
+              "text-lg font-bold",
+              stats.probabilityOfLoss <= 20
+                ? "text-gain"
+                : stats.probabilityOfLoss <= 40
+                  ? "text-warning"
+                  : "text-loss",
+            )}
+          >
             {stats.probabilityOfLoss.toFixed(1)}%
           </div>
         </Card>
         <Card className="p-4">
-          <div className="text-xs font-medium text-text-muted mb-2">Value at Risk (95%)</div>
+          <div className="text-xs font-medium text-text-muted mb-2">
+            Value at Risk (95%)
+          </div>
           <div className="text-lg font-bold text-loss">
             {stats.valueAtRisk95.toFixed(2)}%
           </div>
         </Card>
         <Card className="p-4">
-          <div className="text-xs font-medium text-text-muted mb-2">Expected Shortfall</div>
+          <div className="text-xs font-medium text-text-muted mb-2">
+            Expected Shortfall
+          </div>
           <div className="text-lg font-bold text-loss">
             {stats.expectedShortfall.toFixed(2)}%
           </div>
@@ -902,34 +1034,53 @@ function MonteCarloResults({ data }: { data: MonteCarloResponse }) {
       {/* Distribution Statistics */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Card className="p-4">
-          <div className="text-xs font-medium text-text-muted mb-2">Mean Return</div>
+          <div className="text-xs font-medium text-text-muted mb-2">
+            Mean Return
+          </div>
           <div className="text-sm font-bold text-text">
-            {stats.meanReturn >= 0 ? "+" : ""}{stats.meanReturn.toFixed(2)}%
+            {stats.meanReturn >= 0 ? "+" : ""}
+            {stats.meanReturn.toFixed(2)}%
           </div>
         </Card>
         <Card className="p-4">
-          <div className="text-xs font-medium text-text-muted mb-2">Std Deviation</div>
-          <div className="text-sm font-bold text-text">{stats.stdDev.toFixed(2)}%</div>
+          <div className="text-xs font-medium text-text-muted mb-2">
+            Std Deviation
+          </div>
+          <div className="text-sm font-bold text-text">
+            {stats.stdDev.toFixed(2)}%
+          </div>
         </Card>
         <Card className="p-4">
-          <div className="text-xs font-medium text-text-muted mb-2">Skewness</div>
-          <div className="text-sm font-bold text-text">{stats.skewness.toFixed(2)}</div>
+          <div className="text-xs font-medium text-text-muted mb-2">
+            Skewness
+          </div>
+          <div className="text-sm font-bold text-text">
+            {stats.skewness.toFixed(2)}
+          </div>
         </Card>
         <Card className="p-4">
-          <div className="text-xs font-medium text-text-muted mb-2">Kurtosis</div>
-          <div className="text-sm font-bold text-text">{stats.kurtosis.toFixed(2)}</div>
+          <div className="text-xs font-medium text-text-muted mb-2">
+            Kurtosis
+          </div>
+          <div className="text-sm font-bold text-text">
+            {stats.kurtosis.toFixed(2)}
+          </div>
         </Card>
       </div>
 
       {/* Comparison with Original */}
       <div className="rounded-lg border border-border bg-surface/40 p-4">
         <p className="text-sm text-text-muted">
-          Based on {stats.numSimulations.toLocaleString()} simulations of resampled trades.
-          Original backtest return: <span className={cn(
-            "font-medium",
-            stats.originalReturn >= 0 ? "text-gain" : "text-loss"
-          )}>
-            {stats.originalReturn >= 0 ? "+" : ""}{stats.originalReturn.toFixed(2)}%
+          Based on {stats.numSimulations.toLocaleString()} simulations of
+          resampled trades. Original backtest return:{" "}
+          <span
+            className={cn(
+              "font-medium",
+              stats.originalReturn >= 0 ? "text-gain" : "text-loss",
+            )}
+          >
+            {stats.originalReturn >= 0 ? "+" : ""}
+            {stats.originalReturn.toFixed(2)}%
           </span>
         </p>
       </div>

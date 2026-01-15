@@ -1,32 +1,35 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { Diamond, Star, MessageSquare } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Diamond, Star, MessageSquare } from "lucide-react";
 // Note: We use a custom side panel instead of Sheet to allow non-overlay behavior (FEAT-220)
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import { SettingsModal } from './SettingsModal';
-import { StatusModal } from './StatusModal';
-import { AgentProvider, RoundtableOrder } from './AgentSelector';
-import { AgentMode } from './ModeSelector';
-import { TokenSummaryCards } from './TokenSummaryCards';
-import { EvidenceCaptureModal } from './EvidenceCaptureModal';
-import { ProviderBadge } from './ProviderBadge';
-import { AgentPanelHeader } from './AgentPanelHeader';
-import { SessionsPanel } from './SessionsPanel';
-import { ChatInput } from './ChatInput';
-import { MessageBubble, ContentBlockView } from './MessageBubble';
-import { EvidenceMessageBubble } from './EvidenceMessageBubble';
-import { PermissionRequestPanel } from './PermissionRequestPanel';
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { SettingsModal } from "./SettingsModal";
+import { StatusModal } from "./StatusModal";
+import { AgentProvider, RoundtableOrder } from "./AgentSelector";
+import { AgentMode } from "./ModeSelector";
+import { TokenSummaryCards } from "./TokenSummaryCards";
+import { EvidenceCaptureModal } from "./EvidenceCaptureModal";
+import { AgentPanelHeader } from "./AgentPanelHeader";
+import { SessionsPanel } from "./SessionsPanel";
+import { ChatInput } from "./ChatInput";
+import { MessageBubble, ContentBlockView } from "./MessageBubble";
+import { EvidenceMessageBubble } from "./EvidenceMessageBubble";
+import { PermissionRequestPanel } from "./PermissionRequestPanel";
 import {
   type ContentBlock,
   type PermissionRequest,
   type EvidenceData,
   type ChatMessage,
-} from './wsHandlers';
-import { useWebSocketConnection, useSessionManagement, useAgentPanelUI } from './hooks';
-import { getServerUrl, getWsUrl } from '@/lib/server-url';
-import { SUMMITFLOW_API } from './constants';
+} from "./wsHandlers";
+import {
+  useWebSocketConnection,
+  useSessionManagement,
+  useAgentPanelUI,
+} from "./hooks";
+import { getServerUrl, getWsUrl } from "@/lib/server-url";
+import { SUMMITFLOW_API } from "./constants";
 
 // AgentRole is now handled by ModeSelector
 
@@ -41,7 +44,12 @@ interface AgentPanelProps {
   standalone?: boolean;
 }
 
-export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, standalone = false }: AgentPanelProps) {
+export function AgentPanel({
+  open,
+  onOpenChange: _onOpenChange,
+  pageContext,
+  standalone = false,
+}: AgentPanelProps) {
   // Note: _onOpenChange is received from callers but not used internally yet
   void _onOpenChange;
 
@@ -56,17 +64,21 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
 
   // Chat state
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [currentResponse, setCurrentResponse] = useState<ContentBlock[]>([]);
-  const [pendingPermission, setPendingPermission] = useState<PermissionRequest | null>(null);
+  const [pendingPermission, setPendingPermission] =
+    useState<PermissionRequest | null>(null);
 
   // FEAT-223: Agent and mode selectors
-  const [agentProvider, setAgentProvider] = useState<AgentProvider>('claude');
-  const [agentMode, setAgentMode] = useState<AgentMode>('dev');
-  const [roundtableOrder, setRoundtableOrder] = useState<RoundtableOrder>('claude-first');
+  const [agentProvider, setAgentProvider] = useState<AgentProvider>("claude");
+  const [agentMode, setAgentMode] = useState<AgentMode>("dev");
+  const [roundtableOrder, setRoundtableOrder] =
+    useState<RoundtableOrder>("claude-first");
   const [maxTurns, setMaxTurns] = useState<number>(10);
-  const [currentRespondingAgent, setCurrentRespondingAgent] = useState<'claude' | 'gemini' | null>(null);
+  const [currentRespondingAgent, setCurrentRespondingAgent] = useState<
+    "claude" | "gemini" | null
+  >(null);
 
   // UI state - extracted to hook for reusability
   const {
@@ -118,7 +130,7 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
 
   // Scroll to bottom
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, currentResponse]);
 
   // WebSocket connection hook
@@ -143,12 +155,13 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
   // Build evidence context from recent captures (last 5)
   const buildEvidenceContext = useCallback(() => {
     const evidenceMessages = messages
-      .filter((msg): msg is ChatMessage & { evidence: EvidenceData } =>
-        msg.role === 'evidence' && !!msg.evidence
+      .filter(
+        (msg): msg is ChatMessage & { evidence: EvidenceData } =>
+          msg.role === "evidence" && !!msg.evidence,
       )
       .slice(-5); // Last 5 evidence captures
 
-    if (evidenceMessages.length === 0) return '';
+    if (evidenceMessages.length === 0) return "";
 
     const evidenceLines = evidenceMessages.map((msg) => {
       const e = msg.evidence;
@@ -156,26 +169,26 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
       return `[Evidence: ${e.featureId}/${e.criterionId} v${e.version} - ${e.consoleErrors} console errors, ${e.networkFailures} network failures - screenshot: ${screenshotUrl}]`;
     });
 
-    return `\n--- Available Evidence ---\n${evidenceLines.join('\n')}\n---\n\n`;
+    return `\n--- Available Evidence ---\n${evidenceLines.join("\n")}\n---\n\n`;
   }, [messages]);
 
   // Send message
   const sendMessage = () => {
-    console.log('sendMessage called:', {
+    console.log("sendMessage called:", {
       hasInput: !!input.trim(),
       hasWs: !!wsRef.current,
       wsState: wsRef.current?.readyState,
       isLoading,
       isConnected,
-      agentProvider
+      agentProvider,
     });
     if (!input.trim() || !wsRef.current || isLoading) return;
 
     const message = input.trim();
 
     // Inject page context if in financial mode
-    let contextPrefix = '';
-    if (agentMode === 'financial' && pageContext) {
+    let contextPrefix = "";
+    if (agentMode === "financial" && pageContext) {
       contextPrefix = `[Page: ${pageContext.path}]\n`;
       if (pageContext.data) {
         contextPrefix += `[Context: ${JSON.stringify(pageContext.data)}]\n\n`;
@@ -185,28 +198,30 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
     // Inject evidence context if any captures exist in the conversation
     const evidenceContext = buildEvidenceContext();
 
-    setInput('');
+    setInput("");
     setIsLoading(true);
 
-    setMessages(prev => [
+    setMessages((prev) => [
       ...prev,
       {
-        role: 'user',
+        role: "user",
         content: message,
         timestamp: new Date(),
       },
     ]);
 
-    wsRef.current.send(JSON.stringify({
-      type: 'message',
-      content: contextPrefix + evidenceContext + message,
-    }));
+    wsRef.current.send(
+      JSON.stringify({
+        type: "message",
+        content: contextPrefix + evidenceContext + message,
+      }),
+    );
   };
 
   // Stop response
   const stopResponse = () => {
     if (!wsRef.current || !isLoading) return;
-    wsRef.current.send(JSON.stringify({ type: 'interrupt' }));
+    wsRef.current.send(JSON.stringify({ type: "interrupt" }));
     setIsLoading(false);
     setPendingPermission(null);
   };
@@ -215,16 +230,18 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
   const handlePermissionResponse = (allowed: boolean) => {
     if (!wsRef.current || !pendingPermission) return;
 
-    wsRef.current.send(JSON.stringify({
-      type: 'permission_response',
-      allowed,
-    }));
+    wsRef.current.send(
+      JSON.stringify({
+        type: "permission_response",
+        allowed,
+      }),
+    );
 
-    setMessages(prev => [
+    setMessages((prev) => [
       ...prev,
       {
-        role: 'system',
-        content: `Permission ${allowed ? 'ALLOWED' : 'DENIED'} for: ${pendingPermission.toolName}`,
+        role: "system",
+        content: `Permission ${allowed ? "ALLOWED" : "DENIED"} for: ${pendingPermission.toolName}`,
         timestamp: new Date(),
       },
     ]);
@@ -234,19 +251,20 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
 
   // Key press handler
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
     }
   };
 
   // Don't render anything if closed (unless standalone mode - always render)
-  if (!open && !standalone) return (
-    <>
-      <SettingsModal open={showSettings} onOpenChange={setShowSettings} />
-      <StatusModal open={showStatus} onOpenChange={setShowStatus} />
-    </>
-  );
+  if (!open && !standalone)
+    return (
+      <>
+        <SettingsModal open={showSettings} onOpenChange={setShowSettings} />
+        <StatusModal open={showStatus} onOpenChange={setShowStatus} />
+      </>
+    );
 
   // Standalone mode: full-page content for popup window
   // Panel mode: fixed side panel attached to right
@@ -255,7 +273,7 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
     : cn(
         "fixed top-16 right-0 z-40 h-[calc(100vh-4rem)] w-[500px] flex flex-col bg-bg text-text border-l border-border shadow-2xl",
         "transition-transform duration-300 ease-in-out",
-        open ? "translate-x-0" : "translate-x-full"
+        open ? "translate-x-0" : "translate-x-full",
       );
 
   return (
@@ -277,10 +295,7 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
         />
 
         {/* Token Summary Cards - Toggleable */}
-        {showTokenSummary && (
-          <TokenSummaryCards serverUrl={serverUrl || ''} />
-        )}
-
+        {showTokenSummary && <TokenSummaryCards serverUrl={serverUrl || ""} />}
 
         {/* Sessions Panel (unified: create/delete + history) */}
         {showSessions && (
@@ -319,21 +334,26 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 font-mono text-sm">
-          {messages.map((msg, i) => (
-            msg.role === 'evidence' && msg.evidence ? (
+          {messages.map((msg, i) =>
+            msg.role === "evidence" && msg.evidence ? (
               <EvidenceMessageBubble
                 key={i}
                 message={msg}
                 onViewEvidence={() => {
                   // Open SummitFlow evidence viewer
-                  const baseUrl = process.env.NEXT_PUBLIC_SUMMITFLOW_URL || 'https://dev.summitflow.dev';
-                  window.open(`${baseUrl}/projects/portfolio-ai?tab=evidence`, '_blank');
+                  const baseUrl =
+                    process.env.NEXT_PUBLIC_SUMMITFLOW_URL ||
+                    "https://dev.summitflow.dev";
+                  window.open(
+                    `${baseUrl}/projects/portfolio-ai?tab=evidence`,
+                    "_blank",
+                  );
                 }}
               />
             ) : (
               <MessageBubble key={i} message={msg} />
-            )
-          ))}
+            ),
+          )}
 
           {currentResponse.length > 0 && (
             <div className="text-text">
@@ -341,11 +361,15 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
               {currentRespondingAgent && (
                 <span
                   className="inline-block mb-1 mr-1"
-                  title={currentRespondingAgent === 'claude' ? 'Claude' : 'Gemini'}
+                  title={
+                    currentRespondingAgent === "claude" ? "Claude" : "Gemini"
+                  }
                 >
-                  {currentRespondingAgent === 'claude'
-                    ? <Diamond className="h-4 w-4 text-primary inline" />
-                    : <Star className="h-4 w-4 text-gain inline" />}
+                  {currentRespondingAgent === "claude" ? (
+                    <Diamond className="h-4 w-4 text-primary inline" />
+                  ) : (
+                    <Star className="h-4 w-4 text-gain inline" />
+                  )}
                 </span>
               )}
               {currentResponse.map((block, i) => (
@@ -397,11 +421,15 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
       <EvidenceCaptureModal
         open={showEvidenceCapture}
         onClose={() => setShowEvidenceCapture(false)}
-        pageUrl={pageContext?.path ? `${typeof window !== 'undefined' ? window.location.origin : ''}${pageContext.path}` : ''}
+        pageUrl={
+          pageContext?.path
+            ? `${typeof window !== "undefined" ? window.location.origin : ""}${pageContext.path}`
+            : ""
+        }
         onCaptured={(result) => {
           // Create evidence message
           const evidenceMsg: ChatMessage = {
-            role: 'evidence',
+            role: "evidence",
             content: `Evidence captured for ${result.featureId}`,
             timestamp: new Date(),
             evidence: {
@@ -410,7 +438,7 @@ export function AgentPanel({ open, onOpenChange: _onOpenChange, pageContext, sta
               version: result.version,
               consoleErrors: result.evidence?.console?.errorCount ?? 0,
               networkFailures: result.evidence?.network?.failedRequests ?? 0,
-              url: result.evidence?.metadata?.url ?? '',
+              url: result.evidence?.metadata?.url ?? "",
             },
           };
 

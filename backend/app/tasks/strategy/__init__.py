@@ -19,14 +19,11 @@ from app.tasks.strategy.performance_tasks import (
 )
 
 __all__ = [
-    # Performance tasks
-    "evaluate_strategy_performance",
     "auto_promote_strategies",
-    # Generation tasks
-    "weekly_strategy_generation",
     "daily_strategy_refresh",
+    "evaluate_strategy_performance",
     "trigger_strategies_for_top_watchlist",
     "trigger_strategy_from_seed",
-    # Evolution tasks
     "weekly_strategy_evolution",
+    "weekly_strategy_generation",
 ]

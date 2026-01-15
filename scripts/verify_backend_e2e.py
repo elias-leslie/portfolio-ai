@@ -1,7 +1,6 @@
 import os
 import sys
 import uuid
-import time
 from datetime import date, timedelta
 
 # Add backend to path
@@ -80,7 +79,7 @@ def verify_backend_e2e():
     )
 
     if bt_result["status"] == "completed":
-        print(f"✅ Backtest completed successfully.")
+        print("✅ Backtest completed successfully.")
         print(f"Sharpe: {bt_result.get('sharpe_ratio')}")
         print(f"Return: {bt_result.get('total_return_pct')}%")
     else:

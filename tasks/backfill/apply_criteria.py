@@ -82,7 +82,7 @@ def main():
         else:
             errors += 1
 
-    print(f"\nSummary:")
+    print("\nSummary:")
     print(f"  Updated: {updated}")
     print(f"  Skipped: {skipped}")
     print(f"  Errors: {errors}")

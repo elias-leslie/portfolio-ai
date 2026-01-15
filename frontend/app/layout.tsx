@@ -6,6 +6,7 @@ import { Providers } from "./providers";
 import { Toaster } from "sonner";
 import { Navigation } from "@/components/Navigation";
 import { cn } from "@/lib/utils";
+import { VoiceOverlay } from "@agent-hub/passport-client";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -40,6 +41,7 @@ export default function RootLayout({
           <Navigation />
           <main className="flex-1 overflow-auto">{children}</main>
           <Toaster position="top-right" richColors />
+          <VoiceOverlay wsUrl="wss://agentapi.summitflow.dev/api/voice/ws?user_id=portfolio_user&app=portfolio" />
         </Providers>
       </body>
     </html>

@@ -1,6 +1,5 @@
 import os
 import sys
-from decimal import Decimal
 
 # Add backend to path
 sys.path.append(os.path.join(os.getcwd(), "backend"))

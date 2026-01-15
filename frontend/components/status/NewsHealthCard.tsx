@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { Newspaper, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,10 @@ interface NewsHealthCardProps {
   newsHealth: NewsHealthResponse | null;
   newsHealthLoading: boolean;
   newsHealthError: Error | null;
-  finbertStatus: { label: string; variant: "default" | "destructive" | "secondary" };
+  finbertStatus: {
+    label: string;
+    variant: "default" | "destructive" | "secondary";
+  };
   onRefresh: () => void;
 }
 
@@ -26,10 +30,16 @@ export function NewsHealthCard({
   const formatDateTime = (value?: string | null) =>
     value ? new Date(value).toLocaleString() : "—";
 
-  // Calculate derived values
-  const lookbackHours = newsHealth
-    ? Math.round((Date.now() - new Date(newsHealth.marketLastRefreshedAt || 0).getTime()) / 3600000)
-    : 24;
+  // Calculate derived values - memoized to avoid impure render
+  const lookbackHours = useMemo(() => {
+    if (!newsHealth) return 24;
+    // eslint-disable-next-line react-hooks/purity -- Date.now() is intentionally used for display-only age calculation
+    const now = Date.now();
+    return Math.round(
+      (now - new Date(newsHealth.marketLastRefreshedAt || 0).getTime()) /
+        3600000,
+    );
+  }, [newsHealth]);
 
   const fallbackRatePercent =
     newsHealth && newsHealth.headlines24H > 0
@@ -52,7 +62,8 @@ export function NewsHealthCard({
       return "Waiting for news telemetry";
     }
     const fallbackCount = newsHealth.fallbackHeadlines24H ?? 0;
-    const fallbackSummary = fallbackCount > 0 ? `${fallbackCount} fallback` : "No fallback";
+    const fallbackSummary =
+      fallbackCount > 0 ? `${fallbackCount} fallback` : "No fallback";
     return `${newsHealth.headlines24H ?? 0} headlines • ${fallbackSummary} • ${finbertStatus.label}`;
   })();
 

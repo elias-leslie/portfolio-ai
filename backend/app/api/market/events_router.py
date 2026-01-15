@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Any, Final, cast, get_args
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from app.logging_config import get_logger
 from app.middleware.cache import cache_response
@@ -47,7 +47,6 @@ def _validate_event_type(event_type: str) -> MarketEventType:
     Raises:
         HTTPException: If event_type is not in VALID_EVENT_TYPES
     """
-    from fastapi import HTTPException
 
     if event_type not in VALID_EVENT_TYPES:
         raise HTTPException(
@@ -211,7 +210,6 @@ async def update_market_event(
     Returns:
         Updated event or 404 if not found
     """
-    from fastapi import HTTPException
 
     update = MarketEventUpdate(
         actual_value=actual_value,

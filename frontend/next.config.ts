@@ -1,6 +1,18 @@
+import path from "path";
+import { fileURLToPath } from "url";
 import type { NextConfig } from "next";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 const nextConfig: NextConfig = {
+  transpilePackages: ["@agent-hub/passport-client"],
+  webpack: (config) => {
+    config.resolve.alias["@agent-hub/passport-client"] = path.resolve(
+      __dirname,
+      "../../agent-hub/packages/passport-client/src/index.ts",
+    );
+    return config;
+  },
   // Don't redirect trailing slashes - let FastAPI middleware normalize them
   skipTrailingSlashRedirect: true,
   async rewrites() {

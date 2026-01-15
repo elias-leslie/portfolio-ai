@@ -1,6 +1,5 @@
 """FastAPI server with WebSocket support for Dev Companion."""
 
-import asyncio
 import json
 import logging
 import os

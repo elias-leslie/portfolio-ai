@@ -48,7 +48,7 @@ def main():
     failures = [r for r in results if "FAILED" in r[2]]
     avg_latency = sum(r[1] for r in successes) / len(successes) if successes else 0
 
-    print(f"\nResults:")
+    print("\nResults:")
     print(f"  Total connections: {num_connections}")
     print(f"  Successful: {len(successes)}")
     print(f"  Failed: {len(failures)}")
@@ -56,19 +56,19 @@ def main():
     print(f"  Avg latency: {avg_latency*1000:.1f}ms")
 
     if failures:
-        print(f"\n⚠️  Failures detected:")
+        print("\n⚠️  Failures detected:")
         for conn_id, dur, msg in failures[:5]:  # Show first 5
             print(f"  Connection {conn_id}: {msg}")
 
     # Success criteria
     if len(successes) >= num_connections:
-        print(f"\n✅ PASS: All connections succeeded")
+        print("\n✅ PASS: All connections succeeded")
         return 0
     elif len(successes) >= num_connections * 0.9:
-        print(f"\n⚠️  PARTIAL: 90%+ succeeded, check for timeouts")
+        print("\n⚠️  PARTIAL: 90%+ succeeded, check for timeouts")
         return 1
     else:
-        print(f"\n❌ FAIL: <90% success rate")
+        print("\n❌ FAIL: <90% success rate")
         return 2
 
 

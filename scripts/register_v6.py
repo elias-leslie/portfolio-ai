@@ -1,8 +1,6 @@
 
 import sys
-import os
 import json
-from pathlib import Path
 
 # Add backend to path
 sys.path.append('/home/kasadis/portfolio-ai/backend')
