@@ -17,7 +17,7 @@ interface WatchlistCardProps {
 
 // Get score badge variant based on score value
 const getScoreBadgeVariant = (
-  score: number
+  score: number,
 ): "viz-0" | "viz-1" | "viz-2" | "viz-3" | "viz-4" | "viz-5" => {
   if (score >= 80) return "viz-5";
   if (score >= 60) return "viz-4";
@@ -80,6 +80,7 @@ export function WatchlistCard({
         </div>
         <div className="flex items-center gap-1">
           <Button
+            data-testid="watchlist-card-expand"
             variant="ghost"
             size="sm"
             onClick={() => setIsExpanded(!isExpanded)}
@@ -122,7 +123,10 @@ export function WatchlistCard({
           <p className="mb-1 text-xs text-text-muted">Price</p>
           {hasScore ? (
             <div className="flex flex-col gap-0.5">
-              <Badge variant={getScoreBadgeVariant(priceScore)} className="text-sm">
+              <Badge
+                variant={getScoreBadgeVariant(priceScore)}
+                className="text-sm"
+              >
                 {priceScore.toFixed(1)}
               </Badge>
               {priceStale && (
@@ -137,7 +141,10 @@ export function WatchlistCard({
           <p className="mb-1 text-xs text-text-muted">Technical</p>
           {hasScore ? (
             <div className="flex flex-col gap-0.5">
-              <Badge variant={getScoreBadgeVariant(techScore)} className="text-sm">
+              <Badge
+                variant={getScoreBadgeVariant(techScore)}
+                className="text-sm"
+              >
                 {techScore.toFixed(1)}
               </Badge>
               {techStale && (

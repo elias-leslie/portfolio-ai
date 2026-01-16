@@ -51,7 +51,9 @@ export function AddSymbolModal({
    * Validate a single symbol
    */
   const isValidSymbol = (symbol: string): boolean => {
-    return symbol.length >= 1 && symbol.length <= 10 && /^[A-Z0-9.-]+$/.test(symbol);
+    return (
+      symbol.length >= 1 && symbol.length <= 10 && /^[A-Z0-9.-]+$/.test(symbol)
+    );
   };
 
   /**
@@ -67,8 +69,10 @@ export function AddSymbolModal({
   const { symbols, valid, invalid } = getParsedSymbols();
   const isAtLimit = currentCount >= MAX_SYMBOLS;
   const willExceedLimit = currentCount + valid.length > MAX_SYMBOLS;
-  const showWarning = currentCount >= WARNING_THRESHOLD && currentCount < MAX_SYMBOLS;
-  const canSubmit = valid.length > 0 && !isAtLimit && !willExceedLimit && !isProcessing;
+  const showWarning =
+    currentCount >= WARNING_THRESHOLD && currentCount < MAX_SYMBOLS;
+  const canSubmit =
+    valid.length > 0 && !isAtLimit && !willExceedLimit && !isProcessing;
 
   /**
    * Handle bulk add submission
@@ -109,7 +113,7 @@ export function AddSymbolModal({
                 });
                 resolve(); // Continue even if one fails
               },
-            }
+            },
           );
         });
       } catch (error) {
@@ -123,13 +127,13 @@ export function AddSymbolModal({
     // Show summary toast
     if (results.success.length > 0) {
       toast.success(
-        `Added ${results.success.length} symbol${results.success.length > 1 ? "s" : ""}: ${results.success.join(", ")}`
+        `Added ${results.success.length} symbol${results.success.length > 1 ? "s" : ""}: ${results.success.join(", ")}`,
       );
     }
 
     if (results.failed.length > 0) {
       toast.error(
-        `Failed to add ${results.failed.length} symbol${results.failed.length > 1 ? "s" : ""}: ${results.failed.map((f) => f.symbol).join(", ")}`
+        `Failed to add ${results.failed.length} symbol${results.failed.length > 1 ? "s" : ""}: ${results.failed.map((f) => f.symbol).join(", ")}`,
       );
     }
 
@@ -141,7 +145,10 @@ export function AddSymbolModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent
+        data-testid="add-symbol-modal"
+        className="sm:max-w-[500px]"
+      >
         <DialogHeader>
           <DialogTitle>Add Symbols to Watchlist</DialogTitle>
           <DialogDescription>
@@ -177,9 +184,10 @@ export function AddSymbolModal({
                   Would exceed watchlist limit
                 </p>
                 <p className="mt-1 text-xs text-text-muted">
-                  Adding {valid.length} symbols would exceed the limit of {MAX_SYMBOLS}.
-                  You currently have {currentCount} symbols. Remove{" "}
-                  {currentCount + valid.length - MAX_SYMBOLS} or more to proceed.
+                  Adding {valid.length} symbols would exceed the limit of{" "}
+                  {MAX_SYMBOLS}. You currently have {currentCount} symbols.
+                  Remove {currentCount + valid.length - MAX_SYMBOLS} or more to
+                  proceed.
                 </p>
               </div>
             </div>
@@ -227,12 +235,14 @@ NVDA`}
                 <>
                   {valid.length > 0 && (
                     <p className="text-profit">
-                      ✓ {valid.length} valid symbol{valid.length > 1 ? "s" : ""}: {valid.join(", ")}
+                      ✓ {valid.length} valid symbol{valid.length > 1 ? "s" : ""}
+                      : {valid.join(", ")}
                     </p>
                   )}
                   {invalid.length > 0 && (
                     <p className="text-loss">
-                      ✗ {invalid.length} invalid symbol{invalid.length > 1 ? "s" : ""}: {invalid.join(", ")}
+                      ✗ {invalid.length} invalid symbol
+                      {invalid.length > 1 ? "s" : ""}: {invalid.join(", ")}
                       <br />
                       <span className="text-text-muted">
                         (must be 1-10 alphanumeric characters)

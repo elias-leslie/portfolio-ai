@@ -49,53 +49,77 @@ interface StrategyDetails {
 const STRATEGIES: Record<string, StrategyDetails> = {
   enhanced: {
     name: "Enhanced Signal",
-    shortDescription: "Multi-confirmation technical strategy with configurable parameters",
-    whenToUse: "Default choice for most backtests. Use when you want balanced risk/reward with tunable parameters.",
-    marketConditions: "Works in trending and range-bound markets. Requires 5+ of 8 technical confirmations (price > EMA, healthy RSI, positive MACD, volume, momentum alignment).",
+    shortDescription:
+      "Multi-confirmation technical strategy with configurable parameters",
+    whenToUse:
+      "Default choice for most backtests. Use when you want balanced risk/reward with tunable parameters.",
+    marketConditions:
+      "Works in trending and range-bound markets. Requires 5+ of 8 technical confirmations (price > EMA, healthy RSI, positive MACD, volume, momentum alignment).",
     holdingPeriod: "5-30 days typical, configurable up to 120 days",
     riskLevel: "Medium",
-    bestFor: "Stocks with clear technical patterns, moderate volatility (ATR 2-4%), good liquidity (>1M daily volume)",
-    avoidWhen: "Choppy sideways markets, low-volume stocks, earnings week, extreme VIX (>30)",
+    bestFor:
+      "Stocks with clear technical patterns, moderate volatility (ATR 2-4%), good liquidity (>1M daily volume)",
+    avoidWhen:
+      "Choppy sideways markets, low-volume stocks, earnings week, extreme VIX (>30)",
   },
   signalClassifier: {
     name: "Signal Classifier",
-    shortDescription: "Original rule-based classifier requiring 10+ confirmations including fundamentals",
-    whenToUse: "Use when you have fundamental data available and want stricter entry criteria.",
-    marketConditions: "Requires fundamental/analyst data for full scoring. Technical-only mode generates fewer signals. Best in stable uptrends.",
+    shortDescription:
+      "Original rule-based classifier requiring 10+ confirmations including fundamentals",
+    whenToUse:
+      "Use when you have fundamental data available and want stricter entry criteria.",
+    marketConditions:
+      "Requires fundamental/analyst data for full scoring. Technical-only mode generates fewer signals. Best in stable uptrends.",
     holdingPeriod: "30-60 days typical",
     riskLevel: "Low",
-    bestFor: "Blue-chip stocks with analyst coverage, stocks with recent earnings beats, sectors showing institutional accumulation",
-    avoidWhen: "Small-caps without analyst coverage, pre-earnings periods, sectors under regulatory scrutiny",
+    bestFor:
+      "Blue-chip stocks with analyst coverage, stocks with recent earnings beats, sectors showing institutional accumulation",
+    avoidWhen:
+      "Small-caps without analyst coverage, pre-earnings periods, sectors under regulatory scrutiny",
   },
   momentum: {
     name: "Momentum",
-    shortDescription: "Rides intermediate-term momentum with multi-horizon confirmation",
-    whenToUse: "Use in strong bull markets or when a stock is breaking out of consolidation with volume.",
-    marketConditions: "Best when: SPY > 200 SMA, sector showing relative strength, stock RSI 50-70 (bullish but not overbought). Uses 20/60/252-day momentum scoring.",
+    shortDescription:
+      "Rides intermediate-term momentum with multi-horizon confirmation",
+    whenToUse:
+      "Use in strong bull markets or when a stock is breaking out of consolidation with volume.",
+    marketConditions:
+      "Best when: SPY > 200 SMA, sector showing relative strength, stock RSI 50-70 (bullish but not overbought). Uses 20/60/252-day momentum scoring.",
     holdingPeriod: "30-60 days, exits on momentum fade (RSI < 40)",
     riskLevel: "High",
-    bestFor: "Growth stocks in uptrends, sector leaders, stocks with institutional buying, post-earnings momentum plays",
-    avoidWhen: "Bear markets, mean-reverting sectors (utilities), stocks with declining volume, late-cycle rallies",
+    bestFor:
+      "Growth stocks in uptrends, sector leaders, stocks with institutional buying, post-earnings momentum plays",
+    avoidWhen:
+      "Bear markets, mean-reverting sectors (utilities), stocks with declining volume, late-cycle rallies",
   },
   meanReversion: {
     name: "Mean Reversion",
     shortDescription: "Catches oversold bounces in fundamentally strong stocks",
-    whenToUse: "Use when quality stocks are temporarily oversold (RSI < 30) but still in long-term uptrend (price > 200 SMA).",
-    marketConditions: "Best in: range-bound markets, after sector pullbacks, when VIX spikes then reverses. Requires uptrend context to avoid catching falling knives.",
+    whenToUse:
+      "Use when quality stocks are temporarily oversold (RSI < 30) but still in long-term uptrend (price > 200 SMA).",
+    marketConditions:
+      "Best in: range-bound markets, after sector pullbacks, when VIX spikes then reverses. Requires uptrend context to avoid catching falling knives.",
     holdingPeriod: "3-10 days (quick trades), tight stops",
     riskLevel: "Medium",
-    bestFor: "Large-caps with temporary weakness, dividend stocks after ex-date drops, quality names hit by sector rotation",
-    avoidWhen: "Downtrending stocks (price < 200 SMA), fundamental deterioration, high-beta names in bear markets",
+    bestFor:
+      "Large-caps with temporary weakness, dividend stocks after ex-date drops, quality names hit by sector rotation",
+    avoidWhen:
+      "Downtrending stocks (price < 200 SMA), fundamental deterioration, high-beta names in bear markets",
   },
   trendFollowing: {
     name: "Trend Following",
-    shortDescription: "Follows strong trends with trailing ATR stops, lets winners run",
-    whenToUse: "Use for long-term trend capture when all moving averages are aligned (price > 20 SMA > 50 SMA > 200 SMA).",
-    marketConditions: "Best in: strong bull markets, sector rotations with clear leaders, breakouts from long bases. Requires perfect SMA alignment for entry.",
+    shortDescription:
+      "Follows strong trends with trailing ATR stops, lets winners run",
+    whenToUse:
+      "Use for long-term trend capture when all moving averages are aligned (price > 20 SMA > 50 SMA > 200 SMA).",
+    marketConditions:
+      "Best in: strong bull markets, sector rotations with clear leaders, breakouts from long bases. Requires perfect SMA alignment for entry.",
     holdingPeriod: "60-120+ days, no fixed profit target",
     riskLevel: "Medium",
-    bestFor: "Trending sectors (tech in bull markets), stocks making new highs, ETFs with clear directional bias",
-    avoidWhen: "Choppy/sideways markets, stocks in trading ranges, high-volatility periods (earnings, FOMC), mean-reverting assets",
+    bestFor:
+      "Trending sectors (tech in bull markets), stocks making new highs, ETFs with clear directional bias",
+    avoidWhen:
+      "Choppy/sideways markets, stocks in trading ranges, high-volatility periods (earnings, FOMC), mean-reverting assets",
   },
 };
 
@@ -218,7 +242,10 @@ export function NewBacktestDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent
+        data-testid="new-backtest-dialog"
+        className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto"
+      >
         <DialogHeader>
           <DialogTitle>Start New Backtest</DialogTitle>
           <DialogDescription>
@@ -297,31 +324,44 @@ export function NewBacktestDialog({
 
               {/* When to use */}
               <div className="space-y-1">
-                <p className="text-xs font-medium text-text-muted">When to use:</p>
-                <p className="text-xs text-text">{STRATEGIES[strategy].whenToUse}</p>
+                <p className="text-xs font-medium text-text-muted">
+                  When to use:
+                </p>
+                <p className="text-xs text-text">
+                  {STRATEGIES[strategy].whenToUse}
+                </p>
               </div>
 
               {/* Market conditions */}
               <div className="space-y-1">
-                <p className="text-xs font-medium text-text-muted">Market conditions:</p>
-                <p className="text-xs text-text">{STRATEGIES[strategy].marketConditions}</p>
+                <p className="text-xs font-medium text-text-muted">
+                  Market conditions:
+                </p>
+                <p className="text-xs text-text">
+                  {STRATEGIES[strategy].marketConditions}
+                </p>
               </div>
 
               {/* Best for / Avoid grid */}
               <div className="grid grid-cols-2 gap-3 pt-1">
                 <div className="space-y-1">
                   <p className="text-xs font-medium text-gain">✓ Best for:</p>
-                  <p className="text-xs text-text-muted">{STRATEGIES[strategy].bestFor}</p>
+                  <p className="text-xs text-text-muted">
+                    {STRATEGIES[strategy].bestFor}
+                  </p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs font-medium text-loss">✗ Avoid when:</p>
-                  <p className="text-xs text-text-muted">{STRATEGIES[strategy].avoidWhen}</p>
+                  <p className="text-xs text-text-muted">
+                    {STRATEGIES[strategy].avoidWhen}
+                  </p>
                 </div>
               </div>
 
               {/* Holding period */}
               <p className="text-xs text-text-muted pt-1 border-t border-border/50">
-                <span className="font-medium">Typical hold:</span> {STRATEGIES[strategy].holdingPeriod}
+                <span className="font-medium">Typical hold:</span>{" "}
+                {STRATEGIES[strategy].holdingPeriod}
               </p>
             </div>
           )}
@@ -362,6 +402,7 @@ export function NewBacktestDialog({
           <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
             <CollapsibleTrigger asChild>
               <Button
+                data-testid="advanced-parameters"
                 variant="ghost"
                 size="sm"
                 className="w-full justify-between text-text-muted hover:text-text"

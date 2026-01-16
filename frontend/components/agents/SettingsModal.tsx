@@ -1,12 +1,17 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { Save, RotateCcw } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { cn } from '@/lib/utils';
+import { useState, useEffect } from "react";
+import { Save, RotateCcw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
-export type LLMProvider = 'claude' | 'gemini';
+export type LLMProvider = "claude" | "gemini";
 
 interface AgentSettings {
   devSystemPrompt: string;
@@ -42,13 +47,13 @@ Provide data-driven insights based on the visible information. Be specific about
   fullAutoMode: false,
   notifyOnDisagreement: true,
   autoApplyThreshold: 0.9,
-  llmProvider: 'claude',
+  llmProvider: "claude",
 };
 
-const STORAGE_KEY = 'agent-hub-settings';
+const STORAGE_KEY = "agent-hub-settings";
 
 function loadSettings(): AgentSettings {
-  if (typeof window === 'undefined') return DEFAULT_SETTINGS;
+  if (typeof window === "undefined") return DEFAULT_SETTINGS;
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
@@ -61,7 +66,7 @@ function loadSettings(): AgentSettings {
 }
 
 function saveSettings(settings: AgentSettings) {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
 }
 
@@ -70,16 +75,19 @@ interface SettingsModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
-type SettingsTab = 'prompts' | 'cross-validation';
+type SettingsTab = "prompts" | "cross-validation";
 
 export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   // Lazy initialization avoids setState-in-effect anti-pattern
   const [settings, setSettings] = useState<AgentSettings>(() => loadSettings());
-  const [activeTab, setActiveTab] = useState<SettingsTab>('prompts');
+  const [activeTab, setActiveTab] = useState<SettingsTab>("prompts");
   const [isDirty, setIsDirty] = useState(false);
 
-  const handleChange = <K extends keyof AgentSettings>(key: K, value: AgentSettings[K]) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
+  const handleChange = <K extends keyof AgentSettings>(
+    key: K,
+    value: AgentSettings[K],
+  ) => {
+    setSettings((prev) => ({ ...prev, [key]: value }));
     setIsDirty(true);
   };
 
@@ -94,28 +102,32 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   };
 
   const tabs: { id: SettingsTab; label: string }[] = [
-    { id: 'prompts', label: 'Role Prompts' },
-    { id: 'cross-validation', label: 'Cross-Validation' },
+    { id: "prompts", label: "Role Prompts" },
+    { id: "cross-validation", label: "Cross-Validation" },
   ];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col bg-bg text-text border-border">
+      <DialogContent
+        data-testid="settings-modal"
+        className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col bg-bg text-text border-border"
+      >
         <DialogHeader className="border-b border-border pb-4">
           <DialogTitle>Agent Settings</DialogTitle>
         </DialogHeader>
 
         {/* Tabs */}
         <div className="flex gap-1 border-b border-border -mx-6 px-6">
-          {tabs.map(tab => (
+          {tabs.map((tab) => (
             <button
               key={tab.id}
+              data-testid={`tab-${tab.id}`}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
                 "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
                 activeTab === tab.id
                   ? "border-accent text-accent"
-                  : "border-transparent text-text-muted hover:text-text"
+                  : "border-transparent text-text-muted hover:text-text",
               )}
             >
               {tab.label}
@@ -125,7 +137,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto py-4 space-y-4">
-          {activeTab === 'prompts' && (
+          {activeTab === "prompts" && (
             <>
               <div>
                 <label className="block text-sm font-medium text-text-muted mb-2">
@@ -133,7 +145,9 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                 </label>
                 <textarea
                   value={settings.devSystemPrompt}
-                  onChange={(e) => handleChange('devSystemPrompt', e.target.value)}
+                  onChange={(e) =>
+                    handleChange("devSystemPrompt", e.target.value)
+                  }
                   className="w-full h-40 bg-surface border border-border rounded px-3 py-2 text-sm text-text focus:outline-none focus:border-accent"
                   placeholder="Instructions for code assistance..."
                 />
@@ -144,7 +158,9 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                 </label>
                 <textarea
                   value={settings.financialSystemPrompt}
-                  onChange={(e) => handleChange('financialSystemPrompt', e.target.value)}
+                  onChange={(e) =>
+                    handleChange("financialSystemPrompt", e.target.value)
+                  }
                   className="w-full h-40 bg-surface border border-border rounded px-3 py-2 text-sm text-text focus:outline-none focus:border-accent"
                   placeholder="Instructions for financial analysis..."
                 />
@@ -152,17 +168,20 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             </>
           )}
 
-          {activeTab === 'cross-validation' && (
+          {activeTab === "cross-validation" && (
             <>
               <p className="text-sm text-text-muted mb-4">
-                Cross-validation uses multiple LLMs to verify outputs before applying changes.
+                Cross-validation uses multiple LLMs to verify outputs before
+                applying changes.
               </p>
               <div className="space-y-4">
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={settings.crossValidationEnabled}
-                    onChange={(e) => handleChange('crossValidationEnabled', e.target.checked)}
+                    onChange={(e) =>
+                      handleChange("crossValidationEnabled", e.target.checked)
+                    }
                     className="w-4 h-4 rounded border-border bg-surface text-accent focus:ring-accent"
                   />
                   <span className="text-sm">Enable cross-validation</span>
@@ -172,27 +191,37 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                   <input
                     type="checkbox"
                     checked={settings.requireHumanReview}
-                    onChange={(e) => handleChange('requireHumanReview', e.target.checked)}
+                    onChange={(e) =>
+                      handleChange("requireHumanReview", e.target.checked)
+                    }
                     className="w-4 h-4 rounded border-border bg-surface text-accent focus:ring-accent"
                   />
-                  <span className="text-sm">Require human review before applying</span>
+                  <span className="text-sm">
+                    Require human review before applying
+                  </span>
                 </label>
 
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={settings.fullAutoMode}
-                    onChange={(e) => handleChange('fullAutoMode', e.target.checked)}
+                    onChange={(e) =>
+                      handleChange("fullAutoMode", e.target.checked)
+                    }
                     className="w-4 h-4 rounded border-border bg-surface text-accent focus:ring-accent"
                   />
-                  <span className="text-sm">Full auto mode (apply validated changes automatically)</span>
+                  <span className="text-sm">
+                    Full auto mode (apply validated changes automatically)
+                  </span>
                 </label>
 
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={settings.notifyOnDisagreement}
-                    onChange={(e) => handleChange('notifyOnDisagreement', e.target.checked)}
+                    onChange={(e) =>
+                      handleChange("notifyOnDisagreement", e.target.checked)
+                    }
                     className="w-4 h-4 rounded border-border bg-surface text-accent focus:ring-accent"
                   />
                   <span className="text-sm">Notify when agents disagree</span>
@@ -208,17 +237,22 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                     max="1.0"
                     step="0.05"
                     value={settings.autoApplyThreshold}
-                    onChange={(e) => handleChange('autoApplyThreshold', parseFloat(e.target.value))}
+                    onChange={(e) =>
+                      handleChange(
+                        "autoApplyThreshold",
+                        parseFloat(e.target.value),
+                      )
+                    }
                     className="w-full"
                   />
                   <p className="text-xs text-text-muted mt-1">
-                    Confidence threshold for auto-applying changes in full auto mode
+                    Confidence threshold for auto-applying changes in full auto
+                    mode
                   </p>
                 </div>
               </div>
             </>
           )}
-
         </div>
 
         {/* Footer */}
@@ -240,11 +274,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             >
               Cancel
             </Button>
-            <Button
-              size="sm"
-              onClick={handleSave}
-              disabled={!isDirty}
-            >
+            <Button size="sm" onClick={handleSave} disabled={!isDirty}>
               <Save className="h-4 w-4 mr-2" />
               Save
             </Button>
@@ -271,8 +301,8 @@ export function useAgentSettings() {
         }
       }
     };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
   }, []);
 
   return settings;

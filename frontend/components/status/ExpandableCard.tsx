@@ -52,6 +52,7 @@ export function ExpandableCard({
           <div className="flex items-center gap-2">
             {actions}
             <Button
+              data-testid="expandable-card"
               variant="ghost"
               size="sm"
               className="flex items-center gap-1"
@@ -63,7 +64,7 @@ export function ExpandableCard({
               <ChevronDown
                 className={cn(
                   "h-4 w-4 transition-transform",
-                  isExpanded && "rotate-180"
+                  isExpanded && "rotate-180",
                 )}
               />
             </Button>

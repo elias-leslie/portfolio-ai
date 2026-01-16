@@ -64,7 +64,11 @@ export function ConfirmActionDialog({
     setIsSubmitting(true);
     try {
       await onConfirm();
-      if (rememberChoice && rememberChoiceKey && typeof window !== "undefined") {
+      if (
+        rememberChoice &&
+        rememberChoiceKey &&
+        typeof window !== "undefined"
+      ) {
         localStorage.setItem(rememberChoiceKey, "true");
       }
       onOpenChange(false);
@@ -77,7 +81,7 @@ export function ConfirmActionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent data-testid="confirm-action-dialog">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}
