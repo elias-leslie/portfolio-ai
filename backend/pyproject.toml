@@ -75,7 +75,6 @@ dev = [
     "pip-audit==2.10.0",
 
     # Pre-commit
-    "pre-commit==4.5.0",
 ]
 
 [tool.setuptools]
