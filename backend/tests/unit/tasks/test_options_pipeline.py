@@ -826,13 +826,14 @@ class TestFetchOptionsActivityMetricsTask:
         self, mock_storage: MagicMock, mock_celery_request: MagicMock, mock_cboe_source: MagicMock
     ) -> None:
         """Test successful metrics fetch and storage."""
-        with patch("app.tasks.market_data.options_pipeline.get_storage", return_value=mock_storage):
-            # Patch the import inside the task function
-            with patch(
+        with (
+            patch("app.tasks.market_data.options_pipeline.get_storage", return_value=mock_storage),
+            patch(
                 "app.sources.cboe_most_active.get_cboe_most_active_source",
                 return_value=mock_cboe_source,
-            ):
-                result = fetch_options_activity_metrics.run()
+            ),
+        ):
+            result = fetch_options_activity_metrics.run()
 
         # Verify result structure
         assert result["success"] is True
@@ -866,12 +867,14 @@ class TestFetchOptionsActivityMetricsTask:
         """Test that CBOE source failure returns error dictionary."""
         mock_cboe_source.fetch_most_active_metrics.side_effect = Exception("CBOE scraping failed")
 
-        with patch("app.tasks.market_data.options_pipeline.get_storage", return_value=mock_storage):
-            with patch(
+        with (
+            patch("app.tasks.market_data.options_pipeline.get_storage", return_value=mock_storage),
+            patch(
                 "app.sources.cboe_most_active.get_cboe_most_active_source",
                 return_value=mock_cboe_source,
-            ):
-                result = fetch_options_activity_metrics.run()
+            ),
+        ):
+            result = fetch_options_activity_metrics.run()
 
         assert result["success"] is False
         assert "task_id" in result
@@ -890,15 +893,17 @@ class TestFetchOptionsActivityMetricsTask:
         mock_conn = mock_storage.connection.return_value.__enter__.return_value
         mock_conn.execute.side_effect = Exception("Database insert failed")
 
-        with patch("app.tasks.market_data.options_pipeline.get_storage", return_value=mock_storage):
-            with patch(
+        with (
+            patch("app.tasks.market_data.options_pipeline.get_storage", return_value=mock_storage),
+            patch(
                 "app.sources.cboe_most_active.get_cboe_most_active_source",
                 return_value=mock_cboe_source,
-            ):
-                task_mock = MagicMock()
-                task_mock.request = mock_celery_request
+            ),
+        ):
+            task_mock = MagicMock()
+            task_mock.request = mock_celery_request
 
-                result = fetch_options_activity_metrics.run()
+            result = fetch_options_activity_metrics.run()
 
         assert result["success"] is False
         assert "error" in result
@@ -908,19 +913,21 @@ class TestFetchOptionsActivityMetricsTask:
         self, mock_storage: MagicMock, mock_celery_request: MagicMock, mock_cboe_source: MagicMock
     ) -> None:
         """Test that storage is passed to CBOE source constructor."""
-        with patch(
-            "app.tasks.market_data.options_pipeline.get_storage", return_value=mock_storage
-        ) as mock_get_storage:
-            with patch("app.sources.cboe_most_active.get_cboe_most_active_source") as mock_get_cboe:
-                mock_get_cboe.return_value = mock_cboe_source
+        with (
+            patch(
+                "app.tasks.market_data.options_pipeline.get_storage", return_value=mock_storage
+            ) as mock_get_storage,
+            patch("app.sources.cboe_most_active.get_cboe_most_active_source") as mock_get_cboe,
+        ):
+            mock_get_cboe.return_value = mock_cboe_source
 
-                fetch_options_activity_metrics.run()
+            fetch_options_activity_metrics.run()
 
-                # Verify get_cboe_most_active_source was called with storage
-                mock_get_cboe.assert_called_once()
-                call_kwargs = mock_get_cboe.call_args[1]
-                assert "storage" in call_kwargs
-                assert call_kwargs["storage"] == mock_storage
+            # Verify get_cboe_most_active_source was called with storage
+            mock_get_cboe.assert_called_once()
+            call_kwargs = mock_get_cboe.call_args[1]
+            assert "storage" in call_kwargs
+            assert call_kwargs["storage"] == mock_storage
 
     def test_empty_sector_weights_handled(
         self, mock_storage: MagicMock, mock_celery_request: MagicMock, mock_cboe_source: MagicMock
@@ -935,12 +942,14 @@ class TestFetchOptionsActivityMetricsTask:
             "source_timestamp": "2025-12-10T16:30:00Z",
         }
 
-        with patch("app.tasks.market_data.options_pipeline.get_storage", return_value=mock_storage):
-            with patch(
+        with (
+            patch("app.tasks.market_data.options_pipeline.get_storage", return_value=mock_storage),
+            patch(
                 "app.sources.cboe_most_active.get_cboe_most_active_source",
                 return_value=mock_cboe_source,
-            ):
-                result = fetch_options_activity_metrics.run()
+            ),
+        ):
+            result = fetch_options_activity_metrics.run()
 
         assert result["success"] is True
         assert result["metrics"]["sectors"] == 0

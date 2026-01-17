@@ -48,7 +48,7 @@ class TestScenarioDefinitions:
 
     def test_scenario_has_required_fields(self) -> None:
         """Each scenario should have required fields."""
-        for scenario, shocks in SCENARIO_DEFINITIONS.items():
+        for _scenario, shocks in SCENARIO_DEFINITIONS.items():
             assert isinstance(shocks.name, str)
             assert isinstance(shocks.description, str)
             assert isinstance(shocks.market_shock, float)

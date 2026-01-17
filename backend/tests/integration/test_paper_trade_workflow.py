@@ -68,7 +68,7 @@ def test_backtest_tool_executor_integration(storage):
             with patch("app.agents.tool_executors_trading.get_backtest_run") as mock_get_backtest:
                 from app.backtest.storage import get_backtest_run
 
-                mock_get_backtest.side_effect = lambda storage, run_id: get_backtest_run(
+                mock_get_backtest.side_effect = lambda storage, _run_id: get_backtest_run(
                     storage, actual_run_id
                 )
 

@@ -133,7 +133,7 @@ class TestGetStrategyStats:
         storage = MagicMock()
         storage.query.return_value = pl.DataFrame()
 
-        win_rate, avg_win, avg_loss, count = get_strategy_stats(storage)
+        _win_rate, _avg_win, _avg_loss, count = get_strategy_stats(storage)
 
         assert count == 0
 
@@ -189,7 +189,6 @@ class TestCalculateKellyPositionSize:
             kelly_multiplier=0.25,  # 25% of full Kelly
         )
 
-        # Position value = portfolio * kelly_fraction
-        # Shares = position_value / entry_price
+        # Calculate expected shares from position value
         expected_shares = int(details["position_value"] / 100.0)
         assert shares == expected_shares

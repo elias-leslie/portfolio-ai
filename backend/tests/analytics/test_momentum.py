@@ -127,7 +127,7 @@ class TestCalculateMomentumScore:
             regime="CHOPPY",
             trend_alignment=True,
         )
-        score, reasons = calculate_momentum_score(metrics)
+        score, _reasons = calculate_momentum_score(metrics)
         # 1 (weak 252d) + 1 (aligned) = 2
         assert score >= 1
         assert score <= 4
@@ -161,7 +161,7 @@ class TestCalculateMomentumScore:
             regime="UP",
             trend_alignment=True,
         )
-        score, reasons = calculate_momentum_score(metrics)
+        _score, reasons = calculate_momentum_score(metrics)
         # Should get acceleration bonus
         assert any("accelerating" in r.lower() for r in reasons)
 

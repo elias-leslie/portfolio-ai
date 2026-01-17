@@ -46,7 +46,7 @@ def mock_celery_app(mock_celery_task_factory: callable) -> MagicMock:
     """Mock celery_app.send_task method."""
     with patch("app.api.automation.celery_app") as mock_app:
         # Return new unique task each time send_task is called
-        mock_app.send_task.side_effect = lambda *args, **kwargs: mock_celery_task_factory()
+        mock_app.send_task.side_effect = lambda *_args, **_kwargs: mock_celery_task_factory()
         yield mock_app
 
 
@@ -305,7 +305,7 @@ class TestFullPipelineEndpoint:
         assert "auto_paper_trade" in stages
 
         # Verify each stage has task_id and status
-        for stage_name, stage_data in stages.items():
+        for _stage_name, stage_data in stages.items():
             assert "task_id" in stage_data
             assert stage_data["status"] == "started"
 

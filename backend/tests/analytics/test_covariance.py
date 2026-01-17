@@ -47,7 +47,7 @@ class TestPairwiseCovariance:
         returns1 = [0.01, -0.01, 0.01, -0.01, 0.01]
         returns2 = [0.01, 0.01, -0.01, -0.01, 0.00]
 
-        cov, corr = calculate_pairwise_covariance(returns1, returns2)
+        _cov, corr = calculate_pairwise_covariance(returns1, returns2)
 
         # Correlation should be close to 0 (but not exactly due to limited samples)
         assert abs(corr) < 0.5

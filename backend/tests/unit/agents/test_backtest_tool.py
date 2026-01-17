@@ -30,33 +30,35 @@ def test_execute_run_backtest_success(trading_tools, mock_storage):
 
     # Mock backtest run creation
     run_id = str(uuid.uuid4())
-    with patch("app.agents.tool_executors_trading.create_backtest_run", return_value=run_id):
-        with patch("app.agents.tool_executors_trading.update_backtest_status"):
-            with patch("app.tasks.backtest_tasks.run_backtest_task") as mock_task:
-                # Mock Celery task
-                mock_task.delay.return_value = Mock(id="task-123")
+    with (
+        patch("app.agents.tool_executors_trading.create_backtest_run", return_value=run_id),
+        patch("app.agents.tool_executors_trading.update_backtest_status"),
+        patch("app.tasks.backtest_tasks.run_backtest_task") as mock_task,
+    ):
+        # Mock Celery task
+        mock_task.delay.return_value = Mock(id="task-123")
 
-                # Mock get_backtest_run to return completed run
-                mock_run = Mock()
-                mock_run.status = "completed"
-                mock_run.sharpe_ratio = Decimal("1.5")
-                mock_run.win_rate = Decimal("60.0")
-                mock_run.max_drawdown_pct = Decimal("15.0")
-                mock_run.total_return_pct = Decimal("25.5")
-                mock_run.num_trades = 10
+        # Mock get_backtest_run to return completed run
+        mock_run = Mock()
+        mock_run.status = "completed"
+        mock_run.sharpe_ratio = Decimal("1.5")
+        mock_run.win_rate = Decimal("60.0")
+        mock_run.max_drawdown_pct = Decimal("15.0")
+        mock_run.total_return_pct = Decimal("25.5")
+        mock_run.num_trades = 10
 
-                with (
-                    patch(
-                        "app.agents.tool_executors_trading.get_backtest_run", return_value=mock_run
-                    ),
-                    patch("app.agents.tool_executors_trading.time.sleep"),
-                ):
-                    result = trading_tools.execute_run_backtest(
-                        agent_run_id=agent_run_id,
-                        symbol=symbol,
-                        start_date=start_date,
-                        end_date=end_date,
-                    )
+        with (
+            patch(
+                "app.agents.tool_executors_trading.get_backtest_run", return_value=mock_run
+            ),
+            patch("app.agents.tool_executors_trading.time.sleep"),
+        ):
+            result = trading_tools.execute_run_backtest(
+                agent_run_id=agent_run_id,
+                symbol=symbol,
+                start_date=start_date,
+                end_date=end_date,
+            )
 
     assert result["status"] == "completed"
     assert result["backtest_run_id"] == run_id
@@ -108,28 +110,30 @@ def test_execute_run_backtest_failed(trading_tools, mock_storage):
     end_date = "2024-01-01"
 
     run_id = str(uuid.uuid4())
-    with patch("app.agents.tool_executors_trading.create_backtest_run", return_value=run_id):
-        with patch("app.agents.tool_executors_trading.update_backtest_status"):
-            with patch("app.tasks.backtest_tasks.run_backtest_task") as mock_task:
-                mock_task.delay.return_value = Mock(id="task-123")
+    with (
+        patch("app.agents.tool_executors_trading.create_backtest_run", return_value=run_id),
+        patch("app.agents.tool_executors_trading.update_backtest_status"),
+        patch("app.tasks.backtest_tasks.run_backtest_task") as mock_task,
+    ):
+        mock_task.delay.return_value = Mock(id="task-123")
 
-                # Mock get_backtest_run to return failed run
-                mock_run = Mock()
-                mock_run.status = "failed"
-                mock_run.error_message = "Symbol not found"
+        # Mock get_backtest_run to return failed run
+        mock_run = Mock()
+        mock_run.status = "failed"
+        mock_run.error_message = "Symbol not found"
 
-                with (
-                    patch(
-                        "app.agents.tool_executors_trading.get_backtest_run", return_value=mock_run
-                    ),
-                    patch("app.agents.tool_executors_trading.time.sleep"),
-                ):
-                    result = trading_tools.execute_run_backtest(
-                        agent_run_id=agent_run_id,
-                        symbol=symbol,
-                        start_date=start_date,
-                        end_date=end_date,
-                    )
+        with (
+            patch(
+                "app.agents.tool_executors_trading.get_backtest_run", return_value=mock_run
+            ),
+            patch("app.agents.tool_executors_trading.time.sleep"),
+        ):
+            result = trading_tools.execute_run_backtest(
+                agent_run_id=agent_run_id,
+                symbol=symbol,
+                start_date=start_date,
+                end_date=end_date,
+            )
 
     assert result["status"] == "error"
     assert result["backtest_run_id"] == run_id
@@ -145,28 +149,30 @@ def test_execute_run_backtest_timeout(trading_tools, mock_storage):
     end_date = "2024-01-01"
 
     run_id = str(uuid.uuid4())
-    with patch("app.agents.tool_executors_trading.create_backtest_run", return_value=run_id):
-        with patch("app.agents.tool_executors_trading.update_backtest_status"):
-            with patch("app.tasks.backtest_tasks.run_backtest_task") as mock_task:
-                mock_task.delay.return_value = Mock(id="task-123")
+    with (
+        patch("app.agents.tool_executors_trading.create_backtest_run", return_value=run_id),
+        patch("app.agents.tool_executors_trading.update_backtest_status"),
+        patch("app.tasks.backtest_tasks.run_backtest_task") as mock_task,
+    ):
+        mock_task.delay.return_value = Mock(id="task-123")
 
-                # Mock get_backtest_run to return running run (never completes)
-                mock_run = Mock()
-                mock_run.status = "running"
+        # Mock get_backtest_run to return running run (never completes)
+        mock_run = Mock()
+        mock_run.status = "running"
 
-                with (
-                    patch(
-                        "app.agents.tool_executors_trading.get_backtest_run", return_value=mock_run
-                    ),
-                    patch("app.agents.tool_executors_trading.time.sleep"),
-                ):
-                    # Force immediate timeout by patching elapsed time
-                    result = trading_tools.execute_run_backtest(
-                        agent_run_id=agent_run_id,
-                        symbol=symbol,
-                        start_date=start_date,
-                        end_date=end_date,
-                    )
+        with (
+            patch(
+                "app.agents.tool_executors_trading.get_backtest_run", return_value=mock_run
+            ),
+            patch("app.agents.tool_executors_trading.time.sleep"),
+        ):
+            # Force immediate timeout by patching elapsed time
+            result = trading_tools.execute_run_backtest(
+                agent_run_id=agent_run_id,
+                symbol=symbol,
+                start_date=start_date,
+                end_date=end_date,
+            )
 
     assert result["status"] == "timeout"
     assert result["backtest_run_id"] == run_id
@@ -181,42 +187,44 @@ def test_execute_run_backtest_with_custom_params(trading_tools, mock_storage):
     end_date = "2024-06-01"
 
     run_id = str(uuid.uuid4())
-    with patch("app.agents.tool_executors_trading.create_backtest_run", return_value=run_id):
-        with patch("app.agents.tool_executors_trading.update_backtest_status"):
-            with patch("app.tasks.backtest_tasks.run_backtest_task") as mock_task:
-                mock_task.delay.return_value = Mock(id="task-123")
+    with (
+        patch("app.agents.tool_executors_trading.create_backtest_run", return_value=run_id),
+        patch("app.agents.tool_executors_trading.update_backtest_status"),
+        patch("app.tasks.backtest_tasks.run_backtest_task") as mock_task,
+    ):
+        mock_task.delay.return_value = Mock(id="task-123")
 
-                mock_run = Mock()
-                mock_run.status = "completed"
-                mock_run.sharpe_ratio = Decimal("2.0")
-                mock_run.win_rate = Decimal("65.0")
-                mock_run.max_drawdown_pct = Decimal("10.0")
-                mock_run.total_return_pct = Decimal("40.0")
-                mock_run.num_trades = 15
+        mock_run = Mock()
+        mock_run.status = "completed"
+        mock_run.sharpe_ratio = Decimal("2.0")
+        mock_run.win_rate = Decimal("65.0")
+        mock_run.max_drawdown_pct = Decimal("10.0")
+        mock_run.total_return_pct = Decimal("40.0")
+        mock_run.num_trades = 15
 
-                with (
-                    patch(
-                        "app.agents.tool_executors_trading.get_backtest_run", return_value=mock_run
-                    ),
-                    patch("app.agents.tool_executors_trading.time.sleep"),
-                ):
-                    result = trading_tools.execute_run_backtest(
-                        agent_run_id=agent_run_id,
-                        symbol=symbol,
-                        start_date=start_date,
-                        end_date=end_date,
-                        initial_capital=50000.0,
-                        min_signal_strength=8,
-                        max_holding_days=30,
-                        position_size_value=5000.0,
-                    )
+        with (
+            patch(
+                "app.agents.tool_executors_trading.get_backtest_run", return_value=mock_run
+            ),
+            patch("app.agents.tool_executors_trading.time.sleep"),
+        ):
+            result = trading_tools.execute_run_backtest(
+                agent_run_id=agent_run_id,
+                symbol=symbol,
+                start_date=start_date,
+                end_date=end_date,
+                initial_capital=50000.0,
+                min_signal_strength=8,
+                max_holding_days=30,
+                position_size_value=5000.0,
+            )
 
-                # Verify task was called with custom params
-                mock_task.delay.assert_called_once()
-                call_kwargs = mock_task.delay.call_args[1]
-                assert call_kwargs["min_signal_strength"] == 8
-                assert call_kwargs["max_holding_days"] == 30
-                assert call_kwargs["position_size_value"] == 5000.0
+        # Verify task was called with custom params
+        mock_task.delay.assert_called_once()
+        call_kwargs = mock_task.delay.call_args[1]
+        assert call_kwargs["min_signal_strength"] == 8
+        assert call_kwargs["max_holding_days"] == 30
+        assert call_kwargs["position_size_value"] == 5000.0
 
     assert result["status"] == "completed"
     assert result["sharpe_ratio"] == 2.0

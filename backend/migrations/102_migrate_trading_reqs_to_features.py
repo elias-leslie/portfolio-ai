@@ -68,7 +68,7 @@ CRITICALITY_TO_PRIORITY = {
 def load_trading_requirements() -> dict:
     """Load trading requirements from YAML file."""
     yaml_path = backend_path / "app" / "config" / "trading_requirements.yaml"
-    with open(yaml_path) as f:
+    with yaml_path.open() as f:
         return yaml.safe_load(f)
 
 

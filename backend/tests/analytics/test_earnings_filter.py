@@ -58,7 +58,7 @@ class TestCheckEarningsProximity:
             {"payload": [{"earnings_date": earnings_date.isoformat()}]}
         )
 
-        is_ok, message, details = check_earnings_proximity(storage, "AAPL")
+        is_ok, message, _details = check_earnings_proximity(storage, "AAPL")
 
         assert is_ok is True
         assert "OK" in message
@@ -88,7 +88,7 @@ class TestCheckEarningsProximity:
             {"payload": [{"earnings_date": today.isoformat()}]}
         )
 
-        is_ok, message, details = check_earnings_proximity(storage, "AAPL")
+        is_ok, message, _details = check_earnings_proximity(storage, "AAPL")
 
         assert is_ok is False
         assert "BLOCKED" in message
@@ -103,7 +103,7 @@ class TestCheckEarningsProximity:
             {"payload": [{"earnings_date": earnings_date.isoformat()}]}
         )
 
-        is_ok, message, details = check_earnings_proximity(storage, "AAPL")
+        is_ok, message, _details = check_earnings_proximity(storage, "AAPL")
 
         assert is_ok is True
         assert "passed" in message.lower()
@@ -113,7 +113,7 @@ class TestCheckEarningsProximity:
         storage = MagicMock()
         storage.query.return_value = pl.DataFrame()
 
-        is_ok, message, details = check_earnings_proximity(storage, "NEWSTOCK")
+        is_ok, message, _details = check_earnings_proximity(storage, "NEWSTOCK")
 
         assert is_ok is True
         assert "unknown" in message.lower()

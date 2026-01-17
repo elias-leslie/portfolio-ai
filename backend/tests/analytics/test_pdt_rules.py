@@ -76,7 +76,7 @@ class TestCheckPdtStatus:
             pl.DataFrame({"equity": [10_000.0]}),  # Under $25k
         ]
 
-        can_trade, message, details = check_pdt_status(storage, "default")
+        can_trade, _message, details = check_pdt_status(storage, "default")
 
         assert can_trade is True
         assert details["day_trades_used"] == 2
@@ -118,7 +118,7 @@ class TestCheckPdtStatus:
             pl.DataFrame({"equity": [50_000.0]}),  # Over $25k
         ]
 
-        can_trade, message, details = check_pdt_status(storage, "default")
+        can_trade, _message, details = check_pdt_status(storage, "default")
 
         assert can_trade is True
         assert details["is_pdt_account"] is True

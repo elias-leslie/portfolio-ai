@@ -7,6 +7,7 @@ import shutil
 from pathlib import Path
 from typing import AsyncIterator
 
+from .constants import DEFAULT_GEMINI_MODEL
 from .stream_parser import StreamMessage, ContentBlock, MessageType, ContentType
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,7 @@ class GeminiSession:
         self,
         session_id: str,
         working_dir: str | Path = ".",
-        model: str = "gemini-3-flash-preview",
+        model: str = DEFAULT_GEMINI_MODEL,
     ):
         """Initialize session.
 

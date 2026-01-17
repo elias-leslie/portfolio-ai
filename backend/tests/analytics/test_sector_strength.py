@@ -145,7 +145,7 @@ class TestCalculateSectorStrengthScore:
         mock_storage.query.return_value = MagicMock(is_empty=lambda: True)
 
         # Since no data, will return 0
-        score, reasons = calculate_sector_strength_score(mock_storage, "AAPL")
+        score, _reasons = calculate_sector_strength_score(mock_storage, "AAPL")
         # With no data, score is 0
         assert score >= 0
 
@@ -208,7 +208,7 @@ class TestCalculateSectorRelativeStrength:
 
         # Create mock data with all sectors + SPY
         mock_data = []
-        all_symbols = list(SECTOR_ETFS.keys()) + ["SPY"]
+        all_symbols = [*list(SECTOR_ETFS.keys()), "SPY"]
 
         for symbol in all_symbols:
             for i in range(300):

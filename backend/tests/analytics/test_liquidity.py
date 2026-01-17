@@ -85,7 +85,7 @@ class TestGetMaxPositionShares:
             }
         )
 
-        max_shares, adv = get_max_position_shares(storage, "SMALLCAP", entry_price=25.0)
+        max_shares, _adv = get_max_position_shares(storage, "SMALLCAP", entry_price=25.0)
 
         # 1% of 50K = 500 shares
         assert max_shares == 500
@@ -147,7 +147,7 @@ class TestCheckPositionLiquidity:
         storage = MagicMock()
         storage.query.return_value = pl.DataFrame()
 
-        is_ok, message, details = check_position_liquidity(
+        is_ok, message, _details = check_position_liquidity(
             storage, "UNKNOWN", proposed_shares=100, entry_price=25.0
         )
 

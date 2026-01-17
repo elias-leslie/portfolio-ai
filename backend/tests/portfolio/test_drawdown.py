@@ -75,21 +75,21 @@ class TestDrawdownMetrics:
         # Mock portfolio equity at $10,000
         mock_storage.query.side_effect = [
             # Cash balance query
-            MagicMock(is_empty=lambda: False, get_column=lambda x: [10000.0]),
+            MagicMock(is_empty=lambda: False, get_column=lambda _: [10000.0]),
             # Position value query
-            MagicMock(is_empty=lambda: False, get_column=lambda x: [0]),
+            MagicMock(is_empty=lambda: False, get_column=lambda _: [0]),
             # Peak equity query (same as current)
             MagicMock(is_empty=lambda: True),
             # Cash for peak calculation
-            MagicMock(is_empty=lambda: False, get_column=lambda x: [10000.0]),
+            MagicMock(is_empty=lambda: False, get_column=lambda _: [10000.0]),
             # Positions for peak
-            MagicMock(is_empty=lambda: False, get_column=lambda x: [0]),
+            MagicMock(is_empty=lambda: False, get_column=lambda _: [0]),
             # Underwater days query
             MagicMock(is_empty=lambda: True),
             # First snapshot
             MagicMock(is_empty=lambda: True),
             # Max drawdown query
-            MagicMock(is_empty=lambda: False, get_column=lambda x: [0]),
+            MagicMock(is_empty=lambda: False, get_column=lambda _: [0]),
         ]
 
         metrics = calculate_drawdown_metrics(mock_storage, "test-account")
@@ -103,9 +103,9 @@ class TestDrawdownMetrics:
         # Current equity $9,000, peak $10,000 = 10% drawdown
         mock_storage.query.side_effect = [
             # Cash balance
-            MagicMock(is_empty=lambda: False, get_column=lambda x: [9000.0]),
+            MagicMock(is_empty=lambda: False, get_column=lambda _: [9000.0]),
             # Position value
-            MagicMock(is_empty=lambda: False, get_column=lambda x: [0]),
+            MagicMock(is_empty=lambda: False, get_column=lambda _: [0]),
             # Peak equity from snapshots
             MagicMock(
                 is_empty=lambda: False,
@@ -117,10 +117,10 @@ class TestDrawdownMetrics:
             MagicMock(is_empty=lambda: True),
             # First snapshot
             MagicMock(
-                is_empty=lambda: False, get_column=lambda x: [date.today() - timedelta(days=10)]
+                is_empty=lambda: False, get_column=lambda _: [date.today() - timedelta(days=10)]
             ),
             # Max drawdown
-            MagicMock(is_empty=lambda: False, get_column=lambda x: [8.0]),
+            MagicMock(is_empty=lambda: False, get_column=lambda _: [8.0]),
         ]
 
         metrics = calculate_drawdown_metrics(mock_storage, "test-account")

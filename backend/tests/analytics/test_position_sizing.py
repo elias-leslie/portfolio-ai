@@ -111,7 +111,7 @@ class TestCalculateRiskBasedShares:
 
     def test_invalid_stop_returns_zero(self) -> None:
         """Test invalid stop (above entry) returns zero shares."""
-        shares, details = calculate_risk_based_shares(
+        shares, _details = calculate_risk_based_shares(
             equity=100_000.0,
             entry_price=100.0,
             stop_loss=105.0,  # Invalid for long
@@ -122,7 +122,7 @@ class TestCalculateRiskBasedShares:
 
     def test_zero_equity_returns_zero(self) -> None:
         """Test zero equity returns zero shares."""
-        shares, details = calculate_risk_based_shares(
+        shares, _details = calculate_risk_based_shares(
             equity=0.0,
             entry_price=100.0,
             stop_loss=95.0,
@@ -265,7 +265,7 @@ class TestIntegration:
         risk_percent = 0.015  # 1.5% = $1,500 max risk
 
         # Tight stop (2%)
-        shares_tight, details_tight = calculate_risk_based_shares(
+        shares_tight, _details_tight = calculate_risk_based_shares(
             equity=equity,
             entry_price=100.0,
             stop_loss=98.0,  # $2 risk
@@ -273,7 +273,7 @@ class TestIntegration:
         )
 
         # Wide stop (10%)
-        shares_wide, details_wide = calculate_risk_based_shares(
+        shares_wide, _details_wide = calculate_risk_based_shares(
             equity=equity,
             entry_price=100.0,
             stop_loss=90.0,  # $10 risk
@@ -295,7 +295,7 @@ class TestIntegration:
 
     def test_small_account_minimum_position(self) -> None:
         """Test small account with minimum position value check."""
-        shares, details = calculate_risk_based_shares(
+        shares, _details = calculate_risk_based_shares(
             equity=1_000.0,  # $1,000 account
             entry_price=100.0,
             stop_loss=95.0,
