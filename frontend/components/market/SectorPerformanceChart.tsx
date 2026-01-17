@@ -10,8 +10,17 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
-import { useSectorHistory, useMarketStatus } from "@/lib/hooks/useMarketIntelligence";
-import { TimeframeSelector, Timeframe, timeframeToDays, formatChartDate, calculateTickInterval } from "./TimeframeSelector";
+import {
+  useSectorHistory,
+  useMarketStatus,
+} from "@/lib/hooks/useMarketIntelligence";
+import {
+  TimeframeSelector,
+  Timeframe,
+  timeframeToDays,
+  formatChartDate,
+  calculateTickInterval,
+} from "./TimeframeSelector";
 import { Loader2 } from "lucide-react";
 import { checkDataFreshness, formatDate } from "@/lib/utils";
 
@@ -32,7 +41,9 @@ const SECTOR_COLORS: Record<string, string> = {
 
 export function SectorPerformanceChart() {
   const [timeframe, setTimeframe] = useState<Timeframe>("1Y");
-  const [highlightedSector, setHighlightedSector] = useState<string | null>(null);
+  const [highlightedSector, setHighlightedSector] = useState<string | null>(
+    null,
+  );
   const days = timeframeToDays(timeframe);
 
   const { data, isLoading, error } = useSectorHistory(days);
@@ -61,7 +72,10 @@ export function SectorPerformanceChart() {
 
   // Use shared date formatting and tick calculation
   const formatXAxis = (date: string) => formatChartDate(date, days);
-  const tickInterval = useMemo(() => calculateTickInterval(chartData.length), [chartData.length]);
+  const tickInterval = useMemo(
+    () => calculateTickInterval(chartData.length),
+    [chartData.length],
+  );
 
   if (isLoading) {
     return (
@@ -88,7 +102,10 @@ export function SectorPerformanceChart() {
 
       <div className="h-64">
         <ResponsiveContainer width="100%" height={256}>
-          <LineChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+          <LineChart
+            data={chartData}
+            margin={{ top: 5, right: 5, left: -20, bottom: 5 }}
+          >
             <XAxis
               dataKey="date"
               tickFormatter={formatXAxis}
@@ -104,7 +121,11 @@ export function SectorPerformanceChart() {
               tickLine={false}
               width={45}
             />
-            <ReferenceLine y={0} stroke="var(--color-border)" strokeDasharray="3 3" />
+            <ReferenceLine
+              y={0}
+              stroke="var(--color-border)"
+              strokeDasharray="3 3"
+            />
             <Tooltip
               contentStyle={{
                 backgroundColor: "var(--color-surface)",
@@ -112,11 +133,20 @@ export function SectorPerformanceChart() {
                 borderRadius: "8px",
                 fontSize: "12px",
               }}
-              formatter={(value: number, name: string, props: { payload?: Record<string, number> }) => {
+              formatter={(
+                value: number | undefined,
+                name: string | undefined,
+                props: { payload?: Record<string, number> },
+              ) => {
+                if (!name) return ["", ""];
                 const sector = data.sectors.find((s) => s.symbol === name);
                 const price = props.payload?.[`${name}_price`];
                 const formattedPrice = price?.toFixed(2) ?? "";
-                return [`$${formattedPrice} (${value >= 0 ? "+" : ""}${value.toFixed(1)}%)`, sector?.name || name];
+                const numValue = value ?? 0;
+                return [
+                  `$${formattedPrice} (${numValue >= 0 ? "+" : ""}${numValue.toFixed(1)}%)`,
+                  sector?.name || name,
+                ];
               }}
               labelFormatter={(label) =>
                 // Append T12:00:00 to avoid timezone shift
@@ -136,7 +166,8 @@ export function SectorPerformanceChart() {
                 strokeWidth={highlightedSector === sector.symbol ? 3 : 1.5}
                 dot={false}
                 opacity={
-                  highlightedSector === null || highlightedSector === sector.symbol
+                  highlightedSector === null ||
+                  highlightedSector === sector.symbol
                     ? 1
                     : 0.2
                 }
@@ -154,11 +185,12 @@ export function SectorPerformanceChart() {
               key={sector.symbol}
               onClick={() =>
                 setHighlightedSector(
-                  highlightedSector === sector.symbol ? null : sector.symbol
+                  highlightedSector === sector.symbol ? null : sector.symbol,
                 )
               }
               className={`transition-opacity ${
-                highlightedSector !== null && highlightedSector !== sector.symbol
+                highlightedSector !== null &&
+                highlightedSector !== sector.symbol
                   ? "opacity-40"
                   : ""
               }`}
@@ -172,9 +204,7 @@ export function SectorPerformanceChart() {
               <span>
                 {" "}
                 <span
-                  className={
-                    sector.currentPct >= 0 ? "text-gain" : "text-loss"
-                  }
+                  className={sector.currentPct >= 0 ? "text-gain" : "text-loss"}
                 >
                   {sector.currentPct >= 0 ? "+" : ""}
                   {sector.currentPct.toFixed(1)}%
@@ -183,14 +213,22 @@ export function SectorPerformanceChart() {
             </button>
           ))}
         </div>
-        {data.periodEnd && (() => {
-          const freshness = checkDataFreshness(data.periodEnd, marketStatus?.expectedDataDate);
-          return (
-            <span className="text-[10px] text-text-muted whitespace-nowrap ml-2" title={freshness.tooltip}>
-              Data as of {formatDate(data.periodEnd, false)} {freshness.indicator}
-            </span>
-          );
-        })()}
+        {data.periodEnd &&
+          (() => {
+            const freshness = checkDataFreshness(
+              data.periodEnd,
+              marketStatus?.expectedDataDate,
+            );
+            return (
+              <span
+                className="text-[10px] text-text-muted whitespace-nowrap ml-2"
+                title={freshness.tooltip}
+              >
+                Data as of {formatDate(data.periodEnd, false)}{" "}
+                {freshness.indicator}
+              </span>
+            );
+          })()}
       </div>
     </div>
   );

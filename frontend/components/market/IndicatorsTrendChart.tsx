@@ -10,8 +10,17 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
-import { useIndicatorHistory, useMarketStatus } from "@/lib/hooks/useMarketIntelligence";
-import { TimeframeSelector, Timeframe, timeframeToDays, formatChartDate, calculateTickInterval } from "./TimeframeSelector";
+import {
+  useIndicatorHistory,
+  useMarketStatus,
+} from "@/lib/hooks/useMarketIntelligence";
+import {
+  TimeframeSelector,
+  Timeframe,
+  timeframeToDays,
+  formatChartDate,
+  calculateTickInterval,
+} from "./TimeframeSelector";
 import { Loader2 } from "lucide-react";
 import { checkDataFreshness, formatDate } from "@/lib/utils";
 
@@ -65,7 +74,10 @@ export function IndicatorsTrendChart() {
 
   // Use shared date formatting and tick calculation
   const formatXAxis = (date: string) => formatChartDate(date, days);
-  const tickInterval = useMemo(() => calculateTickInterval(chartData.length), [chartData.length]);
+  const tickInterval = useMemo(
+    () => calculateTickInterval(chartData.length),
+    [chartData.length],
+  );
 
   if (isLoading) {
     return (
@@ -92,7 +104,10 @@ export function IndicatorsTrendChart() {
 
       <div className="h-40">
         <ResponsiveContainer width="100%" height={160}>
-          <LineChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+          <LineChart
+            data={chartData}
+            margin={{ top: 5, right: 5, left: -20, bottom: 5 }}
+          >
             <XAxis
               dataKey="date"
               tickFormatter={formatXAxis}
@@ -108,7 +123,11 @@ export function IndicatorsTrendChart() {
               tickLine={false}
               width={40}
             />
-            <ReferenceLine y={0} stroke="var(--color-border)" strokeDasharray="3 3" />
+            <ReferenceLine
+              y={0}
+              stroke="var(--color-border)"
+              strokeDasharray="3 3"
+            />
             <Tooltip
               contentStyle={{
                 backgroundColor: "var(--color-surface)",
@@ -116,19 +135,31 @@ export function IndicatorsTrendChart() {
                 borderRadius: "8px",
                 fontSize: "12px",
               }}
-              formatter={(value: number, name: string, props: { payload?: Record<string, number> }) => {
+              formatter={(
+                value: number | undefined,
+                name: string | undefined,
+                props: { payload?: Record<string, number> },
+              ) => {
+                if (!name) return ["", ""];
                 const config = INDICATOR_CONFIG[name as IndicatorKey];
                 const actualValue = props.payload?.[`${name}_value`];
                 // Format actual value based on indicator type
                 let formattedValue = "";
                 if (name === "sp500") {
-                  formattedValue = actualValue?.toLocaleString(undefined, { maximumFractionDigits: 0 }) ?? "";
+                  formattedValue =
+                    actualValue?.toLocaleString(undefined, {
+                      maximumFractionDigits: 0,
+                    }) ?? "";
                 } else if (name === "tnx") {
                   formattedValue = `${actualValue?.toFixed(2) ?? ""}%`;
                 } else {
                   formattedValue = actualValue?.toFixed(2) ?? "";
                 }
-                return [`${formattedValue} (${value >= 0 ? "+" : ""}${value.toFixed(1)}%)`, config?.name || name];
+                const numValue = value ?? 0;
+                return [
+                  `${formattedValue} (${numValue >= 0 ? "+" : ""}${numValue.toFixed(1)}%)`,
+                  config?.name || name,
+                ];
               }}
               labelFormatter={(label) =>
                 // Append T12:00:00 to avoid timezone shift
@@ -166,7 +197,9 @@ export function IndicatorsTrendChart() {
                 key={key}
                 onClick={() => setHighlighted(highlighted === key ? null : key)}
                 className={`flex items-center gap-1 transition-opacity ${
-                  highlighted !== null && highlighted !== key ? "opacity-40" : ""
+                  highlighted !== null && highlighted !== key
+                    ? "opacity-40"
+                    : ""
                 }`}
               >
                 <span
@@ -175,7 +208,9 @@ export function IndicatorsTrendChart() {
                 />
                 <span className="text-text-muted">
                   {config.name}{" "}
-                  <span className={pct >= 0 ? "text-success" : "text-destructive"}>
+                  <span
+                    className={pct >= 0 ? "text-success" : "text-destructive"}
+                  >
                     {pct >= 0 ? "+" : ""}
                     {pct.toFixed(1)}%
                   </span>
@@ -184,15 +219,22 @@ export function IndicatorsTrendChart() {
             );
           })}
         </div>
-        {chartData.length > 0 && (() => {
-          const dataDate = chartData[chartData.length - 1].date.split("T")[0];
-          const freshness = checkDataFreshness(dataDate, marketStatus?.expectedDataDate);
-          return (
-            <span className="text-[10px] text-text-muted" title={freshness.tooltip}>
-              Data as of {formatDate(dataDate, false)} {freshness.indicator}
-            </span>
-          );
-        })()}
+        {chartData.length > 0 &&
+          (() => {
+            const dataDate = chartData[chartData.length - 1].date.split("T")[0];
+            const freshness = checkDataFreshness(
+              dataDate,
+              marketStatus?.expectedDataDate,
+            );
+            return (
+              <span
+                className="text-[10px] text-text-muted"
+                title={freshness.tooltip}
+              >
+                Data as of {formatDate(dataDate, false)} {freshness.indicator}
+              </span>
+            );
+          })()}
       </div>
     </div>
   );
