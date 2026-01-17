@@ -16,6 +16,7 @@ from app.agents.discovery import DiscoveryAgent
 from app.agents.llm_client import DualProviderClient
 from app.agents.portfolio_analyzer import PortfolioAnalyzerAgent
 from app.agents.tools import AgentTools
+from app.constants import GEMINI_PRO
 from app.portfolio.analytics import PortfolioAnalytics
 from app.portfolio.manager import PortfolioManager
 from app.portfolio.price_fetcher import PriceDataFetcher
@@ -158,7 +159,7 @@ def mock_llm_client() -> Mock:
     response1 = LLMResponse(
         content='{"tool_calls": [{"name": "get_news", "parameters": {"query": "stock market", "max_results": 10}}]}',
         stop_reason="tool_use",
-        model="gemini-2.5-pro",
+        model=GEMINI_PRO,
         provider="gemini",
         usage={"total_tokens": 100},
         tool_calls=[
@@ -170,7 +171,7 @@ def mock_llm_client() -> Mock:
     response2 = LLMResponse(
         content='{"tool_calls": [{"name": "get_economic_data", "parameters": {"indicators": ["VIX", "TNX"]}}]}',
         stop_reason="tool_use",
-        model="gemini-2.5-pro",
+        model=GEMINI_PRO,
         provider="gemini",
         usage={"total_tokens": 100},
         tool_calls=[{"name": "get_economic_data", "parameters": {"indicators": ["VIX", "TNX"]}}],
@@ -200,7 +201,7 @@ def mock_llm_client() -> Mock:
     response3 = LLMResponse(
         content=str(ideas_json).replace("'", '"'),
         stop_reason="tool_use",
-        model="gemini-2.5-pro",
+        model=GEMINI_PRO,
         provider="gemini",
         usage={"total_tokens": 500},
         tool_calls=ideas_tool_calls,
@@ -210,7 +211,7 @@ def mock_llm_client() -> Mock:
     response4 = LLMResponse(
         content="I have analyzed the market and generated 5 investment ideas.",
         stop_reason="end_turn",
-        model="gemini-2.5-pro",
+        model=GEMINI_PRO,
         provider="gemini",
         usage={"total_tokens": 50},
     )
@@ -419,7 +420,7 @@ def test_cli_path_handles_tool_call_errors(
     response1 = LLMResponse(
         content='{"tool_calls": [{"name": "get_news", "parameters": {"invalid_param": "test"}}]}',
         stop_reason="tool_use",
-        model="gemini-2.5-pro",
+        model=GEMINI_PRO,
         provider="gemini",
         usage={"total_tokens": 100},
         tool_calls=[{"name": "get_news", "parameters": {"invalid_param": "test"}}],
@@ -429,7 +430,7 @@ def test_cli_path_handles_tool_call_errors(
     response2 = LLMResponse(
         content="I encountered an error fetching news. Unable to complete analysis.",
         stop_reason="end_turn",
-        model="gemini-2.5-pro",
+        model=GEMINI_PRO,
         provider="gemini",
         usage={"total_tokens": 50},
     )

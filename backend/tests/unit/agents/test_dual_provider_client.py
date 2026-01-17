@@ -10,6 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from app.agents.llm_client import DualProviderClient, LLMResponse
+from app.constants import CLAUDE_OPUS, CLAUDE_SONNET
 
 
 class TestDualProviderClient:
@@ -21,7 +22,7 @@ class TestDualProviderClient:
         return LLMResponse(
             content="Test analysis result",
             provider="claude",
-            model="claude-sonnet-4-5-20250514",
+            model=CLAUDE_SONNET,
             usage={"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150},
         )
 
@@ -61,9 +62,9 @@ class TestDualProviderClient:
     def test_get_model_name_delegates_to_client(self) -> None:
         """Test that get_model_name delegates to Agent Hub client."""
         with patch("app.agents.llm_client.AgentHubAPIClient") as mock_client:
-            mock_client.return_value.get_model_name.return_value = "claude-sonnet-4-5-20250514"
+            mock_client.return_value.get_model_name.return_value = "claude-sonnet-4-5"
             client = DualProviderClient()
-            assert client.get_model_name() == "claude-sonnet-4-5-20250514"
+            assert client.get_model_name() == "claude-sonnet-4-5"
 
     def test_generate_delegates_to_client(self, mock_response: LLMResponse) -> None:
         """Test that generate delegates to Agent Hub client."""
@@ -99,10 +100,10 @@ class TestDualProviderClient:
         with patch("app.agents.llm_client.AgentHubAPIClient") as mock_client:
             DualProviderClient(
                 primary="claude",
-                claude_model="claude-opus-4-5-20250514",
+                claude_model=CLAUDE_OPUS,
             )
             call_kwargs = mock_client.call_args.kwargs
-            assert call_kwargs["model"] == "claude-opus-4-5-20250514"
+            assert call_kwargs["model"] == "claude-opus-4-5"
 
     def test_close_delegates_to_client(self) -> None:
         """Test that close delegates to Agent Hub client."""

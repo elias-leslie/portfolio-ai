@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 if TYPE_CHECKING:
     from app.storage.facade import PortfolioStorage
 
+from ..constants import CLAUDE_SONNET, GEMINI_FLASH
 from ..logging_config import get_logger
 from .llm_client import AgentHubAPIClient, LLMClient, LLMResponse
 from .strategy_reviewer_prompts import (
@@ -111,11 +112,7 @@ class MultiReviewer:
             try:
                 if name in ("gemini", "claude"):
                     # Use Agent Hub for all providers
-                    model = (
-                        "gemini-3-flash-preview"
-                        if name == "gemini"
-                        else "claude-sonnet-4-5-20250514"
-                    )
+                    model = GEMINI_FLASH if name == "gemini" else CLAUDE_SONNET
                     self._clients[name] = AgentHubAPIClient(model=model)
                 else:
                     self._clients[name] = None

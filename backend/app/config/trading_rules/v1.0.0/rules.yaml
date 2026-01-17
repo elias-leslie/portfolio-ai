@@ -341,13 +341,13 @@ watchlist_management:
 # =============================================================================
 thesis_management:
   # Generation settings
-  thesis_generation_enabled: true     # Enable/disable thesis generation
+  thesis_generation_enabled: false    # DISABLED: Re-enable after refactor (see agent-hub)
   thesis_cache_ttl_hours: 24          # Cache thesis for 24 hours before allowing regeneration
   max_tokens_per_generation: 4096     # Max tokens for thesis LLM call
   max_tokens_per_validation: 2048     # Max tokens for validation LLM call
 
   # Cross-validation settings
-  cross_validation_enabled: true      # Require dual-provider (Gemini+Claude) validation
+  cross_validation_enabled: false     # DISABLED: Re-enable after refactor (see agent-hub)
   min_cross_validation_score: 0.5     # Minimum score to consider thesis valid
   auto_flag_low_confidence: true      # Auto-flag for review if score < 0.7
 

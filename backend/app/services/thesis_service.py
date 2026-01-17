@@ -22,6 +22,7 @@ import httpx
 from pydantic import ValidationError
 
 from ..agents.llm_client import DualProviderClient
+from ..constants import CLAUDE_SONNET
 from ..logging_config import get_logger
 from ..models.thesis import (
     Thesis,
@@ -264,7 +265,7 @@ class ThesisService:
         from ..agents.clients.agent_hub_client import AgentHubAPIClient  # noqa: PLC0415
 
         try:
-            claude = AgentHubAPIClient(model="claude-sonnet-4-5-20250514")
+            claude = AgentHubAPIClient(model=CLAUDE_SONNET)
 
             # Build validation prompt
             intelligence_json = json.dumps(intelligence, indent=2)

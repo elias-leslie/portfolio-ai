@@ -24,6 +24,7 @@ from app.logging_config import get_logger
 from app.portfolio.analytics import PortfolioAnalytics
 from app.portfolio.manager import PortfolioManager
 from app.portfolio.price_fetcher import PriceDataFetcher
+from app.rules.loader import get_rules
 from app.services import NewsService
 from app.sources.fred import FREDSource
 from app.storage import get_storage
@@ -94,6 +95,12 @@ def run_discovery_agent(self: Task) -> str:
     Returns:
         Run ID of the agent execution
     """
+    # Check if agentic features are enabled
+    rules = get_rules()
+    if not rules.thesis_management.thesis_generation_enabled:
+        logger.info("discovery_agent_skipped", reason="thesis_generation_disabled")
+        return "skipped:thesis_generation_disabled"
+
     task_id = self.request.id
     logger.info(
         "discovery_agent_task_started",
@@ -151,6 +158,12 @@ def run_portfolio_analyzer(self: Task) -> str:
     Returns:
         Run ID of the agent execution
     """
+    # Check if agentic features are enabled
+    rules = get_rules()
+    if not rules.thesis_management.thesis_generation_enabled:
+        logger.info("portfolio_analyzer_skipped", reason="thesis_generation_disabled")
+        return "skipped:thesis_generation_disabled"
+
     task_id = self.request.id
     logger.info(
         "portfolio_analyzer_task_started",

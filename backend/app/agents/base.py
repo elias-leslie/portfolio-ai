@@ -17,6 +17,7 @@ from abc import ABC, abstractmethod
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, TypedDict
 
+from ..constants import CLAUDE_SONNET
 from ..logging_config import get_logger
 from ..repositories import AgentRunRepository
 from .completion_handler import CompletionHandlerMixin
@@ -87,7 +88,7 @@ class Agent(
         self,
         storage: PortfolioStorage,
         llm_client: LLMClient,
-        model: str = "claude-sonnet-4-5",
+        model: str = CLAUDE_SONNET,
         repository: AgentRunRepository | None = None,
     ) -> None:
         """Initialize agent.

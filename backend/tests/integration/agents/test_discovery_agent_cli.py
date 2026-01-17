@@ -18,6 +18,7 @@ import pytest
 from app.agents.discovery import DiscoveryAgent
 from app.agents.llm_client import DualProviderClient, LLMResponse
 from app.agents.tools import AgentTools
+from app.constants import GEMINI_PRO
 from app.storage.facade import PortfolioStorage
 
 
@@ -80,14 +81,14 @@ class TestDiscoveryAgentWithCLI:
             LLMResponse(
                 content='{"tool_calls": [{"name": "get_news", "parameters": {"limit": 5}}]}',
                 provider="gemini",
-                model="gemini-2.5-pro",
+                model=GEMINI_PRO,
                 usage={"total_tokens": 100},
             ),
             # Turn 2: Call get_economic_data tool
             LLMResponse(
                 content='{"tool_calls": [{"name": "get_economic_data", "parameters": {"indicators": ["VIX"]}}]}',
                 provider="gemini",
-                model="gemini-2.5-pro",
+                model=GEMINI_PRO,
                 usage={"total_tokens": 150},
             ),
             # Turn 3: Call store_idea tool (first idea)
@@ -106,14 +107,14 @@ class TestDiscoveryAgentWithCLI:
                     }]
                 }""",
                 provider="gemini",
-                model="gemini-2.5-pro",
+                model=GEMINI_PRO,
                 usage={"total_tokens": 200},
             ),
             # Turn 4: Final response (no more tools)
             LLMResponse(
                 content="Analysis complete. Generated 1 investment idea based on current market conditions.",
                 provider="gemini",
-                model="gemini-2.5-pro",
+                model=GEMINI_PRO,
                 usage={"total_tokens": 50},
             ),
         ]
@@ -193,7 +194,7 @@ class TestDiscoveryAgentWithCLI:
         client.generate.return_value = LLMResponse(
             content="This is not valid JSON for tool calls",
             provider="gemini",
-            model="gemini-2.5-pro",
+            model=GEMINI_PRO,
             usage={"total_tokens": 50},
         )
         client.is_available.return_value = True
@@ -218,7 +219,7 @@ class TestDiscoveryAgentWithCLI:
         client.generate.return_value = LLMResponse(
             content='{"tool_calls": [{"name": "get_news", "parameters": {}}]}',
             provider="gemini",
-            model="gemini-2.5-pro",
+            model=GEMINI_PRO,
             usage={"total_tokens": 100},
         )
         client.is_available.return_value = True

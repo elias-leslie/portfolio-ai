@@ -20,6 +20,7 @@ from typing import Any
 
 from app.agents.llm_client import AgentHubAPIClient
 from app.backtest.walk_forward import WalkForwardEngine
+from app.constants import GEMINI_FLASH
 from app.logging_config import get_logger
 from app.storage.connection import get_connection_manager
 from app.strategies.models import StrategyDefinition, StrategyParameters
@@ -328,7 +329,7 @@ Return JSON array with this schema:
 
         # Call LLM
         # TODO: Replace with MCP-based agent coordination (see tasks/tasks-0100-multi-agent-mcp-architecture.md)
-        client = AgentHubAPIClient(model="gemini-3-flash-preview")
+        client = AgentHubAPIClient(model=GEMINI_FLASH)
         response = client.generate(
             prompt=prompt,
             system="You are a quantitative trading strategy optimizer. Analyze underperforming strategies and propose concrete parameter improvements.",
@@ -625,7 +626,7 @@ Focus on actionable insights (e.g., "too aggressive entries", "holding too long"
 """
 
         # TODO: Replace with MCP-based agent coordination (see tasks/tasks-0100-multi-agent-mcp-architecture.md)
-        client = AgentHubAPIClient(model="gemini-3-flash-preview")
+        client = AgentHubAPIClient(model=GEMINI_FLASH)
         response = client.generate(
             prompt=prompt,
             system="You are a quantitative trading analyst. Diagnose strategy underperformance concisely.",

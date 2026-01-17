@@ -12,6 +12,7 @@ from typing import Any
 from agent_hub import AgentHubClient as SDKClient
 from agent_hub.exceptions import AgentHubError
 
+from ...constants import CLAUDE_SONNET
 from ...logging_config import get_logger
 from .base_client import LLMClient, LLMResponse
 
@@ -30,7 +31,7 @@ class AgentHubAPIClient(LLMClient):
 
     def __init__(
         self,
-        model: str = "claude-sonnet-4-5-20250514",
+        model: str = CLAUDE_SONNET,
         base_url: str = DEFAULT_AGENT_HUB_URL,
         api_key: str | None = None,
         timeout: float = 300.0,
@@ -38,7 +39,7 @@ class AgentHubAPIClient(LLMClient):
         """Initialize Agent Hub client.
 
         Args:
-            model: Model to use (e.g., claude-sonnet-4-5-20250514, gemini-3-flash-preview)
+            model: Model to use (e.g., claude-sonnet-4-5, gemini-3-flash-preview)
             base_url: Agent Hub API base URL
             api_key: Optional API key for authentication
             timeout: Request timeout in seconds

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
+from ..constants import CLAUDE_SONNET, GEMINI_FLASH
 from ..logging_config import get_logger
 from .clients.agent_hub_client import AgentHubAPIClient
 from .clients.base_client import LLMClient, LLMResponse
@@ -36,8 +37,8 @@ class DualProviderClient(LLMClient):
     def __init__(
         self,
         primary: Literal["claude", "gemini", "agent_hub"] = "agent_hub",
-        claude_model: str = "claude-sonnet-4-5-20250514",
-        gemini_model: str = "gemini-3-flash-preview",
+        claude_model: str = CLAUDE_SONNET,
+        gemini_model: str = GEMINI_FLASH,
         use_agent_hub: bool = True,  # Kept for API compatibility, always True
         agent_hub_url: str = "http://localhost:8003",
     ) -> None:

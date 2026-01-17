@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 
 from ..agents.clients.agent_hub_client import AgentHubAPIClient
 from ..agents.clients.base_client import LLMClient, LLMResponse
+from ..constants import CLAUDE_SONNET, GEMINI_FLASH
 from ..logging_config import get_logger
 from ..storage.connection import get_connection_manager
 
@@ -157,7 +158,7 @@ class CrossValidationService:
         """Ensure generator client is initialized."""
         if self._generator is None and not self._generator_initialized:
             try:
-                self._generator = AgentHubAPIClient(model="gemini-3-flash-preview")
+                self._generator = AgentHubAPIClient(model=GEMINI_FLASH)
                 self._generator_initialized = True
             except RuntimeError as e:
                 logger.warning("gemini_not_available", error=str(e))
@@ -170,7 +171,7 @@ class CrossValidationService:
         """Ensure validator client is initialized."""
         if self._validator is None and not self._validator_initialized:
             try:
-                self._validator = AgentHubAPIClient(model="claude-sonnet-4-5-20250514")
+                self._validator = AgentHubAPIClient(model=CLAUDE_SONNET)
                 self._validator_initialized = True
             except RuntimeError as e:
                 logger.warning("claude_not_available", error=str(e))

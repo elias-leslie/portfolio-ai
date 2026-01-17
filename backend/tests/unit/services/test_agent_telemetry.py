@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from app.constants import GEMINI_FLASH
 from app.services.agent_telemetry import (
     AgentRunDetail,
     AgentTelemetryService,
@@ -90,7 +91,7 @@ class TestAgentRunDetail:
             completed_at="2025-11-30T10:01:00Z",
             status="completed",
             provider="gemini",
-            model="gemini-2.0-flash",
+            model=GEMINI_FLASH,
             duration_ms=60000,
             token_usage=token_usage,
             error=None,
