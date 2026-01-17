@@ -1,88 +1,88 @@
-"use client";
+'use client'
 
 import {
   createContext,
+  startTransition,
   useContext,
   useEffect,
   useMemo,
   useState,
-  startTransition,
-} from "react";
+} from 'react'
 
-export const PREFERS_REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+export const PREFERS_REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
 
 const ThemeContext = createContext<{
-  theme: "dark";
-  resolvedTheme: "dark";
-  prefersReducedMotion: boolean;
-  setTheme: (value: "dark") => void;
-} | null>(null);
+  theme: 'dark'
+  resolvedTheme: 'dark'
+  prefersReducedMotion: boolean
+  setTheme: (value: 'dark') => void
+} | null>(null)
 
 function applyMotionPreference(reduced: boolean) {
-  const root = document.documentElement;
-  root.dataset.reducedMotion = reduced ? "true" : "false";
+  const root = document.documentElement
+  root.dataset.reducedMotion = reduced ? 'true' : 'false'
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
+    if (typeof window === 'undefined') {
+      return
     }
 
     // Ensure dark mode is always set
-    const root = document.documentElement;
-    root.classList.add("dark");
-    root.classList.remove("light");
-    root.dataset.theme = "dark";
-    root.style.setProperty("color-scheme", "dark");
+    const root = document.documentElement
+    root.classList.add('dark')
+    root.classList.remove('light')
+    root.dataset.theme = 'dark'
+    root.style.setProperty('color-scheme', 'dark')
 
     // Handle reduced motion preference
-    const motionMedia = window.matchMedia(PREFERS_REDUCED_MOTION_QUERY);
+    const motionMedia = window.matchMedia(PREFERS_REDUCED_MOTION_QUERY)
     const handleMotion = (event?: MediaQueryListEvent) => {
-      const prefersReduced = event ? event.matches : motionMedia.matches;
+      const prefersReduced = event ? event.matches : motionMedia.matches
       startTransition(() => {
-        setPrefersReducedMotion(prefersReduced);
-      });
-      applyMotionPreference(prefersReduced);
-    };
+        setPrefersReducedMotion(prefersReduced)
+      })
+      applyMotionPreference(prefersReduced)
+    }
 
-    handleMotion();
-    motionMedia.addEventListener("change", handleMotion);
+    handleMotion()
+    motionMedia.addEventListener('change', handleMotion)
 
     return () => {
-      motionMedia.removeEventListener("change", handleMotion);
-    };
-  }, []);
+      motionMedia.removeEventListener('change', handleMotion)
+    }
+  }, [])
 
   useEffect(() => {
-    applyMotionPreference(prefersReducedMotion);
-  }, [prefersReducedMotion]);
+    applyMotionPreference(prefersReducedMotion)
+  }, [prefersReducedMotion])
 
   const contextValue = useMemo(
     () => ({
-      theme: "dark" as const,
-      resolvedTheme: "dark" as const,
+      theme: 'dark' as const,
+      resolvedTheme: 'dark' as const,
       prefersReducedMotion,
       setTheme: () => {}, // no-op since we're dark-only
     }),
-    [prefersReducedMotion]
-  );
+    [prefersReducedMotion],
+  )
 
   return (
     <ThemeContext.Provider value={contextValue}>
       {children}
     </ThemeContext.Provider>
-  );
+  )
 }
 
 export function useTheme() {
-  const context = useContext(ThemeContext);
+  const context = useContext(ThemeContext)
 
   if (!context) {
-    throw new Error("useTheme must be used within a ThemeProvider");
+    throw new Error('useTheme must be used within a ThemeProvider')
   }
 
-  return context;
+  return context
 }

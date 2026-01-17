@@ -1,12 +1,12 @@
-"use client";
+'use client'
 
-import { Suspense, useEffect, useRef, useState } from "react";
-import { MarketIntelligence } from "@/components/market/MarketIntelligence";
-import { UnifiedNewsIntelligenceCard } from "@/components/shared/UnifiedNewsIntelligenceCard";
-import { PageHeader } from "@/components/shared/PageHeader";
-import { PageContainer } from "@/components/shared/PageContainer";
-import { useNewsIntelligence } from "@/lib/hooks/useNews";
-import { Loader2 } from "lucide-react";
+import { Loader2 } from 'lucide-react'
+import { Suspense, useEffect, useRef, useState } from 'react'
+import { MarketIntelligence } from '@/components/market/MarketIntelligence'
+import { PageContainer } from '@/components/shared/PageContainer'
+import { PageHeader } from '@/components/shared/PageHeader'
+import { UnifiedNewsIntelligenceCard } from '@/components/shared/UnifiedNewsIntelligenceCard'
+import { useNewsIntelligence } from '@/lib/hooks/useNews'
 
 function SectionContentSkeleton({ rows = 3 }: { rows?: number }) {
   return (
@@ -18,15 +18,15 @@ function SectionContentSkeleton({ rows = 3 }: { rows?: number }) {
         />
       ))}
     </div>
-  );
+  )
 }
 
 function SectionLoadingState({
   label,
   rows = 3,
 }: {
-  label: string;
-  rows?: number;
+  label: string
+  rows?: number
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -36,43 +36,43 @@ function SectionLoadingState({
       </div>
       <SectionContentSkeleton rows={rows} />
     </div>
-  );
+  )
 }
 
 // Fetch enough articles initially for balanced view (top 3 positive + top 3 negative)
 // Need ~20 to ensure we get a mix of sentiments from recent news
-const MARKET_NEWS_INITIAL_LIMIT = 20;
-const MARKET_NEWS_EXPANDED_LIMIT = 50;
+const MARKET_NEWS_INITIAL_LIMIT = 20
+const MARKET_NEWS_EXPANDED_LIMIT = 50
 
 function MarketNewsSection() {
-  const sectionRef = useRef<HTMLDivElement | null>(null);
-  const [shouldFetch, setShouldFetch] = useState(false);
-  const [articleLimit, setArticleLimit] = useState(MARKET_NEWS_INITIAL_LIMIT);
+  const sectionRef = useRef<HTMLDivElement | null>(null)
+  const [shouldFetch, setShouldFetch] = useState(false)
+  const [articleLimit, setArticleLimit] = useState(MARKET_NEWS_INITIAL_LIMIT)
 
   useEffect(() => {
     if (shouldFetch) {
-      return;
+      return
     }
 
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          setShouldFetch(true);
-          observer.disconnect();
+          setShouldFetch(true)
+          observer.disconnect()
         }
       },
-      { threshold: 0.1, rootMargin: '300px' }  // Prefetch 300px before visible
-    );
+      { threshold: 0.1, rootMargin: '300px' }, // Prefetch 300px before visible
+    )
 
-    const current = sectionRef.current;
+    const current = sectionRef.current
     if (current) {
-      observer.observe(current);
+      observer.observe(current)
     }
 
     return () => {
-      observer.disconnect();
-    };
-  }, [shouldFetch]);
+      observer.disconnect()
+    }
+  }, [shouldFetch])
 
   const {
     data: newsData,
@@ -83,23 +83,25 @@ function MarketNewsSection() {
   } = useNewsIntelligence(undefined, {
     limit: articleLimit,
     enabled: shouldFetch,
-  });
+  })
 
   const handleExpandRequest = () => {
     if (articleLimit < MARKET_NEWS_EXPANDED_LIMIT) {
-      setArticleLimit(MARKET_NEWS_EXPANDED_LIMIT);
+      setArticleLimit(MARKET_NEWS_EXPANDED_LIMIT)
     }
-  };
+  }
 
-  const showSkeleton = !shouldFetch || isLoading;
-  const isLoadingMore = isFetching && articleLimit > MARKET_NEWS_INITIAL_LIMIT;
+  const showSkeleton = !shouldFetch || isLoading
+  const isLoadingMore = isFetching && articleLimit > MARKET_NEWS_INITIAL_LIMIT
 
   return (
     <div ref={sectionRef}>
-      {showSkeleton && <SectionLoadingState label="Fetching latest headlines" rows={4} />}
+      {showSkeleton && (
+        <SectionLoadingState label="Fetching latest headlines" rows={4} />
+      )}
       {!showSkeleton && error && (
         <div className="rounded-lg border border-border/50 bg-surface-muted/40 p-4 text-sm text-text-muted">
-          Failed to load market news.{" "}
+          Failed to load market news.{' '}
           <button
             className="text-primary underline-offset-2 hover:underline"
             onClick={() => refetch()}
@@ -114,13 +116,15 @@ function MarketNewsSection() {
           marketNewsData={newsData}
           symbol={null}
           onRequestExpanded={
-            articleLimit < MARKET_NEWS_EXPANDED_LIMIT ? handleExpandRequest : undefined
+            articleLimit < MARKET_NEWS_EXPANDED_LIMIT
+              ? handleExpandRequest
+              : undefined
           }
           isLoadingMore={isLoadingMore}
         />
       )}
     </div>
-  );
+  )
 }
 
 export default function Dashboard() {
@@ -131,7 +135,11 @@ export default function Dashboard() {
         description="AI-powered portfolio intelligence and market insights"
       />
 
-      <Suspense fallback={<SectionLoadingState label="Loading market intelligence" rows={5} />}>
+      <Suspense
+        fallback={
+          <SectionLoadingState label="Loading market intelligence" rows={5} />
+        }
+      >
         <MarketIntelligence />
       </Suspense>
 
@@ -146,5 +154,5 @@ export default function Dashboard() {
           <PortfolioOverview />
         </SectionCard> */}
     </PageContainer>
-  );
+  )
 }

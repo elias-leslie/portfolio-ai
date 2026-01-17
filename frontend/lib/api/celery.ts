@@ -4,106 +4,106 @@
 
 // Type definitions
 export interface TaskInfo {
-  id: string;
-  name: string;
-  status: string;
-  startedAt: string | null;
-  duration: number | null;
-  worker: string | null;
-  args: string | null;
-  kwargs: string | null;
-  result: string | null;
-  traceback: string | null;
-  dateDone: string | null;
+  id: string
+  name: string
+  status: string
+  startedAt: string | null
+  duration: number | null
+  worker: string | null
+  args: string | null
+  kwargs: string | null
+  result: string | null
+  traceback: string | null
+  dateDone: string | null
 }
 
 export interface TaskListResponse {
-  tasks: TaskInfo[];
-  total: number;
-  activeCount: number;
-  pendingCount: number;
-  completedCount: number;
-  failedCount: number;
+  tasks: TaskInfo[]
+  total: number
+  activeCount: number
+  pendingCount: number
+  completedCount: number
+  failedCount: number
 }
 
 export interface QueueInfo {
-  depth: number;
-  consumers: number;
+  depth: number
+  consumers: number
 }
 
 export interface ScheduleInfo {
-  name: string;
-  task: string;
-  schedule: string;
-  lastRun: string | null;
-  nextRun: string | null;
+  name: string
+  task: string
+  schedule: string
+  lastRun: string | null
+  nextRun: string | null
 }
 
 /**
  * Fetch Celery tasks with optional filtering
  */
 export async function fetchCeleryTasks(
-  status: "all" | "active" | "pending" | "completed" | "failed" = "all",
+  status: 'all' | 'active' | 'pending' | 'completed' | 'failed' = 'all',
   limit: number = 50,
-  sort: "time" | "duration" | "name" = "time"
+  sort: 'time' | 'duration' | 'name' = 'time',
 ): Promise<TaskListResponse> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || ''
   const params = new URLSearchParams({
     status,
     limit: limit.toString(),
     sort,
-  });
+  })
 
   const response = await fetch(`${apiUrl}/api/status/celery/tasks?${params}`, {
-    method: "GET",
+    method: 'GET',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
-  });
+  })
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch Celery tasks: ${response.statusText}`);
+    throw new Error(`Failed to fetch Celery tasks: ${response.statusText}`)
   }
 
-  return response.json();
+  return response.json()
 }
 
 /**
  * Fetch Celery queue depth and consumer count
  */
 export async function fetchQueueDepth(): Promise<QueueInfo> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || ''
 
   const response = await fetch(`${apiUrl}/api/status/celery/queue`, {
-    method: "GET",
+    method: 'GET',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
-  });
+  })
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch queue depth: ${response.statusText}`);
+    throw new Error(`Failed to fetch queue depth: ${response.statusText}`)
   }
 
-  return response.json();
+  return response.json()
 }
 
 /**
  * Fetch Celery Beat schedule information
  */
 export async function fetchBeatSchedule(): Promise<ScheduleInfo[]> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || ''
 
   const response = await fetch(`${apiUrl}/api/status/celery/schedule`, {
-    method: "GET",
+    method: 'GET',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
-  });
+  })
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch beat schedule: ${response.statusText}`);
+    throw new Error(`Failed to fetch beat schedule: ${response.statusText}`)
   }
 
-  return response.json();
+  return response.json()
 }

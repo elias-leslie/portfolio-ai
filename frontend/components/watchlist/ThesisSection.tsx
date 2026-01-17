@@ -1,29 +1,29 @@
-"use client";
+'use client'
 
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
 import {
-    Accordion,
-    AccordionContent,
-    AccordionItem,
-    AccordionTrigger,
-} from "@/components/ui/accordion";
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { fetchThesis, generateThesis, invalidateThesis } from "@/lib/api/thesis";
-import type { Thesis, CoreReason, KeyCatalyst, Risk } from "@/lib/api/thesis";
-import { formatTimestamp } from "./ExpandedRowUtils";
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import type { CoreReason, KeyCatalyst, Risk, Thesis } from '@/lib/api/thesis'
+import { fetchThesis, generateThesis, invalidateThesis } from '@/lib/api/thesis'
+import { formatTimestamp } from './ExpandedRowUtils'
 
 interface ThesisSectionProps {
-    symbol: string;
-    userTimezone: string;
+  symbol: string
+  userTimezone: string
 }
 
 /**
@@ -40,485 +40,550 @@ interface ThesisSectionProps {
  * - Version history
  */
 export function ThesisSection({ symbol, userTimezone }: ThesisSectionProps) {
-    const [showAdmin, setShowAdmin] = useState(false);
-    const queryClient = useQueryClient();
+  const [showAdmin, setShowAdmin] = useState(false)
+  const queryClient = useQueryClient()
 
-    // Fetch thesis data
-    const { data, isLoading, error } = useQuery({
-        queryKey: ["thesis", symbol],
-        queryFn: () => fetchThesis(symbol),
-    });
+  // Fetch thesis data
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['thesis', symbol],
+    queryFn: () => fetchThesis(symbol),
+  })
 
-    // Generate thesis mutation
-    const generateMutation = useMutation({
-        mutationFn: (forceRegenerate: boolean) =>
-            generateThesis(symbol, { forceRegenerate: forceRegenerate }),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["thesis", symbol] });
-        },
-    });
+  // Generate thesis mutation
+  const generateMutation = useMutation({
+    mutationFn: (forceRegenerate: boolean) =>
+      generateThesis(symbol, { forceRegenerate: forceRegenerate }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['thesis', symbol] })
+    },
+  })
 
-    // Invalidate thesis mutation
-    const invalidateMutation = useMutation({
-        mutationFn: (reason: string) => invalidateThesis(symbol, reason),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["thesis", symbol] });
-        },
-    });
+  // Invalidate thesis mutation
+  const invalidateMutation = useMutation({
+    mutationFn: (reason: string) => invalidateThesis(symbol, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['thesis', symbol] })
+    },
+  })
 
-    if (isLoading) {
-        return (
-            <Card className="border-border">
-                <CardContent className="p-6">
-                    <div className="flex items-center justify-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                    </div>
-                </CardContent>
-            </Card>
-        );
-    }
-
-    if (error) {
-        return (
-            <Card className="border-border border-status-error/20">
-                <CardContent className="p-6">
-                    <p className="text-sm text-status-error">
-                        Error loading thesis: {error instanceof Error ? error.message : "Unknown error"}
-                    </p>
-                </CardContent>
-            </Card>
-        );
-    }
-
-    const thesis = data?.thesis;
-
-    // No thesis exists
-    if (!thesis) {
-        return (
-            <Card className="border-border">
-                <CardHeader>
-                    <CardTitle className="text-base">Investment Thesis</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <p className="text-sm text-text-muted">
-                        No thesis generated for {symbol}
-                    </p>
-                    <Button
-                        onClick={() => generateMutation.mutate(false)}
-                        disabled={generateMutation.isPending}
-                        size="sm"
-                    >
-                        {generateMutation.isPending ? "Generating..." : "Generate Thesis"}
-                    </Button>
-                </CardContent>
-            </Card>
-        );
-    }
-
+  if (isLoading) {
     return (
-        <TooltipProvider delayDuration={200}>
-            <Card className="border-border">
-                <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                        <CardTitle className="text-base">Investment Thesis</CardTitle>
-                        <div className="flex items-center gap-2">
-                            <ActionBadge action={thesis.action} />
-                            {thesis.crossValidationScore !== null && (
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Badge variant="outline" className="cursor-help">
-                                            Cross-Val: {(thesis.crossValidationScore * 100).toFixed(0)}%
-                                        </Badge>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                        <p className="text-xs">
-                                            AI cross-validation confidence score
-                                        </p>
-                                    </TooltipContent>
-                                </Tooltip>
-                            )}
-                            <StatusBadge status={thesis.status} />
-                        </div>
-                    </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    {/* Core Reasons */}
-                    <CoreReasonsSection reasons={thesis.coreReasons} />
+      <Card className="border-border">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
 
-                    {/* Key Catalysts */}
-                    {thesis.keyCatalysts.length > 0 && (
-                        <KeyCatalystsSection
-                            catalysts={thesis.keyCatalysts}
-                            userTimezone={userTimezone}
-                        />
-                    )}
+  if (error) {
+    return (
+      <Card className="border-border border-status-error/20">
+        <CardContent className="p-6">
+          <p className="text-sm text-status-error">
+            Error loading thesis:{' '}
+            {error instanceof Error ? error.message : 'Unknown error'}
+          </p>
+        </CardContent>
+      </Card>
+    )
+  }
 
-                    {/* Risks */}
-                    {thesis.risks.length > 0 && (
-                        <RisksSection risks={thesis.risks} />
-                    )}
+  const thesis = data?.thesis
 
-                    {/* Value Drivers */}
-                    {thesis.valueDrivers && (
-                        <ValueDriversSection drivers={thesis.valueDrivers} />
-                    )}
+  // No thesis exists
+  if (!thesis) {
+    return (
+      <Card className="border-border">
+        <CardHeader>
+          <CardTitle className="text-base">Investment Thesis</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-text-muted">
+            No thesis generated for {symbol}
+          </p>
+          <Button
+            onClick={() => generateMutation.mutate(false)}
+            disabled={generateMutation.isPending}
+            size="sm"
+          >
+            {generateMutation.isPending ? 'Generating...' : 'Generate Thesis'}
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
 
-                    {/* Expected Returns */}
-                    {(thesis.expectedReturnPct !== null ||
-                        thesis.expectedTimeframeDays !== null) && (
-                        <ExpectedReturnsSection thesis={thesis} />
-                    )}
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Card className="border-border">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Investment Thesis</CardTitle>
+            <div className="flex items-center gap-2">
+              <ActionBadge action={thesis.action} />
+              {thesis.crossValidationScore !== null && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="outline" className="cursor-help">
+                      Cross-Val:{' '}
+                      {(thesis.crossValidationScore * 100).toFixed(0)}%
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="text-xs">
+                      AI cross-validation confidence score
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+              <StatusBadge status={thesis.status} />
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Core Reasons */}
+          <CoreReasonsSection reasons={thesis.coreReasons} />
 
-                    {/* Claude Validation */}
-                    {thesis.claudeValidation && (
-                        <ClaudeValidationSection validation={thesis.claudeValidation} />
-                    )}
+          {/* Key Catalysts */}
+          {thesis.keyCatalysts.length > 0 && (
+            <KeyCatalystsSection
+              catalysts={thesis.keyCatalysts}
+              userTimezone={userTimezone}
+            />
+          )}
 
-                    {/* Version History */}
-                    {data.versions && data.versions.length > 1 && (
-                        <VersionHistorySection
-                            versions={data.versions}
-                            userTimezone={userTimezone}
-                        />
-                    )}
+          {/* Risks */}
+          {thesis.risks.length > 0 && <RisksSection risks={thesis.risks} />}
 
-                    {/* Action Buttons */}
-                    <div className="border-t border-border pt-3 flex items-center gap-2">
-                        <Button
-                            onClick={() => generateMutation.mutate(true)}
-                            disabled={generateMutation.isPending}
-                            size="sm"
-                            variant="outline"
-                        >
-                            {generateMutation.isPending ? "Regenerating..." : "Regenerate"}
-                        </Button>
-                        <Button
-                            onClick={() => setShowAdmin(!showAdmin)}
-                            size="sm"
-                            variant="ghost"
-                        >
-                            {showAdmin ? "Hide Admin" : "Admin"}
-                        </Button>
-                        {showAdmin && (
-                            <Button
-                                onClick={() => invalidateMutation.mutate("Manual invalidation by user")}
-                                disabled={invalidateMutation.isPending}
-                                size="sm"
-                                variant="destructive"
-                            >
-                                {invalidateMutation.isPending ? "Invalidating..." : "Invalidate"}
-                            </Button>
-                        )}
-                        <div className="ml-auto text-xs text-text-muted">
-                            v{thesis.version} • Updated {formatTimestamp(thesis.updatedAt, userTimezone)}
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-        </TooltipProvider>
-    );
+          {/* Value Drivers */}
+          {thesis.valueDrivers && (
+            <ValueDriversSection drivers={thesis.valueDrivers} />
+          )}
+
+          {/* Expected Returns */}
+          {(thesis.expectedReturnPct !== null ||
+            thesis.expectedTimeframeDays !== null) && (
+            <ExpectedReturnsSection thesis={thesis} />
+          )}
+
+          {/* Claude Validation */}
+          {thesis.claudeValidation && (
+            <ClaudeValidationSection validation={thesis.claudeValidation} />
+          )}
+
+          {/* Version History */}
+          {data.versions && data.versions.length > 1 && (
+            <VersionHistorySection
+              versions={data.versions}
+              userTimezone={userTimezone}
+            />
+          )}
+
+          {/* Action Buttons */}
+          <div className="border-t border-border pt-3 flex items-center gap-2">
+            <Button
+              onClick={() => generateMutation.mutate(true)}
+              disabled={generateMutation.isPending}
+              size="sm"
+              variant="outline"
+            >
+              {generateMutation.isPending ? 'Regenerating...' : 'Regenerate'}
+            </Button>
+            <Button
+              onClick={() => setShowAdmin(!showAdmin)}
+              size="sm"
+              variant="ghost"
+            >
+              {showAdmin ? 'Hide Admin' : 'Admin'}
+            </Button>
+            {showAdmin && (
+              <Button
+                onClick={() =>
+                  invalidateMutation.mutate('Manual invalidation by user')
+                }
+                disabled={invalidateMutation.isPending}
+                size="sm"
+                variant="destructive"
+              >
+                {invalidateMutation.isPending
+                  ? 'Invalidating...'
+                  : 'Invalidate'}
+              </Button>
+            )}
+            <div className="ml-auto text-xs text-text-muted">
+              v{thesis.version} • Updated{' '}
+              {formatTimestamp(thesis.updatedAt, userTimezone)}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </TooltipProvider>
+  )
 }
 
 // Action Badge Component
-function ActionBadge({ action }: { action: "BUY" | "HOLD" | "SELL" }) {
-    const config = {
-        BUY: { color: "bg-status-success/10 text-status-success border-status-success/20", icon: "📈" },
-        HOLD: { color: "bg-status-warning/10 text-status-warning border-status-warning/20", icon: "⏸️" },
-        SELL: { color: "bg-status-error/10 text-status-error border-status-error/20", icon: "📉" },
-    };
+function ActionBadge({ action }: { action: 'BUY' | 'HOLD' | 'SELL' }) {
+  const config = {
+    BUY: {
+      color:
+        'bg-status-success/10 text-status-success border-status-success/20',
+      icon: '📈',
+    },
+    HOLD: {
+      color:
+        'bg-status-warning/10 text-status-warning border-status-warning/20',
+      icon: '⏸️',
+    },
+    SELL: {
+      color: 'bg-status-error/10 text-status-error border-status-error/20',
+      icon: '📉',
+    },
+  }
 
-    const { color, icon } = config[action];
+  const { color, icon } = config[action]
 
-    return (
-        <Badge className={`${color} font-semibold`}>
-            <span className="mr-1">{icon}</span>
-            {action}
-        </Badge>
-    );
+  return (
+    <Badge className={`${color} font-semibold`}>
+      <span className="mr-1">{icon}</span>
+      {action}
+    </Badge>
+  )
 }
 
 // Status Badge Component
 // Note: status values are snake_case from backend (string values aren't transformed)
-function StatusBadge({ status }: { status: "active" | "invalidated" | "flagged_for_review" }) {
-    const config = {
-        active: { color: "bg-status-info/10 text-status-info border-status-info/20", label: "Active" },
-        invalidated: { color: "bg-surface-muted text-text-muted border-border", label: "Invalidated" },
-        flagged_for_review: { color: "bg-status-warning/10 text-status-warning border-status-warning/20", label: "Flagged" },
-    };
+function StatusBadge({
+  status,
+}: {
+  status: 'active' | 'invalidated' | 'flagged_for_review'
+}) {
+  const config = {
+    active: {
+      color: 'bg-status-info/10 text-status-info border-status-info/20',
+      label: 'Active',
+    },
+    invalidated: {
+      color: 'bg-surface-muted text-text-muted border-border',
+      label: 'Invalidated',
+    },
+    flagged_for_review: {
+      color:
+        'bg-status-warning/10 text-status-warning border-status-warning/20',
+      label: 'Flagged',
+    },
+  }
 
-    const { color, label } = config[status];
+  const { color, label } = config[status]
 
-    return (
-        <Badge variant="outline" className={color}>
-            {label}
-        </Badge>
-    );
+  return (
+    <Badge variant="outline" className={color}>
+      {label}
+    </Badge>
+  )
 }
 
 // Core Reasons Section
 function CoreReasonsSection({ reasons }: { reasons: CoreReason[] }) {
-    if (reasons.length === 0) return null;
+  if (reasons.length === 0) return null
 
-    return (
-        <div className="space-y-2">
-            <h5 className="text-xs font-semibold text-text">Core Reasons</h5>
-            <div className="space-y-2">
-                {reasons.map((reason, idx) => (
-                    <div key={idx} className="space-y-1">
-                        <div className="flex items-start justify-between gap-2">
-                            <p className="text-sm text-text flex-1">{reason.reason}</p>
-                            <span className="text-xs font-semibold text-text-muted min-w-[40px] text-right">
-                                {(reason.confidence * 100).toFixed(0)}%
-                            </span>
-                        </div>
-                        <div className="h-1.5 bg-surface-muted rounded-full overflow-hidden">
-                            <div
-                                className={`h-full ${getConfidenceColor(reason.confidence)} transition-all`}
-                                style={{ width: `${reason.confidence * 100}%` }}
-                            />
-                        </div>
-                    </div>
-                ))}
+  return (
+    <div className="space-y-2">
+      <h5 className="text-xs font-semibold text-text">Core Reasons</h5>
+      <div className="space-y-2">
+        {reasons.map((reason, idx) => (
+          <div key={idx} className="space-y-1">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm text-text flex-1">{reason.reason}</p>
+              <span className="text-xs font-semibold text-text-muted min-w-[40px] text-right">
+                {(reason.confidence * 100).toFixed(0)}%
+              </span>
             </div>
-        </div>
-    );
+            <div className="h-1.5 bg-surface-muted rounded-full overflow-hidden">
+              <div
+                className={`h-full ${getConfidenceColor(reason.confidence)} transition-all`}
+                style={{ width: `${reason.confidence * 100}%` }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 // Key Catalysts Section
 function KeyCatalystsSection({
-    catalysts,
-    userTimezone,
+  catalysts,
+  userTimezone,
 }: {
-    catalysts: KeyCatalyst[];
-    userTimezone: string;
+  catalysts: KeyCatalyst[]
+  userTimezone: string
 }) {
-    return (
-        <div className="border-t border-border pt-3 space-y-2">
-            <h5 className="text-xs font-semibold text-text">Key Catalysts</h5>
-            <div className="space-y-2">
-                {catalysts.map((catalyst, idx) => (
-                    <div key={idx} className="flex items-start gap-2">
-                        <ImpactBadge impact={catalyst.impact} />
-                        <div className="flex-1">
-                            <p className="text-sm text-text">{catalyst.catalyst}</p>
-                            {catalyst.expectedDate && (
-                                <p className="text-xs text-text-muted mt-0.5">
-                                    Expected: {formatTimestamp(catalyst.expectedDate, userTimezone)}
-                                </p>
-                            )}
-                        </div>
-                    </div>
-                ))}
+  return (
+    <div className="border-t border-border pt-3 space-y-2">
+      <h5 className="text-xs font-semibold text-text">Key Catalysts</h5>
+      <div className="space-y-2">
+        {catalysts.map((catalyst, idx) => (
+          <div key={idx} className="flex items-start gap-2">
+            <ImpactBadge impact={catalyst.impact} />
+            <div className="flex-1">
+              <p className="text-sm text-text">{catalyst.catalyst}</p>
+              {catalyst.expectedDate && (
+                <p className="text-xs text-text-muted mt-0.5">
+                  Expected:{' '}
+                  {formatTimestamp(catalyst.expectedDate, userTimezone)}
+                </p>
+              )}
             </div>
-        </div>
-    );
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 // Impact Badge Component
-function ImpactBadge({ impact }: { impact: "positive" | "negative" | "neutral" }) {
-    const config = {
-        positive: { color: "bg-status-success/10 text-status-success border-status-success/20", icon: "+" },
-        negative: { color: "bg-status-error/10 text-status-error border-status-error/20", icon: "-" },
-        neutral: { color: "bg-surface-muted text-text-muted border-border", icon: "~" },
-    };
+function ImpactBadge({
+  impact,
+}: {
+  impact: 'positive' | 'negative' | 'neutral'
+}) {
+  const config = {
+    positive: {
+      color:
+        'bg-status-success/10 text-status-success border-status-success/20',
+      icon: '+',
+    },
+    negative: {
+      color: 'bg-status-error/10 text-status-error border-status-error/20',
+      icon: '-',
+    },
+    neutral: {
+      color: 'bg-surface-muted text-text-muted border-border',
+      icon: '~',
+    },
+  }
 
-    const { color, icon } = config[impact];
+  const { color, icon } = config[impact]
 
-    return (
-        <Badge variant="outline" className={`${color} text-xs px-1.5 py-0 h-5`}>
-            {icon}
-        </Badge>
-    );
+  return (
+    <Badge variant="outline" className={`${color} text-xs px-1.5 py-0 h-5`}>
+      {icon}
+    </Badge>
+  )
 }
 
 // Risks Section
 function RisksSection({ risks }: { risks: Risk[] }) {
-    return (
-        <div className="border-t border-border pt-3 space-y-2">
-            <h5 className="text-xs font-semibold text-text">Risks</h5>
-            <div className="space-y-2">
-                {risks.map((risk, idx) => (
-                    <div key={idx} className="space-y-1">
-                        <div className="flex items-start gap-2">
-                            <SeverityBadge severity={risk.severity} />
-                            <div className="flex-1">
-                                <p className="text-sm text-text">{risk.risk}</p>
-                                {risk.mitigation && (
-                                    <p className="text-xs text-text-muted mt-1">
-                                        <span className="font-medium">Mitigation:</span> {risk.mitigation}
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                ))}
+  return (
+    <div className="border-t border-border pt-3 space-y-2">
+      <h5 className="text-xs font-semibold text-text">Risks</h5>
+      <div className="space-y-2">
+        {risks.map((risk, idx) => (
+          <div key={idx} className="space-y-1">
+            <div className="flex items-start gap-2">
+              <SeverityBadge severity={risk.severity} />
+              <div className="flex-1">
+                <p className="text-sm text-text">{risk.risk}</p>
+                {risk.mitigation && (
+                  <p className="text-xs text-text-muted mt-1">
+                    <span className="font-medium">Mitigation:</span>{' '}
+                    {risk.mitigation}
+                  </p>
+                )}
+              </div>
             </div>
-        </div>
-    );
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 // Severity Badge Component
-function SeverityBadge({ severity }: { severity: "high" | "medium" | "low" }) {
-    const config = {
-        high: { color: "bg-status-error/10 text-status-error border-status-error/20", label: "High" },
-        medium: { color: "bg-status-warning/10 text-status-warning border-status-warning/20", label: "Med" },
-        low: { color: "bg-status-info/10 text-status-info border-status-info/20", label: "Low" },
-    };
+function SeverityBadge({ severity }: { severity: 'high' | 'medium' | 'low' }) {
+  const config = {
+    high: {
+      color: 'bg-status-error/10 text-status-error border-status-error/20',
+      label: 'High',
+    },
+    medium: {
+      color:
+        'bg-status-warning/10 text-status-warning border-status-warning/20',
+      label: 'Med',
+    },
+    low: {
+      color: 'bg-status-info/10 text-status-info border-status-info/20',
+      label: 'Low',
+    },
+  }
 
-    const { color, label } = config[severity];
+  const { color, label } = config[severity]
 
-    return (
-        <Badge variant="outline" className={`${color} text-xs px-1.5 py-0 h-5`}>
-            {label}
-        </Badge>
-    );
+  return (
+    <Badge variant="outline" className={`${color} text-xs px-1.5 py-0 h-5`}>
+      {label}
+    </Badge>
+  )
 }
 
 // Value Drivers Section
-function ValueDriversSection({ drivers }: { drivers: NonNullable<Thesis["valueDrivers"]> }) {
-    const items = [
-        { label: "Market Size", value: drivers.marketSize },
-        { label: "Company Position", value: drivers.companyPosition },
-        { label: "Upside Potential", value: drivers.upsidePotential },
-        { label: "Competitive Moat", value: drivers.competitiveMoat },
-    ].filter((item) => item.value !== null);
+function ValueDriversSection({
+  drivers,
+}: {
+  drivers: NonNullable<Thesis['valueDrivers']>
+}) {
+  const items = [
+    { label: 'Market Size', value: drivers.marketSize },
+    { label: 'Company Position', value: drivers.companyPosition },
+    { label: 'Upside Potential', value: drivers.upsidePotential },
+    { label: 'Competitive Moat', value: drivers.competitiveMoat },
+  ].filter((item) => item.value !== null)
 
-    if (items.length === 0) return null;
+  if (items.length === 0) return null
 
-    return (
-        <div className="border-t border-border pt-3 space-y-2">
-            <h5 className="text-xs font-semibold text-text">Value Drivers</h5>
-            <div className="grid grid-cols-2 gap-2">
-                {items.map((item, idx) => (
-                    <div key={idx} className="bg-surface-muted/50 rounded px-2 py-1.5">
-                        <p className="text-xs text-text-muted">{item.label}</p>
-                        <p className="text-sm font-medium text-text">{item.value}</p>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
+  return (
+    <div className="border-t border-border pt-3 space-y-2">
+      <h5 className="text-xs font-semibold text-text">Value Drivers</h5>
+      <div className="grid grid-cols-2 gap-2">
+        {items.map((item, idx) => (
+          <div key={idx} className="bg-surface-muted/50 rounded px-2 py-1.5">
+            <p className="text-xs text-text-muted">{item.label}</p>
+            <p className="text-sm font-medium text-text">{item.value}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 // Expected Returns Section
 function ExpectedReturnsSection({ thesis }: { thesis: Thesis }) {
-    return (
-        <div className="border-t border-border pt-3">
-            <h5 className="text-xs font-semibold text-text mb-2">Expected Returns</h5>
-            <div className="grid grid-cols-2 gap-3">
-                {thesis.expectedReturnPct !== null && (
-                    <div className="bg-surface-muted/50 rounded px-2 py-1.5">
-                        <p className="text-xs text-text-muted">Return</p>
-                        <p className="text-sm font-semibold text-text">
-                            {thesis.expectedReturnPct > 0 ? "+" : ""}
-                            {thesis.expectedReturnPct.toFixed(1)}%
-                        </p>
-                    </div>
-                )}
-                {thesis.expectedTimeframeDays !== null && (
-                    <div className="bg-surface-muted/50 rounded px-2 py-1.5">
-                        <p className="text-xs text-text-muted">Timeframe</p>
-                        <p className="text-sm font-semibold text-text">
-                            {thesis.expectedTimeframeDays} days
-                        </p>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
+  return (
+    <div className="border-t border-border pt-3">
+      <h5 className="text-xs font-semibold text-text mb-2">Expected Returns</h5>
+      <div className="grid grid-cols-2 gap-3">
+        {thesis.expectedReturnPct !== null && (
+          <div className="bg-surface-muted/50 rounded px-2 py-1.5">
+            <p className="text-xs text-text-muted">Return</p>
+            <p className="text-sm font-semibold text-text">
+              {thesis.expectedReturnPct > 0 ? '+' : ''}
+              {thesis.expectedReturnPct.toFixed(1)}%
+            </p>
+          </div>
+        )}
+        {thesis.expectedTimeframeDays !== null && (
+          <div className="bg-surface-muted/50 rounded px-2 py-1.5">
+            <p className="text-xs text-text-muted">Timeframe</p>
+            <p className="text-sm font-semibold text-text">
+              {thesis.expectedTimeframeDays} days
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 // Claude Validation Section
 function ClaudeValidationSection({
-    validation,
+  validation,
 }: {
-    validation: NonNullable<Thesis["claudeValidation"]>;
+  validation: NonNullable<Thesis['claudeValidation']>
 }) {
-    return (
-        <div className="border-t border-border pt-3 space-y-2">
-            <div className="flex items-center justify-between">
-                <h5 className="text-xs font-semibold text-text">AI Validation</h5>
-                <div className="flex items-center gap-2">
-                    <Badge
-                        variant="outline"
-                        className={
-                            validation.approved
-                                ? "bg-status-success/10 text-status-success border-status-success/20"
-                                : "bg-status-error/10 text-status-error border-status-error/20"
-                        }
-                    >
-                        {validation.approved ? "Approved" : "Not Approved"}
-                    </Badge>
-                    <span className="text-xs text-text-muted">
-                        {(validation.confidence * 100).toFixed(0)}% confidence
-                    </span>
-                </div>
-            </div>
-            <p className="text-sm text-text-muted">{validation.reviewSummary}</p>
-            {validation.issues.length > 0 && (
-                <div className="space-y-1">
-                    <p className="text-xs font-medium text-text">Issues:</p>
-                    <ul className="list-disc list-inside space-y-0.5">
-                        {validation.issues.map((issue, idx) => (
-                            <li key={idx} className="text-xs text-text-muted">
-                                {issue}
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-            )}
+  return (
+    <div className="border-t border-border pt-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <h5 className="text-xs font-semibold text-text">AI Validation</h5>
+        <div className="flex items-center gap-2">
+          <Badge
+            variant="outline"
+            className={
+              validation.approved
+                ? 'bg-status-success/10 text-status-success border-status-success/20'
+                : 'bg-status-error/10 text-status-error border-status-error/20'
+            }
+          >
+            {validation.approved ? 'Approved' : 'Not Approved'}
+          </Badge>
+          <span className="text-xs text-text-muted">
+            {(validation.confidence * 100).toFixed(0)}% confidence
+          </span>
         </div>
-    );
+      </div>
+      <p className="text-sm text-text-muted">{validation.reviewSummary}</p>
+      {validation.issues.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-text">Issues:</p>
+          <ul className="list-disc list-inside space-y-0.5">
+            {validation.issues.map((issue, idx) => (
+              <li key={idx} className="text-xs text-text-muted">
+                {issue}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // Version History Section
 function VersionHistorySection({
-    versions,
-    userTimezone,
+  versions,
+  userTimezone,
 }: {
-    versions: Array<{ version: number; status: string; action: string; createdAt: string }>;
-    userTimezone: string;
+  versions: Array<{
+    version: number
+    status: string
+    action: string
+    createdAt: string
+  }>
+  userTimezone: string
 }) {
-    return (
-        <div className="border-t border-border pt-3">
-            <Accordion type="single" collapsible>
-                <AccordionItem value="history" className="border-0">
-                    <AccordionTrigger className="hover:no-underline py-2 text-xs font-semibold">
-                        Version History ({versions.length})
-                    </AccordionTrigger>
-                    <AccordionContent>
-                        <div className="space-y-2 pt-2">
-                            {versions.map((version) => (
-                                <div
-                                    key={version.version}
-                                    className="flex items-center justify-between text-xs border-b border-border pb-2 last:border-0"
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <Badge variant="outline" className="text-xs">
-                                            v{version.version}
-                                        </Badge>
-                                        <span className="text-text-muted">{version.action}</span>
-                                        <Badge variant="outline" className="text-xs">
-                                            {version.status}
-                                        </Badge>
-                                    </div>
-                                    <span className="text-text-muted">
-                                        {formatTimestamp(version.createdAt, userTimezone)}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    </AccordionContent>
-                </AccordionItem>
-            </Accordion>
-        </div>
-    );
+  return (
+    <div className="border-t border-border pt-3">
+      <Accordion type="single" collapsible>
+        <AccordionItem value="history" className="border-0">
+          <AccordionTrigger className="hover:no-underline py-2 text-xs font-semibold">
+            Version History ({versions.length})
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="space-y-2 pt-2">
+              {versions.map((version) => (
+                <div
+                  key={version.version}
+                  className="flex items-center justify-between text-xs border-b border-border pb-2 last:border-0"
+                >
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      v{version.version}
+                    </Badge>
+                    <span className="text-text-muted">{version.action}</span>
+                    <Badge variant="outline" className="text-xs">
+                      {version.status}
+                    </Badge>
+                  </div>
+                  <span className="text-text-muted">
+                    {formatTimestamp(version.createdAt, userTimezone)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+    </div>
+  )
 }
 
 // Utility Functions
 function getConfidenceColor(confidence: number): string {
-    if (confidence >= 0.8) return "bg-status-success";
-    if (confidence >= 0.6) return "bg-status-info";
-    if (confidence >= 0.4) return "bg-status-warning";
-    return "bg-status-error";
+  if (confidence >= 0.8) return 'bg-status-success'
+  if (confidence >= 0.6) return 'bg-status-info'
+  if (confidence >= 0.4) return 'bg-status-warning'
+  return 'bg-status-error'
 }

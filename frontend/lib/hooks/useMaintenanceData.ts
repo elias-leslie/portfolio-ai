@@ -1,35 +1,35 @@
-"use client";
+'use client'
 
-import { useState, useEffect, useCallback } from "react";
-import { toast } from "sonner";
+import { useCallback, useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import {
-  getFileCleanupStatus,
-  getMaintenanceLastRun,
-  getMaintenanceDiskSpace,
-  getMaintenanceDatabaseSize,
-  getMaintenanceSchedule,
-  getCacheStatus,
-  type FileCleanupStatusResponse,
-  type LastRunSummary,
-  type DiskSpaceResponse,
-  type DatabaseSizeResponse,
-  type MaintenanceScheduleResponse,
   type CacheStatusResponse,
-} from "@/lib/api/maintenance";
+  type DatabaseSizeResponse,
+  type DiskSpaceResponse,
+  type FileCleanupStatusResponse,
+  getCacheStatus,
+  getFileCleanupStatus,
+  getMaintenanceDatabaseSize,
+  getMaintenanceDiskSpace,
+  getMaintenanceLastRun,
+  getMaintenanceSchedule,
+  type LastRunSummary,
+  type MaintenanceScheduleResponse,
+} from '@/lib/api/maintenance'
 
 export interface MaintenanceDataState {
-  fileCleanup: FileCleanupStatusResponse | null;
-  lastRunSummary: LastRunSummary | null;
-  diskSpace: DiskSpaceResponse | null;
-  dbSize: DatabaseSizeResponse | null;
-  schedule: MaintenanceScheduleResponse | null;
-  cacheStatus: CacheStatusResponse | null;
-  isLoading: boolean;
-  isRefreshing: boolean;
+  fileCleanup: FileCleanupStatusResponse | null
+  lastRunSummary: LastRunSummary | null
+  diskSpace: DiskSpaceResponse | null
+  dbSize: DatabaseSizeResponse | null
+  schedule: MaintenanceScheduleResponse | null
+  cacheStatus: CacheStatusResponse | null
+  isLoading: boolean
+  isRefreshing: boolean
 }
 
 export interface UseMaintenanceDataReturn extends MaintenanceDataState {
-  refresh: () => Promise<void>;
+  refresh: () => Promise<void>
 }
 
 /**
@@ -38,48 +38,56 @@ export interface UseMaintenanceDataReturn extends MaintenanceDataState {
  * schedule, and cache status in parallel.
  */
 export function useMaintenanceData(): UseMaintenanceDataReturn {
-  const [fileCleanup, setFileCleanup] = useState<FileCleanupStatusResponse | null>(null);
-  const [lastRunSummary, setLastRunSummary] = useState<LastRunSummary | null>(null);
-  const [diskSpace, setDiskSpace] = useState<DiskSpaceResponse | null>(null);
-  const [dbSize, setDbSize] = useState<DatabaseSizeResponse | null>(null);
-  const [schedule, setSchedule] = useState<MaintenanceScheduleResponse | null>(null);
-  const [cacheStatus, setCacheStatus] = useState<CacheStatusResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [fileCleanup, setFileCleanup] =
+    useState<FileCleanupStatusResponse | null>(null)
+  const [lastRunSummary, setLastRunSummary] = useState<LastRunSummary | null>(
+    null,
+  )
+  const [diskSpace, setDiskSpace] = useState<DiskSpaceResponse | null>(null)
+  const [dbSize, setDbSize] = useState<DatabaseSizeResponse | null>(null)
+  const [schedule, setSchedule] = useState<MaintenanceScheduleResponse | null>(
+    null,
+  )
+  const [cacheStatus, setCacheStatus] = useState<CacheStatusResponse | null>(
+    null,
+  )
+  const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   const fetchAllData = useCallback(async () => {
     try {
-      const [fileData, lastRun, diskData, dbData, scheduleData, cacheData] = await Promise.all([
-        getFileCleanupStatus(),
-        getMaintenanceLastRun(),
-        getMaintenanceDiskSpace(),
-        getMaintenanceDatabaseSize(),
-        getMaintenanceSchedule(),
-        getCacheStatus(),
-      ]);
-      setFileCleanup(fileData);
-      setLastRunSummary(lastRun);
-      setDiskSpace(diskData);
-      setDbSize(dbData);
-      setSchedule(scheduleData);
-      setCacheStatus(cacheData);
+      const [fileData, lastRun, diskData, dbData, scheduleData, cacheData] =
+        await Promise.all([
+          getFileCleanupStatus(),
+          getMaintenanceLastRun(),
+          getMaintenanceDiskSpace(),
+          getMaintenanceDatabaseSize(),
+          getMaintenanceSchedule(),
+          getCacheStatus(),
+        ])
+      setFileCleanup(fileData)
+      setLastRunSummary(lastRun)
+      setDiskSpace(diskData)
+      setDbSize(dbData)
+      setSchedule(scheduleData)
+      setCacheStatus(cacheData)
     } catch (error) {
-      console.error("Failed to fetch maintenance data:", error);
-      toast.error("Failed to load maintenance data");
+      console.error('Failed to fetch maintenance data:', error)
+      toast.error('Failed to load maintenance data')
     } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
+      setIsLoading(false)
+      setIsRefreshing(false)
     }
-  }, []);
+  }, [])
 
   useEffect(() => {
-    fetchAllData();
-  }, [fetchAllData]);
+    fetchAllData()
+  }, [fetchAllData])
 
   const refresh = useCallback(async () => {
-    setIsRefreshing(true);
-    await fetchAllData();
-  }, [fetchAllData]);
+    setIsRefreshing(true)
+    await fetchAllData()
+  }, [fetchAllData])
 
   return {
     fileCleanup,
@@ -91,5 +99,5 @@ export function useMaintenanceData(): UseMaintenanceDataReturn {
     isLoading,
     isRefreshing,
     refresh,
-  };
+  }
 }

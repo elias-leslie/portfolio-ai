@@ -1,12 +1,18 @@
-"use client";
+'use client'
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { History, GitBranch, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
-import type { WorkflowMetrics } from "@/lib/api/status";
+import {
+  AlertCircle,
+  CheckCircle2,
+  GitBranch,
+  History,
+  XCircle,
+} from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import type { WorkflowMetrics } from '@/lib/api/status'
 
 interface WorkflowMetricsCardProps {
-  metrics: WorkflowMetrics | undefined;
+  metrics: WorkflowMetrics | undefined
 }
 
 export function WorkflowMetricsCard({ metrics }: WorkflowMetricsCardProps) {
@@ -20,28 +26,54 @@ export function WorkflowMetricsCard({ metrics }: WorkflowMetricsCardProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">No workflow metrics available</p>
+          <p className="text-sm text-muted-foreground">
+            No workflow metrics available
+          </p>
         </CardContent>
       </Card>
-    );
+    )
   }
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "complete":
-        return <Badge variant="success" className="text-xs">{status}</Badge>;
-      case "failed":
-        return <Badge variant="destructive" className="text-xs">{status}</Badge>;
-      case "blocked":
-        return <Badge variant="warning" className="text-xs">{status}</Badge>;
-      case "running":
-        return <Badge variant="default" className="text-xs">{status}</Badge>;
-      case "pending":
-        return <Badge variant="secondary" className="text-xs">{status}</Badge>;
+      case 'complete':
+        return (
+          <Badge variant="success" className="text-xs">
+            {status}
+          </Badge>
+        )
+      case 'failed':
+        return (
+          <Badge variant="destructive" className="text-xs">
+            {status}
+          </Badge>
+        )
+      case 'blocked':
+        return (
+          <Badge variant="warning" className="text-xs">
+            {status}
+          </Badge>
+        )
+      case 'running':
+        return (
+          <Badge variant="default" className="text-xs">
+            {status}
+          </Badge>
+        )
+      case 'pending':
+        return (
+          <Badge variant="secondary" className="text-xs">
+            {status}
+          </Badge>
+        )
       default:
-        return <Badge variant="outline" className="text-xs">{status}</Badge>;
+        return (
+          <Badge variant="outline" className="text-xs">
+            {status}
+          </Badge>
+        )
     }
-  };
+  }
 
   return (
     <Card>
@@ -108,12 +140,20 @@ export function WorkflowMetricsCard({ metrics }: WorkflowMetricsCardProps) {
             <p className="text-sm font-medium mb-3">Workflows by Type</p>
             <div className="space-y-2">
               {Object.entries(metrics.summaryByType).map(([type, statuses]) => {
-                const total = Object.values(statuses).reduce((sum, count) => sum + count, 0);
+                const total = Object.values(statuses).reduce(
+                  (sum, count) => sum + count,
+                  0,
+                )
                 return (
-                  <div key={type} className="flex items-center justify-between text-sm">
+                  <div
+                    key={type}
+                    className="flex items-center justify-between text-sm"
+                  >
                     <span className="font-medium">{type}</span>
                     <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground">{total} runs</span>
+                      <span className="text-muted-foreground">
+                        {total} runs
+                      </span>
                       <div className="flex gap-1">
                         {statuses.complete > 0 && (
                           <Badge variant="success" className="text-xs">
@@ -133,7 +173,7 @@ export function WorkflowMetricsCard({ metrics }: WorkflowMetricsCardProps) {
                       </div>
                     </div>
                   </div>
-                );
+                )
               })}
             </div>
           </div>
@@ -168,5 +208,5 @@ export function WorkflowMetricsCard({ metrics }: WorkflowMetricsCardProps) {
         )}
       </CardContent>
     </Card>
-  );
+  )
 }

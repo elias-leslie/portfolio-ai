@@ -1,11 +1,11 @@
-"use client";
+'use client'
 
-import { Card } from "@/components/ui/card";
-import { BarChart3 } from "lucide-react";
-import type { PortfolioAnalytics } from "@/lib/api/portfolio";
+import { BarChart3 } from 'lucide-react'
+import { Card } from '@/components/ui/card'
+import type { PortfolioAnalytics } from '@/lib/api/portfolio'
 
 interface PortfolioStatsProps {
-  analytics: PortfolioAnalytics;
+  analytics: PortfolioAnalytics
 }
 
 export function PortfolioStats({ analytics }: PortfolioStatsProps) {
@@ -13,22 +13,22 @@ export function PortfolioStats({ analytics }: PortfolioStatsProps) {
   const avgPositionSize =
     analytics.numPositions > 0
       ? analytics.portfolioValue.totalValue / analytics.numPositions
-      : 0;
+      : 0
 
   // Find largest position
   const largestPosition =
     analytics.topPerformers.length > 0
       ? Math.max(...analytics.topPerformers.map((p) => p.weightPct))
-      : 0;
+      : 0
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(value);
-  };
+    }).format(value)
+  }
 
   return (
     <Card className="p-6">
@@ -62,10 +62,10 @@ export function PortfolioStats({ analytics }: PortfolioStatsProps) {
             <span
               className={`text-sm font-medium ${
                 analytics.sharpeRatio >= 1
-                  ? "text-gain"
+                  ? 'text-gain'
                   : analytics.sharpeRatio >= 0
-                  ? "text-accent"
-                  : "text-loss"
+                    ? 'text-accent'
+                    : 'text-loss'
               }`}
             >
               {analytics.sharpeRatio.toFixed(2)}
@@ -74,5 +74,5 @@ export function PortfolioStats({ analytics }: PortfolioStatsProps) {
         )}
       </div>
     </Card>
-  );
+  )
 }

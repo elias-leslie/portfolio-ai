@@ -1,34 +1,34 @@
-"use client";
+'use client'
 
 import {
-  BarChart,
   Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Cell,
-  ReferenceLine,
-} from "recharts";
-import { Card } from "@/components/ui/card";
-import { SectionCard } from "@/components/shared/SectionCard";
+} from 'recharts'
+import { SectionCard } from '@/components/shared/SectionCard'
+import { Card } from '@/components/ui/card'
 
 interface Trade {
-  pnlPct: string | number | null;
+  pnlPct: string | number | null
 }
 
 interface TradeDistributionChartProps {
-  trades: Trade[];
-  profitFactor: number | null;
+  trades: Trade[]
+  profitFactor: number | null
 }
 
 interface BinData {
-  range: string;
-  count: number;
-  isWin: boolean;
-  minPct: number;
-  maxPct: number;
+  range: string
+  count: number
+  isWin: boolean
+  minPct: number
+  maxPct: number
 }
 
 function createDistributionBins(trades: Trade[]): BinData[] {
@@ -36,78 +36,80 @@ function createDistributionBins(trades: Trade[]): BinData[] {
   const pnlValues = trades
     .filter((t) => t.pnlPct !== null)
     .map((t) =>
-      typeof t.pnlPct === "string" ? parseFloat(t.pnlPct) : (t.pnlPct as number)
-    );
+      typeof t.pnlPct === 'string'
+        ? parseFloat(t.pnlPct)
+        : (t.pnlPct as number),
+    )
 
   // Define bins: -30%, -20%, -10%, -5%, 0%, +5%, +10%, +20%, +30%
-  const binEdges = [-30, -20, -10, -5, 0, 5, 10, 20, 30];
-  const bins: BinData[] = [];
+  const binEdges = [-30, -20, -10, -5, 0, 5, 10, 20, 30]
+  const bins: BinData[] = []
 
   // Create bins for losses (negative values)
   for (let i = 0; i < binEdges.length - 1; i++) {
-    const minPct = binEdges[i];
-    const maxPct = binEdges[i + 1];
-    const count = pnlValues.filter((v) => v >= minPct && v < maxPct).length;
+    const minPct = binEdges[i]
+    const maxPct = binEdges[i + 1]
+    const count = pnlValues.filter((v) => v >= minPct && v < maxPct).length
 
     if (count > 0 || (minPct >= -20 && maxPct <= 20)) {
       // Always show -20% to +20% range
       bins.push({
-        range: `${minPct >= 0 ? "+" : ""}${minPct}%`,
+        range: `${minPct >= 0 ? '+' : ''}${minPct}%`,
         count,
         isWin: minPct >= 0,
         minPct,
         maxPct,
-      });
+      })
     }
   }
 
   // Add overflow bins for extreme values
-  const belowMin = pnlValues.filter((v) => v < -30).length;
-  const aboveMax = pnlValues.filter((v) => v >= 30).length;
+  const belowMin = pnlValues.filter((v) => v < -30).length
+  const aboveMax = pnlValues.filter((v) => v >= 30).length
 
   if (belowMin > 0) {
     bins.unshift({
-      range: "<-30%",
+      range: '<-30%',
       count: belowMin,
       isWin: false,
       minPct: -100,
       maxPct: -30,
-    });
+    })
   }
 
   if (aboveMax > 0) {
     bins.push({
-      range: ">+30%",
+      range: '>+30%',
       count: aboveMax,
       isWin: true,
       minPct: 30,
       maxPct: 100,
-    });
+    })
   }
 
-  return bins;
+  return bins
 }
 
 interface CustomTooltipProps {
-  active?: boolean;
-  payload?: Array<{ payload: BinData }>;
+  active?: boolean
+  payload?: Array<{ payload: BinData }>
 }
 
 function CustomTooltip({ active, payload }: CustomTooltipProps) {
-  if (!active || !payload || !payload.length) return null;
+  if (!active || !payload || !payload.length) return null
 
-  const data = payload[0].payload;
+  const data = payload[0].payload
   return (
     <div className="bg-surface border border-border rounded-lg p-3 shadow-lg">
       <p className="text-sm font-medium text-text">
-        {data.range} to {data.maxPct >= 0 ? "+" : ""}
+        {data.range} to {data.maxPct >= 0 ? '+' : ''}
         {data.maxPct}%
       </p>
       <p className="text-xs text-text-muted mt-1">
-        {data.count} trade{data.count !== 1 ? "s" : ""}
+        {data.count} trade{data.count !== 1 ? 's' : ''}
       </p>
     </div>
-  );
+  )
 }
 
 export function TradeDistributionChart({
@@ -115,37 +117,39 @@ export function TradeDistributionChart({
   profitFactor,
 }: TradeDistributionChartProps) {
   if (!trades || trades.length === 0) {
-    return null;
+    return null
   }
 
   // Calculate statistics from trades (filter out null values)
   const pnlValues = trades
     .filter((t) => t.pnlPct !== null)
     .map((t) =>
-      typeof t.pnlPct === "string" ? parseFloat(t.pnlPct) : (t.pnlPct as number)
-    );
+      typeof t.pnlPct === 'string'
+        ? parseFloat(t.pnlPct)
+        : (t.pnlPct as number),
+    )
 
-  const winningTrades = pnlValues.filter((v) => v >= 0);
-  const losingTrades = pnlValues.filter((v) => v < 0);
+  const winningTrades = pnlValues.filter((v) => v >= 0)
+  const losingTrades = pnlValues.filter((v) => v < 0)
 
-  const numWins = winningTrades.length;
-  const numLosses = losingTrades.length;
+  const numWins = winningTrades.length
+  const numLosses = losingTrades.length
 
   const avgWin =
     winningTrades.length > 0
       ? winningTrades.reduce((a, b) => a + b, 0) / winningTrades.length
-      : null;
+      : null
 
   const avgLoss =
     losingTrades.length > 0
       ? losingTrades.reduce((a, b) => a + b, 0) / losingTrades.length
-      : null;
+      : null
 
-  const bins = createDistributionBins(trades);
+  const bins = createDistributionBins(trades)
   const winRate =
     numWins + numLosses > 0
       ? ((numWins / (numWins + numLosses)) * 100).toFixed(1)
-      : "0";
+      : '0'
 
   return (
     <SectionCard
@@ -160,7 +164,7 @@ export function TradeDistributionChart({
             Avg Win
           </div>
           <div className="text-lg font-bold text-gain">
-            {avgWin !== null ? `+${avgWin.toFixed(2)}%` : "—"}
+            {avgWin !== null ? `+${avgWin.toFixed(2)}%` : '—'}
           </div>
         </Card>
         <Card className="p-4">
@@ -168,7 +172,7 @@ export function TradeDistributionChart({
             Avg Loss
           </div>
           <div className="text-lg font-bold text-loss">
-            {avgLoss !== null ? `-${Math.abs(avgLoss).toFixed(2)}%` : "—"}
+            {avgLoss !== null ? `-${Math.abs(avgLoss).toFixed(2)}%` : '—'}
           </div>
         </Card>
         <Card className="p-4">
@@ -176,7 +180,7 @@ export function TradeDistributionChart({
             Profit Factor
           </div>
           <div className="text-lg font-bold text-text">
-            {profitFactor !== null ? profitFactor.toFixed(2) : "—"}
+            {profitFactor !== null ? profitFactor.toFixed(2) : '—'}
           </div>
         </Card>
         <Card className="p-4">
@@ -201,27 +205,31 @@ export function TradeDistributionChart({
           <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
           <XAxis
             dataKey="range"
-            tick={{ fontSize: 11, fill: "var(--color-text-muted)" }}
+            tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }}
             angle={-45}
             textAnchor="end"
             height={60}
           />
           <YAxis
-            tick={{ fontSize: 12, fill: "var(--color-text-muted)" }}
+            tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
             label={{
-              value: "# Trades",
+              value: '# Trades',
               angle: -90,
-              position: "insideLeft",
-              style: { fontSize: 12, fill: "var(--color-text-muted)" },
+              position: 'insideLeft',
+              style: { fontSize: 12, fill: 'var(--color-text-muted)' },
             }}
           />
           <Tooltip content={<CustomTooltip />} />
-          <ReferenceLine x="+0%" stroke="var(--color-text-muted)" strokeDasharray="5 5" />
+          <ReferenceLine
+            x="+0%"
+            stroke="var(--color-text-muted)"
+            strokeDasharray="5 5"
+          />
           <Bar dataKey="count" radius={[4, 4, 0, 0]}>
             {bins.map((entry, index) => (
               <Cell
                 key={`cell-${index}`}
-                fill={entry.isWin ? "var(--color-gain)" : "var(--color-loss)"}
+                fill={entry.isWin ? 'var(--color-gain)' : 'var(--color-loss)'}
                 fillOpacity={0.8}
               />
             ))}
@@ -233,5 +241,5 @@ export function TradeDistributionChart({
         Green bars = winning trades • Red bars = losing trades
       </p>
     </SectionCard>
-  );
+  )
 }

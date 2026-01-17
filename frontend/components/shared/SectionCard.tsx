@@ -1,28 +1,28 @@
-"use client";
+'use client'
 
-import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
+import type { ReactNode } from 'react'
+import { cn } from '@/lib/utils'
 
-type SectionPadding = "none" | "sm" | "md" | "lg";
-type SectionVariant = "surface" | "ghost";
+type SectionPadding = 'none' | 'sm' | 'md' | 'lg'
+type SectionVariant = 'surface' | 'ghost'
 
 const paddingStyles: Record<SectionPadding, string> = {
-  none: "",
-  sm: "px-4 py-4",
-  md: "px-6 py-6",
-  lg: "px-8 py-8",
-};
+  none: '',
+  sm: 'px-4 py-4',
+  md: 'px-6 py-6',
+  lg: 'px-8 py-8',
+}
 
 export interface SectionCardProps {
-  title?: ReactNode;
-  description?: ReactNode;
-  actions?: ReactNode;
-  children: ReactNode;
-  className?: string;
-  contentClassName?: string;
-  headerClassName?: string;
-  padding?: SectionPadding;
-  variant?: SectionVariant;
+  title?: ReactNode
+  description?: ReactNode
+  actions?: ReactNode
+  children: ReactNode
+  className?: string
+  contentClassName?: string
+  headerClassName?: string
+  padding?: SectionPadding
+  variant?: SectionVariant
 }
 
 /**
@@ -36,21 +36,21 @@ export function SectionCard({
   className,
   contentClassName,
   headerClassName,
-  padding = "md",
-  variant = "ghost",
+  padding = 'md',
+  variant = 'ghost',
 }: SectionCardProps) {
   const baseClass =
-    variant === "surface"
-      ? "rounded-2xl border border-border/50 bg-surface/60 shadow-sm backdrop-blur-sm"
-      : "rounded-2xl";
+    variant === 'surface'
+      ? 'rounded-2xl border border-border/50 bg-surface/60 shadow-sm backdrop-blur-sm'
+      : 'rounded-2xl'
 
   return (
     <section className={cn(baseClass, className)}>
       {(title || description || actions) && (
         <div
           className={cn(
-            "flex flex-col gap-3 px-6 py-5 md:flex-row md:items-center md:justify-between",
-            variant === "surface" && "border-b border-border/40",
+            'flex flex-col gap-3 px-6 py-5 md:flex-row md:items-center md:justify-between',
+            variant === 'surface' && 'border-b border-border/40',
             headerClassName,
           )}
         >
@@ -71,5 +71,5 @@ export function SectionCard({
         {children}
       </div>
     </section>
-  );
+  )
 }

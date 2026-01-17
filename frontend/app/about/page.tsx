@@ -1,182 +1,186 @@
-"use client";
+'use client'
 
-import { useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
 import {
-  LineChart,
-  Bot,
-  Eye,
-  TrendingUp,
   Activity,
-  Database,
-  Zap,
-  BarChart3,
-  Target,
-  Shield,
-  Layers,
   ArrowRight,
-  CheckCircle2,
-  Briefcase,
+  BarChart3,
+  Bot,
   Brain,
-  Gauge,
-  Clock,
+  Briefcase,
+  CheckCircle2,
   ChevronRight,
-} from "lucide-react";
-import { PageContainer } from "@/components/shared/PageContainer";
-import { cn } from "@/lib/utils";
+  Clock,
+  Database,
+  Eye,
+  Gauge,
+  Layers,
+  LineChart,
+  Shield,
+  Target,
+  TrendingUp,
+  Zap,
+} from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
+import { useState } from 'react'
+import { PageContainer } from '@/components/shared/PageContainer'
+import { cn } from '@/lib/utils'
 
 // Tab configuration
 const tabs = [
-  { id: "overview", label: "Overview" },
-  { id: "how-it-works", label: "How It Works" },
-  { id: "getting-started", label: "Getting Started" },
-  { id: "features", label: "Features" },
-] as const;
+  { id: 'overview', label: 'Overview' },
+  { id: 'how-it-works', label: 'How It Works' },
+  { id: 'getting-started', label: 'Getting Started' },
+  { id: 'features', label: 'Features' },
+] as const
 
-type TabId = (typeof tabs)[number]["id"];
+type TabId = (typeof tabs)[number]['id']
 
 // Trust indicators for hero
 const trustIndicators = [
   {
     icon: Activity,
-    label: "Real-time Analytics",
-    description: "Live portfolio metrics",
+    label: 'Real-time Analytics',
+    description: 'Live portfolio metrics',
   },
   {
     icon: Bot,
-    label: "AI Agents",
-    description: "Claude-powered insights",
+    label: 'AI Agents',
+    description: 'Claude-powered insights',
   },
   {
     icon: Database,
-    label: "Multi-Source Data",
-    description: "6 providers with failover",
+    label: 'Multi-Source Data',
+    description: '6 providers with failover',
   },
-];
+]
 
 // Core concepts for overview
 const coreConcepts = [
   {
     icon: LineChart,
-    title: "Portfolio Analytics",
+    title: 'Portfolio Analytics',
     description:
-      "Track beta, volatility, concentration, and sector exposure across all your accounts in real-time.",
-    color: "text-primary",
-    bgColor: "bg-primary/10",
+      'Track beta, volatility, concentration, and sector exposure across all your accounts in real-time.',
+    color: 'text-primary',
+    bgColor: 'bg-primary/10',
   },
   {
     icon: Brain,
-    title: "AI Agents",
+    title: 'AI Agents',
     description:
-      "Discovery Agent scans market opportunities. Portfolio Analyzer provides personalized insights based on your holdings.",
-    color: "text-accent",
-    bgColor: "bg-accent/10",
+      'Discovery Agent scans market opportunities. Portfolio Analyzer provides personalized insights based on your holdings.',
+    color: 'text-accent',
+    bgColor: 'bg-accent/10',
   },
   {
     icon: Eye,
-    title: "Watchlist Intelligence",
+    title: 'Watchlist Intelligence',
     description:
-      "Signal classification (BUY/HOLD/AVOID), trading style recommendations, and narrative insights for every ticker.",
-    color: "text-gain",
-    bgColor: "bg-gain/10",
+      'Signal classification (BUY/HOLD/AVOID), trading style recommendations, and narrative insights for every ticker.',
+    color: 'text-gain',
+    bgColor: 'bg-gain/10',
   },
-];
+]
 
 // Workflow steps
 const workflowSteps = [
   {
     step: 1,
-    title: "Add Your Holdings",
+    title: 'Add Your Holdings',
     description:
-      "Import your portfolio positions from multiple accounts (IRA, Taxable, 401k, Roth, HSA).",
+      'Import your portfolio positions from multiple accounts (IRA, Taxable, 401k, Roth, HSA).',
     icon: Briefcase,
   },
   {
     step: 2,
-    title: "AI Analysis",
+    title: 'AI Analysis',
     description:
-      "Our agents analyze your portfolio, market conditions, and news to generate insights.",
+      'Our agents analyze your portfolio, market conditions, and news to generate insights.',
     icon: Brain,
   },
   {
     step: 3,
-    title: "Get Signals",
+    title: 'Get Signals',
     description:
-      "Receive actionable signals with plain-language explanations - no jargon, just clarity.",
+      'Receive actionable signals with plain-language explanations - no jargon, just clarity.',
     icon: Target,
   },
   {
     step: 4,
-    title: "Take Action",
+    title: 'Take Action',
     description:
-      "Paper trade to test ideas, backtest strategies, or execute with confidence.",
+      'Paper trade to test ideas, backtest strategies, or execute with confidence.',
     icon: TrendingUp,
   },
-];
+]
 
 // Quick start pages
 const quickStartPages = [
-  { href: "/portfolio", label: "Portfolio", description: "Manage positions" },
-  { href: "/watchlist", label: "Watchlist", description: "Track signals" },
-  { href: "/trading", label: "Trading", description: "Paper trade" },
-  { href: "/settings", label: "Settings", description: "Configure preferences" },
-];
+  { href: '/portfolio', label: 'Portfolio', description: 'Manage positions' },
+  { href: '/watchlist', label: 'Watchlist', description: 'Track signals' },
+  { href: '/trading', label: 'Trading', description: 'Paper trade' },
+  {
+    href: '/settings',
+    label: 'Settings',
+    description: 'Configure preferences',
+  },
+]
 
 // Setup checklist
 const setupChecklist = [
-  { label: "Add your first portfolio account", done: false },
-  { label: "Import or add positions", done: false },
-  { label: "Add tickers to your watchlist", done: false },
-  { label: "Set your risk tolerance in Settings", done: false },
-  { label: "Explore AI-generated ideas", done: false },
-];
+  { label: 'Add your first portfolio account', done: false },
+  { label: 'Import or add positions', done: false },
+  { label: 'Add tickers to your watchlist', done: false },
+  { label: 'Set your risk tolerance in Settings', done: false },
+  { label: 'Explore AI-generated ideas', done: false },
+]
 
 // Features grid
 const features = [
   {
     icon: Gauge,
-    title: "Fear & Greed Index",
+    title: 'Fear & Greed Index',
     description:
-      "Market sentiment combining VIX, momentum, RSI, and credit spreads into a single 0-100 score.",
+      'Market sentiment combining VIX, momentum, RSI, and credit spreads into a single 0-100 score.',
   },
   {
     icon: BarChart3,
-    title: "Backtesting",
+    title: 'Backtesting',
     description:
-      "Test your strategies against historical data before committing real capital.",
+      'Test your strategies against historical data before committing real capital.',
   },
   {
     icon: Shield,
-    title: "Paper Trading",
+    title: 'Paper Trading',
     description:
-      "Practice trading with virtual funds to validate ideas without risk.",
+      'Practice trading with virtual funds to validate ideas without risk.',
   },
   {
     icon: Layers,
-    title: "Multi-Source Data",
+    title: 'Multi-Source Data',
     description:
-      "YFinance, Polygon, TwelveData, FMP, Finnhub, AlphaVantage with automatic failover.",
+      'YFinance, Polygon, TwelveData, FMP, Finnhub, AlphaVantage with automatic failover.',
   },
   {
     icon: Clock,
-    title: "Scheduled Refresh",
+    title: 'Scheduled Refresh',
     description:
-      "Automated data updates via Celery workers keep your insights fresh.",
+      'Automated data updates via Celery workers keep your insights fresh.',
   },
   {
     icon: Zap,
-    title: "Narrative Intelligence",
+    title: 'Narrative Intelligence',
     description:
-      "Plain-language trading recommendations with entry, stop, and target levels.",
+      'Plain-language trading recommendations with entry, stop, and target levels.',
   },
-];
+]
 
 // Animation variants
 const fadeInUp = {
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },
   exit: { opacity: 0, y: -10 },
-};
+}
 
 const stagger = {
   animate: {
@@ -184,10 +188,10 @@ const stagger = {
       staggerChildren: 0.08,
     },
   },
-};
+}
 
 export default function AboutPage() {
-  const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const [activeTab, setActiveTab] = useState<TabId>('overview')
 
   return (
     <PageContainer className="py-12 space-y-12">
@@ -211,8 +215,8 @@ export default function AboutPage() {
           </h1>
           <p className="max-w-2xl mx-auto text-lg text-text-muted">
             Combine portfolio analytics with autonomous agent-driven market
-            insights. Real-time analysis, plain-language signals, and
-            actionable recommendations.
+            insights. Real-time analysis, plain-language signals, and actionable
+            recommendations.
           </p>
         </motion.div>
 
@@ -246,10 +250,10 @@ export default function AboutPage() {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  "px-4 py-2 text-sm font-medium rounded-full transition-all duration-200",
+                  'px-4 py-2 text-sm font-medium rounded-full transition-all duration-200',
                   activeTab === tab.id
-                    ? "bg-primary text-primary-foreground shadow-md"
-                    : "text-text-muted hover:text-text hover:bg-surface"
+                    ? 'bg-primary text-primary-foreground shadow-md'
+                    : 'text-text-muted hover:text-text hover:bg-surface',
                 )}
               >
                 {tab.label}
@@ -267,15 +271,15 @@ export default function AboutPage() {
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
           >
-            {activeTab === "overview" && <OverviewTab />}
-            {activeTab === "how-it-works" && <HowItWorksTab />}
-            {activeTab === "getting-started" && <GettingStartedTab />}
-            {activeTab === "features" && <FeaturesTab />}
+            {activeTab === 'overview' && <OverviewTab />}
+            {activeTab === 'how-it-works' && <HowItWorksTab />}
+            {activeTab === 'getting-started' && <GettingStartedTab />}
+            {activeTab === 'features' && <FeaturesTab />}
           </motion.div>
         </AnimatePresence>
       </section>
     </PageContainer>
-  );
+  )
 }
 
 // Overview Tab
@@ -309,11 +313,11 @@ function OverviewTab() {
           >
             <div
               className={cn(
-                "w-12 h-12 rounded-lg flex items-center justify-center mb-4",
-                concept.bgColor
+                'w-12 h-12 rounded-lg flex items-center justify-center mb-4',
+                concept.bgColor,
               )}
             >
-              <concept.icon className={cn("w-6 h-6", concept.color)} />
+              <concept.icon className={cn('w-6 h-6', concept.color)} />
             </div>
             <h3 className="text-lg font-semibold text-text mb-2">
               {concept.title}
@@ -349,7 +353,7 @@ function OverviewTab() {
         </div>
       </div>
     </div>
-  );
+  )
 }
 
 // How It Works Tab
@@ -428,7 +432,7 @@ function HowItWorksTab() {
         </div>
       </div>
     </div>
-  );
+  )
 }
 
 // Getting Started Tab
@@ -477,20 +481,18 @@ function GettingStartedTab() {
               >
                 <div
                   className={cn(
-                    "w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5",
+                    'w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5',
                     item.done
-                      ? "border-gain bg-gain/20"
-                      : "border-text-muted/30"
+                      ? 'border-gain bg-gain/20'
+                      : 'border-text-muted/30',
                   )}
                 >
-                  {item.done && (
-                    <CheckCircle2 className="w-3 h-3 text-gain" />
-                  )}
+                  {item.done && <CheckCircle2 className="w-3 h-3 text-gain" />}
                 </div>
                 <p
                   className={cn(
-                    "text-sm",
-                    item.done ? "text-text-muted line-through" : "text-text"
+                    'text-sm',
+                    item.done ? 'text-text-muted line-through' : 'text-text',
                   )}
                 >
                   {item.label}
@@ -510,7 +512,7 @@ function GettingStartedTab() {
         </div>
       </div>
     </div>
-  );
+  )
 }
 
 // Features Tab
@@ -556,5 +558,5 @@ function FeaturesTab() {
         </div>
       </div>
     </div>
-  );
+  )
 }

@@ -1,55 +1,55 @@
-"use client";
+'use client'
 
-import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Sparkline } from "@/components/ui/sparkline";
-import { ExpandedRow } from "@/components/watchlist/ExpandedRow";
-import { SourceBadge } from "@/components/watchlist/SourceBadge";
-import { ChevronDown, ChevronRight, AlertCircle, Trash2 } from "lucide-react";
-import type { WatchlistItem } from "@/lib/api/watchlist";
+import { AlertCircle, ChevronDown, ChevronRight, Trash2 } from 'lucide-react'
+import { useState } from 'react'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Sparkline } from '@/components/ui/sparkline'
+import { ExpandedRow } from '@/components/watchlist/ExpandedRow'
+import { SourceBadge } from '@/components/watchlist/SourceBadge'
+import type { WatchlistItem } from '@/lib/api/watchlist'
 
 interface WatchlistCardProps {
-  item: WatchlistItem;
-  onDelete: (itemId: string, symbol: string) => void;
-  isDeleting: boolean;
+  item: WatchlistItem
+  onDelete: (itemId: string, symbol: string) => void
+  isDeleting: boolean
 }
 
 // Get score badge variant based on score value
 const getScoreBadgeVariant = (
   score: number,
-): "viz-0" | "viz-1" | "viz-2" | "viz-3" | "viz-4" | "viz-5" => {
-  if (score >= 80) return "viz-5";
-  if (score >= 60) return "viz-4";
-  if (score >= 40) return "viz-3";
-  if (score >= 20) return "viz-2";
-  if (score >= 10) return "viz-1";
-  return "viz-0";
-};
+): 'viz-0' | 'viz-1' | 'viz-2' | 'viz-3' | 'viz-4' | 'viz-5' => {
+  if (score >= 80) return 'viz-5'
+  if (score >= 60) return 'viz-4'
+  if (score >= 40) return 'viz-3'
+  if (score >= 20) return 'viz-2'
+  if (score >= 10) return 'viz-1'
+  return 'viz-0'
+}
 
 // Format date
 const formatDate = (dateStr: string) => {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-};
+  const date = new Date(dateStr)
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
 
 export function WatchlistCard({
   item,
   onDelete,
   isDeleting,
 }: WatchlistCardProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const hasScore = !!item.currentScore;
-  const overall = item.currentScore?.overall ?? 0;
-  const priceScore = item.currentScore?.price.score ?? 0;
-  const techScore = item.currentScore?.technical.score ?? 0;
-  const priceStale = item.currentScore?.price.stale ?? false;
-  const techStale = item.currentScore?.technical.stale ?? false;
+  const [isExpanded, setIsExpanded] = useState(false)
+  const hasScore = !!item.currentScore
+  const overall = item.currentScore?.overall ?? 0
+  const priceScore = item.currentScore?.price.score ?? 0
+  const techScore = item.currentScore?.technical.score ?? 0
+  const priceStale = item.currentScore?.price.stale ?? false
+  const techStale = item.currentScore?.technical.stale ?? false
 
   return (
     <div className="rounded-lg border border-border bg-surface p-4 shadow-sm">
@@ -66,12 +66,12 @@ export function WatchlistCard({
             )}
           </div>
           {item.currentScore?.price.metadata?.source &&
-          typeof item.currentScore.price.metadata.source === "string" ? (
+          typeof item.currentScore.price.metadata.source === 'string' ? (
             <SourceBadge
               source={item.currentScore.price.metadata.source}
               stale={item.currentScore.price.stale}
               priority={
-                typeof item.currentScore.price.metadata.priority === "number"
+                typeof item.currentScore.price.metadata.priority === 'number'
                   ? item.currentScore.price.metadata.priority
                   : undefined
               }
@@ -85,7 +85,7 @@ export function WatchlistCard({
             size="sm"
             onClick={() => setIsExpanded(!isExpanded)}
             className="h-8 w-8 p-0"
-            aria-label={isExpanded ? "Collapse details" : "Expand details"}
+            aria-label={isExpanded ? 'Collapse details' : 'Expand details'}
             aria-expanded={isExpanded}
           >
             {isExpanded ? (
@@ -181,5 +181,5 @@ export function WatchlistCard({
         </div>
       )}
     </div>
-  );
+  )
 }

@@ -2,12 +2,12 @@
  * Unified API client with retry logic and error handling
  */
 
-import { toCamelCaseKeys, toSnakeCaseKeys } from "es-toolkit";
+import { toCamelCaseKeys, toSnakeCaseKeys } from 'es-toolkit'
 
 /**
  * Re-export transformation utilities for WebSocket and other non-REST use cases
  */
-export { toCamelCaseKeys, toSnakeCaseKeys };
+export { toCamelCaseKeys, toSnakeCaseKeys }
 
 /**
  * Get the API base URL.
@@ -17,13 +17,13 @@ export { toCamelCaseKeys, toSnakeCaseKeys };
 function getApiBaseUrl(): string {
   // Always use relative URLs so Next.js proxy handles the request
   // This avoids mixed content issues (HTTPS frontend calling HTTP backend)
-  return "";
+  return ''
 }
 
 /**
  * Export the API base URL (for debugging/logging purposes)
  */
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || ''
 
 /**
  * Custom API error class with status code
@@ -32,10 +32,10 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public statusCode: number,
-    public response?: Response
+    public response?: Response,
   ) {
-    super(message);
-    this.name = "ApiError";
+    super(message)
+    this.name = 'ApiError'
   }
 }
 
@@ -43,7 +43,7 @@ export class ApiError extends Error {
  * Sleep helper for retry backoff
  */
 function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 /**
@@ -58,22 +58,22 @@ function sleep(ms: number): Promise<void> {
 export async function apiRequest<T>(
   url: string,
   options: RequestInit = {},
-  retries = 3
+  retries = 3,
 ): Promise<T> {
   // Construct full URL if relative path provided
   // Use getApiBaseUrl() to detect the correct backend based on current access method
-  const fullUrl = url.startsWith("http") ? url : `${getApiBaseUrl()}${url}`;
+  const fullUrl = url.startsWith('http') ? url : `${getApiBaseUrl()}${url}`
 
   // Merge default headers with custom headers
   const headers: HeadersInit = {
-    "Content-Type": "application/json",
+    'Content-Type': 'application/json',
     ...options.headers,
-  };
+  }
 
   // TODO: Add auth interceptor here when authentication is implemented
   // Example: headers["Authorization"] = `Bearer ${getAuthToken()}`;
 
-  let lastError: Error | null = null;
+  let lastError: Error | null = null
 
   // Retry loop with exponential backoff
   for (let attempt = 0; attempt < retries; attempt++) {
@@ -81,53 +81,60 @@ export async function apiRequest<T>(
       const response = await fetch(fullUrl, {
         ...options,
         headers,
-      });
+      })
 
       // Check for HTTP errors
       if (!response.ok) {
         // Try to extract error detail from response body
-        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`
         try {
-          const errorData = await response.json();
+          const errorData = await response.json()
           if (errorData.detail) {
-            errorMessage = errorData.detail;
+            errorMessage = errorData.detail
           }
         } catch {
           // If JSON parsing fails, use default error message
         }
 
-        throw new ApiError(errorMessage, response.status, response);
+        throw new ApiError(errorMessage, response.status, response)
       }
 
       // Parse and transform response (snake_case → camelCase)
-      const data = await response.json();
-      return toCamelCaseKeys(data) as T;
+      const data = await response.json()
+      return toCamelCaseKeys(data) as T
     } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
+      lastError = error instanceof Error ? error : new Error(String(error))
 
       // Don't retry on client errors (4xx) - these won't succeed on retry
-      if (error instanceof ApiError && error.statusCode >= 400 && error.statusCode < 500) {
-        throw error;
+      if (
+        error instanceof ApiError &&
+        error.statusCode >= 400 &&
+        error.statusCode < 500
+      ) {
+        throw error
       }
 
       // If we have retries left, wait before trying again
       if (attempt < retries - 1) {
         // Exponential backoff: 1s, 2s, 3s
-        const backoffMs = (attempt + 1) * 1000;
-        await sleep(backoffMs);
+        const backoffMs = (attempt + 1) * 1000
+        await sleep(backoffMs)
       }
     }
   }
 
   // All retries exhausted, throw last error
-  throw lastError || new Error("Request failed after retries");
+  throw lastError || new Error('Request failed after retries')
 }
 
 /**
  * Convenience method for GET requests
  */
-export async function get<T>(url: string, options: RequestInit = {}): Promise<T> {
-  return apiRequest<T>(url, { ...options, method: "GET" });
+export async function get<T>(
+  url: string,
+  options: RequestInit = {},
+): Promise<T> {
+  return apiRequest<T>(url, { ...options, method: 'GET' })
 }
 
 /**
@@ -136,15 +143,15 @@ export async function get<T>(url: string, options: RequestInit = {}): Promise<T>
 export async function post<T>(
   url: string,
   data?: unknown,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<T> {
   // Transform request body (camelCase → snake_case) for backend
-  const transformedData = data ? toSnakeCaseKeys(data) : undefined;
+  const transformedData = data ? toSnakeCaseKeys(data) : undefined
   return apiRequest<T>(url, {
     ...options,
-    method: "POST",
+    method: 'POST',
     body: transformedData ? JSON.stringify(transformedData) : undefined,
-  });
+  })
 }
 
 /**
@@ -153,20 +160,23 @@ export async function post<T>(
 export async function patch<T>(
   url: string,
   data?: unknown,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<T> {
   // Transform request body (camelCase → snake_case) for backend
-  const transformedData = data ? toSnakeCaseKeys(data) : undefined;
+  const transformedData = data ? toSnakeCaseKeys(data) : undefined
   return apiRequest<T>(url, {
     ...options,
-    method: "PATCH",
+    method: 'PATCH',
     body: transformedData ? JSON.stringify(transformedData) : undefined,
-  });
+  })
 }
 
 /**
  * Convenience method for DELETE requests
  */
-export async function del<T>(url: string, options: RequestInit = {}): Promise<T> {
-  return apiRequest<T>(url, { ...options, method: "DELETE" });
+export async function del<T>(
+  url: string,
+  options: RequestInit = {},
+): Promise<T> {
+  return apiRequest<T>(url, { ...options, method: 'DELETE' })
 }

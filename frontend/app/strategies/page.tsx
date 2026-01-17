@@ -1,62 +1,67 @@
-"use client";
+'use client'
 
-import { useState, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
-import { Brain, Sparkles } from "lucide-react";
-import { PageHeader } from "@/components/shared/PageHeader";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useStrategies, useGenerateStrategiesBatch } from "@/lib/hooks/useStrategies";
-import { StrategiesTable } from "@/components/strategies/StrategiesTable";
-import { StrategyDetailModal } from "@/components/strategies/StrategyDetailModal";
-
-import { PageContainer } from "@/components/shared/PageContainer";
+import { Brain, Sparkles } from 'lucide-react'
+import { useSearchParams } from 'next/navigation'
+import { Suspense, useEffect, useState } from 'react'
+import { PageContainer } from '@/components/shared/PageContainer'
+import { PageHeader } from '@/components/shared/PageHeader'
+import { StrategiesTable } from '@/components/strategies/StrategiesTable'
+import { StrategyDetailModal } from '@/components/strategies/StrategyDetailModal'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  useGenerateStrategiesBatch,
+  useStrategies,
+} from '@/lib/hooks/useStrategies'
 
 function StrategiesPageContent() {
-  const searchParams = useSearchParams();
-  const [selectedStrategyId, setSelectedStrategyId] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<"all" | "testing" | "active" | "archived">(
-    "all"
-  );
+  const searchParams = useSearchParams()
+  const [selectedStrategyId, setSelectedStrategyId] = useState<string | null>(
+    null,
+  )
+  const [statusFilter, setStatusFilter] = useState<
+    'all' | 'testing' | 'active' | 'archived'
+  >('all')
 
   const { data, isLoading } = useStrategies(
-    statusFilter === "all" ? undefined : { status: statusFilter }
-  );
-  const generateBatch = useGenerateStrategiesBatch();
+    statusFilter === 'all' ? undefined : { status: statusFilter },
+  )
+  const generateBatch = useGenerateStrategiesBatch()
 
   // Auto-select strategy from query parameter (?id=xxx or ?id=first)
   // Only runs on URL/data change, not on selectedStrategyId change (intentional)
   useEffect(() => {
-    const idParam = searchParams?.get("id");
-    const strategies = data?.strategies || [];
+    const idParam = searchParams?.get('id')
+    const strategies = data?.strategies || []
 
     if (idParam && strategies.length > 0 && !selectedStrategyId) {
-      if (idParam === "first" || idParam === "latest") {
+      if (idParam === 'first' || idParam === 'latest') {
         // Select the first strategy
-        setSelectedStrategyId(strategies[0].id);
+        setSelectedStrategyId(strategies[0].id)
       } else {
         // Check if specific ID exists
-        const targetStrategy = strategies.find((s) => s.id === idParam);
+        const targetStrategy = strategies.find((s) => s.id === idParam)
         if (targetStrategy) {
-          setSelectedStrategyId(idParam);
+          setSelectedStrategyId(idParam)
         }
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, data]);
+  }, [searchParams, data, selectedStrategyId])
 
-  const strategies = data?.strategies || [];
+  const strategies = data?.strategies || []
 
   // Calculate summary stats
-  const totalStrategies = strategies.length;
-  const activeCount = strategies.filter((s) => s.status === "active").length;
-  const testingCount = strategies.filter((s) => s.status === "testing").length;
+  const totalStrategies = strategies.length
+  const activeCount = strategies.filter((s) => s.status === 'active').length
+  const testingCount = strategies.filter((s) => s.status === 'testing').length
   const avgSharpe =
     strategies.length > 0
-      ? strategies.reduce((sum, s) => sum + (s.expectedSharpe || 0), 0) / strategies.length
-      : 0;
+      ? strategies.reduce((sum, s) => sum + (s.expectedSharpe || 0), 0) /
+        strategies.length
+      : 0
 
   return (
     <PageContainer className="space-y-10 py-10">
@@ -71,7 +76,7 @@ function StrategiesPageContent() {
             disabled={generateBatch.isPending}
           >
             <Sparkles className="mr-2 h-4 w-4" />
-            {generateBatch.isPending ? "Generating..." : "Generate Strategies"}
+            {generateBatch.isPending ? 'Generating...' : 'Generate Strategies'}
           </Button>
         }
       />
@@ -82,7 +87,9 @@ function StrategiesPageContent() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-text-muted">Total Strategies</p>
+                <p className="text-sm font-medium text-text-muted">
+                  Total Strategies
+                </p>
                 <p className="text-3xl font-bold">{totalStrategies}</p>
               </div>
               <Brain className="h-8 w-8 text-primary" />
@@ -109,7 +116,9 @@ function StrategiesPageContent() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-text-muted">Testing</p>
-                <p className="text-3xl font-bold text-warning">{testingCount}</p>
+                <p className="text-3xl font-bold text-warning">
+                  {testingCount}
+                </p>
               </div>
               <Badge variant="outline" className="border-warning text-warning">
                 Paper
@@ -122,7 +131,9 @@ function StrategiesPageContent() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-text-muted">Avg Expected Sharpe</p>
+                <p className="text-sm font-medium text-text-muted">
+                  Avg Expected Sharpe
+                </p>
                 <p className="text-3xl font-bold">{avgSharpe.toFixed(2)}</p>
               </div>
             </div>
@@ -138,7 +149,7 @@ function StrategiesPageContent() {
             <Tabs
               value={statusFilter}
               onValueChange={(v) =>
-                setStatusFilter(v as "all" | "testing" | "active" | "archived")
+                setStatusFilter(v as 'all' | 'testing' | 'active' | 'archived')
               }
             >
               <TabsList>
@@ -166,7 +177,7 @@ function StrategiesPageContent() {
         onOpenChange={(open) => !open && setSelectedStrategyId(null)}
       />
     </PageContainer>
-  );
+  )
 }
 
 export default function StrategiesPage() {
@@ -174,5 +185,5 @@ export default function StrategiesPage() {
     <Suspense fallback={<div className="p-10">Loading...</div>}>
       <StrategiesPageContent />
     </Suspense>
-  );
+  )
 }

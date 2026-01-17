@@ -2,126 +2,126 @@
  * Portfolio API client functions
  */
 
-import { apiRequest } from "./client";
+import { apiRequest } from './client'
 
 // Types matching backend Pydantic models
 export interface Account {
-  id: string;
-  name: string;
-  accountType: string;
-  createdAt: string;
-  updatedAt: string;
+  id: string
+  name: string
+  accountType: string
+  createdAt: string
+  updatedAt: string
 }
 
 export interface Position {
-  id: string;
-  accountId: string;
-  symbol: string;
-  shares: number;
-  costBasis: number;
-  positionType: string;
-  createdAt: string;
-  updatedAt: string;
+  id: string
+  accountId: string
+  symbol: string
+  shares: number
+  costBasis: number
+  positionType: string
+  createdAt: string
+  updatedAt: string
 }
 
 export interface PositionWithValue extends Position {
-  currentPrice: number;
-  currentValue: number;
-  gain: number;
-  gainPct: number;
+  currentPrice: number
+  currentValue: number
+  gain: number
+  gainPct: number
 }
 
 export interface PortfolioResponse {
-  positions: PositionWithValue[];
-  totalValue: number;
-  totalCostBasis: number;
-  totalGain: number;
-  totalGainPct: number;
+  positions: PositionWithValue[]
+  totalValue: number
+  totalCostBasis: number
+  totalGain: number
+  totalGainPct: number
 }
 
 export interface PositionPerformance {
-  symbol: string;
-  gainPct: number;
-  gainAmount: number;
-  currentValue: number;
-  weightPct: number;
+  symbol: string
+  gainPct: number
+  gainAmount: number
+  currentValue: number
+  weightPct: number
 }
 
 export interface RiskProfile {
-  level: string;
-  score: number;
-  factors: Record<string, string>;
+  level: string
+  score: number
+  factors: Record<string, string>
 }
 
 export interface DiversificationScore {
-  score: number;
-  level: string;
-  numHoldings: number;
-  numSectors: number;
+  score: number
+  level: string
+  numHoldings: number
+  numSectors: number
 }
 
 export interface PortfolioAnalytics {
   portfolioValue: {
-    totalValue: number;
-    totalCostBasis: number;
-    totalGain: number;
-    totalGainPct: number;
-  };
-  portfolioBeta: number;
-  portfolioVolatility: number;
-  sharpeRatio: number | null;
+    totalValue: number
+    totalCostBasis: number
+    totalGain: number
+    totalGainPct: number
+  }
+  portfolioBeta: number
+  portfolioVolatility: number
+  sharpeRatio: number | null
   concentration: {
-    topHoldingPct: number;
-    top3Pct: number;
-    top10Pct: number;
-    herfindahlIndex: number;
-  };
-  sectorExposure: Record<string, number>;
-  riskProfile: RiskProfile | null;
-  diversificationScore: DiversificationScore | null;
-  topPerformers: PositionPerformance[];
-  bottomPerformers: PositionPerformance[];
-  numPositions: number;
-  numSymbols: number;
+    topHoldingPct: number
+    top3Pct: number
+    top10Pct: number
+    herfindahlIndex: number
+  }
+  sectorExposure: Record<string, number>
+  riskProfile: RiskProfile | null
+  diversificationScore: DiversificationScore | null
+  topPerformers: PositionPerformance[]
+  bottomPerformers: PositionPerformance[]
+  numPositions: number
+  numSymbols: number
 }
 
 export interface CreateAccountRequest {
-  name: string;
-  accountType: string;
+  name: string
+  accountType: string
 }
 
 export interface AddPositionRequest {
-  accountId: string;
-  symbol: string;
-  shares: number;
-  costBasis: number;
-  positionType: string;
+  accountId: string
+  symbol: string
+  shares: number
+  costBasis: number
+  positionType: string
 }
 
 /**
  * Fetch all portfolio positions with current values
  */
 export async function fetchPortfolio(): Promise<PortfolioResponse> {
-  return apiRequest<PortfolioResponse>("/api/portfolio/");
+  return apiRequest<PortfolioResponse>('/api/portfolio/')
 }
 
 /**
  * Fetch all accounts
  */
 export async function fetchAccounts(): Promise<Account[]> {
-  return apiRequest<Account[]>("/api/portfolio/accounts");
+  return apiRequest<Account[]>('/api/portfolio/accounts')
 }
 
 /**
  * Create a new account
  */
 export async function createAccount(
-  data: CreateAccountRequest
+  data: CreateAccountRequest,
 ): Promise<Account> {
-  return apiRequest<Account>("/api/portfolio/account", {
-    method: "POST",
+  return apiRequest<Account>('/api/portfolio/account', {
+    method: 'POST',
     body: JSON.stringify(data),
-  });
+  })
 }
 
 /**
@@ -129,20 +129,18 @@ export async function createAccount(
  */
 export async function deleteAccount(accountId: string): Promise<void> {
   await apiRequest<void>(`/api/portfolio/account/${accountId}`, {
-    method: "DELETE",
-  });
+    method: 'DELETE',
+  })
 }
 
 /**
  * Add or update a position
  */
-export async function addPosition(
-  data: AddPositionRequest
-): Promise<Position> {
-  return apiRequest<Position>("/api/portfolio/position", {
-    method: "POST",
+export async function addPosition(data: AddPositionRequest): Promise<Position> {
+  return apiRequest<Position>('/api/portfolio/position', {
+    method: 'POST',
     body: JSON.stringify(data),
-  });
+  })
 }
 
 /**
@@ -150,12 +148,12 @@ export async function addPosition(
  */
 export async function updatePosition(
   positionId: string,
-  data: AddPositionRequest
+  data: AddPositionRequest,
 ): Promise<Position> {
   return apiRequest<Position>(`/api/portfolio/position/${positionId}`, {
-    method: "PUT",
+    method: 'PUT',
     body: JSON.stringify(data),
-  });
+  })
 }
 
 /**
@@ -163,13 +161,13 @@ export async function updatePosition(
  */
 export async function deletePosition(positionId: string): Promise<void> {
   await apiRequest<void>(`/api/portfolio/position/${positionId}`, {
-    method: "DELETE",
-  });
+    method: 'DELETE',
+  })
 }
 
 /**
  * Fetch portfolio analytics (beta, volatility, concentration, sector exposure)
  */
 export async function fetchAnalytics(): Promise<PortfolioAnalytics> {
-  return apiRequest<PortfolioAnalytics>("/api/portfolio/analytics");
+  return apiRequest<PortfolioAnalytics>('/api/portfolio/analytics')
 }

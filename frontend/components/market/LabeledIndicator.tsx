@@ -5,52 +5,51 @@
  * Zero jargon - designed for amateur investors.
  */
 
-"use client";
+'use client'
 
-import * as React from "react";
-import { InfoTooltip } from "@/components/ui/info-tooltip";
-import { cn } from "@/lib/utils";
+import { InfoTooltip } from '@/components/ui/info-tooltip'
+import { cn } from '@/lib/utils'
 
 export interface LabeledIndicatorProps {
   /**
    * Plain-language label (e.g., "Market Volatility")
    */
-  label: string;
+  label: string
 
   /**
    * Current value to display
    */
-  value: string | number;
+  value: string | number
 
   /**
    * Daily change percentage (optional, e.g., 2.5 for +2.5%)
    */
-  changePct?: number | null;
+  changePct?: number | null
 
   /**
    * Educational tooltip (optional)
    */
-  tooltip?: string;
+  tooltip?: string
 
   /**
    * Signal indicator: bullish | neutral | bearish
    */
-  signal?: "bullish" | "neutral" | "bearish";
+  signal?: 'bullish' | 'neutral' | 'bearish'
 
   /**
    * Emoji indicator (optional, e.g., "🟢")
    */
-  emoji?: string;
+  emoji?: string
 
   /**
    * Additional CSS classes
    */
-  className?: string;
+  className?: string
 
   /**
    * Size variant
    */
-  size?: "sm" | "md" | "lg";
+  size?: 'sm' | 'md' | 'lg'
 }
 
 export function LabeledIndicator({
@@ -58,62 +57,62 @@ export function LabeledIndicator({
   value,
   changePct,
   tooltip,
-  signal = "neutral",
+  signal = 'neutral',
   emoji,
   className,
-  size = "md",
+  size = 'md',
 }: LabeledIndicatorProps) {
   // Signal colors
   const getSignalColor = (sig: string) => {
     switch (sig) {
-      case "bullish":
-        return "text-gain";
-      case "bearish":
-        return "text-loss";
+      case 'bullish':
+        return 'text-gain'
+      case 'bearish':
+        return 'text-loss'
       default:
-        return "text-text-muted";
+        return 'text-text-muted'
     }
-  };
+  }
 
   // Format change percentage with color
   const formatChangePct = (pct: number) => {
-    const sign = pct >= 0 ? "+" : "";
-    const colorClass = pct >= 0 ? "text-gain" : "text-loss";
-    return { text: `${sign}${pct.toFixed(2)}%`, colorClass };
-  };
+    const sign = pct >= 0 ? '+' : ''
+    const colorClass = pct >= 0 ? 'text-gain' : 'text-loss'
+    return { text: `${sign}${pct.toFixed(2)}%`, colorClass }
+  }
 
   // Size variants
   const sizes = {
     sm: {
-      label: "text-xs",
-      value: "text-lg",
-      change: "text-xs",
-      spacing: "space-y-0.5",
+      label: 'text-xs',
+      value: 'text-lg',
+      change: 'text-xs',
+      spacing: 'space-y-0.5',
     },
     md: {
-      label: "text-sm",
-      value: "text-2xl",
-      change: "text-sm",
-      spacing: "space-y-1",
+      label: 'text-sm',
+      value: 'text-2xl',
+      change: 'text-sm',
+      spacing: 'space-y-1',
     },
     lg: {
-      label: "text-base",
-      value: "text-3xl",
-      change: "text-base",
-      spacing: "space-y-2",
+      label: 'text-base',
+      value: 'text-3xl',
+      change: 'text-base',
+      spacing: 'space-y-2',
     },
-  };
+  }
 
-  const sizeClasses = sizes[size];
+  const sizeClasses = sizes[size]
 
   return (
-    <div className={cn("flex flex-col", sizeClasses.spacing, className)}>
+    <div className={cn('flex flex-col', sizeClasses.spacing, className)}>
       {/* Label with optional tooltip */}
       <div className="flex items-center gap-1.5">
         <span
           className={cn(
-            "font-medium text-text-muted uppercase tracking-wide",
-            sizeClasses.label
+            'font-medium text-text-muted uppercase tracking-wide',
+            sizeClasses.label,
           )}
         >
           {label}
@@ -124,21 +123,21 @@ export function LabeledIndicator({
       {/* Value with optional emoji and change percentage */}
       <div className="flex items-baseline gap-2">
         <span
-          className={cn(
-            "font-bold",
-            sizeClasses.value,
-            getSignalColor(signal)
-          )}
+          className={cn('font-bold', sizeClasses.value, getSignalColor(signal))}
         >
           {value}
         </span>
-        {emoji && <span className="text-xl" role="img">{emoji}</span>}
+        {emoji && (
+          <span className="text-xl" role="img">
+            {emoji}
+          </span>
+        )}
         {changePct !== null && changePct !== undefined && (
           <span
             className={cn(
-              "font-semibold",
+              'font-semibold',
               sizeClasses.change,
-              formatChangePct(changePct).colorClass
+              formatChangePct(changePct).colorClass,
             )}
           >
             {formatChangePct(changePct).text}
@@ -146,5 +145,5 @@ export function LabeledIndicator({
         )}
       </div>
     </div>
-  );
+  )
 }

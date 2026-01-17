@@ -1,118 +1,145 @@
-'use client';
+'use client'
 
-import { useEffect, useState } from 'react';
-import { cn, formatRelativeTime } from '@/lib/utils';
-import { MessageSquare, Users, RefreshCw, Bot, ChevronRight } from 'lucide-react';
-import { ProviderBadge } from './ProviderBadge';
+import {
+  Bot,
+  ChevronRight,
+  MessageSquare,
+  RefreshCw,
+  Users,
+} from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { cn, formatRelativeTime } from '@/lib/utils'
+import { ProviderBadge } from './ProviderBadge'
 
 interface SessionInfo {
-  id: string;
-  agentType: string;
-  runType: string;
-  sessionType: string;
-  startedAt: string;
-  completedAt: string | null;
-  status: string;
-  provider: string | null;
-  model: string | null;
-  tokenCount: number;
-  parentRunId: string | null;
-  summary: string | null;
+  id: string
+  agentType: string
+  runType: string
+  sessionType: string
+  startedAt: string
+  completedAt: string | null
+  status: string
+  provider: string | null
+  model: string | null
+  tokenCount: number
+  parentRunId: string | null
+  summary: string | null
 }
 
 // Dev Companion session format
 interface DevCompanionSession {
-  id: string;
-  workingDir: string;
-  createdAt: string;
-  updatedAt: string;
-  isActive: boolean;
-  metadata: Record<string, unknown>;
-  originalProvider?: string | null;
-  messageCount?: number;
-  description?: string | null;
-  participants?: string[];
+  id: string
+  workingDir: string
+  createdAt: string
+  updatedAt: string
+  isActive: boolean
+  metadata: Record<string, unknown>
+  originalProvider?: string | null
+  messageCount?: number
+  description?: string | null
+  participants?: string[]
 }
 
 function formatTokenCount(tokens: number): string {
   if (tokens >= 1_000_000) {
-    return `${(tokens / 1_000_000).toFixed(1)}M`;
+    return `${(tokens / 1_000_000).toFixed(1)}M`
   }
   if (tokens >= 1_000) {
-    return `${(tokens / 1_000).toFixed(1)}K`;
+    return `${(tokens / 1_000).toFixed(1)}K`
   }
-  return tokens.toString();
+  return tokens.toString()
 }
 
 function SessionTypeBadge({ type }: { type: string }) {
   const config = {
-    userSingleAgent: { icon: MessageSquare, label: 'User Chat', color: 'text-accent bg-accent/20' },
-    userMultiAgent: { icon: Users, label: 'Roundtable', color: 'text-primary bg-primary/20' },
-    agentAgentValidation: { icon: RefreshCw, label: 'Validation', color: 'text-warning bg-warning/20' },
-    agentAutonomous: { icon: Bot, label: 'Automated', color: 'text-gain bg-gain/20' },
-  }[type] || { icon: Bot, label: type, color: 'text-text-muted bg-surface-muted' };
+    userSingleAgent: {
+      icon: MessageSquare,
+      label: 'User Chat',
+      color: 'text-accent bg-accent/20',
+    },
+    userMultiAgent: {
+      icon: Users,
+      label: 'Roundtable',
+      color: 'text-primary bg-primary/20',
+    },
+    agentAgentValidation: {
+      icon: RefreshCw,
+      label: 'Validation',
+      color: 'text-warning bg-warning/20',
+    },
+    agentAutonomous: {
+      icon: Bot,
+      label: 'Automated',
+      color: 'text-gain bg-gain/20',
+    },
+  }[type] || {
+    icon: Bot,
+    label: type,
+    color: 'text-text-muted bg-surface-muted',
+  }
 
-  const Icon = config.icon;
+  const Icon = config.icon
 
   return (
-    <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium', config.color)}>
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium',
+        config.color,
+      )}
+    >
       <Icon className="h-3 w-3" />
       {config.label}
     </span>
-  );
+  )
 }
 
 interface SessionsListProps {
-  serverUrl?: string;
-  onSelectSession?: (session: SessionInfo) => void;
-  maxHeight?: string;
+  serverUrl?: string
+  onSelectSession?: (session: SessionInfo) => void
+  maxHeight?: string
 }
 
 export function SessionsList({
   serverUrl = '',
   onSelectSession,
-  maxHeight = '300px'
+  maxHeight = '300px',
 }: SessionsListProps) {
-  const [sessions, setSessions] = useState<SessionInfo[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<SessionInfo[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchSessions = async () => {
-      setIsLoading(true);
-      setError(null);
+      setIsLoading(true)
+      setError(null)
       try {
-        const res = await fetch(`${serverUrl}/api/agents/sessions?limit=20`);
-        if (!res.ok) throw new Error('Failed to fetch sessions');
-        const data = await res.json();
-        setSessions(data);
+        const res = await fetch(`${serverUrl}/api/agents/sessions?limit=20`)
+        if (!res.ok) throw new Error('Failed to fetch sessions')
+        const data = await res.json()
+        setSessions(data)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load sessions');
+        setError(err instanceof Error ? err.message : 'Failed to load sessions')
       } finally {
-        setIsLoading(false);
+        setIsLoading(false)
       }
-    };
+    }
 
-    fetchSessions();
+    fetchSessions()
     // Refresh every minute
-    const interval = setInterval(fetchSessions, 60 * 1000);
-    return () => clearInterval(interval);
-  }, [serverUrl]);
+    const interval = setInterval(fetchSessions, 60 * 1000)
+    return () => clearInterval(interval)
+  }, [serverUrl])
 
   if (isLoading) {
     return (
       <div className="p-4 text-center text-text-muted text-sm">
         Loading sessions...
       </div>
-    );
+    )
   }
 
   if (error) {
-    return (
-      <div className="p-4 text-center text-loss text-sm">
-        {error}
-      </div>
-    );
+    return <div className="p-4 text-center text-loss text-sm">{error}</div>
   }
 
   if (sessions.length === 0) {
@@ -120,7 +147,7 @@ export function SessionsList({
       <div className="p-4 text-center text-text-muted text-sm">
         No agent sessions yet
       </div>
-    );
+    )
   }
 
   return (
@@ -129,8 +156,8 @@ export function SessionsList({
         <div
           key={session.id}
           className={cn(
-            "p-3 border-b border-border hover:bg-surface/50 cursor-pointer transition-colors",
-            onSelectSession && "group"
+            'p-3 border-b border-border hover:bg-surface/50 cursor-pointer transition-colors',
+            onSelectSession && 'group',
           )}
           onClick={() => onSelectSession?.(session)}
         >
@@ -156,12 +183,14 @@ export function SessionsList({
                 {formatTokenCount(session.tokenCount)} tok
               </span>
               {session.provider && (
-                <span className={cn(
-                  "text-[10px] px-1.5 py-0.5 rounded",
-                  session.provider.includes('gemini')
-                    ? "bg-gain/20 text-gain"
-                    : "bg-accent/20 text-accent"
-                )}>
+                <span
+                  className={cn(
+                    'text-[10px] px-1.5 py-0.5 rounded',
+                    session.provider.includes('gemini')
+                      ? 'bg-gain/20 text-gain'
+                      : 'bg-accent/20 text-accent',
+                  )}
+                >
                   {session.provider}
                 </span>
               )}
@@ -171,82 +200,85 @@ export function SessionsList({
             </div>
           </div>
           <div className="flex items-center gap-2 mt-1">
-            <span className={cn(
-              "w-1.5 h-1.5 rounded-full",
-              session.status === 'completed' ? "bg-gain" :
-              session.status === 'running' ? "bg-accent animate-pulse" :
-              session.status === 'error' ? "bg-loss" : "bg-neutral"
-            )} />
-            <span className="text-[10px] text-text-muted">{session.status}</span>
+            <span
+              className={cn(
+                'w-1.5 h-1.5 rounded-full',
+                session.status === 'completed'
+                  ? 'bg-gain'
+                  : session.status === 'running'
+                    ? 'bg-accent animate-pulse'
+                    : session.status === 'error'
+                      ? 'bg-loss'
+                      : 'bg-neutral',
+              )}
+            />
+            <span className="text-[10px] text-text-muted">
+              {session.status}
+            </span>
           </div>
         </div>
       ))}
     </div>
-  );
+  )
 }
-
 
 // Dev Companion Sessions List (for Agent Hub session history)
 interface DevCompanionSessionsListProps {
-  serverUrl?: string;
-  onSelectSession?: (session: DevCompanionSession) => void;
-  maxHeight?: string;
+  serverUrl?: string
+  onSelectSession?: (session: DevCompanionSession) => void
+  maxHeight?: string
 }
 
 // Get default server URL
 // Use nginx proxy path /dev-companion/ for SSL termination
 const getDefaultServerUrl = () => {
-  if (typeof window === 'undefined') return 'http://localhost:9999';
-  return `${window.location.origin}/dev-companion`;
-};
+  if (typeof window === 'undefined') return 'http://localhost:9999'
+  return `${window.location.origin}/dev-companion`
+}
 
 export function DevCompanionSessionsList({
   serverUrl,
   onSelectSession,
-  maxHeight = '300px'
+  maxHeight = '300px',
 }: DevCompanionSessionsListProps) {
   // Use provided serverUrl or derive from current protocol
-  const effectiveServerUrl = serverUrl || getDefaultServerUrl();
-  const [sessions, setSessions] = useState<DevCompanionSession[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const effectiveServerUrl = serverUrl || getDefaultServerUrl()
+  const [sessions, setSessions] = useState<DevCompanionSession[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchSessions = async () => {
-      setIsLoading(true);
-      setError(null);
+      setIsLoading(true)
+      setError(null)
       try {
-        const res = await fetch(`${effectiveServerUrl}/sessions?limit=20`);
-        if (!res.ok) throw new Error('Failed to fetch sessions');
-        const data = await res.json();
-        setSessions(data);
+        const res = await fetch(`${effectiveServerUrl}/sessions?limit=20`)
+        if (!res.ok) throw new Error('Failed to fetch sessions')
+        const data = await res.json()
+        setSessions(data)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load sessions');
+        setError(err instanceof Error ? err.message : 'Failed to load sessions')
       } finally {
-        setIsLoading(false);
+        setIsLoading(false)
       }
-    };
+    }
 
-    fetchSessions();
+    fetchSessions()
     // Refresh every 30 seconds
-    const interval = setInterval(fetchSessions, 30 * 1000);
-    return () => clearInterval(interval);
-  }, [effectiveServerUrl]);
+    const interval = setInterval(fetchSessions, 30 * 1000)
+    return () => clearInterval(interval)
+  }, [effectiveServerUrl])
 
   if (isLoading) {
     return (
       <div className="p-4 text-center text-text-muted text-sm">
         Loading sessions...
       </div>
-    );
+    )
   }
 
   if (error) {
-    return (
-      <div className="p-4 text-center text-loss text-sm">
-        {error}
-      </div>
-    );
+    return <div className="p-4 text-center text-loss text-sm">{error}</div>
   }
 
   if (sessions.length === 0) {
@@ -254,7 +286,7 @@ export function DevCompanionSessionsList({
       <div className="p-4 text-center text-text-muted text-sm">
         No sessions yet
       </div>
-    );
+    )
   }
 
   return (
@@ -263,8 +295,8 @@ export function DevCompanionSessionsList({
         <div
           key={session.id}
           className={cn(
-            "p-3 border-b border-border hover:bg-surface/50 cursor-pointer transition-colors",
-            onSelectSession && "group"
+            'p-3 border-b border-border hover:bg-surface/50 cursor-pointer transition-colors',
+            onSelectSession && 'group',
           )}
           onClick={() => onSelectSession?.(session)}
         >
@@ -282,12 +314,17 @@ export function DevCompanionSessionsList({
               </div>
               {/* Description or "No messages yet" */}
               <div className="text-xs text-text-muted truncate">
-                {session.description || (session.messageCount ? 'No description' : '(No messages yet)')}
+                {session.description ||
+                  (session.messageCount
+                    ? 'No description'
+                    : '(No messages yet)')}
               </div>
               {/* Participants row */}
               {session.participants && session.participants.length > 0 && (
                 <div className="flex items-center gap-1 mt-1">
-                  <span className="text-[10px] text-text-muted">Participants:</span>
+                  <span className="text-[10px] text-text-muted">
+                    Participants:
+                  </span>
                   {session.participants.map((p) => (
                     <ProviderBadge key={p} provider={p} size="xs" />
                   ))}
@@ -322,5 +359,5 @@ export function DevCompanionSessionsList({
         </div>
       ))}
     </div>
-  );
+  )
 }

@@ -1,5 +1,5 @@
-import { clsx, type ClassValue } from "clsx"
-import { twMerge } from "tailwind-merge"
+import { type ClassValue, clsx } from 'clsx'
+import { twMerge } from 'tailwind-merge'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -16,18 +16,21 @@ export function cn(...inputs: ClassValue[]) {
  * @param includeYear Whether to include the year (default: true)
  * @returns Formatted date string like "Nov 18, 2025" or "Nov 18"
  */
-export function formatDate(dateStr: string | undefined | null, includeYear: boolean = true): string {
-  if (!dateStr) return "-";
+export function formatDate(
+  dateStr: string | undefined | null,
+  includeYear: boolean = true,
+): string {
+  if (!dateStr) return '-'
   // Append T12:00:00 to avoid timezone issues when parsing date-only strings
-  const normalizedStr = dateStr.includes("T") ? dateStr : `${dateStr}T12:00:00`;
-  const date = new Date(normalizedStr);
-  if (isNaN(date.getTime())) return "-";
+  const normalizedStr = dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00`
+  const date = new Date(normalizedStr)
+  if (Number.isNaN(date.getTime())) return '-'
 
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    ...(includeYear && { year: "numeric" }),
-  });
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    ...(includeYear && { year: 'numeric' }),
+  })
 }
 
 /**
@@ -36,20 +39,22 @@ export function formatDate(dateStr: string | undefined | null, includeYear: bool
  * @returns Formatted string like "Nov 18, 10:30 AM"
  */
 export function formatDateTime(dateStr: string | undefined | null): string {
-  if (!dateStr) return "-";
-  const date = new Date(dateStr);
-  if (isNaN(date.getTime())) return "-";
+  if (!dateStr) return '-'
+  const date = new Date(dateStr)
+  if (Number.isNaN(date.getTime())) return '-'
 
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }
 
-export function formatRelativeTime(timestamp: string | null | undefined): string {
-  if (!timestamp) return "Never"
+export function formatRelativeTime(
+  timestamp: string | null | undefined,
+): string {
+  if (!timestamp) return 'Never'
 
   try {
     const now = new Date()
@@ -57,14 +62,14 @@ export function formatRelativeTime(timestamp: string | null | undefined): string
     const diffMs = now.getTime() - then.getTime()
     const diffMins = Math.floor(diffMs / 60000)
 
-    if (diffMins < 1) return "Just now"
+    if (diffMins < 1) return 'Just now'
     if (diffMins < 60) return `${diffMins}m ago`
 
     const diffHours = Math.floor(diffMins / 60)
     if (diffHours < 24) return `${diffHours}h ago`
 
     const diffDays = Math.floor(diffHours / 24)
-    if (diffDays === 1) return "Yesterday"
+    if (diffDays === 1) return 'Yesterday'
     if (diffDays < 7) return `${diffDays}d ago`
 
     // Format as absolute time for > 7d
@@ -72,10 +77,10 @@ export function formatRelativeTime(timestamp: string | null | undefined): string
       month: 'short',
       day: 'numeric',
       hour: 'numeric',
-      minute: '2-digit'
+      minute: '2-digit',
     })
   } catch {
-    return "Unknown"
+    return 'Unknown'
   }
 }
 
@@ -87,27 +92,31 @@ export function formatRelativeTime(timestamp: string | null | undefined): string
  */
 export function checkDataFreshness(
   dataDate: string | null | undefined,
-  expectedDataDate: string | null | undefined
+  expectedDataDate: string | null | undefined,
 ): { isFresh: boolean; indicator: string; tooltip: string } {
   if (!dataDate || !expectedDataDate) {
-    return { isFresh: false, indicator: "⚠️", tooltip: "Unable to verify data freshness" };
+    return {
+      isFresh: false,
+      indicator: '⚠️',
+      tooltip: 'Unable to verify data freshness',
+    }
   }
 
   // Extract just the date part (YYYY-MM-DD) for comparison
   // This avoids timezone issues by comparing strings directly
-  const dataDateStr = dataDate.split("T")[0];
-  const expectedDateStr = expectedDataDate.split("T")[0];
+  const dataDateStr = dataDate.split('T')[0]
+  const expectedDateStr = expectedDataDate.split('T')[0]
 
   // String comparison works for ISO date format (YYYY-MM-DD)
-  const isFresh = dataDateStr >= expectedDateStr;
+  const isFresh = dataDateStr >= expectedDateStr
 
   return {
     isFresh,
-    indicator: isFresh ? "✓" : "⚠️",
+    indicator: isFresh ? '✓' : '⚠️',
     tooltip: isFresh
       ? `Data is current (${formatDate(dataDate, false)})`
       : `Data may be stale - expected ${formatDate(expectedDataDate, false)}, have ${formatDate(dataDate, false)}`,
-  };
+  }
 }
 
 /**
@@ -118,10 +127,10 @@ export function checkDataFreshness(
  */
 export function formatDataDateWithFreshness(
   dataDate: string | null | undefined,
-  expectedDataDate: string | null | undefined
+  expectedDataDate: string | null | undefined,
 ): string {
-  if (!dataDate) return "-";
+  if (!dataDate) return '-'
 
-  const { indicator } = checkDataFreshness(dataDate, expectedDataDate);
-  return `${formatDate(dataDate, false)} ${indicator}`;
+  const { indicator } = checkDataFreshness(dataDate, expectedDataDate)
+  return `${formatDate(dataDate, false)} ${indicator}`
 }

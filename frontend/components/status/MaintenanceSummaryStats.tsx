@@ -1,13 +1,12 @@
-"use client";
+'use client'
 
-import React from "react";
-import { formatSize } from "@/lib/maintenance/formatters";
+import { formatSize } from '@/lib/maintenance/formatters'
 
 interface MaintenanceSummaryStatsProps {
-  filesSizeMb: number;
-  databaseSizeMb: number;
-  cacheSizeMb: number;
-  diskUsedPercentage: number | null;
+  filesSizeMb: number
+  databaseSizeMb: number
+  cacheSizeMb: number
+  diskUsedPercentage: number | null
 }
 
 export function MaintenanceSummaryStats({
@@ -32,10 +31,12 @@ export function MaintenanceSummaryStats({
       </div>
       <div className="text-center">
         <div className="text-xl font-bold">
-          {diskUsedPercentage !== null ? `${diskUsedPercentage.toFixed(0)}%` : "—"}
+          {diskUsedPercentage !== null
+            ? `${diskUsedPercentage.toFixed(0)}%`
+            : '—'}
         </div>
         <div className="text-xs text-muted-foreground">Disk Used</div>
       </div>
     </div>
-  );
+  )
 }

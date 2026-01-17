@@ -2,28 +2,28 @@
  * Automation API client functions for triggering pipeline stages
  */
 
-import { apiRequest } from "./client";
+import { apiRequest } from './client'
 
 export interface PipelineResponse {
-  status: string;
-  taskId?: string;
-  stage: string;
-  message: string;
+  status: string
+  taskId?: string
+  stage: string
+  message: string
 }
 
 export interface FullPipelineResponse {
-  status: string;
-  message: string;
-  stages: Record<string, { task_id: string; status: string }>;
+  status: string
+  message: string
+  stages: Record<string, { task_id: string; status: string }>
 }
 
 export interface PipelineStatus {
   stages: {
-    strategies: { activeCount: number };
-    signals: { todayCount: number };
-    paperTrades: { openCount: number };
-  };
-  lastRun: Record<string, string | null>;
+    strategies: { activeCount: number }
+    signals: { todayCount: number }
+    paperTrades: { openCount: number }
+  }
+  lastRun: Record<string, string | null>
 }
 
 /**
@@ -31,54 +31,57 @@ export interface PipelineStatus {
  */
 export async function triggerStrategyResearch(
   symbol?: string,
-  force?: boolean
+  force?: boolean,
 ): Promise<PipelineResponse> {
-  const params = new URLSearchParams();
-  if (symbol) params.append("symbol", symbol);
-  if (force) params.append("force", "true");
+  const params = new URLSearchParams()
+  if (symbol) params.append('symbol', symbol)
+  if (force) params.append('force', 'true')
 
-  const query = params.toString() ? `?${params.toString()}` : "";
-  return apiRequest<PipelineResponse>(`/api/automation/run/strategy-research${query}`, {
-    method: "POST",
-  });
+  const query = params.toString() ? `?${params.toString()}` : ''
+  return apiRequest<PipelineResponse>(
+    `/api/automation/run/strategy-research${query}`,
+    {
+      method: 'POST',
+    },
+  )
 }
 
 /**
  * Trigger signal generation
  */
 export async function triggerSignalGeneration(): Promise<PipelineResponse> {
-  return apiRequest<PipelineResponse>("/api/automation/run/signal-generation", {
-    method: "POST",
-  });
+  return apiRequest<PipelineResponse>('/api/automation/run/signal-generation', {
+    method: 'POST',
+  })
 }
 
 /**
  * Trigger auto paper trading
  */
 export async function triggerAutoPaperTrade(
-  minStrength: number = 5
+  minStrength: number = 5,
 ): Promise<PipelineResponse> {
   return apiRequest<PipelineResponse>(
     `/api/automation/run/auto-paper-trade?min_strength=${minStrength}`,
-    { method: "POST" }
-  );
+    { method: 'POST' },
+  )
 }
 
 /**
  * Trigger full pipeline
  */
 export async function triggerFullPipeline(
-  skipResearch: boolean = false
+  skipResearch: boolean = false,
 ): Promise<FullPipelineResponse> {
   return apiRequest<FullPipelineResponse>(
     `/api/automation/run/full-pipeline?skip_research=${skipResearch}`,
-    { method: "POST" }
-  );
+    { method: 'POST' },
+  )
 }
 
 /**
  * Get pipeline status
  */
 export async function getPipelineStatus(): Promise<PipelineStatus> {
-  return apiRequest<PipelineStatus>("/api/automation/status");
+  return apiRequest<PipelineStatus>('/api/automation/status')
 }

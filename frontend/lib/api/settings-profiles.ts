@@ -2,53 +2,57 @@
  * API client for settings profiles
  */
 
-import type { PreferencesResponse } from "./preferences";
+import type { PreferencesResponse } from './preferences'
 
 export interface SettingsProfile {
-  id: number;
-  userId: number;
-  name: string;
-  description: string | null;
-  profileData: PreferencesResponse;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+  id: number
+  userId: number
+  name: string
+  description: string | null
+  profileData: PreferencesResponse
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
 }
 
 export interface ProfileExport {
-  name: string;
-  description: string | null;
-  profileData: PreferencesResponse;
-  exportedAt: string;
-  version: string;
+  name: string
+  description: string | null
+  profileData: PreferencesResponse
+  exportedAt: string
+  version: string
 }
 
-const API_BASE_URL = ""; // Use relative URLs for Next.js proxy
+const API_BASE_URL = '' // Use relative URLs for Next.js proxy
 
 /**
  * Fetch all profiles
  */
-export async function fetchProfiles(userId: number = 1): Promise<SettingsProfile[]> {
+export async function fetchProfiles(
+  userId: number = 1,
+): Promise<SettingsProfile[]> {
   const response = await fetch(
-    `${API_BASE_URL}/api/settings/profiles?user_id=${userId}`
-  );
+    `${API_BASE_URL}/api/settings/profiles?user_id=${userId}`,
+  )
   if (!response.ok) {
-    throw new Error("Failed to fetch profiles");
+    throw new Error('Failed to fetch profiles')
   }
-  return response.json();
+  return response.json()
 }
 
 /**
  * Fetch active profile
  */
-export async function fetchActiveProfile(userId: number = 1): Promise<SettingsProfile> {
+export async function fetchActiveProfile(
+  userId: number = 1,
+): Promise<SettingsProfile> {
   const response = await fetch(
-    `${API_BASE_URL}/api/settings/profiles/active?user_id=${userId}`
-  );
+    `${API_BASE_URL}/api/settings/profiles/active?user_id=${userId}`,
+  )
   if (!response.ok) {
-    throw new Error("Failed to fetch active profile");
+    throw new Error('Failed to fetch active profile')
   }
-  return response.json();
+  return response.json()
 }
 
 /**
@@ -56,31 +60,31 @@ export async function fetchActiveProfile(userId: number = 1): Promise<SettingsPr
  */
 export async function fetchProfileById(
   profileId: number,
-  userId: number = 1
+  userId: number = 1,
 ): Promise<SettingsProfile> {
   const response = await fetch(
-    `${API_BASE_URL}/api/settings/profiles/${profileId}?user_id=${userId}`
-  );
+    `${API_BASE_URL}/api/settings/profiles/${profileId}?user_id=${userId}`,
+  )
   if (!response.ok) {
-    throw new Error("Failed to fetch profile");
+    throw new Error('Failed to fetch profile')
   }
-  return response.json();
+  return response.json()
 }
 
 /**
  * Create a new profile
  */
 export async function createProfile(data: {
-  name: string;
-  description?: string;
-  profileData: PreferencesResponse;
-  isActive?: boolean;
-  userId?: number;
+  name: string
+  description?: string
+  profileData: PreferencesResponse
+  isActive?: boolean
+  userId?: number
 }): Promise<SettingsProfile> {
   const response = await fetch(`${API_BASE_URL}/api/settings/profiles`, {
-    method: "POST",
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify({
       name: data.name,
@@ -89,11 +93,11 @@ export async function createProfile(data: {
       is_active: data.isActive,
       user_id: data.userId || 1,
     }),
-  });
+  })
   if (!response.ok) {
-    throw new Error("Failed to create profile");
+    throw new Error('Failed to create profile')
   }
-  return response.json();
+  return response.json()
 }
 
 /**
@@ -102,19 +106,19 @@ export async function createProfile(data: {
 export async function updateProfile(
   profileId: number,
   data: {
-    name?: string;
-    description?: string;
-    profileData?: PreferencesResponse;
-    isActive?: boolean;
-    userId?: number;
-  }
+    name?: string
+    description?: string
+    profileData?: PreferencesResponse
+    isActive?: boolean
+    userId?: number
+  },
 ): Promise<SettingsProfile> {
   const response = await fetch(
     `${API_BASE_URL}/api/settings/profiles/${profileId}`,
     {
-      method: "PUT",
+      method: 'PUT',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         name: data.name,
@@ -123,12 +127,12 @@ export async function updateProfile(
         is_active: data.isActive,
         user_id: data.userId || 1,
       }),
-    }
-  );
+    },
+  )
   if (!response.ok) {
-    throw new Error("Failed to update profile");
+    throw new Error('Failed to update profile')
   }
-  return response.json();
+  return response.json()
 }
 
 /**
@@ -136,16 +140,16 @@ export async function updateProfile(
  */
 export async function deleteProfile(
   profileId: number,
-  userId: number = 1
+  userId: number = 1,
 ): Promise<void> {
   const response = await fetch(
     `${API_BASE_URL}/api/settings/profiles/${profileId}?user_id=${userId}`,
     {
-      method: "DELETE",
-    }
-  );
+      method: 'DELETE',
+    },
+  )
   if (!response.ok) {
-    throw new Error("Failed to delete profile");
+    throw new Error('Failed to delete profile')
   }
 }
 
@@ -154,18 +158,18 @@ export async function deleteProfile(
  */
 export async function activateProfile(
   profileId: number,
-  userId: number = 1
+  userId: number = 1,
 ): Promise<SettingsProfile> {
   const response = await fetch(
     `${API_BASE_URL}/api/settings/profiles/${profileId}/activate?user_id=${userId}`,
     {
-      method: "POST",
-    }
-  );
+      method: 'POST',
+    },
+  )
   if (!response.ok) {
-    throw new Error("Failed to activate profile");
+    throw new Error('Failed to activate profile')
   }
-  return response.json();
+  return response.json()
 }
 
 /**
@@ -174,25 +178,25 @@ export async function activateProfile(
 export async function duplicateProfile(
   profileId: number,
   newName: string,
-  userId: number = 1
+  userId: number = 1,
 ): Promise<SettingsProfile> {
   const response = await fetch(
     `${API_BASE_URL}/api/settings/profiles/${profileId}/duplicate`,
     {
-      method: "POST",
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         name: newName,
         user_id: userId,
       }),
-    }
-  );
+    },
+  )
   if (!response.ok) {
-    throw new Error("Failed to duplicate profile");
+    throw new Error('Failed to duplicate profile')
   }
-  return response.json();
+  return response.json()
 }
 
 /**
@@ -200,30 +204,30 @@ export async function duplicateProfile(
  */
 export async function exportProfile(
   profileId: number,
-  userId: number = 1
+  userId: number = 1,
 ): Promise<ProfileExport> {
   const response = await fetch(
-    `${API_BASE_URL}/api/settings/profiles/${profileId}/export?user_id=${userId}`
-  );
+    `${API_BASE_URL}/api/settings/profiles/${profileId}/export?user_id=${userId}`,
+  )
   if (!response.ok) {
-    throw new Error("Failed to export profile");
+    throw new Error('Failed to export profile')
   }
-  return response.json();
+  return response.json()
 }
 
 /**
  * Import a profile
  */
 export async function importProfile(data: {
-  name: string;
-  description?: string;
-  profileData: PreferencesResponse;
-  userId?: number;
+  name: string
+  description?: string
+  profileData: PreferencesResponse
+  userId?: number
 }): Promise<SettingsProfile> {
   const response = await fetch(`${API_BASE_URL}/api/settings/profiles/import`, {
-    method: "POST",
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify({
       name: data.name,
@@ -231,9 +235,9 @@ export async function importProfile(data: {
       profile_data: data.profileData,
       user_id: data.userId || 1,
     }),
-  });
+  })
   if (!response.ok) {
-    throw new Error("Failed to import profile");
+    throw new Error('Failed to import profile')
   }
-  return response.json();
+  return response.json()
 }

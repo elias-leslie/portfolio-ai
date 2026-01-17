@@ -1,114 +1,116 @@
-"use client";
+'use client'
 
-import { useState, useEffect } from "react";
 import {
   Brain,
-  TrendingUp,
-  TrendingDown,
   Calendar,
   Database,
-  Play,
   Loader2,
-} from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { ExpandableCard } from "@/components/status/ExpandableCard";
-import { apiRequest, post } from "@/lib/api/client";
+  Play,
+  TrendingDown,
+  TrendingUp,
+} from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { ExpandableCard } from '@/components/status/ExpandableCard'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Progress } from '@/components/ui/progress'
+import { apiRequest, post } from '@/lib/api/client'
 
 interface MLModelMetrics {
-  modelName: string;
-  modelVersion: string;
-  trainedAt: string;
-  trainingSamples: number;
-  testSamples: number;
-  accuracy: number;
-  precisionScore: number;
-  recallScore: number;
-  f1Score: number;
-  usefulCount: number;
-  notUsefulCount: number;
+  modelName: string
+  modelVersion: string
+  trainedAt: string
+  trainingSamples: number
+  testSamples: number
+  accuracy: number
+  precisionScore: number
+  recallScore: number
+  f1Score: number
+  usefulCount: number
+  notUsefulCount: number
 }
 
 interface MLModelStatus {
-  currentModel: MLModelMetrics | null;
-  previousModel: MLModelMetrics | null;
-  totalTrainingSamples: number;
-  modelsTrained: number;
-  nextTraining: string;
+  currentModel: MLModelMetrics | null
+  previousModel: MLModelMetrics | null
+  totalTrainingSamples: number
+  modelsTrained: number
+  nextTraining: string
 }
 
 interface TrainingProgress {
-  sessionId: string;
-  status: string;
-  currentStep: string;
-  progressPercent: number;
-  articlesFound: number;
-  articlesLabeled: number;
-  articlesTotal: number;
-  modelVersion: string | null;
-  accuracy: number | null;
-  errorMessage: string | null;
-  startedAt: string;
-  completedAt: string | null;
+  sessionId: string
+  status: string
+  currentStep: string
+  progressPercent: number
+  articlesFound: number
+  articlesLabeled: number
+  articlesTotal: number
+  modelVersion: string | null
+  accuracy: number | null
+  errorMessage: string | null
+  startedAt: string
+  completedAt: string | null
 }
 
 export function MLModelCard() {
-  const [status, setStatus] = useState<MLModelStatus | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [training, setTraining] = useState(false);
+  const [status, setStatus] = useState<MLModelStatus | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [training, setTraining] = useState(false)
   const [trainingProgress, setTrainingProgress] =
-    useState<TrainingProgress | null>(null);
+    useState<TrainingProgress | null>(null)
 
   const fetchStatus = async () => {
     try {
-      setLoading(true);
-      const data = await apiRequest<MLModelStatus>("/api/status/ml-model-metrics");
-      setStatus(data);
+      setLoading(true)
+      const data = await apiRequest<MLModelStatus>(
+        '/api/status/ml-model-metrics',
+      )
+      setStatus(data)
     } catch (error) {
-      console.error("Failed to fetch ML model status:", error);
+      console.error('Failed to fetch ML model status:', error)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   useEffect(() => {
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 300000); // 5 min
-    return () => clearInterval(interval);
-  }, []);
+    fetchStatus()
+    const interval = setInterval(fetchStatus, 300000) // 5 min
+    return () => clearInterval(interval)
+  }, [fetchStatus])
 
   useEffect(() => {
-    if (!training || !trainingProgress) return;
+    if (!training || !trainingProgress) return
 
     const poll = setInterval(async () => {
       try {
         const progress = await apiRequest<TrainingProgress>(
           `/api/ml/training-progress/${trainingProgress.sessionId}`,
-        );
-        setTrainingProgress(progress);
-        if (progress.status === "complete" || progress.status === "failed") {
-          setTraining(false);
-          if (progress.status === "complete") {
-            setTimeout(fetchStatus, 2000);
+        )
+        setTrainingProgress(progress)
+        if (progress.status === 'complete' || progress.status === 'failed') {
+          setTraining(false)
+          if (progress.status === 'complete') {
+            setTimeout(fetchStatus, 2000)
           }
         }
       } catch (error) {
-        console.error("Failed to fetch training progress:", error);
+        console.error('Failed to fetch training progress:', error)
       }
-    }, 2000);
+    }, 2000)
 
-    return () => clearInterval(poll);
-  }, [training, trainingProgress]);
+    return () => clearInterval(poll)
+  }, [training, trainingProgress, fetchStatus])
 
   const triggerTraining = async () => {
     try {
-      setTraining(true);
-      const data = await post<{ sessionId: string }>("/api/ml/trigger-training");
+      setTraining(true)
+      const data = await post<{ sessionId: string }>('/api/ml/trigger-training')
       setTrainingProgress({
         sessionId: data.sessionId,
-        status: "queued",
-        currentStep: "Starting training...",
+        status: 'queued',
+        currentStep: 'Starting training...',
         progressPercent: 0,
         articlesFound: 0,
         articlesLabeled: 0,
@@ -118,26 +120,26 @@ export function MLModelCard() {
         errorMessage: null,
         startedAt: new Date().toISOString(),
         completedAt: null,
-      });
+      })
     } catch (error) {
-      console.error("Failed to trigger training:", error);
-      setTraining(false);
+      console.error('Failed to trigger training:', error)
+      setTraining(false)
     }
-  };
+  }
 
   const summary = (() => {
     if (!status?.currentModel) {
-      if (!status) return "No trained model yet";
-      return `${status.modelsTrained ?? 0} models trained • ${(status.totalTrainingSamples ?? 0).toLocaleString()} samples`;
+      if (!status) return 'No trained model yet'
+      return `${status.modelsTrained ?? 0} models trained • ${(status.totalTrainingSamples ?? 0).toLocaleString()} samples`
     }
     return [
       `v${status.currentModel.modelVersion}`,
       `${formatPercent(status.currentModel.accuracy)} accuracy`,
       status.nextTraining
         ? `Next ${new Date(status.nextTraining).toLocaleDateString()}`
-        : "Next training TBD",
-    ].join(" • ");
-  })();
+        : 'Next training TBD',
+    ].join(' • ')
+  })()
 
   return (
     <ExpandableCard
@@ -180,11 +182,7 @@ export function MLModelCard() {
           onClick={fetchStatus}
           disabled={loading}
         >
-          {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            "Refresh"
-          )}
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
         </Button>
         <Badge variant="outline">
           {status?.modelsTrained ?? 0} models trained
@@ -197,14 +195,14 @@ export function MLModelCard() {
             <span className="text-sm font-medium">Training in Progress</span>
             <Badge
               variant={
-                trainingProgress.status === "complete"
-                  ? "default"
-                  : trainingProgress.status === "failed"
-                  ? "destructive"
-                  : "secondary"
+                trainingProgress.status === 'complete'
+                  ? 'default'
+                  : trainingProgress.status === 'failed'
+                    ? 'destructive'
+                    : 'secondary'
               }
             >
-              {trainingProgress.status.replace(/_/g, " ")}
+              {trainingProgress.status.replace(/_/g, ' ')}
             </Badge>
           </div>
           <Progress value={trainingProgress.progressPercent} className="h-2" />
@@ -223,9 +221,7 @@ export function MLModelCard() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">Current Model</span>
-            <Badge variant="outline">
-              {status.currentModel.modelVersion}
-            </Badge>
+            <Badge variant="outline">{status.currentModel.modelVersion}</Badge>
           </div>
 
           <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -248,23 +244,23 @@ export function MLModelCard() {
           <div className="space-y-2 pt-2 border-t">
             <div className="text-sm font-medium">Performance Metrics</div>
             {renderMetricRow(
-              "Accuracy",
+              'Accuracy',
               status.currentModel.accuracy,
               status.previousModel?.accuracy,
               getAccuracyBadge,
             )}
             {renderMetricRow(
-              "Precision",
+              'Precision',
               status.currentModel.precisionScore,
               status.previousModel?.precisionScore,
             )}
             {renderMetricRow(
-              "Recall",
+              'Recall',
               status.currentModel.recallScore,
               status.previousModel?.recallScore,
             )}
             {renderMetricRow(
-              "F1 Score",
+              'F1 Score',
               status.currentModel.f1Score,
               status.previousModel?.f1Score,
             )}
@@ -318,7 +314,7 @@ export function MLModelCard() {
         </div>
       )}
     </ExpandableCard>
-  );
+  )
 }
 
 function renderMetricRow(
@@ -336,40 +332,45 @@ function renderMetricRow(
         {previous !== undefined && getMetricTrend(current, previous)}
       </div>
     </div>
-  );
+  )
 }
 
 function getAccuracyBadge(accuracy: number) {
-  if (accuracy >= 0.8) return <Badge className="bg-status-success text-text-inverted">Excellent</Badge>;
-  if (accuracy >= 0.7) return <Badge className="bg-status-info text-text-inverted">Good</Badge>;
-  if (accuracy >= 0.6) return <Badge className="bg-status-warning text-text-inverted">Fair</Badge>;
-  return <Badge variant="destructive">Poor</Badge>;
+  if (accuracy >= 0.8)
+    return (
+      <Badge className="bg-status-success text-text-inverted">Excellent</Badge>
+    )
+  if (accuracy >= 0.7)
+    return <Badge className="bg-status-info text-text-inverted">Good</Badge>
+  if (accuracy >= 0.6)
+    return <Badge className="bg-status-warning text-text-inverted">Fair</Badge>
+  return <Badge variant="destructive">Poor</Badge>
 }
 
 function formatPercent(value: number) {
-  return `${(value * 100).toFixed(1)}%`;
+  return `${(value * 100).toFixed(1)}%`
 }
 
 function formatDate(iso: string) {
   try {
-    return new Date(iso).toLocaleString();
+    return new Date(iso).toLocaleString()
   } catch {
-    return "Unknown";
+    return 'Unknown'
   }
 }
 
 function getMetricTrend(current: number, previous?: number) {
-  if (previous === undefined) return null;
-  if (Math.abs(current - previous) < 0.001) return null;
+  if (previous === undefined) return null
+  if (Math.abs(current - previous) < 0.001) return null
 
-  const rising = current > previous;
-  const Icon = rising ? TrendingUp : TrendingDown;
-  const tone = rising ? "text-status-success" : "text-status-error";
+  const rising = current > previous
+  const Icon = rising ? TrendingUp : TrendingDown
+  const tone = rising ? 'text-status-success' : 'text-status-error'
 
   return (
     <span className={`flex items-center text-xs ${tone}`}>
       <Icon className="h-3 w-3 mr-0.5" />
-      {( Math.abs(current - previous) * 100).toFixed(1)}%
+      {(Math.abs(current - previous) * 100).toFixed(1)}%
     </span>
-  );
+  )
 }

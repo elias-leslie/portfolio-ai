@@ -1,23 +1,23 @@
-"use client";
+'use client'
 
-import { Globe, CheckCircle2, XCircle } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { HealthResponse } from "@/lib/api/status";
-import { ExpandableCard } from "@/components/status/ExpandableCard";
+import { CheckCircle2, Globe, XCircle } from 'lucide-react'
+import { ExpandableCard } from '@/components/status/ExpandableCard'
+import { Badge } from '@/components/ui/badge'
+import type { HealthResponse } from '@/lib/api/status'
 
 interface APIQuotasCardProps {
-  health: HealthResponse;
+  health: HealthResponse
 }
 
 export function APIQuotasCard({ health }: APIQuotasCardProps) {
-  const quotas = health.apiQuotas || [];
+  const quotas = health.apiQuotas || []
 
   if (!quotas.length) {
-    return null;
+    return null
   }
 
-  const configuredCount = quotas.filter((q) => q.configured).length;
-  const summary = `${configuredCount}/${quotas.length} configured`;
+  const configuredCount = quotas.filter((q) => q.configured).length
+  const summary = `${configuredCount}/${quotas.length} configured`
 
   return (
     <ExpandableCard
@@ -47,14 +47,20 @@ export function APIQuotasCard({ health }: APIQuotasCardProps) {
                 )}
                 <div className="flex-1">
                   <div className="font-medium capitalize">
-                    {quota.sourceName.replace(/_/g, " ")}
+                    {quota.sourceName.replace(/_/g, ' ')}
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                    {quota.rateLimit && <div>Rate limit: {quota.rateLimit}</div>}
-                    {quota.dailyLimit && <div>Daily limit: {quota.dailyLimit}</div>}
+                    {quota.rateLimit && (
+                      <div>Rate limit: {quota.rateLimit}</div>
+                    )}
+                    {quota.dailyLimit && (
+                      <div>Daily limit: {quota.dailyLimit}</div>
+                    )}
                     {quota.estimatedCapacity !== null &&
                       quota.estimatedCapacity !== undefined && (
-                        <div>Estimated capacity: ~{quota.estimatedCapacity} symbols</div>
+                        <div>
+                          Estimated capacity: ~{quota.estimatedCapacity} symbols
+                        </div>
                       )}
                   </div>
                 </div>
@@ -70,8 +76,9 @@ export function APIQuotasCard({ health }: APIQuotasCardProps) {
           ))}
       </div>
       <p className="mt-4 text-xs text-muted-foreground">
-        Sources marked as &quot;Not Configured&quot; will be skipped. Configure their environment variables and restart services to activate them.
+        Sources marked as &quot;Not Configured&quot; will be skipped. Configure
+        their environment variables and restart services to activate them.
       </p>
     </ExpandableCard>
-  );
+  )
 }

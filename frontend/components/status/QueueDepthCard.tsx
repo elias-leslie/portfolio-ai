@@ -1,33 +1,45 @@
-"use client";
+'use client'
 
-import { AlertTriangle, AlertCircle, CheckCircle, RefreshCw } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { useQueueDepth } from "@/lib/hooks/useCeleryTasks";
+import {
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle,
+  RefreshCw,
+} from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { useQueueDepth } from '@/lib/hooks/useCeleryTasks'
 
 export function QueueDepthCard() {
-  const { data, refetch, isLoading, isFetching } = useQueueDepth();
+  const { data, refetch, isLoading, isFetching } = useQueueDepth()
 
   const getStatusColor = (depth: number) => {
-    if (depth === 0) return "text-gain";
-    if (depth < 50) return "text-accent";
-    if (depth < 100) return "text-warning";
-    return "text-loss";
-  };
+    if (depth === 0) return 'text-gain'
+    if (depth < 50) return 'text-accent'
+    if (depth < 100) return 'text-warning'
+    return 'text-loss'
+  }
 
   const getStatusIcon = (depth: number) => {
-    if (depth === 0) return <CheckCircle className="h-5 w-5 text-gain" />;
-    if (depth < 50) return <CheckCircle className="h-5 w-5 text-accent" />;
-    if (depth < 100) return <AlertTriangle className="h-5 w-5 text-warning" />;
-    return <AlertCircle className="h-5 w-5 text-loss" />;
-  };
+    if (depth === 0) return <CheckCircle className="h-5 w-5 text-gain" />
+    if (depth < 50) return <CheckCircle className="h-5 w-5 text-accent" />
+    if (depth < 100) return <AlertTriangle className="h-5 w-5 text-warning" />
+    return <AlertCircle className="h-5 w-5 text-loss" />
+  }
 
   const getStatusMessage = (depth: number, consumers: number) => {
-    if (depth === 0) return "Queue is empty";
-    if (depth < 50) return `${depth} tasks pending across ${consumers} worker${consumers !== 1 ? 's' : ''}`;
-    if (depth < 100) return `⚠️ ${depth} tasks pending - queue building up`;
-    return `🚨 ${depth} tasks pending - queue overloaded!`;
-  };
+    if (depth === 0) return 'Queue is empty'
+    if (depth < 50)
+      return `${depth} tasks pending across ${consumers} worker${consumers !== 1 ? 's' : ''}`
+    if (depth < 100) return `⚠️ ${depth} tasks pending - queue building up`
+    return `🚨 ${depth} tasks pending - queue overloaded!`
+  }
 
   return (
     <Card>
@@ -42,7 +54,9 @@ export function QueueDepthCard() {
           onClick={() => refetch()}
           disabled={isLoading || isFetching}
         >
-          <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+          <RefreshCw
+            className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`}
+          />
         </Button>
       </CardHeader>
       <CardContent>
@@ -59,7 +73,9 @@ export function QueueDepthCard() {
             <div className="flex items-center gap-4">
               {getStatusIcon(data.depth)}
               <div>
-                <div className={`text-3xl font-bold ${getStatusColor(data.depth)}`}>
+                <div
+                  className={`text-3xl font-bold ${getStatusColor(data.depth)}`}
+                >
                   {data.depth}
                 </div>
                 <div className="text-sm text-muted-foreground">
@@ -71,5 +87,5 @@ export function QueueDepthCard() {
         ) : null}
       </CardContent>
     </Card>
-  );
+  )
 }

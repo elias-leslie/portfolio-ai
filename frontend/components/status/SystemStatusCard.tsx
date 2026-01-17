@@ -1,36 +1,39 @@
-"use client";
+'use client'
 
-import { Activity, Database, TrendingUp } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { HealthResponse } from "@/lib/api/status";
+import { Activity, Database, TrendingUp } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import type { HealthResponse } from '@/lib/api/status'
 
 interface SystemStatusCardProps {
-  health: HealthResponse;
+  health: HealthResponse
 }
 
 export function SystemStatusCard({ health }: SystemStatusCardProps) {
   // Calculate overall service health
-  const services = health.services || {};
-  const serviceCount = Object.keys(services).length;
+  const services = health.services || {}
+  const serviceCount = Object.keys(services).length
   const healthyServices = Object.values(services).filter(
-    (s) => s.status === "running"
-  ).length;
+    (s) => s.status === 'running',
+  ).length
 
   // Determine overall system status badge
-  const getSystemBadge = (): { variant: "default" | "secondary" | "destructive"; text: string } => {
-    const healthyRatio = serviceCount > 0 ? healthyServices / serviceCount : 0;
+  const getSystemBadge = (): {
+    variant: 'default' | 'secondary' | 'destructive'
+    text: string
+  } => {
+    const healthyRatio = serviceCount > 0 ? healthyServices / serviceCount : 0
 
     if (healthyRatio === 1) {
-      return { variant: "default", text: "All Systems Operational" };
+      return { variant: 'default', text: 'All Systems Operational' }
     } else if (healthyRatio >= 0.5) {
-      return { variant: "secondary", text: "Degraded Performance" };
+      return { variant: 'secondary', text: 'Degraded Performance' }
     } else {
-      return { variant: "destructive", text: "System Issues" };
+      return { variant: 'destructive', text: 'System Issues' }
     }
-  };
+  }
 
-  const systemBadge = getSystemBadge();
+  const systemBadge = getSystemBadge()
 
   return (
     <Card className="col-span-full">
@@ -56,7 +59,7 @@ export function SystemStatusCard({ health }: SystemStatusCardProps) {
             </div>
             <div className="text-xs text-muted-foreground">
               {healthyServices === serviceCount
-                ? "All services healthy"
+                ? 'All services healthy'
                 : `${serviceCount - healthyServices} service(s) degraded`}
             </div>
           </div>
@@ -68,12 +71,12 @@ export function SystemStatusCard({ health }: SystemStatusCardProps) {
               Database
             </div>
             <div className="text-2xl font-bold">
-              {health.checks?.database?.status === "ok" ? "OK" : "Down"}
+              {health.checks?.database?.status === 'ok' ? 'OK' : 'Down'}
             </div>
             <div className="text-xs text-muted-foreground">
               {health.checks?.database?.latencyMs
                 ? `${health.checks.database.latencyMs}ms latency`
-                : "No latency data"}
+                : 'No latency data'}
             </div>
           </div>
 
@@ -84,17 +87,21 @@ export function SystemStatusCard({ health }: SystemStatusCardProps) {
               Data Sources
             </div>
             <div className="text-2xl font-bold">
-              {Object.values(health.sources || {}).filter((s) => s.status === "ok").length}/
-              {Object.keys(health.sources || {}).length}
+              {
+                Object.values(health.sources || {}).filter(
+                  (s) => s.status === 'ok',
+                ).length
+              }
+              /{Object.keys(health.sources || {}).length}
             </div>
             <div className="text-xs text-muted-foreground">
               {Object.keys(health.sources || {}).length > 0
-                ? "External APIs"
-                : "No sources configured"}
+                ? 'External APIs'
+                : 'No sources configured'}
             </div>
           </div>
         </div>
       </CardContent>
     </Card>
-  );
+  )
 }

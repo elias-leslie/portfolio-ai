@@ -1,11 +1,11 @@
-import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
-import { StrategyDetailModal } from "../StrategyDetailModal";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import React from "react";
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { render, screen } from '@testing-library/react'
+import type React from 'react'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { StrategyDetailModal } from '../StrategyDetailModal'
 
 // Mock hooks
-vi.mock("@/lib/hooks/useStrategies", () => ({
+vi.mock('@/lib/hooks/useStrategies', () => ({
   useStrategy: vi.fn(() => ({
     data: null,
     isLoading: false,
@@ -13,29 +13,31 @@ vi.mock("@/lib/hooks/useStrategies", () => ({
   useUpdateStrategyStatus: vi.fn(() => ({
     mutate: vi.fn(),
   })),
-}));
+}))
 
 function createWrapper() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
-  });
+  })
   function TestWrapper({ children }: { children: React.ReactNode }) {
-    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+    return (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
   }
-  return TestWrapper;
+  return TestWrapper
 }
 
-describe("StrategyDetailModal", () => {
+describe('StrategyDetailModal', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-  });
+    vi.clearAllMocks()
+  })
 
-  it("renders loading state", async () => {
-    const { useStrategy } = await import("@/lib/hooks/useStrategies");
-    (useStrategy as unknown as Mock).mockReturnValue({
+  it('renders loading state', async () => {
+    const { useStrategy } = await import('@/lib/hooks/useStrategies')
+    ;(useStrategy as unknown as Mock).mockReturnValue({
       data: null,
       isLoading: true,
-    });
+    })
 
     render(
       <StrategyDetailModal
@@ -43,18 +45,18 @@ describe("StrategyDetailModal", () => {
         open={true}
         onOpenChange={() => {}}
       />,
-      { wrapper: createWrapper() }
-    );
+      { wrapper: createWrapper() },
+    )
 
-    expect(screen.getByText("Loading Strategy...")).toBeInTheDocument();
-  });
+    expect(screen.getByText('Loading Strategy...')).toBeInTheDocument()
+  })
 
-  it("does not render content when closed", async () => {
-    const { useStrategy } = await import("@/lib/hooks/useStrategies");
-    (useStrategy as unknown as Mock).mockReturnValue({
+  it('does not render content when closed', async () => {
+    const { useStrategy } = await import('@/lib/hooks/useStrategies')
+    ;(useStrategy as unknown as Mock).mockReturnValue({
       data: null,
       isLoading: false,
-    });
+    })
 
     render(
       <StrategyDetailModal
@@ -62,20 +64,20 @@ describe("StrategyDetailModal", () => {
         open={false}
         onOpenChange={() => {}}
       />,
-      { wrapper: createWrapper() }
-    );
+      { wrapper: createWrapper() },
+    )
 
     // Content should not be rendered when dialog is closed
-    expect(screen.queryByText("Loading Strategy...")).not.toBeInTheDocument();
-  });
+    expect(screen.queryByText('Loading Strategy...')).not.toBeInTheDocument()
+  })
 
-  it("calls useStrategy with correct strategyId", async () => {
-    const { useStrategy } = await import("@/lib/hooks/useStrategies");
-    const mockUseStrategy = useStrategy as unknown as Mock;
+  it('calls useStrategy with correct strategyId', async () => {
+    const { useStrategy } = await import('@/lib/hooks/useStrategies')
+    const mockUseStrategy = useStrategy as unknown as Mock
     mockUseStrategy.mockReturnValue({
       data: null,
       isLoading: false,
-    });
+    })
 
     render(
       <StrategyDetailModal
@@ -83,19 +85,19 @@ describe("StrategyDetailModal", () => {
         open={true}
         onOpenChange={() => {}}
       />,
-      { wrapper: createWrapper() }
-    );
+      { wrapper: createWrapper() },
+    )
 
-    expect(mockUseStrategy).toHaveBeenCalledWith("test-strategy-123");
-  });
+    expect(mockUseStrategy).toHaveBeenCalledWith('test-strategy-123')
+  })
 
-  it("calls useStrategy with null when strategyId is null", async () => {
-    const { useStrategy } = await import("@/lib/hooks/useStrategies");
-    const mockUseStrategy = useStrategy as unknown as Mock;
+  it('calls useStrategy with null when strategyId is null', async () => {
+    const { useStrategy } = await import('@/lib/hooks/useStrategies')
+    const mockUseStrategy = useStrategy as unknown as Mock
     mockUseStrategy.mockReturnValue({
       data: null,
       isLoading: false,
-    });
+    })
 
     render(
       <StrategyDetailModal
@@ -103,9 +105,9 @@ describe("StrategyDetailModal", () => {
         open={true}
         onOpenChange={() => {}}
       />,
-      { wrapper: createWrapper() }
-    );
+      { wrapper: createWrapper() },
+    )
 
-    expect(mockUseStrategy).toHaveBeenCalledWith(null);
-  });
-});
+    expect(mockUseStrategy).toHaveBeenCalledWith(null)
+  })
+})

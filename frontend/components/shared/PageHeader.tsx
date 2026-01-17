@@ -1,26 +1,26 @@
-"use client";
+'use client'
 
-import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
+import type { ReactNode } from 'react'
+import { cn } from '@/lib/utils'
 
-type PageHeaderVariant = "gradient" | "plain";
-type PageHeaderSize = "sm" | "md" | "lg";
+type PageHeaderVariant = 'gradient' | 'plain'
+type PageHeaderSize = 'sm' | 'md' | 'lg'
 
 const sizeStyles: Record<PageHeaderSize, string> = {
-  sm: "text-2xl",
-  md: "text-3xl",
-  lg: "text-4xl",
-};
+  sm: 'text-2xl',
+  md: 'text-3xl',
+  lg: 'text-4xl',
+}
 
 export interface PageHeaderProps {
-  title: ReactNode;
-  description?: ReactNode;
-  eyebrow?: ReactNode;
-  actions?: ReactNode;
-  className?: string;
-  variant?: PageHeaderVariant;
-  size?: PageHeaderSize;
-  align?: "start" | "center";
+  title: ReactNode
+  description?: ReactNode
+  eyebrow?: ReactNode
+  actions?: ReactNode
+  className?: string
+  variant?: PageHeaderVariant
+  size?: PageHeaderSize
+  align?: 'start' | 'center'
 }
 
 /**
@@ -32,26 +32,26 @@ export function PageHeader({
   eyebrow,
   actions,
   className,
-  variant = "gradient",
-  size = "lg",
-  align = "start",
+  variant = 'gradient',
+  size = 'lg',
+  align = 'start',
 }: PageHeaderProps) {
   const titleClass =
-    variant === "gradient"
-      ? "bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent"
-      : "text-text";
+    variant === 'gradient'
+      ? 'bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent'
+      : 'text-text'
 
   return (
     <header
       className={cn(
-        "flex flex-col gap-4 md:flex-row md:items-end md:justify-between",
+        'flex flex-col gap-4 md:flex-row md:items-end md:justify-between',
         className,
       )}
     >
       <div
         className={cn(
-          "space-y-3",
-          align === "center" && "text-center md:text-left",
+          'space-y-3',
+          align === 'center' && 'text-center md:text-left',
         )}
       >
         {eyebrow && (
@@ -61,7 +61,7 @@ export function PageHeader({
         )}
         <h1
           className={cn(
-            "font-semibold tracking-tight",
+            'font-semibold tracking-tight',
             sizeStyles[size],
             titleClass,
           )}
@@ -76,5 +76,5 @@ export function PageHeader({
         <div className="flex flex-wrap gap-2 md:justify-end">{actions}</div>
       )}
     </header>
-  );
+  )
 }

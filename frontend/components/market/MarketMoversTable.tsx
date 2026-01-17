@@ -1,35 +1,35 @@
-"use client";
+'use client'
 
-import { useState } from "react";
-import { useMarketMovers } from "@/lib/hooks/useMarketIntelligence";
-import { Loader2, TrendingUp, TrendingDown, BarChart3, Zap } from "lucide-react";
-import { cn, formatRelativeTime } from "@/lib/utils";
-import type { MarketMoverItem } from "@/lib/api/market";
+import { BarChart3, Loader2, TrendingDown, TrendingUp, Zap } from 'lucide-react'
+import { useState } from 'react'
+import type { MarketMoverItem } from '@/lib/api/market'
+import { useMarketMovers } from '@/lib/hooks/useMarketIntelligence'
+import { cn, formatRelativeTime } from '@/lib/utils'
 
-type Tab = "gainers" | "losers" | "volume" | "rvol";
+type Tab = 'gainers' | 'losers' | 'volume' | 'rvol'
 
 function formatVolume(volume: number | null): string {
-  if (!volume) return "-";
-  if (volume >= 1_000_000) return `${(volume / 1_000_000).toFixed(1)}M`;
-  if (volume >= 1_000) return `${(volume / 1_000).toFixed(0)}K`;
-  return volume.toString();
+  if (!volume) return '-'
+  if (volume >= 1_000_000) return `${(volume / 1_000_000).toFixed(1)}M`
+  if (volume >= 1_000) return `${(volume / 1_000).toFixed(0)}K`
+  return volume.toString()
 }
 
 function formatRvol(rvol: number | null): string {
-  if (rvol === null || rvol === undefined) return "-";
-  return `${rvol.toFixed(1)}x`;
+  if (rvol === null || rvol === undefined) return '-'
+  return `${rvol.toFixed(1)}x`
 }
 
 export function MarketMoversTable() {
-  const [activeTab, setActiveTab] = useState<Tab>("gainers");
-  const { data, isLoading, error } = useMarketMovers(10);
+  const [activeTab, setActiveTab] = useState<Tab>('gainers')
+  const { data, isLoading, error } = useMarketMovers(10)
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-32">
         <Loader2 className="h-5 w-5 animate-spin text-text-muted" />
       </div>
-    );
+    )
   }
 
   if (error || !data) {
@@ -37,26 +37,26 @@ export function MarketMoversTable() {
       <div className="text-xs text-text-muted text-center py-4">
         Unable to load market movers
       </div>
-    );
+    )
   }
 
   const getItems = (): MarketMoverItem[] => {
     switch (activeTab) {
-      case "gainers":
-        return data.gainers;
-      case "losers":
-        return data.losers;
-      case "volume":
-        return data.mostActive;
-      case "rvol":
-        return data.topRvol;
+      case 'gainers':
+        return data.gainers
+      case 'losers':
+        return data.losers
+      case 'volume':
+        return data.mostActive
+      case 'rvol':
+        return data.topRvol
     }
-  };
+  }
 
-  const items = getItems();
+  const items = getItems()
 
   // Determine which column to highlight based on tab
-  const showRvolColumn = activeTab === "rvol";
+  const showRvolColumn = activeTab === 'rvol'
 
   return (
     <div className="space-y-2">
@@ -64,48 +64,48 @@ export function MarketMoversTable() {
         <h3 className="text-sm font-semibold text-text">Market Movers</h3>
         <div className="flex gap-0.5 bg-surface-muted rounded-lg p-0.5">
           <button
-            onClick={() => setActiveTab("gainers")}
+            onClick={() => setActiveTab('gainers')}
             className={cn(
-              "flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors",
-              activeTab === "gainers"
-                ? "bg-surface text-gain shadow-sm"
-                : "text-text-muted hover:text-text"
+              'flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors',
+              activeTab === 'gainers'
+                ? 'bg-surface text-gain shadow-sm'
+                : 'text-text-muted hover:text-text',
             )}
           >
             <TrendingUp className="h-2.5 w-2.5" />
             Gainers
           </button>
           <button
-            onClick={() => setActiveTab("losers")}
+            onClick={() => setActiveTab('losers')}
             className={cn(
-              "flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors",
-              activeTab === "losers"
-                ? "bg-surface text-loss shadow-sm"
-                : "text-text-muted hover:text-text"
+              'flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors',
+              activeTab === 'losers'
+                ? 'bg-surface text-loss shadow-sm'
+                : 'text-text-muted hover:text-text',
             )}
           >
             <TrendingDown className="h-2.5 w-2.5" />
             Losers
           </button>
           <button
-            onClick={() => setActiveTab("volume")}
+            onClick={() => setActiveTab('volume')}
             className={cn(
-              "flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors",
-              activeTab === "volume"
-                ? "bg-surface text-text shadow-sm"
-                : "text-text-muted hover:text-text"
+              'flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors',
+              activeTab === 'volume'
+                ? 'bg-surface text-text shadow-sm'
+                : 'text-text-muted hover:text-text',
             )}
           >
             <BarChart3 className="h-2.5 w-2.5" />
             Volume
           </button>
           <button
-            onClick={() => setActiveTab("rvol")}
+            onClick={() => setActiveTab('rvol')}
             className={cn(
-              "flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors",
-              activeTab === "rvol"
-                ? "bg-surface text-text shadow-sm"
-                : "text-text-muted hover:text-text"
+              'flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors',
+              activeTab === 'rvol'
+                ? 'bg-surface text-text shadow-sm'
+                : 'text-text-muted hover:text-text',
             )}
           >
             <Zap className="h-2.5 w-2.5" />
@@ -119,13 +119,23 @@ export function MarketMoversTable() {
           <thead>
             <tr className="text-text-muted border-b border-border/50">
               <th className="text-left py-1 font-medium">Symbol</th>
-              <th className="text-left py-1 font-medium hidden md:table-cell whitespace-nowrap">Sector</th>
-              <th className="text-right py-1 font-medium whitespace-nowrap">Price</th>
-              <th className="text-right py-1 font-medium whitespace-nowrap">Change</th>
+              <th className="text-left py-1 font-medium hidden md:table-cell whitespace-nowrap">
+                Sector
+              </th>
+              <th className="text-right py-1 font-medium whitespace-nowrap">
+                Price
+              </th>
+              <th className="text-right py-1 font-medium whitespace-nowrap">
+                Change
+              </th>
               {showRvolColumn ? (
-                <th className="text-right py-1 font-medium whitespace-nowrap">RVOL</th>
+                <th className="text-right py-1 font-medium whitespace-nowrap">
+                  RVOL
+                </th>
               ) : (
-                <th className="text-right py-1 font-medium whitespace-nowrap hidden sm:table-cell">Volume</th>
+                <th className="text-right py-1 font-medium whitespace-nowrap hidden sm:table-cell">
+                  Volume
+                </th>
               )}
             </tr>
           </thead>
@@ -137,27 +147,35 @@ export function MarketMoversTable() {
               >
                 <td className="py-1">
                   <div className="flex flex-col">
-                    <span className="font-semibold text-text">{item.symbol}</span>
+                    <span className="font-semibold text-text">
+                      {item.symbol}
+                    </span>
                     {item.name && (
-                      <span className="text-text-muted truncate max-w-[140px]" title={item.name}>
+                      <span
+                        className="text-text-muted truncate max-w-[140px]"
+                        title={item.name}
+                      >
                         {item.name}
                       </span>
                     )}
                   </div>
                 </td>
-                <td className="py-1 text-text-muted hidden md:table-cell whitespace-nowrap" title={item.sector || undefined}>
-                  {item.sector || "-"}
+                <td
+                  className="py-1 text-text-muted hidden md:table-cell whitespace-nowrap"
+                  title={item.sector || undefined}
+                >
+                  {item.sector || '-'}
                 </td>
                 <td className="text-right py-1 text-text whitespace-nowrap">
                   ${item.price.toFixed(2)}
                 </td>
                 <td
                   className={cn(
-                    "text-right py-1 font-semibold whitespace-nowrap",
-                    item.changePct >= 0 ? "text-gain" : "text-loss"
+                    'text-right py-1 font-semibold whitespace-nowrap',
+                    item.changePct >= 0 ? 'text-gain' : 'text-loss',
                   )}
                 >
-                  {item.changePct >= 0 ? "+" : ""}
+                  {item.changePct >= 0 ? '+' : ''}
                   {item.changePct.toFixed(2)}%
                 </td>
                 {showRvolColumn ? (
@@ -179,5 +197,5 @@ export function MarketMoversTable() {
         {data.lastUpdated && `Updated ${formatRelativeTime(data.lastUpdated)}`}
       </div>
     </div>
-  );
+  )
 }

@@ -1,88 +1,88 @@
-"use client";
+'use client'
 
-import { useState, useMemo } from "react";
+import { Loader2 } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import {
-  LineChart,
   Line,
+  LineChart,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceLine,
-} from "recharts";
+} from 'recharts'
 import {
-  useSectorHistory,
   useMarketStatus,
-} from "@/lib/hooks/useMarketIntelligence";
+  useSectorHistory,
+} from '@/lib/hooks/useMarketIntelligence'
+import { checkDataFreshness, formatDate } from '@/lib/utils'
 import {
-  TimeframeSelector,
-  Timeframe,
-  timeframeToDays,
-  formatChartDate,
   calculateTickInterval,
-} from "./TimeframeSelector";
-import { Loader2 } from "lucide-react";
-import { checkDataFreshness, formatDate } from "@/lib/utils";
+  formatChartDate,
+  type Timeframe,
+  TimeframeSelector,
+  timeframeToDays,
+} from './TimeframeSelector'
 
 // Distinct colors for each sector
 const SECTOR_COLORS: Record<string, string> = {
-  XLK: "#8B5CF6", // Purple - Technology
-  XLF: "#3B82F6", // Blue - Financials
-  XLE: "#F97316", // Orange - Energy
-  XLV: "#10B981", // Green - Healthcare
-  XLY: "#EC4899", // Pink - Consumer Discretionary
-  XLP: "#6366F1", // Indigo - Consumer Staples
-  XLI: "#EAB308", // Yellow - Industrials
-  XLU: "#14B8A6", // Teal - Utilities
-  XLRE: "#F43F5E", // Rose - Real Estate
-  XLB: "#84CC16", // Lime - Materials
-  XLC: "#06B6D4", // Cyan - Communication Services
-};
+  XLK: '#8B5CF6', // Purple - Technology
+  XLF: '#3B82F6', // Blue - Financials
+  XLE: '#F97316', // Orange - Energy
+  XLV: '#10B981', // Green - Healthcare
+  XLY: '#EC4899', // Pink - Consumer Discretionary
+  XLP: '#6366F1', // Indigo - Consumer Staples
+  XLI: '#EAB308', // Yellow - Industrials
+  XLU: '#14B8A6', // Teal - Utilities
+  XLRE: '#F43F5E', // Rose - Real Estate
+  XLB: '#84CC16', // Lime - Materials
+  XLC: '#06B6D4', // Cyan - Communication Services
+}
 
 export function SectorPerformanceChart() {
-  const [timeframe, setTimeframe] = useState<Timeframe>("1Y");
+  const [timeframe, setTimeframe] = useState<Timeframe>('1Y')
   const [highlightedSector, setHighlightedSector] = useState<string | null>(
     null,
-  );
-  const days = timeframeToDays(timeframe);
+  )
+  const days = timeframeToDays(timeframe)
 
-  const { data, isLoading, error } = useSectorHistory(days);
-  const { data: marketStatus } = useMarketStatus();
+  const { data, isLoading, error } = useSectorHistory(days)
+  const { data: marketStatus } = useMarketStatus()
 
   // Transform data for Recharts
   // Include both percentage change (for charting) and actual close price (for tooltips)
   const chartData = useMemo(() => {
-    if (!data?.sectors?.length) return [];
+    if (!data?.sectors?.length) return []
 
     // Get all unique dates from the first sector (they should all have same dates)
-    const firstSector = data.sectors[0];
-    if (!firstSector?.data?.length) return [];
+    const firstSector = data.sectors[0]
+    if (!firstSector?.data?.length) return []
 
     return firstSector.data.map((point, idx) => {
-      const entry: Record<string, number | string> = { date: point.date };
+      const entry: Record<string, number | string> = { date: point.date }
       data.sectors.forEach((sector) => {
         if (sector.data[idx]) {
-          entry[sector.symbol] = sector.data[idx].pctChange;
-          entry[`${sector.symbol}_price`] = sector.data[idx].close;
+          entry[sector.symbol] = sector.data[idx].pctChange
+          entry[`${sector.symbol}_price`] = sector.data[idx].close
         }
-      });
-      return entry;
-    });
-  }, [data]);
+      })
+      return entry
+    })
+  }, [data])
 
   // Use shared date formatting and tick calculation
-  const formatXAxis = (date: string) => formatChartDate(date, days);
+  const formatXAxis = (date: string) => formatChartDate(date, days)
   const tickInterval = useMemo(
     () => calculateTickInterval(chartData.length),
     [chartData.length],
-  );
+  )
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-6 w-6 animate-spin text-text-muted" />
       </div>
-    );
+    )
   }
 
   if (error || !data?.sectors?.length) {
@@ -90,7 +90,7 @@ export function SectorPerformanceChart() {
       <div className="flex items-center justify-center h-64 text-text-muted text-sm">
         Unable to load sector data
       </div>
-    );
+    )
   }
 
   return (
@@ -109,14 +109,14 @@ export function SectorPerformanceChart() {
             <XAxis
               dataKey="date"
               tickFormatter={formatXAxis}
-              tick={{ fontSize: 10, fill: "var(--color-text-muted)" }}
-              axisLine={{ stroke: "var(--color-border)" }}
+              tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }}
+              axisLine={{ stroke: 'var(--color-border)' }}
               tickLine={false}
               interval={tickInterval}
             />
             <YAxis
               tickFormatter={(v) => `${v}%`}
-              tick={{ fontSize: 10, fill: "var(--color-text-muted)" }}
+              tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }}
               axisLine={false}
               tickLine={false}
               width={45}
@@ -128,32 +128,32 @@ export function SectorPerformanceChart() {
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: "var(--color-surface)",
-                border: "1px solid var(--color-border)",
-                borderRadius: "8px",
-                fontSize: "12px",
+                backgroundColor: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+                borderRadius: '8px',
+                fontSize: '12px',
               }}
               formatter={(
                 value: number | undefined,
                 name: string | undefined,
                 props: { payload?: Record<string, number> },
               ) => {
-                if (!name) return ["", ""];
-                const sector = data.sectors.find((s) => s.symbol === name);
-                const price = props.payload?.[`${name}_price`];
-                const formattedPrice = price?.toFixed(2) ?? "";
-                const numValue = value ?? 0;
+                if (!name) return ['', '']
+                const sector = data.sectors.find((s) => s.symbol === name)
+                const price = props.payload?.[`${name}_price`]
+                const formattedPrice = price?.toFixed(2) ?? ''
+                const numValue = value ?? 0
                 return [
-                  `$${formattedPrice} (${numValue >= 0 ? "+" : ""}${numValue.toFixed(1)}%)`,
+                  `$${formattedPrice} (${numValue >= 0 ? '+' : ''}${numValue.toFixed(1)}%)`,
                   sector?.name || name,
-                ];
+                ]
               }}
               labelFormatter={(label) =>
                 // Append T12:00:00 to avoid timezone shift
-                new Date(label + "T12:00:00").toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
+                new Date(`${label}T12:00:00`).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
                 })
               }
             />
@@ -162,7 +162,7 @@ export function SectorPerformanceChart() {
                 key={sector.symbol}
                 type="monotone"
                 dataKey={sector.symbol}
-                stroke={SECTOR_COLORS[sector.symbol] || "#888"}
+                stroke={SECTOR_COLORS[sector.symbol] || '#888'}
                 strokeWidth={highlightedSector === sector.symbol ? 3 : 1.5}
                 dot={false}
                 opacity={
@@ -191,22 +191,22 @@ export function SectorPerformanceChart() {
               className={`transition-opacity ${
                 highlightedSector !== null &&
                 highlightedSector !== sector.symbol
-                  ? "opacity-40"
-                  : ""
+                  ? 'opacity-40'
+                  : ''
               }`}
             >
               <span
                 className="font-medium"
-                style={{ color: SECTOR_COLORS[sector.symbol] || "#888" }}
+                style={{ color: SECTOR_COLORS[sector.symbol] || '#888' }}
               >
                 {sector.name}
               </span>
               <span>
-                {" "}
+                {' '}
                 <span
-                  className={sector.currentPct >= 0 ? "text-gain" : "text-loss"}
+                  className={sector.currentPct >= 0 ? 'text-gain' : 'text-loss'}
                 >
-                  {sector.currentPct >= 0 ? "+" : ""}
+                  {sector.currentPct >= 0 ? '+' : ''}
                   {sector.currentPct.toFixed(1)}%
                 </span>
               </span>
@@ -218,18 +218,18 @@ export function SectorPerformanceChart() {
             const freshness = checkDataFreshness(
               data.periodEnd,
               marketStatus?.expectedDataDate,
-            );
+            )
             return (
               <span
                 className="text-[10px] text-text-muted whitespace-nowrap ml-2"
                 title={freshness.tooltip}
               >
-                Data as of {formatDate(data.periodEnd, false)}{" "}
+                Data as of {formatDate(data.periodEnd, false)}{' '}
                 {freshness.indicator}
               </span>
-            );
+            )
           })()}
       </div>
     </div>
-  );
+  )
 }

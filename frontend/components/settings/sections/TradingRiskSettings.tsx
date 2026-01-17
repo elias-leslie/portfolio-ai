@@ -1,27 +1,33 @@
-"use client";
+'use client'
 
-import { TrendingUp, TrendingDown, DollarSign, Bitcoin, BarChart3 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
-import { Input } from "@/components/ui/input";
-import { ToggleCard } from "../ToggleCard";
+import {
+  BarChart3,
+  Bitcoin,
+  DollarSign,
+  TrendingDown,
+  TrendingUp,
+} from 'lucide-react'
+import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Slider } from '@/components/ui/slider'
+import { ToggleCard } from '../ToggleCard'
 
 interface TradingRiskSettingsProps {
-  riskTolerance: number;
-  maxPositionSizePct: string;
-  allowLong: boolean;
-  allowShort: boolean;
-  allowOptions: boolean;
-  allowCrypto: boolean;
-  allowFutures: boolean;
-  onRiskToleranceChange: (value: number) => void;
-  onMaxPositionSizePctChange: (value: string) => void;
-  onAllowLongChange: (value: boolean) => void;
-  onAllowShortChange: (value: boolean) => void;
-  onAllowOptionsChange: (value: boolean) => void;
-  onAllowCryptoChange: (value: boolean) => void;
-  onAllowFuturesChange: (value: boolean) => void;
+  riskTolerance: number
+  maxPositionSizePct: string
+  allowLong: boolean
+  allowShort: boolean
+  allowOptions: boolean
+  allowCrypto: boolean
+  allowFutures: boolean
+  onRiskToleranceChange: (value: number) => void
+  onMaxPositionSizePctChange: (value: string) => void
+  onAllowLongChange: (value: boolean) => void
+  onAllowShortChange: (value: boolean) => void
+  onAllowOptionsChange: (value: boolean) => void
+  onAllowCryptoChange: (value: boolean) => void
+  onAllowFuturesChange: (value: boolean) => void
 }
 
 export function TradingRiskSettings({
@@ -72,15 +78,15 @@ export function TradingRiskSettings({
               {riskTolerance <= 3 && (
                 <>
                   <strong>Conservative:</strong> You prefer stable, low-risk
-                  investments with predictable returns. AI agents will focus
-                  on blue-chip stocks and conservative strategies.
+                  investments with predictable returns. AI agents will focus on
+                  blue-chip stocks and conservative strategies.
                 </>
               )}
               {riskTolerance >= 4 && riskTolerance <= 7 && (
                 <>
-                  <strong>Moderate:</strong> You&rsquo;re willing to accept
-                  some risk for potential growth. AI agents will suggest a
-                  balanced mix of growth and value opportunities.
+                  <strong>Moderate:</strong> You&rsquo;re willing to accept some
+                  risk for potential growth. AI agents will suggest a balanced
+                  mix of growth and value opportunities.
                 </>
               )}
               {riskTolerance >= 8 && (
@@ -166,5 +172,5 @@ export function TradingRiskSettings({
         </CardContent>
       </Card>
     </div>
-  );
+  )
 }

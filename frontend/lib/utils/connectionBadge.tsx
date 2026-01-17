@@ -3,22 +3,26 @@
  * Extracted from status/page.tsx for reusability
  */
 
-import React from "react";
-import { Wifi, WifiOff, Radio, RefreshCw, Clock3 } from "lucide-react";
+import { Clock3, Radio, RefreshCw, Wifi, WifiOff } from 'lucide-react'
+import type React from 'react'
 
-export type ConnectionState = "connecting" | "connected" | "disconnected" | "fallback";
+export type ConnectionState =
+  | 'connecting'
+  | 'connected'
+  | 'disconnected'
+  | 'fallback'
 
 export interface ConnectionBadgeConfig {
-  icon: React.ReactNode;
-  text: string;
-  variant: "default" | "secondary" | "destructive";
+  icon: React.ReactNode
+  text: string
+  variant: 'default' | 'secondary' | 'destructive'
 }
 
 export interface ConnectionBannerConfig {
-  tone: "danger" | "warning";
-  title: string;
-  description: string;
-  icon: React.ReactNode;
+  tone: 'danger' | 'warning'
+  title: string
+  description: string
+  icon: React.ReactNode
 }
 
 /**
@@ -26,41 +30,41 @@ export interface ConnectionBannerConfig {
  */
 export function getConnectionBadge(
   connectionState: ConnectionState,
-  realtimeEnabled: boolean
+  realtimeEnabled: boolean,
 ): ConnectionBadgeConfig {
   if (!realtimeEnabled) {
     return {
       icon: <RefreshCw className="h-3 w-3" />,
-      text: "Polling",
-      variant: "secondary",
-    };
+      text: 'Polling',
+      variant: 'secondary',
+    }
   }
 
   switch (connectionState) {
-    case "connected":
+    case 'connected':
       return {
         icon: <Wifi className="h-3 w-3" />,
-        text: "Live",
-        variant: "default",
-      };
-    case "connecting":
+        text: 'Live',
+        variant: 'default',
+      }
+    case 'connecting':
       return {
         icon: <Radio className="h-3 w-3 animate-pulse" />,
-        text: "Connecting",
-        variant: "secondary",
-      };
-    case "disconnected":
+        text: 'Connecting',
+        variant: 'secondary',
+      }
+    case 'disconnected':
       return {
         icon: <WifiOff className="h-3 w-3" />,
-        text: "Disconnected",
-        variant: "destructive",
-      };
-    case "fallback":
+        text: 'Disconnected',
+        variant: 'destructive',
+      }
+    case 'fallback':
       return {
         icon: <RefreshCw className="h-3 w-3" />,
-        text: "Polling",
-        variant: "secondary",
-      };
+        text: 'Polling',
+        variant: 'secondary',
+      }
   }
 }
 
@@ -71,39 +75,39 @@ export function getConnectionBadge(
 export function getConnectionBanner(
   connectionState: ConnectionState,
   realtimeEnabled: boolean,
-  isDataStale: boolean
+  isDataStale: boolean,
 ): ConnectionBannerConfig | null {
-  if (!realtimeEnabled) return null;
+  if (!realtimeEnabled) return null
 
-  if (connectionState === "disconnected") {
+  if (connectionState === 'disconnected') {
     return {
-      tone: "danger",
-      title: "Live stream disconnected",
+      tone: 'danger',
+      title: 'Live stream disconnected',
       description:
-        "We lost connection to the SSE stream. Reconnect to resume real-time updates.",
+        'We lost connection to the SSE stream. Reconnect to resume real-time updates.',
       icon: <WifiOff className="h-4 w-4 text-loss" />,
-    };
+    }
   }
 
-  if (connectionState === "fallback") {
+  if (connectionState === 'fallback') {
     return {
-      tone: "warning",
-      title: "Live stream unavailable",
+      tone: 'warning',
+      title: 'Live stream unavailable',
       description:
-        "Showing backup polling data (30s interval). Retry the live stream for lower latency.",
+        'Showing backup polling data (30s interval). Retry the live stream for lower latency.',
       icon: <Radio className="h-4 w-4 text-accent" />,
-    };
+    }
   }
 
-  if (connectionState === "connected" && isDataStale) {
+  if (connectionState === 'connected' && isDataStale) {
     return {
-      tone: "warning",
-      title: "No live events detected",
+      tone: 'warning',
+      title: 'No live events detected',
       description:
         "We haven't received new status events for 10 seconds. Refresh the stream to ensure accuracy.",
       icon: <Clock3 className="h-4 w-4 text-accent" />,
-    };
+    }
   }
 
-  return null;
+  return null
 }

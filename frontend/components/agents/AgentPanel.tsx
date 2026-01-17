@@ -1,47 +1,47 @@
-"use client";
+'use client'
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { Diamond, Star, MessageSquare } from "lucide-react";
+import { Diamond, MessageSquare, Star } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 // Note: We use a custom side panel instead of Sheet to allow non-overlay behavior (FEAT-220)
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { SettingsModal } from "./SettingsModal";
-import { StatusModal } from "./StatusModal";
-import { AgentProvider, RoundtableOrder } from "./AgentSelector";
-import { AgentMode } from "./ModeSelector";
-import { TokenSummaryCards } from "./TokenSummaryCards";
-import { EvidenceCaptureModal } from "./EvidenceCaptureModal";
-import { AgentPanelHeader } from "./AgentPanelHeader";
-import { SessionsPanel } from "./SessionsPanel";
-import { ChatInput } from "./ChatInput";
-import { MessageBubble, ContentBlockView } from "./MessageBubble";
-import { EvidenceMessageBubble } from "./EvidenceMessageBubble";
-import { PermissionRequestPanel } from "./PermissionRequestPanel";
+import { Button } from '@/components/ui/button'
+import { getServerUrl, getWsUrl } from '@/lib/server-url'
+import { cn } from '@/lib/utils'
+import { AgentPanelHeader } from './AgentPanelHeader'
+import type { AgentProvider, RoundtableOrder } from './AgentSelector'
+import { ChatInput } from './ChatInput'
+import { SUMMITFLOW_API } from './constants'
+import { EvidenceCaptureModal } from './EvidenceCaptureModal'
+import { EvidenceMessageBubble } from './EvidenceMessageBubble'
 import {
-  type ContentBlock,
-  type PermissionRequest,
-  type EvidenceData,
-  type ChatMessage,
-} from "./wsHandlers";
-import {
-  useWebSocketConnection,
-  useSessionManagement,
   useAgentPanelUI,
-} from "./hooks";
-import { getServerUrl, getWsUrl } from "@/lib/server-url";
-import { SUMMITFLOW_API } from "./constants";
+  useSessionManagement,
+  useWebSocketConnection,
+} from './hooks'
+import { ContentBlockView, MessageBubble } from './MessageBubble'
+import type { AgentMode } from './ModeSelector'
+import { PermissionRequestPanel } from './PermissionRequestPanel'
+import { SessionsPanel } from './SessionsPanel'
+import { SettingsModal } from './SettingsModal'
+import { StatusModal } from './StatusModal'
+import { TokenSummaryCards } from './TokenSummaryCards'
+import type {
+  ChatMessage,
+  ContentBlock,
+  EvidenceData,
+  PermissionRequest,
+} from './wsHandlers'
 
 // AgentRole is now handled by ModeSelector
 
 interface AgentPanelProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  open: boolean
+  onOpenChange: (open: boolean) => void
   pageContext?: {
-    path: string;
-    data?: Record<string, unknown>;
-  };
+    path: string
+    data?: Record<string, unknown>
+  }
   /** When true, renders as full-page content without fixed positioning (for popup window) */
-  standalone?: boolean;
+  standalone?: boolean
 }
 
 export function AgentPanel({
@@ -51,34 +51,34 @@ export function AgentPanel({
   standalone = false,
 }: AgentPanelProps) {
   // Note: _onOpenChange is received from callers but not used internally yet
-  void _onOpenChange;
+  void _onOpenChange
 
   // Server/connection state
-  const [serverUrl] = useState<string | null>(() => getServerUrl());
+  const [serverUrl] = useState<string | null>(() => getServerUrl())
   const [wsUrl] = useState<string | null>(() => {
-    const url = getServerUrl();
-    return url ? getWsUrl(url) : null;
-  });
-  const [isConnected, setIsConnected] = useState(false);
-  const [connectionError, setConnectionError] = useState<string | null>(null);
+    const url = getServerUrl()
+    return url ? getWsUrl(url) : null
+  })
+  const [isConnected, setIsConnected] = useState(false)
+  const [connectionError, setConnectionError] = useState<string | null>(null)
 
   // Chat state
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [currentResponse, setCurrentResponse] = useState<ContentBlock[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [input, setInput] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [currentResponse, setCurrentResponse] = useState<ContentBlock[]>([])
   const [pendingPermission, setPendingPermission] =
-    useState<PermissionRequest | null>(null);
+    useState<PermissionRequest | null>(null)
 
   // FEAT-223: Agent and mode selectors
-  const [agentProvider, setAgentProvider] = useState<AgentProvider>("claude");
-  const [agentMode, setAgentMode] = useState<AgentMode>("dev");
+  const [agentProvider, setAgentProvider] = useState<AgentProvider>('claude')
+  const [agentMode, setAgentMode] = useState<AgentMode>('dev')
   const [roundtableOrder, setRoundtableOrder] =
-    useState<RoundtableOrder>("claude-first");
-  const [maxTurns, setMaxTurns] = useState<number>(10);
+    useState<RoundtableOrder>('claude-first')
+  const [maxTurns, setMaxTurns] = useState<number>(10)
   const [currentRespondingAgent, setCurrentRespondingAgent] = useState<
-    "claude" | "gemini" | null
-  >(null);
+    'claude' | 'gemini' | null
+  >(null)
 
   // UI state - extracted to hook for reusability
   const {
@@ -93,16 +93,16 @@ export function AgentPanel({
     setShowTokenSummary,
     setShowEvidenceCapture,
     toggleSessions,
-  } = useAgentPanelUI();
+  } = useAgentPanelUI()
 
   // Refs
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const currentResponseRef = useRef<ContentBlock[]>([]);
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const currentResponseRef = useRef<ContentBlock[]>([])
 
   // Keep ref in sync with state
   useEffect(() => {
-    currentResponseRef.current = currentResponse;
-  }, [currentResponse]);
+    currentResponseRef.current = currentResponse
+  }, [currentResponse])
 
   // Session management hook
   const {
@@ -120,18 +120,18 @@ export function AgentPanel({
     setMessages,
     setCurrentResponse,
     setIsLoading,
-  });
+  })
 
   // Wrap createSession to also close the sessions panel
   const createSession = useCallback(async () => {
-    await createSessionBase();
-    setShowSessions(false);
-  }, [createSessionBase, setShowSessions]);
+    await createSessionBase()
+    setShowSessions(false)
+  }, [createSessionBase, setShowSessions])
 
   // Scroll to bottom
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, currentResponse]);
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [])
 
   // WebSocket connection hook
   const { wsRef, connect } = useWebSocketConnection({
@@ -150,112 +150,112 @@ export function AgentPanel({
     setPendingPermission,
     setIsConnected,
     setConnectionError,
-  });
+  })
 
   // Build evidence context from recent captures (last 5)
   const buildEvidenceContext = useCallback(() => {
     const evidenceMessages = messages
       .filter(
         (msg): msg is ChatMessage & { evidence: EvidenceData } =>
-          msg.role === "evidence" && !!msg.evidence,
+          msg.role === 'evidence' && !!msg.evidence,
       )
-      .slice(-5); // Last 5 evidence captures
+      .slice(-5) // Last 5 evidence captures
 
-    if (evidenceMessages.length === 0) return "";
+    if (evidenceMessages.length === 0) return ''
 
     const evidenceLines = evidenceMessages.map((msg) => {
-      const e = msg.evidence;
-      const screenshotUrl = `${SUMMITFLOW_API}/evidence/${e.featureId}/${e.criterionId}/screenshot`;
-      return `[Evidence: ${e.featureId}/${e.criterionId} v${e.version} - ${e.consoleErrors} console errors, ${e.networkFailures} network failures - screenshot: ${screenshotUrl}]`;
-    });
+      const e = msg.evidence
+      const screenshotUrl = `${SUMMITFLOW_API}/evidence/${e.featureId}/${e.criterionId}/screenshot`
+      return `[Evidence: ${e.featureId}/${e.criterionId} v${e.version} - ${e.consoleErrors} console errors, ${e.networkFailures} network failures - screenshot: ${screenshotUrl}]`
+    })
 
-    return `\n--- Available Evidence ---\n${evidenceLines.join("\n")}\n---\n\n`;
-  }, [messages]);
+    return `\n--- Available Evidence ---\n${evidenceLines.join('\n')}\n---\n\n`
+  }, [messages])
 
   // Send message
   const sendMessage = () => {
-    console.log("sendMessage called:", {
+    console.log('sendMessage called:', {
       hasInput: !!input.trim(),
       hasWs: !!wsRef.current,
       wsState: wsRef.current?.readyState,
       isLoading,
       isConnected,
       agentProvider,
-    });
-    if (!input.trim() || !wsRef.current || isLoading) return;
+    })
+    if (!input.trim() || !wsRef.current || isLoading) return
 
-    const message = input.trim();
+    const message = input.trim()
 
     // Inject page context if in financial mode
-    let contextPrefix = "";
-    if (agentMode === "financial" && pageContext) {
-      contextPrefix = `[Page: ${pageContext.path}]\n`;
+    let contextPrefix = ''
+    if (agentMode === 'financial' && pageContext) {
+      contextPrefix = `[Page: ${pageContext.path}]\n`
       if (pageContext.data) {
-        contextPrefix += `[Context: ${JSON.stringify(pageContext.data)}]\n\n`;
+        contextPrefix += `[Context: ${JSON.stringify(pageContext.data)}]\n\n`
       }
     }
 
     // Inject evidence context if any captures exist in the conversation
-    const evidenceContext = buildEvidenceContext();
+    const evidenceContext = buildEvidenceContext()
 
-    setInput("");
-    setIsLoading(true);
+    setInput('')
+    setIsLoading(true)
 
     setMessages((prev) => [
       ...prev,
       {
-        role: "user",
+        role: 'user',
         content: message,
         timestamp: new Date(),
       },
-    ]);
+    ])
 
     wsRef.current.send(
       JSON.stringify({
-        type: "message",
+        type: 'message',
         content: contextPrefix + evidenceContext + message,
       }),
-    );
-  };
+    )
+  }
 
   // Stop response
   const stopResponse = () => {
-    if (!wsRef.current || !isLoading) return;
-    wsRef.current.send(JSON.stringify({ type: "interrupt" }));
-    setIsLoading(false);
-    setPendingPermission(null);
-  };
+    if (!wsRef.current || !isLoading) return
+    wsRef.current.send(JSON.stringify({ type: 'interrupt' }))
+    setIsLoading(false)
+    setPendingPermission(null)
+  }
 
   // Handle permission
   const handlePermissionResponse = (allowed: boolean) => {
-    if (!wsRef.current || !pendingPermission) return;
+    if (!wsRef.current || !pendingPermission) return
 
     wsRef.current.send(
       JSON.stringify({
-        type: "permission_response",
+        type: 'permission_response',
         allowed,
       }),
-    );
+    )
 
     setMessages((prev) => [
       ...prev,
       {
-        role: "system",
-        content: `Permission ${allowed ? "ALLOWED" : "DENIED"} for: ${pendingPermission.toolName}`,
+        role: 'system',
+        content: `Permission ${allowed ? 'ALLOWED' : 'DENIED'} for: ${pendingPermission.toolName}`,
         timestamp: new Date(),
       },
-    ]);
+    ])
 
-    setPendingPermission(null);
-  };
+    setPendingPermission(null)
+  }
 
   // Key press handler
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      sendMessage()
     }
-  };
+  }
 
   // Don't render anything if closed (unless standalone mode - always render)
   if (!open && !standalone)
@@ -264,17 +264,17 @@ export function AgentPanel({
         <SettingsModal open={showSettings} onOpenChange={setShowSettings} />
         <StatusModal open={showStatus} onOpenChange={setShowStatus} />
       </>
-    );
+    )
 
   // Standalone mode: full-page content for popup window
   // Panel mode: fixed side panel attached to right
   const wrapperClasses = standalone
-    ? "h-full w-full flex flex-col bg-bg text-text"
+    ? 'h-full w-full flex flex-col bg-bg text-text'
     : cn(
-        "fixed top-16 right-0 z-40 h-[calc(100vh-4rem)] w-[500px] flex flex-col bg-bg text-text border-l border-border shadow-2xl",
-        "transition-transform duration-300 ease-in-out",
-        open ? "translate-x-0" : "translate-x-full",
-      );
+        'fixed top-16 right-0 z-40 h-[calc(100vh-4rem)] w-[500px] flex flex-col bg-bg text-text border-l border-border shadow-2xl',
+        'transition-transform duration-300 ease-in-out',
+        open ? 'translate-x-0' : 'translate-x-full',
+      )
 
   return (
     <>
@@ -295,7 +295,7 @@ export function AgentPanel({
         />
 
         {/* Token Summary Cards - Toggleable */}
-        {showTokenSummary && <TokenSummaryCards serverUrl={serverUrl || ""} />}
+        {showTokenSummary && <TokenSummaryCards serverUrl={serverUrl || ''} />}
 
         {/* Sessions Panel (unified: create/delete + history) */}
         {showSessions && (
@@ -305,8 +305,8 @@ export function AgentPanel({
             isLoadingSessions={isLoadingSessions}
             showTokenSummary={showTokenSummary}
             onSessionSelect={(sessionId) => {
-              setCurrentSessionId(sessionId);
-              setShowSessions(false);
+              setCurrentSessionId(sessionId)
+              setShowSessions(false)
             }}
             onCreateSession={createSession}
             onDeleteSession={deleteSession}
@@ -322,8 +322,8 @@ export function AgentPanel({
               variant="ghost"
               size="sm"
               onClick={() => {
-                setConnectionError(null);
-                connect();
+                setConnectionError(null)
+                connect()
               }}
               className="ml-2 h-6 text-xs"
             >
@@ -335,7 +335,7 @@ export function AgentPanel({
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 font-mono text-sm">
           {messages.map((msg, i) =>
-            msg.role === "evidence" && msg.evidence ? (
+            msg.role === 'evidence' && msg.evidence ? (
               <EvidenceMessageBubble
                 key={i}
                 message={msg}
@@ -343,11 +343,11 @@ export function AgentPanel({
                   // Open SummitFlow evidence viewer
                   const baseUrl =
                     process.env.NEXT_PUBLIC_SUMMITFLOW_URL ||
-                    "https://dev.summitflow.dev";
+                    'https://dev.summitflow.dev'
                   window.open(
                     `${baseUrl}/projects/portfolio-ai?tab=evidence`,
-                    "_blank",
-                  );
+                    '_blank',
+                  )
                 }}
               />
             ) : (
@@ -362,10 +362,10 @@ export function AgentPanel({
                 <span
                   className="inline-block mb-1 mr-1"
                   title={
-                    currentRespondingAgent === "claude" ? "Claude" : "Gemini"
+                    currentRespondingAgent === 'claude' ? 'Claude' : 'Gemini'
                   }
                 >
-                  {currentRespondingAgent === "claude" ? (
+                  {currentRespondingAgent === 'claude' ? (
                     <Diamond className="h-4 w-4 text-primary inline" />
                   ) : (
                     <Star className="h-4 w-4 text-gain inline" />
@@ -423,13 +423,13 @@ export function AgentPanel({
         onClose={() => setShowEvidenceCapture(false)}
         pageUrl={
           pageContext?.path
-            ? `${typeof window !== "undefined" ? window.location.origin : ""}${pageContext.path}`
-            : ""
+            ? `${typeof window !== 'undefined' ? window.location.origin : ''}${pageContext.path}`
+            : ''
         }
         onCaptured={(result) => {
           // Create evidence message
           const evidenceMsg: ChatMessage = {
-            role: "evidence",
+            role: 'evidence',
             content: `Evidence captured for ${result.featureId}`,
             timestamp: new Date(),
             evidence: {
@@ -438,19 +438,19 @@ export function AgentPanel({
               version: result.version,
               consoleErrors: result.evidence?.console?.errorCount ?? 0,
               networkFailures: result.evidence?.network?.failedRequests ?? 0,
-              url: result.evidence?.metadata?.url ?? "",
+              url: result.evidence?.metadata?.url ?? '',
             },
-          };
+          }
 
           // Add to chat and persist to server
-          setMessages((prev) => [...prev, evidenceMsg]);
+          setMessages((prev) => [...prev, evidenceMsg])
           if (currentSessionId) {
-            saveEvidenceToServer(currentSessionId, evidenceMsg);
+            saveEvidenceToServer(currentSessionId, evidenceMsg)
           }
         }}
       />
     </>
-  );
+  )
 }
 
 // Trigger button for the panel
@@ -463,5 +463,5 @@ export function AgentPanelTrigger({ onClick }: { onClick: () => void }) {
     >
       <MessageSquare className="h-6 w-6" />
     </button>
-  );
+  )
 }

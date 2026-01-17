@@ -1,17 +1,17 @@
-'use client';
+'use client'
 
-import { cn } from '@/lib/utils';
-import { BarChart3, Laptop } from 'lucide-react';
+import { BarChart3, Laptop } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
-export type AgentMode = 'financial' | 'dev';
+export type AgentMode = 'financial' | 'dev'
 
 interface ModeSelectorProps {
-  value: AgentMode;
-  onChange: (value: AgentMode) => void;
-  disabled?: boolean;
+  value: AgentMode
+  onChange: (value: AgentMode) => void
+  disabled?: boolean
 }
 
-const modes: AgentMode[] = ['financial', 'dev'];
+const modes: AgentMode[] = ['financial', 'dev']
 
 const modeConfig = {
   financial: {
@@ -26,18 +26,22 @@ const modeConfig = {
     color: 'text-accent hover:text-accent/80',
     bgColor: 'hover:bg-accent/10',
   },
-};
+}
 
-export function ModeSelector({ value, onChange, disabled = false }: ModeSelectorProps) {
+export function ModeSelector({
+  value,
+  onChange,
+  disabled = false,
+}: ModeSelectorProps) {
   const cycleMode = () => {
-    if (disabled) return;
-    const currentIndex = modes.indexOf(value);
-    const nextIndex = (currentIndex + 1) % modes.length;
-    onChange(modes[nextIndex]);
-  };
+    if (disabled) return
+    const currentIndex = modes.indexOf(value)
+    const nextIndex = (currentIndex + 1) % modes.length
+    onChange(modes[nextIndex])
+  }
 
-  const config = modeConfig[value];
-  const Icon = config.icon;
+  const config = modeConfig[value]
+  const Icon = config.icon
 
   return (
     <button
@@ -46,14 +50,14 @@ export function ModeSelector({ value, onChange, disabled = false }: ModeSelector
       // suppressHydrationWarning to handle browser extensions (Dashlane)
       suppressHydrationWarning
       className={cn(
-        "h-8 w-8 flex items-center justify-center rounded transition-colors",
+        'h-8 w-8 flex items-center justify-center rounded transition-colors',
         config.color,
         config.bgColor,
-        disabled && "opacity-50 cursor-not-allowed"
+        disabled && 'opacity-50 cursor-not-allowed',
       )}
       title={config.tooltip}
     >
       <Icon className="h-4 w-4" />
     </button>
-  );
+  )
 }

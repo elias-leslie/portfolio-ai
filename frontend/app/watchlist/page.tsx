@@ -1,141 +1,176 @@
-"use client";
+'use client'
 
-import { useState, useMemo, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { RefreshCw, PlusCircle, Search } from "lucide-react";
-import { WatchlistTable } from "@/components/watchlist/WatchlistTable";
-import { AddSymbolModal } from "@/components/watchlist/AddSymbolModal";
-import { useWatchlist, useRefreshWatchlist } from "@/lib/hooks/useWatchlist";
-import { toast } from "sonner";
+import { PlusCircle, RefreshCw, Search } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { toast } from 'sonner'
+import { PageContainer } from '@/components/shared/PageContainer'
+import { PageHeader } from '@/components/shared/PageHeader'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { PageHeader } from "@/components/shared/PageHeader";
-import { PageContainer } from "@/components/shared/PageContainer";
+} from '@/components/ui/select'
+import { AddSymbolModal } from '@/components/watchlist/AddSymbolModal'
+import { WatchlistTable } from '@/components/watchlist/WatchlistTable'
+import { useRefreshWatchlist, useWatchlist } from '@/lib/hooks/useWatchlist'
 
-type StyleFilter = "all" | "Index" | "Trend" | "Value" | "Swing" | "Event";
-type SignalFilter = "all" | "BUY" | "HOLD" | "AVOID";
-type RiskFilter = "all" | "Low" | "Medium-Low" | "Medium" | "High";
+type StyleFilter = 'all' | 'Index' | 'Trend' | 'Value' | 'Swing' | 'Event'
+type SignalFilter = 'all' | 'BUY' | 'HOLD' | 'AVOID'
+type RiskFilter = 'all' | 'Low' | 'Medium-Low' | 'Medium' | 'High'
 
 // Helper to safely read from localStorage (handles SSR)
-function getStoredFilter<T extends string>(key: string, validValues: T[], defaultValue: T): T {
-  if (typeof window === "undefined") return defaultValue;
-  const saved = localStorage.getItem(key);
-  return saved && validValues.includes(saved as T) ? (saved as T) : defaultValue;
+function getStoredFilter<T extends string>(
+  key: string,
+  validValues: T[],
+  defaultValue: T,
+): T {
+  if (typeof window === 'undefined') return defaultValue
+  const saved = localStorage.getItem(key)
+  return saved && validValues.includes(saved as T) ? (saved as T) : defaultValue
 }
 
 export default function WatchlistPage() {
-  const [addSymbolOpen, setAddSymbolOpen] = useState(false);
+  const [addSymbolOpen, setAddSymbolOpen] = useState(false)
   const [styleFilter, setStyleFilter] = useState<StyleFilter>(() =>
-    getStoredFilter("watchlist-style-filter", ["all", "Index", "Trend", "Value", "Swing", "Event"], "all")
-  );
+    getStoredFilter(
+      'watchlist-style-filter',
+      ['all', 'Index', 'Trend', 'Value', 'Swing', 'Event'],
+      'all',
+    ),
+  )
   const [signalFilter, setSignalFilter] = useState<SignalFilter>(() =>
-    getStoredFilter("watchlist-signal-filter", ["all", "BUY", "HOLD", "AVOID"], "all")
-  );
+    getStoredFilter(
+      'watchlist-signal-filter',
+      ['all', 'BUY', 'HOLD', 'AVOID'],
+      'all',
+    ),
+  )
   const [riskFilter, setRiskFilter] = useState<RiskFilter>(() =>
-    getStoredFilter("watchlist-risk-filter", ["all", "Low", "Medium-Low", "Medium", "High"], "all")
-  );
-  const [searchQuery, setSearchQuery] = useState("");
+    getStoredFilter(
+      'watchlist-risk-filter',
+      ['all', 'Low', 'Medium-Low', 'Medium', 'High'],
+      'all',
+    ),
+  )
+  const [searchQuery, setSearchQuery] = useState('')
 
-  const { data: watchlistData, isLoading, error } = useWatchlist();
-  const refreshMutation = useRefreshWatchlist();
+  const { data: watchlistData, isLoading, error } = useWatchlist()
+  const refreshMutation = useRefreshWatchlist()
 
   // Save filters to localStorage when they change
   useEffect(() => {
-    localStorage.setItem("watchlist-style-filter", styleFilter);
-  }, [styleFilter]);
+    localStorage.setItem('watchlist-style-filter', styleFilter)
+  }, [styleFilter])
 
   useEffect(() => {
-    localStorage.setItem("watchlist-signal-filter", signalFilter);
-  }, [signalFilter]);
+    localStorage.setItem('watchlist-signal-filter', signalFilter)
+  }, [signalFilter])
 
   useEffect(() => {
-    localStorage.setItem("watchlist-risk-filter", riskFilter);
-  }, [riskFilter]);
+    localStorage.setItem('watchlist-risk-filter', riskFilter)
+  }, [riskFilter])
 
   const handleRefresh = () => {
     refreshMutation.mutate(undefined, {
       onSuccess: (data) => {
         // Handle different statuses
-        if (data.status === "success") {
+        if (data.status === 'success') {
           // All success
-          toast.success(data.message || `Refreshed ${data.refreshedCount} symbols`);
-        } else if (data.status === "partial_success") {
+          toast.success(
+            data.message || `Refreshed ${data.refreshedCount} symbols`,
+          )
+        } else if (data.status === 'partial_success') {
           // Partial success - show warning with failed symbols
-          const failedSymbols = data.failed?.slice(0, 3).map((f) => f.symbol).join(", ") || "";
-          const moreCount = (data.failedCount || 0) - 3;
-          const failedMsg = moreCount > 0 ? `${failedSymbols} and ${moreCount} more` : failedSymbols;
+          const failedSymbols =
+            data.failed
+              ?.slice(0, 3)
+              .map((f) => f.symbol)
+              .join(', ') || ''
+          const moreCount = (data.failedCount || 0) - 3
+          const failedMsg =
+            moreCount > 0
+              ? `${failedSymbols} and ${moreCount} more`
+              : failedSymbols
 
           toast.warning(data.message, {
             description: failedMsg ? `Failed: ${failedMsg}` : undefined,
-          });
+          })
         }
       },
       onError: (err) => {
-        toast.error(`Failed to refresh: ${err.message}`);
+        toast.error(`Failed to refresh: ${err.message}`)
       },
-    });
-  };
+    })
+  }
 
   // Filter items by style, signal, risk, and search query
   const filteredItems = useMemo(() => {
-    let items = watchlistData?.items || [];
+    let items = watchlistData?.items || []
 
     // Apply style filter
-    if (styleFilter !== "all") {
-      items = items.filter((item) => item.recommendedStyle === styleFilter);
+    if (styleFilter !== 'all') {
+      items = items.filter((item) => item.recommendedStyle === styleFilter)
     }
 
     // Apply signal filter
-    if (signalFilter !== "all") {
-      items = items.filter((item) => item.signalType === signalFilter);
+    if (signalFilter !== 'all') {
+      items = items.filter((item) => item.signalType === signalFilter)
     }
 
     // Apply risk filter
-    if (riskFilter !== "all") {
-      items = items.filter((item) => item.riskLevel === riskFilter);
+    if (riskFilter !== 'all') {
+      items = items.filter((item) => item.riskLevel === riskFilter)
     }
 
     // Apply search filter
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim();
-      items = items.filter((item) =>
-        item.symbol.toLowerCase().includes(query) ||
-        item.note?.toLowerCase().includes(query)
-      );
+      const query = searchQuery.toLowerCase().trim()
+      items = items.filter(
+        (item) =>
+          item.symbol.toLowerCase().includes(query) ||
+          item.note?.toLowerCase().includes(query),
+      )
     }
 
-    return items;
-  }, [watchlistData?.items, styleFilter, signalFilter, riskFilter, searchQuery]);
+    return items
+  }, [watchlistData?.items, styleFilter, signalFilter, riskFilter, searchQuery])
 
   // Count by style
-  const styleCounts = (watchlistData?.items || []).reduce((acc, item) => {
-    if (item.recommendedStyle) {
-      acc[item.recommendedStyle] = (acc[item.recommendedStyle] || 0) + 1;
-    }
-    return acc;
-  }, {} as Record<string, number>);
+  const styleCounts = (watchlistData?.items || []).reduce(
+    (acc, item) => {
+      if (item.recommendedStyle) {
+        acc[item.recommendedStyle] = (acc[item.recommendedStyle] || 0) + 1
+      }
+      return acc
+    },
+    {} as Record<string, number>,
+  )
 
   // Count by signal
-  const signalCounts = (watchlistData?.items || []).reduce((acc, item) => {
-    if (item.signalType) {
-      acc[item.signalType] = (acc[item.signalType] || 0) + 1;
-    }
-    return acc;
-  }, {} as Record<string, number>);
+  const signalCounts = (watchlistData?.items || []).reduce(
+    (acc, item) => {
+      if (item.signalType) {
+        acc[item.signalType] = (acc[item.signalType] || 0) + 1
+      }
+      return acc
+    },
+    {} as Record<string, number>,
+  )
 
   // Count by risk
-  const riskCounts = (watchlistData?.items || []).reduce((acc, item) => {
-    if (item.riskLevel) {
-      acc[item.riskLevel] = (acc[item.riskLevel] || 0) + 1;
-    }
-    return acc;
-  }, {} as Record<string, number>);
+  const riskCounts = (watchlistData?.items || []).reduce(
+    (acc, item) => {
+      if (item.riskLevel) {
+        acc[item.riskLevel] = (acc[item.riskLevel] || 0) + 1
+      }
+      return acc
+    },
+    {} as Record<string, number>,
+  )
 
   return (
     <PageContainer className="py-10">
@@ -143,10 +178,10 @@ export default function WatchlistPage() {
         title="Watchlist Intelligence Hub"
         description={
           searchQuery.trim()
-            ? `Found ${filteredItems.length} ${filteredItems.length === 1 ? "symbol" : "symbols"} matching "${searchQuery}"`
-            : styleFilter === "all"
+            ? `Found ${filteredItems.length} ${filteredItems.length === 1 ? 'symbol' : 'symbols'} matching "${searchQuery}"`
+            : styleFilter === 'all'
               ? `Showing all ${watchlistData?.items.length || 0} symbols`
-              : `Showing ${filteredItems.length} ${styleFilter} ${filteredItems.length === 1 ? "play" : "plays"}`
+              : `Showing ${filteredItems.length} ${styleFilter} ${filteredItems.length === 1 ? 'play' : 'plays'}`
         }
         size="md"
         actions={
@@ -157,7 +192,7 @@ export default function WatchlistPage() {
               disabled={refreshMutation.isPending}
             >
               <RefreshCw
-                className={`mr-2 h-4 w-4 ${refreshMutation.isPending ? "animate-spin" : ""}`}
+                className={`mr-2 h-4 w-4 ${refreshMutation.isPending ? 'animate-spin' : ''}`}
               />
               Refresh
             </Button>
@@ -170,40 +205,77 @@ export default function WatchlistPage() {
       />
 
       <div className="flex flex-wrap gap-2">
-        <Select value={signalFilter} onValueChange={(value) => setSignalFilter(value as SignalFilter)}>
+        <Select
+          value={signalFilter}
+          onValueChange={(value) => setSignalFilter(value as SignalFilter)}
+        >
           <SelectTrigger className="w-[160px]">
             <SelectValue placeholder="Signal: All" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Signals ({watchlistData?.items.length || 0})</SelectItem>
-            <SelectItem value="BUY">🟢 BUY ({signalCounts["BUY"] || 0})</SelectItem>
-            <SelectItem value="HOLD">🟡 HOLD ({signalCounts["HOLD"] || 0})</SelectItem>
-            <SelectItem value="AVOID">🔴 AVOID ({signalCounts["AVOID"] || 0})</SelectItem>
+            <SelectItem value="all">
+              All Signals ({watchlistData?.items.length || 0})
+            </SelectItem>
+            <SelectItem value="BUY">
+              🟢 BUY ({signalCounts.BUY || 0})
+            </SelectItem>
+            <SelectItem value="HOLD">
+              🟡 HOLD ({signalCounts.HOLD || 0})
+            </SelectItem>
+            <SelectItem value="AVOID">
+              🔴 AVOID ({signalCounts.AVOID || 0})
+            </SelectItem>
           </SelectContent>
         </Select>
-        <Select value={styleFilter} onValueChange={(value) => setStyleFilter(value as StyleFilter)}>
+        <Select
+          value={styleFilter}
+          onValueChange={(value) => setStyleFilter(value as StyleFilter)}
+        >
           <SelectTrigger className="w-[160px]">
             <SelectValue placeholder="Style: All" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Styles ({watchlistData?.items.length || 0})</SelectItem>
-            <SelectItem value="Index">📈 Index ({styleCounts["Index"] || 0})</SelectItem>
-            <SelectItem value="Trend">🔥 Trend ({styleCounts["Trend"] || 0})</SelectItem>
-            <SelectItem value="Value">💎 Value ({styleCounts["Value"] || 0})</SelectItem>
-            <SelectItem value="Swing">⚡ Swing ({styleCounts["Swing"] || 0})</SelectItem>
-            <SelectItem value="Event">📅 Event ({styleCounts["Event"] || 0})</SelectItem>
+            <SelectItem value="all">
+              All Styles ({watchlistData?.items.length || 0})
+            </SelectItem>
+            <SelectItem value="Index">
+              📈 Index ({styleCounts.Index || 0})
+            </SelectItem>
+            <SelectItem value="Trend">
+              🔥 Trend ({styleCounts.Trend || 0})
+            </SelectItem>
+            <SelectItem value="Value">
+              💎 Value ({styleCounts.Value || 0})
+            </SelectItem>
+            <SelectItem value="Swing">
+              ⚡ Swing ({styleCounts.Swing || 0})
+            </SelectItem>
+            <SelectItem value="Event">
+              📅 Event ({styleCounts.Event || 0})
+            </SelectItem>
           </SelectContent>
         </Select>
-        <Select value={riskFilter} onValueChange={(value) => setRiskFilter(value as RiskFilter)}>
+        <Select
+          value={riskFilter}
+          onValueChange={(value) => setRiskFilter(value as RiskFilter)}
+        >
           <SelectTrigger className="w-[160px]">
             <SelectValue placeholder="Risk: All" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Risk Levels ({watchlistData?.items.length || 0})</SelectItem>
-            <SelectItem value="Low">✓ Low ({riskCounts["Low"] || 0})</SelectItem>
-            <SelectItem value="Medium-Low">⚠ Med-Low ({riskCounts["Medium-Low"] || 0})</SelectItem>
-            <SelectItem value="Medium">⚠ Medium ({riskCounts["Medium"] || 0})</SelectItem>
-            <SelectItem value="High">⚠⚠ High ({riskCounts["High"] || 0})</SelectItem>
+            <SelectItem value="all">
+              All Risk Levels ({watchlistData?.items.length || 0})
+            </SelectItem>
+            <SelectItem value="Low">✓ Low ({riskCounts.Low || 0})</SelectItem>
+            <SelectItem value="Medium-Low">
+              ⚠ Med-Low ({riskCounts['Medium-Low'] || 0})
+            </SelectItem>
+            <SelectItem value="Medium">
+              ⚠ Medium ({riskCounts.Medium || 0})
+            </SelectItem>
+            <SelectItem value="High">
+              ⚠⚠ High ({riskCounts.High || 0})
+            </SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -221,7 +293,7 @@ export default function WatchlistPage() {
           />
           {searchQuery && (
             <button
-              onClick={() => setSearchQuery("")}
+              onClick={() => setSearchQuery('')}
               className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full text-text-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
               aria-label="Clear search"
             >
@@ -251,11 +323,7 @@ export default function WatchlistPage() {
       )}
 
       {/* Watchlist Table */}
-      {!isLoading && !error && (
-        <WatchlistTable
-          items={filteredItems}
-        />
-      )}
+      {!isLoading && !error && <WatchlistTable items={filteredItems} />}
 
       {/* Add Symbol Modal */}
       <AddSymbolModal
@@ -264,5 +332,5 @@ export default function WatchlistPage() {
         currentCount={watchlistData?.items.length || 0}
       />
     </PageContainer>
-  );
+  )
 }

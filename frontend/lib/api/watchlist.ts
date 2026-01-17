@@ -2,201 +2,201 @@
  * Watchlist API client functions
  */
 
-import { apiRequest } from "./client";
+import { apiRequest } from './client'
 
 // Types matching backend Pydantic models
 export interface ScoreComponent {
-    score: number;
-    weight: number;
-    stale: boolean;
-    updatedAt?: string;
-    metadata?: Record<string, unknown>;
-    subScores?: Record<string, number>; // NEW: Sub-metric scores
+  score: number
+  weight: number
+  stale: boolean
+  updatedAt?: string
+  metadata?: Record<string, unknown>
+  subScores?: Record<string, number> // NEW: Sub-metric scores
 }
 
 export interface ScoreBreakdown {
-    price: ScoreComponent;
-    technical: ScoreComponent;
-    fundamental?: ScoreComponent | null;
-    catalyst?: ScoreComponent | null;
-    optionsFlow?: ScoreComponent | null;
-    performanceFactor?: ScoreComponent | null;
-    overall: number;
+  price: ScoreComponent
+  technical: ScoreComponent
+  fundamental?: ScoreComponent | null
+  catalyst?: ScoreComponent | null
+  optionsFlow?: ScoreComponent | null
+  performanceFactor?: ScoreComponent | null
+  overall: number
 }
 
 export interface SentimentProbabilities {
-    [label: string]: number;
+  [label: string]: number
 }
 
 export interface NewsSentimentDetail {
-    score: number | null;
-    scoreChange: number | null;
-    positiveCount: number;
-    neutralCount: number;
-    negativeCount: number;
-    articleCount: number;
-    latestPublishedAt?: string | null;
-    topPositive?: SentimentArticle | null;
-    topNegative?: SentimentArticle | null;
-    modelBreakdown: Record<string, number>;
+  score: number | null
+  scoreChange: number | null
+  positiveCount: number
+  neutralCount: number
+  negativeCount: number
+  articleCount: number
+  latestPublishedAt?: string | null
+  topPositive?: SentimentArticle | null
+  topNegative?: SentimentArticle | null
+  modelBreakdown: Record<string, number>
 }
 
 export interface SentimentScoreMeta {
-    score: number;
-    label: "positive" | "neutral" | "negative";
-    confidence: number;
-    model: string;
-    probabilities?: SentimentProbabilities;
+  score: number
+  label: 'positive' | 'neutral' | 'negative'
+  confidence: number
+  model: string
+  probabilities?: SentimentProbabilities
 }
 
 export interface SentimentArticle {
-    symbol: string;
-    headline: string;
-    url?: string | null;
-    summary?: string | null;
-    source?: string | null;
-    vendor?: string | null;
-    author?: string | null;
-    imageUrl?: string | null;
-    publishedAt?: string | null;
-    fetchedAt: string;
-    sentiment: SentimentScoreMeta;
-    contentHash: string;
-    raw?: Record<string, unknown>;
-    // AI-generated insights
-    impactSummary?: string | null;
-    actionableInsight?: string | null;
-    // Story clustering metadata
-    storyId?: string | null;
-    isPrimaryArticle?: boolean;
-    coverageCount?: number;
+  symbol: string
+  headline: string
+  url?: string | null
+  summary?: string | null
+  source?: string | null
+  vendor?: string | null
+  author?: string | null
+  imageUrl?: string | null
+  publishedAt?: string | null
+  fetchedAt: string
+  sentiment: SentimentScoreMeta
+  contentHash: string
+  raw?: Record<string, unknown>
+  // AI-generated insights
+  impactSummary?: string | null
+  actionableInsight?: string | null
+  // Story clustering metadata
+  storyId?: string | null
+  isPrimaryArticle?: boolean
+  coverageCount?: number
 }
 
 export interface RecentNewsPayload {
-    summary?: NewsSentimentDetail;
-    articles: SentimentArticle[];
+  summary?: NewsSentimentDetail
+  articles: SentimentArticle[]
 }
 
 export interface KeyEvent {
-    icon: string;
-    text: string;
-    timeAgo: string;
-    isMaterial: boolean;
-    eventCategory?: string | null;
-    publishedAt?: string | null;
+  icon: string
+  text: string
+  timeAgo: string
+  isMaterial: boolean
+  eventCategory?: string | null
+  publishedAt?: string | null
 }
 
 export interface NewsIntelligence {
-    headline: string;
-    sentimentScore: number;
-    sentimentLabel: string;
-    articleCount24H: number;
-    keyEvents: KeyEvent[];
-    recentArticles: Record<string, unknown>[];
+  headline: string
+  sentimentScore: number
+  sentimentLabel: string
+  articleCount24H: number
+  keyEvents: KeyEvent[]
+  recentArticles: Record<string, unknown>[]
 }
 
 export interface PriorityIndicator {
-    icon: string;
-    label: string;
-    tooltip: string;
-    priority: number;
-    category: "time_sensitive" | "risk" | "opportunity" | "caution";
+  icon: string
+  label: string
+  tooltip: string
+  priority: number
+  category: 'time_sensitive' | 'risk' | 'opportunity' | 'caution'
 }
 
 export interface PillarDataQuality {
-    status: "complete" | "partial" | "stale" | "n/a";
-    score: number;
-    details: string;
+  status: 'complete' | 'partial' | 'stale' | 'n/a'
+  score: number
+  details: string
 }
 
 export interface DataQuality {
-    overallPct: number;
-    pillars: {
-        [key: string]: PillarDataQuality;
-    };
+  overallPct: number
+  pillars: {
+    [key: string]: PillarDataQuality
+  }
 }
 
 export interface WatchlistItem {
-    id: string;
-    symbol: string;
-    note?: string;
-    source?: "manual" | "portfolio";
-    createdAt: string;
-    updatedAt: string;
-    currentScore?: ScoreBreakdown;
-    scoreAlert?: boolean;
-    // Narrative Intelligence fields
-    signalType?: "BUY" | "HOLD" | "AVOID" | null;
-    signalStrength?: number | null;
-    narrativeHeadline?: string | null;
-    recommendedStyle?: "Index" | "Trend" | "Value" | "Swing" | "Event" | null;
-    styleConfidence?: number | null;
-    optimalHoldingPeriod?: string | null;
-    riskLevel?: "Low" | "Medium-Low" | "Medium" | "High" | null;
-    // Trade Calculator fields
-    entryPrice?: number | null;
-    stopLoss?: number | null;
-    profitTarget?: number | null;
-    positionSizeShares?: number | null;
-    // News sentiment
-    newsSentimentScore?: number | null;
-    recentNews?: RecentNewsPayload | null;
-    // News Intelligence
-    newsIntelligence?: NewsIntelligence | null;
-    // Priority indicators
-    priorityIndicators?: PriorityIndicator[];
-    // Data Quality
-    dataQuality?: DataQuality | null;
+  id: string
+  symbol: string
+  note?: string
+  source?: 'manual' | 'portfolio'
+  createdAt: string
+  updatedAt: string
+  currentScore?: ScoreBreakdown
+  scoreAlert?: boolean
+  // Narrative Intelligence fields
+  signalType?: 'BUY' | 'HOLD' | 'AVOID' | null
+  signalStrength?: number | null
+  narrativeHeadline?: string | null
+  recommendedStyle?: 'Index' | 'Trend' | 'Value' | 'Swing' | 'Event' | null
+  styleConfidence?: number | null
+  optimalHoldingPeriod?: string | null
+  riskLevel?: 'Low' | 'Medium-Low' | 'Medium' | 'High' | null
+  // Trade Calculator fields
+  entryPrice?: number | null
+  stopLoss?: number | null
+  profitTarget?: number | null
+  positionSizeShares?: number | null
+  // News sentiment
+  newsSentimentScore?: number | null
+  recentNews?: RecentNewsPayload | null
+  // News Intelligence
+  newsIntelligence?: NewsIntelligence | null
+  // Priority indicators
+  priorityIndicators?: PriorityIndicator[]
+  // Data Quality
+  dataQuality?: DataQuality | null
 }
 
 export interface WatchlistListResponse {
-    items: WatchlistItem[];
-    totalCount: number;
+  items: WatchlistItem[]
+  totalCount: number
 }
 
 export interface WatchlistItemCreate {
-    symbol: string;
-    note?: string;
+  symbol: string
+  note?: string
 }
 
 export interface WatchlistItemUpdate {
-    note?: string;
+  note?: string
 }
 
 export interface FailedSymbolInfo {
-    symbol: string;
-    reason: string;
+  symbol: string
+  reason: string
 }
 
 export interface RefreshResponse {
-    status: string;
-    message: string;
-    refreshedCount: number;
-    failedCount?: number;
-    failed?: FailedSymbolInfo[];
+  status: string
+  message: string
+  refreshedCount: number
+  failedCount?: number
+  failed?: FailedSymbolInfo[]
 }
 
 export interface ScoreHistory {
-    timestamp: string;
-    overall: number;
-    priceScore: number;
-    technicalScore: number;
+  timestamp: string
+  overall: number
+  priceScore: number
+  technicalScore: number
 }
 
 export interface ScoreHistoryResponse {
-    itemId: string;
-    symbol: string;
-    history: ScoreHistory[];
+  itemId: string
+  symbol: string
+  history: ScoreHistory[]
 }
 
 export interface RefreshStatus {
-    isRefreshing: boolean;
-    startedAt?: string;
-    elapsedSeconds?: number;
-    totalItems?: number;
-    processedItems?: number;
-    currentSymbol?: string;
-    percentComplete?: number;
+  isRefreshing: boolean
+  startedAt?: string
+  elapsedSeconds?: number
+  totalItems?: number
+  processedItems?: number
+  currentSymbol?: string
+  percentComplete?: number
 }
 
 /**
@@ -205,76 +205,74 @@ export interface RefreshStatus {
  * Watchlist is user-level (not account-specific).
  */
 export async function fetchWatchlistItems(): Promise<WatchlistListResponse> {
-    return apiRequest<WatchlistListResponse>("/api/watchlist");
+  return apiRequest<WatchlistListResponse>('/api/watchlist')
 }
 
 /**
  * Get a single watchlist item with details
  */
 export async function fetchWatchlistItem(
-    itemId: string,
+  itemId: string,
 ): Promise<WatchlistItem> {
-    return apiRequest<WatchlistItem>(`/api/watchlist/${itemId}`);
+  return apiRequest<WatchlistItem>(`/api/watchlist/${itemId}`)
 }
 
 /**
  * Add a symbol to the watchlist
  */
 export async function createWatchlistItem(
-    data: WatchlistItemCreate,
+  data: WatchlistItemCreate,
 ): Promise<WatchlistItem> {
-    return apiRequest<WatchlistItem>("/api/watchlist", {
-        method: "POST",
-        body: JSON.stringify(data),
-    });
+  return apiRequest<WatchlistItem>('/api/watchlist', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
 }
 
 /**
  * Update a watchlist item (notes)
  */
 export async function updateWatchlistItem(
-    itemId: string,
-    data: WatchlistItemUpdate,
+  itemId: string,
+  data: WatchlistItemUpdate,
 ): Promise<WatchlistItem> {
-    return apiRequest<WatchlistItem>(`/api/watchlist/${itemId}`, {
-        method: "PATCH",
-        body: JSON.stringify(data),
-    });
+  return apiRequest<WatchlistItem>(`/api/watchlist/${itemId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
 }
 
 /**
  * Delete a watchlist item
  */
 export async function deleteWatchlistItem(itemId: string): Promise<void> {
-    await apiRequest<void>(`/api/watchlist/${itemId}`, {
-        method: "DELETE",
-    });
+  await apiRequest<void>(`/api/watchlist/${itemId}`, {
+    method: 'DELETE',
+  })
 }
 
 /**
  * Get refresh status for the watchlist
  */
 export async function fetchRefreshStatus(): Promise<RefreshStatus> {
-    return apiRequest<RefreshStatus>("/api/watchlist/refresh-status");
+  return apiRequest<RefreshStatus>('/api/watchlist/refresh-status')
 }
 
 /**
  * Manually refresh watchlist scores
  */
 export async function refreshWatchlistScores(): Promise<RefreshResponse> {
-    return apiRequest<RefreshResponse>("/api/watchlist/refresh", {
-        method: "POST",
-        body: JSON.stringify({}),
-    });
+  return apiRequest<RefreshResponse>('/api/watchlist/refresh', {
+    method: 'POST',
+    body: JSON.stringify({}),
+  })
 }
 
 /**
  * Get 7-day score history for a watchlist item
  */
 export async function fetchScoreHistory(
-    itemId: string,
+  itemId: string,
 ): Promise<ScoreHistoryResponse> {
-    return apiRequest<ScoreHistoryResponse>(
-        `/api/watchlist/${itemId}/history`,
-    );
+  return apiRequest<ScoreHistoryResponse>(`/api/watchlist/${itemId}/history`)
 }

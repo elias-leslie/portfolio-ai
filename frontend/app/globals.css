@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
-@custom-variant reduced-motion (&:is([data-reduced-motion='true'] *));
+@custom-variant reduced-motion (&:is([data-reduced-motion="true"] *));
 
 @theme inline {
   --color-bg: var(--bg);
@@ -191,12 +191,12 @@
   --radius-xl: 1.25rem;
 
   --shadow-elev-0: inset 0 0 0 1px oklch(0.32 0 0 / 0.65);
-  --shadow-elev-1: 0 1px 2px 0 oklch(0.18 0 0 / 0.6),
-    0 0 0 1px oklch(0.32 0 0 / 0.55);
-  --shadow-elev-3: 0 8px 20px -12px oklch(0.14 0 0 / 0.7),
-    0 0 0 1px oklch(0.32 0 0 / 0.4);
-  --shadow-elev-6: 0 18px 48px -16px oklch(0.14 0 0 / 0.7),
-    0 0 0 1px oklch(0.32 0 0 / 0.35);
+  --shadow-elev-1:
+    0 1px 2px 0 oklch(0.18 0 0 / 0.6), 0 0 0 1px oklch(0.32 0 0 / 0.55);
+  --shadow-elev-3:
+    0 8px 20px -12px oklch(0.14 0 0 / 0.7), 0 0 0 1px oklch(0.32 0 0 / 0.4);
+  --shadow-elev-6:
+    0 18px 48px -16px oklch(0.14 0 0 / 0.7), 0 0 0 1px oklch(0.32 0 0 / 0.35);
 
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;
@@ -241,7 +241,10 @@
     min-height: 100%;
     background-color: var(--color-bg);
     color: var(--color-text);
-    font-feature-settings: "case" 1, "ss03" 1, "ss04" 1;
+    font-feature-settings:
+      "case" 1,
+      "ss03" 1,
+      "ss04" 1;
     accent-color: var(--color-primary);
   }
 
@@ -257,9 +260,9 @@
   [data-reduced-motion="true"] *,
   [data-reduced-motion="true"] *::before,
   [data-reduced-motion="true"] *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0ms !important;
-    scroll-behavior: auto !important;
+    animation-duration: 0.001ms;
+    animation-iteration-count: 1;
+    transition-duration: 0ms;
+    scroll-behavior: auto;
   }
 }

@@ -1,9 +1,10 @@
-"use client";
+'use client'
 
-import { Fragment, useState } from "react";
-import { ChevronDown, ChevronRight, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { ChevronDown, ChevronRight, X } from 'lucide-react'
+import { Fragment, useState } from 'react'
+import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   Table,
   TableBody,
@@ -11,83 +12,81 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { ConfirmActionDialog } from "@/components/shared/ConfirmActionDialog";
-import { useClosePaperTrade } from "@/lib/hooks/usePaperTrades";
-import { type PaperTrade } from "@/lib/api/paper-trades";
-import { TradeDetails } from "./TradeDetails";
+} from '@/components/ui/table'
+import type { PaperTrade } from '@/lib/api/paper-trades'
+import { useClosePaperTrade } from '@/lib/hooks/usePaperTrades'
+import { TradeDetails } from './TradeDetails'
 
 interface PaperTradesTableProps {
-  trades: PaperTrade[];
-  type: "open" | "closed";
+  trades: PaperTrade[]
+  type: 'open' | 'closed'
 }
 
 export function PaperTradesTable({ trades, type }: PaperTradesTableProps) {
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [closeDialogOpen, setCloseDialogOpen] = useState(false);
-  const [selectedTrade, setSelectedTrade] = useState<PaperTrade | null>(null);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
+  const [closeDialogOpen, setCloseDialogOpen] = useState(false)
+  const [selectedTrade, setSelectedTrade] = useState<PaperTrade | null>(null)
 
-  const closeTrade = useClosePaperTrade();
+  const closeTrade = useClosePaperTrade()
 
   // Toggle row expansion
   const toggleRow = (tradeId: string) => {
     setExpandedRows((prev) => {
-      const next = new Set(prev);
+      const next = new Set(prev)
       if (next.has(tradeId)) {
-        next.delete(tradeId);
+        next.delete(tradeId)
       } else {
-        next.add(tradeId);
+        next.add(tradeId)
       }
-      return next;
-    });
-  };
+      return next
+    })
+  }
 
   // Handle close trade
   const handleCloseTrade = (trade: PaperTrade) => {
-    setSelectedTrade(trade);
-    setCloseDialogOpen(true);
-  };
+    setSelectedTrade(trade)
+    setCloseDialogOpen(true)
+  }
 
   const confirmCloseTrade = () => {
-    if (!selectedTrade) return;
+    if (!selectedTrade) return
 
     closeTrade.mutate(
-      { tradeId: selectedTrade.ideaId, request: { exitReason: "manual" } },
+      { tradeId: selectedTrade.ideaId, request: { exitReason: 'manual' } },
       {
         onSuccess: () => {
-          setCloseDialogOpen(false);
-          setSelectedTrade(null);
+          setCloseDialogOpen(false)
+          setSelectedTrade(null)
         },
-      }
-    );
-  };
+      },
+    )
+  }
 
   // Format helpers
   const formatPrice = (price: number | undefined) => {
-    if (price === undefined || price === null) return "-";
-    return `$${price.toFixed(2)}`;
-  };
+    if (price === undefined || price === null) return '-'
+    return `$${price.toFixed(2)}`
+  }
 
   const formatPct = (value: number | undefined) => {
-    if (value === undefined || value === null) return "-";
-    return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
-  };
+    if (value === undefined || value === null) return '-'
+    return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
+  }
 
   const getPnlColor = (value: number | undefined) => {
-    if (!value) return "";
-    return value >= 0 ? "text-gain" : "text-loss";
-  };
+    if (!value) return ''
+    return value >= 0 ? 'text-gain' : 'text-loss'
+  }
 
   const formatPnlDollars = (trade: PaperTrade, isClosed: boolean) => {
-    const shares = trade.shares || 0;
-    const entryPrice = trade.entryPrice || 0;
-    const exitPrice = isClosed ? (trade.exitPrice || 0) : (trade.currentPrice || 0);
-    if (shares === 0 || entryPrice === 0) return "-";
-    const pnl = (exitPrice - entryPrice) * shares;
-    const prefix = pnl >= 0 ? "+$" : "-$";
-    return `${prefix}${Math.abs(pnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  };
-
+    const shares = trade.shares || 0
+    const entryPrice = trade.entryPrice || 0
+    const exitPrice = isClosed ? trade.exitPrice || 0 : trade.currentPrice || 0
+    if (shares === 0 || entryPrice === 0) return '-'
+    const pnl = (exitPrice - entryPrice) * shares
+    const prefix = pnl >= 0 ? '+$' : '-$'
+    return `${prefix}${Math.abs(pnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  }
 
   return (
     <>
@@ -100,7 +99,7 @@ export function PaperTradesTable({ trades, type }: PaperTradesTableProps) {
               <TableHead>Type</TableHead>
               <TableHead className="text-right">Shares</TableHead>
               <TableHead className="text-right">Entry</TableHead>
-              {type === "open" && (
+              {type === 'open' && (
                 <>
                   <TableHead className="text-right">Current</TableHead>
                   <TableHead className="text-right">P&L $</TableHead>
@@ -110,7 +109,7 @@ export function PaperTradesTable({ trades, type }: PaperTradesTableProps) {
                   <TableHead className="text-center">Days</TableHead>
                 </>
               )}
-              {type === "closed" && (
+              {type === 'closed' && (
                 <>
                   <TableHead className="text-right">Exit</TableHead>
                   <TableHead className="text-right">P&L $</TableHead>
@@ -119,20 +118,29 @@ export function PaperTradesTable({ trades, type }: PaperTradesTableProps) {
                   <TableHead>Exit Reason</TableHead>
                 </>
               )}
-              {type === "open" && <TableHead className="text-right">Actions</TableHead>}
+              {type === 'open' && (
+                <TableHead className="text-right">Actions</TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
             {trades.map((trade) => {
-              const isExpanded = expandedRows.has(trade.ideaId);
+              const isExpanded = expandedRows.has(trade.ideaId)
               const pnlPct =
-                type === "open" ? trade.currentReturnPct : trade.realizedReturnPct;
+                type === 'open'
+                  ? trade.currentReturnPct
+                  : trade.realizedReturnPct
               const pnlDollars = (() => {
-                const shares = trade.shares || 0;
-                const entryPrice = trade.entryPrice || 0;
-                const exitPrice = type === "closed" ? (trade.exitPrice || 0) : (trade.currentPrice || 0);
-                return shares > 0 && entryPrice > 0 ? (exitPrice - entryPrice) * shares : 0;
-              })();
+                const shares = trade.shares || 0
+                const entryPrice = trade.entryPrice || 0
+                const exitPrice =
+                  type === 'closed'
+                    ? trade.exitPrice || 0
+                    : trade.currentPrice || 0
+                return shares > 0 && entryPrice > 0
+                  ? (exitPrice - entryPrice) * shares
+                  : 0
+              })()
 
               return (
                 <Fragment key={trade.ideaId}>
@@ -150,23 +158,37 @@ export function PaperTradesTable({ trades, type }: PaperTradesTableProps) {
                         )}
                       </Button>
                     </TableCell>
-                    <TableCell className="font-semibold">{trade.symbol}</TableCell>
+                    <TableCell className="font-semibold">
+                      {trade.symbol}
+                    </TableCell>
                     <TableCell>
-                      <Badge variant={trade.ideaType === "buy" ? "default" : "secondary"}>
+                      <Badge
+                        variant={
+                          trade.ideaType === 'buy' ? 'default' : 'secondary'
+                        }
+                      >
                         {trade.ideaType.toUpperCase()}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">{trade.shares || "-"}</TableCell>
-                    <TableCell className="text-right">{formatPrice(trade.entryPrice)}</TableCell>
-                    {type === "open" && (
+                    <TableCell className="text-right">
+                      {trade.shares || '-'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatPrice(trade.entryPrice)}
+                    </TableCell>
+                    {type === 'open' && (
                       <>
                         <TableCell className="text-right">
                           {formatPrice(trade.currentPrice)}
                         </TableCell>
-                        <TableCell className={`text-right font-semibold ${getPnlColor(pnlDollars)}`}>
+                        <TableCell
+                          className={`text-right font-semibold ${getPnlColor(pnlDollars)}`}
+                        >
                           {formatPnlDollars(trade, false)}
                         </TableCell>
-                        <TableCell className={`text-right font-semibold ${getPnlColor(pnlPct)}`}>
+                        <TableCell
+                          className={`text-right font-semibold ${getPnlColor(pnlPct)}`}
+                        >
                           {formatPct(pnlPct)}
                         </TableCell>
                         <TableCell className="text-right text-text-muted">
@@ -180,24 +202,30 @@ export function PaperTradesTable({ trades, type }: PaperTradesTableProps) {
                         </TableCell>
                       </>
                     )}
-                    {type === "closed" && (
+                    {type === 'closed' && (
                       <>
-                        <TableCell className="text-right">{formatPrice(trade.exitPrice)}</TableCell>
-                        <TableCell className={`text-right font-semibold ${getPnlColor(pnlDollars)}`}>
+                        <TableCell className="text-right">
+                          {formatPrice(trade.exitPrice)}
+                        </TableCell>
+                        <TableCell
+                          className={`text-right font-semibold ${getPnlColor(pnlDollars)}`}
+                        >
                           {formatPnlDollars(trade, true)}
                         </TableCell>
-                        <TableCell className={`text-right font-semibold ${getPnlColor(pnlPct)}`}>
+                        <TableCell
+                          className={`text-right font-semibold ${getPnlColor(pnlPct)}`}
+                        >
                           {formatPct(pnlPct)}
                         </TableCell>
                         <TableCell className="text-center text-text-muted">
                           {trade.holdingDays || 0}
                         </TableCell>
                         <TableCell className="text-text-muted">
-                          {trade.exitReason || "-"}
+                          {trade.exitReason || '-'}
                         </TableCell>
                       </>
                     )}
-                    {type === "open" && (
+                    {type === 'open' && (
                       <TableCell
                         className="text-right"
                         onClick={(e) => e.stopPropagation()}
@@ -218,13 +246,16 @@ export function PaperTradesTable({ trades, type }: PaperTradesTableProps) {
                   {/* Expanded Row Details */}
                   {isExpanded && (
                     <TableRow>
-                      <TableCell colSpan={type === "open" ? 12 : 11} className="bg-surface-muted/30">
+                      <TableCell
+                        colSpan={type === 'open' ? 12 : 11}
+                        className="bg-surface-muted/30"
+                      >
                         <TradeDetails trade={trade} />
                       </TableCell>
                     </TableRow>
                   )}
                 </Fragment>
-              );
+              )
             })}
           </TableBody>
         </Table>
@@ -241,5 +272,5 @@ export function PaperTradesTable({ trades, type }: PaperTradesTableProps) {
         tone="default"
       />
     </>
-  );
+  )
 }

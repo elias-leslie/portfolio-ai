@@ -1,22 +1,22 @@
-"use client";
+'use client'
 
-import { useMemo } from "react";
-import { Newspaper, RefreshCw } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ExpandableCard } from "@/components/status/ExpandableCard";
-import type { NewsHealthResponse } from "@/lib/api/news";
+import { Newspaper, RefreshCw } from 'lucide-react'
+import { useMemo } from 'react'
+import { ExpandableCard } from '@/components/status/ExpandableCard'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import type { NewsHealthResponse } from '@/lib/api/news'
 
 interface NewsHealthCardProps {
-  newsHealth: NewsHealthResponse | null;
-  newsHealthLoading: boolean;
-  newsHealthError: Error | null;
+  newsHealth: NewsHealthResponse | null
+  newsHealthLoading: boolean
+  newsHealthError: Error | null
   finbertStatus: {
-    label: string;
-    variant: "default" | "destructive" | "secondary";
-  };
-  onRefresh: () => void;
+    label: string
+    variant: 'default' | 'destructive' | 'secondary'
+  }
+  onRefresh: () => void
 }
 
 export function NewsHealthCard({
@@ -28,44 +28,44 @@ export function NewsHealthCard({
 }: NewsHealthCardProps) {
   // Format date helper
   const formatDateTime = (value?: string | null) =>
-    value ? new Date(value).toLocaleString() : "—";
+    value ? new Date(value).toLocaleString() : '—'
 
   // Calculate derived values - memoized to avoid impure render
   const lookbackHours = useMemo(() => {
-    if (!newsHealth) return 24;
+    if (!newsHealth) return 24
     // eslint-disable-next-line react-hooks/purity -- Date.now() is intentionally used for display-only age calculation
-    const now = Date.now();
+    const now = Date.now()
     return Math.round(
       (now - new Date(newsHealth.marketLastRefreshedAt || 0).getTime()) /
         3600000,
-    );
-  }, [newsHealth]);
+    )
+  }, [newsHealth])
 
   const fallbackRatePercent =
     newsHealth && newsHealth.headlines24H > 0
       ? (newsHealth.fallbackHeadlines24H / newsHealth.headlines24H) * 100
-      : 0;
+      : 0
 
-  const fallbackAvgLatency = newsHealth?.fallbackAvgLatencyMs24H ?? null;
-  const fallbackP95Latency = newsHealth?.fallbackP95LatencyMs24H ?? null;
-  const fallbackLastEventAt = newsHealth?.fallbackLastEventAt ?? null;
+  const fallbackAvgLatency = newsHealth?.fallbackAvgLatencyMs24H ?? null
+  const fallbackP95Latency = newsHealth?.fallbackP95LatencyMs24H ?? null
+  const fallbackLastEventAt = newsHealth?.fallbackLastEventAt ?? null
 
   // Build summary text
   const summary = (() => {
     if (newsHealthError) {
-      return newsHealthError.message || "Failed to load telemetry";
+      return newsHealthError.message || 'Failed to load telemetry'
     }
     if (newsHealthLoading && !newsHealth) {
-      return "Loading telemetry...";
+      return 'Loading telemetry...'
     }
     if (!newsHealth) {
-      return "Waiting for news telemetry";
+      return 'Waiting for news telemetry'
     }
-    const fallbackCount = newsHealth.fallbackHeadlines24H ?? 0;
+    const fallbackCount = newsHealth.fallbackHeadlines24H ?? 0
     const fallbackSummary =
-      fallbackCount > 0 ? `${fallbackCount} fallback` : "No fallback";
-    return `${newsHealth.headlines24H ?? 0} headlines • ${fallbackSummary} • ${finbertStatus.label}`;
-  })();
+      fallbackCount > 0 ? `${fallbackCount} fallback` : 'No fallback'
+    return `${newsHealth.headlines24H ?? 0} headlines • ${fallbackSummary} • ${finbertStatus.label}`
+  })()
 
   return (
     <ExpandableCard
@@ -97,7 +97,7 @@ export function NewsHealthCard({
         <Alert variant="destructive">
           <AlertTitle>Failed to load news health</AlertTitle>
           <AlertDescription>
-            {newsHealthError.message || "Unable to reach /api/news/health"}
+            {newsHealthError.message || 'Unable to reach /api/news/health'}
           </AlertDescription>
         </Alert>
       ) : (
@@ -108,7 +108,7 @@ export function NewsHealthCard({
             </p>
             <p className="text-sm font-medium">
               {newsHealthLoading && !newsHealth
-                ? "Loading..."
+                ? 'Loading...'
                 : formatDateTime(newsHealth?.marketLastRefreshedAt)}
             </p>
           </div>
@@ -118,7 +118,7 @@ export function NewsHealthCard({
             </p>
             <p className="text-sm font-medium">
               {newsHealthLoading && !newsHealth
-                ? "Loading..."
+                ? 'Loading...'
                 : formatDateTime(newsHealth?.watchlistLastRefreshedAt)}
             </p>
           </div>
@@ -143,7 +143,7 @@ export function NewsHealthCard({
             <p className="text-xs text-muted-foreground">
               {newsHealth
                 ? `${fallbackRatePercent.toFixed(1)}% fallback`
-                : "0% fallback"}
+                : '0% fallback'}
             </p>
             {fallbackAvgLatency !== null && (
               <p className="text-xs text-muted-foreground">
@@ -164,5 +164,5 @@ export function NewsHealthCard({
         </div>
       )}
     </ExpandableCard>
-  );
+  )
 }

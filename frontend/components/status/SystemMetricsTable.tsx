@@ -1,6 +1,15 @@
-"use client";
+'use client'
 
-import { Badge } from "@/components/ui/badge";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Cpu,
+  Database,
+  HardDrive,
+  MemoryStick,
+  XCircle,
+} from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import {
   Table,
   TableBody,
@@ -8,70 +17,61 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import {
-  HardDrive,
-  MemoryStick,
-  Cpu,
-  Database,
-  CheckCircle2,
-  AlertTriangle,
-  XCircle,
-} from "lucide-react";
-import type { SystemResources } from "@/lib/api/resources";
+} from '@/components/ui/table'
+import type { SystemResources } from '@/lib/api/resources'
 
 interface SystemMetricsTableProps {
-  resources: SystemResources;
+  resources: SystemResources
 }
 
 export function SystemMetricsTable({ resources }: SystemMetricsTableProps) {
-  const getStatusIcon = (status: "ok" | "warning" | "critical") => {
+  const getStatusIcon = (status: 'ok' | 'warning' | 'critical') => {
     switch (status) {
-      case "ok":
-        return <CheckCircle2 className="h-3.5 w-3.5 text-status-success" />;
-      case "warning":
-        return <AlertTriangle className="h-3.5 w-3.5 text-status-warning" />;
-      case "critical":
-        return <XCircle className="h-3.5 w-3.5 text-status-error" />;
+      case 'ok':
+        return <CheckCircle2 className="h-3.5 w-3.5 text-status-success" />
+      case 'warning':
+        return <AlertTriangle className="h-3.5 w-3.5 text-status-warning" />
+      case 'critical':
+        return <XCircle className="h-3.5 w-3.5 text-status-error" />
     }
-  };
+  }
 
-  const getStatusBadge = (status: "ok" | "warning" | "critical") => {
-    const variants: Record<string, "default" | "secondary" | "destructive"> = {
-      ok: "default",
-      warning: "secondary",
-      critical: "destructive",
-    };
+  const getStatusBadge = (status: 'ok' | 'warning' | 'critical') => {
+    const variants: Record<string, 'default' | 'secondary' | 'destructive'> = {
+      ok: 'default',
+      warning: 'secondary',
+      critical: 'destructive',
+    }
     const colors: Record<string, string> = {
-      ok: "bg-status-success",
-      warning: "bg-status-warning",
-      critical: "bg-status-error",
-    };
+      ok: 'bg-status-success',
+      warning: 'bg-status-warning',
+      critical: 'bg-status-error',
+    }
     return (
       <Badge
-        variant={variants[status] || "secondary"}
-        className={`text-xs ${colors[status] || ""}`}
+        variant={variants[status] || 'secondary'}
+        className={`text-xs ${colors[status] || ''}`}
       >
         {status}
       </Badge>
-    );
-  };
+    )
+  }
 
-  const formatPercent = (value: number) => `${value.toFixed(1)}%`;
+  const formatPercent = (value: number) => `${value.toFixed(1)}%`
 
   // Progress bar component
   const ProgressBar = ({
     percent,
     status,
   }: {
-    percent: number;
-    status: "ok" | "warning" | "critical";
+    percent: number
+    status: 'ok' | 'warning' | 'critical'
   }) => {
     const colors: Record<string, string> = {
-      ok: "bg-status-success",
-      warning: "bg-status-warning",
-      critical: "bg-status-error",
-    };
+      ok: 'bg-status-success',
+      warning: 'bg-status-warning',
+      critical: 'bg-status-error',
+    }
     return (
       <div className="w-20 h-2 bg-muted rounded-full overflow-hidden">
         <div
@@ -79,53 +79,53 @@ export function SystemMetricsTable({ resources }: SystemMetricsTableProps) {
           style={{ width: `${Math.min(percent, 100)}%` }}
         />
       </div>
-    );
-  };
+    )
+  }
 
   const metrics = [
     {
-      id: "disk",
-      name: "Disk",
+      id: 'disk',
+      name: 'Disk',
       icon: <HardDrive className="h-4 w-4 text-status-info" />,
       percent: resources.disk?.percentUsed ?? 0,
-      status: resources.disk?.status ?? "ok",
+      status: resources.disk?.status ?? 'ok',
       usage: `${(resources.disk?.usedGb ?? 0).toFixed(1)} GB`,
       total: `${(resources.disk?.totalGb ?? 0).toFixed(1)} GB`,
     },
     {
-      id: "memory",
-      name: "Memory",
+      id: 'memory',
+      name: 'Memory',
       icon: <MemoryStick className="h-4 w-4 text-accent" />,
       percent: resources.memory?.percentUsed ?? 0,
-      status: resources.memory?.status ?? "ok",
+      status: resources.memory?.status ?? 'ok',
       usage: `${(resources.memory?.usedGb ?? 0).toFixed(1)} GB`,
       total: `${(resources.memory?.totalGb ?? 0).toFixed(1)} GB`,
     },
     {
-      id: "cpu",
-      name: "CPU",
+      id: 'cpu',
+      name: 'CPU',
       icon: <Cpu className="h-4 w-4 text-status-warning" />,
       percent: resources.cpu?.percentUsed ?? 0,
-      status: resources.cpu?.status ?? "ok",
+      status: resources.cpu?.status ?? 'ok',
       usage: `${resources.cpu?.cores ?? 0} cores`,
       total: null,
     },
     {
-      id: "db_pool",
-      name: "DB Pool",
+      id: 'db_pool',
+      name: 'DB Pool',
       icon: <Database className="h-4 w-4 text-status-info" />,
       percent: resources.databasePool?.percentUsed ?? 0,
-      status: resources.databasePool?.status ?? "ok",
+      status: resources.databasePool?.status ?? 'ok',
       usage: `${resources.databasePool?.checkedOut ?? 0} active`,
       total: `${resources.databasePool?.poolSize ?? 0} pool`,
       overflow: resources.databasePool?.overflow ?? 0,
     },
-  ];
+  ]
 
   // Count statuses for summary
-  const okCount = metrics.filter((m) => m.status === "ok").length;
-  const warningCount = metrics.filter((m) => m.status === "warning").length;
-  const criticalCount = metrics.filter((m) => m.status === "critical").length;
+  const okCount = metrics.filter((m) => m.status === 'ok').length
+  const warningCount = metrics.filter((m) => m.status === 'warning').length
+  const criticalCount = metrics.filter((m) => m.status === 'critical').length
 
   return (
     <div className="space-y-3">
@@ -195,5 +195,5 @@ export function SystemMetricsTable({ resources }: SystemMetricsTableProps) {
         </TableBody>
       </Table>
     </div>
-  );
+  )
 }

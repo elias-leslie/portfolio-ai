@@ -1,4 +1,4 @@
-"use client";
+'use client'
 
 /**
  * Expanded row display for watchlist items
@@ -13,65 +13,59 @@
  * Refactored from 1,142-line monolithic component into focused subcomponents.
  */
 
-import { usePreferences } from "@/lib/hooks/usePreferences";
-import { useNewsIntelligence } from "@/lib/hooks/useNews";
-import type { WatchlistItem, RefreshStatus } from "@/lib/api/watchlist";
-import { UnifiedNewsIntelligenceCard } from "@/components/shared/UnifiedNewsIntelligenceCard";
-import { ExpandedRowRefreshStatus } from "./ExpandedRowRefreshStatus";
-import { ExpandedRowNarrative } from "./ExpandedRowNarrative";
-import { ExpandedRowScoreBreakdown } from "./ExpandedRowScoreBreakdown";
-import { ExpandedRowNotes } from "./ExpandedRowNotes";
-import { ThesisSection } from "./ThesisSection";
+import { UnifiedNewsIntelligenceCard } from '@/components/shared/UnifiedNewsIntelligenceCard'
+import type { RefreshStatus, WatchlistItem } from '@/lib/api/watchlist'
+import { useNewsIntelligence } from '@/lib/hooks/useNews'
+import { usePreferences } from '@/lib/hooks/usePreferences'
+import { ExpandedRowNarrative } from './ExpandedRowNarrative'
+import { ExpandedRowNotes } from './ExpandedRowNotes'
+import { ExpandedRowRefreshStatus } from './ExpandedRowRefreshStatus'
+import { ExpandedRowScoreBreakdown } from './ExpandedRowScoreBreakdown'
+import { ThesisSection } from './ThesisSection'
 
 interface ExpandedRowProps {
-    item: WatchlistItem;
-    refreshStatus?: RefreshStatus;
+  item: WatchlistItem
+  refreshStatus?: RefreshStatus
 }
 
 export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
-    const { data: preferences } = usePreferences();
-    const { data: fullNewsData } = useNewsIntelligence(item.symbol, { limit: 50 });
+  const { data: preferences } = usePreferences()
+  const { data: fullNewsData } = useNewsIntelligence(item.symbol, { limit: 50 })
 
-    const userTimezone = preferences?.displayTimezone ?? "America/New_York";
-    const newsHidden = preferences?.watchlistShowNews === false;
+  const userTimezone = preferences?.displayTimezone ?? 'America/New_York'
+  const newsHidden = preferences?.watchlistShowNews === false
 
-    return (
-        <div className="space-y-4">
-            {/* Refresh Progress */}
-            {refreshStatus && (
-                <ExpandedRowRefreshStatus
-                    refreshStatus={refreshStatus}
-                    symbol={item.symbol}
-                />
-            )}
+  return (
+    <div className="space-y-4">
+      {/* Refresh Progress */}
+      {refreshStatus && (
+        <ExpandedRowRefreshStatus
+          refreshStatus={refreshStatus}
+          symbol={item.symbol}
+        />
+      )}
 
-            {/* Narrative Intelligence */}
-            <ExpandedRowNarrative item={item} />
+      {/* Narrative Intelligence */}
+      <ExpandedRowNarrative item={item} />
 
-            {/* Score Breakdown */}
-            <ExpandedRowScoreBreakdown
-                item={item}
-                userTimezone={userTimezone}
-            />
+      {/* Score Breakdown */}
+      <ExpandedRowScoreBreakdown item={item} userTimezone={userTimezone} />
 
-            {/* Investment Thesis */}
-            <ThesisSection
-                symbol={item.symbol}
-                userTimezone={userTimezone}
-            />
+      {/* Investment Thesis */}
+      <ThesisSection symbol={item.symbol} userTimezone={userTimezone} />
 
-            {/* News Intelligence */}
-            <UnifiedNewsIntelligenceCard
-                symbol={item.symbol}
-                marketNewsData={fullNewsData ?? undefined}
-                newsHidden={newsHidden}
-                showSentimentBreakdown
-                title="News & Sentiment"
-                defaultCollapsed
-            />
+      {/* News Intelligence */}
+      <UnifiedNewsIntelligenceCard
+        symbol={item.symbol}
+        marketNewsData={fullNewsData ?? undefined}
+        newsHidden={newsHidden}
+        showSentimentBreakdown
+        title="News & Sentiment"
+        defaultCollapsed
+      />
 
-            {/* Notes */}
-            <ExpandedRowNotes item={item} />
-        </div>
-    );
+      {/* Notes */}
+      <ExpandedRowNotes item={item} />
+    </div>
+  )
 }

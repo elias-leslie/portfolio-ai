@@ -1,27 +1,27 @@
-"use client";
+'use client'
 
-import { useState, useEffect } from "react";
-import { Save, RotateCcw } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { RotateCcw, Save } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
+} from '@/components/ui/dialog'
+import { cn } from '@/lib/utils'
 
-export type LLMProvider = "claude" | "gemini";
+export type LLMProvider = 'claude' | 'gemini'
 
 interface AgentSettings {
-  devSystemPrompt: string;
-  financialSystemPrompt: string;
-  crossValidationEnabled: boolean;
-  requireHumanReview: boolean;
-  fullAutoMode: boolean;
-  notifyOnDisagreement: boolean;
-  autoApplyThreshold: number;
-  llmProvider: LLMProvider;
+  devSystemPrompt: string
+  financialSystemPrompt: string
+  crossValidationEnabled: boolean
+  requireHumanReview: boolean
+  fullAutoMode: boolean
+  notifyOnDisagreement: boolean
+  autoApplyThreshold: number
+  llmProvider: LLMProvider
 }
 
 const DEFAULT_SETTINGS: AgentSettings = {
@@ -47,64 +47,64 @@ Provide data-driven insights based on the visible information. Be specific about
   fullAutoMode: false,
   notifyOnDisagreement: true,
   autoApplyThreshold: 0.9,
-  llmProvider: "claude",
-};
+  llmProvider: 'claude',
+}
 
-const STORAGE_KEY = "agent-hub-settings";
+const STORAGE_KEY = 'agent-hub-settings'
 
 function loadSettings(): AgentSettings {
-  if (typeof window === "undefined") return DEFAULT_SETTINGS;
+  if (typeof window === 'undefined') return DEFAULT_SETTINGS
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = localStorage.getItem(STORAGE_KEY)
     if (stored) {
-      return { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
+      return { ...DEFAULT_SETTINGS, ...JSON.parse(stored) }
     }
   } catch {
     // Ignore
   }
-  return DEFAULT_SETTINGS;
+  return DEFAULT_SETTINGS
 }
 
 function saveSettings(settings: AgentSettings) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  if (typeof window === 'undefined') return
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
 }
 
 interface SettingsModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }
 
-type SettingsTab = "prompts" | "cross-validation";
+type SettingsTab = 'prompts' | 'cross-validation'
 
 export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   // Lazy initialization avoids setState-in-effect anti-pattern
-  const [settings, setSettings] = useState<AgentSettings>(() => loadSettings());
-  const [activeTab, setActiveTab] = useState<SettingsTab>("prompts");
-  const [isDirty, setIsDirty] = useState(false);
+  const [settings, setSettings] = useState<AgentSettings>(() => loadSettings())
+  const [activeTab, setActiveTab] = useState<SettingsTab>('prompts')
+  const [isDirty, setIsDirty] = useState(false)
 
   const handleChange = <K extends keyof AgentSettings>(
     key: K,
     value: AgentSettings[K],
   ) => {
-    setSettings((prev) => ({ ...prev, [key]: value }));
-    setIsDirty(true);
-  };
+    setSettings((prev) => ({ ...prev, [key]: value }))
+    setIsDirty(true)
+  }
 
   const handleSave = () => {
-    saveSettings(settings);
-    setIsDirty(false);
-  };
+    saveSettings(settings)
+    setIsDirty(false)
+  }
 
   const handleReset = () => {
-    setSettings(DEFAULT_SETTINGS);
-    setIsDirty(true);
-  };
+    setSettings(DEFAULT_SETTINGS)
+    setIsDirty(true)
+  }
 
   const tabs: { id: SettingsTab; label: string }[] = [
-    { id: "prompts", label: "Role Prompts" },
-    { id: "cross-validation", label: "Cross-Validation" },
-  ];
+    { id: 'prompts', label: 'Role Prompts' },
+    { id: 'cross-validation', label: 'Cross-Validation' },
+  ]
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -124,10 +124,10 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
               data-testid={`tab-${tab.id}`}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+                'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
                 activeTab === tab.id
-                  ? "border-accent text-accent"
-                  : "border-transparent text-text-muted hover:text-text",
+                  ? 'border-accent text-accent'
+                  : 'border-transparent text-text-muted hover:text-text',
               )}
             >
               {tab.label}
@@ -137,7 +137,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto py-4 space-y-4">
-          {activeTab === "prompts" && (
+          {activeTab === 'prompts' && (
             <>
               <div>
                 <label className="block text-sm font-medium text-text-muted mb-2">
@@ -146,7 +146,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                 <textarea
                   value={settings.devSystemPrompt}
                   onChange={(e) =>
-                    handleChange("devSystemPrompt", e.target.value)
+                    handleChange('devSystemPrompt', e.target.value)
                   }
                   className="w-full h-40 bg-surface border border-border rounded px-3 py-2 text-sm text-text focus:outline-none focus:border-accent"
                   placeholder="Instructions for code assistance..."
@@ -159,7 +159,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                 <textarea
                   value={settings.financialSystemPrompt}
                   onChange={(e) =>
-                    handleChange("financialSystemPrompt", e.target.value)
+                    handleChange('financialSystemPrompt', e.target.value)
                   }
                   className="w-full h-40 bg-surface border border-border rounded px-3 py-2 text-sm text-text focus:outline-none focus:border-accent"
                   placeholder="Instructions for financial analysis..."
@@ -168,7 +168,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             </>
           )}
 
-          {activeTab === "cross-validation" && (
+          {activeTab === 'cross-validation' && (
             <>
               <p className="text-sm text-text-muted mb-4">
                 Cross-validation uses multiple LLMs to verify outputs before
@@ -180,7 +180,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                     type="checkbox"
                     checked={settings.crossValidationEnabled}
                     onChange={(e) =>
-                      handleChange("crossValidationEnabled", e.target.checked)
+                      handleChange('crossValidationEnabled', e.target.checked)
                     }
                     className="w-4 h-4 rounded border-border bg-surface text-accent focus:ring-accent"
                   />
@@ -192,7 +192,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                     type="checkbox"
                     checked={settings.requireHumanReview}
                     onChange={(e) =>
-                      handleChange("requireHumanReview", e.target.checked)
+                      handleChange('requireHumanReview', e.target.checked)
                     }
                     className="w-4 h-4 rounded border-border bg-surface text-accent focus:ring-accent"
                   />
@@ -206,7 +206,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                     type="checkbox"
                     checked={settings.fullAutoMode}
                     onChange={(e) =>
-                      handleChange("fullAutoMode", e.target.checked)
+                      handleChange('fullAutoMode', e.target.checked)
                     }
                     className="w-4 h-4 rounded border-border bg-surface text-accent focus:ring-accent"
                   />
@@ -220,7 +220,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                     type="checkbox"
                     checked={settings.notifyOnDisagreement}
                     onChange={(e) =>
-                      handleChange("notifyOnDisagreement", e.target.checked)
+                      handleChange('notifyOnDisagreement', e.target.checked)
                     }
                     className="w-4 h-4 rounded border-border bg-surface text-accent focus:ring-accent"
                   />
@@ -239,7 +239,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                     value={settings.autoApplyThreshold}
                     onChange={(e) =>
                       handleChange(
-                        "autoApplyThreshold",
+                        'autoApplyThreshold',
                         parseFloat(e.target.value),
                       )
                     }
@@ -282,28 +282,28 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
         </div>
       </DialogContent>
     </Dialog>
-  );
+  )
 }
 
 // Hook to access settings
 export function useAgentSettings() {
   // Lazy initialization avoids setState-in-effect anti-pattern
-  const [settings, setSettings] = useState<AgentSettings>(() => loadSettings());
+  const [settings, setSettings] = useState<AgentSettings>(() => loadSettings())
 
   // Listen for cross-tab storage changes only
   useEffect(() => {
     const handleStorage = (e: StorageEvent) => {
       if (e.key === STORAGE_KEY && e.newValue) {
         try {
-          setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(e.newValue) });
+          setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(e.newValue) })
         } catch {
           // Ignore
         }
       }
-    };
-    window.addEventListener("storage", handleStorage);
-    return () => window.removeEventListener("storage", handleStorage);
-  }, []);
+    }
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
+  }, [])
 
-  return settings;
+  return settings
 }

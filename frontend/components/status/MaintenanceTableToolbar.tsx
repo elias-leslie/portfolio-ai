@@ -1,34 +1,33 @@
-"use client";
+'use client'
 
-import React from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import {
-  RefreshCw,
-  PlayCircle,
   Loader2,
-  ShieldCheck,
+  PlayCircle,
+  RefreshCw,
   ShieldAlert,
-} from "lucide-react";
+  ShieldCheck,
+} from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 
 interface BackupCheckResult {
-  canProceed: boolean;
-  blockingReason?: string | null;
+  canProceed: boolean
+  blockingReason?: string | null
 }
 
 interface MaintenanceTableToolbarProps {
-  dryRun: boolean;
-  setDryRun: (value: boolean) => void;
-  isCheckingBackup: boolean;
-  backupCheck: BackupCheckResult | null;
-  isRunningAll: boolean;
-  isRefreshing: boolean;
-  filteredTaskCount: number;
-  currentTaskIndex: number;
-  onRunAll: () => void;
-  onRefresh: () => void;
+  dryRun: boolean
+  setDryRun: (value: boolean) => void
+  isCheckingBackup: boolean
+  backupCheck: BackupCheckResult | null
+  isRunningAll: boolean
+  isRefreshing: boolean
+  filteredTaskCount: number
+  currentTaskIndex: number
+  onRunAll: () => void
+  onRefresh: () => void
 }
 
 export function MaintenanceTableToolbar({
@@ -43,14 +42,18 @@ export function MaintenanceTableToolbar({
   onRunAll,
   onRefresh,
 }: MaintenanceTableToolbarProps) {
-  const canRunLive = !dryRun && backupCheck?.canProceed === true;
-  const liveBlocked = !dryRun && backupCheck !== null && !backupCheck.canProceed;
+  const canRunLive = !dryRun && backupCheck?.canProceed === true
+  const liveBlocked = !dryRun && backupCheck !== null && !backupCheck.canProceed
 
   return (
     <div className="flex flex-wrap items-center gap-3">
       {/* Dry Run Toggle */}
       <div className="flex items-center gap-2">
-        <Switch id="dry-run-table" checked={dryRun} onCheckedChange={setDryRun} />
+        <Switch
+          id="dry-run-table"
+          checked={dryRun}
+          onCheckedChange={setDryRun}
+        />
         <Label htmlFor="dry-run-table" className="cursor-pointer text-sm">
           Dry Run
         </Label>
@@ -65,14 +68,17 @@ export function MaintenanceTableToolbar({
               Checking...
             </Badge>
           ) : canRunLive ? (
-            <Badge variant="default" className="flex items-center gap-1 bg-status-success">
+            <Badge
+              variant="default"
+              className="flex items-center gap-1 bg-status-success"
+            >
               <ShieldCheck className="h-3 w-3" />
               Backup OK
             </Badge>
           ) : (
             <Badge variant="destructive" className="flex items-center gap-1">
               <ShieldAlert className="h-3 w-3" />
-              {backupCheck?.blockingReason?.split(".")[0] || "No backup"}
+              {backupCheck?.blockingReason?.split('.')[0] || 'No backup'}
             </Badge>
           )}
         </div>
@@ -84,7 +90,7 @@ export function MaintenanceTableToolbar({
         variant="default"
         onClick={onRunAll}
         disabled={isRunningAll || liveBlocked}
-        title={dryRun ? "Preview all tasks (dry run)" : "Execute all tasks"}
+        title={dryRun ? 'Preview all tasks (dry run)' : 'Execute all tasks'}
       >
         {isRunningAll ? (
           <>
@@ -94,7 +100,7 @@ export function MaintenanceTableToolbar({
         ) : (
           <>
             <PlayCircle className="h-4 w-4 mr-1" />
-            {dryRun ? "Run All (Preview)" : "Run All"}
+            {dryRun ? 'Run All (Preview)' : 'Run All'}
           </>
         )}
       </Button>
@@ -107,8 +113,10 @@ export function MaintenanceTableToolbar({
         disabled={isRefreshing}
         title="Refresh all data"
       >
-        <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+        <RefreshCw
+          className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
+        />
       </Button>
     </div>
-  );
+  )
 }

@@ -1,11 +1,17 @@
-"use client";
+'use client'
 
-import Link from "next/link";
-import { ArrowRight, BarChart3 } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { useBacktestRuns } from "@/lib/hooks/useBacktest";
+import { ArrowRight, BarChart3 } from 'lucide-react'
+import Link from 'next/link'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { useBacktestRuns } from '@/lib/hooks/useBacktest'
 
 function BacktestSkeleton() {
   return (
@@ -27,31 +33,31 @@ function BacktestSkeleton() {
         </div>
       </CardContent>
     </Card>
-  );
+  )
 }
 
 function getStatusBadgeVariant(
-  status: string
-): "default" | "secondary" | "destructive" | "success" {
+  status: string,
+): 'default' | 'secondary' | 'destructive' | 'success' {
   switch (status) {
-    case "completed":
-      return "success";
-    case "running":
-      return "secondary";
-    case "pending":
-      return "secondary";
-    case "failed":
-      return "destructive";
+    case 'completed':
+      return 'success'
+    case 'running':
+      return 'secondary'
+    case 'pending':
+      return 'secondary'
+    case 'failed':
+      return 'destructive'
     default:
-      return "default";
+      return 'default'
   }
 }
 
 export function BacktestCard() {
-  const { data: runs, isLoading, error } = useBacktestRuns();
+  const { data: runs, isLoading, error } = useBacktestRuns()
 
   if (isLoading) {
-    return <BacktestSkeleton />;
+    return <BacktestSkeleton />
   }
 
   if (error || !runs) {
@@ -59,7 +65,9 @@ export function BacktestCard() {
       <Card>
         <CardHeader>
           <CardTitle>Backtests</CardTitle>
-          <CardDescription>Strategy validation with historical data</CardDescription>
+          <CardDescription>
+            Strategy validation with historical data
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="text-sm text-text-muted">
@@ -67,12 +75,12 @@ export function BacktestCard() {
           </div>
         </CardContent>
       </Card>
-    );
+    )
   }
 
   // Get recent runs (limit to 3)
-  const recentRuns = runs.slice(0, 3);
-  const latestRun = runs.length > 0 ? runs[0] : null;
+  const recentRuns = runs.slice(0, 3)
+  const latestRun = runs.length > 0 ? runs[0] : null
 
   return (
     <Card>
@@ -80,7 +88,9 @@ export function BacktestCard() {
         <div className="flex items-start justify-between">
           <div>
             <CardTitle>Backtests</CardTitle>
-            <CardDescription>Strategy validation with historical data</CardDescription>
+            <CardDescription>
+              Strategy validation with historical data
+            </CardDescription>
           </div>
           <BarChart3 className="h-5 w-5 text-primary" />
         </div>
@@ -105,10 +115,13 @@ export function BacktestCard() {
                     {latestRun.symbol}
                   </p>
                   <p className="text-xs text-text-muted mt-1">
-                    {new Date(latestRun.createdAt).toLocaleDateString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                    })}
+                    {new Date(latestRun.createdAt).toLocaleDateString(
+                      undefined,
+                      {
+                        month: 'short',
+                        day: 'numeric',
+                      },
+                    )}
                   </p>
                 </div>
                 <Badge variant={getStatusBadgeVariant(latestRun.status)}>
@@ -117,29 +130,36 @@ export function BacktestCard() {
               </div>
 
               {/* Latest Run Metrics */}
-              {latestRun.status === "completed" && latestRun.sharpeRatio !== undefined && latestRun.sharpeRatio !== null && (
-                <div className="mt-3 pt-3 border-t border-border/30 space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-text-muted">Sharpe Ratio:</span>
-                    <span className="font-medium text-text">
-                      {typeof latestRun.sharpeRatio === "number"
-                        ? latestRun.sharpeRatio.toFixed(2)
-                        : parseFloat(String(latestRun.sharpeRatio)).toFixed(2)}
-                    </span>
-                  </div>
-                  {latestRun.maxDrawdownPct !== undefined && latestRun.maxDrawdownPct !== null && (
+              {latestRun.status === 'completed' &&
+                latestRun.sharpeRatio !== undefined &&
+                latestRun.sharpeRatio !== null && (
+                  <div className="mt-3 pt-3 border-t border-border/30 space-y-2">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-text-muted">Max Drawdown:</span>
-                      <span className="font-medium text-loss">
-                        {typeof latestRun.maxDrawdownPct === "number"
-                          ? latestRun.maxDrawdownPct.toFixed(2)
-                          : parseFloat(String(latestRun.maxDrawdownPct)).toFixed(2)}
-                        %
+                      <span className="text-text-muted">Sharpe Ratio:</span>
+                      <span className="font-medium text-text">
+                        {typeof latestRun.sharpeRatio === 'number'
+                          ? latestRun.sharpeRatio.toFixed(2)
+                          : parseFloat(String(latestRun.sharpeRatio)).toFixed(
+                              2,
+                            )}
                       </span>
                     </div>
-                  )}
-                </div>
-              )}
+                    {latestRun.maxDrawdownPct !== undefined &&
+                      latestRun.maxDrawdownPct !== null && (
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-text-muted">Max Drawdown:</span>
+                          <span className="font-medium text-loss">
+                            {typeof latestRun.maxDrawdownPct === 'number'
+                              ? latestRun.maxDrawdownPct.toFixed(2)
+                              : parseFloat(
+                                  String(latestRun.maxDrawdownPct),
+                                ).toFixed(2)}
+                            %
+                          </span>
+                        </div>
+                      )}
+                  </div>
+                )}
             </div>
           )}
 
@@ -161,8 +181,8 @@ export function BacktestCard() {
                       </p>
                       <p className="text-xs text-text-muted">
                         {new Date(run.createdAt).toLocaleDateString(undefined, {
-                          month: "short",
-                          day: "numeric",
+                          month: 'short',
+                          day: 'numeric',
                         })}
                       </p>
                     </div>
@@ -182,18 +202,15 @@ export function BacktestCard() {
           {runs.length === 0 && (
             <div className="text-center py-4">
               <p className="text-sm text-text-muted">
-                No backtests yet. Start your first backtest to analyze strategy performance.
+                No backtests yet. Start your first backtest to analyze strategy
+                performance.
               </p>
             </div>
           )}
 
           {/* View Details Link */}
           <Link href="/backtest">
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full mt-2"
-            >
+            <Button variant="outline" size="sm" className="w-full mt-2">
               View All Backtests
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
@@ -201,5 +218,5 @@ export function BacktestCard() {
         </div>
       </CardContent>
     </Card>
-  );
+  )
 }

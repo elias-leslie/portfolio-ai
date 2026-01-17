@@ -1,23 +1,23 @@
-'use client';
+'use client'
 
-import { Diamond, Star, ChevronUp } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { useState, useRef, useEffect } from 'react';
+import { ChevronUp, Diamond, Star } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { cn } from '@/lib/utils'
 
-export type AgentProvider = 'claude' | 'gemini' | 'both';
-export type RoundtableOrder = 'claude-first' | 'gemini-first';
+export type AgentProvider = 'claude' | 'gemini' | 'both'
+export type RoundtableOrder = 'claude-first' | 'gemini-first'
 
 interface AgentSelectorProps {
-  value: AgentProvider;
-  onChange: (value: AgentProvider) => void;
-  disabled?: boolean;
-  roundtableOrder?: RoundtableOrder;
-  onRoundtableOrderChange?: (order: RoundtableOrder) => void;
-  maxTurns?: number;
-  onMaxTurnsChange?: (turns: number) => void;
+  value: AgentProvider
+  onChange: (value: AgentProvider) => void
+  disabled?: boolean
+  roundtableOrder?: RoundtableOrder
+  onRoundtableOrderChange?: (order: RoundtableOrder) => void
+  maxTurns?: number
+  onMaxTurnsChange?: (turns: number) => void
 }
 
-const providers: AgentProvider[] = ['claude', 'gemini', 'both'];
+const providers: AgentProvider[] = ['claude', 'gemini', 'both']
 
 const providerConfig = {
   claude: {
@@ -35,7 +35,7 @@ const providerConfig = {
     color: 'text-primary hover:text-primary',
     bgColor: 'hover:bg-primary/20',
   },
-};
+}
 
 export function AgentSelector({
   value,
@@ -46,28 +46,28 @@ export function AgentSelector({
   maxTurns = 10,
   onMaxTurnsChange,
 }: AgentSelectorProps) {
-  const [showOrderMenu, setShowOrderMenu] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const [showOrderMenu, setShowOrderMenu] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   // Close menu on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setShowOrderMenu(false);
+        setShowOrderMenu(false)
       }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const cycleProvider = () => {
-    if (disabled) return;
-    const currentIndex = providers.indexOf(value);
-    const nextIndex = (currentIndex + 1) % providers.length;
-    onChange(providers[nextIndex]);
-  };
+    if (disabled) return
+    const currentIndex = providers.indexOf(value)
+    const nextIndex = (currentIndex + 1) % providers.length
+    onChange(providers[nextIndex])
+  }
 
-  const config = providerConfig[value];
+  const config = providerConfig[value]
 
   return (
     // suppressHydrationWarning to handle browser extensions (Dashlane) adding attributes
@@ -78,10 +78,10 @@ export function AgentSelector({
           disabled={disabled}
           suppressHydrationWarning
           className={cn(
-            "h-8 w-8 flex items-center justify-center rounded transition-colors",
+            'h-8 w-8 flex items-center justify-center rounded transition-colors',
             config.color,
             config.bgColor,
-            disabled && "opacity-50 cursor-not-allowed"
+            disabled && 'opacity-50 cursor-not-allowed',
           )}
           title={config.tooltip}
         >
@@ -115,47 +115,55 @@ export function AgentSelector({
           <div className="py-1">
             <button
               onClick={() => {
-                onRoundtableOrderChange('claude-first');
-                setShowOrderMenu(false);
+                onRoundtableOrderChange('claude-first')
+                setShowOrderMenu(false)
               }}
               className={cn(
-                "w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-surface-muted transition-colors",
-                roundtableOrder === 'claude-first' ? "text-accent" : "text-text"
+                'w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-surface-muted transition-colors',
+                roundtableOrder === 'claude-first'
+                  ? 'text-accent'
+                  : 'text-text',
               )}
             >
               <Diamond className="h-3 w-3 text-accent" />
               Claude first
-              {roundtableOrder === 'claude-first' && <span className="ml-auto text-xs">✓</span>}
+              {roundtableOrder === 'claude-first' && (
+                <span className="ml-auto text-xs">✓</span>
+              )}
             </button>
             <button
               onClick={() => {
-                onRoundtableOrderChange('gemini-first');
-                setShowOrderMenu(false);
+                onRoundtableOrderChange('gemini-first')
+                setShowOrderMenu(false)
               }}
               className={cn(
-                "w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-surface-muted transition-colors",
-                roundtableOrder === 'gemini-first' ? "text-gain" : "text-text"
+                'w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-surface-muted transition-colors',
+                roundtableOrder === 'gemini-first' ? 'text-gain' : 'text-text',
               )}
             >
               <Star className="h-3 w-3 text-gain" />
               Gemini first
-              {roundtableOrder === 'gemini-first' && <span className="ml-auto text-xs">✓</span>}
+              {roundtableOrder === 'gemini-first' && (
+                <span className="ml-auto text-xs">✓</span>
+              )}
             </button>
           </div>
           {/* Max turns selector */}
           {onMaxTurnsChange && (
             <div className="border-t border-border px-3 py-2">
-              <label className="text-xs text-text-muted block mb-1">Max turns</label>
+              <label className="text-xs text-text-muted block mb-1">
+                Max turns
+              </label>
               <div className="flex items-center gap-2">
                 {[3, 5, 10, 20, 50].map((turns) => (
                   <button
                     key={turns}
                     onClick={() => onMaxTurnsChange(turns)}
                     className={cn(
-                      "px-2 py-1 text-xs rounded transition-colors",
+                      'px-2 py-1 text-xs rounded transition-colors',
                       maxTurns === turns
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-surface-muted text-text hover:bg-surface-elev"
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-surface-muted text-text hover:bg-surface-elev',
                     )}
                   >
                     {turns}
@@ -167,5 +175,5 @@ export function AgentSelector({
         </div>
       )}
     </div>
-  );
+  )
 }

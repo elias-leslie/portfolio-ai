@@ -1,114 +1,134 @@
-"use client";
+'use client'
 
-import { useState, useEffect, useCallback } from "react";
 import {
-  Database,
-  HardDrive,
-  Clock,
-  RefreshCw,
   AlertCircle,
   CheckCircle2,
-  PlayCircle,
   ChevronDown,
   ChevronRight,
-} from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { toast } from "sonner";
-import { ExpandableCard } from "@/components/status/ExpandableCard";
-import { ServiceActionDialog } from "@/components/status/ServiceActionDialog";
-import { getMaintenanceLastRun, type MaintenanceResult, type LastRunSummary } from "@/lib/api/maintenance";
-import { shouldShowDialog } from "@/lib/utils/dialog-helpers";
-import { formatRelativeTime } from "@/lib/utils";
+  Clock,
+  Database,
+  HardDrive,
+  PlayCircle,
+  RefreshCw,
+} from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { toast } from 'sonner'
+import { ExpandableCard } from '@/components/status/ExpandableCard'
+import { ServiceActionDialog } from '@/components/status/ServiceActionDialog'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import { Progress } from '@/components/ui/progress'
+import {
+  getMaintenanceLastRun,
+  type LastRunSummary,
+  type MaintenanceResult,
+} from '@/lib/api/maintenance'
+import { formatRelativeTime } from '@/lib/utils'
+import { shouldShowDialog } from '@/lib/utils/dialog-helpers'
 
 interface ScheduledTask {
-  name: string;
-  description: string;
-  nextRun: string;
-  lastRun: string | null;
-  schedule: string;
+  name: string
+  description: string
+  nextRun: string
+  lastRun: string | null
+  schedule: string
 }
 
 interface DiskSpaceInfo {
-  path: string;
-  usedGb: number;
-  totalGb: number;
-  percentUsed: number;
-  status: "ok" | "warning" | "critical";
+  path: string
+  usedGb: number
+  totalGb: number
+  percentUsed: number
+  status: 'ok' | 'warning' | 'critical'
 }
 
 interface DatabaseSize {
-  databaseName: string;
-  sizeMb: number;
-  tables: TableInfo[];
+  databaseName: string
+  sizeMb: number
+  tables: TableInfo[]
 }
 
 interface TableInfo {
-  name: string;
-  sizeMb: number;
-  rows: number;
+  name: string
+  sizeMb: number
+  rows: number
 }
 
 interface ScheduleResponse {
-  tasks: ScheduledTask[];
+  tasks: ScheduledTask[]
 }
 
 interface DiskSpaceResponse {
-  disks: DiskSpaceInfo[];
+  disks: DiskSpaceInfo[]
 }
 
 interface DatabaseSizeResponse {
-  database: DatabaseSize;
+  database: DatabaseSize
 }
 
-const API_BASE_URL = ""; // Use relative URLs for Next.js proxy
+const API_BASE_URL = '' // Use relative URLs for Next.js proxy
 
 // Helper to format dates
 const formatDateTime = (dateStr: string | null) => {
-  if (!dateStr) return "Never";
+  if (!dateStr) return 'Never'
   try {
-    return new Date(dateStr).toLocaleString();
+    return new Date(dateStr).toLocaleString()
   } catch {
-    return "Invalid date";
+    return 'Invalid date'
   }
-};
+}
 
 // Status badge component
-function StatusBadge({ status, isRunning }: { status: string; isRunning?: boolean }) {
+function StatusBadge({
+  status,
+  isRunning,
+}: {
+  status: string
+  isRunning?: boolean
+}) {
   if (isRunning) {
     return (
       <Badge className="flex items-center gap-1 bg-status-info text-text-inverted animate-pulse">
         <RefreshCw className="h-3 w-3 animate-spin" />
         Running
       </Badge>
-    );
+    )
   }
 
   switch (status) {
-    case "success":
+    case 'success':
       return (
         <Badge className="flex items-center gap-1 bg-status-success text-text-inverted">
           <CheckCircle2 className="h-3 w-3" />
           Success
         </Badge>
-      );
-    case "error":
+      )
+    case 'error':
       return (
         <Badge className="flex items-center gap-1 bg-status-error text-text-inverted">
           <AlertCircle className="h-3 w-3" />
           Error
         </Badge>
-      );
+      )
     default:
-      return <Badge variant="secondary">Unknown</Badge>;
+      return <Badge variant="secondary">Unknown</Badge>
   }
 }
 
 // Disk space card
-function DiskSpaceCard({ disks, isLoading }: { disks: DiskSpaceInfo[] | null; isLoading: boolean }) {
+function DiskSpaceCard({
+  disks,
+  isLoading,
+}: {
+  disks: DiskSpaceInfo[] | null
+  isLoading: boolean
+}) {
   if (isLoading && !disks) {
     return (
       <Card className="border-border">
@@ -124,7 +144,7 @@ function DiskSpaceCard({ disks, isLoading }: { disks: DiskSpaceInfo[] | null; is
           </div>
         </CardContent>
       </Card>
-    );
+    )
   }
 
   if (!disks || disks.length === 0) {
@@ -137,22 +157,24 @@ function DiskSpaceCard({ disks, isLoading }: { disks: DiskSpaceInfo[] | null; is
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">No disk information available</p>
+          <p className="text-sm text-muted-foreground">
+            No disk information available
+          </p>
         </CardContent>
       </Card>
-    );
+    )
   }
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case "critical":
-        return "Critical";
-      case "warning":
-        return "Warning";
+      case 'critical':
+        return 'Critical'
+      case 'warning':
+        return 'Warning'
       default:
-        return "OK";
+        return 'OK'
     }
-  };
+  }
 
   return (
     <Card className="border-border">
@@ -173,7 +195,9 @@ function DiskSpaceCard({ disks, isLoading }: { disks: DiskSpaceInfo[] | null; is
                     {disk.usedGb.toFixed(1)} GB / {disk.totalGb.toFixed(1)} GB
                   </p>
                 </div>
-                <Badge variant={disk.status === "ok" ? "default" : "destructive"}>
+                <Badge
+                  variant={disk.status === 'ok' ? 'default' : 'destructive'}
+                >
                   {getStatusText(disk.status)}
                 </Badge>
               </div>
@@ -188,12 +212,18 @@ function DiskSpaceCard({ disks, isLoading }: { disks: DiskSpaceInfo[] | null; is
         </div>
       </CardContent>
     </Card>
-  );
+  )
 }
 
 // Database size card
-function DatabaseSizeCard({ database, isLoading }: { database: DatabaseSize | null; isLoading: boolean }) {
-  const [isExpanded, setIsExpanded] = useState(false);
+function DatabaseSizeCard({
+  database,
+  isLoading,
+}: {
+  database: DatabaseSize | null
+  isLoading: boolean
+}) {
+  const [isExpanded, setIsExpanded] = useState(false)
 
   if (isLoading && !database) {
     return (
@@ -210,7 +240,7 @@ function DatabaseSizeCard({ database, isLoading }: { database: DatabaseSize | nu
           </div>
         </CardContent>
       </Card>
-    );
+    )
   }
 
   if (!database) {
@@ -223,17 +253,19 @@ function DatabaseSizeCard({ database, isLoading }: { database: DatabaseSize | nu
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">No database information available</p>
+          <p className="text-sm text-muted-foreground">
+            No database information available
+          </p>
         </CardContent>
       </Card>
-    );
+    )
   }
 
   const topTables = [...database.tables]
     .sort((a, b) => b.sizeMb - a.sizeMb)
-    .slice(0, 5);
+    .slice(0, 5)
 
-  const totalTableSize = database.tables.reduce((sum, t) => sum + t.sizeMb, 0);
+  const totalTableSize = database.tables.reduce((sum, t) => sum + t.sizeMb, 0)
 
   return (
     <Card className="border-border">
@@ -255,7 +287,9 @@ function DatabaseSizeCard({ database, isLoading }: { database: DatabaseSize | nu
             </div>
             <div>
               <p className="text-muted-foreground">Total Size</p>
-              <p className="text-lg font-semibold">{database.sizeMb.toFixed(1)} MB</p>
+              <p className="text-lg font-semibold">
+                {database.sizeMb.toFixed(1)} MB
+              </p>
             </div>
           </div>
 
@@ -273,16 +307,29 @@ function DatabaseSizeCard({ database, isLoading }: { database: DatabaseSize | nu
             <CollapsibleContent>
               <div className="mt-3 space-y-3">
                 {topTables.map((table) => (
-                  <div key={table.name} className="border rounded-lg p-3 space-y-2">
+                  <div
+                    key={table.name}
+                    className="border rounded-lg p-3 space-y-2"
+                  >
                     <div className="flex items-center justify-between">
-                      <p className="font-mono text-sm font-medium">{table.name}</p>
-                      <Badge variant="secondary">{table.sizeMb.toFixed(1)} MB</Badge>
+                      <p className="font-mono text-sm font-medium">
+                        {table.name}
+                      </p>
+                      <Badge variant="secondary">
+                        {table.sizeMb.toFixed(1)} MB
+                      </Badge>
                     </div>
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <span>{table.rows.toLocaleString()} rows</span>
-                      <span>{((table.sizeMb / totalTableSize) * 100).toFixed(1)}% of total</span>
+                      <span>
+                        {((table.sizeMb / totalTableSize) * 100).toFixed(1)}% of
+                        total
+                      </span>
                     </div>
-                    <Progress value={(table.sizeMb / totalTableSize) * 100} className="h-1.5" />
+                    <Progress
+                      value={(table.sizeMb / totalTableSize) * 100}
+                      className="h-1.5"
+                    />
                   </div>
                 ))}
               </div>
@@ -291,12 +338,18 @@ function DatabaseSizeCard({ database, isLoading }: { database: DatabaseSize | nu
         </div>
       </CardContent>
     </Card>
-  );
+  )
 }
 
 // Scheduled tasks card
-function ScheduledTasksCard({ tasks, isLoading }: { tasks: ScheduledTask[] | null; isLoading: boolean }) {
-  const [isExpanded, setIsExpanded] = useState(false);
+function ScheduledTasksCard({
+  tasks,
+  isLoading,
+}: {
+  tasks: ScheduledTask[] | null
+  isLoading: boolean
+}) {
+  const [isExpanded, setIsExpanded] = useState(false)
 
   if (isLoading && !tasks) {
     return (
@@ -313,7 +366,7 @@ function ScheduledTasksCard({ tasks, isLoading }: { tasks: ScheduledTask[] | nul
           </div>
         </CardContent>
       </Card>
-    );
+    )
   }
 
   if (!tasks || tasks.length === 0) {
@@ -326,10 +379,12 @@ function ScheduledTasksCard({ tasks, isLoading }: { tasks: ScheduledTask[] | nul
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">No scheduled tasks available</p>
+          <p className="text-sm text-muted-foreground">
+            No scheduled tasks available
+          </p>
         </CardContent>
       </Card>
-    );
+    )
   }
 
   return (
@@ -358,11 +413,16 @@ function ScheduledTasksCard({ tasks, isLoading }: { tasks: ScheduledTask[] | nul
           <CollapsibleContent>
             <div className="mt-4 space-y-3">
               {tasks.map((task) => (
-                <div key={task.name} className="border rounded-lg p-3 space-y-2">
+                <div
+                  key={task.name}
+                  className="border rounded-lg p-3 space-y-2"
+                >
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium text-sm">{task.name}</p>
-                      <p className="text-xs text-muted-foreground">{task.description}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {task.description}
+                      </p>
                     </div>
                     <Badge variant="outline" className="font-mono text-xs">
                       {task.schedule}
@@ -371,11 +431,15 @@ function ScheduledTasksCard({ tasks, isLoading }: { tasks: ScheduledTask[] | nul
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div>
                       <p className="text-muted-foreground">Last run</p>
-                      <p className="font-mono">{formatRelativeTime(task.lastRun)}</p>
+                      <p className="font-mono">
+                        {formatRelativeTime(task.lastRun)}
+                      </p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Next run</p>
-                      <p className="font-mono">{formatDateTime(task.nextRun)}</p>
+                      <p className="font-mono">
+                        {formatDateTime(task.nextRun)}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -385,17 +449,17 @@ function ScheduledTasksCard({ tasks, isLoading }: { tasks: ScheduledTask[] | nul
         </Collapsible>
       </CardContent>
     </Card>
-  );
+  )
 }
 
 // Task trigger section
 interface TaskTriggerSectionProps {
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-  lastRun: MaintenanceResult | null;
-  onTrigger: () => void;
-  isLoading: boolean;
+  title: string
+  description: string
+  icon: React.ReactNode
+  lastRun: MaintenanceResult | null
+  onTrigger: () => void
+  isLoading: boolean
 }
 
 function TaskTriggerSection({
@@ -416,7 +480,12 @@ function TaskTriggerSection({
             <p className="text-xs text-muted-foreground">{description}</p>
           </div>
         </div>
-        <Button size="sm" onClick={onTrigger} disabled={isLoading} variant="outline">
+        <Button
+          size="sm"
+          onClick={onTrigger}
+          disabled={isLoading}
+          variant="outline"
+        >
           {isLoading ? (
             <RefreshCw className="h-4 w-4 animate-spin" />
           ) : (
@@ -440,7 +509,7 @@ function TaskTriggerSection({
               Dry Run
             </Badge>
           )}
-          {lastRun.status === "error" && lastRun.errorMessage && (
+          {lastRun.status === 'error' && lastRun.errorMessage && (
             <div className="text-xs text-loss bg-loss/10 p-2 rounded">
               {lastRun.errorMessage}
             </div>
@@ -452,7 +521,7 @@ function TaskTriggerSection({
         </div>
       )}
     </div>
-  );
+  )
 }
 
 /**
@@ -468,29 +537,89 @@ function TaskTriggerSection({
  */
 export function MaintenanceStatus() {
   // State for maintenance tasks
-  const [lastRunSummary, setLastRunSummary] = useState<LastRunSummary | null>(null);
-  const [isFetching, setIsFetching] = useState(false);
-  const [isTriggering, setIsTriggering] = useState(false);
+  const [lastRunSummary, setLastRunSummary] = useState<LastRunSummary | null>(
+    null,
+  )
+  const [isFetching, setIsFetching] = useState(false)
+  const [isTriggering, setIsTriggering] = useState(false)
 
   // State for disk space and database info
-  const [diskSpace, setDiskSpace] = useState<DiskSpaceInfo[] | null>(null);
-  const [diskLoading, setDiskLoading] = useState(false);
+  const [diskSpace, setDiskSpace] = useState<DiskSpaceInfo[] | null>(null)
+  const [diskLoading, setDiskLoading] = useState(false)
 
-  const [database, setDatabase] = useState<DatabaseSize | null>(null);
-  const [databaseLoading, setDatabaseLoading] = useState(false);
+  const [database, setDatabase] = useState<DatabaseSize | null>(null)
+  const [databaseLoading, setDatabaseLoading] = useState(false)
 
-  const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[] | null>(null);
-  const [tasksLoading, setTasksLoading] = useState(false);
+  const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[] | null>(
+    null,
+  )
+  const [tasksLoading, setTasksLoading] = useState(false)
 
   // Dialog state
-  const [actionDialogOpen, setActionDialogOpen] = useState(false);
+  const [actionDialogOpen, setActionDialogOpen] = useState(false)
   const [actionDialogConfig, setActionDialogConfig] = useState<{
-    title: string;
-    description: string;
-    actionLabel: string;
-    onConfirm: () => void;
-    storageKey?: string;
-  } | null>(null);
+    title: string
+    description: string
+    actionLabel: string
+    onConfirm: () => void
+    storageKey?: string
+  } | null>(null)
+
+  const fetchLastRunData = useCallback(async () => {
+    setIsFetching(true)
+    try {
+      const data = await getMaintenanceLastRun()
+      setLastRunSummary(data)
+    } catch (error) {
+      console.error('Failed to fetch maintenance data:', error)
+    } finally {
+      setIsFetching(false)
+    }
+  }, [])
+
+  const fetchDiskSpace = useCallback(async () => {
+    setDiskLoading(true)
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/maintenance/disk-space`)
+      if (!response.ok) throw new Error('Failed to fetch disk space')
+      const data: DiskSpaceResponse = await response.json()
+      setDiskSpace(data.disks)
+    } catch (error) {
+      console.error('Failed to fetch disk space:', error)
+    } finally {
+      setDiskLoading(false)
+    }
+  }, [])
+
+  const fetchDatabaseSize = useCallback(async () => {
+    setDatabaseLoading(true)
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/maintenance/database-size`,
+      )
+      if (!response.ok) throw new Error('Failed to fetch database size')
+      const data: DatabaseSizeResponse = await response.json()
+      setDatabase(data.database)
+    } catch (error) {
+      console.error('Failed to fetch database size:', error)
+    } finally {
+      setDatabaseLoading(false)
+    }
+  }, [])
+
+  const fetchScheduledTasks = useCallback(async () => {
+    setTasksLoading(true)
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/maintenance/schedule`)
+      if (!response.ok) throw new Error('Failed to fetch scheduled tasks')
+      const data: ScheduleResponse = await response.json()
+      setScheduledTasks(data.tasks)
+    } catch (error) {
+      console.error('Failed to fetch scheduled tasks:', error)
+    } finally {
+      setTasksLoading(false)
+    }
+  }, [])
 
   const fetchAllData = useCallback(async () => {
     await Promise.all([
@@ -498,111 +627,65 @@ export function MaintenanceStatus() {
       fetchDiskSpace(),
       fetchDatabaseSize(),
       fetchScheduledTasks(),
-    ]);
-  }, []);
+    ])
+  }, [fetchDatabaseSize, fetchDiskSpace, fetchLastRunData, fetchScheduledTasks])
 
   // Fetch all data on mount
   useEffect(() => {
-    fetchAllData();
+    fetchAllData()
     // Refresh every 30 seconds
-    const interval = setInterval(fetchAllData, 30000);
-    return () => clearInterval(interval);
-  }, [fetchAllData]);
-
-  const fetchLastRunData = async () => {
-    setIsFetching(true);
-    try {
-      const data = await getMaintenanceLastRun();
-      setLastRunSummary(data);
-    } catch (error) {
-      console.error("Failed to fetch maintenance data:", error);
-    } finally {
-      setIsFetching(false);
-    }
-  };
-
-  const fetchDiskSpace = async () => {
-    setDiskLoading(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/maintenance/disk-space`);
-      if (!response.ok) throw new Error("Failed to fetch disk space");
-      const data: DiskSpaceResponse = await response.json();
-      setDiskSpace(data.disks);
-    } catch (error) {
-      console.error("Failed to fetch disk space:", error);
-    } finally {
-      setDiskLoading(false);
-    }
-  };
-
-  const fetchDatabaseSize = async () => {
-    setDatabaseLoading(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/maintenance/database-size`);
-      if (!response.ok) throw new Error("Failed to fetch database size");
-      const data: DatabaseSizeResponse = await response.json();
-      setDatabase(data.database);
-    } catch (error) {
-      console.error("Failed to fetch database size:", error);
-    } finally {
-      setDatabaseLoading(false);
-    }
-  };
-
-  const fetchScheduledTasks = async () => {
-    setTasksLoading(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/maintenance/schedule`);
-      if (!response.ok) throw new Error("Failed to fetch scheduled tasks");
-      const data: ScheduleResponse = await response.json();
-      setScheduledTasks(data.tasks);
-    } catch (error) {
-      console.error("Failed to fetch scheduled tasks:", error);
-    } finally {
-      setTasksLoading(false);
-    }
-  };
+    const interval = setInterval(fetchAllData, 30000)
+    return () => clearInterval(interval)
+  }, [fetchAllData])
 
   // Generic trigger handler
-  const triggerTask = (taskName: string, taskLabel: string, handler: () => Promise<void>) => {
-    const storageKey = `status.confirm.maintenance.${taskName}`;
+  const triggerTask = (
+    taskName: string,
+    taskLabel: string,
+    handler: () => Promise<void>,
+  ) => {
+    const storageKey = `status.confirm.maintenance.${taskName}`
     if (shouldShowDialog(storageKey)) {
       setActionDialogConfig({
         title: `Trigger ${taskLabel}`,
         description: `This will manually trigger the ${taskLabel} maintenance task. The task will run in the background.`,
-        actionLabel: "Trigger Now",
+        actionLabel: 'Trigger Now',
         onConfirm: handler,
         storageKey,
-      });
-      setActionDialogOpen(true);
+      })
+      setActionDialogOpen(true)
     } else {
-      handler();
+      handler()
     }
-  };
+  }
 
   // Task handlers
   const handleTriggerTask = async (taskName: string) => {
-    setIsTriggering(true);
+    setIsTriggering(true)
     try {
-      const response = await fetch(`${API_BASE_URL}/api/maintenance/trigger/${taskName}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/api/maintenance/trigger/${taskName}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        },
+      )
 
       if (!response.ok) {
-        throw new Error(`Failed to trigger ${taskName}`);
+        throw new Error(`Failed to trigger ${taskName}`)
       }
 
-      await response.json(); // Consume response body
-      toast.success(`${taskName} triggered successfully`);
-      await fetchLastRunData();
+      await response.json() // Consume response body
+      toast.success(`${taskName} triggered successfully`)
+      await fetchLastRunData()
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to trigger task";
-      toast.error(message);
+      const message =
+        error instanceof Error ? error.message : 'Failed to trigger task'
+      toast.error(message)
     } finally {
-      setIsTriggering(false);
+      setIsTriggering(false)
     }
-  };
+  }
 
   return (
     <>
@@ -623,8 +706,15 @@ export function MaintenanceStatus() {
 
           {/* Refresh button */}
           <div className="flex justify-center pt-2">
-            <Button variant="outline" size="sm" onClick={fetchAllData} disabled={isFetching}>
-              <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchAllData}
+              disabled={isFetching}
+            >
+              <RefreshCw
+                className={`h-4 w-4 mr-2 ${isFetching ? 'animate-spin' : ''}`}
+              />
               Refresh
             </Button>
           </div>
@@ -641,11 +731,17 @@ export function MaintenanceStatus() {
           <TaskTriggerSection
             title="Cleanup Old News"
             description="Remove news articles older than 90 days"
-            icon={<AlertCircle className="h-5 w-5 text-status-warning flex-shrink-0" />}
-            lastRun={lastRunSummary?.tasks?.cleanupOldNewsTask || lastRunSummary?.tasks?.cleanupNews || null}
+            icon={
+              <AlertCircle className="h-5 w-5 text-status-warning flex-shrink-0" />
+            }
+            lastRun={
+              lastRunSummary?.tasks?.cleanupOldNewsTask ||
+              lastRunSummary?.tasks?.cleanupNews ||
+              null
+            }
             onTrigger={() =>
-              triggerTask("cleanup_news", "Cleanup News", () =>
-                handleTriggerTask("cleanup_news")
+              triggerTask('cleanup_news', 'Cleanup News', () =>
+                handleTriggerTask('cleanup_news'),
               )
             }
             isLoading={isTriggering}
@@ -654,11 +750,17 @@ export function MaintenanceStatus() {
           <TaskTriggerSection
             title="Vacuum Database"
             description="Optimize tables and reclaim disk space"
-            icon={<Database className="h-5 w-5 text-status-info flex-shrink-0" />}
-            lastRun={lastRunSummary?.tasks?.vacuumDatabaseTask || lastRunSummary?.tasks?.vacuumDatabase || null}
+            icon={
+              <Database className="h-5 w-5 text-status-info flex-shrink-0" />
+            }
+            lastRun={
+              lastRunSummary?.tasks?.vacuumDatabaseTask ||
+              lastRunSummary?.tasks?.vacuumDatabase ||
+              null
+            }
             onTrigger={() =>
-              triggerTask("vacuum_database", "Vacuum Database", () =>
-                handleTriggerTask("vacuum_database")
+              triggerTask('vacuum_database', 'Vacuum Database', () =>
+                handleTriggerTask('vacuum_database'),
               )
             }
             isLoading={isTriggering}
@@ -667,11 +769,17 @@ export function MaintenanceStatus() {
           <TaskTriggerSection
             title="Validate Data Integrity"
             description="Check for orphaned records and consistency issues"
-            icon={<CheckCircle2 className="h-5 w-5 text-status-success flex-shrink-0" />}
-            lastRun={lastRunSummary?.tasks?.validateIntegrityTask || lastRunSummary?.tasks?.validateIntegrity || null}
+            icon={
+              <CheckCircle2 className="h-5 w-5 text-status-success flex-shrink-0" />
+            }
+            lastRun={
+              lastRunSummary?.tasks?.validateIntegrityTask ||
+              lastRunSummary?.tasks?.validateIntegrity ||
+              null
+            }
             onTrigger={() =>
-              triggerTask("validate_integrity", "Validate Integrity", () =>
-                handleTriggerTask("validate_integrity")
+              triggerTask('validate_integrity', 'Validate Integrity', () =>
+                handleTriggerTask('validate_integrity'),
               )
             }
             isLoading={isTriggering}
@@ -692,5 +800,5 @@ export function MaintenanceStatus() {
         />
       )}
     </>
-  );
+  )
 }

@@ -1,6 +1,9 @@
-"use client";
+'use client'
 
-import { useEffect, useState } from "react";
+import type { ReactNode } from 'react'
+import { useEffect, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -8,28 +11,25 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import type { ReactNode } from "react";
+} from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
 
-type DialogTone = "default" | "destructive";
+type DialogTone = 'default' | 'destructive'
 
 export interface ConfirmActionDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  title: ReactNode;
-  description?: ReactNode;
-  confirmLabel?: string;
-  cancelLabel?: string;
-  tone?: DialogTone;
-  isPending?: boolean;
-  disableConfirm?: boolean;
-  rememberChoiceKey?: string;
-  rememberChoiceLabel?: string;
-  children?: ReactNode;
-  onConfirm: () => void | Promise<void>;
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  title: ReactNode
+  description?: ReactNode
+  confirmLabel?: string
+  cancelLabel?: string
+  tone?: DialogTone
+  isPending?: boolean
+  disableConfirm?: boolean
+  rememberChoiceKey?: string
+  rememberChoiceLabel?: string
+  children?: ReactNode
+  onConfirm: () => void | Promise<void>
 }
 
 /**
@@ -40,9 +40,9 @@ export function ConfirmActionDialog({
   onOpenChange,
   title,
   description,
-  confirmLabel = "Continue",
-  cancelLabel = "Cancel",
-  tone = "destructive",
+  confirmLabel = 'Continue',
+  cancelLabel = 'Cancel',
+  tone = 'destructive',
   isPending = false,
   disableConfirm = false,
   rememberChoiceKey,
@@ -50,34 +50,34 @@ export function ConfirmActionDialog({
   children,
   onConfirm,
 }: ConfirmActionDialogProps) {
-  const [rememberChoice, setRememberChoice] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [rememberChoice, setRememberChoice] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     if (!open) {
-      setRememberChoice(false);
-      setIsSubmitting(false);
+      setRememberChoice(false)
+      setIsSubmitting(false)
     }
-  }, [open]);
+  }, [open])
 
   const handleConfirm = async () => {
-    setIsSubmitting(true);
+    setIsSubmitting(true)
     try {
-      await onConfirm();
+      await onConfirm()
       if (
         rememberChoice &&
         rememberChoiceKey &&
-        typeof window !== "undefined"
+        typeof window !== 'undefined'
       ) {
-        localStorage.setItem(rememberChoiceKey, "true");
+        localStorage.setItem(rememberChoiceKey, 'true')
       }
-      onOpenChange(false);
+      onOpenChange(false)
     } catch (error) {
-      console.error(error);
+      console.error(error)
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
-  };
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -113,14 +113,14 @@ export function ConfirmActionDialog({
           </Button>
           <Button
             type="button"
-            variant={tone === "destructive" ? "destructive" : "default"}
+            variant={tone === 'destructive' ? 'destructive' : 'default'}
             onClick={handleConfirm}
             disabled={disableConfirm || isPending || isSubmitting}
           >
-            {isPending || isSubmitting ? "Working..." : confirmLabel}
+            {isPending || isSubmitting ? 'Working...' : confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
+  )
 }

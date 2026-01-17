@@ -1,28 +1,28 @@
-'use client';
+'use client'
 
-import { Camera, Eye } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { type ChatMessage } from './wsHandlers';
+import { Camera, Eye } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import type { ChatMessage } from './wsHandlers'
 
 interface EvidenceMessageBubbleProps {
-  message: ChatMessage;
-  onViewEvidence: () => void;
+  message: ChatMessage
+  onViewEvidence: () => void
 }
 
 export function EvidenceMessageBubble({
   message,
-  onViewEvidence
+  onViewEvidence,
 }: EvidenceMessageBubbleProps) {
-  const evidence = message.evidence!;
-  const hasErrors = evidence.consoleErrors > 0 || evidence.networkFailures > 0;
+  const evidence = message.evidence!
+  const hasErrors = evidence.consoleErrors > 0 || evidence.networkFailures > 0
 
   return (
     <div className="flex justify-start">
       <div
         className={cn(
-          "max-w-[85%] rounded-lg px-3 py-2 text-sm cursor-pointer transition-colors",
-          "bg-surface hover:bg-surface-muted border",
-          hasErrors ? "border-loss/50" : "border-primary/50"
+          'max-w-[85%] rounded-lg px-3 py-2 text-sm cursor-pointer transition-colors',
+          'bg-surface hover:bg-surface-muted border',
+          hasErrors ? 'border-loss/50' : 'border-primary/50',
         )}
         onClick={onViewEvidence}
       >
@@ -37,17 +37,17 @@ export function EvidenceMessageBubble({
         <div className="flex items-center gap-3 text-xs">
           {evidence.consoleErrors > 0 && (
             <span className="text-loss">
-              {evidence.consoleErrors} console error{evidence.consoleErrors !== 1 ? 's' : ''}
+              {evidence.consoleErrors} console error
+              {evidence.consoleErrors !== 1 ? 's' : ''}
             </span>
           )}
           {evidence.networkFailures > 0 && (
             <span className="text-loss">
-              {evidence.networkFailures} network failure{evidence.networkFailures !== 1 ? 's' : ''}
+              {evidence.networkFailures} network failure
+              {evidence.networkFailures !== 1 ? 's' : ''}
             </span>
           )}
-          {!hasErrors && (
-            <span className="text-gain">No issues detected</span>
-          )}
+          {!hasErrors && <span className="text-gain">No issues detected</span>}
         </div>
         <div className="flex items-center gap-1 mt-2 text-xs text-primary">
           <Eye className="h-3 w-3" />
@@ -58,5 +58,5 @@ export function EvidenceMessageBubble({
         </div>
       </div>
     </div>
-  );
+  )
 }

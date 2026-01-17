@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, it, expect, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Button } from './button'
 
 describe('Button', () => {
@@ -21,7 +21,9 @@ describe('Button', () => {
   })
 
   it('applies variant styles correctly', () => {
-    const { rerender } = render(<Button variant="destructive">Destructive</Button>)
+    const { rerender } = render(
+      <Button variant="destructive">Destructive</Button>,
+    )
 
     const button = screen.getByText('Destructive')
     expect(button).toHaveClass('bg-destructive')
@@ -44,7 +46,7 @@ describe('Button', () => {
     render(
       <Button disabled onClick={handleClick}>
         Disabled
-      </Button>
+      </Button>,
     )
 
     const button = screen.getByText('Disabled')
@@ -57,7 +59,7 @@ describe('Button', () => {
     render(
       <Button asChild>
         <a href="/test">Link</a>
-      </Button>
+      </Button>,
     )
 
     const link = screen.getByRole('link', { name: 'Link' })

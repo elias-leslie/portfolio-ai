@@ -1,26 +1,29 @@
-"use client";
+'use client'
 
-import { Card } from "@/components/ui/card";
-import { TrendingUp, TrendingDown } from "lucide-react";
-import type { PositionPerformance } from "@/lib/api/portfolio";
+import { TrendingDown, TrendingUp } from 'lucide-react'
+import { Card } from '@/components/ui/card'
+import type { PositionPerformance } from '@/lib/api/portfolio'
 
 interface TopPerformersProps {
-  topPerformers: PositionPerformance[];
-  bottomPerformers: PositionPerformance[];
+  topPerformers: PositionPerformance[]
+  bottomPerformers: PositionPerformance[]
 }
 
-export function TopPerformers({ topPerformers, bottomPerformers }: TopPerformersProps) {
+export function TopPerformers({
+  topPerformers,
+  bottomPerformers,
+}: TopPerformersProps) {
   const formatPercent = (value: number) => {
-    return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
-  };
+    return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
+  }
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
       minimumFractionDigits: 2,
-    }).format(value);
-  };
+    }).format(value)
+  }
 
   return (
     <Card className="p-6">
@@ -30,14 +33,21 @@ export function TopPerformers({ topPerformers, bottomPerformers }: TopPerformers
         <div>
           <div className="mb-3 flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-gain" />
-            <span className="text-xs font-medium text-text-muted">Best Performers</span>
+            <span className="text-xs font-medium text-text-muted">
+              Best Performers
+            </span>
           </div>
           <div className="space-y-2">
             {topPerformers.length > 0 ? (
               topPerformers.map((position, index) => (
-                <div key={`top-${index}-${position.symbol}`} className="flex items-center justify-between">
+                <div
+                  key={`top-${index}-${position.symbol}`}
+                  className="flex items-center justify-between"
+                >
                   <div className="flex items-center gap-3">
-                    <span className="font-medium text-text">{position.symbol}</span>
+                    <span className="font-medium text-text">
+                      {position.symbol}
+                    </span>
                     <span className="text-xs text-text-muted">
                       {position.weightPct.toFixed(1)}% of portfolio
                     </span>
@@ -65,14 +75,21 @@ export function TopPerformers({ topPerformers, bottomPerformers }: TopPerformers
         <div>
           <div className="mb-3 flex items-center gap-2">
             <TrendingDown className="h-4 w-4 text-loss" />
-            <span className="text-xs font-medium text-text-muted">Worst Performers</span>
+            <span className="text-xs font-medium text-text-muted">
+              Worst Performers
+            </span>
           </div>
           <div className="space-y-2">
             {bottomPerformers.length > 0 ? (
               bottomPerformers.map((position, index) => (
-                <div key={`bottom-${index}-${position.symbol}`} className="flex items-center justify-between">
+                <div
+                  key={`bottom-${index}-${position.symbol}`}
+                  className="flex items-center justify-between"
+                >
                   <div className="flex items-center gap-3">
-                    <span className="font-medium text-text">{position.symbol}</span>
+                    <span className="font-medium text-text">
+                      {position.symbol}
+                    </span>
                     <span className="text-xs text-text-muted">
                       {position.weightPct.toFixed(1)}% of portfolio
                     </span>
@@ -94,5 +111,5 @@ export function TopPerformers({ topPerformers, bottomPerformers }: TopPerformers
         </div>
       </div>
     </Card>
-  );
+  )
 }

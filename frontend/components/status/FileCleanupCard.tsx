@@ -1,37 +1,37 @@
-"use client";
+'use client'
 
-import { useState, useEffect } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
-  FolderOpen,
-  FileText,
-  Database,
-  Brain,
-  TestTube,
-  RefreshCw,
-  PlayCircle,
-  Loader2,
   AlertCircle,
+  Brain,
   CheckCircle2,
-} from "lucide-react";
-import { ExpandableCard } from "@/components/status/ExpandableCard";
+  Database,
+  FileText,
+  FolderOpen,
+  Loader2,
+  PlayCircle,
+  RefreshCw,
+  TestTube,
+} from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
+import { ExpandableCard } from '@/components/status/ExpandableCard'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
+  type FileCleanupInfo,
+  type FileCleanupStatusResponse,
   getFileCleanupStatus,
   triggerMaintenanceTask,
-  type FileCleanupStatusResponse,
-  type FileCleanupInfo,
-} from "@/lib/api/maintenance";
-import { toast } from "sonner";
+} from '@/lib/api/maintenance'
 
 interface CleanupCategoryProps {
-  title: string;
-  icon: React.ReactNode;
-  info: FileCleanupInfo | null;
-  taskName: string;
-  onTrigger: (taskName: string) => void;
-  isTriggering: boolean;
-  triggeringTask: string | null;
+  title: string
+  icon: React.ReactNode
+  info: FileCleanupInfo | null
+  taskName: string
+  onTrigger: (taskName: string) => void
+  isTriggering: boolean
+  triggeringTask: string | null
 }
 
 function CleanupCategory({
@@ -52,10 +52,10 @@ function CleanupCategory({
         </div>
         <p className="text-sm text-muted-foreground">Loading...</p>
       </div>
-    );
+    )
   }
 
-  const isThisTaskTriggering = isTriggering && triggeringTask === taskName;
+  const isThisTaskTriggering = isTriggering && triggeringTask === taskName
 
   return (
     <div className="border rounded-lg p-4">
@@ -104,63 +104,64 @@ function CleanupCategory({
         </div>
       </div>
     </div>
-  );
+  )
 }
 
 export function FileCleanupCard() {
-  const [status, setStatus] = useState<FileCleanupStatusResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isTriggering, setIsTriggering] = useState(false);
-  const [triggeringTask, setTriggeringTask] = useState<string | null>(null);
+  const [status, setStatus] = useState<FileCleanupStatusResponse | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isTriggering, setIsTriggering] = useState(false)
+  const [triggeringTask, setTriggeringTask] = useState<string | null>(null)
   const [lastTriggerResult, setLastTriggerResult] = useState<{
-    success: boolean;
-    taskName: string;
-  } | null>(null);
+    success: boolean
+    taskName: string
+  } | null>(null)
 
   const fetchStatus = async () => {
-    setIsLoading(true);
+    setIsLoading(true)
     try {
-      const data = await getFileCleanupStatus();
-      setStatus(data);
+      const data = await getFileCleanupStatus()
+      setStatus(data)
     } catch (error) {
-      console.error("Failed to fetch file cleanup status:", error);
-      toast.error("Failed to load file cleanup status");
+      console.error('Failed to fetch file cleanup status:', error)
+      toast.error('Failed to load file cleanup status')
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   useEffect(() => {
-    fetchStatus();
-  }, []);
+    fetchStatus()
+  }, [fetchStatus])
 
   const handleTrigger = async (taskName: string) => {
-    setIsTriggering(true);
-    setTriggeringTask(taskName);
+    setIsTriggering(true)
+    setTriggeringTask(taskName)
     try {
-      const result = await triggerMaintenanceTask(taskName);
-      toast.success(`${result.message}`);
-      setLastTriggerResult({ success: true, taskName });
+      const result = await triggerMaintenanceTask(taskName)
+      toast.success(`${result.message}`)
+      setLastTriggerResult({ success: true, taskName })
       // Refresh status after a short delay to show updated sizes
-      setTimeout(fetchStatus, 2000);
+      setTimeout(fetchStatus, 2000)
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to trigger task";
-      toast.error(`Failed to trigger ${taskName}: ${message}`);
-      setLastTriggerResult({ success: false, taskName });
+      const message =
+        error instanceof Error ? error.message : 'Failed to trigger task'
+      toast.error(`Failed to trigger ${taskName}: ${message}`)
+      setLastTriggerResult({ success: false, taskName })
     } finally {
-      setIsTriggering(false);
-      setTriggeringTask(null);
+      setIsTriggering(false)
+      setTriggeringTask(null)
     }
-  };
+  }
 
   const formatTotalSize = () => {
-    if (!status) return "Loading...";
-    const sizeMb = status.totalSizeMb;
+    if (!status) return 'Loading...'
+    const sizeMb = status.totalSizeMb
     if (sizeMb >= 1024) {
-      return `${(sizeMb / 1024).toFixed(2)} GB total`;
+      return `${(sizeMb / 1024).toFixed(2)} GB total`
     }
-    return `${sizeMb.toFixed(2)} MB total`;
-  };
+    return `${sizeMb.toFixed(2)} MB total`
+  }
 
   return (
     <ExpandableCard
@@ -172,7 +173,7 @@ export function FileCleanupCard() {
         <div className="flex items-center gap-2">
           {lastTriggerResult && (
             <Badge
-              variant={lastTriggerResult.success ? "default" : "destructive"}
+              variant={lastTriggerResult.success ? 'default' : 'destructive'}
               className="flex items-center gap-1"
             >
               {lastTriggerResult.success ? (
@@ -180,7 +181,7 @@ export function FileCleanupCard() {
               ) : (
                 <AlertCircle className="h-3 w-3" />
               )}
-              {lastTriggerResult.taskName.replace(/_/g, " ")}
+              {lastTriggerResult.taskName.replace(/_/g, ' ')}
             </Badge>
           )}
           <Button
@@ -190,7 +191,9 @@ export function FileCleanupCard() {
             disabled={isLoading}
             title="Refresh file cleanup status"
           >
-            <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`}
+            />
           </Button>
         </div>
       }
@@ -252,5 +255,5 @@ export function FileCleanupCard() {
         </div>
       </div>
     </ExpandableCard>
-  );
+  )
 }

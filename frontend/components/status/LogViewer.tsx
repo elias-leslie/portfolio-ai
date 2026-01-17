@@ -1,62 +1,62 @@
-"use client";
+'use client'
 
-import { useState, useEffect, useRef } from "react";
-import { Copy, Check } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Check, Copy } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 interface LogViewerProps {
-  lines: string[];
-  isLoading?: boolean;
-  error?: Error | null;
+  lines: string[]
+  isLoading?: boolean
+  error?: Error | null
 }
 
 export function LogViewer({ lines, isLoading, error }: LogViewerProps) {
-  const [copied, setCopied] = useState(false);
-  const [autoScroll, setAutoScroll] = useState(true);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [copied, setCopied] = useState(false)
+  const [autoScroll, setAutoScroll] = useState(true)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   // Auto-scroll to bottom when new logs arrive
   useEffect(() => {
     if (autoScroll && scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
-  }, [lines, autoScroll]);
+  }, [autoScroll])
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(lines.join("\n"));
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+    await navigator.clipboard.writeText(lines.join('\n'))
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
 
   // Syntax highlighting for log levels
   const getLineStyle = (line: string): string => {
-    if (line.includes("ERROR") || line.includes("[error]")) {
-      return "text-loss";
+    if (line.includes('ERROR') || line.includes('[error]')) {
+      return 'text-loss'
     }
-    if (line.includes("WARN") || line.includes("[warn]")) {
-      return "text-warning";
+    if (line.includes('WARN') || line.includes('[warn]')) {
+      return 'text-warning'
     }
-    if (line.includes("INFO") || line.includes("[info]")) {
-      return "text-accent";
+    if (line.includes('INFO') || line.includes('[info]')) {
+      return 'text-accent'
     }
-    return "text-text-muted";
-  };
+    return 'text-text-muted'
+  }
 
   if (error) {
     return (
       <Alert variant="destructive">
         <AlertDescription>
-          {error.message.includes("404")
-            ? "Log file not found"
-            : error.message.includes("403")
-              ? "Permission denied"
+          {error.message.includes('404')
+            ? 'Log file not found'
+            : error.message.includes('403')
+              ? 'Permission denied'
               : `Error loading logs: ${error.message}`}
         </AlertDescription>
       </Alert>
-    );
+    )
   }
 
   if (isLoading) {
@@ -64,7 +64,7 @@ export function LogViewer({ lines, isLoading, error }: LogViewerProps) {
       <div className="flex items-center justify-center p-4">
         <div className="text-sm text-muted-foreground">Loading logs...</div>
       </div>
-    );
+    )
   }
 
   return (
@@ -101,7 +101,9 @@ export function LogViewer({ lines, isLoading, error }: LogViewerProps) {
       <ScrollArea className="h-[400px] w-full rounded-md border bg-bg p-4">
         <div ref={scrollRef} className="space-y-1">
           {lines.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No logs available</div>
+            <div className="text-sm text-muted-foreground">
+              No logs available
+            </div>
           ) : (
             lines.map((line, idx) => (
               <div
@@ -115,5 +117,5 @@ export function LogViewer({ lines, isLoading, error }: LogViewerProps) {
         </div>
       </ScrollArea>
     </div>
-  );
+  )
 }

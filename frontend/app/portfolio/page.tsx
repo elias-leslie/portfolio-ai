@@ -1,10 +1,12 @@
-"use client";
+'use client'
 
-import { useState } from "react";
-import { PortfolioOverview } from "@/components/portfolio/PortfolioOverview";
-import { AccountsWithPositions } from "@/components/portfolio/AccountsWithPositions";
-import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
+import { useState } from 'react'
+import { toast } from 'sonner'
+import { AccountsWithPositions } from '@/components/portfolio/AccountsWithPositions'
+import { PortfolioOverview } from '@/components/portfolio/PortfolioOverview'
+import { PageContainer } from '@/components/shared/PageContainer'
+import { PageHeader } from '@/components/shared/PageHeader'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -12,58 +14,60 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { useAddPosition, useCreateAccount, useAccounts } from "@/lib/hooks/usePortfolio";
-import { PageHeader } from "@/components/shared/PageHeader";
-import { PageContainer } from "@/components/shared/PageContainer";
+} from '@/components/ui/select'
+import {
+  useAccounts,
+  useAddPosition,
+  useCreateAccount,
+} from '@/lib/hooks/usePortfolio'
 
-type PositionType = "long" | "short";
-type AccountType = "IRA" | "Taxable" | "401k" | "Roth" | "HSA";
+type PositionType = 'long' | 'short'
+type AccountType = 'IRA' | 'Taxable' | '401k' | 'Roth' | 'HSA'
 
 export default function PortfolioPage() {
-  const addPosition = useAddPosition();
-  const createAccount = useCreateAccount();
-  const { data: accounts, isLoading: accountsLoading } = useAccounts();
+  const addPosition = useAddPosition()
+  const createAccount = useCreateAccount()
+  const { data: accounts, isLoading: accountsLoading } = useAccounts()
 
   // Add Position form state
-  const [positionOpen, setPositionOpen] = useState(false);
-  const [accountId, setAccountId] = useState("");
-  const [symbol, setSymbol] = useState("");
-  const [shares, setShares] = useState("");
-  const [costBasis, setCostBasis] = useState("");
-  const [positionType, setPositionType] = useState<PositionType>("long");
+  const [positionOpen, setPositionOpen] = useState(false)
+  const [accountId, setAccountId] = useState('')
+  const [symbol, setSymbol] = useState('')
+  const [shares, setShares] = useState('')
+  const [costBasis, setCostBasis] = useState('')
+  const [positionType, setPositionType] = useState<PositionType>('long')
 
   // Add Account form state
-  const [accountOpen, setAccountOpen] = useState(false);
-  const [accountName, setAccountName] = useState("");
-  const [accountType, setAccountType] = useState<AccountType>("Taxable");
+  const [accountOpen, setAccountOpen] = useState(false)
+  const [accountName, setAccountName] = useState('')
+  const [accountType, setAccountType] = useState<AccountType>('Taxable')
 
   // Form validation
   const isPositionFormValid = () => {
     return (
-      accountId.trim() !== "" &&
-      symbol.trim() !== "" &&
+      accountId.trim() !== '' &&
+      symbol.trim() !== '' &&
       parseFloat(shares) > 0 &&
       parseFloat(costBasis) > 0
-    );
-  };
+    )
+  }
 
   const isAccountFormValid = () => {
-    return accountName.trim() !== "";
-  };
+    return accountName.trim() !== ''
+  }
 
   // Handle Add Position submit
   const handleAddPosition = () => {
-    if (!isPositionFormValid()) return;
+    if (!isPositionFormValid()) return
 
     addPosition.mutate(
       {
@@ -76,24 +80,24 @@ export default function PortfolioPage() {
       {
         onSuccess: () => {
           // Reset form
-          setAccountId("");
-          setSymbol("");
-          setShares("");
-          setCostBasis("");
-          setPositionType("long");
-          setPositionOpen(false);
-          toast.success("Position added successfully!");
+          setAccountId('')
+          setSymbol('')
+          setShares('')
+          setCostBasis('')
+          setPositionType('long')
+          setPositionOpen(false)
+          toast.success('Position added successfully!')
         },
         onError: (error) => {
-          toast.error(`Failed to add position: ${error.message}`);
+          toast.error(`Failed to add position: ${error.message}`)
         },
-      }
-    );
-  };
+      },
+    )
+  }
 
   // Handle Add Account submit
   const handleAddAccount = () => {
-    if (!isAccountFormValid()) return;
+    if (!isAccountFormValid()) return
 
     createAccount.mutate(
       {
@@ -103,17 +107,17 @@ export default function PortfolioPage() {
       {
         onSuccess: () => {
           // Reset form
-          setAccountName("");
-          setAccountType("Taxable");
-          setAccountOpen(false);
-          toast.success("Account created successfully!");
+          setAccountName('')
+          setAccountType('Taxable')
+          setAccountOpen(false)
+          toast.success('Account created successfully!')
         },
         onError: (error) => {
-          toast.error(`Failed to create account: ${error.message}`);
+          toast.error(`Failed to create account: ${error.message}`)
         },
-      }
-    );
-  };
+      },
+    )
+  }
 
   return (
     <PageContainer className="space-y-10 py-10">
@@ -127,8 +131,8 @@ export default function PortfolioPage() {
       <AccountsWithPositions
         onAddAccount={() => setAccountOpen(true)}
         onAddPosition={(accountId) => {
-          setAccountId(accountId);
-          setPositionOpen(true);
+          setAccountId(accountId)
+          setPositionOpen(true)
         }}
       />
 
@@ -179,7 +183,7 @@ export default function PortfolioPage() {
                 onClick={handleAddAccount}
                 disabled={!isAccountFormValid() || createAccount.isPending}
               >
-                {createAccount.isPending ? "Creating..." : "Create Account"}
+                {createAccount.isPending ? 'Creating...' : 'Create Account'}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -191,8 +195,7 @@ export default function PortfolioPage() {
             <DialogHeader>
               <DialogTitle>Add Position</DialogTitle>
               <DialogDescription>
-                Add a new position to your portfolio. Enter the details
-                below.
+                Add a new position to your portfolio. Enter the details below.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
@@ -204,13 +207,15 @@ export default function PortfolioPage() {
                   disabled={accountsLoading || !accounts?.length}
                 >
                   <SelectTrigger id="account-select">
-                    <SelectValue placeholder={
-                      accountsLoading
-                        ? "Loading accounts..."
-                        : !accounts?.length
-                          ? "No accounts available"
-                          : "Select an account"
-                    } />
+                    <SelectValue
+                      placeholder={
+                        accountsLoading
+                          ? 'Loading accounts...'
+                          : !accounts?.length
+                            ? 'No accounts available'
+                            : 'Select an account'
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {accounts?.map((account) => (
@@ -222,7 +227,8 @@ export default function PortfolioPage() {
                 </Select>
                 {!accounts?.length && !accountsLoading && (
                   <p className="text-xs text-text-muted">
-                    Create an account first using the &quot;Add Account&quot; button
+                    Create an account first using the &quot;Add Account&quot;
+                    button
                   </p>
                 )}
               </div>
@@ -282,12 +288,12 @@ export default function PortfolioPage() {
                 onClick={handleAddPosition}
                 disabled={!isPositionFormValid() || addPosition.isPending}
               >
-                {addPosition.isPending ? "Adding..." : "Add Position"}
+                {addPosition.isPending ? 'Adding...' : 'Add Position'}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
     </PageContainer>
-  );
+  )
 }

@@ -2,14 +2,14 @@
  * Resource usage card component (disk, memory, CPU)
  */
 
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle } from 'lucide-react'
 
 interface ResourceCardProps {
-  title: string;
-  percent: number;
-  status: "ok" | "warning" | "critical";
-  details: string;
-  icon?: React.ReactNode;
+  title: string
+  percent: number
+  status: 'ok' | 'warning' | 'critical'
+  details: string
+  icon?: React.ReactNode
 }
 
 export function ResourceCard({
@@ -22,46 +22,42 @@ export function ResourceCard({
   // Determine progress bar color based on status
   const getStatusColor = () => {
     switch (status) {
-      case "critical":
-        return "bg-loss";
-      case "warning":
-        return "bg-warning";
-      case "ok":
-        return "bg-gain";
+      case 'critical':
+        return 'bg-loss'
+      case 'warning':
+        return 'bg-warning'
+      case 'ok':
+        return 'bg-gain'
       default:
-        return "bg-surface-muted";
+        return 'bg-surface-muted'
     }
-  };
+  }
 
   // Determine badge color
   const getBadgeColor = () => {
     switch (status) {
-      case "critical":
-        return "bg-loss/10 text-loss";
-      case "warning":
-        return "bg-warning/10 text-warning";
-      case "ok":
-        return "bg-gain/10 text-gain";
+      case 'critical':
+        return 'bg-loss/10 text-loss'
+      case 'warning':
+        return 'bg-warning/10 text-warning'
+      case 'ok':
+        return 'bg-gain/10 text-gain'
       default:
-        return "bg-surface text-text";
+        return 'bg-surface text-text'
     }
-  };
+  }
 
   // Show warning icon for warning/critical status
-  const showWarning = status !== "ok";
+  const showWarning = status !== 'ok'
 
   return (
     <div className="bg-surface rounded-lg shadow p-6">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           {icon && <div className="text-text-muted">{icon}</div>}
-          <h3 className="text-lg font-semibold text-text">
-            {title}
-          </h3>
+          <h3 className="text-lg font-semibold text-text">{title}</h3>
         </div>
-        {showWarning && (
-          <AlertTriangle className="h-5 w-5 text-warning" />
-        )}
+        {showWarning && <AlertTriangle className="h-5 w-5 text-warning" />}
       </div>
 
       {/* Progress bar */}
@@ -87,5 +83,5 @@ export function ResourceCard({
       {/* Details */}
       <p className="text-sm text-text-muted">{details}</p>
     </div>
-  );
+  )
 }

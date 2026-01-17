@@ -1,28 +1,28 @@
-import { useEffect, useState } from "react";
-import { fetchNewsHealth, type NewsHealthResponse } from "@/lib/api/news";
+import { useEffect, useState } from 'react'
+import { fetchNewsHealth, type NewsHealthResponse } from '@/lib/api/news'
 
 export function useNewsHealth(refreshInterval: number = 60000) {
-  const [data, setData] = useState<NewsHealthResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+  const [data, setData] = useState<NewsHealthResponse | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
 
   const load = async () => {
     try {
-      const result = await fetchNewsHealth();
-      setData(result);
-      setError(null);
+      const result = await fetchNewsHealth()
+      setData(result)
+      setError(null)
     } catch (err) {
-      setError(err as Error);
+      setError(err as Error)
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   useEffect(() => {
-    load();
-    const interval = setInterval(load, refreshInterval);
-    return () => clearInterval(interval);
-  }, [refreshInterval]);
+    load()
+    const interval = setInterval(load, refreshInterval)
+    return () => clearInterval(interval)
+  }, [refreshInterval, load])
 
-  return { data, isLoading, error, refresh: load };
+  return { data, isLoading, error, refresh: load }
 }

@@ -1,18 +1,18 @@
-"use client";
+'use client'
 
-import React from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle } from 'lucide-react'
+import React from 'react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 interface ErrorBoundaryProps {
-  children: React.ReactNode;
-  fallback?: React.ReactNode;
+  children: React.ReactNode
+  fallback?: React.ReactNode
 }
 
 interface ErrorBoundaryState {
-  hasError: boolean;
-  error: Error | null;
+  hasError: boolean
+  error: Error | null
 }
 
 export class ErrorBoundary extends React.Component<
@@ -20,22 +20,22 @@ export class ErrorBoundary extends React.Component<
   ErrorBoundaryState
 > {
   constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = { hasError: false, error: null };
+    super(props)
+    this.state = { hasError: false, error: null }
   }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { hasError: true, error };
+    return { hasError: true, error }
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error("ErrorBoundary caught an error:", error, errorInfo);
+    console.error('ErrorBoundary caught an error:', error, errorInfo)
   }
 
   render() {
     if (this.state.hasError) {
       if (this.props.fallback) {
-        return this.props.fallback;
+        return this.props.fallback
       }
 
       return (
@@ -64,7 +64,7 @@ export class ErrorBoundary extends React.Component<
               <div className="flex gap-2">
                 <Button
                   onClick={() => {
-                    this.setState({ hasError: false, error: null });
+                    this.setState({ hasError: false, error: null })
                   }}
                   variant="outline"
                 >
@@ -77,9 +77,9 @@ export class ErrorBoundary extends React.Component<
             </CardContent>
           </Card>
         </div>
-      );
+      )
     }
 
-    return this.props.children;
+    return this.props.children
   }
 }

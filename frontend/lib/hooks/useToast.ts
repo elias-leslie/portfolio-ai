@@ -26,24 +26,24 @@
  * ```
  */
 
-import { toast as sonnerToast } from "sonner";
+import { toast as sonnerToast } from 'sonner'
 
 export type ToastOptions = {
-  description?: string;
-  duration?: number;
+  description?: string
+  duration?: number
   action?: {
-    label: string;
-    onClick: () => void;
-  };
-};
+    label: string
+    onClick: () => void
+  }
+}
 
 export type PromiseToastOptions<T> = {
-  loading: string;
-  success: string | ((data: T) => string);
-  error: string | ((error: Error) => string);
-  description?: string;
-  duration?: number;
-};
+  loading: string
+  success: string | ((data: T) => string)
+  error: string | ((error: Error) => string)
+  description?: string
+  duration?: number
+}
 
 /**
  * Custom hook wrapping sonner's toast API
@@ -59,7 +59,7 @@ export function useToast() {
         description: options?.description,
         duration: options?.duration,
         action: options?.action,
-      });
+      })
     },
 
     /**
@@ -70,7 +70,7 @@ export function useToast() {
         description: options?.description,
         duration: options?.duration,
         action: options?.action,
-      });
+      })
     },
 
     /**
@@ -81,7 +81,7 @@ export function useToast() {
         description: options?.description,
         duration: options?.duration,
         action: options?.action,
-      });
+      })
     },
 
     /**
@@ -92,7 +92,7 @@ export function useToast() {
         description: options?.description,
         duration: options?.duration,
         action: options?.action,
-      });
+      })
     },
 
     /**
@@ -102,41 +102,38 @@ export function useToast() {
       return sonnerToast.loading(message, {
         description: options?.description,
         duration: options?.duration,
-      });
+      })
     },
 
     /**
      * Show a toast for an async operation with loading, success, and error states
      * This is the recommended way to handle async operations
      */
-    promise: <T>(
-      promise: Promise<T>,
-      options: PromiseToastOptions<T>
-    ) => {
+    promise: <T>(promise: Promise<T>, options: PromiseToastOptions<T>) => {
       return sonnerToast.promise(promise, {
         loading: options.loading,
         success: (data: T) => {
-          if (typeof options.success === "function") {
-            return options.success(data);
+          if (typeof options.success === 'function') {
+            return options.success(data)
           }
-          return options.success;
+          return options.success
         },
         error: (error: Error) => {
-          if (typeof options.error === "function") {
-            return options.error(error);
+          if (typeof options.error === 'function') {
+            return options.error(error)
           }
-          return options.error;
+          return options.error
         },
         description: options.description,
         duration: options.duration,
-      });
+      })
     },
 
     /**
      * Dismiss a specific toast or all toasts
      */
     dismiss: (toastId?: string | number) => {
-      return sonnerToast.dismiss(toastId);
+      return sonnerToast.dismiss(toastId)
     },
-  };
+  }
 }

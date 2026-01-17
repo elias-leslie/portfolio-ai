@@ -1,25 +1,25 @@
-"use client";
+'use client'
 
-import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Slider } from '@/components/ui/slider'
+import { cn } from '@/lib/utils'
 
 interface WeightItem {
-  id: string;
-  label: string;
-  value: number;
-  description?: string;
+  id: string
+  label: string
+  value: number
+  description?: string
 }
 
 interface WeightConfiguratorProps {
-  title: string;
-  weights: WeightItem[];
-  onChange: (weights: WeightItem[]) => void;
-  className?: string;
-  showTotal?: boolean;
-  allowManualInput?: boolean;
+  title: string
+  weights: WeightItem[]
+  onChange: (weights: WeightItem[]) => void
+  className?: string
+  showTotal?: boolean
+  allowManualInput?: boolean
 }
 
 export function WeightConfigurator({
@@ -30,33 +30,31 @@ export function WeightConfigurator({
   showTotal = true,
   allowManualInput = false,
 }: WeightConfiguratorProps) {
-  const total = weights.reduce((sum, w) => sum + w.value, 0);
-  const isValid = Math.abs(total - 100) < 0.1;
+  const total = weights.reduce((sum, w) => sum + w.value, 0)
+  const isValid = Math.abs(total - 100) < 0.1
 
   const handleEqualWeights = () => {
-    const equalValue = 100 / weights.length;
+    const equalValue = 100 / weights.length
     const newWeights = weights.map((w, idx) => ({
       ...w,
       value: idx === 0 ? 100 - equalValue * (weights.length - 1) : equalValue,
-    }));
-    onChange(newWeights);
-  };
+    }))
+    onChange(newWeights)
+  }
 
   const handleSliderChange = (id: string, value: number) => {
-    const newWeights = weights.map((w) =>
-      w.id === id ? { ...w, value } : w
-    );
-    onChange(newWeights);
-  };
+    const newWeights = weights.map((w) => (w.id === id ? { ...w, value } : w))
+    onChange(newWeights)
+  }
 
   const handleInputChange = (id: string, value: string) => {
-    const numValue = parseFloat(value);
-    if (isNaN(numValue)) return;
-    handleSliderChange(id, Math.max(0, Math.min(100, numValue)));
-  };
+    const numValue = parseFloat(value)
+    if (Number.isNaN(numValue)) return
+    handleSliderChange(id, Math.max(0, Math.min(100, numValue)))
+  }
 
   return (
-    <div className={cn("space-y-4", className)}>
+    <div className={cn('space-y-4', className)}>
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-medium text-text">{title}</h4>
         <Button
@@ -113,15 +111,14 @@ export function WeightConfigurator({
           <span className="text-sm text-text-muted">Total</span>
           <span
             className={cn(
-              "text-sm font-semibold",
-              isValid ? "text-text" : "text-loss"
+              'text-sm font-semibold',
+              isValid ? 'text-text' : 'text-loss',
             )}
           >
-            {total.toFixed(1)}%
-            {!isValid && " (must be 100%)"}
+            {total.toFixed(1)}%{!isValid && ' (must be 100%)'}
           </span>
         </div>
       )}
     </div>
-  );
+  )
 }

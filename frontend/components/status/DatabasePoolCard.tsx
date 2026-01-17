@@ -2,14 +2,14 @@
  * Database connection pool visualization card
  */
 
-import { AlertTriangle, Database } from "lucide-react";
+import { AlertTriangle, Database } from 'lucide-react'
 
 interface DatabasePoolCardProps {
-  poolSize: number;
-  checkedOut: number;
-  overflow: number;
-  percent: number;
-  status: "ok" | "warning" | "critical";
+  poolSize: number
+  checkedOut: number
+  overflow: number
+  percent: number
+  status: 'ok' | 'warning' | 'critical'
 }
 
 export function DatabasePoolCard({
@@ -22,46 +22,42 @@ export function DatabasePoolCard({
   // Determine progress bar color based on status
   const getStatusColor = () => {
     switch (status) {
-      case "critical":
-        return "bg-loss";
-      case "warning":
-        return "bg-warning";
-      case "ok":
-        return "bg-gain";
+      case 'critical':
+        return 'bg-loss'
+      case 'warning':
+        return 'bg-warning'
+      case 'ok':
+        return 'bg-gain'
       default:
-        return "bg-surface-muted";
+        return 'bg-surface-muted'
     }
-  };
+  }
 
   // Determine badge color
   const getBadgeColor = () => {
     switch (status) {
-      case "critical":
-        return "bg-loss/10 text-loss";
-      case "warning":
-        return "bg-warning/10 text-warning";
-      case "ok":
-        return "bg-gain/10 text-gain";
+      case 'critical':
+        return 'bg-loss/10 text-loss'
+      case 'warning':
+        return 'bg-warning/10 text-warning'
+      case 'ok':
+        return 'bg-gain/10 text-gain'
       default:
-        return "bg-surface text-text";
+        return 'bg-surface text-text'
     }
-  };
+  }
 
   // Show warning icon for warning/critical status
-  const showWarning = status !== "ok";
+  const showWarning = status !== 'ok'
 
   return (
     <div className="bg-surface rounded-lg shadow p-6">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Database className="h-5 w-5 text-text-muted" />
-          <h3 className="text-lg font-semibold text-text">
-            Database Pool
-          </h3>
+          <h3 className="text-lg font-semibold text-text">Database Pool</h3>
         </div>
-        {showWarning && (
-          <AlertTriangle className="h-5 w-5 text-warning" />
-        )}
+        {showWarning && <AlertTriangle className="h-5 w-5 text-warning" />}
       </div>
 
       {/* Progress bar */}
@@ -88,30 +84,25 @@ export function DatabasePoolCard({
       <div className="grid grid-cols-3 gap-4 text-sm">
         <div>
           <p className="text-text-muted">Active</p>
-          <p className="font-semibold text-text">
-            {checkedOut}
-          </p>
+          <p className="font-semibold text-text">{checkedOut}</p>
         </div>
         <div>
           <p className="text-text-muted">Available</p>
-          <p className="font-semibold text-text">
-            {poolSize - checkedOut}
-          </p>
+          <p className="font-semibold text-text">{poolSize - checkedOut}</p>
         </div>
         <div>
           <p className="text-text-muted">Overflow</p>
-          <p className="font-semibold text-text">
-            {overflow}
-          </p>
+          <p className="font-semibold text-text">{overflow}</p>
         </div>
       </div>
 
       {/* Usage percentage */}
       <div className="mt-4 pt-4 border-t border-border">
         <p className="text-xs text-text-muted">
-          Pool utilization: <span className="font-semibold">{percent.toFixed(1)}%</span>
+          Pool utilization:{' '}
+          <span className="font-semibold">{percent.toFixed(1)}%</span>
         </p>
       </div>
     </div>
-  );
+  )
 }

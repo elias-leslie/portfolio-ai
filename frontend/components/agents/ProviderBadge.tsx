@@ -1,10 +1,10 @@
-'use client';
+'use client'
 
-import { Diamond, Star } from 'lucide-react';
+import { Diamond, Star } from 'lucide-react'
 
 interface ProviderBadgeProps {
-  provider: string | null | undefined;
-  size?: 'sm' | 'xs';
+  provider: string | null | undefined
+  size?: 'sm' | 'xs'
 }
 
 /**
@@ -12,15 +12,23 @@ interface ProviderBadgeProps {
  * Displays Claude (diamond) and/or Gemini (star) icons based on provider.
  */
 export function ProviderBadge({ provider, size = 'sm' }: ProviderBadgeProps) {
-  if (!provider) return null;
+  if (!provider) return null
 
-  const iconClass = size === 'xs' ? 'h-3 w-3' : 'h-4 w-4';
+  const iconClass = size === 'xs' ? 'h-3 w-3' : 'h-4 w-4'
 
   if (provider === 'claude') {
-    return <span title="Claude"><Diamond className={`${iconClass} text-status-info`} /></span>;
+    return (
+      <span title="Claude">
+        <Diamond className={`${iconClass} text-status-info`} />
+      </span>
+    )
   }
   if (provider === 'gemini') {
-    return <span title="Gemini"><Star className={`${iconClass} text-status-success`} /></span>;
+    return (
+      <span title="Gemini">
+        <Star className={`${iconClass} text-status-success`} />
+      </span>
+    )
   }
   if (provider === 'both') {
     return (
@@ -28,7 +36,7 @@ export function ProviderBadge({ provider, size = 'sm' }: ProviderBadgeProps) {
         <Diamond className={`${iconClass} text-status-info`} />
         <Star className={`${iconClass} text-status-success`} />
       </span>
-    );
+    )
   }
-  return null;
+  return null
 }

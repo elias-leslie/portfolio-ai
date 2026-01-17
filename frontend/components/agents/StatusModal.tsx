@@ -1,21 +1,31 @@
-'use client';
+'use client'
 
-import { useState } from 'react';
-import { Activity, Cpu, Clock, CheckCircle2, XCircle } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
-import { useTelemetrySummary, useRunHistory } from '@/lib/hooks/useAgentTelemetry';
-import { cn } from '@/lib/utils';
+import { Activity, CheckCircle2, Clock, Cpu, XCircle } from 'lucide-react'
+import { useState } from 'react'
+import { Badge } from '@/components/ui/badge'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  useRunHistory,
+  useTelemetrySummary,
+} from '@/lib/hooks/useAgentTelemetry'
+import { cn } from '@/lib/utils'
 
 interface StatusModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }
 
 export function StatusModal({ open, onOpenChange }: StatusModalProps) {
-  const [days, setDays] = useState(7);
-  const { data: summary, isLoading: summaryLoading } = useTelemetrySummary(days);
-  const { data: historyData, isLoading: historyLoading } = useRunHistory({ limit: 20 });
+  const [days, setDays] = useState(7)
+  const { data: summary, isLoading: summaryLoading } = useTelemetrySummary(days)
+  const { data: historyData, isLoading: historyLoading } = useRunHistory({
+    limit: 20,
+  })
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -31,10 +41,10 @@ export function StatusModal({ open, onOpenChange }: StatusModalProps) {
               key={d}
               onClick={() => setDays(d)}
               className={cn(
-                "px-3 py-1 rounded-md text-xs transition-colors",
+                'px-3 py-1 rounded-md text-xs transition-colors',
                 days === d
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-surface text-text-muted hover:bg-surface-muted"
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-surface text-text-muted hover:bg-surface-muted',
               )}
             >
               {d}d
@@ -57,10 +67,10 @@ export function StatusModal({ open, onOpenChange }: StatusModalProps) {
             loading={summaryLoading}
             valueColor={
               (summary?.successRate ?? 0) >= 90
-                ? "text-gain"
+                ? 'text-gain'
                 : (summary?.successRate ?? 0) >= 70
-                ? "text-warning"
-                : "text-loss"
+                  ? 'text-warning'
+                  : 'text-loss'
             }
           />
           <MetricCard
@@ -78,36 +88,40 @@ export function StatusModal({ open, onOpenChange }: StatusModalProps) {
         </div>
 
         {/* Provider breakdown */}
-        {!summaryLoading && summary?.byProvider && summary.byProvider.length > 0 && (
-          <div className="border-t border-border pt-3">
-            <h4 className="text-xs text-text-muted mb-2">By Provider</h4>
-            <div className="space-y-2">
-              {summary.byProvider.map((provider) => (
-                <div
-                  key={provider.provider}
-                  className="flex items-center justify-between p-2 bg-surface/50 rounded text-xs"
-                >
-                  <Badge variant="outline" className="capitalize text-xs">
-                    {provider.provider}
-                  </Badge>
-                  <div className="flex gap-4 text-text-muted">
-                    <span>{provider.totalRuns} runs</span>
-                    <span className={
-                      provider.successRate >= 90
-                        ? "text-gain"
-                        : provider.successRate >= 70
-                        ? "text-warning"
-                        : "text-loss"
-                    }>
-                      {provider.successRate.toFixed(0)}%
-                    </span>
-                    <span>{formatNumber(provider.totalTokens)} tok</span>
+        {!summaryLoading &&
+          summary?.byProvider &&
+          summary.byProvider.length > 0 && (
+            <div className="border-t border-border pt-3">
+              <h4 className="text-xs text-text-muted mb-2">By Provider</h4>
+              <div className="space-y-2">
+                {summary.byProvider.map((provider) => (
+                  <div
+                    key={provider.provider}
+                    className="flex items-center justify-between p-2 bg-surface/50 rounded text-xs"
+                  >
+                    <Badge variant="outline" className="capitalize text-xs">
+                      {provider.provider}
+                    </Badge>
+                    <div className="flex gap-4 text-text-muted">
+                      <span>{provider.totalRuns} runs</span>
+                      <span
+                        className={
+                          provider.successRate >= 90
+                            ? 'text-gain'
+                            : provider.successRate >= 70
+                              ? 'text-warning'
+                              : 'text-loss'
+                        }
+                      >
+                        {provider.successRate.toFixed(0)}%
+                      </span>
+                      <span>{formatNumber(provider.totalTokens)} tok</span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
         {/* Recent Runs */}
         <div className="flex-1 overflow-y-auto border-t border-border pt-3 mt-2">
@@ -115,7 +129,10 @@ export function StatusModal({ open, onOpenChange }: StatusModalProps) {
           {historyLoading ? (
             <div className="space-y-2">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-10 w-full animate-pulse bg-surface rounded" />
+                <div
+                  key={i}
+                  className="h-10 w-full animate-pulse bg-surface rounded"
+                />
               ))}
             </div>
           ) : (
@@ -132,25 +149,32 @@ export function StatusModal({ open, onOpenChange }: StatusModalProps) {
                       <XCircle className="h-3 w-3 text-loss" />
                     )}
                     <span className="text-text">{run.agentType}</span>
-                    <Badge variant="secondary" className="text-[10px] px-1 py-0">
+                    <Badge
+                      variant="secondary"
+                      className="text-[10px] px-1 py-0"
+                    >
                       {run.provider ?? 'unknown'}
                     </Badge>
                   </div>
                   <div className="flex gap-3 text-text-muted">
-                    <span>{run.durationMs ? formatDuration(run.durationMs) : '-'}</span>
+                    <span>
+                      {run.durationMs ? formatDuration(run.durationMs) : '-'}
+                    </span>
                     <span>{formatDate(run.startedAt)}</span>
                   </div>
                 </div>
               ))}
               {historyData?.runs.length === 0 && (
-                <p className="text-text-muted text-center py-4 text-xs">No runs yet</p>
+                <p className="text-text-muted text-center py-4 text-xs">
+                  No runs yet
+                </p>
               )}
             </div>
           )}
         </div>
       </DialogContent>
     </Dialog>
-  );
+  )
 }
 
 // Helper Components
@@ -161,11 +185,11 @@ function MetricCard({
   loading,
   valueColor,
 }: {
-  title: string;
-  value: string | number;
-  icon: React.ReactNode;
-  loading?: boolean;
-  valueColor?: string;
+  title: string
+  value: string | number
+  icon: React.ReactNode
+  loading?: boolean
+  valueColor?: string
 }) {
   if (loading) {
     return (
@@ -173,7 +197,7 @@ function MetricCard({
         <div className="h-4 w-20 animate-pulse bg-surface-muted rounded mb-2" />
         <div className="h-6 w-16 animate-pulse bg-surface-muted rounded" />
       </div>
-    );
+    )
   }
 
   return (
@@ -182,31 +206,31 @@ function MetricCard({
         {icon}
         <span className="text-xs text-text-muted">{title}</span>
       </div>
-      <div className={cn("text-lg font-semibold", valueColor || "text-text")}>
+      <div className={cn('text-lg font-semibold', valueColor || 'text-text')}>
         {value}
       </div>
     </div>
-  );
+  )
 }
 
 // Helper functions
 function formatNumber(num: number): string {
-  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-  if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-  return num.toString();
+  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
+  if (num >= 1000) return `${(num / 1000).toFixed(1)}K`
+  return num.toString()
 }
 
 function formatDuration(ms: number): string {
-  if (ms >= 60000) return `${(ms / 60000).toFixed(1)}m`;
-  if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
-  return `${ms}ms`;
+  if (ms >= 60000) return `${(ms / 60000).toFixed(1)}m`
+  if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`
+  return `${ms}ms`
 }
 
 function formatDate(isoString: string): string {
   try {
-    const date = new Date(isoString);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const date = new Date(isoString)
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   } catch {
-    return isoString;
+    return isoString
   }
 }

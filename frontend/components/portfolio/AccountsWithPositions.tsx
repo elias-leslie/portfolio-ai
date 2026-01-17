@@ -1,23 +1,23 @@
-"use client";
+'use client'
 
-import { useState } from "react";
-import { useAccounts, usePortfolio, useDeleteAccount, useDeletePosition, useUpdatePosition } from "@/lib/hooks/usePortfolio";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Pencil, PlusCircle, Trash2 } from 'lucide-react'
+import { useState } from 'react'
+import { toast } from 'sonner'
+import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog'
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from "@/components/ui/accordion";
+} from '@/components/ui/accordion'
+import { Button } from '@/components/ui/button'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -25,20 +25,32 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { toast } from "sonner";
-import { Trash2, Pencil, PlusCircle } from "lucide-react";
-import type { PositionWithValue } from "@/lib/api/portfolio";
-import { ConfirmActionDialog } from "@/components/shared/ConfirmActionDialog";
+} from '@/components/ui/select'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import type { PositionWithValue } from '@/lib/api/portfolio'
+import {
+  useAccounts,
+  useDeleteAccount,
+  useDeletePosition,
+  usePortfolio,
+  useUpdatePosition,
+} from '@/lib/hooks/usePortfolio'
 
 function AccountsWithPositionsSkeleton() {
   return (
@@ -76,96 +88,106 @@ function AccountsWithPositionsSkeleton() {
         </div>
       </CardContent>
     </Card>
-  );
+  )
 }
 
-type PositionType = "long" | "short";
+type PositionType = 'long' | 'short'
 
 interface AccountsWithPositionsProps {
-  onAddAccount?: () => void;
-  onAddPosition?: (accountId: string) => void;
+  onAddAccount?: () => void
+  onAddPosition?: (accountId: string) => void
 }
 
-export function AccountsWithPositions({ onAddAccount, onAddPosition }: AccountsWithPositionsProps) {
-  const { data: accounts, isLoading: accountsLoading } = useAccounts();
-  const { data: portfolio, isLoading: portfolioLoading } = usePortfolio();
-  const deleteAccount = useDeleteAccount();
-  const deletePosition = useDeletePosition();
-  const updatePosition = useUpdatePosition();
+export function AccountsWithPositions({
+  onAddAccount,
+  onAddPosition,
+}: AccountsWithPositionsProps) {
+  const { data: accounts, isLoading: accountsLoading } = useAccounts()
+  const { data: portfolio, isLoading: portfolioLoading } = usePortfolio()
+  const deleteAccount = useDeleteAccount()
+  const deletePosition = useDeletePosition()
+  const updatePosition = useUpdatePosition()
   const [pendingAction, setPendingAction] = useState<
-    | { type: "account"; id: string; name: string; positionCount: number }
-    | { type: "position"; id: string; symbol: string }
+    | { type: 'account'; id: string; name: string; positionCount: number }
+    | { type: 'position'; id: string; symbol: string }
     | null
-  >(null);
+  >(null)
 
   // Edit position dialog state
-  const [editOpen, setEditOpen] = useState(false);
-  const [editingPosition, setEditingPosition] = useState<PositionWithValue | null>(null);
-  const [editAccountId, setEditAccountId] = useState("");
-  const [editSymbol, setEditSymbol] = useState("");
-  const [editShares, setEditShares] = useState("");
-  const [editCostBasis, setEditCostBasis] = useState("");
-  const [editPositionType, setEditPositionType] = useState<PositionType>("long");
+  const [editOpen, setEditOpen] = useState(false)
+  const [editingPosition, setEditingPosition] =
+    useState<PositionWithValue | null>(null)
+  const [editAccountId, setEditAccountId] = useState('')
+  const [editSymbol, setEditSymbol] = useState('')
+  const [editShares, setEditShares] = useState('')
+  const [editCostBasis, setEditCostBasis] = useState('')
+  const [editPositionType, setEditPositionType] = useState<PositionType>('long')
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
       minimumFractionDigits: 2,
-    }).format(value);
-  };
+    }).format(value)
+  }
 
   const formatPercent = (value: number) => {
-    return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
-  };
+    return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
+  }
 
   // Helpers
   const getAccountPositions = (accountId: string) => {
-    return portfolio?.positions.filter((p) => p.accountId === accountId) || [];
-  };
+    return portfolio?.positions.filter((p) => p.accountId === accountId) || []
+  }
 
   const getAccountTotalValue = (accountId: string) => {
-    const positions = getAccountPositions(accountId);
-    return positions.reduce((sum, p) => sum + (p.currentValue || 0), 0);
-  };
+    const positions = getAccountPositions(accountId)
+    return positions.reduce((sum, p) => sum + (p.currentValue || 0), 0)
+  }
 
   const getAccountTotalGain = (accountId: string) => {
-    const positions = getAccountPositions(accountId);
-    const totalValue = positions.reduce((sum, p) => sum + (p.currentValue || 0), 0);
-    const totalCost = positions.reduce((sum, p) => sum + (p.shares * p.costBasis), 0);
-    return totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : 0;
-  };
+    const positions = getAccountPositions(accountId)
+    const totalValue = positions.reduce(
+      (sum, p) => sum + (p.currentValue || 0),
+      0,
+    )
+    const totalCost = positions.reduce(
+      (sum, p) => sum + p.shares * p.costBasis,
+      0,
+    )
+    return totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : 0
+  }
 
   const handleDeleteAccount = (accountId: string, accountName: string) => {
-    const positionsInAccount = getAccountPositions(accountId);
+    const positionsInAccount = getAccountPositions(accountId)
     setPendingAction({
-      type: "account",
+      type: 'account',
       id: accountId,
       name: accountName,
       positionCount: positionsInAccount.length,
-    });
-  };
+    })
+  }
 
   const handleDeletePosition = (positionId: string, symbol: string) => {
     setPendingAction({
-      type: "position",
+      type: 'position',
       id: positionId,
       symbol,
-    });
-  };
+    })
+  }
 
   const handleEditPosition = (position: PositionWithValue) => {
-    setEditingPosition(position);
-    setEditAccountId(position.accountId);
-    setEditSymbol(position.symbol);
-    setEditShares(position.shares.toString());
-    setEditCostBasis(position.costBasis.toString());
-    setEditPositionType(position.positionType as PositionType);
-    setEditOpen(true);
-  };
+    setEditingPosition(position)
+    setEditAccountId(position.accountId)
+    setEditSymbol(position.symbol)
+    setEditShares(position.shares.toString())
+    setEditCostBasis(position.costBasis.toString())
+    setEditPositionType(position.positionType as PositionType)
+    setEditOpen(true)
+  }
 
   const handleUpdatePosition = () => {
-    if (!editingPosition) return;
+    if (!editingPosition) return
 
     updatePosition.mutate(
       {
@@ -180,76 +202,78 @@ export function AccountsWithPositions({ onAddAccount, onAddPosition }: AccountsW
       },
       {
         onSuccess: () => {
-          setEditOpen(false);
-          setEditingPosition(null);
-          toast.success("Position updated successfully!");
+          setEditOpen(false)
+          setEditingPosition(null)
+          toast.success('Position updated successfully!')
         },
         onError: (error) => {
-          toast.error(`Failed to update position: ${error.message}`);
+          toast.error(`Failed to update position: ${error.message}`)
         },
-      }
-    );
-  };
+      },
+    )
+  }
 
   const confirmDeletion = async () => {
-    if (!pendingAction) return;
+    if (!pendingAction) return
     try {
-      if (pendingAction.type === "account") {
-        await deleteAccount.mutateAsync(pendingAction.id);
-        toast.success(`Deleted account "${pendingAction.name}".`);
+      if (pendingAction.type === 'account') {
+        await deleteAccount.mutateAsync(pendingAction.id)
+        toast.success(`Deleted account "${pendingAction.name}".`)
       } else {
-        await deletePosition.mutateAsync(pendingAction.id);
-        toast.success(`${pendingAction.symbol} position deleted.`);
+        await deletePosition.mutateAsync(pendingAction.id)
+        toast.success(`${pendingAction.symbol} position deleted.`)
       }
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Unable to complete the request";
+        error instanceof Error
+          ? error.message
+          : 'Unable to complete the request'
       const target =
-        pendingAction.type === "account"
+        pendingAction.type === 'account'
           ? `account "${pendingAction.name}"`
-          : `${pendingAction.symbol} position`;
-      toast.error(`Failed to delete ${target}: ${message}`);
-      throw error;
+          : `${pendingAction.symbol} position`
+      toast.error(`Failed to delete ${target}: ${message}`)
+      throw error
     }
-  };
+  }
 
   const confirmDialog = (
     <ConfirmActionDialog
       open={!!pendingAction}
       onOpenChange={(open) => {
         if (!open) {
-          setPendingAction(null);
+          setPendingAction(null)
         }
       }}
       title={
         pendingAction
-          ? pendingAction.type === "account"
+          ? pendingAction.type === 'account'
             ? `Delete ${pendingAction.name}`
             : `Delete ${pendingAction.symbol} position`
-          : "Delete item"
+          : 'Delete item'
       }
       description={
         pendingAction
-          ? pendingAction.type === "account"
+          ? pendingAction.type === 'account'
             ? pendingAction.positionCount > 0
               ? `This will remove ${pendingAction.positionCount} linked position${
-                  pendingAction.positionCount === 1 ? "" : "s"
+                  pendingAction.positionCount === 1 ? '' : 's'
                 } permanently.`
-              : "This account has no positions and will be removed."
-            : "This position will be removed from the account permanently."
+              : 'This account has no positions and will be removed.'
+            : 'This position will be removed from the account permanently.'
           : undefined
       }
       confirmLabel={
         pendingAction
-          ? pendingAction.type === "account"
-            ? "Delete account"
-            : "Delete position"
-          : "Delete"
+          ? pendingAction.type === 'account'
+            ? 'Delete account'
+            : 'Delete position'
+          : 'Delete'
       }
       isPending={deleteAccount.isPending || deletePosition.isPending}
       onConfirm={confirmDeletion}
     />
-  );
+  )
 
   if (accountsLoading || portfolioLoading) {
     return (
@@ -257,7 +281,7 @@ export function AccountsWithPositions({ onAddAccount, onAddPosition }: AccountsW
         <AccountsWithPositionsSkeleton />
         {confirmDialog}
       </>
-    );
+    )
   }
 
   if (!accounts || accounts.length === 0) {
@@ -268,7 +292,9 @@ export function AccountsWithPositions({ onAddAccount, onAddPosition }: AccountsW
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Accounts & Positions</CardTitle>
-                <CardDescription>Organize your portfolio by account</CardDescription>
+                <CardDescription>
+                  Organize your portfolio by account
+                </CardDescription>
               </div>
               {onAddAccount && (
                 <Button variant="outline" size="sm" onClick={onAddAccount}>
@@ -280,13 +306,14 @@ export function AccountsWithPositions({ onAddAccount, onAddPosition }: AccountsW
           </CardHeader>
           <CardContent>
             <div className="text-sm text-text-muted">
-              No accounts yet. Click &quot;Add Account&quot; above to start managing your portfolio.
+              No accounts yet. Click &quot;Add Account&quot; above to start
+              managing your portfolio.
             </div>
           </CardContent>
         </Card>
         {confirmDialog}
       </>
-    );
+    )
   }
 
   return (
@@ -297,7 +324,9 @@ export function AccountsWithPositions({ onAddAccount, onAddPosition }: AccountsW
             <div>
               <CardTitle>Accounts & Positions</CardTitle>
               <CardDescription>
-                {accounts.length} account{accounts.length !== 1 ? "s" : ""} • {portfolio?.positions.length || 0} position{portfolio?.positions.length !== 1 ? "s" : ""}
+                {accounts.length} account{accounts.length !== 1 ? 's' : ''} •{' '}
+                {portfolio?.positions.length || 0} position
+                {portfolio?.positions.length !== 1 ? 's' : ''}
               </CardDescription>
             </div>
             {onAddAccount && (
@@ -311,32 +340,43 @@ export function AccountsWithPositions({ onAddAccount, onAddPosition }: AccountsW
         <CardContent>
           <Accordion type="single" collapsible className="w-full">
             {accounts.map((account) => {
-              const positions = getAccountPositions(account.id);
-              const totalValue = getAccountTotalValue(account.id);
-              const totalGain = getAccountTotalGain(account.id);
+              const positions = getAccountPositions(account.id)
+              const totalValue = getAccountTotalValue(account.id)
+              const totalGain = getAccountTotalGain(account.id)
 
               return (
-                <AccordionItem key={account.id} value={account.id} className="border rounded-lg mb-3 last:mb-0">
+                <AccordionItem
+                  key={account.id}
+                  value={account.id}
+                  className="border rounded-lg mb-3 last:mb-0"
+                >
                   <div className="flex items-center px-4">
                     <AccordionTrigger className="flex-1 hover:no-underline py-4">
                       <div className="flex items-center justify-between w-full pr-4">
                         <div className="flex flex-col items-start gap-1">
                           <div className="flex items-center gap-3">
-                            <span className="font-semibold text-base">{account.name}</span>
+                            <span className="font-semibold text-base">
+                              {account.name}
+                            </span>
                             <span className="text-xs text-text-muted bg-surface-muted px-2 py-0.5 rounded">
                               {account.accountType}
                             </span>
                           </div>
                           <div className="flex items-center gap-4 text-sm">
                             <span className="text-text-muted">
-                              {positions.length} position{positions.length !== 1 ? "s" : ""}
+                              {positions.length} position
+                              {positions.length !== 1 ? 's' : ''}
                             </span>
                             {positions.length > 0 && (
                               <>
                                 <span className="text-text">
                                   {formatCurrency(totalValue)}
                                 </span>
-                                <span className={totalGain >= 0 ? "text-profit" : "text-loss"}>
+                                <span
+                                  className={
+                                    totalGain >= 0 ? 'text-profit' : 'text-loss'
+                                  }
+                                >
                                   {formatPercent(totalGain)}
                                 </span>
                               </>
@@ -349,8 +389,8 @@ export function AccountsWithPositions({ onAddAccount, onAddPosition }: AccountsW
                       variant="ghost"
                       size="sm"
                       onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteAccount(account.id, account.name);
+                        e.stopPropagation()
+                        handleDeleteAccount(account.id, account.name)
                       }}
                       disabled={deleteAccount.isPending}
                       className="h-8 w-8 p-0 ml-2"
@@ -373,7 +413,8 @@ export function AccountsWithPositions({ onAddAccount, onAddPosition }: AccountsW
                     )}
                     {positions.length === 0 ? (
                       <div className="py-8 text-center text-sm text-text-muted">
-                        No positions in this account yet. Click &quot;Add Position&quot; above to get started.
+                        No positions in this account yet. Click &quot;Add
+                        Position&quot; above to get started.
                       </div>
                     ) : (
                       <div className="rounded-md border border-border bg-surface/50 overflow-hidden">
@@ -381,67 +422,97 @@ export function AccountsWithPositions({ onAddAccount, onAddPosition }: AccountsW
                           <TableHeader>
                             <TableRow>
                               <TableHead>Symbol</TableHead>
-                              <TableHead className="text-right">Shares</TableHead>
-                              <TableHead className="text-right">Cost Basis</TableHead>
-                              <TableHead className="text-right">Current Price</TableHead>
-                              <TableHead className="text-right">Value</TableHead>
-                              <TableHead className="text-right">P&L $</TableHead>
-                              <TableHead className="text-right">P&L %</TableHead>
-                              <TableHead className="text-right">Actions</TableHead>
+                              <TableHead className="text-right">
+                                Shares
+                              </TableHead>
+                              <TableHead className="text-right">
+                                Cost Basis
+                              </TableHead>
+                              <TableHead className="text-right">
+                                Current Price
+                              </TableHead>
+                              <TableHead className="text-right">
+                                Value
+                              </TableHead>
+                              <TableHead className="text-right">
+                                P&L $
+                              </TableHead>
+                              <TableHead className="text-right">
+                                P&L %
+                              </TableHead>
+                              <TableHead className="text-right">
+                                Actions
+                              </TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {positions.map((position) => {
-                              const costBasisTotal = position.shares * position.costBasis;
+                              const costBasisTotal =
+                                position.shares * position.costBasis
                               const pnlDollars = position.currentValue
                                 ? position.currentValue - costBasisTotal
-                                : 0;
-                              const pnlPercent = costBasisTotal > 0
-                                ? (pnlDollars / costBasisTotal) * 100
-                                : 0;
+                                : 0
+                              const pnlPercent =
+                                costBasisTotal > 0
+                                  ? (pnlDollars / costBasisTotal) * 100
+                                  : 0
 
                               const formatPnlDollars = (value: number) => {
-                                const prefix = value >= 0 ? "+$" : "-$";
-                                return `${prefix}${Math.abs(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-                              };
+                                const prefix = value >= 0 ? '+$' : '-$'
+                                return `${prefix}${Math.abs(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                              }
 
                               return (
                                 <TableRow key={position.id}>
-                                  <TableCell className="font-medium">{position.symbol}</TableCell>
-                                  <TableCell className="text-right">{position.shares}</TableCell>
+                                  <TableCell className="font-medium">
+                                    {position.symbol}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    {position.shares}
+                                  </TableCell>
                                   <TableCell className="text-right">
                                     {formatCurrency(position.costBasis)}
                                   </TableCell>
                                   <TableCell className="text-right">
                                     {position.currentPrice
                                       ? formatCurrency(position.currentPrice)
-                                      : "—"}
+                                      : '—'}
                                   </TableCell>
                                   <TableCell className="text-right">
                                     {position.currentValue
                                       ? formatCurrency(position.currentValue)
-                                      : "—"}
+                                      : '—'}
                                   </TableCell>
                                   <TableCell
                                     className={`text-right font-semibold ${
-                                      pnlDollars >= 0 ? "text-profit" : "text-loss"
+                                      pnlDollars >= 0
+                                        ? 'text-profit'
+                                        : 'text-loss'
                                     }`}
                                   >
-                                    {position.currentValue ? formatPnlDollars(pnlDollars) : "—"}
+                                    {position.currentValue
+                                      ? formatPnlDollars(pnlDollars)
+                                      : '—'}
                                   </TableCell>
                                   <TableCell
                                     className={`text-right ${
-                                      pnlPercent >= 0 ? "text-profit" : "text-loss"
+                                      pnlPercent >= 0
+                                        ? 'text-profit'
+                                        : 'text-loss'
                                     }`}
                                   >
-                                    {position.currentValue ? formatPercent(pnlPercent) : "—"}
+                                    {position.currentValue
+                                      ? formatPercent(pnlPercent)
+                                      : '—'}
                                   </TableCell>
                                   <TableCell className="text-right">
                                     <div className="flex items-center justify-end gap-1">
                                       <Button
                                         variant="ghost"
                                         size="sm"
-                                        onClick={() => handleEditPosition(position)}
+                                        onClick={() =>
+                                          handleEditPosition(position)
+                                        }
                                         className="h-8 w-8 p-0"
                                       >
                                         <Pencil className="h-3.5 w-3.5" />
@@ -449,7 +520,12 @@ export function AccountsWithPositions({ onAddAccount, onAddPosition }: AccountsW
                                       <Button
                                         variant="ghost"
                                         size="sm"
-                                        onClick={() => handleDeletePosition(position.id, position.symbol)}
+                                        onClick={() =>
+                                          handleDeletePosition(
+                                            position.id,
+                                            position.symbol,
+                                          )
+                                        }
                                         disabled={deletePosition.isPending}
                                         className="h-8 w-8 p-0"
                                       >
@@ -458,7 +534,7 @@ export function AccountsWithPositions({ onAddAccount, onAddPosition }: AccountsW
                                     </div>
                                   </TableCell>
                                 </TableRow>
-                              );
+                              )
                             })}
                           </TableBody>
                         </Table>
@@ -466,7 +542,7 @@ export function AccountsWithPositions({ onAddAccount, onAddPosition }: AccountsW
                     )}
                   </AccordionContent>
                 </AccordionItem>
-              );
+              )
             })}
           </Accordion>
         </CardContent>
@@ -554,12 +630,12 @@ export function AccountsWithPositions({ onAddAccount, onAddPosition }: AccountsW
               onClick={handleUpdatePosition}
               disabled={updatePosition.isPending}
             >
-              {updatePosition.isPending ? "Updating..." : "Update Position"}
+              {updatePosition.isPending ? 'Updating...' : 'Update Position'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
       {confirmDialog}
     </>
-  );
+  )
 }

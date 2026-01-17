@@ -31,7 +31,9 @@
 
 /* Smooth transitions for price display changes */
 .watchlist-page .price-display {
-  transition: color 0.3s ease-in-out, transform 0.2s ease-in-out;
+  transition:
+    color 0.3s ease-in-out,
+    transform 0.2s ease-in-out;
 }
 
 .watchlist-page .price-display[data-changed="true"] {
@@ -42,7 +44,8 @@
 
 se effect for newly updated rows */
 @keyframes pulse-row {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {

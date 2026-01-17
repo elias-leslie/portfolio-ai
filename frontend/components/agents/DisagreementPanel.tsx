@@ -1,40 +1,79 @@
-'use client';
+'use client'
 
-import { useState } from 'react';
-import { AlertTriangle, ArrowRight, Check, X, Blend, MessageSquare } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
-import { cn } from '@/lib/utils';
+import {
+  AlertTriangle,
+  ArrowRight,
+  Blend,
+  Check,
+  MessageSquare,
+  X,
+} from 'lucide-react'
+import { useState } from 'react'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
+import { cn } from '@/lib/utils'
 
 // Note: reason values are snake_case from backend (string values aren't transformed)
-export type DisagreementReason = 'factual' | 'logical' | 'risk_assessment' | 'confidence' | 'other';
-export type ResolutionType = 'use_generator' | 'use_validator' | 'hybrid' | 'escalate';
+export type DisagreementReason =
+  | 'factual'
+  | 'logical'
+  | 'risk_assessment'
+  | 'confidence'
+  | 'other'
+export type ResolutionType =
+  | 'use_generator'
+  | 'use_validator'
+  | 'hybrid'
+  | 'escalate'
 
 interface DisagreementPanelProps {
-  validationId: string;
-  generatorProvider: string;
-  generatorOutput: string;
-  generatorConfidence: number | null;
-  validatorProvider: string;
-  validatorReview: string;
-  validatorConfidence: number | null;
-  disagreementReasons: DisagreementReason[];
-  disagreementDetails: string | null;
-  onResolve: (resolution: ResolutionType, finalOutput?: string) => void;
-  resolving?: boolean;
-  className?: string;
+  validationId: string
+  generatorProvider: string
+  generatorOutput: string
+  generatorConfidence: number | null
+  validatorProvider: string
+  validatorReview: string
+  validatorConfidence: number | null
+  disagreementReasons: DisagreementReason[]
+  disagreementDetails: string | null
+  onResolve: (resolution: ResolutionType, finalOutput?: string) => void
+  resolving?: boolean
+  className?: string
 }
 
-const REASON_LABELS: Record<DisagreementReason, { label: string; color: string }> = {
-  factual: { label: 'Factual Error', color: 'bg-loss/20 text-loss border-loss/30' },
-  logical: { label: 'Logic Issue', color: 'bg-warning/20 text-warning border-warning/30' },
-  risk_assessment: { label: 'Risk Assessment', color: 'bg-warning/20 text-warning border-warning/30' },
-  confidence: { label: 'Confidence Gap', color: 'bg-accent/20 text-accent border-accent/30' },
-  other: { label: 'Other', color: 'bg-neutral/20 text-text-muted border-neutral/30' },
-};
+const REASON_LABELS: Record<
+  DisagreementReason,
+  { label: string; color: string }
+> = {
+  factual: {
+    label: 'Factual Error',
+    color: 'bg-loss/20 text-loss border-loss/30',
+  },
+  logical: {
+    label: 'Logic Issue',
+    color: 'bg-warning/20 text-warning border-warning/30',
+  },
+  risk_assessment: {
+    label: 'Risk Assessment',
+    color: 'bg-warning/20 text-warning border-warning/30',
+  },
+  confidence: {
+    label: 'Confidence Gap',
+    color: 'bg-accent/20 text-accent border-accent/30',
+  },
+  other: {
+    label: 'Other',
+    color: 'bg-neutral/20 text-text-muted border-neutral/30',
+  },
+}
 
-const RESOLUTION_OPTIONS: { type: ResolutionType; label: string; description: string; icon: React.ReactNode }[] = [
+const RESOLUTION_OPTIONS: {
+  type: ResolutionType
+  label: string
+  description: string
+  icon: React.ReactNode
+}[] = [
   {
     type: 'use_generator',
     label: 'Use Generator',
@@ -59,7 +98,7 @@ const RESOLUTION_OPTIONS: { type: ResolutionType; label: string; description: st
     description: 'Flag for expert review',
     icon: <MessageSquare className="h-4 w-4" />,
   },
-];
+]
 
 export function DisagreementPanel({
   generatorProvider,
@@ -74,30 +113,31 @@ export function DisagreementPanel({
   resolving = false,
   className,
 }: DisagreementPanelProps) {
-  const [selectedResolution, setSelectedResolution] = useState<ResolutionType | null>(null);
-  const [hybridOutput, setHybridOutput] = useState<string>(generatorOutput);
-  const [showHybridEditor, setShowHybridEditor] = useState(false);
+  const [selectedResolution, setSelectedResolution] =
+    useState<ResolutionType | null>(null)
+  const [hybridOutput, setHybridOutput] = useState<string>(generatorOutput)
+  const [showHybridEditor, setShowHybridEditor] = useState(false)
 
   const handleResolve = () => {
-    if (!selectedResolution) return;
+    if (!selectedResolution) return
 
     if (selectedResolution === 'hybrid') {
-      onResolve(selectedResolution, hybridOutput);
+      onResolve(selectedResolution, hybridOutput)
     } else if (selectedResolution === 'use_generator') {
-      onResolve(selectedResolution, generatorOutput);
+      onResolve(selectedResolution, generatorOutput)
     } else {
-      onResolve(selectedResolution);
+      onResolve(selectedResolution)
     }
-  };
+  }
 
   const handleResolutionSelect = (type: ResolutionType) => {
-    setSelectedResolution(type);
+    setSelectedResolution(type)
     if (type === 'hybrid') {
-      setShowHybridEditor(true);
+      setShowHybridEditor(true)
     } else {
-      setShowHybridEditor(false);
+      setShowHybridEditor(false)
     }
-  };
+  }
 
   return (
     <div className={cn('space-y-4', className)}>
@@ -110,12 +150,16 @@ export function DisagreementPanel({
       {/* Disagreement Reasons */}
       <div className="flex flex-wrap gap-2">
         {disagreementReasons.map((reason) => {
-          const { label, color } = REASON_LABELS[reason] || REASON_LABELS.other;
+          const { label, color } = REASON_LABELS[reason] || REASON_LABELS.other
           return (
-            <Badge key={reason} variant="outline" className={cn('border', color)}>
+            <Badge
+              key={reason}
+              variant="outline"
+              className={cn('border', color)}
+            >
               {label}
             </Badge>
-          );
+          )
         })}
       </div>
 
@@ -165,7 +209,9 @@ export function DisagreementPanel({
       {/* Disagreement Details */}
       {disagreementDetails && (
         <div className="bg-warning/10 border border-warning/30 rounded-lg p-4">
-          <p className="text-sm font-medium text-warning mb-2">Specific Issues:</p>
+          <p className="text-sm font-medium text-warning mb-2">
+            Specific Issues:
+          </p>
           <div className="text-sm text-text whitespace-pre-wrap">
             {disagreementDetails}
           </div>
@@ -184,7 +230,7 @@ export function DisagreementPanel({
                 'p-3 rounded-lg border text-left transition-all',
                 selectedResolution === option.type
                   ? 'bg-primary/20 border-primary text-primary'
-                  : 'bg-surface/50 border-border text-text-muted hover:border-border'
+                  : 'bg-surface/50 border-border text-text-muted hover:border-border',
               )}
             >
               <div className="flex items-center gap-2 mb-1">
@@ -231,8 +277,8 @@ export function DisagreementPanel({
         <Button
           variant="ghost"
           onClick={() => {
-            setSelectedResolution(null);
-            setShowHybridEditor(false);
+            setSelectedResolution(null)
+            setShowHybridEditor(false)
           }}
           disabled={resolving}
         >
@@ -241,5 +287,5 @@ export function DisagreementPanel({
         </Button>
       </div>
     </div>
-  );
+  )
 }

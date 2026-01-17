@@ -1,39 +1,43 @@
-'use client';
+'use client'
 
-import { Button } from '@/components/ui/button';
-import { AgentSelector, type AgentProvider, type RoundtableOrder } from './AgentSelector';
-import { ModeSelector, type AgentMode } from './ModeSelector';
+import { Button } from '@/components/ui/button'
+import {
+  type AgentProvider,
+  AgentSelector,
+  type RoundtableOrder,
+} from './AgentSelector'
+import { type AgentMode, ModeSelector } from './ModeSelector'
 
 interface ChatInputProps {
-  input: string;
-  onInputChange: (value: string) => void;
-  onSend: () => void;
-  onStop: () => void;
-  onKeyPress: (e: React.KeyboardEvent) => void;
-  isConnected: boolean;
-  isLoading: boolean;
-  hasPendingPermission: boolean;
-  hasSession: boolean;
-  agentMode: AgentMode;
-  agentProvider: AgentProvider;
-  roundtableOrder: RoundtableOrder;
-  maxTurns: number;
-  onAgentProviderChange: (value: AgentProvider) => void;
-  onAgentModeChange: (value: AgentMode) => void;
-  onRoundtableOrderChange: (value: RoundtableOrder) => void;
-  onMaxTurnsChange: (value: number) => void;
+  input: string
+  onInputChange: (value: string) => void
+  onSend: () => void
+  onStop: () => void
+  onKeyPress: (e: React.KeyboardEvent) => void
+  isConnected: boolean
+  isLoading: boolean
+  hasPendingPermission: boolean
+  hasSession: boolean
+  agentMode: AgentMode
+  agentProvider: AgentProvider
+  roundtableOrder: RoundtableOrder
+  maxTurns: number
+  onAgentProviderChange: (value: AgentProvider) => void
+  onAgentModeChange: (value: AgentMode) => void
+  onRoundtableOrderChange: (value: RoundtableOrder) => void
+  onMaxTurnsChange: (value: number) => void
 }
 
 function getInputPlaceholder(
   hasPendingPermission: boolean,
   hasSession: boolean,
   isConnected: boolean,
-  agentMode: AgentMode
+  agentMode: AgentMode,
 ): string {
-  if (hasPendingPermission) return "Waiting for permission...";
-  if (!hasSession) return "Create a session first...";
-  if (!isConnected) return "Connecting...";
-  return `Ask ${agentMode === 'dev' ? 'for code help' : 'about markets'}...`;
+  if (hasPendingPermission) return 'Waiting for permission...'
+  if (!hasSession) return 'Create a session first...'
+  if (!isConnected) return 'Connecting...'
+  return `Ask ${agentMode === 'dev' ? 'for code help' : 'about markets'}...`
 }
 
 export function ChatInput({
@@ -55,8 +59,14 @@ export function ChatInput({
   onRoundtableOrderChange,
   onMaxTurnsChange,
 }: ChatInputProps) {
-  const placeholder = getInputPlaceholder(hasPendingPermission, hasSession, isConnected, agentMode);
-  const isDisabled = !isConnected || isLoading || hasPendingPermission || !hasSession;
+  const placeholder = getInputPlaceholder(
+    hasPendingPermission,
+    hasSession,
+    isConnected,
+    agentMode,
+  )
+  const isDisabled =
+    !isConnected || isLoading || hasPendingPermission || !hasSession
 
   return (
     <div className="border-t border-border p-4">
@@ -94,7 +104,12 @@ export function ChatInput({
         ) : (
           <Button
             onClick={onSend}
-            disabled={!isConnected || !input.trim() || hasPendingPermission || !hasSession}
+            disabled={
+              !isConnected ||
+              !input.trim() ||
+              hasPendingPermission ||
+              !hasSession
+            }
             size="sm"
           >
             Send
@@ -102,5 +117,5 @@ export function ChatInput({
         )}
       </div>
     </div>
-  );
+  )
 }

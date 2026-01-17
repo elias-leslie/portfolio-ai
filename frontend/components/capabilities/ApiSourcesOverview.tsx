@@ -7,38 +7,37 @@
  * - Expandable endpoint details
  */
 
-"use client";
+'use client'
 
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from '@tanstack/react-query'
 import {
-  Cloud,
-  Key,
-  Clock,
+  BarChart3,
   CheckCircle2,
-  XCircle,
   ChevronDown,
   ChevronRight,
-  Zap,
+  Clock,
+  Cloud,
   Database,
-  Newspaper,
-  BarChart3,
-  Loader2,
   ExternalLink,
-} from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import {
-  fetchSources,
-  fetchSourceDetail,
-} from "@/lib/api/sources";
+  Key,
+  Loader2,
+  Newspaper,
+  XCircle,
+  Zap,
+} from 'lucide-react'
+import { useState } from 'react'
+import { Badge } from '@/components/ui/badge'
+import { fetchSourceDetail, fetchSources } from '@/lib/api/sources'
 
 interface ExpandedProviders {
-  [key: string]: boolean;
+  [key: string]: boolean
 }
 
 export function ApiSourcesOverview() {
-  const [expandedProviders, setExpandedProviders] = useState<ExpandedProviders>({});
-  const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
+  const [expandedProviders, setExpandedProviders] = useState<ExpandedProviders>(
+    {},
+  )
+  const [selectedProvider, setSelectedProvider] = useState<string | null>(null)
 
   // Fetch all providers
   const {
@@ -46,84 +45,96 @@ export function ApiSourcesOverview() {
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["api-sources"],
+    queryKey: ['api-sources'],
     queryFn: fetchSources,
-  });
+  })
 
   // Fetch detail for selected provider
   const { data: providerDetail, isLoading: detailLoading } = useQuery({
-    queryKey: ["api-source-detail", selectedProvider],
-    queryFn: () => (selectedProvider ? fetchSourceDetail(selectedProvider) : null),
+    queryKey: ['api-source-detail', selectedProvider],
+    queryFn: () =>
+      selectedProvider ? fetchSourceDetail(selectedProvider) : null,
     enabled: !!selectedProvider,
-  });
+  })
 
   const toggleProvider = (name: string) => {
     setExpandedProviders((prev) => ({
       ...prev,
       [name]: !prev[name],
-    }));
+    }))
     if (!expandedProviders[name]) {
-      setSelectedProvider(name);
+      setSelectedProvider(name)
     }
-  };
+  }
 
   // Get capability icon
   const getCapabilityIcon = (cap: string) => {
     switch (cap) {
-      case "ohlcv":
-        return <BarChart3 className="h-3 w-3" />;
-      case "fundamentals":
-        return <Database className="h-3 w-3" />;
-      case "news":
-        return <Newspaper className="h-3 w-3" />;
-      case "reference":
-        return <Cloud className="h-3 w-3" />;
-      case "economic_indicators":
-        return <Zap className="h-3 w-3" />;
+      case 'ohlcv':
+        return <BarChart3 className="h-3 w-3" />
+      case 'fundamentals':
+        return <Database className="h-3 w-3" />
+      case 'news':
+        return <Newspaper className="h-3 w-3" />
+      case 'reference':
+        return <Cloud className="h-3 w-3" />
+      case 'economic_indicators':
+        return <Zap className="h-3 w-3" />
       default:
-        return <CheckCircle2 className="h-3 w-3" />;
+        return <CheckCircle2 className="h-3 w-3" />
     }
-  };
+  }
 
   // Get tier badge color
   const getTierColor = (tier: string) => {
-    return tier === "FREE"
-      ? "bg-status-success/10 text-status-success border-status-success/20"
-      : "bg-accent/10 text-accent border-accent/20";
-  };
+    return tier === 'FREE'
+      ? 'bg-status-success/10 text-status-success border-status-success/20'
+      : 'bg-accent/10 text-accent border-accent/20'
+  }
 
   // Get priority badge
   const getPriorityBadge = (priority: number) => {
-    if (priority === 1) return { label: "Primary", color: "bg-status-info/10 text-status-info" };
-    if (priority <= 10) return { label: "High", color: "bg-status-success/10 text-status-success" };
-    if (priority <= 20) return { label: "Medium", color: "bg-status-warning/10 text-status-warning" };
-    return { label: "Backup", color: "bg-surface-muted text-text-muted" };
-  };
+    if (priority === 1)
+      return { label: 'Primary', color: 'bg-status-info/10 text-status-info' }
+    if (priority <= 10)
+      return {
+        label: 'High',
+        color: 'bg-status-success/10 text-status-success',
+      }
+    if (priority <= 20)
+      return {
+        label: 'Medium',
+        color: 'bg-status-warning/10 text-status-warning',
+      }
+    return { label: 'Backup', color: 'bg-surface-muted text-text-muted' }
+  }
 
   // Format rate limit
   const formatRateLimit = (limit: number | null, unit: string) => {
-    if (limit === null) return "Unlimited";
-    return `${limit}/${unit}`;
-  };
+    if (limit === null) return 'Unlimited'
+    return `${limit}/${unit}`
+  }
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
-    );
+    )
   }
 
   if (error) {
     return (
       <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-6 text-center">
         <XCircle className="mx-auto h-10 w-10 text-destructive" />
-        <p className="mt-2 text-sm text-destructive">Failed to load API sources</p>
+        <p className="mt-2 text-sm text-destructive">
+          Failed to load API sources
+        </p>
       </div>
-    );
+    )
   }
 
-  if (!sourcesData) return null;
+  if (!sourcesData) return null
 
   return (
     <div className="space-y-6">
@@ -137,7 +148,7 @@ export function ApiSourcesOverview() {
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="text-2xl font-bold text-status-success">
-            {sourcesData.providers.filter((p) => p.tier === "FREE").length}
+            {sourcesData.providers.filter((p) => p.tier === 'FREE').length}
           </div>
           <div className="text-sm text-muted-foreground">FREE Tier</div>
         </div>
@@ -158,9 +169,10 @@ export function ApiSourcesOverview() {
       {/* Provider Cards */}
       <div className="space-y-3">
         {sourcesData.providers.map((provider) => {
-          const isExpanded = expandedProviders[provider.name];
-          const priorityBadge = getPriorityBadge(provider.priority);
-          const detail = selectedProvider === provider.name ? providerDetail : null;
+          const isExpanded = expandedProviders[provider.name]
+          const priorityBadge = getPriorityBadge(provider.priority)
+          const detail =
+            selectedProvider === provider.name ? providerDetail : null
 
           return (
             <div
@@ -186,7 +198,10 @@ export function ApiSourcesOverview() {
                       <span className="font-semibold text-foreground">
                         {provider.displayName}
                       </span>
-                      <Badge variant="outline" className={getTierColor(provider.tier)}>
+                      <Badge
+                        variant="outline"
+                        className={getTierColor(provider.tier)}
+                      >
                         {provider.tier}
                       </Badge>
                       <Badge variant="outline" className={priorityBadge.color}>
@@ -213,10 +228,10 @@ export function ApiSourcesOverview() {
                   <div className="text-right">
                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
                       <Clock className="h-3 w-3" />
-                      {formatRateLimit(provider.rateLimits?.perMinute, "min")}
+                      {formatRateLimit(provider.rateLimits?.perMinute, 'min')}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {formatRateLimit(provider.rateLimits?.perDay, "day")}
+                      {formatRateLimit(provider.rateLimits?.perDay, 'day')}
                     </div>
                   </div>
 
@@ -271,7 +286,11 @@ export function ApiSourcesOverview() {
                         </h4>
                         <div className="flex flex-wrap gap-2">
                           {(detail.useCases ?? []).map((useCase, i) => (
-                            <Badge key={i} variant="secondary" className="text-xs">
+                            <Badge
+                              key={i}
+                              variant="secondary"
+                              className="text-xs"
+                            >
                               {useCase}
                             </Badge>
                           ))}
@@ -301,39 +320,42 @@ export function ApiSourcesOverview() {
                       {/* Endpoints */}
                       <div>
                         <h4 className="text-sm font-medium text-foreground mb-2">
-                          Endpoints ({Object.keys(detail.endpoints ?? {}).length})
+                          Endpoints (
+                          {Object.keys(detail.endpoints ?? {}).length})
                         </h4>
                         <div className="grid gap-2">
-                          {Object.entries(detail.endpoints ?? {}).map(([name, endpoint]) => (
-                            <div
-                              key={name}
-                              className="rounded border border-border bg-surface p-3"
-                            >
-                              <div className="flex items-start justify-between">
-                                <div>
-                                  <code className="text-sm font-mono text-foreground">
-                                    {endpoint.path || endpoint.method || name}
-                                  </code>
-                                  {endpoint.gapId && (
-                                    <Badge
-                                      variant="outline"
-                                      className="ml-2 text-xs bg-accent/10 text-accent"
-                                    >
-                                      {endpoint.gapId}
-                                    </Badge>
-                                  )}
+                          {Object.entries(detail.endpoints ?? {}).map(
+                            ([name, endpoint]) => (
+                              <div
+                                key={name}
+                                className="rounded border border-border bg-surface p-3"
+                              >
+                                <div className="flex items-start justify-between">
+                                  <div>
+                                    <code className="text-sm font-mono text-foreground">
+                                      {endpoint.path || endpoint.method || name}
+                                    </code>
+                                    {endpoint.gapId && (
+                                      <Badge
+                                        variant="outline"
+                                        className="ml-2 text-xs bg-accent/10 text-accent"
+                                      >
+                                        {endpoint.gapId}
+                                      </Badge>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {endpoint.description}
-                              </p>
-                              {endpoint.notes && (
-                                <p className="text-xs text-muted-foreground mt-1 italic">
-                                  {endpoint.notes}
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {endpoint.description}
                                 </p>
-                              )}
-                            </div>
-                          ))}
+                                {endpoint.notes && (
+                                  <p className="text-xs text-muted-foreground mt-1 italic">
+                                    {endpoint.notes}
+                                  </p>
+                                )}
+                              </div>
+                            ),
+                          )}
                         </div>
                       </div>
 
@@ -373,40 +395,44 @@ export function ApiSourcesOverview() {
                 </div>
               )}
             </div>
-          );
+          )
         })}
       </div>
 
       {/* Data Routing Section */}
-      {sourcesData.dataRouting && Object.keys(sourcesData.dataRouting).length > 0 && (
-        <div className="rounded-lg border border-border bg-surface p-4">
-          <h3 className="font-semibold text-foreground mb-3">Data Routing Recommendations</h3>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {Object.entries(sourcesData.dataRouting).map(([dataType, routing]) => (
-              <div
-                key={dataType}
-                className="rounded border border-border bg-surface-muted/30 p-3"
-              >
-                <div className="font-medium text-sm text-foreground">{dataType}</div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  Primary: <span className="text-foreground">{routing.primary}</span>
-                  {routing.fallback1 && (
-                    <> → {routing.fallback1}</>
-                  )}
-                  {routing.fallback2 && (
-                    <> → {routing.fallback2}</>
-                  )}
-                </div>
-                {routing.notes && (
-                  <div className="text-xs text-muted-foreground mt-1 italic">
-                    {routing.notes}
+      {sourcesData.dataRouting &&
+        Object.keys(sourcesData.dataRouting).length > 0 && (
+          <div className="rounded-lg border border-border bg-surface p-4">
+            <h3 className="font-semibold text-foreground mb-3">
+              Data Routing Recommendations
+            </h3>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {Object.entries(sourcesData.dataRouting).map(
+                ([dataType, routing]) => (
+                  <div
+                    key={dataType}
+                    className="rounded border border-border bg-surface-muted/30 p-3"
+                  >
+                    <div className="font-medium text-sm text-foreground">
+                      {dataType}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Primary:{' '}
+                      <span className="text-foreground">{routing.primary}</span>
+                      {routing.fallback1 && <> → {routing.fallback1}</>}
+                      {routing.fallback2 && <> → {routing.fallback2}</>}
+                    </div>
+                    {routing.notes && (
+                      <div className="text-xs text-muted-foreground mt-1 italic">
+                        {routing.notes}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            ))}
+                ),
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
     </div>
-  );
+  )
 }

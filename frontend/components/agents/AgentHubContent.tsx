@@ -1,14 +1,14 @@
-'use client';
+'use client'
 
-import { AgentPanel } from './AgentPanel';
+import { AgentPanel } from './AgentPanel'
 
 interface PageContext {
-  path: string;
-  data?: Record<string, unknown>;
+  path: string
+  data?: Record<string, unknown>
 }
 
 interface AgentHubContentProps {
-  pageContext: PageContext;
+  pageContext: PageContext
 }
 
 /**
@@ -21,10 +21,10 @@ export function AgentHubContent({ pageContext }: AgentHubContentProps) {
       open={true}
       onOpenChange={() => {
         // In standalone mode, closing means closing the popup window
-        window.close();
+        window.close()
       }}
       pageContext={pageContext}
       standalone={true}
     />
-  );
+  )
 }

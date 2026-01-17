@@ -1,19 +1,19 @@
-"use client";
+'use client'
 
-import { useScoreHistory } from "@/lib/hooks/useWatchlist";
-import { Sparkline } from "@/components/ui/sparkline";
+import { Sparkline } from '@/components/ui/sparkline'
+import { useScoreHistory } from '@/lib/hooks/useWatchlist'
 
 interface SparklineWithHistoryProps {
-  itemId: string;
-  width?: number;
-  height?: number;
-  className?: string;
+  itemId: string
+  width?: number
+  height?: number
+  className?: string
   /**
    * Trading style determines optimal timeframe for analysis
    * Note: Backend API doesn't support dynamic days yet, but component is ready for when it does
    * Index: 250 days (1 year), Trend: 60 days (3 months), Value: 60 days, Swing: 10 days, Event: 5 days
    */
-  recommendedStyle?: "Index" | "Trend" | "Value" | "Swing" | "Event" | null;
+  recommendedStyle?: 'Index' | 'Trend' | 'Value' | 'Swing' | 'Event' | null
 }
 
 /**
@@ -41,10 +41,10 @@ export function SparklineWithHistory({
     Value: 60,
     Swing: 10,
     Event: 5,
-  };
-  const _desiredDays = recommendedStyle ? styleToDays[recommendedStyle] || 7 : 7;
+  }
+  const _desiredDays = recommendedStyle ? styleToDays[recommendedStyle] || 7 : 7
 
-  const { data: historyResponse, isLoading, error } = useScoreHistory(itemId);
+  const { data: historyResponse, isLoading, error } = useScoreHistory(itemId)
   // TODO: When backend supports days parameter, use: useScoreHistory(itemId, _desiredDays)
 
   // Loading state
@@ -55,7 +55,7 @@ export function SparklineWithHistory({
         style={{ width, height }}
         aria-label="Loading score history"
       />
-    );
+    )
   }
 
   // Error or empty state
@@ -72,33 +72,36 @@ export function SparklineWithHistory({
       >
         —
       </div>
-    );
+    )
   }
 
   // Transform historical data: extract overall scores, filter out invalid values
   const allScores = historyResponse.history
     .map((h) => h.overall)
-    .filter((score) => typeof score === "number" && !isNaN(score));
+    .filter((score) => typeof score === 'number' && !Number.isNaN(score))
 
   // Sample data evenly across time range instead of just taking last 7 points
   // This ensures the sparkline shows actual trend variation, not just recent identical values
-  const sampleDataEvenly = (data: number[], targetPoints: number = 7): number[] => {
+  const sampleDataEvenly = (
+    data: number[],
+    targetPoints: number = 7,
+  ): number[] => {
     if (data.length <= targetPoints) {
-      return data;
+      return data
     }
 
-    const sampled: number[] = [];
-    const interval = (data.length - 1) / (targetPoints - 1);
+    const sampled: number[] = []
+    const interval = (data.length - 1) / (targetPoints - 1)
 
     for (let i = 0; i < targetPoints; i++) {
-      const index = Math.round(i * interval);
-      sampled.push(data[index]);
+      const index = Math.round(i * interval)
+      sampled.push(data[index])
     }
 
-    return sampled;
-  };
+    return sampled
+  }
 
-  const scoreData = sampleDataEvenly(allScores, 7);
+  const scoreData = sampleDataEvenly(allScores, 7)
 
   // If we don't have any valid data points, show placeholder
   if (scoreData.length === 0) {
@@ -109,7 +112,7 @@ export function SparklineWithHistory({
       >
         —
       </div>
-    );
+    )
   }
 
   return (
@@ -120,5 +123,5 @@ export function SparklineWithHistory({
       className={className}
       aria-label={`Score history for ${itemId}`}
     />
-  );
+  )
 }

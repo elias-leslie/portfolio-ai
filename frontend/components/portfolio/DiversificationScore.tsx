@@ -1,59 +1,61 @@
-"use client";
+'use client'
 
-import { Card } from "@/components/ui/card";
-import { Target } from "lucide-react";
-import type { DiversificationScore as DiversificationScoreType } from "@/lib/api/portfolio";
+import { Target } from 'lucide-react'
+import { Card } from '@/components/ui/card'
+import type { DiversificationScore as DiversificationScoreType } from '@/lib/api/portfolio'
 
 interface DiversificationScoreProps {
-  diversification: DiversificationScoreType;
+  diversification: DiversificationScoreType
 }
 
-export function DiversificationScore({ diversification }: DiversificationScoreProps) {
+export function DiversificationScore({
+  diversification,
+}: DiversificationScoreProps) {
   // Determine color based on level
   const getLevelColor = (level: string) => {
     switch (level) {
-      case "Excellent":
-        return "text-gain";
-      case "Good":
-        return "text-accent";
-      case "Fair":
-        return "text-warning";
-      case "Poor":
-        return "text-loss";
+      case 'Excellent':
+        return 'text-gain'
+      case 'Good':
+        return 'text-accent'
+      case 'Fair':
+        return 'text-warning'
+      case 'Poor':
+        return 'text-loss'
       default:
-        return "text-text-muted";
+        return 'text-text-muted'
     }
-  };
+  }
 
   const getBgColor = (level: string) => {
     switch (level) {
-      case "Excellent":
-        return "bg-gain/20";
-      case "Good":
-        return "bg-accent/20";
-      case "Fair":
-        return "bg-warning/20";
-      case "Poor":
-        return "bg-loss/20";
+      case 'Excellent':
+        return 'bg-gain/20'
+      case 'Good':
+        return 'bg-accent/20'
+      case 'Fair':
+        return 'bg-warning/20'
+      case 'Poor':
+        return 'bg-loss/20'
       default:
-        return "bg-surface-muted";
+        return 'bg-surface-muted'
     }
-  };
+  }
 
   const getProgressColor = (level: string) => {
     switch (level) {
-      case "Excellent":
-        return "bg-gain";
-      case "Good":
-        return "bg-accent";
-      case "Fair":
-        return "bg-warning";
-      case "Poor":
-        return "bg-loss";
+      case 'Excellent':
+        return 'bg-gain'
+      case 'Good':
+        return 'bg-accent'
+      case 'Fair':
+        return 'bg-warning'
+      case 'Poor':
+        return 'bg-loss'
       default:
-        return "bg-surface-muted";
+        return 'bg-surface-muted'
     }
-  };
+  }
 
   return (
     <Card className="p-6">
@@ -101,5 +103,5 @@ export function DiversificationScore({ diversification }: DiversificationScorePr
         </div>
       </div>
     </Card>
-  );
+  )
 }

@@ -1,23 +1,23 @@
-"use client";
+'use client'
 
-import { ReactNode } from "react";
-import { cn } from "@/lib/utils";
-import { Info } from "lucide-react";
+import { Info } from 'lucide-react'
+import type { ReactNode } from 'react'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 
 interface SettingGroupProps {
-  title: string;
-  description?: string;
-  icon?: ReactNode;
-  children: ReactNode;
-  className?: string;
-  helpText?: string;
-  helpLink?: string;
+  title: string
+  description?: string
+  icon?: ReactNode
+  children: ReactNode
+  className?: string
+  helpText?: string
+  helpLink?: string
 }
 
 export function SettingGroup({
@@ -30,7 +30,7 @@ export function SettingGroup({
   helpLink,
 }: SettingGroupProps) {
   return (
-    <div className={cn("space-y-4", className)}>
+    <div className={cn('space-y-4', className)}>
       <div className="flex items-start gap-3">
         {icon && (
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -75,5 +75,5 @@ export function SettingGroup({
       </div>
       <div className="space-y-4">{children}</div>
     </div>
-  );
+  )
 }

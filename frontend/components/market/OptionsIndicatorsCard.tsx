@@ -1,36 +1,40 @@
-"use client";
+'use client'
 
-import { useMarketIntelligence } from "@/lib/hooks/useMarketIntelligence";
-import { Card } from "@/components/ui/card";
+import { Info, Loader2, Minus, TrendingDown, TrendingUp } from 'lucide-react'
+import { Card } from '@/components/ui/card'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { Loader2, Info, TrendingUp, TrendingDown, Minus } from "lucide-react";
-import { formatRelativeTime } from "@/lib/utils";
+} from '@/components/ui/tooltip'
+import { useMarketIntelligence } from '@/lib/hooks/useMarketIntelligence'
+import { formatRelativeTime } from '@/lib/utils'
 
 const SIGNAL_COLORS: Record<string, string> = {
-  Bullish: "text-gain",
-  Neutral: "text-text-muted",
-  Bearish: "text-loss",
-};
+  Bullish: 'text-gain',
+  Neutral: 'text-text-muted',
+  Bearish: 'text-loss',
+}
 
 const SIGNAL_BG: Record<string, string> = {
-  Bullish: "bg-gain/10",
-  Neutral: "bg-surface-muted",
-  Bearish: "bg-loss/10",
-};
+  Bullish: 'bg-gain/10',
+  Neutral: 'bg-surface-muted',
+  Bearish: 'bg-loss/10',
+}
 
-function TrendIcon({ trend }: { trend: "up" | "down" | "flat" | null | undefined }) {
-  if (trend === "up") return <TrendingUp className="h-3 w-3 text-loss" />;
-  if (trend === "down") return <TrendingDown className="h-3 w-3 text-gain" />;
-  return <Minus className="h-3 w-3 text-text-muted" />;
+function TrendIcon({
+  trend,
+}: {
+  trend: 'up' | 'down' | 'flat' | null | undefined
+}) {
+  if (trend === 'up') return <TrendingUp className="h-3 w-3 text-loss" />
+  if (trend === 'down') return <TrendingDown className="h-3 w-3 text-gain" />
+  return <Minus className="h-3 w-3 text-text-muted" />
 }
 
 export function OptionsIndicatorsCard() {
-  const { data, isLoading, error } = useMarketIntelligence();
+  const { data, isLoading, error } = useMarketIntelligence()
 
   if (isLoading) {
     return (
@@ -39,7 +43,7 @@ export function OptionsIndicatorsCard() {
           <Loader2 className="h-5 w-5 animate-spin text-text-muted" />
         </div>
       </Card>
-    );
+    )
   }
 
   if (error || !data) {
@@ -49,21 +53,23 @@ export function OptionsIndicatorsCard() {
           Unable to load options data
         </div>
       </Card>
-    );
+    )
   }
 
-  const putcall = data.indicators?.putcall;
-  const optionsActivity = data.optionsActivity;
+  const putcall = data.indicators?.putcall
+  const optionsActivity = data.optionsActivity
 
   // If no options data at all, don't render
   if (!putcall && !optionsActivity) {
-    return null;
+    return null
   }
 
   return (
     <Card className="p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-text">Options Market Sentiment</h3>
+        <h3 className="text-sm font-semibold text-text">
+          Options Market Sentiment
+        </h3>
         {putcall?.lastUpdated && (
           <span className="text-xs text-text-muted">
             {formatRelativeTime(putcall.lastUpdated)}
@@ -112,7 +118,7 @@ export function OptionsIndicatorsCard() {
                 <div className="flex items-center gap-1 justify-end">
                   <TrendIcon trend={putcall.context.trend} />
                   <span className="text-xs text-text-muted">
-                    {putcall.context.trendPct > 0 ? "+" : ""}
+                    {putcall.context.trendPct > 0 ? '+' : ''}
                     {putcall.context.trendPct.toFixed(1)}% 7d
                   </span>
                 </div>
@@ -156,22 +162,23 @@ export function OptionsIndicatorsCard() {
         )}
 
         {/* Top Sectors if available */}
-        {optionsActivity?.topSectors && optionsActivity.topSectors.length > 0 && (
-          <div className="pt-2 border-t border-border/30">
-            <div className="text-xs text-text-muted mb-1">Active Sectors</div>
-            <div className="flex flex-wrap gap-1">
-              {optionsActivity.topSectors.slice(0, 5).map((s) => (
-                <span
-                  key={s.sector}
-                  className="text-xs px-2 py-0.5 rounded bg-surface-muted border border-border/50 text-text-muted"
-                >
-                  {s.sector} {s.weightPct.toFixed(0)}%
-                </span>
-              ))}
+        {optionsActivity?.topSectors &&
+          optionsActivity.topSectors.length > 0 && (
+            <div className="pt-2 border-t border-border/30">
+              <div className="text-xs text-text-muted mb-1">Active Sectors</div>
+              <div className="flex flex-wrap gap-1">
+                {optionsActivity.topSectors.slice(0, 5).map((s) => (
+                  <span
+                    key={s.sector}
+                    className="text-xs px-2 py-0.5 rounded bg-surface-muted border border-border/50 text-text-muted"
+                  >
+                    {s.sector} {s.weightPct.toFixed(0)}%
+                  </span>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
       </div>
     </Card>
-  );
+  )
 }

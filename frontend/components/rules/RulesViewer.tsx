@@ -4,103 +4,108 @@
  * Displays all trading rules from rules.yaml in expandable sections
  */
 
-"use client";
+'use client'
 
-import { useState } from "react";
-import { ChevronDown, ChevronRight, Download, Loader2 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { ChevronDown, ChevronRight, Download, Loader2 } from 'lucide-react'
+import { useState } from 'react'
+import { toast } from 'sonner'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { useRules } from "@/lib/hooks/useRules";
-import { toast } from "sonner";
+} from '@/components/ui/dropdown-menu'
+import { useRules } from '@/lib/hooks/useRules'
 
 interface ExpandedSections {
-  [key: string]: boolean;
+  [key: string]: boolean
 }
 
 export function RulesViewer() {
-  const { data: rules, isLoading, error } = useRules();
-  const [expandedSections, setExpandedSections] = useState<ExpandedSections>({});
-  const [isExporting, setIsExporting] = useState(false);
+  const { data: rules, isLoading, error } = useRules()
+  const [expandedSections, setExpandedSections] = useState<ExpandedSections>({})
+  const [isExporting, setIsExporting] = useState(false)
 
-  const handleExport = async (format: "yaml" | "json") => {
-    setIsExporting(true);
+  const handleExport = async (format: 'yaml' | 'json') => {
+    setIsExporting(true)
     try {
-      const response = await fetch(`/api/rules/export?format=${format}`);
+      const response = await fetch(`/api/rules/export?format=${format}`)
       if (!response.ok) {
-        throw new Error("Export failed");
+        throw new Error('Export failed')
       }
 
       // Get the blob and trigger download
-      const blob = await response.blob();
-      const filename = response.headers.get("Content-Disposition")
-        ?.match(/filename="(.+)"/)?.[1] || `trading_rules.${format}`;
+      const blob = await response.blob()
+      const filename =
+        response.headers
+          .get('Content-Disposition')
+          ?.match(/filename="(.+)"/)?.[1] || `trading_rules.${format}`
 
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
 
-      toast.success(`Rules exported as ${format.toUpperCase()}`);
+      toast.success(`Rules exported as ${format.toUpperCase()}`)
     } catch {
-      toast.error("Failed to export rules");
+      toast.error('Failed to export rules')
     } finally {
-      setIsExporting(false);
+      setIsExporting(false)
     }
-  };
+  }
 
   const toggleSection = (section: string) => {
     setExpandedSections((prev) => ({
       ...prev,
       [section]: !prev[section],
-    }));
-  };
+    }))
+  }
 
   // Format field names to readable labels
   const formatLabel = (key: string): string => {
     return key
-      .replace(/_/g, " ")
-      .split(" ")
+      .replace(/_/g, ' ')
+      .split(' ')
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ");
-  };
+      .join(' ')
+  }
 
   // Format values for display
   const formatValue = (value: unknown): string => {
-    if (typeof value === "boolean") {
-      return value ? "Yes" : "No";
+    if (typeof value === 'boolean') {
+      return value ? 'Yes' : 'No'
     }
-    if (typeof value === "number") {
+    if (typeof value === 'number') {
       // Check if it's a percentage (< 1 or explicitly named as such)
       if (value < 1 && value > -1 && value !== 0) {
-        return `${(value * 100).toFixed(2)}%`;
+        return `${(value * 100).toFixed(2)}%`
       }
-      return value.toString();
+      return value.toString()
     }
     if (Array.isArray(value)) {
-      return value.join(", ");
+      return value.join(', ')
     }
-    if (typeof value === "string") {
-      return value;
+    if (typeof value === 'string') {
+      return value
     }
-    return JSON.stringify(value);
-  };
+    return JSON.stringify(value)
+  }
 
   // Render a rule section with key-value pairs
   const renderRuleSection = (title: string, data: Record<string, unknown>) => {
-    const isExpanded = expandedSections[title];
+    const isExpanded = expandedSections[title]
 
     return (
-      <div key={title} className="rounded-lg border border-border bg-surface overflow-hidden">
+      <div
+        key={title}
+        className="rounded-lg border border-border bg-surface overflow-hidden"
+      >
         {/* Header */}
         <button
           onClick={() => toggleSection(title)}
@@ -112,7 +117,9 @@ export function RulesViewer() {
             ) : (
               <ChevronRight className="h-5 w-5 text-muted-foreground" />
             )}
-            <span className="font-semibold text-foreground">{formatLabel(title)}</span>
+            <span className="font-semibold text-foreground">
+              {formatLabel(title)}
+            </span>
             <Badge variant="outline" className="text-xs">
               {Object.keys(data).length} rules
             </Badge>
@@ -140,16 +147,21 @@ export function RulesViewer() {
           </div>
         )}
       </div>
-    );
-  };
+    )
+  }
 
   // Render catalyst impacts section (special handling for nested structure)
-  const renderCatalystImpacts = (data: Record<string, { impact: number; durationDays: number }>) => {
-    const title = "catalyst_impacts";
-    const isExpanded = expandedSections[title];
+  const renderCatalystImpacts = (
+    data: Record<string, { impact: number; durationDays: number }>,
+  ) => {
+    const title = 'catalyst_impacts'
+    const isExpanded = expandedSections[title]
 
     return (
-      <div key={title} className="rounded-lg border border-border bg-surface overflow-hidden">
+      <div
+        key={title}
+        className="rounded-lg border border-border bg-surface overflow-hidden"
+      >
         {/* Header */}
         <button
           onClick={() => toggleSection(title)}
@@ -161,7 +173,9 @@ export function RulesViewer() {
             ) : (
               <ChevronRight className="h-5 w-5 text-muted-foreground" />
             )}
-            <span className="font-semibold text-foreground">Catalyst Impacts</span>
+            <span className="font-semibold text-foreground">
+              Catalyst Impacts
+            </span>
             <Badge variant="outline" className="text-xs">
               {Object.keys(data).length} events
             </Badge>
@@ -184,22 +198,26 @@ export function RulesViewer() {
                     </div>
                     <div className="flex items-center gap-3">
                       <div>
-                        <div className="text-xs text-muted-foreground">Impact</div>
+                        <div className="text-xs text-muted-foreground">
+                          Impact
+                        </div>
                         <div
                           className={`text-base font-semibold ${
                             catalyst.impact > 0
-                              ? "text-gain"
+                              ? 'text-gain'
                               : catalyst.impact < 0
-                              ? "text-loss"
-                              : "text-muted-foreground"
+                                ? 'text-loss'
+                                : 'text-muted-foreground'
                           }`}
                         >
-                          {catalyst.impact > 0 ? "+" : ""}
+                          {catalyst.impact > 0 ? '+' : ''}
                           {catalyst.impact.toFixed(1)}
                         </div>
                       </div>
                       <div>
-                        <div className="text-xs text-muted-foreground">Duration</div>
+                        <div className="text-xs text-muted-foreground">
+                          Duration
+                        </div>
                         <div className="text-base font-semibold text-foreground">
                           {catalyst.durationDays}d
                         </div>
@@ -211,15 +229,15 @@ export function RulesViewer() {
           </div>
         )}
       </div>
-    );
-  };
+    )
+  }
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
-    );
+    )
   }
 
   if (error) {
@@ -227,10 +245,10 @@ export function RulesViewer() {
       <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-6 text-center">
         <p className="text-sm text-destructive">Failed to load trading rules</p>
       </div>
-    );
+    )
   }
 
-  if (!rules) return null;
+  if (!rules) return null
 
   return (
     <div className="space-y-6">
@@ -239,7 +257,8 @@ export function RulesViewer() {
         <div>
           <h2 className="text-2xl font-bold text-foreground">Trading Rules</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Version {rules.version} - Updated {rules.updated} by {rules.updatedBy}
+            Version {rules.version} - Updated {rules.updated} by{' '}
+            {rules.updatedBy}
           </p>
         </div>
         <DropdownMenu>
@@ -254,10 +273,10 @@ export function RulesViewer() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => handleExport("yaml")}>
+            <DropdownMenuItem onClick={() => handleExport('yaml')}>
               Export as YAML
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleExport("json")}>
+            <DropdownMenuItem onClick={() => handleExport('json')}>
               Export as JSON
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -270,7 +289,9 @@ export function RulesViewer() {
           <div className="text-2xl font-bold text-gain">
             {(rules.positionSizing.defaultRiskPercent * 100).toFixed(1)}%
           </div>
-          <div className="text-sm text-muted-foreground">Default Risk/Trade</div>
+          <div className="text-sm text-muted-foreground">
+            Default Risk/Trade
+          </div>
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="text-2xl font-bold text-loss">
@@ -294,19 +315,40 @@ export function RulesViewer() {
 
       {/* Rule Sections */}
       <div className="space-y-3">
-        {renderRuleSection("position_sizing", rules.positionSizing as Record<string, unknown>)}
-        {renderRuleSection("risk_management", rules.riskManagement as Record<string, unknown>)}
-        {renderRuleSection("technical_thresholds", rules.technicalThresholds as Record<string, unknown>)}
-        {renderRuleSection("scoring", rules.scoring as Record<string, unknown>)}
-        {renderRuleSection("fundamentals", rules.fundamentals as Record<string, unknown>)}
-        {renderRuleSection("signals", rules.signals as Record<string, unknown>)}
-        {renderRuleSection("fees", rules.fees as Record<string, unknown>)}
-        {renderRuleSection("compliance", rules.compliance as Record<string, unknown>)}
-        {renderRuleSection("market", rules.market as Record<string, unknown>)}
-        {renderRuleSection("paper_trading", rules.paperTrading as Record<string, unknown>)}
+        {renderRuleSection(
+          'position_sizing',
+          rules.positionSizing as Record<string, unknown>,
+        )}
+        {renderRuleSection(
+          'risk_management',
+          rules.riskManagement as Record<string, unknown>,
+        )}
+        {renderRuleSection(
+          'technical_thresholds',
+          rules.technicalThresholds as Record<string, unknown>,
+        )}
+        {renderRuleSection('scoring', rules.scoring as Record<string, unknown>)}
+        {renderRuleSection(
+          'fundamentals',
+          rules.fundamentals as Record<string, unknown>,
+        )}
+        {renderRuleSection('signals', rules.signals as Record<string, unknown>)}
+        {renderRuleSection('fees', rules.fees as Record<string, unknown>)}
+        {renderRuleSection(
+          'compliance',
+          rules.compliance as Record<string, unknown>,
+        )}
+        {renderRuleSection('market', rules.market as Record<string, unknown>)}
+        {renderRuleSection(
+          'paper_trading',
+          rules.paperTrading as Record<string, unknown>,
+        )}
         {renderCatalystImpacts(rules.catalystImpacts)}
-        {renderRuleSection("watchlist_management", rules.watchlistManagement as Record<string, unknown>)}
+        {renderRuleSection(
+          'watchlist_management',
+          rules.watchlistManagement as Record<string, unknown>,
+        )}
       </div>
     </div>
-  );
+  )
 }

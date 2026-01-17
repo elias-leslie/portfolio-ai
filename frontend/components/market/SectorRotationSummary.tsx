@@ -5,32 +5,34 @@
  * Shows plain-language sector names with descriptions.
  */
 
-"use client";
+'use client'
 
-import * as React from "react";
-import { InfoTooltip } from "@/components/ui/info-tooltip";
-import type { SectorRotationSummary as SectorRotation, SectorInfo } from "@/lib/api/market";
-import { cn } from "@/lib/utils";
+import { InfoTooltip } from '@/components/ui/info-tooltip'
+import type {
+  SectorInfo,
+  SectorRotationSummary as SectorRotation,
+} from '@/lib/api/market'
+import { cn } from '@/lib/utils'
 
 export interface SectorRotationSummaryProps {
   /**
    * Sector rotation data
    */
-  rotation: SectorRotation;
+  rotation: SectorRotation
 
   /**
    * Additional CSS classes
    */
-  className?: string;
+  className?: string
 }
 
 function SectorBadge({ sector }: { sector: SectorInfo }) {
   const signalColor =
-    sector.signal === "Leading"
-      ? "text-gain"
-      : sector.signal === "Lagging"
-      ? "text-loss"
-      : "text-warning";
+    sector.signal === 'Leading'
+      ? 'text-gain'
+      : sector.signal === 'Lagging'
+        ? 'text-loss'
+        : 'text-warning'
 
   return (
     <div className="flex items-center justify-between gap-2">
@@ -40,14 +42,14 @@ function SectorBadge({ sector }: { sector: SectorInfo }) {
       </div>
       <div className="flex items-center gap-2">
         {sector.changePct !== null && (
-          <span className={cn("text-xs font-semibold", signalColor)}>
-            {sector.changePct > 0 ? "+" : ""}
+          <span className={cn('text-xs font-semibold', signalColor)}>
+            {sector.changePct > 0 ? '+' : ''}
             {sector.changePct.toFixed(2)}%
           </span>
         )}
       </div>
     </div>
-  );
+  )
 }
 
 export function SectorRotationSummary({
@@ -55,7 +57,7 @@ export function SectorRotationSummary({
   className,
 }: SectorRotationSummaryProps) {
   return (
-    <div className={cn("space-y-4", className)}>
+    <div className={cn('space-y-4', className)}>
       {/* Leading Sectors */}
       {rotation.leading.length > 0 && (
         <div className="space-y-2">
@@ -116,9 +118,10 @@ export function SectorRotationSummary({
       {/* Footer explanation */}
       <div className="pt-3 border-t border-border">
         <p className="text-xs text-text-muted">
-          Sectors ranked by today&apos;s performance. Leading = top 33%, Lagging = bottom 33%.
+          Sectors ranked by today&apos;s performance. Leading = top 33%, Lagging
+          = bottom 33%.
         </p>
       </div>
     </div>
-  );
+  )
 }

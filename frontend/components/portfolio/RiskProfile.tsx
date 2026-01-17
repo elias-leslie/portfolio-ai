@@ -1,50 +1,50 @@
-"use client";
+'use client'
 
-import { Card } from "@/components/ui/card";
-import { Shield, AlertTriangle } from "lucide-react";
-import type { RiskProfile as RiskProfileType } from "@/lib/api/portfolio";
+import { AlertTriangle, Shield } from 'lucide-react'
+import { Card } from '@/components/ui/card'
+import type { RiskProfile as RiskProfileType } from '@/lib/api/portfolio'
 
 interface RiskProfileProps {
-  riskProfile: RiskProfileType;
+  riskProfile: RiskProfileType
 }
 
 export function RiskProfile({ riskProfile }: RiskProfileProps) {
   const getLevelColor = (level: string) => {
     switch (level) {
-      case "Conservative":
-        return "text-gain";
-      case "Moderate":
-        return "text-accent";
-      case "Aggressive":
-        return "text-warning";
-      case "Very Aggressive":
-        return "text-loss";
+      case 'Conservative':
+        return 'text-gain'
+      case 'Moderate':
+        return 'text-accent'
+      case 'Aggressive':
+        return 'text-warning'
+      case 'Very Aggressive':
+        return 'text-loss'
       default:
-        return "text-text-muted";
+        return 'text-text-muted'
     }
-  };
+  }
 
   const getBgColor = (level: string) => {
     switch (level) {
-      case "Conservative":
-        return "bg-gain/20";
-      case "Moderate":
-        return "bg-accent/20";
-      case "Aggressive":
-        return "bg-warning/20";
-      case "Very Aggressive":
-        return "bg-loss/20";
+      case 'Conservative':
+        return 'bg-gain/20'
+      case 'Moderate':
+        return 'bg-accent/20'
+      case 'Aggressive':
+        return 'bg-warning/20'
+      case 'Very Aggressive':
+        return 'bg-loss/20'
       default:
-        return "bg-surface-muted";
+        return 'bg-surface-muted'
     }
-  };
+  }
 
   const getIcon = (level: string) => {
-    if (level === "Conservative" || level === "Moderate") {
-      return <Shield className="h-4 w-4" />;
+    if (level === 'Conservative' || level === 'Moderate') {
+      return <Shield className="h-4 w-4" />
     }
-    return <AlertTriangle className="h-4 w-4" />;
-  };
+    return <AlertTriangle className="h-4 w-4" />
+  }
 
   return (
     <Card className="p-6">
@@ -84,5 +84,5 @@ export function RiskProfile({ riskProfile }: RiskProfileProps) {
         ))}
       </div>
     </Card>
-  );
+  )
 }

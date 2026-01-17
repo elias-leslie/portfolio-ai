@@ -1,18 +1,18 @@
-"use client";
+'use client'
 
-import { usePortfolio, usePortfolioAnalytics } from "@/lib/hooks/usePortfolio";
-import { Card } from "@/components/ui/card";
-import { DollarSign, TrendingUp, Activity, Gauge } from "lucide-react";
-import { TopPerformers } from "./TopPerformers";
-import { DiversificationScore } from "./DiversificationScore";
-import { AssetAllocation } from "./AssetAllocation";
-import { PortfolioStats } from "./PortfolioStats";
-import { RiskProfile } from "./RiskProfile";
+import { Activity, DollarSign, Gauge, TrendingUp } from 'lucide-react'
+import { Card } from '@/components/ui/card'
+import { usePortfolio, usePortfolioAnalytics } from '@/lib/hooks/usePortfolio'
+import { AssetAllocation } from './AssetAllocation'
+import { DiversificationScore } from './DiversificationScore'
+import { PortfolioStats } from './PortfolioStats'
+import { RiskProfile } from './RiskProfile'
+import { TopPerformers } from './TopPerformers'
 
 export function PortfolioOverview() {
-  const { data: portfolio, isLoading: portfolioLoading } = usePortfolio();
+  const { data: portfolio, isLoading: portfolioLoading } = usePortfolio()
   const { data: analytics, isLoading: analyticsLoading } =
-    usePortfolioAnalytics();
+    usePortfolioAnalytics()
 
   if (portfolioLoading || analyticsLoading) {
     return (
@@ -23,22 +23,22 @@ export function PortfolioOverview() {
           </Card>
         ))}
       </div>
-    );
+    )
   }
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
       minimumFractionDigits: 2,
-    }).format(value);
-  };
+    }).format(value)
+  }
 
   const formatPercent = (value: number) => {
-    return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
-  };
+    return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
+  }
 
-  const gainColor = (portfolio?.totalGain ?? 0) >= 0 ? "text-gain" : "text-loss";
+  const gainColor = (portfolio?.totalGain ?? 0) >= 0 ? 'text-gain' : 'text-loss'
 
   return (
     <div className="space-y-6">
@@ -65,7 +65,9 @@ export function PortfolioOverview() {
 
         <Card className="group p-6 transition-all hover:scale-[1.02] hover:shadow-lg">
           <div className="flex items-center gap-3">
-            <div className={`rounded-lg p-3 ${(portfolio?.totalGain ?? 0) >= 0 ? 'bg-gain/10' : 'bg-loss/10'}`}>
+            <div
+              className={`rounded-lg p-3 ${(portfolio?.totalGain ?? 0) >= 0 ? 'bg-gain/10' : 'bg-loss/10'}`}
+            >
               <TrendingUp className={`h-5 w-5 ${gainColor}`} />
             </div>
             <div className="flex-1">
@@ -92,7 +94,7 @@ export function PortfolioOverview() {
                 Portfolio Beta
               </div>
               <div className="mt-1 text-2xl font-bold text-text">
-                {analytics?.portfolioBeta?.toFixed(2) ?? "—"}
+                {analytics?.portfolioBeta?.toFixed(2) ?? '—'}
               </div>
               <div className="mt-1 text-xs text-text-muted">
                 vs. Market (1.0)
@@ -113,18 +115,18 @@ export function PortfolioOverview() {
               <div className="mt-1 text-2xl font-bold text-text">
                 {analytics?.portfolioVolatility
                   ? `${(analytics.portfolioVolatility * 100).toFixed(1)}%`
-                  : "—"}
+                  : '—'}
               </div>
-              <div className="mt-1 text-xs text-text-muted">
-                Annualized
-              </div>
+              <div className="mt-1 text-xs text-text-muted">Annualized</div>
             </div>
           </div>
         </Card>
 
         {/* Diversification Score Card */}
         {analytics?.diversificationScore && (
-          <DiversificationScore diversification={analytics.diversificationScore} />
+          <DiversificationScore
+            diversification={analytics.diversificationScore}
+          />
         )}
 
         {/* Portfolio Stats Card */}
@@ -151,12 +153,12 @@ export function PortfolioOverview() {
       {analytics && (
         <div className="grid gap-4 md:grid-cols-2">
           <Card className="p-6">
-            <h3 className="mb-4 text-sm font-semibold text-text">Concentration Risk</h3>
+            <h3 className="mb-4 text-sm font-semibold text-text">
+              Concentration Risk
+            </h3>
             <div className="space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-text-muted">
-                  Top Holding
-                </span>
+                <span className="text-sm text-text-muted">Top Holding</span>
                 <span className="text-sm font-medium">
                   {analytics.concentration.topHoldingPct.toFixed(1)}%
                 </span>
@@ -185,7 +187,9 @@ export function PortfolioOverview() {
           </Card>
 
           <Card className="p-6">
-            <h3 className="mb-4 text-sm font-semibold text-text">Sector Exposure</h3>
+            <h3 className="mb-4 text-sm font-semibold text-text">
+              Sector Exposure
+            </h3>
             <div className="space-y-3">
               {Object.entries(analytics.sectorExposure)
                 .sort(([, a], [, b]) => b - a)
@@ -195,9 +199,7 @@ export function PortfolioOverview() {
                     key={sector}
                     className="flex justify-between items-center"
                   >
-                    <span className="text-sm text-text-muted">
-                      {sector}
-                    </span>
+                    <span className="text-sm text-text-muted">{sector}</span>
                     <span className="text-sm font-medium">
                       {percentage.toFixed(1)}%
                     </span>
@@ -208,5 +210,5 @@ export function PortfolioOverview() {
         </div>
       )}
     </div>
-  );
+  )
 }

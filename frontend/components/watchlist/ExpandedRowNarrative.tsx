@@ -1,9 +1,9 @@
-"use client";
+'use client'
 
-import type { WatchlistItem } from "@/lib/api/watchlist";
+import type { WatchlistItem } from '@/lib/api/watchlist'
 
 interface ExpandedRowNarrativeProps {
-    item: WatchlistItem;
+  item: WatchlistItem
 }
 
 /**
@@ -23,6 +23,8 @@ interface ExpandedRowNarrativeProps {
  *
  * Component kept for backward compatibility but returns null.
  */
-export function ExpandedRowNarrative({ item: _item }: ExpandedRowNarrativeProps) {
-    return null;
+export function ExpandedRowNarrative({
+  item: _item,
+}: ExpandedRowNarrativeProps) {
+  return null
 }

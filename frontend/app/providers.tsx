@@ -1,10 +1,9 @@
-"use client";
+'use client'
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useState } from "react";
-
-import { ThemeProvider } from "@/components/providers/ThemeProvider";
-import { AgentProvider } from "@/components/providers/AgentProvider";
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { useState } from 'react'
+import { AgentProvider } from '@/components/providers/AgentProvider'
+import { ThemeProvider } from '@/components/providers/ThemeProvider'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -18,8 +17,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
             refetchIntervalInBackground: true,
           },
         },
-      })
-  );
+      }),
+  )
 
   return (
     <ThemeProvider>
@@ -27,5 +26,5 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <AgentProvider>{children}</AgentProvider>
       </QueryClientProvider>
     </ThemeProvider>
-  );
+  )
 }

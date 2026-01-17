@@ -1,61 +1,65 @@
-"use client";
+'use client'
 
-import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  HardDrive,
-  RefreshCw,
-  CheckCircle2,
   AlertCircle,
-  Clock,
-  Loader2,
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
+  Clock,
+  HardDrive,
+  Loader2,
+  RefreshCw,
   Terminal,
-} from "lucide-react";
-import { toast } from "sonner";
+} from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 
-import { PageContainer } from "@/components/shared/PageContainer";
-import { PageHeader } from "@/components/shared/PageHeader";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { PageContainer } from '@/components/shared/PageContainer'
+import { PageHeader } from '@/components/shared/PageHeader'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
-  backupKeys,
-  getBackupStatus,
-  getBackupHistory,
-  triggerBackup,
-  getBackupJobStatus,
-  formatBytes,
-  formatBackupAge,
-  getStatusColor,
-  type BackupStatusResponse,
   type BackupEntry,
   type BackupJobStatus,
-} from "@/lib/api/backup";
+  type BackupStatusResponse,
+  backupKeys,
+  formatBackupAge,
+  formatBytes,
+  getBackupHistory,
+  getBackupJobStatus,
+  getBackupStatus,
+  getStatusColor,
+  triggerBackup,
+} from '@/lib/api/backup'
+import { cn } from '@/lib/utils'
 
-function StatusIcon({ status }: { status: BackupStatusResponse["status"] }) {
+function StatusIcon({ status }: { status: BackupStatusResponse['status'] }) {
   switch (status) {
-    case "healthy":
-      return <CheckCircle2 className="size-5 text-gain" />;
-    case "stale":
-      return <Clock className="size-5 text-warning" />;
-    case "no_backups":
-    case "error":
-      return <AlertCircle className="size-5 text-loss" />;
+    case 'healthy':
+      return <CheckCircle2 className="size-5 text-gain" />
+    case 'stale':
+      return <Clock className="size-5 text-warning" />
+    case 'no_backups':
+    case 'error':
+      return <AlertCircle className="size-5 text-loss" />
     default:
-      return <HardDrive className="size-5 text-text-muted" />;
+      return <HardDrive className="size-5 text-text-muted" />
   }
 }
 
 function BackupStatusCard() {
-  const { data: status, isLoading, error } = useQuery({
+  const {
+    data: status,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: backupKeys.status(),
     queryFn: getBackupStatus,
     staleTime: 30_000, // 30 seconds
     refetchInterval: 60_000, // 1 minute
-  });
+  })
 
   if (isLoading) {
     return (
@@ -72,7 +76,7 @@ function BackupStatusCard() {
           </div>
         </CardContent>
       </Card>
-    );
+    )
   }
 
   if (error || !status) {
@@ -86,11 +90,11 @@ function BackupStatusCard() {
         </CardHeader>
         <CardContent>
           <div className="rounded-md border border-loss bg-loss/10 p-4 text-sm text-loss">
-            Failed to load backup status: {error?.message || "Unknown error"}
+            Failed to load backup status: {error?.message || 'Unknown error'}
           </div>
         </CardContent>
       </Card>
-    );
+    )
   }
 
   return (
@@ -101,11 +105,11 @@ function BackupStatusCard() {
           Backup Status
           <Badge
             variant={
-              status.status === "healthy"
-                ? "success"
-                : status.status === "stale"
-                  ? "warning"
-                  : "destructive"
+              status.status === 'healthy'
+                ? 'success'
+                : status.status === 'stale'
+                  ? 'warning'
+                  : 'destructive'
             }
             className="ml-auto"
           >
@@ -114,24 +118,26 @@ function BackupStatusCard() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className={cn("text-sm", getStatusColor(status.status))}>
+        <p className={cn('text-sm', getStatusColor(status.status))}>
           {status.message}
         </p>
 
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <span className="text-text-muted">Total Backups:</span>{" "}
+            <span className="text-text-muted">Total Backups:</span>{' '}
             <span className="font-medium">{status.backupCount}</span>
           </div>
           <div>
-            <span className="text-text-muted">Destination:</span>{" "}
+            <span className="text-text-muted">Destination:</span>{' '}
             <span className="font-mono text-xs">{status.destination}</span>
           </div>
         </div>
 
         {status.latestBackup && (
           <div className="rounded-md bg-surface-muted p-3">
-            <div className="text-xs text-text-muted uppercase mb-1">Latest Backup</div>
+            <div className="text-xs text-text-muted uppercase mb-1">
+              Latest Backup
+            </div>
             <div className="font-mono text-sm">{status.latestBackup.name}</div>
             <div className="flex gap-4 mt-1 text-xs text-text-muted">
               <span>{formatBackupAge(status.latestBackup.timestamp)}</span>
@@ -142,67 +148,67 @@ function BackupStatusCard() {
         )}
       </CardContent>
     </Card>
-  );
+  )
 }
 
 function TriggerBackupCard() {
-  const queryClient = useQueryClient();
-  const [activeJobId, setActiveJobId] = useState<string | null>(null);
-  const [showOutput, setShowOutput] = useState(false);
+  const queryClient = useQueryClient()
+  const [activeJobId, setActiveJobId] = useState<string | null>(null)
+  const [showOutput, setShowOutput] = useState(false)
 
   const triggerMutation = useMutation({
     mutationFn: (quick: boolean) => triggerBackup(quick),
     onSuccess: (data) => {
-      if (data.status === "started") {
-        setActiveJobId(data.jobId);
-        toast.success("Backup started", { description: data.message });
+      if (data.status === 'started') {
+        setActiveJobId(data.jobId)
+        toast.success('Backup started', { description: data.message })
       } else {
-        toast.info("Backup already running", { description: data.message });
-        setActiveJobId(data.jobId);
+        toast.info('Backup already running', { description: data.message })
+        setActiveJobId(data.jobId)
       }
     },
     onError: (error) => {
-      toast.error("Failed to trigger backup", {
-        description: error instanceof Error ? error.message : "Unknown error",
-      });
+      toast.error('Failed to trigger backup', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      })
     },
-  });
+  })
 
   // Poll job status when we have an active job
   const { data: jobStatus } = useQuery({
-    queryKey: backupKeys.job(activeJobId || ""),
+    queryKey: backupKeys.job(activeJobId || ''),
     queryFn: () => getBackupJobStatus(activeJobId!),
     enabled: !!activeJobId,
     refetchInterval: (query) => {
-      const data = query.state.data as BackupJobStatus | undefined;
+      const data = query.state.data as BackupJobStatus | undefined
       // Stop polling when job is complete
-      if (data?.status === "completed" || data?.status === "failed") {
-        return false;
+      if (data?.status === 'completed' || data?.status === 'failed') {
+        return false
       }
-      return 2000; // Poll every 2 seconds while running
+      return 2000 // Poll every 2 seconds while running
     },
-  });
+  })
 
   // Handle job completion
   useEffect(() => {
-    if (jobStatus?.status === "completed") {
-      toast.success("Backup completed successfully!");
-      queryClient.invalidateQueries({ queryKey: backupKeys.status() });
-      queryClient.invalidateQueries({ queryKey: backupKeys.history() });
-    } else if (jobStatus?.status === "failed") {
-      toast.error("Backup failed", {
-        description: jobStatus.error || "Unknown error",
-      });
+    if (jobStatus?.status === 'completed') {
+      toast.success('Backup completed successfully!')
+      queryClient.invalidateQueries({ queryKey: backupKeys.status() })
+      queryClient.invalidateQueries({ queryKey: backupKeys.history() })
+    } else if (jobStatus?.status === 'failed') {
+      toast.error('Backup failed', {
+        description: jobStatus.error || 'Unknown error',
+      })
     }
-  }, [jobStatus?.status, queryClient, jobStatus?.error]);
+  }, [jobStatus?.status, queryClient, jobStatus?.error])
 
-  const isRunning = triggerMutation.isPending || jobStatus?.status === "running";
+  const isRunning = triggerMutation.isPending || jobStatus?.status === 'running'
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <RefreshCw className={cn("size-5", isRunning && "animate-spin")} />
+          <RefreshCw className={cn('size-5', isRunning && 'animate-spin')} />
           Trigger Backup
         </CardTitle>
       </CardHeader>
@@ -234,9 +240,11 @@ function TriggerBackupCard() {
         </div>
 
         <p className="text-xs text-text-muted">
-          <strong>Full Backup:</strong> Creates fresh PostgreSQL dump + archives all project data.
+          <strong>Full Backup:</strong> Creates fresh PostgreSQL dump + archives
+          all project data.
           <br />
-          <strong>Quick Backup:</strong> Uses existing daily DB dump (faster, for checkpoints).
+          <strong>Quick Backup:</strong> Uses existing daily DB dump (faster,
+          for checkpoints).
         </p>
 
         {jobStatus && activeJobId && (
@@ -245,11 +253,11 @@ function TriggerBackupCard() {
               <div className="flex items-center gap-2">
                 <Badge
                   variant={
-                    jobStatus.status === "completed"
-                      ? "success"
-                      : jobStatus.status === "failed"
-                        ? "destructive"
-                        : "secondary"
+                    jobStatus.status === 'completed'
+                      ? 'success'
+                      : jobStatus.status === 'failed'
+                        ? 'destructive'
+                        : 'secondary'
                   }
                 >
                   {jobStatus.status.toUpperCase()}
@@ -287,7 +295,7 @@ function TriggerBackupCard() {
         )}
       </CardContent>
     </Card>
-  );
+  )
 }
 
 function BackupHistoryCard() {
@@ -295,9 +303,9 @@ function BackupHistoryCard() {
     queryKey: backupKeys.history(),
     queryFn: getBackupHistory,
     staleTime: 60_000, // 1 minute
-  });
+  })
 
-  const [expandedBackup, setExpandedBackup] = useState<string | null>(null);
+  const [expandedBackup, setExpandedBackup] = useState<string | null>(null)
 
   if (isLoading) {
     return (
@@ -311,10 +319,10 @@ function BackupHistoryCard() {
           </div>
         </CardContent>
       </Card>
-    );
+    )
   }
 
-  const backups = history?.backups || [];
+  const backups = history?.backups || []
 
   return (
     <Card>
@@ -329,7 +337,8 @@ function BackupHistoryCard() {
       <CardContent>
         {backups.length === 0 ? (
           <div className="py-8 text-center text-text-muted">
-            No backups yet. Click &quot;Full Backup&quot; to create your first backup.
+            No backups yet. Click &quot;Full Backup&quot; to create your first
+            backup.
           </div>
         ) : (
           <div className="space-y-2">
@@ -337,15 +346,15 @@ function BackupHistoryCard() {
               <div
                 key={backup.name}
                 className={cn(
-                  "rounded-md border border-border p-3 transition-colors",
-                  expandedBackup === backup.name && "bg-surface-muted"
+                  'rounded-md border border-border p-3 transition-colors',
+                  expandedBackup === backup.name && 'bg-surface-muted',
                 )}
               >
                 <div
                   className="flex items-center justify-between cursor-pointer"
                   onClick={() =>
                     setExpandedBackup(
-                      expandedBackup === backup.name ? null : backup.name
+                      expandedBackup === backup.name ? null : backup.name,
                     )
                   }
                 >
@@ -363,13 +372,23 @@ function BackupHistoryCard() {
                     )}
                     {backup.verification && (
                       <Badge
-                        variant={backup.verification.verified ? "success" : "destructive"}
+                        variant={
+                          backup.verification.verified
+                            ? 'success'
+                            : 'destructive'
+                        }
                         className="text-xs"
                       >
                         {backup.verification.verified ? (
-                          <><CheckCircle2 className="mr-1 size-3" />{backup.verification.totalFiles} files</>
+                          <>
+                            <CheckCircle2 className="mr-1 size-3" />
+                            {backup.verification.totalFiles} files
+                          </>
                         ) : (
-                          <><AlertCircle className="mr-1 size-3" />FAILED</>
+                          <>
+                            <AlertCircle className="mr-1 size-3" />
+                            FAILED
+                          </>
                         )}
                       </Badge>
                     )}
@@ -384,23 +403,25 @@ function BackupHistoryCard() {
                   <div className="mt-3 space-y-3 border-t border-border pt-3">
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div>
-                        <span className="text-text-muted">Timestamp:</span>{" "}
+                        <span className="text-text-muted">Timestamp:</span>{' '}
                         <span className="font-mono">
                           {new Date(backup.timestamp).toLocaleString()}
                         </span>
                       </div>
                       <div>
-                        <span className="text-text-muted">Archive Size:</span>{" "}
+                        <span className="text-text-muted">Archive Size:</span>{' '}
                         <span>{formatBytes(backup.sizeBytes)}</span>
                       </div>
                       <div>
-                        <span className="text-text-muted">DB Size:</span>{" "}
+                        <span className="text-text-muted">DB Size:</span>{' '}
                         <span>{formatBytes(backup.dbSizeBytes)}</span>
                       </div>
                       <div>
-                        <span className="text-text-muted">Status:</span>{" "}
+                        <span className="text-text-muted">Status:</span>{' '}
                         <Badge
-                          variant={backup.status === "ok" ? "success" : "destructive"}
+                          variant={
+                            backup.status === 'ok' ? 'success' : 'destructive'
+                          }
                           className="text-xs"
                         >
                           {backup.status}
@@ -427,15 +448,23 @@ function BackupHistoryCard() {
                             .sort(([, a], [, b]) => b.count - a.count)
                             .map(([path, entry]) => (
                               <div key={path} className="flex justify-between">
-                                <span className="text-text-muted truncate">{path}</span>
-                                <span className="font-mono ml-1">{entry.count}</span>
+                                <span className="text-text-muted truncate">
+                                  {path}
+                                </span>
+                                <span className="font-mono ml-1">
+                                  {entry.count}
+                                </span>
                               </div>
                             ))}
                         </div>
 
                         <div className="flex items-center gap-4 text-xs text-text-muted">
                           <span>
-                            Total: <span className="font-mono">{backup.verification.totalFiles}</span> files
+                            Total:{' '}
+                            <span className="font-mono">
+                              {backup.verification.totalFiles}
+                            </span>{' '}
+                            files
                           </span>
                           <span className="font-mono text-[10px] truncate">
                             {backup.verification.checksum}
@@ -457,7 +486,7 @@ function BackupHistoryCard() {
         )}
       </CardContent>
     </Card>
-  );
+  )
 }
 
 function RestoreInfoCard() {
@@ -479,19 +508,22 @@ function RestoreInfoCard() {
           <div>bash ~/portfolio-ai/scripts/restore.sh --latest</div>
 
           <div className="text-text-muted mt-3"># Restore specific backup</div>
-          <div>bash ~/portfolio-ai/scripts/restore.sh portfolio-ai-YYYYMMDD-HHMMSS.tar.gz</div>
+          <div>
+            bash ~/portfolio-ai/scripts/restore.sh
+            portfolio-ai-YYYYMMDD-HHMMSS.tar.gz
+          </div>
 
           <div className="text-text-muted mt-3"># Database only</div>
           <div>bash ~/portfolio-ai/scripts/restore.sh --db-only --latest</div>
         </div>
 
         <div className="rounded-md border border-warning bg-warning/10 p-3 text-sm text-warning">
-          <strong>Warning:</strong> Restore operations will overwrite existing data.
-          Make sure you have a current backup before restoring.
+          <strong>Warning:</strong> Restore operations will overwrite existing
+          data. Make sure you have a current backup before restoring.
         </div>
       </CardContent>
     </Card>
-  );
+  )
 }
 
 export default function BackupPage() {
@@ -509,5 +541,5 @@ export default function BackupPage() {
         <RestoreInfoCard />
       </div>
     </PageContainer>
-  );
+  )
 }

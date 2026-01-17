@@ -8,147 +8,147 @@
  * - Monitor maintenance schedule and resources
  */
 
-import { get, post } from "./client";
+import { get, post } from './client'
 
 // Types
 
 export interface MaintenanceResult {
-  taskId: number;
-  taskName: string;
-  status: "running" | "success" | "error";
-  startedAt: string;
-  completedAt: string | null;
-  dryRun: boolean;
-  summary: Record<string, unknown> | null;
-  errorMessage: string | null;
+  taskId: number
+  taskName: string
+  status: 'running' | 'success' | 'error'
+  startedAt: string
+  completedAt: string | null
+  dryRun: boolean
+  summary: Record<string, unknown> | null
+  errorMessage: string | null
 }
 
 export interface LastRunSummary {
   /** Dynamic dict of task_name -> last run result (supports all tasks) */
-  tasks: Record<string, MaintenanceResult | null>;
+  tasks: Record<string, MaintenanceResult | null>
 }
 
 export interface MaintenanceHistory {
-  runs: MaintenanceResult[];
-  total: number;
+  runs: MaintenanceResult[]
+  total: number
 }
 
 export interface ScheduledTask {
-  task: string;
-  schedule: string;
-  args?: unknown[];
+  task: string
+  schedule: string
+  args?: unknown[]
 }
 
 export interface MaintenanceScheduleResponse {
-  scheduledTasks: Record<string, ScheduledTask>;
-  totalCount: number;
+  scheduledTasks: Record<string, ScheduledTask>
+  totalCount: number
 }
 
 export interface PartitionInfo {
-  path: string;
-  name: string;
-  totalBytes: number;
-  usedBytes: number;
-  freeBytes: number;
-  usedPercentage: number;
+  path: string
+  name: string
+  totalBytes: number
+  usedBytes: number
+  freeBytes: number
+  usedPercentage: number
 }
 
 export interface DiskSpaceResponse {
-  taskId: string;
-  partitions: PartitionInfo[];
+  taskId: string
+  partitions: PartitionInfo[]
   alerts: Array<{
-    partition: string;
-    usedPercentage: number;
-    freeMb: number;
-  }>;
-  alertCount: number;
-  durationSeconds: number;
-  success: boolean;
+    partition: string
+    usedPercentage: number
+    freeMb: number
+  }>
+  alertCount: number
+  durationSeconds: number
+  success: boolean
 }
 
 export interface TableSize {
-  table: string;
-  sizeBytes: number;
-  sizePretty: string;
+  table: string
+  sizeBytes: number
+  sizePretty: string
 }
 
 export interface DatabaseSizeResponse {
-  taskId: string;
-  databaseSizeBytes: number;
-  databaseSizeMb: number;
-  topTables: TableSize[];
-  durationSeconds: number;
-  success: boolean;
+  taskId: string
+  databaseSizeBytes: number
+  databaseSizeMb: number
+  topTables: TableSize[]
+  durationSeconds: number
+  success: boolean
 }
 
 export interface MaintenanceStatsResponse {
-  metricName?: string;
-  days?: number;
-  dataPoints?: number;
+  metricName?: string
+  days?: number
+  dataPoints?: number
   trends?: Array<{
-    recordedAt: string;
-    value: number;
-    unit: string | null;
-    metadata: Record<string, unknown> | null;
-  }>;
+    recordedAt: string
+    value: number
+    unit: string | null
+    metadata: Record<string, unknown> | null
+  }>
   summary?: Record<
     string,
     {
-      value: number;
-      unit: string | null;
-      recordedAt: string;
+      value: number
+      unit: string | null
+      recordedAt: string
     }
-  >;
-  metricCount?: number;
+  >
+  metricCount?: number
 }
 
 export interface TriggerTaskResponse {
-  taskId: string;
-  taskName: string;
-  status: "triggered" | "completed" | "timeout";
-  message: string;
-  result?: Record<string, unknown> | null;
+  taskId: string
+  taskName: string
+  status: 'triggered' | 'completed' | 'timeout'
+  message: string
+  result?: Record<string, unknown> | null
 }
 
 export interface BackupRequirementCheck {
-  backupExists: boolean;
-  backupRecent: boolean;
-  backupVerified: boolean;
-  backupName: string | null;
-  backupAgeHours: number | null;
-  canProceed: boolean;
-  blockingReason: string | null;
-  warnings: string[];
+  backupExists: boolean
+  backupRecent: boolean
+  backupVerified: boolean
+  backupName: string | null
+  backupAgeHours: number | null
+  canProceed: boolean
+  blockingReason: string | null
+  warnings: string[]
 }
 
 export interface FileCleanupInfo {
-  path: string;
-  sizeMb: number;
-  fileCount: number;
-  retentionPolicy: string;
-  schedule: string;
+  path: string
+  sizeMb: number
+  fileCount: number
+  retentionPolicy: string
+  schedule: string
 }
 
 export interface FileCleanupStatusResponse {
-  logs: FileCleanupInfo;
-  backups: FileCleanupInfo;
-  models: FileCleanupInfo;
-  solutionState: FileCleanupInfo;
-  totalSizeMb: number;
+  logs: FileCleanupInfo
+  backups: FileCleanupInfo
+  models: FileCleanupInfo
+  solutionState: FileCleanupInfo
+  totalSizeMb: number
 }
 
 export interface CacheDirectoryInfo {
-  name: string;
-  path: string;
-  sizeMb: number;
-  fileCount: number;
-  description: string;
+  name: string
+  path: string
+  sizeMb: number
+  fileCount: number
+  description: string
 }
 
 export interface CacheStatusResponse {
-  directories: CacheDirectoryInfo[];
-  totalSizeMb: number;
-  totalFileCount: number;
+  directories: CacheDirectoryInfo[]
+  totalSizeMb: number
+  totalFileCount: number
 }
 
 // API Functions
@@ -162,15 +162,15 @@ export interface CacheStatusResponse {
  */
 export async function checkBackupRequirements(
   maxAgeHours: number = 24,
-  requireVerification: boolean = true
+  requireVerification: boolean = true,
 ): Promise<BackupRequirementCheck> {
   const params = new URLSearchParams({
     max_age_hours: maxAgeHours.toString(),
     require_verification: requireVerification.toString(),
-  });
+  })
   return get<BackupRequirementCheck>(
-    `/api/backup/check-requirements?${params.toString()}`
-  );
+    `/api/backup/check-requirements?${params.toString()}`,
+  )
 }
 
 /**
@@ -179,7 +179,7 @@ export async function checkBackupRequirements(
  * @returns Schedule information for all maintenance tasks
  */
 export async function getMaintenanceSchedule(): Promise<MaintenanceScheduleResponse> {
-  return get<MaintenanceScheduleResponse>("/api/maintenance/schedule");
+  return get<MaintenanceScheduleResponse>('/api/maintenance/schedule')
 }
 
 /**
@@ -188,7 +188,7 @@ export async function getMaintenanceSchedule(): Promise<MaintenanceScheduleRespo
  * @returns Disk space details for all mounted filesystems
  */
 export async function getMaintenanceDiskSpace(): Promise<DiskSpaceResponse> {
-  return get<DiskSpaceResponse>("/api/maintenance/disk-space");
+  return get<DiskSpaceResponse>('/api/maintenance/disk-space')
 }
 
 /**
@@ -197,7 +197,7 @@ export async function getMaintenanceDiskSpace(): Promise<DiskSpaceResponse> {
  * @returns Database size information with per-table breakdown
  */
 export async function getMaintenanceDatabaseSize(): Promise<DatabaseSizeResponse> {
-  return get<DatabaseSizeResponse>("/api/maintenance/database-size");
+  return get<DatabaseSizeResponse>('/api/maintenance/database-size')
 }
 
 /**
@@ -209,23 +209,23 @@ export async function getMaintenanceDatabaseSize(): Promise<DatabaseSizeResponse
  */
 export async function getMaintenanceStats(
   metricName?: string,
-  days?: number
+  days?: number,
 ): Promise<MaintenanceStatsResponse> {
-  const params = new URLSearchParams();
+  const params = new URLSearchParams()
 
   if (metricName) {
-    params.append("metric_name", metricName);
+    params.append('metric_name', metricName)
   }
 
   if (days !== undefined) {
-    params.append("days", days.toString());
+    params.append('days', days.toString())
   }
 
   const url = params.toString()
     ? `/api/maintenance/stats?${params.toString()}`
-    : "/api/maintenance/stats";
+    : '/api/maintenance/stats'
 
-  return get<MaintenanceStatsResponse>(url);
+  return get<MaintenanceStatsResponse>(url)
 }
 
 /**
@@ -240,18 +240,18 @@ export async function getMaintenanceStats(
  */
 export async function triggerMaintenanceTask(
   taskName: string,
-  options?: { dryRun?: boolean; waitForResult?: boolean; timeout?: number }
+  options?: { dryRun?: boolean; waitForResult?: boolean; timeout?: number },
 ): Promise<TriggerTaskResponse> {
-  const params = new URLSearchParams();
-  if (options?.dryRun) params.append("dry_run", "true");
-  if (options?.waitForResult) params.append("wait_for_result", "true");
-  if (options?.timeout) params.append("timeout", options.timeout.toString());
+  const params = new URLSearchParams()
+  if (options?.dryRun) params.append('dry_run', 'true')
+  if (options?.waitForResult) params.append('wait_for_result', 'true')
+  if (options?.timeout) params.append('timeout', options.timeout.toString())
 
   const url = params.toString()
     ? `/api/maintenance/trigger/${taskName}?${params.toString()}`
-    : `/api/maintenance/trigger/${taskName}`;
+    : `/api/maintenance/trigger/${taskName}`
 
-  return post<TriggerTaskResponse>(url, {});
+  return post<TriggerTaskResponse>(url, {})
 }
 
 /**
@@ -263,12 +263,12 @@ export async function triggerMaintenanceTask(
  */
 export async function cleanupOldNews(
   dryRun: boolean = true,
-  days: number = 90
+  days: number = 90,
 ): Promise<MaintenanceResult> {
-  return post<MaintenanceResult>("/api/maintenance/cleanup-news", {
+  return post<MaintenanceResult>('/api/maintenance/cleanup-news', {
     dry_run: dryRun,
     days,
-  });
+  })
 }
 
 /**
@@ -280,12 +280,12 @@ export async function cleanupOldNews(
  */
 export async function vacuumDatabase(
   dryRun: boolean = false,
-  tables?: string[]
+  tables?: string[],
 ): Promise<MaintenanceResult> {
-  return post<MaintenanceResult>("/api/maintenance/vacuum-database", {
+  return post<MaintenanceResult>('/api/maintenance/vacuum-database', {
     dry_run: dryRun,
     tables: tables || null,
-  });
+  })
 }
 
 /**
@@ -295,11 +295,11 @@ export async function vacuumDatabase(
  * @returns Maintenance result with execution details
  */
 export async function validateIntegrity(
-  dryRun: boolean = true
+  dryRun: boolean = true,
 ): Promise<MaintenanceResult> {
-  return post<MaintenanceResult>("/api/maintenance/validate-integrity", {
+  return post<MaintenanceResult>('/api/maintenance/validate-integrity', {
     dry_run: dryRun,
-  });
+  })
 }
 
 /**
@@ -308,7 +308,7 @@ export async function validateIntegrity(
  * @returns Last run summary for all tasks
  */
 export async function getMaintenanceLastRun(): Promise<LastRunSummary> {
-  return get<LastRunSummary>("/api/maintenance/last-run");
+  return get<LastRunSummary>('/api/maintenance/last-run')
 }
 
 /**
@@ -320,17 +320,19 @@ export async function getMaintenanceLastRun(): Promise<LastRunSummary> {
  */
 export async function getMaintenanceHistory(
   taskName?: string,
-  limit: number = 50
+  limit: number = 50,
 ): Promise<MaintenanceHistory> {
-  const params = new URLSearchParams();
+  const params = new URLSearchParams()
 
   if (taskName) {
-    params.append("task_name", taskName);
+    params.append('task_name', taskName)
   }
 
-  params.append("limit", limit.toString());
+  params.append('limit', limit.toString())
 
-  return get<MaintenanceHistory>(`/api/maintenance/history?${params.toString()}`);
+  return get<MaintenanceHistory>(
+    `/api/maintenance/history?${params.toString()}`,
+  )
 }
 
 /**
@@ -339,7 +341,7 @@ export async function getMaintenanceHistory(
  * @returns File cleanup status with sizes and retention policies
  */
 export async function getFileCleanupStatus(): Promise<FileCleanupStatusResponse> {
-  return get<FileCleanupStatusResponse>("/api/maintenance/file-cleanup-status");
+  return get<FileCleanupStatusResponse>('/api/maintenance/file-cleanup-status')
 }
 
 /**
@@ -350,5 +352,5 @@ export async function getFileCleanupStatus(): Promise<FileCleanupStatusResponse>
  * @returns Cache directory sizes and info
  */
 export async function getCacheStatus(): Promise<CacheStatusResponse> {
-  return get<CacheStatusResponse>("/api/maintenance/cache-status");
+  return get<CacheStatusResponse>('/api/maintenance/cache-status')
 }

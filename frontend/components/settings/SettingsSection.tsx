@@ -1,18 +1,18 @@
-"use client";
+'use client'
 
-import type { ReactNode } from "react";
-import { ExpandableCard } from "@/components/status/ExpandableCard";
-import { cn } from "@/lib/utils";
+import type { ReactNode } from 'react'
+import { ExpandableCard } from '@/components/status/ExpandableCard'
+import { cn } from '@/lib/utils'
 
 interface SettingsSectionProps {
-  title: ReactNode;
-  description?: ReactNode;
-  summary: ReactNode;
-  actions?: ReactNode;
-  defaultCollapsed?: boolean;
-  children: ReactNode;
-  className?: string;
-  contentClassName?: string;
+  title: ReactNode
+  description?: ReactNode
+  summary: ReactNode
+  actions?: ReactNode
+  defaultCollapsed?: boolean
+  children: ReactNode
+  className?: string
+  contentClassName?: string
 }
 
 export function SettingsSection({
@@ -33,12 +33,12 @@ export function SettingsSection({
       actions={actions}
       defaultCollapsed={defaultCollapsed}
       className={cn(
-        "border-border/70 bg-surface/80 shadow-sm backdrop-blur",
+        'border-border/70 bg-surface/80 shadow-sm backdrop-blur',
         className,
       )}
-      contentClassName={cn("space-y-6", contentClassName)}
+      contentClassName={cn('space-y-6', contentClassName)}
     >
       {children}
     </ExpandableCard>
-  );
+  )
 }

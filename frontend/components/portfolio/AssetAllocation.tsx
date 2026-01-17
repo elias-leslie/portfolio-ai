@@ -1,40 +1,42 @@
-"use client";
+'use client'
 
-import { Card } from "@/components/ui/card";
-import { PieChart } from "lucide-react";
-import type { PositionPerformance } from "@/lib/api/portfolio";
+import { PieChart } from 'lucide-react'
+import { Card } from '@/components/ui/card'
+import type { PositionPerformance } from '@/lib/api/portfolio'
 
 interface AssetAllocationProps {
-  topPerformers: PositionPerformance[];
+  topPerformers: PositionPerformance[]
 }
 
 export function AssetAllocation({ topPerformers }: AssetAllocationProps) {
   // Sort by weight to show largest holdings
-  const topHoldings = [...topPerformers].sort((a, b) => b.weightPct - a.weightPct).slice(0, 5);
+  const topHoldings = [...topPerformers]
+    .sort((a, b) => b.weightPct - a.weightPct)
+    .slice(0, 5)
 
   const formatPercent = (value: number) => {
-    return `${value.toFixed(1)}%`;
-  };
+    return `${value.toFixed(1)}%`
+  }
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(value);
-  };
+    }).format(value)
+  }
 
   const getBarColor = (index: number) => {
     const colors = [
-      "bg-primary",
-      "bg-accent",
-      "bg-status-warning",
-      "bg-status-info",
-      "bg-status-success",
-    ];
-    return colors[index % colors.length];
-  };
+      'bg-primary',
+      'bg-accent',
+      'bg-status-warning',
+      'bg-status-info',
+      'bg-status-success',
+    ]
+    return colors[index % colors.length]
+  }
 
   return (
     <Card className="p-6">
@@ -62,9 +64,9 @@ export function AssetAllocation({ topPerformers }: AssetAllocationProps) {
               <div className="flex items-center justify-between text-xs text-text-muted">
                 <span>{formatCurrency(position.currentValue)}</span>
                 <span
-                  className={position.gainPct >= 0 ? "text-gain" : "text-loss"}
+                  className={position.gainPct >= 0 ? 'text-gain' : 'text-loss'}
                 >
-                  {position.gainPct >= 0 ? "+" : ""}
+                  {position.gainPct >= 0 ? '+' : ''}
                   {position.gainPct.toFixed(1)}%
                 </span>
               </div>
@@ -77,5 +79,5 @@ export function AssetAllocation({ topPerformers }: AssetAllocationProps) {
         )}
       </div>
     </Card>
-  );
+  )
 }

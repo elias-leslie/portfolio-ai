@@ -1,57 +1,63 @@
-"use client";
+'use client'
 
-import { formatDistanceToNow } from "date-fns";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { formatDistanceToNow } from 'date-fns'
 import {
-  Lightbulb,
-  FlaskConical,
-  Target,
-  TrendingUp,
   ArrowRight,
   CheckCircle,
-} from "lucide-react";
-import { useStrategyEvolution } from "@/lib/hooks/useStrategies";
+  FlaskConical,
+  Lightbulb,
+  Target,
+  TrendingUp,
+} from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useStrategyEvolution } from '@/lib/hooks/useStrategies'
 
 interface SeedEvolutionProps {
-  strategyId: string;
+  strategyId: string
 }
 
 const statusColors = {
-  pending: "bg-warning/10 text-warning",
-  processing: "bg-accent/10 text-accent",
-  converted: "bg-gain/10 text-gain",
-  rejected: "bg-loss/10 text-loss",
-};
+  pending: 'bg-warning/10 text-warning',
+  processing: 'bg-accent/10 text-accent',
+  converted: 'bg-gain/10 text-gain',
+  rejected: 'bg-loss/10 text-loss',
+}
 
 export function SeedEvolution({ strategyId }: SeedEvolutionProps) {
-  const { data: evolution, isLoading, error } = useStrategyEvolution(strategyId);
+  const { data: evolution, isLoading, error } = useStrategyEvolution(strategyId)
 
   if (isLoading) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-medium">Evolution Timeline</CardTitle>
+          <CardTitle className="text-sm font-medium">
+            Evolution Timeline
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <Skeleton className="h-24 w-full" />
         </CardContent>
       </Card>
-    );
+    )
   }
 
   if (error || !evolution) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-medium">Evolution Timeline</CardTitle>
+          <CardTitle className="text-sm font-medium">
+            Evolution Timeline
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-text-muted">Unable to load evolution data</p>
+          <p className="text-sm text-text-muted">
+            Unable to load evolution data
+          </p>
         </CardContent>
       </Card>
-    );
+    )
   }
 
   return (
@@ -91,7 +97,7 @@ export function SeedEvolution({ strategyId }: SeedEvolutionProps) {
                 ? {
                     count: evolution.backtests.length,
                     bestSharpe: Math.max(
-                      ...evolution.backtests.map((b) => b.sharpeRatio || 0)
+                      ...evolution.backtests.map((b) => b.sharpeRatio || 0),
                     ),
                   }
                 : undefined
@@ -151,7 +157,7 @@ export function SeedEvolution({ strategyId }: SeedEvolutionProps) {
               {evolution.seed.thesis}
             </p>
             <p className="mt-1 text-xs text-text-muted">
-              Created{" "}
+              Created{' '}
               {formatDistanceToNow(new Date(evolution.seed.createdAt), {
                 addSuffix: true,
               })}
@@ -163,18 +169,18 @@ export function SeedEvolution({ strategyId }: SeedEvolutionProps) {
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <MiniMetric
             label="Expected Sharpe"
-            value={evolution.performance.expectedSharpe?.toFixed(2) || "-"}
+            value={evolution.performance.expectedSharpe?.toFixed(2) || '-'}
           />
           <MiniMetric
             label="Live Sharpe"
-            value={evolution.performance.liveSharpe?.toFixed(2) || "-"}
+            value={evolution.performance.liveSharpe?.toFixed(2) || '-'}
           />
           <MiniMetric
             label="Win Rate"
             value={
               evolution.performance.liveWinRate
                 ? `${(evolution.performance.liveWinRate * 100).toFixed(0)}%`
-                : "-"
+                : '-'
             }
           />
           <MiniMetric
@@ -184,36 +190,41 @@ export function SeedEvolution({ strategyId }: SeedEvolutionProps) {
         </div>
       </CardContent>
     </Card>
-  );
+  )
 }
 
 interface TimelineStageProps {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  active: boolean;
+  icon: React.ComponentType<{ className?: string }>
+  label: string
+  active: boolean
   details?: {
-    confidence?: number;
-    date?: string;
-    count?: number;
-    bestSharpe?: number;
-    status?: string;
-    sharpe?: number | null;
-  };
+    confidence?: number
+    date?: string
+    count?: number
+    bestSharpe?: number
+    status?: string
+    sharpe?: number | null
+  }
 }
 
-function TimelineStage({ icon: Icon, label, active, details }: TimelineStageProps) {
+function TimelineStage({
+  icon: Icon,
+  label,
+  active,
+  details,
+}: TimelineStageProps) {
   return (
     <div
       className={`flex shrink-0 flex-col items-center gap-1 rounded-lg border p-2 ${
-        active ? "border-primary bg-primary/5" : "border-border bg-muted/30"
+        active ? 'border-primary bg-primary/5' : 'border-border bg-muted/30'
       }`}
     >
       <Icon
-        className={`h-5 w-5 ${active ? "text-primary" : "text-text-muted"}`}
+        className={`h-5 w-5 ${active ? 'text-primary' : 'text-text-muted'}`}
       />
       <span
         className={`text-xs font-medium ${
-          active ? "text-primary" : "text-text-muted"
+          active ? 'text-primary' : 'text-text-muted'
         }`}
       >
         {label}
@@ -222,18 +233,21 @@ function TimelineStage({ icon: Icon, label, active, details }: TimelineStageProp
         <span className="text-xs text-text-muted">
           {details.confidence && `${details.confidence}/10`}
           {details.count !== undefined && `${details.count}`}
-          {details.bestSharpe !== undefined && `Best: ${details.bestSharpe.toFixed(2)}`}
+          {details.bestSharpe !== undefined &&
+            `Best: ${details.bestSharpe.toFixed(2)}`}
           {details.status && details.status}
-          {details.sharpe !== undefined && details.sharpe !== null && `${details.sharpe.toFixed(2)}`}
+          {details.sharpe !== undefined &&
+            details.sharpe !== null &&
+            `${details.sharpe.toFixed(2)}`}
         </span>
       )}
     </div>
-  );
+  )
 }
 
 interface MiniMetricProps {
-  label: string;
-  value: string;
+  label: string
+  value: string
 }
 
 function MiniMetric({ label, value }: MiniMetricProps) {
@@ -242,5 +256,5 @@ function MiniMetric({ label, value }: MiniMetricProps) {
       <p className="text-xs text-text-muted">{label}</p>
       <p className="text-sm font-medium">{value}</p>
     </div>
-  );
+  )
 }

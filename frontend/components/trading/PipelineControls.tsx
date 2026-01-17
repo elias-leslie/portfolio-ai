@@ -1,37 +1,44 @@
-"use client";
+'use client'
 
-import { useState } from "react";
-import { Play, Zap, TrendingUp, RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import {
+  ChevronDown,
+  ChevronUp,
+  Play,
+  RefreshCw,
+  TrendingUp,
+  Zap,
+} from 'lucide-react'
+import { useState } from 'react'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+} from '@/components/ui/collapsible'
 import {
   usePipelineStatus,
-  useTriggerStrategyResearch,
-  useTriggerSignalGeneration,
   useTriggerAutoPaperTrade,
   useTriggerFullPipeline,
-} from "@/lib/hooks/useAutomation";
+  useTriggerSignalGeneration,
+  useTriggerStrategyResearch,
+} from '@/lib/hooks/useAutomation'
 
 export function PipelineControls() {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false)
 
-  const { data: status, isLoading: statusLoading } = usePipelineStatus();
-  const triggerResearch = useTriggerStrategyResearch();
-  const triggerSignals = useTriggerSignalGeneration();
-  const triggerTrades = useTriggerAutoPaperTrade();
-  const triggerFull = useTriggerFullPipeline();
+  const { data: status, isLoading: statusLoading } = usePipelineStatus()
+  const triggerResearch = useTriggerStrategyResearch()
+  const triggerSignals = useTriggerSignalGeneration()
+  const triggerTrades = useTriggerAutoPaperTrade()
+  const triggerFull = useTriggerFullPipeline()
 
   const isAnyRunning =
     triggerResearch.isPending ||
     triggerSignals.isPending ||
     triggerTrades.isPending ||
-    triggerFull.isPending;
+    triggerFull.isPending
 
   return (
     <Card>
@@ -99,7 +106,7 @@ export function PipelineControls() {
                   onClick={() => triggerResearch.mutate({})}
                   disabled={isAnyRunning}
                 >
-                  {triggerResearch.isPending ? "Running..." : "Run Research"}
+                  {triggerResearch.isPending ? 'Running...' : 'Run Research'}
                 </Button>
               </div>
 
@@ -119,7 +126,7 @@ export function PipelineControls() {
                   onClick={() => triggerSignals.mutate()}
                   disabled={isAnyRunning}
                 >
-                  {triggerSignals.isPending ? "Running..." : "Generate Signals"}
+                  {triggerSignals.isPending ? 'Running...' : 'Generate Signals'}
                 </Button>
               </div>
 
@@ -139,7 +146,7 @@ export function PipelineControls() {
                   onClick={() => triggerTrades.mutate(5)}
                   disabled={isAnyRunning}
                 >
-                  {triggerTrades.isPending ? "Running..." : "Execute Trades"}
+                  {triggerTrades.isPending ? 'Running...' : 'Execute Trades'}
                 </Button>
               </div>
             </div>
@@ -162,5 +169,5 @@ export function PipelineControls() {
         </CollapsibleContent>
       </Collapsible>
     </Card>
-  );
+  )
 }

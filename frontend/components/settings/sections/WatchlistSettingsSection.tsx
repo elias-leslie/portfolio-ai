@@ -1,41 +1,45 @@
-"use client";
+'use client'
 
-import { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
-import { Checkbox } from "@/components/ui/checkbox";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Button } from "@/components/ui/button";
-import { WeightConfigurator } from "../WeightConfigurator";
+import { useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import { Label } from '@/components/ui/label'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Slider } from '@/components/ui/slider'
 import type {
+  FundamentalSubWeights,
   ScoreWeights,
   TechnicalSubWeights,
-  FundamentalSubWeights,
-} from "@/lib/api/preferences";
+} from '@/lib/api/preferences'
+import { WeightConfigurator } from '../WeightConfigurator'
 
 interface WatchlistSettingsSectionProps {
-  defaultRefreshMinutes: number;
-  watchlistOverride: number | null;
-  newsOverride: number | null;
-  newsLookbackHours: number;
-  newsMaxArticles: number;
-  showNews: boolean;
-  autoExpand: boolean;
-  scoreWeights: ScoreWeights;
-  technicalSubWeights: TechnicalSubWeights;
-  fundamentalSubWeights: FundamentalSubWeights;
-  onDefaultRefreshMinutesChange: (value: number) => void;
-  onWatchlistOverrideChange: (value: number | null) => void;
-  onNewsOverrideChange: (value: number | null) => void;
-  onNewsLookbackHoursChange: (value: number) => void;
-  onNewsMaxArticlesChange: (value: number) => void;
-  onShowNewsChange: (value: boolean) => void;
-  onAutoExpandChange: (value: boolean) => void;
-  onScoreWeightsChange: (value: ScoreWeights) => void;
-  onTechnicalSubWeightsChange: (value: TechnicalSubWeights) => void;
-  onFundamentalSubWeightsChange: (value: FundamentalSubWeights) => void;
+  defaultRefreshMinutes: number
+  watchlistOverride: number | null
+  newsOverride: number | null
+  newsLookbackHours: number
+  newsMaxArticles: number
+  showNews: boolean
+  autoExpand: boolean
+  scoreWeights: ScoreWeights
+  technicalSubWeights: TechnicalSubWeights
+  fundamentalSubWeights: FundamentalSubWeights
+  onDefaultRefreshMinutesChange: (value: number) => void
+  onWatchlistOverrideChange: (value: number | null) => void
+  onNewsOverrideChange: (value: number | null) => void
+  onNewsLookbackHoursChange: (value: number) => void
+  onNewsMaxArticlesChange: (value: number) => void
+  onShowNewsChange: (value: boolean) => void
+  onAutoExpandChange: (value: boolean) => void
+  onScoreWeightsChange: (value: ScoreWeights) => void
+  onTechnicalSubWeightsChange: (value: TechnicalSubWeights) => void
+  onFundamentalSubWeightsChange: (value: FundamentalSubWeights) => void
 }
 
 export function WatchlistSettingsSection({
@@ -60,9 +64,10 @@ export function WatchlistSettingsSection({
   onTechnicalSubWeightsChange,
   onFundamentalSubWeightsChange,
 }: WatchlistSettingsSectionProps) {
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [showTechnicalSubWeights, setShowTechnicalSubWeights] = useState(false);
-  const [showFundamentalSubWeights, setShowFundamentalSubWeights] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [showTechnicalSubWeights, setShowTechnicalSubWeights] = useState(false)
+  const [showFundamentalSubWeights, setShowFundamentalSubWeights] =
+    useState(false)
 
   return (
     <div className="space-y-6">
@@ -97,7 +102,9 @@ export function WatchlistSettingsSection({
             <Label>News Lookback Window</Label>
             <RadioGroup
               value={String(newsLookbackHours)}
-              onValueChange={(value) => onNewsLookbackHoursChange(Number(value))}
+              onValueChange={(value) =>
+                onNewsLookbackHoursChange(Number(value))
+              }
               className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3"
             >
               {[6, 12, 24, 48].map((hours) => (
@@ -137,16 +144,22 @@ export function WatchlistSettingsSection({
                   key={count}
                   className="flex items-center space-x-2 rounded-md border border-border/60 px-3 py-2"
                 >
-                  <RadioGroupItem id={`news-max-${count}`} value={String(count)} />
-                  <Label htmlFor={`news-max-${count}`} className="cursor-pointer">
+                  <RadioGroupItem
+                    id={`news-max-${count}`}
+                    value={String(count)}
+                  />
+                  <Label
+                    htmlFor={`news-max-${count}`}
+                    className="cursor-pointer"
+                  >
                     {count} headlines
                   </Label>
                 </div>
               ))}
             </RadioGroup>
             <p className="text-xs text-text-muted">
-              Sets the default number of headlines returned for each symbol and the
-              Market view.
+              Sets the default number of headlines returned for each symbol and
+              the Market view.
             </p>
           </div>
 
@@ -156,9 +169,14 @@ export function WatchlistSettingsSection({
               <Checkbox
                 id="toggle-news-visibility"
                 checked={showNews}
-                onCheckedChange={(checked) => onShowNewsChange(checked === true)}
+                onCheckedChange={(checked) =>
+                  onShowNewsChange(checked === true)
+                }
               />
-              <Label htmlFor="toggle-news-visibility" className="cursor-pointer">
+              <Label
+                htmlFor="toggle-news-visibility"
+                className="cursor-pointer"
+              >
                 Show news sentiment and headlines in watchlist
               </Label>
             </div>
@@ -172,9 +190,14 @@ export function WatchlistSettingsSection({
             <Checkbox
               id="auto-expand"
               checked={autoExpand}
-              onCheckedChange={(checked) => onAutoExpandChange(checked === true)}
+              onCheckedChange={(checked) =>
+                onAutoExpandChange(checked === true)
+              }
             />
-            <Label htmlFor="auto-expand" className="cursor-pointer text-sm font-normal">
+            <Label
+              htmlFor="auto-expand"
+              className="cursor-pointer text-sm font-normal"
+            >
               Auto-expand watchlist rows to show details
             </Label>
           </div>
@@ -194,7 +217,7 @@ export function WatchlistSettingsSection({
                   Advanced: Per-Feature Overrides
                 </span>
                 <span className="text-xs text-text-muted">
-                  {showAdvanced ? "▼" : "▶"}
+                  {showAdvanced ? '▼' : '▶'}
                 </span>
               </Button>
             </CollapsibleTrigger>
@@ -203,22 +226,28 @@ export function WatchlistSettingsSection({
               <div className="space-y-3 rounded-md border border-border bg-surface-muted/30 p-4">
                 <Label className="text-sm font-medium">Watchlist Refresh</Label>
                 <RadioGroup
-                  value={watchlistOverride === null ? "default" : "custom"}
+                  value={watchlistOverride === null ? 'default' : 'custom'}
                   onValueChange={(value) =>
                     onWatchlistOverrideChange(
-                      value === "custom" ? defaultRefreshMinutes : null
+                      value === 'custom' ? defaultRefreshMinutes : null,
                     )
                   }
                 >
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="default" id="watchlist-default" />
-                    <Label htmlFor="watchlist-default" className="cursor-pointer font-normal">
+                    <Label
+                      htmlFor="watchlist-default"
+                      className="cursor-pointer font-normal"
+                    >
                       Use Default ({defaultRefreshMinutes} min)
                     </Label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="custom" id="watchlist-custom" />
-                    <Label htmlFor="watchlist-custom" className="cursor-pointer font-normal">
+                    <Label
+                      htmlFor="watchlist-custom"
+                      className="cursor-pointer font-normal"
+                    >
                       Custom Interval
                     </Label>
                   </div>
@@ -235,13 +264,15 @@ export function WatchlistSettingsSection({
                       max={60}
                       step={1}
                       value={[watchlistOverride]}
-                      onValueChange={(value) => onWatchlistOverrideChange(value[0])}
+                      onValueChange={(value) =>
+                        onWatchlistOverrideChange(value[0])
+                      }
                       className="w-full"
                     />
                   </div>
                 )}
                 <p className="text-xs text-text-muted">
-                  Effective interval:{" "}
+                  Effective interval:{' '}
                   {watchlistOverride ?? defaultRefreshMinutes} minutes
                 </p>
               </div>
@@ -250,22 +281,28 @@ export function WatchlistSettingsSection({
               <div className="space-y-3 rounded-md border border-border bg-surface-muted/30 p-4">
                 <Label className="text-sm font-medium">News Refresh</Label>
                 <RadioGroup
-                  value={newsOverride === null ? "default" : "custom"}
+                  value={newsOverride === null ? 'default' : 'custom'}
                   onValueChange={(value) =>
                     onNewsOverrideChange(
-                      value === "custom" ? defaultRefreshMinutes : null
+                      value === 'custom' ? defaultRefreshMinutes : null,
                     )
                   }
                 >
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="default" id="news-default" />
-                    <Label htmlFor="news-default" className="cursor-pointer font-normal">
+                    <Label
+                      htmlFor="news-default"
+                      className="cursor-pointer font-normal"
+                    >
                       Use Default ({defaultRefreshMinutes} min)
                     </Label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="custom" id="news-custom" />
-                    <Label htmlFor="news-custom" className="cursor-pointer font-normal">
+                    <Label
+                      htmlFor="news-custom"
+                      className="cursor-pointer font-normal"
+                    >
                       Custom Interval
                     </Label>
                   </div>
@@ -288,7 +325,7 @@ export function WatchlistSettingsSection({
                   </div>
                 )}
                 <p className="text-xs text-text-muted">
-                  Effective interval: {newsOverride ?? defaultRefreshMinutes}{" "}
+                  Effective interval: {newsOverride ?? defaultRefreshMinutes}{' '}
                   minutes
                 </p>
               </div>
@@ -303,21 +340,26 @@ export function WatchlistSettingsSection({
           <WeightConfigurator
             title="Main Score Weights"
             weights={[
-              { id: "price", label: "Price", value: scoreWeights.price },
-              { id: "technical", label: "Technical", value: scoreWeights.technical },
+              { id: 'price', label: 'Price', value: scoreWeights.price },
               {
-                id: "fundamental",
-                label: "Fundamental",
+                id: 'technical',
+                label: 'Technical',
+                value: scoreWeights.technical,
+              },
+              {
+                id: 'fundamental',
+                label: 'Fundamental',
                 value: scoreWeights.fundamental,
               },
             ]}
             onChange={(weights) => {
               onScoreWeightsChange({
-                price: weights.find((w) => w.id === "price")?.value ?? 33,
-                technical: weights.find((w) => w.id === "technical")?.value ?? 33,
+                price: weights.find((w) => w.id === 'price')?.value ?? 33,
+                technical:
+                  weights.find((w) => w.id === 'technical')?.value ?? 33,
                 fundamental:
-                  weights.find((w) => w.id === "fundamental")?.value ?? 34,
-              });
+                  weights.find((w) => w.id === 'fundamental')?.value ?? 34,
+              })
             }}
           />
         </CardContent>
@@ -339,7 +381,7 @@ export function WatchlistSettingsSection({
                   Technical Sub-Weights (Advanced)
                 </h4>
                 <span className="text-xs text-text-muted">
-                  {showTechnicalSubWeights ? "▼" : "▶"}
+                  {showTechnicalSubWeights ? '▼' : '▶'}
                 </span>
               </Button>
             </CollapsibleTrigger>
@@ -348,23 +390,27 @@ export function WatchlistSettingsSection({
                 title=""
                 weights={[
                   {
-                    id: "rsi_14",
-                    label: "RSI",
+                    id: 'rsi_14',
+                    label: 'RSI',
                     value: technicalSubWeights.rsi14,
                   },
                   {
-                    id: "trend",
-                    label: "Trend",
+                    id: 'trend',
+                    label: 'Trend',
                     value: technicalSubWeights.trend,
                   },
-                  { id: "macd", label: "MACD", value: technicalSubWeights.macd },
+                  {
+                    id: 'macd',
+                    label: 'MACD',
+                    value: technicalSubWeights.macd,
+                  },
                 ]}
                 onChange={(weights) => {
                   onTechnicalSubWeightsChange({
-                    rsi14: weights.find((w) => w.id === "rsi_14")?.value ?? 33,
-                    trend: weights.find((w) => w.id === "trend")?.value ?? 34,
-                    macd: weights.find((w) => w.id === "macd")?.value ?? 33,
-                  });
+                    rsi14: weights.find((w) => w.id === 'rsi_14')?.value ?? 33,
+                    trend: weights.find((w) => w.id === 'trend')?.value ?? 34,
+                    macd: weights.find((w) => w.id === 'macd')?.value ?? 33,
+                  })
                 }}
               />
             </CollapsibleContent>
@@ -388,7 +434,7 @@ export function WatchlistSettingsSection({
                   Fundamental Sub-Weights (Advanced)
                 </h4>
                 <span className="text-xs text-text-muted">
-                  {showFundamentalSubWeights ? "▼" : "▶"}
+                  {showFundamentalSubWeights ? '▼' : '▶'}
                 </span>
               </Button>
             </CollapsibleTrigger>
@@ -397,39 +443,39 @@ export function WatchlistSettingsSection({
                 title=""
                 weights={[
                   {
-                    id: "valuation",
-                    label: "Valuation",
+                    id: 'valuation',
+                    label: 'Valuation',
                     value: fundamentalSubWeights.valuation,
-                    description: "P/E, PEG, relative multiples",
+                    description: 'P/E, PEG, relative multiples',
                   },
                   {
-                    id: "growth",
-                    label: "Growth",
+                    id: 'growth',
+                    label: 'Growth',
                     value: fundamentalSubWeights.growth,
-                    description: "Revenue/earnings growth metrics",
+                    description: 'Revenue/earnings growth metrics',
                   },
                   {
-                    id: "health",
-                    label: "Health",
+                    id: 'health',
+                    label: 'Health',
                     value: fundamentalSubWeights.health,
-                    description: "Margins, ROIC, cash flow",
+                    description: 'Margins, ROIC, cash flow',
                   },
                   {
-                    id: "sentiment",
-                    label: "Sentiment",
+                    id: 'sentiment',
+                    label: 'Sentiment',
                     value: fundamentalSubWeights.sentiment,
-                    description: "Analyst ratings, institutional activity",
+                    description: 'Analyst ratings, institutional activity',
                   },
                 ]}
                 onChange={(weights) => {
                   onFundamentalSubWeightsChange({
                     valuation:
-                      weights.find((w) => w.id === "valuation")?.value ?? 30,
-                    growth: weights.find((w) => w.id === "growth")?.value ?? 35,
-                    health: weights.find((w) => w.id === "health")?.value ?? 25,
+                      weights.find((w) => w.id === 'valuation')?.value ?? 30,
+                    growth: weights.find((w) => w.id === 'growth')?.value ?? 35,
+                    health: weights.find((w) => w.id === 'health')?.value ?? 25,
                     sentiment:
-                      weights.find((w) => w.id === "sentiment")?.value ?? 10,
-                  });
+                      weights.find((w) => w.id === 'sentiment')?.value ?? 10,
+                  })
                 }}
               />
             </CollapsibleContent>
@@ -448,11 +494,11 @@ export function WatchlistSettingsSection({
             <li>• Data Cleanup: Weekly on Sunday 2:00 AM (future)</li>
           </ul>
           <p className="mt-3 text-xs text-text-muted">
-            These tasks run on fixed schedules for business logic reasons and cannot
-            be customized.
+            These tasks run on fixed schedules for business logic reasons and
+            cannot be customized.
           </p>
         </CardContent>
       </Card>
     </div>
-  );
+  )
 }

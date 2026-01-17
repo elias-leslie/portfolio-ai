@@ -1,34 +1,35 @@
-"use client";
+'use client'
 
-import { useState } from "react";
 import {
-  LineChart,
+  type ColumnDef,
+  flexRender,
+  getCoreRowModel,
+  getSortedRowModel,
+  type SortingState,
+  useReactTable,
+} from '@tanstack/react-table'
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  BarChart2,
+  Loader2,
+  TrendingUp,
+} from 'lucide-react'
+import { useState } from 'react'
+import {
+  CartesianGrid,
+  Legend,
   Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Legend,
-} from "recharts";
-import {
-  useReactTable,
-  getCoreRowModel,
-  getSortedRowModel,
-  flexRender,
-  ColumnDef,
-  SortingState,
-} from "@tanstack/react-table";
-import { formatDate } from "@/lib/utils";
-import {
-  ArrowUpIcon,
-  ArrowDownIcon,
-  TrendingUp,
-  Loader2,
-  BarChart2,
-} from "lucide-react";
-
-import { SectionCard } from "@/components/shared/SectionCard";
+} from 'recharts'
+import { SectionCard } from '@/components/shared/SectionCard'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import {
   Table,
   TableBody,
@@ -36,58 +37,54 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-
+} from '@/components/ui/table'
+import type {
+  BacktestComparisonResponse,
+  BacktestTrade,
+  MonteCarloResponse,
+  RunMetrics,
+} from '@/lib/api/backtest-ui'
 import {
-  useBacktestRun,
   useBacktestEquity,
+  useBacktestRun,
   useCompareBacktests,
   useMonteCarloSimulation,
-} from "@/lib/hooks/useBacktestUI";
-import type {
-  BacktestTrade,
-  BacktestComparisonResponse,
-  RunMetrics,
-  MonteCarloResponse,
-} from "@/lib/api/backtest-ui";
-import { TradeDistributionChart } from "./TradeDistributionChart";
-import { MonthlyReturnsHeatmap } from "./MonthlyReturnsHeatmap";
+} from '@/lib/hooks/useBacktestUI'
+import { cn, formatDate } from '@/lib/utils'
 import {
-  formatPercentValue,
   formatCurrencyValue,
   formatNumber,
+  formatPercentValue,
   parseToNumber,
-} from "./formatters";
+} from './formatters'
+import { MonthlyReturnsHeatmap } from './MonthlyReturnsHeatmap'
+import { TradeDistributionChart } from './TradeDistributionChart'
 
 // ============================================================================
 // Types
 // ============================================================================
 
 interface BacktestDetailsProps {
-  runId: string | null;
-  comparisonMode: boolean;
-  comparisonRunIds: string[];
+  runId: string | null
+  comparisonMode: boolean
+  comparisonRunIds: string[]
 }
 
 interface ChartDataPoint {
-  date: string;
-  [key: string]: string | number;
+  date: string
+  [key: string]: string | number
 }
 
 interface TooltipPayload {
-  payload: ChartDataPoint;
-  name?: string;
-  value?: string | number;
-  color?: string;
+  payload: ChartDataPoint
+  name?: string
+  value?: string | number
+  color?: string
 }
 
 interface CustomTooltipProps {
-  active?: boolean;
-  payload?: TooltipPayload[];
+  active?: boolean
+  payload?: TooltipPayload[]
 }
 
 // ============================================================================
@@ -95,22 +92,22 @@ interface CustomTooltipProps {
 // ============================================================================
 
 const LINE_COLORS = [
-  "var(--color-gain)",
-  "var(--color-chart-2)",
-  "var(--color-chart-3)",
-  "var(--color-chart-4)",
-  "var(--color-chart-5)",
-];
+  'var(--color-gain)',
+  'var(--color-chart-2)',
+  'var(--color-chart-3)',
+  'var(--color-chart-4)',
+  'var(--color-chart-5)',
+]
 
 // ============================================================================
 // Custom Tooltip
 // ============================================================================
 
 function CustomTooltip({ active, payload }: CustomTooltipProps) {
-  if (!active || !payload || !payload.length) return null;
+  if (!active || !payload || !payload.length) return null
 
-  const data = payload[0].payload;
-  const dateObj = new Date(data.date);
+  const data = payload[0].payload
+  const dateObj = new Date(data.date)
 
   return (
     <div className="bg-surface border border-border rounded-lg p-3 shadow-lg">
@@ -125,8 +122,8 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
               style={{ backgroundColor: entry.color || LINE_COLORS[index] }}
             />
             <span className="text-xs font-medium text-text">
-              {entry.name}:{" "}
-              {typeof entry.value === "number"
+              {entry.name}:{' '}
+              {typeof entry.value === 'number'
                 ? entry.value.toFixed(2)
                 : entry.value}
               %
@@ -135,7 +132,7 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
         ))}
       </div>
     </div>
-  );
+  )
 }
 
 // ============================================================================
@@ -143,16 +140,16 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
 // ============================================================================
 
 interface MetricCardProps {
-  label: string;
-  value: number | null;
-  format?: "percent" | "currency" | "number";
-  isPositive?: boolean;
+  label: string
+  value: number | null
+  format?: 'percent' | 'currency' | 'number'
+  isPositive?: boolean
 }
 
 function MetricCard({
   label,
   value,
-  format: formatType = "number",
+  format: formatType = 'number',
   isPositive,
 }: MetricCardProps) {
   if (value === null || value === undefined) {
@@ -161,27 +158,27 @@ function MetricCard({
         <div className="text-xs font-medium text-text-muted mb-2">{label}</div>
         <div className="text-text-muted">—</div>
       </Card>
-    );
+    )
   }
 
-  let formattedValue = "";
-  if (formatType === "percent") {
-    formattedValue = `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
-  } else if (formatType === "currency") {
-    formattedValue = new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
+  let formattedValue = ''
+  if (formatType === 'percent') {
+    formattedValue = `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
+  } else if (formatType === 'currency') {
+    formattedValue = new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
-    }).format(value);
+    }).format(value)
   } else {
-    formattedValue = value.toFixed(2);
+    formattedValue = value.toFixed(2)
   }
 
-  const shouldDetermineColor = isPositive === undefined;
-  const isGain = shouldDetermineColor ? value >= 0 : isPositive;
-  const colorClass = isGain ? "text-gain" : "text-loss";
-  const iconClass = "h-4 w-4";
+  const shouldDetermineColor = isPositive === undefined
+  const isGain = shouldDetermineColor ? value >= 0 : isPositive
+  const colorClass = isGain ? 'text-gain' : 'text-loss'
+  const iconClass = 'h-4 w-4'
 
   return (
     <Card className="p-4">
@@ -201,7 +198,7 @@ function MetricCard({
         )}
       </div>
     </Card>
-  );
+  )
 }
 
 // ============================================================================
@@ -213,43 +210,43 @@ export function BacktestDetails({
   comparisonMode,
   comparisonRunIds,
 }: BacktestDetailsProps) {
-  const [tradeSorting, setTradeSorting] = useState<SortingState>([]);
+  const [tradeSorting, setTradeSorting] = useState<SortingState>([])
   const [monteCarloData, setMonteCarloData] =
-    useState<MonteCarloResponse | null>(null);
+    useState<MonteCarloResponse | null>(null)
 
   // Fetch single run data
-  const { data: runData, isLoading: runLoading } = useBacktestRun(runId || "", {
+  const { data: runData, isLoading: runLoading } = useBacktestRun(runId || '', {
     enabled: !!runId && !comparisonMode,
-  });
+  })
 
   // Fetch equity curve for single run
   const { data: equityData, isLoading: equityLoading } = useBacktestEquity(
-    runId || "",
+    runId || '',
     { enabled: !!runId && !comparisonMode },
-  );
+  )
 
   // Fetch comparison data
   const { data: comparisonData, isLoading: comparisonLoading } =
     useCompareBacktests(comparisonRunIds, {
       enabled: comparisonMode && comparisonRunIds.length >= 2,
-    });
+    })
 
   // Monte Carlo simulation mutation
-  const monteCarloMutation = useMonteCarloSimulation(runId || "");
+  const monteCarloMutation = useMonteCarloSimulation(runId || '')
 
   // Handle Monte Carlo run
   const handleRunMonteCarlo = async () => {
-    setMonteCarloData(null);
+    setMonteCarloData(null)
     const result = await monteCarloMutation.mutateAsync({
       numSimulations: 1000,
-    });
-    setMonteCarloData(result);
-  };
+    })
+    setMonteCarloData(result)
+  }
 
   // Determine loading state
   const isLoading = comparisonMode
     ? comparisonLoading
-    : runLoading || equityLoading;
+    : runLoading || equityLoading
 
   // Handle no selection
   if (!runId && !comparisonMode) {
@@ -262,7 +259,7 @@ export function BacktestDetails({
           </p>
         </div>
       </SectionCard>
-    );
+    )
   }
 
   // Handle comparison mode without selections
@@ -276,7 +273,7 @@ export function BacktestDetails({
           </p>
         </div>
       </SectionCard>
-    );
+    )
   }
 
   // Loading state
@@ -295,16 +292,16 @@ export function BacktestDetails({
           ))}
         </div>
       </div>
-    );
+    )
   }
 
   // Comparison mode rendering
   if (comparisonMode && comparisonData) {
     // Get symbol names for legend
-    const symbolMap: Record<string, string> = {};
+    const symbolMap: Record<string, string> = {}
     comparisonData.metrics.forEach((m) => {
-      symbolMap[m.runId] = m.symbol;
-    });
+      symbolMap[m.runId] = m.symbol
+    })
 
     return (
       <div className="space-y-6">
@@ -325,14 +322,14 @@ export function BacktestDetails({
               />
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 12, fill: "var(--color-text-muted)" }}
+                tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
               />
               <YAxis
-                tick={{ fontSize: 12, fill: "var(--color-text-muted)" }}
+                tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
                 label={{
-                  value: "Return %",
+                  value: 'Return %',
                   angle: -90,
-                  position: "insideLeft",
+                  position: 'insideLeft',
                 }}
               />
               <Tooltip content={<CustomTooltip />} />
@@ -400,12 +397,12 @@ export function BacktestDetails({
                         <div
                           key={`${rowId}-${colId}`}
                           className={cn(
-                            "text-center text-xs font-medium rounded px-2 py-1",
+                            'text-center text-xs font-medium rounded px-2 py-1',
                             corr >= 0.7
-                              ? "bg-loss/20 text-loss"
+                              ? 'bg-loss/20 text-loss'
                               : corr >= 0.4
-                                ? "bg-warning/20 text-warning"
-                                : "bg-gain/20 text-gain",
+                                ? 'bg-warning/20 text-warning'
+                                : 'bg-gain/20 text-gain',
                           )}
                         >
                           {corr.toFixed(2)}
@@ -427,7 +424,7 @@ export function BacktestDetails({
           <p>Comparing {comparisonRunIds.length} backtest runs</p>
         </div>
       </div>
-    );
+    )
   }
 
   // Single run rendering
@@ -440,22 +437,22 @@ export function BacktestDetails({
           </p>
         </div>
       </SectionCard>
-    );
+    )
   }
 
-  const run = runData.run;
-  const trades = runData.trades || [];
-  const equity = equityData || [];
+  const run = runData.run
+  const trades = runData.trades || []
+  const equity = equityData || []
 
   // Transform equity data for chart - calculate cumulative return from equity
   const initialEquity =
-    equity.length > 0 ? parseFloat(String(equity[0].equity)) : 100000;
+    equity.length > 0 ? parseFloat(String(equity[0].equity)) : 100000
   const chartData = equity.map((point) => ({
     date: point.date,
     return:
       ((parseFloat(String(point.equity)) - initialEquity) / initialEquity) *
       100,
-  }));
+  }))
 
   return (
     <div className="space-y-6">
@@ -476,11 +473,11 @@ export function BacktestDetails({
           <div className="flex items-center gap-3">
             <Badge
               variant={
-                run.status === "completed"
-                  ? "secondary"
-                  : run.status === "failed"
-                    ? "destructive"
-                    : "default"
+                run.status === 'completed'
+                  ? 'secondary'
+                  : run.status === 'failed'
+                    ? 'destructive'
+                    : 'default'
               }
             >
               {run.status}
@@ -489,13 +486,13 @@ export function BacktestDetails({
               <div className="text-right">
                 <div
                   className={cn(
-                    "text-2xl font-bold",
+                    'text-2xl font-bold',
                     parseFloat(String(run.totalReturnPct)) >= 0
-                      ? "text-gain"
-                      : "text-loss",
+                      ? 'text-gain'
+                      : 'text-loss',
                   )}
                 >
-                  {parseFloat(String(run.totalReturnPct)) >= 0 ? "+" : ""}
+                  {parseFloat(String(run.totalReturnPct)) >= 0 ? '+' : ''}
                   {parseFloat(String(run.totalReturnPct)).toFixed(2)}%
                 </div>
                 <p className="text-xs text-text-muted">Total Return</p>
@@ -523,14 +520,14 @@ export function BacktestDetails({
               />
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 12, fill: "var(--color-text-muted)" }}
+                tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
               />
               <YAxis
-                tick={{ fontSize: 12, fill: "var(--color-text-muted)" }}
+                tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
                 label={{
-                  value: "Return %",
+                  value: 'Return %',
                   angle: -90,
-                  position: "insideLeft",
+                  position: 'insideLeft',
                 }}
               />
               <Tooltip content={<CustomTooltip />} />
@@ -597,9 +594,9 @@ export function BacktestDetails({
             Initial Capital
           </div>
           <div className="text-sm font-bold text-text">
-            {new Intl.NumberFormat("en-US", {
-              style: "currency",
-              currency: "USD",
+            {new Intl.NumberFormat('en-US', {
+              style: 'currency',
+              currency: 'USD',
               minimumFractionDigits: 0,
             }).format(parseFloat(run.initialCapital.toString()))}
           </div>
@@ -610,12 +607,12 @@ export function BacktestDetails({
           </div>
           <div className="text-sm font-bold text-text">
             {run.finalEquity
-              ? new Intl.NumberFormat("en-US", {
-                  style: "currency",
-                  currency: "USD",
+              ? new Intl.NumberFormat('en-US', {
+                  style: 'currency',
+                  currency: 'USD',
                   minimumFractionDigits: 0,
                 }).format(parseFloat(run.finalEquity.toString()))
-              : "—"}
+              : '—'}
           </div>
         </Card>
         <Card className="p-4">
@@ -670,7 +667,7 @@ export function BacktestDetails({
       )}
 
       {/* Monte Carlo Simulation Section */}
-      {trades.length > 0 && run.status === "completed" && (
+      {trades.length > 0 && run.status === 'completed' && (
         <SectionCard
           variant="surface"
           title="Monte Carlo Simulation"
@@ -712,7 +709,7 @@ export function BacktestDetails({
         </SectionCard>
       )}
     </div>
-  );
+  )
 }
 
 // ============================================================================
@@ -720,71 +717,71 @@ export function BacktestDetails({
 // ============================================================================
 
 interface TradesTableProps {
-  trades: BacktestTrade[];
-  sorting: SortingState;
-  onSortingChange: (sorting: SortingState) => void;
+  trades: BacktestTrade[]
+  sorting: SortingState
+  onSortingChange: (sorting: SortingState) => void
 }
 
 function TradesTable({ trades, sorting, onSortingChange }: TradesTableProps) {
   const columns: ColumnDef<BacktestTrade>[] = [
     {
-      accessorKey: "entry_date",
-      header: "Entry Date",
+      accessorKey: 'entry_date',
+      header: 'Entry Date',
       cell: ({ row }) =>
         formatDate(row.original.entryDate as unknown as string),
     },
     {
-      accessorKey: "entry_price",
-      header: "Entry Price",
+      accessorKey: 'entry_price',
+      header: 'Entry Price',
       cell: ({ row }) => formatCurrencyValue(row.original.entryPrice),
     },
     {
-      accessorKey: "exit_date",
-      header: "Exit Date",
+      accessorKey: 'exit_date',
+      header: 'Exit Date',
       cell: ({ row }) => formatDate(row.original.exitDate as unknown as string),
     },
     {
-      accessorKey: "exit_price",
-      header: "Exit Price",
+      accessorKey: 'exit_price',
+      header: 'Exit Price',
       cell: ({ row }) => formatCurrencyValue(row.original.exitPrice),
     },
     {
-      accessorKey: "shares",
-      header: "Shares",
-      cell: ({ row }) => row.getValue("shares"),
+      accessorKey: 'shares',
+      header: 'Shares',
+      cell: ({ row }) => row.getValue('shares'),
     },
     {
-      accessorKey: "pnl_pct",
-      header: "P&L %",
+      accessorKey: 'pnl_pct',
+      header: 'P&L %',
       cell: ({ row }) => {
-        const pnl = parseToNumber(row.original.pnlPct);
+        const pnl = parseToNumber(row.original.pnlPct)
         return pnl !== null ? (
           <span
             className={
-              pnl >= 0 ? "text-gain font-medium" : "text-loss font-medium"
+              pnl >= 0 ? 'text-gain font-medium' : 'text-loss font-medium'
             }
           >
             {formatPercentValue(pnl)}
           </span>
         ) : (
-          "—"
-        );
+          '—'
+        )
       },
     },
     {
-      accessorKey: "exit_reason",
-      header: "Exit Reason",
+      accessorKey: 'exit_reason',
+      header: 'Exit Reason',
       cell: ({ row }) => {
-        const reason = row.getValue("exit_reason") as string | null;
-        if (!reason) return "—";
+        const reason = row.getValue('exit_reason') as string | null
+        if (!reason) return '—'
         return (
           <Badge variant="outline" className="text-xs">
             {reason}
           </Badge>
-        );
+        )
       },
     },
-  ];
+  ]
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is a known React Compiler limitation
   const table = useReactTable({
@@ -793,16 +790,16 @@ function TradesTable({ trades, sorting, onSortingChange }: TradesTableProps) {
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     onSortingChange: (updater) => {
-      if (typeof updater === "function") {
-        onSortingChange(updater(sorting));
+      if (typeof updater === 'function') {
+        onSortingChange(updater(sorting))
       } else {
-        onSortingChange(updater);
+        onSortingChange(updater)
       }
     },
     state: {
       sorting,
     },
-  });
+  })
 
   return (
     <div className="rounded-md border border-border bg-surface/40 overflow-x-auto">
@@ -827,11 +824,11 @@ function TradesTable({ trades, sorting, onSortingChange }: TradesTableProps) {
           {table.getRowModel().rows.map((row) => {
             const pnl = row.original.pnlPct
               ? parseFloat(row.original.pnlPct.toString())
-              : 0;
+              : 0
             const bgClass =
               pnl >= 0
-                ? "bg-gain/10 hover:bg-gain/20"
-                : "bg-loss/10 hover:bg-loss/20";
+                ? 'bg-gain/10 hover:bg-gain/20'
+                : 'bg-loss/10 hover:bg-loss/20'
 
             return (
               <TableRow key={row.id} className={bgClass}>
@@ -841,12 +838,12 @@ function TradesTable({ trades, sorting, onSortingChange }: TradesTableProps) {
                   </TableCell>
                 ))}
               </TableRow>
-            );
+            )
           })}
         </TableBody>
       </Table>
     </div>
-  );
+  )
 }
 
 // ============================================================================
@@ -860,51 +857,51 @@ function TradesTable({ trades, sorting, onSortingChange }: TradesTableProps) {
 function transformComparisonData(
   comparisonData: BacktestComparisonResponse,
 ): ChartDataPoint[] {
-  const dateMap = new Map<string, ChartDataPoint>();
+  const dateMap = new Map<string, ChartDataPoint>()
 
   // Iterate through each run's equity curve
   Object.entries(comparisonData.equityCurves).forEach(
     ([runId, equityPoints]) => {
       equityPoints.forEach((point) => {
-        const dateStr = point.date;
+        const dateStr = point.date
         if (!dateMap.has(dateStr)) {
-          dateMap.set(dateStr, { date: dateStr });
+          dateMap.set(dateStr, { date: dateStr })
         }
 
-        const chartPoint = dateMap.get(dateStr)!;
+        const chartPoint = dateMap.get(dateStr)!
         chartPoint[`return_${runId}`] = parseFloat(
           point.cumulativeReturnPct.toString(),
-        );
-      });
+        )
+      })
     },
-  );
+  )
 
   // Convert map to sorted array
   return Array.from(dateMap.values()).sort(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
-  );
+  )
 }
 
 /**
  * Render a rank badge (1 = gold, 2 = silver, 3 = bronze)
  */
 function RankBadge({ rank }: { rank: number | null }) {
-  if (rank === null) return <span className="text-text-muted">—</span>;
+  if (rank === null) return <span className="text-text-muted">—</span>
 
-  const variants: Record<number, "default" | "secondary" | "outline"> = {
-    1: "default",
-    2: "secondary",
-    3: "outline",
-  };
+  const variants: Record<number, 'default' | 'secondary' | 'outline'> = {
+    1: 'default',
+    2: 'secondary',
+    3: 'outline',
+  }
 
   return (
     <Badge
-      variant={variants[rank] || "outline"}
+      variant={variants[rank] || 'outline'}
       className="text-xs font-medium"
     >
       #{rank}
     </Badge>
-  );
+  )
 }
 
 /**
@@ -933,10 +930,10 @@ function MetricsComparisonTable({ metrics }: { metrics: RunMetrics[] }) {
               <TableCell className="font-medium">{m.symbol}</TableCell>
               <TableCell
                 className={cn(
-                  parseFloat(m.totalReturnPct || "0") >= 0
-                    ? "text-gain"
-                    : "text-loss",
-                  "font-medium",
+                  parseFloat(m.totalReturnPct || '0') >= 0
+                    ? 'text-gain'
+                    : 'text-loss',
+                  'font-medium',
                 )}
               >
                 {formatPercentValue(m.totalReturnPct)}
@@ -955,20 +952,20 @@ function MetricsComparisonTable({ metrics }: { metrics: RunMetrics[] }) {
                 <RankBadge rank={m.drawdownRank} />
               </TableCell>
               <TableCell>{formatPercentValue(m.winRate)}</TableCell>
-              <TableCell>{m.numTrades ?? "—"}</TableCell>
+              <TableCell>{m.numTrades ?? '—'}</TableCell>
             </TableRow>
           ))}
         </TableBody>
       </Table>
     </div>
-  );
+  )
 }
 
 /**
  * Monte Carlo results section component
  */
 function MonteCarloResults({ data }: { data: MonteCarloResponse }) {
-  const stats = data.statistics;
+  const stats = data.statistics
 
   return (
     <div className="space-y-6">
@@ -980,11 +977,11 @@ function MonteCarloResults({ data }: { data: MonteCarloResponse }) {
           </div>
           <div
             className={cn(
-              "text-lg font-bold",
-              stats.percentile50 >= 0 ? "text-gain" : "text-loss",
+              'text-lg font-bold',
+              stats.percentile50 >= 0 ? 'text-gain' : 'text-loss',
             )}
           >
-            {stats.percentile50 >= 0 ? "+" : ""}
+            {stats.percentile50 >= 0 ? '+' : ''}
             {stats.percentile50.toFixed(2)}%
           </div>
         </Card>
@@ -1002,12 +999,12 @@ function MonteCarloResults({ data }: { data: MonteCarloResponse }) {
           </div>
           <div
             className={cn(
-              "text-lg font-bold",
+              'text-lg font-bold',
               stats.probabilityOfLoss <= 20
-                ? "text-gain"
+                ? 'text-gain'
                 : stats.probabilityOfLoss <= 40
-                  ? "text-warning"
-                  : "text-loss",
+                  ? 'text-warning'
+                  : 'text-loss',
             )}
           >
             {stats.probabilityOfLoss.toFixed(1)}%
@@ -1038,7 +1035,7 @@ function MonteCarloResults({ data }: { data: MonteCarloResponse }) {
             Mean Return
           </div>
           <div className="text-sm font-bold text-text">
-            {stats.meanReturn >= 0 ? "+" : ""}
+            {stats.meanReturn >= 0 ? '+' : ''}
             {stats.meanReturn.toFixed(2)}%
           </div>
         </Card>
@@ -1072,18 +1069,18 @@ function MonteCarloResults({ data }: { data: MonteCarloResponse }) {
       <div className="rounded-lg border border-border bg-surface/40 p-4">
         <p className="text-sm text-text-muted">
           Based on {stats.numSimulations.toLocaleString()} simulations of
-          resampled trades. Original backtest return:{" "}
+          resampled trades. Original backtest return:{' '}
           <span
             className={cn(
-              "font-medium",
-              stats.originalReturn >= 0 ? "text-gain" : "text-loss",
+              'font-medium',
+              stats.originalReturn >= 0 ? 'text-gain' : 'text-loss',
             )}
           >
-            {stats.originalReturn >= 0 ? "+" : ""}
+            {stats.originalReturn >= 0 ? '+' : ''}
             {stats.originalReturn.toFixed(2)}%
           </span>
         </p>
       </div>
     </div>
-  );
+  )
 }

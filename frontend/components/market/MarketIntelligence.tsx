@@ -8,18 +8,18 @@
  * - Sector Performance chart
  */
 
-"use client";
+'use client'
 
-import { useMarketIntelligence } from "@/lib/hooks/useMarketIntelligence";
-import { Card } from "@/components/ui/card";
-import { SentimentTrendChart } from "./SentimentTrendChart";
-import { IndicatorsTrendChart } from "./IndicatorsTrendChart";
-import { SectorPerformanceChart } from "./SectorPerformanceChart";
-import { MarketMoversTable } from "./MarketMoversTable";
-import { SectorMoversTable } from "./SectorMoversTable";
+import { Card } from '@/components/ui/card'
+import { useMarketIntelligence } from '@/lib/hooks/useMarketIntelligence'
+import { IndicatorsTrendChart } from './IndicatorsTrendChart'
+import { MarketMoversTable } from './MarketMoversTable'
+import { SectorMoversTable } from './SectorMoversTable'
+import { SectorPerformanceChart } from './SectorPerformanceChart'
+import { SentimentTrendChart } from './SentimentTrendChart'
 
 export function MarketIntelligence() {
-  const { data, isLoading, error } = useMarketIntelligence();
+  const { data, isLoading, error } = useMarketIntelligence()
 
   if (isLoading) {
     return (
@@ -31,7 +31,7 @@ export function MarketIntelligence() {
           <div className="h-64 bg-surface-muted/60 rounded" />
         </div>
       </Card>
-    );
+    )
   }
 
   if (error || !data) {
@@ -41,10 +41,10 @@ export function MarketIntelligence() {
           Failed to load market intelligence. Please try again later.
         </div>
       </Card>
-    );
+    )
   }
 
-  const { fearGreed, sectorRotation, lastUpdated } = data;
+  const { fearGreed, sectorRotation, lastUpdated } = data
 
   return (
     <Card className="p-6 shadow-lg">
@@ -58,7 +58,8 @@ export function MarketIntelligence() {
       {/* Fear & Greed Alert if stale */}
       {fearGreed.isStale && (
         <div className="mb-4 px-3 py-2 bg-warning/10 border border-warning/30 rounded-lg text-xs text-warning">
-          Fear & Greed data is {fearGreed.ageDays} days old. Market may have changed.
+          Fear & Greed data is {fearGreed.ageDays} days old. Market may have
+          changed.
         </div>
       )}
 
@@ -98,5 +99,5 @@ export function MarketIntelligence() {
         </div>
       </div>
     </Card>
-  );
+  )
 }

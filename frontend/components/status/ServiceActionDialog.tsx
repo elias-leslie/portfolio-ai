@@ -1,20 +1,20 @@
-"use client";
+'use client'
 
 import {
   ConfirmActionDialog,
   type ConfirmActionDialogProps,
-} from "@/components/shared/ConfirmActionDialog";
+} from '@/components/shared/ConfirmActionDialog'
 
 type ServiceActionDialogProps = Omit<
   ConfirmActionDialogProps,
-  "tone" | "confirmLabel" | "rememberChoiceKey" | "rememberChoiceLabel"
+  'tone' | 'confirmLabel' | 'rememberChoiceKey' | 'rememberChoiceLabel'
 > & {
-  actionLabel?: string;
-  storageKey?: string;
-};
+  actionLabel?: string
+  storageKey?: string
+}
 
 export function ServiceActionDialog({
-  actionLabel = "Continue",
+  actionLabel = 'Continue',
   storageKey,
   ...props
 }: ServiceActionDialogProps) {
@@ -26,5 +26,5 @@ export function ServiceActionDialog({
       rememberChoiceKey={storageKey}
       rememberChoiceLabel="Don't ask me again"
     />
-  );
+  )
 }

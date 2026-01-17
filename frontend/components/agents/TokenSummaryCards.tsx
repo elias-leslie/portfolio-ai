@@ -1,31 +1,31 @@
-'use client';
+'use client'
 
-import { useEffect, useState } from 'react';
-import { cn } from '@/lib/utils';
+import { useEffect, useState } from 'react'
+import { cn } from '@/lib/utils'
 
 interface TokenSummary {
-  totalTokens: number;
-  byProvider: Record<string, number>;
-  byAgent: Record<string, number>;
-  periodDays: number;
-  periodStart: string;
-  periodEnd: string;
+  totalTokens: number
+  byProvider: Record<string, number>
+  byAgent: Record<string, number>
+  periodDays: number
+  periodStart: string
+  periodEnd: string
 }
 
 function formatTokenCount(tokens: number): string {
   if (tokens >= 1_000_000) {
-    return `${(tokens / 1_000_000).toFixed(1)}M`;
+    return `${(tokens / 1_000_000).toFixed(1)}M`
   }
   if (tokens >= 1_000) {
-    return `${(tokens / 1_000).toFixed(1)}K`;
+    return `${(tokens / 1_000).toFixed(1)}K`
   }
-  return tokens.toString();
+  return tokens.toString()
 }
 
 interface TokenCardProps {
-  days: number;
-  data: TokenSummary | null;
-  isLoading: boolean;
+  days: number
+  data: TokenSummary | null
+  isLoading: boolean
 }
 
 function TokenCard({ days, data, isLoading }: TokenCardProps) {
@@ -46,13 +46,19 @@ function TokenCard({ days, data, isLoading }: TokenCardProps) {
           <div className="mt-2 space-y-1">
             {Object.entries(data.byProvider).map(([provider, tokens]) => (
               <div key={provider} className="flex justify-between text-xs">
-                <span className={cn(
-                  "capitalize",
-                  provider === 'gemini' ? "text-status-success" : "text-status-info"
-                )}>
+                <span
+                  className={cn(
+                    'capitalize',
+                    provider === 'gemini'
+                      ? 'text-status-success'
+                      : 'text-status-info',
+                  )}
+                >
                   {provider}
                 </span>
-                <span className="text-text-muted">{formatTokenCount(tokens)}</span>
+                <span className="text-text-muted">
+                  {formatTokenCount(tokens)}
+                </span>
               </div>
             ))}
           </div>
@@ -61,44 +67,44 @@ function TokenCard({ days, data, isLoading }: TokenCardProps) {
         <div className="text-text-muted text-sm">No data</div>
       )}
     </div>
-  );
+  )
 }
 
 interface TokenSummaryCardsProps {
-  serverUrl?: string;
+  serverUrl?: string
 }
 
 export function TokenSummaryCards({ serverUrl = '' }: TokenSummaryCardsProps) {
-  const [data7d, setData7d] = useState<TokenSummary | null>(null);
-  const [data14d, setData14d] = useState<TokenSummary | null>(null);
-  const [data30d, setData30d] = useState<TokenSummary | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [data7d, setData7d] = useState<TokenSummary | null>(null)
+  const [data14d, setData14d] = useState<TokenSummary | null>(null)
+  const [data30d, setData30d] = useState<TokenSummary | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     const fetchData = async () => {
-      setIsLoading(true);
+      setIsLoading(true)
       try {
         const [res7, res14, res30] = await Promise.all([
           fetch(`${serverUrl}/api/agents/token-summary?days=7`),
           fetch(`${serverUrl}/api/agents/token-summary?days=14`),
           fetch(`${serverUrl}/api/agents/token-summary?days=30`),
-        ]);
+        ])
 
-        if (res7.ok) setData7d(await res7.json());
-        if (res14.ok) setData14d(await res14.json());
-        if (res30.ok) setData30d(await res30.json());
+        if (res7.ok) setData7d(await res7.json())
+        if (res14.ok) setData14d(await res14.json())
+        if (res30.ok) setData30d(await res30.json())
       } catch (err) {
-        console.error('Failed to fetch token summary:', err);
+        console.error('Failed to fetch token summary:', err)
       } finally {
-        setIsLoading(false);
+        setIsLoading(false)
       }
-    };
+    }
 
-    fetchData();
+    fetchData()
     // Refresh every 5 minutes
-    const interval = setInterval(fetchData, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [serverUrl]);
+    const interval = setInterval(fetchData, 5 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [serverUrl])
 
   return (
     <div className="flex gap-2 p-2 border-b border-border">
@@ -106,5 +112,5 @@ export function TokenSummaryCards({ serverUrl = '' }: TokenSummaryCardsProps) {
       <TokenCard days={14} data={data14d} isLoading={isLoading} />
       <TokenCard days={30} data={data30d} isLoading={isLoading} />
     </div>
-  );
+  )
 }

@@ -1,14 +1,24 @@
-"use client";
+'use client'
 
-import { useState } from "react";
-import { Target, TrendingUp, TrendingDown, AlertCircle, DollarSign, Briefcase, LineChart, Sparkles, AlertTriangle, FileText, BarChart3, Star } from "lucide-react";
-import { PageHeader } from "@/components/shared/PageHeader";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
+import {
+  AlertCircle,
+  AlertTriangle,
+  BarChart3,
+  Briefcase,
+  DollarSign,
+  FileText,
+  LineChart,
+  Sparkles,
+  Star,
+  Target,
+  TrendingDown,
+  TrendingUp,
+} from 'lucide-react'
+import { useState } from 'react'
+import { PageHeader } from '@/components/shared/PageHeader'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -16,86 +26,102 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { useRecommendations, usePaperTrade, useTrackInPortfolio } from "@/lib/hooks/useRecommendations";
-import { useAccounts } from "@/lib/hooks/usePortfolio";
-import type { TradeRecommendation } from "@/lib/api/recommendations";
+} from '@/components/ui/select'
+import { Slider } from '@/components/ui/slider'
+import type { TradeRecommendation } from '@/lib/api/recommendations'
+import { useAccounts } from '@/lib/hooks/usePortfolio'
+import {
+  usePaperTrade,
+  useRecommendations,
+  useTrackInPortfolio,
+} from '@/lib/hooks/useRecommendations'
 
 function SignalBadge({ type, strength }: { type: string; strength: number }) {
-  if (type === "BUY") {
+  if (type === 'BUY') {
     return (
       <Badge className="bg-gain text-text-inverted">
         <TrendingUp className="mr-1 h-3 w-3" />
         BUY {strength}/10
       </Badge>
-    );
+    )
   }
-  if (type === "SELL") {
+  if (type === 'SELL') {
     return (
       <Badge className="bg-loss text-text-inverted">
         <TrendingDown className="mr-1 h-3 w-3" />
         SELL {strength}/10
       </Badge>
-    );
+    )
   }
-  return (
-    <Badge variant="outline">
-      HOLD {strength}/10
-    </Badge>
-  );
+  return <Badge variant="outline">HOLD {strength}/10</Badge>
 }
 
 function SignalStatusBadge({ status }: { status: string }) {
   switch (status) {
-    case "better_entry":
+    case 'better_entry':
       return (
         <Badge className="bg-gain text-text-inverted">
           <Sparkles className="mr-1 h-3 w-3" />
           Better Entry
         </Badge>
-      );
-    case "caution":
+      )
+    case 'caution':
       return (
         <Badge className="bg-warning text-text-inverted">
           <AlertTriangle className="mr-1 h-3 w-3" />
           Caution
         </Badge>
-      );
+      )
     default:
-      return null; // Don't show badge for "valid" status
+      return null // Don't show badge for "valid" status
   }
 }
 
-function ValidationBadge({ validationType }: { validationType: "thesis" | "backtest" | "both" }) {
+function ValidationBadge({
+  validationType,
+}: {
+  validationType: 'thesis' | 'backtest' | 'both'
+}) {
   switch (validationType) {
-    case "thesis":
+    case 'thesis':
       return (
-        <Badge className="bg-primary text-primary-foreground" title="Event-Driven: Validated by investment thesis">
+        <Badge
+          className="bg-primary text-primary-foreground"
+          title="Event-Driven: Validated by investment thesis"
+        >
           <FileText className="mr-1 h-3 w-3" />
           Thesis
         </Badge>
-      );
-    case "backtest":
+      )
+    case 'backtest':
       return (
-        <Badge className="bg-accent text-accent-foreground" title="Technical: Validated by backtest (Sharpe >= 1.0)">
+        <Badge
+          className="bg-accent text-accent-foreground"
+          title="Technical: Validated by backtest (Sharpe >= 1.0)"
+        >
           <BarChart3 className="mr-1 h-3 w-3" />
           Technical
         </Badge>
-      );
-    case "both":
+      )
+    case 'both':
       return (
-        <Badge className="bg-warning text-text-inverted" title="Highest confidence: Both thesis AND backtest validated">
+        <Badge
+          className="bg-warning text-text-inverted"
+          title="Highest confidence: Both thesis AND backtest validated"
+        >
           <Star className="mr-1 h-3 w-3" />
           Both
         </Badge>
-      );
+      )
   }
 }
 
@@ -105,27 +131,32 @@ function RecommendationCard({
   onTrackInPortfolio,
   isPaperTrading,
 }: {
-  rec: TradeRecommendation;
-  onPaperTrade: () => void;
-  onTrackInPortfolio: () => void;
-  isPaperTrading: boolean;
+  rec: TradeRecommendation
+  onPaperTrade: () => void
+  onTrackInPortfolio: () => void
+  isPaperTrading: boolean
 }) {
-  const riskReward = rec.riskRewardRatio;
-  const potentialGain = rec.targetPrice - rec.currentPrice;
-  const potentialLoss = rec.currentPrice - rec.stopLoss;
-  const potentialGainPct = (potentialGain / rec.currentPrice) * 100;
-  const potentialLossPct = (potentialLoss / rec.currentPrice) * 100;
-  const priceChange = rec.currentPrice - rec.entryPrice;
-  const priceChangePct = (priceChange / rec.entryPrice) * 100;
+  const riskReward = rec.riskRewardRatio
+  const potentialGain = rec.targetPrice - rec.currentPrice
+  const potentialLoss = rec.currentPrice - rec.stopLoss
+  const potentialGainPct = (potentialGain / rec.currentPrice) * 100
+  const potentialLossPct = (potentialLoss / rec.currentPrice) * 100
+  const priceChange = rec.currentPrice - rec.entryPrice
+  const priceChangePct = (priceChange / rec.entryPrice) * 100
 
   return (
-    <Card className={`transition-shadow hover:shadow-lg ${rec.signalStatus === "caution" ? "border-warning" : ""}`}>
+    <Card
+      className={`transition-shadow hover:shadow-lg ${rec.signalStatus === 'caution' ? 'border-warning' : ''}`}
+    >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div>
             <CardTitle className="flex flex-wrap items-center gap-2 text-xl">
               {rec.symbol}
-              <SignalBadge type={rec.signalType} strength={rec.signalStrength} />
+              <SignalBadge
+                type={rec.signalType}
+                strength={rec.signalStrength}
+              />
               <ValidationBadge validationType={rec.validationType} />
               <SignalStatusBadge status={rec.signalStatus} />
             </CardTitle>
@@ -149,8 +180,11 @@ function RecommendationCard({
           </div>
           <div className="text-right">
             <p className="text-xs text-text-muted">Since Signal</p>
-            <p className={`text-lg font-bold ${priceChange >= 0 ? "text-gain" : "text-loss"}`}>
-              {priceChange >= 0 ? "+" : ""}{priceChangePct.toFixed(2)}%
+            <p
+              className={`text-lg font-bold ${priceChange >= 0 ? 'text-gain' : 'text-loss'}`}
+            >
+              {priceChange >= 0 ? '+' : ''}
+              {priceChangePct.toFixed(2)}%
             </p>
           </div>
         </div>
@@ -189,16 +223,20 @@ function RecommendationCard({
             </p>
           </div>
           <div className="text-right">
-            <p className="text-lg font-bold">${rec.positionSizeDollars.toLocaleString()}</p>
+            <p className="text-lg font-bold">
+              ${rec.positionSizeDollars.toLocaleString()}
+            </p>
             <p className="text-xs text-text-muted">
-              R/R: {riskReward > 0 ? `1:${riskReward.toFixed(1)}` : "N/A"}
+              R/R: {riskReward > 0 ? `1:${riskReward.toFixed(1)}` : 'N/A'}
             </p>
           </div>
         </div>
 
         {/* Signal Reasons */}
         <div>
-          <p className="mb-2 text-xs font-medium text-text-muted">Signal Reasons:</p>
+          <p className="mb-2 text-xs font-medium text-text-muted">
+            Signal Reasons:
+          </p>
           <div className="flex flex-wrap gap-1">
             {rec.signalReasons.slice(0, 4).map((reason, i) => (
               <Badge key={i} variant="outline" className="text-xs">
@@ -219,10 +257,10 @@ function RecommendationCard({
             onClick={onPaperTrade}
             disabled={isPaperTrading}
             className="flex-1"
-            variant={rec.signalType === "BUY" ? "default" : "outline"}
+            variant={rec.signalType === 'BUY' ? 'default' : 'outline'}
           >
             <LineChart className="mr-2 h-4 w-4" />
-            {isPaperTrading ? "Trading..." : "Paper Trade"}
+            {isPaperTrading ? 'Trading...' : 'Paper Trade'}
           </Button>
           <Button
             variant="outline"
@@ -235,43 +273,49 @@ function RecommendationCard({
         </div>
       </CardContent>
     </Card>
-  );
+  )
 }
 
 interface TrackModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  recommendation: TradeRecommendation | null;
-  onConfirm: (accountId: string, shares: number) => void;
-  isLoading: boolean;
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  recommendation: TradeRecommendation | null
+  onConfirm: (accountId: string, shares: number) => void
+  isLoading: boolean
 }
 
-function TrackInPortfolioModal({ open, onOpenChange, recommendation, onConfirm, isLoading }: TrackModalProps) {
-  const { data: accounts } = useAccounts();
-  const [selectedAccount, setSelectedAccount] = useState<string>("");
-  const [shares, setShares] = useState<number>(0);
+function TrackInPortfolioModal({
+  open,
+  onOpenChange,
+  recommendation,
+  onConfirm,
+  isLoading,
+}: TrackModalProps) {
+  const { data: accounts } = useAccounts()
+  const [selectedAccount, setSelectedAccount] = useState<string>('')
+  const [shares, setShares] = useState<number>(0)
 
   // Filter out paper accounts
-  const realAccounts = accounts?.filter(a => a.accountType !== "paper") || [];
+  const realAccounts = accounts?.filter((a) => a.accountType !== 'paper') || []
 
   // Reset form when modal opens with new recommendation
   const handleOpenChange = (newOpen: boolean) => {
     if (newOpen && recommendation) {
-      setShares(recommendation.positionSizeShares);
-      setSelectedAccount("");
+      setShares(recommendation.positionSizeShares)
+      setSelectedAccount('')
     }
-    onOpenChange(newOpen);
-  };
+    onOpenChange(newOpen)
+  }
 
   const handleConfirm = () => {
     if (selectedAccount && shares > 0) {
-      onConfirm(selectedAccount, shares);
+      onConfirm(selectedAccount, shares)
     }
-  };
+  }
 
-  if (!recommendation) return null;
+  if (!recommendation) return null
 
-  const totalCost = shares * recommendation.currentPrice;
+  const totalCost = shares * recommendation.currentPrice
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -282,8 +326,8 @@ function TrackInPortfolioModal({ open, onOpenChange, recommendation, onConfirm, 
             Track {recommendation.symbol} in Portfolio
           </DialogTitle>
           <DialogDescription>
-            Add this position to your real portfolio. This is for tracking purposes only -
-            you must execute the actual trade with your broker.
+            Add this position to your real portfolio. This is for tracking
+            purposes only - you must execute the actual trade with your broker.
           </DialogDescription>
         </DialogHeader>
 
@@ -293,10 +337,14 @@ function TrackInPortfolioModal({ open, onOpenChange, recommendation, onConfirm, 
             <Label htmlFor="account">Select Account</Label>
             {realAccounts.length === 0 ? (
               <p className="text-sm text-text-muted">
-                No real accounts found. Create an account on the Portfolio page first.
+                No real accounts found. Create an account on the Portfolio page
+                first.
               </p>
             ) : (
-              <Select value={selectedAccount} onValueChange={setSelectedAccount}>
+              <Select
+                value={selectedAccount}
+                onValueChange={setSelectedAccount}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Choose an account..." />
                 </SelectTrigger>
@@ -319,10 +367,11 @@ function TrackInPortfolioModal({ open, onOpenChange, recommendation, onConfirm, 
               type="number"
               min={1}
               value={shares}
-              onChange={(e) => setShares(parseInt(e.target.value) || 0)}
+              onChange={(e) => setShares(parseInt(e.target.value, 10) || 0)}
             />
             <p className="text-xs text-text-muted">
-              Suggested: {recommendation.positionSizeShares} shares (${recommendation.positionSizeDollars.toLocaleString()})
+              Suggested: {recommendation.positionSizeShares} shares ($
+              {recommendation.positionSizeDollars.toLocaleString()})
             </p>
           </div>
 
@@ -330,7 +379,9 @@ function TrackInPortfolioModal({ open, onOpenChange, recommendation, onConfirm, 
           <div className="rounded-lg border border-border bg-surface-muted/50 p-3">
             <div className="flex justify-between text-sm">
               <span>Current Price:</span>
-              <span className="font-medium">${recommendation.currentPrice.toFixed(2)}</span>
+              <span className="font-medium">
+                ${recommendation.currentPrice.toFixed(2)}
+              </span>
             </div>
             <div className="flex justify-between text-sm">
               <span>Shares:</span>
@@ -338,7 +389,12 @@ function TrackInPortfolioModal({ open, onOpenChange, recommendation, onConfirm, 
             </div>
             <div className="mt-2 flex justify-between border-t border-border pt-2 text-sm font-medium">
               <span>Total Cost:</span>
-              <span>${totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              <span>
+                $
+                {totalCost.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                })}
+              </span>
             </div>
           </div>
         </div>
@@ -349,45 +405,52 @@ function TrackInPortfolioModal({ open, onOpenChange, recommendation, onConfirm, 
           </Button>
           <Button
             onClick={handleConfirm}
-            disabled={!selectedAccount || shares <= 0 || isLoading || realAccounts.length === 0}
+            disabled={
+              !selectedAccount ||
+              shares <= 0 ||
+              isLoading ||
+              realAccounts.length === 0
+            }
           >
-            {isLoading ? "Adding..." : "Add to Portfolio"}
+            {isLoading ? 'Adding...' : 'Add to Portfolio'}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
+  )
 }
 
-import { PageContainer } from "@/components/shared/PageContainer";
+import { PageContainer } from '@/components/shared/PageContainer'
 
 export default function RecommendationsPage() {
-  const [minStrength, setMinStrength] = useState(5);
-  const [portfolioSize, setPortfolioSize] = useState(100000);
-  const [trackModalOpen, setTrackModalOpen] = useState(false);
-  const [selectedRec, setSelectedRec] = useState<TradeRecommendation | null>(null);
+  const [minStrength, setMinStrength] = useState(5)
+  const [portfolioSize, setPortfolioSize] = useState(100000)
+  const [trackModalOpen, setTrackModalOpen] = useState(false)
+  const [selectedRec, setSelectedRec] = useState<TradeRecommendation | null>(
+    null,
+  )
 
   const { data, isLoading, error } = useRecommendations({
     minStrength: minStrength,
     limit: 20,
-    signalType: "BUY",
+    signalType: 'BUY',
     portfolioSize: portfolioSize,
     positionPct: 0.05,
-  });
+  })
 
-  const paperTradeMutation = usePaperTrade();
-  const trackMutation = useTrackInPortfolio();
+  const paperTradeMutation = usePaperTrade()
+  const trackMutation = useTrackInPortfolio()
 
-  const recommendations = data?.recommendations || [];
-  const summary = data?.summary;
+  const recommendations = data?.recommendations || []
+  const summary = data?.summary
 
   const handleTrackClick = (rec: TradeRecommendation) => {
-    setSelectedRec(rec);
-    setTrackModalOpen(true);
-  };
+    setSelectedRec(rec)
+    setTrackModalOpen(true)
+  }
 
   const handleTrackConfirm = (accountId: string, shares: number) => {
-    if (!selectedRec) return;
+    if (!selectedRec) return
     trackMutation.mutate(
       {
         symbol: selectedRec.symbol,
@@ -397,12 +460,12 @@ export default function RecommendationsPage() {
       },
       {
         onSuccess: () => {
-          setTrackModalOpen(false);
-          setSelectedRec(null);
+          setTrackModalOpen(false)
+          setSelectedRec(null)
         },
-      }
-    );
-  };
+      },
+    )
+  }
 
   return (
     <PageContainer className="space-y-10 py-10">
@@ -419,7 +482,9 @@ export default function RecommendationsPage() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-text-muted">Active Picks</p>
+                <p className="text-sm font-medium text-text-muted">
+                  Active Picks
+                </p>
                 <p className="text-3xl font-bold text-gain">
                   {summary?.buySignals || 0}
                 </p>
@@ -433,8 +498,12 @@ export default function RecommendationsPage() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-text-muted">Avg Strength</p>
-                <p className="text-3xl font-bold">{summary?.avgSignalStrength?.toFixed(1) || 0}</p>
+                <p className="text-sm font-medium text-text-muted">
+                  Avg Strength
+                </p>
+                <p className="text-3xl font-bold">
+                  {summary?.avgSignalStrength?.toFixed(1) || 0}
+                </p>
               </div>
               <Badge variant="outline" className="text-lg">
                 /10
@@ -447,7 +516,9 @@ export default function RecommendationsPage() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-text-muted">Total Position</p>
+                <p className="text-sm font-medium text-text-muted">
+                  Total Position
+                </p>
                 <p className="text-3xl font-bold">
                   ${(summary?.totalPositionSize || 0).toLocaleString()}
                 </p>
@@ -461,10 +532,16 @@ export default function RecommendationsPage() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-text-muted">Portfolio Size</p>
-                <p className="text-3xl font-bold">${portfolioSize.toLocaleString()}</p>
+                <p className="text-sm font-medium text-text-muted">
+                  Portfolio Size
+                </p>
+                <p className="text-3xl font-bold">
+                  ${portfolioSize.toLocaleString()}
+                </p>
               </div>
-              <Badge variant="outline">{((summary?.positionPct || 0.05) * 100).toFixed(0)}% each</Badge>
+              <Badge variant="outline">
+                {((summary?.positionPct || 0.05) * 100).toFixed(0)}% each
+              </Badge>
             </div>
           </CardContent>
         </Card>
@@ -515,7 +592,8 @@ export default function RecommendationsPage() {
           <CardContent className="flex items-center gap-3 py-6">
             <AlertCircle className="h-5 w-5 text-loss" />
             <p className="text-loss">
-              Failed to load recommendations: {error instanceof Error ? error.message : "Unknown error"}
+              Failed to load recommendations:{' '}
+              {error instanceof Error ? error.message : 'Unknown error'}
             </p>
           </CardContent>
         </Card>
@@ -532,7 +610,8 @@ export default function RecommendationsPage() {
               <li>• OR strong backtest performance (Sharpe ratio ≥ 1.0)</li>
             </ul>
             <p className="mt-4 text-sm text-text-muted">
-              Generate a thesis or run backtests for watchlist symbols to see recommendations.
+              Generate a thesis or run backtests for watchlist symbols to see
+              recommendations.
             </p>
           </CardContent>
         </Card>
@@ -564,5 +643,5 @@ export default function RecommendationsPage() {
         isLoading={trackMutation.isPending}
       />
     </PageContainer>
-  );
+  )
 }

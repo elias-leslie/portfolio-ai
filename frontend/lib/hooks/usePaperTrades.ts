@@ -2,33 +2,33 @@
  * React Query hooks for Paper Trading API
  */
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import {
-  fetchPaperTrades,
-  fetchPaperTrade,
-  fetchPaperTradeSummary,
-  closePaperTrade,
-  createPaperTrade,
-  resetPaperAccount,
   type CloseTradeRequest,
   type CreateTradeRequest,
+  closePaperTrade,
+  createPaperTrade,
+  fetchPaperTrade,
+  fetchPaperTradeSummary,
+  fetchPaperTrades,
   type ResetAccountRequest,
-} from "@/lib/api/paper-trades";
+  resetPaperAccount,
+} from '@/lib/api/paper-trades'
 
 // ============================================================================
 // Query Keys (for cache management)
 // ============================================================================
 
 export const paperTradeKeys = {
-  all: ["paper-trades"] as const,
-  lists: () => [...paperTradeKeys.all, "list"] as const,
+  all: ['paper-trades'] as const,
+  lists: () => [...paperTradeKeys.all, 'list'] as const,
   list: (filters?: { status?: string; limit?: number; offset?: number }) =>
     [...paperTradeKeys.lists(), filters] as const,
-  details: () => [...paperTradeKeys.all, "detail"] as const,
+  details: () => [...paperTradeKeys.all, 'detail'] as const,
   detail: (id: string) => [...paperTradeKeys.details(), id] as const,
-  summary: () => [...paperTradeKeys.all, "summary"] as const,
-};
+  summary: () => [...paperTradeKeys.all, 'summary'] as const,
+}
 
 // ============================================================================
 // Query Hooks (GET)
@@ -39,12 +39,17 @@ export const paperTradeKeys = {
  * Automatically refetches every 30 seconds for real-time price updates
  */
 export function usePaperTrades(options?: {
-  status?: "open" | "closed" | "all";
-  limit?: number;
-  offset?: number;
-  enabled?: boolean;
+  status?: 'open' | 'closed' | 'all'
+  limit?: number
+  offset?: number
+  enabled?: boolean
 }) {
-  const { status = "all", limit = 100, offset = 0, enabled = true } = options || {};
+  const {
+    status = 'all',
+    limit = 100,
+    offset = 0,
+    enabled = true,
+  } = options || {}
 
   return useQuery({
     queryKey: paperTradeKeys.list({ status, limit, offset }),
@@ -54,7 +59,7 @@ export function usePaperTrades(options?: {
     refetchInterval: 1000 * 30, // Refetch every 30 seconds for price updates
     refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
-  });
+  })
 }
 
 /**
@@ -66,7 +71,7 @@ export function usePaperTradeSummary() {
     queryFn: fetchPaperTradeSummary,
     staleTime: 1000 * 30, // 30 seconds
     refetchInterval: 1000 * 60, // Refetch every minute
-  });
+  })
 }
 
 /**
@@ -79,7 +84,7 @@ export function usePaperTrade(tradeId: string) {
     enabled: !!tradeId,
     staleTime: 1000 * 15, // 15 seconds
     refetchInterval: 1000 * 30, // Refetch every 30 seconds
-  });
+  })
 }
 
 // ============================================================================
@@ -90,121 +95,140 @@ export function usePaperTrade(tradeId: string) {
  * Hook to close a paper trade manually
  */
 export function useClosePaperTrade() {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ tradeId, request }: { tradeId: string; request: CloseTradeRequest }) =>
-      closePaperTrade(tradeId, request),
+    mutationFn: ({
+      tradeId,
+      request,
+    }: {
+      tradeId: string
+      request: CloseTradeRequest
+    }) => closePaperTrade(tradeId, request),
     onMutate: async ({ tradeId }) => {
       // Optimistically update to show closing state
-      await queryClient.cancelQueries({ queryKey: paperTradeKeys.detail(tradeId) });
+      await queryClient.cancelQueries({
+        queryKey: paperTradeKeys.detail(tradeId),
+      })
 
-      const previousTrade = queryClient.getQueryData(paperTradeKeys.detail(tradeId));
+      const previousTrade = queryClient.getQueryData(
+        paperTradeKeys.detail(tradeId),
+      )
 
       // Show loading toast
-      toast.loading("Closing trade...");
+      toast.loading('Closing trade...')
 
-      return { previousTrade };
+      return { previousTrade }
     },
     onSuccess: (data) => {
       // Dismiss loading toast
-      toast.dismiss();
+      toast.dismiss()
 
       // Show success toast with result
-      toast.success(data.message);
+      toast.success(data.message)
 
       // Invalidate all paper trade queries to force refetch
       queryClient.invalidateQueries({
         queryKey: paperTradeKeys.lists(),
-        refetchType: "active",
-      });
+        refetchType: 'active',
+      })
       queryClient.invalidateQueries({
         queryKey: paperTradeKeys.summary(),
-        refetchType: "active",
-      });
+        refetchType: 'active',
+      })
       queryClient.invalidateQueries({
         queryKey: paperTradeKeys.detail(data.tradeId),
-        refetchType: "active",
-      });
+        refetchType: 'active',
+      })
     },
     onError: (error, { tradeId }, context) => {
       // Dismiss loading toast
-      toast.dismiss();
+      toast.dismiss()
 
       // Rollback optimistic update
       if (context?.previousTrade) {
-        queryClient.setQueryData(paperTradeKeys.detail(tradeId), context.previousTrade);
+        queryClient.setQueryData(
+          paperTradeKeys.detail(tradeId),
+          context.previousTrade,
+        )
       }
 
       // Show error toast
-      toast.error(`Failed to close trade: ${error instanceof Error ? error.message : "Unknown error"}`);
+      toast.error(
+        `Failed to close trade: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      )
     },
-  });
+  })
 }
 
 /**
  * Hook to create a manual paper trade
  */
 export function useCreatePaperTrade() {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: (request: CreateTradeRequest) => createPaperTrade(request),
     onMutate: async () => {
       // Show loading toast
-      toast.loading("Creating trade...");
+      toast.loading('Creating trade...')
     },
     onSuccess: (data) => {
       // Dismiss loading toast
-      toast.dismiss();
+      toast.dismiss()
 
       // Show success toast
-      toast.success(data.message);
+      toast.success(data.message)
 
       // Invalidate all paper trade queries to force refetch
       queryClient.invalidateQueries({
         queryKey: paperTradeKeys.lists(),
-        refetchType: "active",
-      });
+        refetchType: 'active',
+      })
       queryClient.invalidateQueries({
         queryKey: paperTradeKeys.summary(),
-        refetchType: "active",
-      });
+        refetchType: 'active',
+      })
     },
     onError: (error) => {
       // Dismiss loading toast
-      toast.dismiss();
+      toast.dismiss()
 
       // Show error toast
-      toast.error(`Failed to create trade: ${error instanceof Error ? error.message : "Unknown error"}`);
+      toast.error(
+        `Failed to create trade: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      )
     },
-  });
+  })
 }
 
 /**
  * Hook to reset paper trading account
  */
 export function useResetPaperAccount() {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (request: ResetAccountRequest = {}) => resetPaperAccount(request),
+    mutationFn: (request: ResetAccountRequest = {}) =>
+      resetPaperAccount(request),
     onMutate: async () => {
-      toast.loading("Resetting account...");
+      toast.loading('Resetting account...')
     },
     onSuccess: (data) => {
-      toast.dismiss();
-      toast.success(data.message);
+      toast.dismiss()
+      toast.success(data.message)
 
       // Invalidate all paper trade queries to force refetch
       queryClient.invalidateQueries({
         queryKey: paperTradeKeys.all,
-        refetchType: "active",
-      });
+        refetchType: 'active',
+      })
     },
     onError: (error) => {
-      toast.dismiss();
-      toast.error(`Failed to reset account: ${error instanceof Error ? error.message : "Unknown error"}`);
+      toast.dismiss()
+      toast.error(
+        `Failed to reset account: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      )
     },
-  });
+  })
 }

@@ -1,21 +1,21 @@
-"use client";
+'use client'
 
-import { useId, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { ChevronDown } from "lucide-react";
-import { cn } from "@/lib/utils";
-import type { ReactNode } from "react";
+import { ChevronDown } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { useId, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 
 interface ExpandableCardProps {
-  title: ReactNode;
-  description?: ReactNode;
-  summary?: ReactNode;
-  actions?: ReactNode;
-  defaultCollapsed?: boolean;
-  className?: string;
-  contentClassName?: string;
-  children: ReactNode | ((props: { isExpanded: boolean }) => ReactNode);
+  title: ReactNode
+  description?: ReactNode
+  summary?: ReactNode
+  actions?: ReactNode
+  defaultCollapsed?: boolean
+  className?: string
+  contentClassName?: string
+  children: ReactNode | ((props: { isExpanded: boolean }) => ReactNode)
 }
 
 export function ExpandableCard({
@@ -28,14 +28,14 @@ export function ExpandableCard({
   contentClassName,
   children,
 }: ExpandableCardProps) {
-  const [isExpanded, setIsExpanded] = useState(!defaultCollapsed);
-  const contentId = useId();
+  const [isExpanded, setIsExpanded] = useState(!defaultCollapsed)
+  const contentId = useId()
 
   const renderChildren =
-    typeof children === "function" ? children({ isExpanded }) : children;
+    typeof children === 'function' ? children({ isExpanded }) : children
 
   return (
-    <Card className={cn("border-border", className)}>
+    <Card className={cn('border-border', className)}>
       <CardHeader className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -60,11 +60,11 @@ export function ExpandableCard({
               aria-expanded={isExpanded}
               aria-controls={contentId}
             >
-              {isExpanded ? "Collapse" : "Expand"}
+              {isExpanded ? 'Collapse' : 'Expand'}
               <ChevronDown
                 className={cn(
-                  "h-4 w-4 transition-transform",
-                  isExpanded && "rotate-180",
+                  'h-4 w-4 transition-transform',
+                  isExpanded && 'rotate-180',
                 )}
               />
             </Button>
@@ -77,5 +77,5 @@ export function ExpandableCard({
         </CardContent>
       )}
     </Card>
-  );
+  )
 }

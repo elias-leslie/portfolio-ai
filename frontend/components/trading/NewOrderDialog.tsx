@@ -1,7 +1,8 @@
-"use client";
+'use client'
 
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Loader2 } from 'lucide-react'
+import { useState } from 'react'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -9,36 +10,35 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { useCreatePaperTrade } from "@/lib/hooks/usePaperTrades";
-import { Loader2 } from "lucide-react";
+} from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
+import { useCreatePaperTrade } from '@/lib/hooks/usePaperTrades'
 
 interface NewOrderDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }
 
 export function NewOrderDialog({ open, onOpenChange }: NewOrderDialogProps) {
-  const [symbol, setSymbol] = useState("");
-  const [action, setAction] = useState<"buy" | "sell">("buy");
-  const [thesis, setThesis] = useState("");
-  const [targetPrice, setTargetPrice] = useState("");
-  const [stopLossPct, setStopLossPct] = useState("");
+  const [symbol, setSymbol] = useState('')
+  const [action, setAction] = useState<'buy' | 'sell'>('buy')
+  const [thesis, setThesis] = useState('')
+  const [targetPrice, setTargetPrice] = useState('')
+  const [stopLossPct, setStopLossPct] = useState('')
 
-  const createTrade = useCreatePaperTrade();
+  const createTrade = useCreatePaperTrade()
 
   const handleSubmit = async () => {
-    if (!symbol || !thesis) return;
+    if (!symbol || !thesis) return
 
     createTrade.mutate(
       {
@@ -50,18 +50,18 @@ export function NewOrderDialog({ open, onOpenChange }: NewOrderDialogProps) {
       },
       {
         onSuccess: () => {
-          setSymbol("");
-          setAction("buy");
-          setThesis("");
-          setTargetPrice("");
-          setStopLossPct("");
-          onOpenChange(false);
+          setSymbol('')
+          setAction('buy')
+          setThesis('')
+          setTargetPrice('')
+          setStopLossPct('')
+          onOpenChange(false)
         },
-      }
-    );
-  };
+      },
+    )
+  }
 
-  const isFormValid = symbol.length > 0 && thesis.length > 0;
+  const isFormValid = symbol.length > 0 && thesis.length > 0
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -69,7 +69,8 @@ export function NewOrderDialog({ open, onOpenChange }: NewOrderDialogProps) {
         <DialogHeader>
           <DialogTitle>New Paper Trade</DialogTitle>
           <DialogDescription>
-            Create a manual paper trade. Position size will be automatically calculated as 5% of available cash.
+            Create a manual paper trade. Position size will be automatically
+            calculated as 5% of available cash.
           </DialogDescription>
         </DialogHeader>
 
@@ -89,7 +90,7 @@ export function NewOrderDialog({ open, onOpenChange }: NewOrderDialogProps) {
               <Label htmlFor="action">Action</Label>
               <Select
                 value={action}
-                onValueChange={(val) => setAction(val as "buy" | "sell")}
+                onValueChange={(val) => setAction(val as 'buy' | 'sell')}
               >
                 <SelectTrigger id="action">
                   <SelectValue placeholder="Select action" />
@@ -150,18 +151,21 @@ export function NewOrderDialog({ open, onOpenChange }: NewOrderDialogProps) {
           >
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={!isFormValid || createTrade.isPending}>
+          <Button
+            onClick={handleSubmit}
+            disabled={!isFormValid || createTrade.isPending}
+          >
             {createTrade.isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Executing...
               </>
             ) : (
-              "Place Order"
+              'Place Order'
             )}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
+  )
 }

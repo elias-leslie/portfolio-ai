@@ -1,26 +1,34 @@
-"use client";
+'use client'
 
-import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Activity, CheckCircle2, XCircle, Clock, DollarSign, Cpu, ArrowRight } from "lucide-react";
-import type { AgentStats } from "@/lib/api/status";
-import { useTelemetrySummary } from "@/lib/hooks/useAgentTelemetry";
+import {
+  Activity,
+  ArrowRight,
+  CheckCircle2,
+  Clock,
+  Cpu,
+  DollarSign,
+  XCircle,
+} from 'lucide-react'
+import Link from 'next/link'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import type { AgentStats } from '@/lib/api/status'
+import { useTelemetrySummary } from '@/lib/hooks/useAgentTelemetry'
 
 interface AgentStatsCardProps {
-  stats: AgentStats | undefined;
+  stats: AgentStats | undefined
 }
 
 function formatNumber(num: number): string {
-  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-  if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-  return num.toString();
+  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
+  if (num >= 1000) return `${(num / 1000).toFixed(1)}K`
+  return num.toString()
 }
 
 export function AgentStatsCard({ stats }: AgentStatsCardProps) {
   // Fetch telemetry for token usage (7 day summary)
-  const { data: telemetry } = useTelemetrySummary(7);
+  const { data: telemetry } = useTelemetrySummary(7)
 
   if (!stats && !telemetry) {
     return (
@@ -32,23 +40,28 @@ export function AgentStatsCard({ stats }: AgentStatsCardProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">No agent statistics available</p>
+          <p className="text-sm text-muted-foreground">
+            No agent statistics available
+          </p>
         </CardContent>
       </Card>
-    );
+    )
   }
 
-  const successRate = stats && stats.totalRuns > 0
-    ? ((stats.completedRuns / stats.totalRuns) * 100).toFixed(1)
-    : telemetry ? telemetry.successRate.toFixed(1) : "0.0";
+  const successRate =
+    stats && stats.totalRuns > 0
+      ? ((stats.completedRuns / stats.totalRuns) * 100).toFixed(1)
+      : telemetry
+        ? telemetry.successRate.toFixed(1)
+        : '0.0'
 
   const getSuccessRateColor = (rate: number) => {
-    if (rate >= 80) return "text-gain";
-    if (rate >= 50) return "text-warning";
-    return "text-loss";
-  };
+    if (rate >= 80) return 'text-gain'
+    if (rate >= 50) return 'text-warning'
+    return 'text-loss'
+  }
 
-  const rate = parseFloat(successRate);
+  const rate = parseFloat(successRate)
 
   return (
     <Card>
@@ -66,13 +79,17 @@ export function AgentStatsCard({ stats }: AgentStatsCardProps) {
               <Activity className="h-4 w-4 text-muted-foreground" />
               <p className="text-sm font-medium">Total Runs</p>
             </div>
-            <p className="text-2xl font-bold">{stats?.totalRuns ?? telemetry?.totalRuns ?? 0}</p>
+            <p className="text-2xl font-bold">
+              {stats?.totalRuns ?? telemetry?.totalRuns ?? 0}
+            </p>
           </div>
 
           {/* Success Rate */}
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <CheckCircle2 className={`h-4 w-4 ${getSuccessRateColor(rate)}`} />
+              <CheckCircle2
+                className={`h-4 w-4 ${getSuccessRateColor(rate)}`}
+              />
               <p className="text-sm font-medium">Success Rate</p>
             </div>
             <p className={`text-2xl font-bold ${getSuccessRateColor(rate)}`}>
@@ -87,7 +104,9 @@ export function AgentStatsCard({ stats }: AgentStatsCardProps) {
               <p className="text-sm font-medium">Completed</p>
             </div>
             <div className="flex items-center gap-2">
-              <p className="text-xl font-semibold">{stats?.completedRuns ?? telemetry?.successfulRuns ?? 0}</p>
+              <p className="text-xl font-semibold">
+                {stats?.completedRuns ?? telemetry?.successfulRuns ?? 0}
+              </p>
               <Badge variant="success" className="text-xs">
                 Success
               </Badge>
@@ -101,7 +120,9 @@ export function AgentStatsCard({ stats }: AgentStatsCardProps) {
               <p className="text-sm font-medium">Failed</p>
             </div>
             <div className="flex items-center gap-2">
-              <p className="text-xl font-semibold">{stats?.failedRuns ?? telemetry?.failedRuns ?? 0}</p>
+              <p className="text-xl font-semibold">
+                {stats?.failedRuns ?? telemetry?.failedRuns ?? 0}
+              </p>
               <Badge variant="destructive" className="text-xs">
                 Failed
               </Badge>
@@ -109,7 +130,8 @@ export function AgentStatsCard({ stats }: AgentStatsCardProps) {
           </div>
 
           {/* Average Duration */}
-          {(stats?.avgDurationS !== undefined || telemetry?.avgDurationMs !== undefined) && (
+          {(stats?.avgDurationS !== undefined ||
+            telemetry?.avgDurationMs !== undefined) && (
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-muted-foreground" />
@@ -119,8 +141,8 @@ export function AgentStatsCard({ stats }: AgentStatsCardProps) {
                 {stats?.avgDurationS !== undefined
                   ? `${stats.avgDurationS.toFixed(1)}s`
                   : telemetry?.avgDurationMs !== undefined
-                  ? `${(telemetry.avgDurationMs / 1000).toFixed(1)}s`
-                  : "N/A"}
+                    ? `${(telemetry.avgDurationMs / 1000).toFixed(1)}s`
+                    : 'N/A'}
               </p>
             </div>
           )}
@@ -163,5 +185,5 @@ export function AgentStatsCard({ stats }: AgentStatsCardProps) {
         </div>
       </CardContent>
     </Card>
-  );
+  )
 }

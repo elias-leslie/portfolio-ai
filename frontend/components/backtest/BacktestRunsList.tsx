@@ -1,22 +1,22 @@
-"use client";
+'use client'
 
-import { Trash2 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { SectionCard } from "@/components/shared/SectionCard";
-import { cn } from "@/lib/utils";
-import type { BacktestRun } from "@/lib/api/backtest";
-import { useDeleteBacktest } from "@/lib/hooks/useBacktest";
+import { Trash2 } from 'lucide-react'
+import { SectionCard } from '@/components/shared/SectionCard'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import type { BacktestRun } from '@/lib/api/backtest'
+import { useDeleteBacktest } from '@/lib/hooks/useBacktest'
+import { cn } from '@/lib/utils'
 
 interface BacktestRunsListProps {
-  runs: BacktestRun[];
-  isLoading: boolean;
-  selectedRunId: string | null;
-  comparisonMode: boolean;
-  selectedRunIds: Set<string>;
-  onSelectRun: (runId: string) => void;
-  onToggleComparison: () => void;
+  runs: BacktestRun[]
+  isLoading: boolean
+  selectedRunId: string | null
+  comparisonMode: boolean
+  selectedRunIds: Set<string>
+  onSelectRun: (runId: string) => void
+  onToggleComparison: () => void
 }
 
 export function BacktestRunsList({
@@ -28,45 +28,47 @@ export function BacktestRunsList({
   onSelectRun,
   onToggleComparison,
 }: BacktestRunsListProps) {
-  const deleteBacktest = useDeleteBacktest();
+  const deleteBacktest = useDeleteBacktest()
 
   const handleDelete = (e: React.MouseEvent, runId: string, symbol: string) => {
-    e.stopPropagation(); // Prevent selecting the run
+    e.stopPropagation() // Prevent selecting the run
     if (confirm(`Delete backtest for ${symbol}?`)) {
-      deleteBacktest.mutate(runId);
+      deleteBacktest.mutate(runId)
     }
-  };
+  }
 
   // Use standard date formatting from utils (US locale: "Nov 18, 2025")
   const formatDateRange = (dateStr: string) => {
-    if (!dateStr) return "-";
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return "-";
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    });
-  };
+    if (!dateStr) return '-'
+    const date = new Date(dateStr)
+    if (Number.isNaN(date.getTime())) return '-'
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+    })
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "completed":
-        return "success";
-      case "running":
-        return "secondary";
-      case "failed":
-        return "destructive";
+      case 'completed':
+        return 'success'
+      case 'running':
+        return 'secondary'
+      case 'failed':
+        return 'destructive'
       default:
-        return "secondary";
+        return 'secondary'
     }
-  };
+  }
 
   if (isLoading) {
     return (
       <SectionCard variant="surface">
-        <div className="p-4 text-center text-sm text-text-muted">Loading runs...</div>
+        <div className="p-4 text-center text-sm text-text-muted">
+          Loading runs...
+        </div>
       </SectionCard>
-    );
+    )
   }
 
   if (runs.length === 0) {
@@ -76,7 +78,7 @@ export function BacktestRunsList({
           No backtests yet. Click &quot;New Backtest&quot; to start.
         </div>
       </SectionCard>
-    );
+    )
   }
 
   return (
@@ -84,7 +86,7 @@ export function BacktestRunsList({
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-sm font-semibold">Backtest Runs ({runs.length})</h3>
         <Button variant="ghost" size="sm" onClick={onToggleComparison}>
-          {comparisonMode ? "Exit Compare" : "Compare"}
+          {comparisonMode ? 'Exit Compare' : 'Compare'}
         </Button>
       </div>
 
@@ -92,7 +94,7 @@ export function BacktestRunsList({
         {runs.map((run) => {
           const isSelected = comparisonMode
             ? selectedRunIds.has(run.id)
-            : selectedRunId === run.id;
+            : selectedRunId === run.id
 
           return (
             <div
@@ -100,40 +102,54 @@ export function BacktestRunsList({
               role="button"
               tabIndex={0}
               onClick={() => onSelectRun(run.id)}
-              onKeyDown={(e) => e.key === "Enter" && onSelectRun(run.id)}
+              onKeyDown={(e) => e.key === 'Enter' && onSelectRun(run.id)}
               className={cn(
-                "w-full rounded-lg border p-3 text-left transition-colors cursor-pointer",
+                'w-full rounded-lg border p-3 text-left transition-colors cursor-pointer',
                 isSelected
-                  ? "border-primary bg-primary/10"
-                  : "border-border bg-surface hover:bg-surface-muted"
+                  ? 'border-primary bg-primary/10'
+                  : 'border-border bg-surface hover:bg-surface-muted',
               )}
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     {comparisonMode && (
-                      <Checkbox checked={isSelected} className="pointer-events-none" />
+                      <Checkbox
+                        checked={isSelected}
+                        className="pointer-events-none"
+                      />
                     )}
                     <span className="font-semibold truncate">{run.symbol}</span>
                   </div>
                   <p className="text-xs text-text-muted mt-1">
-                    {formatDateRange(run.startDate)} - {formatDateRange(run.endDate)}
+                    {formatDateRange(run.startDate)} -{' '}
+                    {formatDateRange(run.endDate)}
                   </p>
                   <div className="flex items-center gap-3 text-xs text-text-muted mt-1">
                     {run.sharpeRatio && (
                       <span>
-                        Sharpe: {typeof run.sharpeRatio === "number" ? run.sharpeRatio.toFixed(2) : parseFloat(String(run.sharpeRatio)).toFixed(2)}
+                        Sharpe:{' '}
+                        {typeof run.sharpeRatio === 'number'
+                          ? run.sharpeRatio.toFixed(2)
+                          : parseFloat(String(run.sharpeRatio)).toFixed(2)}
                       </span>
                     )}
                     {run.createdAt && (
                       <span className="opacity-70">
-                        Created {new Date(run.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        Created{' '}
+                        {new Date(run.createdAt).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                        })}
                       </span>
                     )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant={getStatusColor(run.status)} className="text-xs">
+                  <Badge
+                    variant={getStatusColor(run.status)}
+                    className="text-xs"
+                  >
                     {run.status}
                   </Badge>
                   <button
@@ -146,7 +162,7 @@ export function BacktestRunsList({
                 </div>
               </div>
             </div>
-          );
+          )
         })}
       </div>
 
@@ -159,5 +175,5 @@ export function BacktestRunsList({
         </div>
       )}
     </SectionCard>
-  );
+  )
 }

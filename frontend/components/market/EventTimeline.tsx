@@ -1,54 +1,55 @@
-"use client";
+'use client'
 
-import { useMemo } from "react";
-import { useMarketEvents } from "@/lib/hooks/useMarketIntelligence";
-import { MarketEvent } from "@/lib/api/market";
-import { cn } from "@/lib/utils";
+import { useMemo } from 'react'
+import type { MarketEvent } from '@/lib/api/market'
+import { useMarketEvents } from '@/lib/hooks/useMarketIntelligence'
+import { cn } from '@/lib/utils'
 
 // Helper to compute event positions - pure function
 function computeEventPositions(
   events: MarketEvent[],
   days: number,
-  referenceTimestamp: number
+  referenceTimestamp: number,
 ): { event: MarketEvent; position: number }[] {
-  const startTime = referenceTimestamp - days * 24 * 60 * 60 * 1000;
-  const totalRange = referenceTimestamp - startTime;
+  const startTime = referenceTimestamp - days * 24 * 60 * 60 * 1000
+  const totalRange = referenceTimestamp - startTime
 
   return events
     .map((event) => {
-      const eventTime = new Date(event.date + "T12:00:00").getTime();
-      if (eventTime < startTime || eventTime > referenceTimestamp) return null;
-      const position = ((eventTime - startTime) / totalRange) * 100;
-      return { event, position };
+      const eventTime = new Date(`${event.date}T12:00:00`).getTime()
+      if (eventTime < startTime || eventTime > referenceTimestamp) return null
+      const position = ((eventTime - startTime) / totalRange) * 100
+      return { event, position }
     })
-    .filter(Boolean) as { event: MarketEvent; position: number }[];
+    .filter(Boolean) as { event: MarketEvent; position: number }[]
 }
+
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from '@/components/ui/tooltip'
 
 interface EventTimelineProps {
-  days: number;
-  className?: string;
+  days: number
+  className?: string
 }
 
 interface EventMarkerProps {
-  event: MarketEvent;
-  position: number; // 0-100 percentage position
+  event: MarketEvent
+  position: number // 0-100 percentage position
 }
 
 function EventMarker({ event, position }: EventMarkerProps) {
   const formatEventDate = (dateStr: string) => {
-    const date = new Date(dateStr + "T12:00:00");
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
+    const date = new Date(`${dateStr}T12:00:00`)
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+  }
 
   return (
     <TooltipProvider delayDuration={100}>
@@ -79,7 +80,7 @@ function EventMarker({ event, position }: EventMarkerProps) {
               <span
                 className="px-1.5 py-0.5 text-xs font-medium rounded"
                 style={{
-                  backgroundColor: event.color + "20",
+                  backgroundColor: `${event.color}20`,
                   color: event.color,
                 }}
               >
@@ -108,13 +109,13 @@ function EventMarker({ event, position }: EventMarkerProps) {
                   <span
                     className={cn(
                       event.surprisePct > 0
-                        ? "text-success"
+                        ? 'text-success'
                         : event.surprisePct < 0
-                          ? "text-error"
-                          : "text-text-muted"
+                          ? 'text-error'
+                          : 'text-text-muted',
                     )}
                   >
-                    {event.surprisePct > 0 ? "+" : ""}
+                    {event.surprisePct > 0 ? '+' : ''}
                     {event.surprisePct.toFixed(1)}%
                   </span>
                 )}
@@ -122,17 +123,17 @@ function EventMarker({ event, position }: EventMarkerProps) {
             )}
             {event.impactScore !== null && (
               <div className="text-xs text-text-muted">
-                Impact:{" "}
+                Impact:{' '}
                 <span
                   className={cn(
                     event.impactScore > 0
-                      ? "text-success"
+                      ? 'text-success'
                       : event.impactScore < 0
-                        ? "text-error"
-                        : "text-text-muted"
+                        ? 'text-error'
+                        : 'text-text-muted',
                   )}
                 >
-                  {event.impactScore > 0 ? "+" : ""}
+                  {event.impactScore > 0 ? '+' : ''}
                   {event.impactScore}
                 </span>
               </div>
@@ -141,7 +142,7 @@ function EventMarker({ event, position }: EventMarkerProps) {
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
-  );
+  )
 }
 
 /**
@@ -151,38 +152,38 @@ function EventMarker({ event, position }: EventMarkerProps) {
  * Position absolutely within a relative container.
  */
 export function EventTimeline({ days, className }: EventTimelineProps) {
-  const { data: eventsData, isLoading } = useMarketEvents(days);
+  const { data: eventsData, isLoading } = useMarketEvents(days)
 
   // Use the timestamp from when data was fetched (if available) or current page load
   // This avoids calling Date.now() during render which is impure
   // The eventsData timestamp serves as a stable reference point
   const eventsWithPosition = useMemo(() => {
-    if (!eventsData?.events?.length) return [];
+    if (!eventsData?.events?.length) return []
 
     // Use a stable timestamp based on the most recent event date + 1 day
     // This ensures positions are calculated consistently without Date.now()
     const latestEventDate = Math.max(
-      ...eventsData.events.map((e) => new Date(e.date + "T23:59:59").getTime())
-    );
+      ...eventsData.events.map((e) => new Date(`${e.date}T23:59:59`).getTime()),
+    )
     // Add 1 day buffer to ensure latest event is within range
-    const referenceTimestamp = latestEventDate + 24 * 60 * 60 * 1000;
+    const referenceTimestamp = latestEventDate + 24 * 60 * 60 * 1000
 
-    return computeEventPositions(eventsData.events, days, referenceTimestamp);
-  }, [eventsData, days]);
+    return computeEventPositions(eventsData.events, days, referenceTimestamp)
+  }, [eventsData, days])
 
   if (isLoading || !eventsWithPosition.length) {
-    return null;
+    return null
   }
 
   return (
-    <div className={cn("absolute inset-0 pointer-events-none", className)}>
+    <div className={cn('absolute inset-0 pointer-events-none', className)}>
       {eventsWithPosition.map(({ event, position }) => (
         <div key={event.id} className="pointer-events-auto">
           <EventMarker event={event} position={position} />
         </div>
       ))}
     </div>
-  );
+  )
 }
 
 /**
@@ -190,14 +191,14 @@ export function EventTimeline({ days, className }: EventTimelineProps) {
  */
 export function EventLegend({ className }: { className?: string }) {
   const eventTypes = [
-    { label: "FOMC", color: "#3B82F6" },
-    { label: "CPI", color: "#EF4444" },
-    { label: "NFP", color: "#22C55E" },
-    { label: "GDP", color: "#06B6D4" },
-  ];
+    { label: 'FOMC', color: '#3B82F6' },
+    { label: 'CPI', color: '#EF4444' },
+    { label: 'NFP', color: '#22C55E' },
+    { label: 'GDP', color: '#06B6D4' },
+  ]
 
   return (
-    <div className={cn("flex items-center gap-3 text-xs", className)}>
+    <div className={cn('flex items-center gap-3 text-xs', className)}>
       <span className="text-text-muted">Events:</span>
       {eventTypes.map((type) => (
         <div key={type.label} className="flex items-center gap-1">
@@ -209,5 +210,5 @@ export function EventLegend({ className }: { className?: string }) {
         </div>
       ))}
     </div>
-  );
+  )
 }

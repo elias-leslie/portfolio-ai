@@ -1,60 +1,66 @@
-"use client";
+'use client'
 
-import type { ReactElement } from "react";
-import { Activity, AlertCircle, CheckCircle2, RotateCw } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { ServiceStatus } from "@/lib/api/status";
+import { Activity, AlertCircle, CheckCircle2, RotateCw } from 'lucide-react'
+import type { ReactElement } from 'react'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import type { ServiceStatus } from '@/lib/api/status'
 
 interface ServiceCardProps {
-  serviceName: string;
-  status: ServiceStatus;
-  onRestart?: (serviceName: string) => void;
+  serviceName: string
+  status: ServiceStatus
+  onRestart?: (serviceName: string) => void
 }
 
-export function ServiceCard({ serviceName, status, onRestart }: ServiceCardProps) {
-
+export function ServiceCard({
+  serviceName,
+  status,
+  onRestart,
+}: ServiceCardProps) {
   // Format uptime
   const formatUptime = (seconds?: number): string => {
-    if (!seconds) return "N/A";
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
+    if (!seconds) return 'N/A'
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
     if (hours > 0) {
-      return `${hours}h ${minutes}m`;
+      return `${hours}h ${minutes}m`
     }
-    return `${minutes}m`;
-  };
+    return `${minutes}m`
+  }
 
   // Get status badge variant and icon
   const getStatusDisplay = (
-    statusValue: string
-  ): { variant: "default" | "secondary" | "destructive"; icon: ReactElement } => {
+    statusValue: string,
+  ): {
+    variant: 'default' | 'secondary' | 'destructive'
+    icon: ReactElement
+  } => {
     switch (statusValue) {
-      case "running":
+      case 'running':
         return {
-          variant: "default",
+          variant: 'default',
           icon: <CheckCircle2 className="h-4 w-4 text-gain" />,
-        };
-      case "degraded":
+        }
+      case 'degraded':
         return {
-          variant: "secondary",
+          variant: 'secondary',
           icon: <AlertCircle className="h-4 w-4 text-warning" />,
-        };
-      case "down":
+        }
+      case 'down':
         return {
-          variant: "destructive",
+          variant: 'destructive',
           icon: <AlertCircle className="h-4 w-4 text-loss" />,
-        };
+        }
       default:
         return {
-          variant: "secondary",
+          variant: 'secondary',
           icon: <Activity className="h-4 w-4" />,
-        };
+        }
     }
-  };
+  }
 
-  const { variant, icon } = getStatusDisplay(status.status);
+  const { variant, icon } = getStatusDisplay(status.status)
 
   return (
     <Card>
@@ -84,15 +90,19 @@ export function ServiceCard({ serviceName, status, onRestart }: ServiceCardProps
         <div className="grid grid-cols-3 gap-4 text-sm">
           <div>
             <div className="text-muted-foreground">PID</div>
-            <div className="font-mono">{status.pid || "N/A"}</div>
+            <div className="font-mono">{status.pid || 'N/A'}</div>
           </div>
           <div>
             <div className="text-muted-foreground">Uptime</div>
-            <div className="font-mono">{formatUptime(status.uptimeSeconds)}</div>
+            <div className="font-mono">
+              {formatUptime(status.uptimeSeconds)}
+            </div>
           </div>
           <div>
             <div className="text-muted-foreground">Memory</div>
-            <div className="font-mono">{status.memoryMb ? `${status.memoryMb} MB` : "N/A"}</div>
+            <div className="font-mono">
+              {status.memoryMb ? `${status.memoryMb} MB` : 'N/A'}
+            </div>
           </div>
         </div>
 
@@ -104,5 +114,5 @@ export function ServiceCard({ serviceName, status, onRestart }: ServiceCardProps
         )}
       </CardContent>
     </Card>
-  );
+  )
 }

@@ -1,13 +1,13 @@
-import { useState, useCallback } from "react";
+import { useCallback, useState } from 'react'
 
-export type SortDirection = "asc" | "desc";
+export type SortDirection = 'asc' | 'desc'
 
 interface UseTableSortResult<K extends string> {
-  sortKey: K;
-  sortDirection: SortDirection;
-  toggleSort: (key: K) => void;
-  setSortKey: (key: K) => void;
-  setSortDirection: (direction: SortDirection) => void;
+  sortKey: K
+  sortDirection: SortDirection
+  toggleSort: (key: K) => void
+  setSortKey: (key: K) => void
+  setSortDirection: (direction: SortDirection) => void
 }
 
 /**
@@ -25,19 +25,23 @@ interface UseTableSortResult<K extends string> {
  */
 export function useTableSort<K extends string>(
   defaultKey: K,
-  defaultDirection: SortDirection = "asc"
+  defaultDirection: SortDirection = 'asc',
 ): UseTableSortResult<K> {
-  const [sortKey, setSortKey] = useState<K>(defaultKey);
-  const [sortDirection, setSortDirection] = useState<SortDirection>(defaultDirection);
+  const [sortKey, setSortKey] = useState<K>(defaultKey)
+  const [sortDirection, setSortDirection] =
+    useState<SortDirection>(defaultDirection)
 
-  const toggleSort = useCallback((key: K) => {
-    if (sortKey === key) {
-      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDirection("asc");
-    }
-  }, [sortKey]);
+  const toggleSort = useCallback(
+    (key: K) => {
+      if (sortKey === key) {
+        setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))
+      } else {
+        setSortKey(key)
+        setSortDirection('asc')
+      }
+    },
+    [sortKey],
+  )
 
   return {
     sortKey,
@@ -45,5 +49,5 @@ export function useTableSort<K extends string>(
     toggleSort,
     setSortKey,
     setSortDirection,
-  };
+  }
 }

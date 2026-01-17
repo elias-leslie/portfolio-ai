@@ -1,10 +1,16 @@
-"use client";
+'use client'
 
-import Link from "next/link";
-import { ArrowRight, TrendingUp } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { usePaperTradeSummary } from "@/lib/hooks/usePaperTrades";
+import { ArrowRight, TrendingUp } from 'lucide-react'
+import Link from 'next/link'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { usePaperTradeSummary } from '@/lib/hooks/usePaperTrades'
 
 function PaperTradingSkeleton() {
   return (
@@ -26,14 +32,14 @@ function PaperTradingSkeleton() {
         </div>
       </CardContent>
     </Card>
-  );
+  )
 }
 
 export function PaperTradingCard() {
-  const { data: summary, isLoading, error } = usePaperTradeSummary();
+  const { data: summary, isLoading, error } = usePaperTradeSummary()
 
   if (isLoading) {
-    return <PaperTradingSkeleton />;
+    return <PaperTradingSkeleton />
   }
 
   if (error || !summary) {
@@ -49,14 +55,15 @@ export function PaperTradingCard() {
           </div>
         </CardContent>
       </Card>
-    );
+    )
   }
 
-  const pnlValue = typeof summary.totalPnlPct === "number"
-    ? summary.totalPnlPct
-    : parseFloat(String(summary.totalPnlPct));
-  const pnlColor = pnlValue >= 0 ? "text-gain" : "text-loss";
-  const pnlBgColor = pnlValue >= 0 ? "bg-gain/10" : "bg-loss/10";
+  const pnlValue =
+    typeof summary.totalPnlPct === 'number'
+      ? summary.totalPnlPct
+      : parseFloat(String(summary.totalPnlPct))
+  const pnlColor = pnlValue >= 0 ? 'text-gain' : 'text-loss'
+  const pnlBgColor = pnlValue >= 0 ? 'bg-gain/10' : 'bg-loss/10'
 
   return (
     <Card>
@@ -85,8 +92,8 @@ export function PaperTradingCard() {
           <div className={`rounded-lg ${pnlBgColor} p-3`}>
             <p className="text-sm text-text-muted">Total P&L</p>
             <p className={`text-2xl font-bold ${pnlColor} mt-1`}>
-              {pnlValue >= 0 ? "+" : ""}
-              {typeof summary.totalPnlPct === "number"
+              {pnlValue >= 0 ? '+' : ''}
+              {typeof summary.totalPnlPct === 'number'
                 ? summary.totalPnlPct.toFixed(2)
                 : parseFloat(String(summary.totalPnlPct)).toFixed(2)}
               %
@@ -98,7 +105,7 @@ export function PaperTradingCard() {
             <div>
               <p className="text-sm text-text-muted">Win Rate</p>
               <p className="text-2xl font-bold text-text mt-1">
-                {typeof summary.winRate === "number"
+                {typeof summary.winRate === 'number'
                   ? summary.winRate.toFixed(0)
                   : parseFloat(String(summary.winRate)).toFixed(0)}
                 %
@@ -110,32 +117,29 @@ export function PaperTradingCard() {
           </div>
 
           {/* Additional Stats */}
-          {summary.avgReturnPct !== undefined && summary.avgReturnPct !== null && (
-            <div className="border-t border-border/50 pt-3 mt-3">
-              <p className="text-xs text-text-muted">Average Return</p>
-              <p className="text-sm font-medium text-text mt-1">
-                {typeof summary.avgReturnPct === "number"
-                  ? summary.avgReturnPct >= 0
-                    ? "+"
-                    : ""
-                  : parseFloat(String(summary.avgReturnPct)) >= 0
-                    ? "+"
-                    : ""}
-                {typeof summary.avgReturnPct === "number"
-                  ? summary.avgReturnPct.toFixed(2)
-                  : parseFloat(String(summary.avgReturnPct)).toFixed(2)}
-                %
-              </p>
-            </div>
-          )}
+          {summary.avgReturnPct !== undefined &&
+            summary.avgReturnPct !== null && (
+              <div className="border-t border-border/50 pt-3 mt-3">
+                <p className="text-xs text-text-muted">Average Return</p>
+                <p className="text-sm font-medium text-text mt-1">
+                  {typeof summary.avgReturnPct === 'number'
+                    ? summary.avgReturnPct >= 0
+                      ? '+'
+                      : ''
+                    : parseFloat(String(summary.avgReturnPct)) >= 0
+                      ? '+'
+                      : ''}
+                  {typeof summary.avgReturnPct === 'number'
+                    ? summary.avgReturnPct.toFixed(2)
+                    : parseFloat(String(summary.avgReturnPct)).toFixed(2)}
+                  %
+                </p>
+              </div>
+            )}
 
           {/* View Details Link */}
           <Link href="/trading">
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full mt-2"
-            >
+            <Button variant="outline" size="sm" className="w-full mt-2">
               View Details
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
@@ -143,5 +147,5 @@ export function PaperTradingCard() {
         </div>
       </CardContent>
     </Card>
-  );
+  )
 }

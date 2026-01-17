@@ -1,12 +1,18 @@
-"use client";
+'use client'
 
-import { useState } from "react";
-import { useAccounts, useDeleteAccount } from "@/lib/hooks/usePortfolio";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
-import { Trash2 } from "lucide-react";
-import { ConfirmActionDialog } from "@/components/shared/ConfirmActionDialog";
+import { Trash2 } from 'lucide-react'
+import { useState } from 'react'
+import { toast } from 'sonner'
+import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { useAccounts, useDeleteAccount } from '@/lib/hooks/usePortfolio'
 
 function AccountsSkeleton() {
   return (
@@ -34,28 +40,32 @@ function AccountsSkeleton() {
         </div>
       </CardContent>
     </Card>
-  );
+  )
 }
 
 export function AccountsCard() {
-  const { data: accounts, isLoading } = useAccounts();
-  const deleteAccount = useDeleteAccount();
-  const [accountToDelete, setAccountToDelete] = useState<{ id: string; name: string } | null>(null);
+  const { data: accounts, isLoading } = useAccounts()
+  const deleteAccount = useDeleteAccount()
+  const [accountToDelete, setAccountToDelete] = useState<{
+    id: string
+    name: string
+  } | null>(null)
 
   const confirmDeleteAccount = async () => {
-    if (!accountToDelete) return;
+    if (!accountToDelete) return
     try {
-      await deleteAccount.mutateAsync(accountToDelete.id);
-      toast.success(`Account "${accountToDelete.name}" deleted successfully!`);
+      await deleteAccount.mutateAsync(accountToDelete.id)
+      toast.success(`Account "${accountToDelete.name}" deleted successfully!`)
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to delete account";
-      toast.error(`Failed to delete account: ${errorMessage}`);
-      throw error;
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to delete account'
+      toast.error(`Failed to delete account: ${errorMessage}`)
+      throw error
     }
-  };
+  }
 
   if (isLoading) {
-    return <AccountsSkeleton />;
+    return <AccountsSkeleton />
   }
 
   if (!accounts || accounts.length === 0) {
@@ -71,7 +81,7 @@ export function AccountsCard() {
           </div>
         </CardContent>
       </Card>
-    );
+    )
   }
 
   return (
@@ -79,7 +89,7 @@ export function AccountsCard() {
       <CardHeader>
         <CardTitle>Accounts</CardTitle>
         <CardDescription>
-          {accounts.length} account{accounts.length !== 1 ? "s" : ""}
+          {accounts.length} account{accounts.length !== 1 ? 's' : ''}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -117,7 +127,7 @@ export function AccountsCard() {
         open={!!accountToDelete}
         onOpenChange={(open) => {
           if (!open) {
-            setAccountToDelete(null);
+            setAccountToDelete(null)
           }
         }}
         title="Delete account"
@@ -131,5 +141,5 @@ export function AccountsCard() {
         onConfirm={confirmDeleteAccount}
       />
     </Card>
-  );
+  )
 }

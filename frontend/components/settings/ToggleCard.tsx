@@ -1,18 +1,18 @@
-"use client";
+'use client'
 
-import { ReactNode } from "react";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import type { ReactNode } from 'react'
+import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 
 interface ToggleCardProps {
-  icon?: ReactNode;
-  title: string;
-  description: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  badge?: string;
-  disabled?: boolean;
-  className?: string;
+  icon?: ReactNode
+  title: string
+  description: string
+  checked: boolean
+  onChange: (checked: boolean) => void
+  badge?: string
+  disabled?: boolean
+  className?: string
 }
 
 export function ToggleCard({
@@ -31,19 +31,16 @@ export function ToggleCard({
       onClick={() => !disabled && onChange(!checked)}
       disabled={disabled}
       className={cn(
-        "group relative flex w-full flex-col gap-3 rounded-lg border-2 p-4 text-left transition-all",
+        'group relative flex w-full flex-col gap-3 rounded-lg border-2 p-4 text-left transition-all',
         checked
-          ? "border-primary bg-primary/5"
-          : "border-border bg-surface hover:border-border/60 hover:bg-surface-muted/30",
-        disabled && "cursor-not-allowed opacity-50",
-        className
+          ? 'border-primary bg-primary/5'
+          : 'border-border bg-surface hover:border-border/60 hover:bg-surface-muted/30',
+        disabled && 'cursor-not-allowed opacity-50',
+        className,
       )}
     >
       {badge && (
-        <Badge
-          variant="secondary"
-          className="absolute right-3 top-3 text-xs"
-        >
+        <Badge variant="secondary" className="absolute right-3 top-3 text-xs">
           {badge}
         </Badge>
       )}
@@ -52,10 +49,10 @@ export function ToggleCard({
         {icon && (
           <div
             className={cn(
-              "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors",
+              'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors',
               checked
-                ? "bg-primary/20 text-primary"
-                : "bg-surface-muted text-text-muted group-hover:bg-surface-muted/60"
+                ? 'bg-primary/20 text-primary'
+                : 'bg-surface-muted text-text-muted group-hover:bg-surface-muted/60',
             )}
           >
             {icon}
@@ -65,8 +62,8 @@ export function ToggleCard({
           <div className="flex items-center gap-2">
             <h4
               className={cn(
-                "font-medium transition-colors",
-                checked ? "text-text" : "text-text group-hover:text-text"
+                'font-medium transition-colors',
+                checked ? 'text-text' : 'text-text group-hover:text-text',
               )}
             >
               {title}
@@ -79,10 +76,10 @@ export function ToggleCard({
       {/* Checkmark indicator */}
       <div
         className={cn(
-          "absolute bottom-3 right-3 flex h-5 w-5 items-center justify-center rounded-full border-2 transition-all",
+          'absolute bottom-3 right-3 flex h-5 w-5 items-center justify-center rounded-full border-2 transition-all',
           checked
-            ? "border-primary bg-primary"
-            : "border-border bg-surface group-hover:border-border/60"
+            ? 'border-primary bg-primary'
+            : 'border-border bg-surface group-hover:border-border/60',
         )}
       >
         {checked && (
@@ -102,5 +99,5 @@ export function ToggleCard({
         )}
       </div>
     </button>
-  );
+  )
 }

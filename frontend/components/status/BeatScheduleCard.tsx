@@ -1,13 +1,19 @@
-"use client";
+'use client'
 
-import { Clock, RefreshCw } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { useBeatSchedule } from "@/lib/hooks/useCeleryTasks";
+import { Clock, RefreshCw } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { useBeatSchedule } from '@/lib/hooks/useCeleryTasks'
 
 export function BeatScheduleCard() {
-  const { data, refetch, isLoading, isFetching } = useBeatSchedule();
+  const { data, refetch, isLoading, isFetching } = useBeatSchedule()
 
   return (
     <Card>
@@ -22,7 +28,9 @@ export function BeatScheduleCard() {
           onClick={() => refetch()}
           disabled={isLoading || isFetching}
         >
-          <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+          <RefreshCw
+            className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`}
+          />
         </Button>
       </CardHeader>
       <CardContent>
@@ -41,11 +49,16 @@ export function BeatScheduleCard() {
         ) : data ? (
           <div className="space-y-3">
             {data.map((task, index) => (
-              <div key={index} className="flex items-start gap-3 border-b last:border-0 pb-3 last:pb-0">
+              <div
+                key={index}
+                className="flex items-start gap-3 border-b last:border-0 pb-3 last:pb-0"
+              >
                 <Clock className="h-4 w-4 text-muted-foreground mt-1" />
                 <div className="flex-1 space-y-1">
                   <div className="font-medium text-sm">{task.name}</div>
-                  <div className="text-xs text-muted-foreground font-mono">{task.task}</div>
+                  <div className="text-xs text-muted-foreground font-mono">
+                    {task.task}
+                  </div>
                   <Badge variant="outline" className="text-xs">
                     {task.schedule}
                   </Badge>
@@ -56,5 +69,5 @@ export function BeatScheduleCard() {
         ) : null}
       </CardContent>
     </Card>
-  );
+  )
 }

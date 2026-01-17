@@ -18,14 +18,14 @@
  */
 export function shouldShowDialog(
   storageKey: string,
-  isLiveOperation: boolean = false
+  isLiveOperation: boolean = false,
 ): boolean {
   // SSR safety
-  if (typeof window === "undefined") return true;
+  if (typeof window === 'undefined') return true
 
   // Live operations always show confirmation
-  if (isLiveOperation) return true;
+  if (isLiveOperation) return true
 
   // Check user preference
-  return !localStorage.getItem(storageKey);
+  return !localStorage.getItem(storageKey)
 }

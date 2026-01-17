@@ -1,31 +1,30 @@
-"use client";
+'use client'
 
-import { CheckCircle2, XCircle, TrendingUp } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import Link from "next/link";
-import type { PaperTrade } from "@/lib/api/paper-trades";
-import { formatDate } from "@/lib/utils";
+import { CheckCircle2, TrendingUp, XCircle } from 'lucide-react'
+import Link from 'next/link'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import type { PaperTrade } from '@/lib/api/paper-trades'
+import { formatDate } from '@/lib/utils'
 
 interface TradeDetailsProps {
-  trade: PaperTrade;
+  trade: PaperTrade
 }
 
 export function TradeDetails({ trade }: TradeDetailsProps) {
-
   const getRiskBadgeVariant = (risk: string | undefined) => {
-    if (!risk) return "secondary";
+    if (!risk) return 'secondary'
     switch (risk.toLowerCase()) {
-      case "low":
-        return "success";
-      case "medium":
-        return "secondary";
-      case "high":
-        return "destructive";
+      case 'low':
+        return 'success'
+      case 'medium':
+        return 'secondary'
+      case 'high':
+        return 'destructive'
       default:
-        return "secondary";
+        return 'secondary'
     }
-  };
+  }
 
   return (
     <div className="space-y-6 py-4">
@@ -37,7 +36,7 @@ export function TradeDetails({ trade }: TradeDetailsProps) {
         </h4>
         <div className="rounded-lg bg-surface p-4">
           <p className="text-sm text-text-muted">
-            {trade.thesis || "No thesis available for this trade."}
+            {trade.thesis || 'No thesis available for this trade.'}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {trade.confidenceScore !== undefined && (
@@ -72,8 +71,8 @@ export function TradeDetails({ trade }: TradeDetailsProps) {
               </div>
               <p className="mt-1 text-xs text-text-muted">
                 {trade.strategyAgentApproved
-                  ? "Approved based on backtest analysis"
-                  : "Not approved"}
+                  ? 'Approved based on backtest analysis'
+                  : 'Not approved'}
               </p>
             </div>
 
@@ -89,8 +88,8 @@ export function TradeDetails({ trade }: TradeDetailsProps) {
               </div>
               <p className="mt-1 text-xs text-text-muted">
                 {trade.riskAgentApproved
-                  ? "Risk parameters within acceptable range"
-                  : "Not approved"}
+                  ? 'Risk parameters within acceptable range'
+                  : 'Not approved'}
               </p>
             </div>
           </div>
@@ -102,7 +101,9 @@ export function TradeDetails({ trade }: TradeDetailsProps) {
         trade.backtestWinRate != null ||
         trade.backtestMaxDrawdown != null) && (
         <div>
-          <h4 className="mb-2 text-sm font-semibold">Backtest Validation Metrics</h4>
+          <h4 className="mb-2 text-sm font-semibold">
+            Backtest Validation Metrics
+          </h4>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             {trade.backtestSharpe != null && (
               <div className="rounded-lg border border-border bg-surface p-3">
@@ -111,7 +112,7 @@ export function TradeDetails({ trade }: TradeDetailsProps) {
                   {trade.backtestSharpe.toFixed(2)}
                 </p>
                 <p className="mt-0.5 text-xs text-text-muted">
-                  {trade.backtestSharpe >= 1.0 ? "Good" : "Below threshold"}
+                  {trade.backtestSharpe >= 1.0 ? 'Good' : 'Below threshold'}
                 </p>
               </div>
             )}
@@ -123,7 +124,7 @@ export function TradeDetails({ trade }: TradeDetailsProps) {
                   {(trade.backtestWinRate * 100).toFixed(1)}%
                 </p>
                 <p className="mt-0.5 text-xs text-text-muted">
-                  {trade.backtestWinRate >= 0.5 ? "Above 50%" : "Below 50%"}
+                  {trade.backtestWinRate >= 0.5 ? 'Above 50%' : 'Below 50%'}
                 </p>
               </div>
             )}
@@ -136,8 +137,8 @@ export function TradeDetails({ trade }: TradeDetailsProps) {
                 </p>
                 <p className="mt-0.5 text-xs text-text-muted">
                   {Math.abs(trade.backtestMaxDrawdown) <= 0.2
-                    ? "Within limits"
-                    : "High risk"}
+                    ? 'Within limits'
+                    : 'High risk'}
                 </p>
               </div>
             )}
@@ -155,12 +156,16 @@ export function TradeDetails({ trade }: TradeDetailsProps) {
           </div>
           <div>
             <p className="text-xs text-text-muted">Agent Run ID</p>
-            <p className="truncate font-mono text-xs">{trade.agentRunId.slice(0, 8)}...</p>
+            <p className="truncate font-mono text-xs">
+              {trade.agentRunId.slice(0, 8)}...
+            </p>
           </div>
           {trade.workflowId && (
             <div>
               <p className="text-xs text-text-muted">Workflow ID</p>
-              <p className="truncate font-mono text-xs">{trade.workflowId.slice(0, 8)}...</p>
+              <p className="truncate font-mono text-xs">
+                {trade.workflowId.slice(0, 8)}...
+              </p>
             </div>
           )}
           <div>
@@ -174,10 +179,12 @@ export function TradeDetails({ trade }: TradeDetailsProps) {
       <div className="flex flex-wrap gap-2">
         {trade.workflowId && (
           <Button variant="outline" size="sm" asChild>
-            <Link href={`/backtest?workflow=${trade.workflowId}`}>View Full Backtest</Link>
+            <Link href={`/backtest?workflow=${trade.workflowId}`}>
+              View Full Backtest
+            </Link>
           </Button>
         )}
       </div>
     </div>
-  );
+  )
 }

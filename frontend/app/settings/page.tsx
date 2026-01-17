@@ -1,83 +1,91 @@
-"use client";
+'use client'
 
-import { useState, useEffect, startTransition, useMemo, useCallback } from "react";
 import {
-  usePreferences,
-  useUpdatePreferences,
-} from "@/lib/hooks/usePreferences";
-import { toast } from "sonner";
-import { SaveBar } from "@/components/settings/SaveBar";
-import { ProfileSelector } from "@/components/settings/ProfileSelector";
-import { TradingRiskSettings } from "@/components/settings/sections/TradingRiskSettings";
-import { DisplaySettings } from "@/components/settings/sections/DisplaySettings";
-import { WatchlistSettingsSection } from "@/components/settings/sections/WatchlistSettingsSection";
+  startTransition,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
+import { toast } from 'sonner'
+import {
+  DEFAULT_FUND_WEIGHTS,
+  DEFAULT_SCORE_WEIGHTS,
+  DEFAULT_TECH_WEIGHTS,
+} from '@/components/settings/DEFAULTS'
+import { ProfileSelector } from '@/components/settings/ProfileSelector'
+import { SaveBar } from '@/components/settings/SaveBar'
+import { SettingsSection } from '@/components/settings/SettingsSection'
+import {
+  DisplaySettings,
+  TIMEZONE_OPTIONS,
+} from '@/components/settings/sections/DisplaySettings'
+import { TradingRiskSettings } from '@/components/settings/sections/TradingRiskSettings'
+import { WatchlistSettingsSection } from '@/components/settings/sections/WatchlistSettingsSection'
+import { PageHeader } from '@/components/shared/PageHeader'
 import type {
+  FundamentalSubWeights,
   PreferencesResponse,
   ScoreWeights,
   TechnicalSubWeights,
-  FundamentalSubWeights,
-} from "@/lib/api/preferences";
-import { PageHeader } from "@/components/shared/PageHeader";
+} from '@/lib/api/preferences'
 import {
-  DEFAULT_SCORE_WEIGHTS,
-  DEFAULT_TECH_WEIGHTS,
-  DEFAULT_FUND_WEIGHTS,
-} from "@/components/settings/DEFAULTS";
-import { SettingsSection } from "@/components/settings/SettingsSection";
-import { TIMEZONE_OPTIONS } from "@/components/settings/sections/DisplaySettings";
+  usePreferences,
+  useUpdatePreferences,
+} from '@/lib/hooks/usePreferences'
 
-const PRICE_SUB_WEIGHTS = { changePct: 100 } as const;
+const PRICE_SUB_WEIGHTS = { changePct: 100 } as const
 
 type EditablePreferences = {
-  riskTolerance: number;
-  allowLong: boolean;
-  allowShort: boolean;
-  allowOptions: boolean;
-  allowCrypto: boolean;
-  allowFutures: boolean;
-  maxPositionSizePct: number;
-  displayTimezone: string;
-  defaultRefreshMinutes: number;
-  watchlistOverride: number | null;
-  newsOverride: number | null;
-  newsLookbackHours: number;
-  newsMaxArticles: number;
-  showNews: boolean;
-  autoExpand: boolean;
-  scoreWeights: ScoreWeights;
-  technicalSubWeights: TechnicalSubWeights;
-  fundamentalSubWeights: FundamentalSubWeights;
-};
+  riskTolerance: number
+  allowLong: boolean
+  allowShort: boolean
+  allowOptions: boolean
+  allowCrypto: boolean
+  allowFutures: boolean
+  maxPositionSizePct: number
+  displayTimezone: string
+  defaultRefreshMinutes: number
+  watchlistOverride: number | null
+  newsOverride: number | null
+  newsLookbackHours: number
+  newsMaxArticles: number
+  showNews: boolean
+  autoExpand: boolean
+  scoreWeights: ScoreWeights
+  technicalSubWeights: TechnicalSubWeights
+  fundamentalSubWeights: FundamentalSubWeights
+}
 
 const PRIMITIVE_FIELDS: Array<keyof EditablePreferences> = [
-  "riskTolerance",
-  "allowLong",
-  "allowShort",
-  "allowOptions",
-  "allowCrypto",
-  "allowFutures",
-  "maxPositionSizePct",
-  "displayTimezone",
-  "defaultRefreshMinutes",
-  "watchlistOverride",
-  "newsOverride",
-  "newsLookbackHours",
-  "newsMaxArticles",
-  "showNews",
-  "autoExpand",
-];
+  'riskTolerance',
+  'allowLong',
+  'allowShort',
+  'allowOptions',
+  'allowCrypto',
+  'allowFutures',
+  'maxPositionSizePct',
+  'displayTimezone',
+  'defaultRefreshMinutes',
+  'watchlistOverride',
+  'newsOverride',
+  'newsLookbackHours',
+  'newsMaxArticles',
+  'showNews',
+  'autoExpand',
+]
 
 const OBJECT_FIELDS: Array<keyof EditablePreferences> = [
-  "scoreWeights",
-  "technicalSubWeights",
-  "fundamentalSubWeights",
-];
+  'scoreWeights',
+  'technicalSubWeights',
+  'fundamentalSubWeights',
+]
 
 const ensureScoreWeights = (weights?: ScoreWeights | null): ScoreWeights => ({
   price: weights?.price ?? DEFAULT_SCORE_WEIGHTS.price,
   technical: weights?.technical ?? DEFAULT_SCORE_WEIGHTS.technical,
   fundamental: weights?.fundamental ?? DEFAULT_SCORE_WEIGHTS.fundamental,
-});
+})
 
 const ensureTechnicalWeights = (
   weights?: TechnicalSubWeights | null,
@@ -85,7 +93,7 @@ const ensureTechnicalWeights = (
   rsi14: weights?.rsi14 ?? DEFAULT_TECH_WEIGHTS.rsi14,
   trend: weights?.trend ?? DEFAULT_TECH_WEIGHTS.trend,
   macd: weights?.macd ?? DEFAULT_TECH_WEIGHTS.macd,
-});
+})
 
 const ensureFundamentalWeights = (
   weights?: FundamentalSubWeights | null,
@@ -94,21 +102,21 @@ const ensureFundamentalWeights = (
   growth: weights?.growth ?? DEFAULT_FUND_WEIGHTS.growth,
   health: weights?.health ?? DEFAULT_FUND_WEIGHTS.health,
   sentiment: weights?.sentiment ?? DEFAULT_FUND_WEIGHTS.sentiment,
-});
+})
 
 const parsePositionSize = (value: string) => {
-  const parsed = Number.parseFloat(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-};
+  const parsed = Number.parseFloat(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
 
 const describeRiskTolerance = (value: number) => {
-  if (value <= 3) return "Conservative";
-  if (value >= 8) return "Aggressive";
-  return "Moderate";
-};
+  if (value <= 3) return 'Conservative'
+  if (value >= 8) return 'Aggressive'
+  return 'Moderate'
+}
 
 const formatTimezoneLabel = (timezone: string) =>
-  TIMEZONE_OPTIONS[timezone as keyof typeof TIMEZONE_OPTIONS] ?? timezone;
+  TIMEZONE_OPTIONS[timezone as keyof typeof TIMEZONE_OPTIONS] ?? timezone
 
 const buildEditableFromResponse = (
   prefs: PreferencesResponse,
@@ -131,7 +139,7 @@ const buildEditableFromResponse = (
   scoreWeights: ensureScoreWeights(prefs.watchlistScoreWeights),
   technicalSubWeights: ensureTechnicalWeights(prefs.technicalSubWeights),
   fundamentalSubWeights: ensureFundamentalWeights(prefs.fundamentalSubWeights),
-});
+})
 
 const editableToApiPayload = (editable: EditablePreferences) => ({
   riskTolerance: editable.riskTolerance,
@@ -153,7 +161,7 @@ const editableToApiPayload = (editable: EditablePreferences) => ({
   priceSubWeights: PRICE_SUB_WEIGHTS,
   technicalSubWeights: editable.technicalSubWeights,
   fundamentalSubWeights: editable.fundamentalSubWeights,
-});
+})
 
 const mergeEditableIntoResponse = (
   base: PreferencesResponse,
@@ -161,94 +169,96 @@ const mergeEditableIntoResponse = (
 ): PreferencesResponse => ({
   ...base,
   ...editableToApiPayload(editable),
-});
+})
 
-const deepEqual = <T,>(a: T, b: T) => JSON.stringify(a) === JSON.stringify(b);
+const deepEqual = <T,>(a: T, b: T) => JSON.stringify(a) === JSON.stringify(b)
 
 const countEditableDifferences = (
   current: EditablePreferences,
   baseline: EditablePreferences,
 ) => {
-  let count = 0;
+  let count = 0
   for (const key of PRIMITIVE_FIELDS) {
     if (current[key] !== baseline[key]) {
-      count += 1;
+      count += 1
     }
   }
   for (const key of OBJECT_FIELDS) {
     if (!deepEqual(current[key], baseline[key])) {
-      count += 1;
+      count += 1
     }
   }
-  return count;
-};
+  return count
+}
 
-import { PageContainer } from "@/components/shared/PageContainer";
+import { PageContainer } from '@/components/shared/PageContainer'
 
 export default function SettingsPage() {
-  const { data: preferences, isLoading } = usePreferences();
-  const updatePreferences = useUpdatePreferences();
+  const { data: preferences, isLoading } = usePreferences()
+  const updatePreferences = useUpdatePreferences()
 
   // Trading & Risk state
-  const [riskTolerance, setRiskTolerance] = useState<number>(5);
-  const [allowLong, setAllowLong] = useState(true);
-  const [allowShort, setAllowShort] = useState(false);
-  const [allowOptions, setAllowOptions] = useState(false);
-  const [allowCrypto, setAllowCrypto] = useState(false);
-  const [allowFutures, setAllowFutures] = useState(false);
-  const [maxPositionSizePct, setMaxPositionSizePct] = useState<string>("20");
+  const [riskTolerance, setRiskTolerance] = useState<number>(5)
+  const [allowLong, setAllowLong] = useState(true)
+  const [allowShort, setAllowShort] = useState(false)
+  const [allowOptions, setAllowOptions] = useState(false)
+  const [allowCrypto, setAllowCrypto] = useState(false)
+  const [allowFutures, setAllowFutures] = useState(false)
+  const [maxPositionSizePct, setMaxPositionSizePct] = useState<string>('20')
 
   // Display state
   const [displayTimezone, setDisplayTimezone] =
-    useState<string>("America/New_York");
+    useState<string>('America/New_York')
 
   // Watchlist state
-  const [defaultRefreshMinutes, setDefaultRefreshMinutes] = useState(15);
-  const [watchlistOverride, setWatchlistOverride] = useState<number | null>(null);
-  const [newsOverride, setNewsOverride] = useState<number | null>(null);
-  const [newsLookbackHours, setNewsLookbackHours] = useState(24);
-  const [newsMaxArticles, setNewsMaxArticles] = useState(10);
-  const [showNews, setShowNews] = useState(true);
-  const [autoExpand, setAutoExpand] = useState(false);
+  const [defaultRefreshMinutes, setDefaultRefreshMinutes] = useState(15)
+  const [watchlistOverride, setWatchlistOverride] = useState<number | null>(
+    null,
+  )
+  const [newsOverride, setNewsOverride] = useState<number | null>(null)
+  const [newsLookbackHours, setNewsLookbackHours] = useState(24)
+  const [newsMaxArticles, setNewsMaxArticles] = useState(10)
+  const [showNews, setShowNews] = useState(true)
+  const [autoExpand, setAutoExpand] = useState(false)
   const [scoreWeights, setScoreWeights] = useState<ScoreWeights>({
     ...DEFAULT_SCORE_WEIGHTS,
-  });
+  })
   const [technicalSubWeights, setTechnicalSubWeights] =
-    useState<TechnicalSubWeights>({ ...DEFAULT_TECH_WEIGHTS });
+    useState<TechnicalSubWeights>({ ...DEFAULT_TECH_WEIGHTS })
   const [fundamentalSubWeights, setFundamentalSubWeights] =
-    useState<FundamentalSubWeights>({ ...DEFAULT_FUND_WEIGHTS });
+    useState<FundamentalSubWeights>({ ...DEFAULT_FUND_WEIGHTS })
 
   const applyEditable = useCallback((editable: EditablePreferences) => {
-    setRiskTolerance(editable.riskTolerance);
-    setAllowLong(editable.allowLong);
-    setAllowShort(editable.allowShort);
-    setAllowOptions(editable.allowOptions);
-    setAllowCrypto(editable.allowCrypto);
-    setAllowFutures(editable.allowFutures);
-    setMaxPositionSizePct(editable.maxPositionSizePct.toString());
-    setDisplayTimezone(editable.displayTimezone);
-    setDefaultRefreshMinutes(editable.defaultRefreshMinutes);
-    setWatchlistOverride(editable.watchlistOverride);
-    setNewsOverride(editable.newsOverride);
-    setNewsLookbackHours(editable.newsLookbackHours);
-    setNewsMaxArticles(editable.newsMaxArticles);
-    setShowNews(editable.showNews);
-    setAutoExpand(editable.autoExpand);
-    setScoreWeights({ ...editable.scoreWeights });
-    setTechnicalSubWeights({ ...editable.technicalSubWeights });
-    setFundamentalSubWeights({ ...editable.fundamentalSubWeights });
-  }, []);
+    setRiskTolerance(editable.riskTolerance)
+    setAllowLong(editable.allowLong)
+    setAllowShort(editable.allowShort)
+    setAllowOptions(editable.allowOptions)
+    setAllowCrypto(editable.allowCrypto)
+    setAllowFutures(editable.allowFutures)
+    setMaxPositionSizePct(editable.maxPositionSizePct.toString())
+    setDisplayTimezone(editable.displayTimezone)
+    setDefaultRefreshMinutes(editable.defaultRefreshMinutes)
+    setWatchlistOverride(editable.watchlistOverride)
+    setNewsOverride(editable.newsOverride)
+    setNewsLookbackHours(editable.newsLookbackHours)
+    setNewsMaxArticles(editable.newsMaxArticles)
+    setShowNews(editable.showNews)
+    setAutoExpand(editable.autoExpand)
+    setScoreWeights({ ...editable.scoreWeights })
+    setTechnicalSubWeights({ ...editable.technicalSubWeights })
+    setFundamentalSubWeights({ ...editable.fundamentalSubWeights })
+  }, [])
 
   // Update form state when preferences load
   useEffect(() => {
     if (!preferences) {
-      return;
+      return
     }
 
     startTransition(() => {
-      applyEditable(buildEditableFromResponse(preferences));
-    });
-  }, [preferences, applyEditable]);
+      applyEditable(buildEditableFromResponse(preferences))
+    })
+  }, [preferences, applyEditable])
 
   const currentEditable = useMemo<EditablePreferences>(
     () => ({
@@ -291,19 +301,19 @@ export default function SettingsPage() {
       technicalSubWeights,
       fundamentalSubWeights,
     ],
-  );
+  )
 
   const persistedEditable = useMemo(
     () => (preferences ? buildEditableFromResponse(preferences) : null),
     [preferences],
-  );
+  )
 
   const hasChanges = persistedEditable
     ? !deepEqual(currentEditable, persistedEditable)
-    : false;
+    : false
   const changeCount = persistedEditable
     ? countEditableDifferences(currentEditable, persistedEditable)
-    : 0;
+    : 0
 
   const enabledInstrumentCount = [
     currentEditable.allowLong,
@@ -311,86 +321,83 @@ export default function SettingsPage() {
     currentEditable.allowOptions,
     currentEditable.allowCrypto,
     currentEditable.allowFutures,
-  ].filter(Boolean).length;
+  ].filter(Boolean).length
 
   const tradingSummary = [
     `Risk ${currentEditable.riskTolerance}/10 ${describeRiskTolerance(currentEditable.riskTolerance)}`,
     `Max ${currentEditable.maxPositionSizePct}%`,
     `${enabledInstrumentCount}/5 instruments`,
-  ].join(" • ");
+  ].join(' • ')
 
-  const displaySummary = `TZ: ${formatTimezoneLabel(currentEditable.displayTimezone)}`;
+  const displaySummary = `TZ: ${formatTimezoneLabel(currentEditable.displayTimezone)}`
 
   const watchlistSummary = [
     `Refresh ${currentEditable.defaultRefreshMinutes}m`,
     `Lookback ${currentEditable.newsLookbackHours}h`,
     `${currentEditable.newsMaxArticles} headlines`,
-    currentEditable.showNews ? "News visible" : "News hidden",
-    currentEditable.autoExpand ? "Auto-expand on" : "Auto-expand off",
-  ].join(" • ");
+    currentEditable.showNews ? 'News visible' : 'News hidden',
+    currentEditable.autoExpand ? 'Auto-expand on' : 'Auto-expand off',
+  ].join(' • ')
 
   // Validate weight totals
   const validateWeights = () => {
     const mainTotal =
       currentEditable.scoreWeights.price +
       currentEditable.scoreWeights.technical +
-      currentEditable.scoreWeights.fundamental;
+      currentEditable.scoreWeights.fundamental
     const techTotal =
       currentEditable.technicalSubWeights.rsi14 +
       currentEditable.technicalSubWeights.trend +
-      currentEditable.technicalSubWeights.macd;
+      currentEditable.technicalSubWeights.macd
     const fundTotal =
       currentEditable.fundamentalSubWeights.valuation +
       currentEditable.fundamentalSubWeights.growth +
       currentEditable.fundamentalSubWeights.health +
-      currentEditable.fundamentalSubWeights.sentiment;
+      currentEditable.fundamentalSubWeights.sentiment
 
     if (Math.abs(mainTotal - 100) > 0.1) {
       toast.error(
-        "Main score weights (Price + Technical + Fundamental) must sum to 100%"
-      );
-      return false;
+        'Main score weights (Price + Technical + Fundamental) must sum to 100%',
+      )
+      return false
     }
     if (Math.abs(techTotal - 100) > 0.1) {
-      toast.error("Technical sub-weights (RSI + Trend + MACD) must sum to 100%");
-      return false;
+      toast.error('Technical sub-weights (RSI + Trend + MACD) must sum to 100%')
+      return false
     }
     if (Math.abs(fundTotal - 100) > 0.1) {
       toast.error(
-        "Fundamental sub-weights (Valuation + Growth + Health + Sentiment) must sum to 100%"
-      );
-      return false;
+        'Fundamental sub-weights (Valuation + Growth + Health + Sentiment) must sum to 100%',
+      )
+      return false
     }
-    return true;
-  };
+    return true
+  }
 
   // Handle save all
   const handleSaveAll = () => {
     if (!validateWeights()) {
-      return;
+      return
     }
 
-    updatePreferences.mutate(
-      editableToApiPayload(currentEditable),
-      {
-        onSuccess: () => {
-          toast.success("Settings saved successfully!");
-        },
-        onError: (error) => {
-          toast.error(`Failed to save settings: ${error.message}`);
-        },
-      }
-    );
-  };
+    updatePreferences.mutate(editableToApiPayload(currentEditable), {
+      onSuccess: () => {
+        toast.success('Settings saved successfully!')
+      },
+      onError: (error) => {
+        toast.error(`Failed to save settings: ${error.message}`)
+      },
+    })
+  }
 
   // Handle reset all
   const handleResetAll = () => {
     if (preferences) {
       startTransition(() => {
-        applyEditable(buildEditableFromResponse(preferences));
-      });
+        applyEditable(buildEditableFromResponse(preferences))
+      })
     }
-  };
+  }
 
   if (isLoading) {
     return (
@@ -405,23 +412,23 @@ export default function SettingsPage() {
           </div>
         </div>
       </PageContainer>
-    );
+    )
   }
 
   // Helper function to load profile data into form state
   const handleProfileLoad = (profileData: PreferencesResponse) => {
     startTransition(() => {
-      applyEditable(buildEditableFromResponse(profileData));
-    });
-  };
+      applyEditable(buildEditableFromResponse(profileData))
+    })
+  }
 
   // Helper to get current preferences as object for profile saving
   const getCurrentPreferences = (): PreferencesResponse => {
     if (!preferences) {
-      throw new Error("Preferences not loaded");
+      throw new Error('Preferences not loaded')
     }
-    return mergeEditableIntoResponse(preferences, currentEditable);
-  };
+    return mergeEditableIntoResponse(preferences, currentEditable)
+  }
 
   return (
     <PageContainer className="max-w-6xl space-y-12 py-10 pb-24" fullWidth>
@@ -520,5 +527,5 @@ export default function SettingsPage() {
         changeCount={changeCount}
       />
     </PageContainer>
-  );
+  )
 }

@@ -9,78 +9,78 @@
  * - POST /api/gaps/generate-task-list - Generate task list for gaps
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || ''
 
 // ========================================================================
 // Types
 // ========================================================================
 
 export interface GapInfo {
-  gapId: string;
-  capability: string;
-  analysisType: string;
-  criticality: "P0" | "P1" | "P2" | "P3";
-  currentState: string;
-  desiredState: string;
-  impact: string;
-  dataSources: Array<Record<string, unknown>>;
-  effort: "LOW" | "MEDIUM" | "HIGH";
-  blocksStrategies: string[];
-  recommendation: string;
-  severity: "blocking" | "limiting" | "optional";
+  gapId: string
+  capability: string
+  analysisType: string
+  criticality: 'P0' | 'P1' | 'P2' | 'P3'
+  currentState: string
+  desiredState: string
+  impact: string
+  dataSources: Array<Record<string, unknown>>
+  effort: 'LOW' | 'MEDIUM' | 'HIGH'
+  blocksStrategies: string[]
+  recommendation: string
+  severity: 'blocking' | 'limiting' | 'optional'
 }
 
 export interface CoverageResult {
-  analysisType: string;
-  description: string;
-  totalCapabilities: number;
-  availableCapabilities: number;
-  missingCapabilities: number;
-  coveragePct: number;
-  maturityLevel: number;  // 0-3
-  gaps: GapInfo[];
+  analysisType: string
+  description: string
+  totalCapabilities: number
+  availableCapabilities: number
+  missingCapabilities: number
+  coveragePct: number
+  maturityLevel: number // 0-3
+  gaps: GapInfo[]
 }
 
 export interface GapSummary {
-  timestamp: string;
-  totalGaps: number;
-  resolvedCount: number;  // Gaps resolved (tracked via feature passes=true)
-  p0Gaps: number;
-  p1Gaps: number;
-  p2Gaps: number;
-  p3Gaps: number;
-  analysisTypes: Record<string, CoverageResult>;
-  avgCoveragePct: number;
-  top10Priorities: GapInfo[];
-  mvpRoadmap: Record<string, unknown>;
+  timestamp: string
+  totalGaps: number
+  resolvedCount: number // Gaps resolved (tracked via feature passes=true)
+  p0Gaps: number
+  p1Gaps: number
+  p2Gaps: number
+  p3Gaps: number
+  analysisTypes: Record<string, CoverageResult>
+  avgCoveragePct: number
+  top10Priorities: GapInfo[]
+  mvpRoadmap: Record<string, unknown>
 }
 
 export interface GapsByAnalysis {
-  analysisTypes: Record<string, CoverageResult>;
+  analysisTypes: Record<string, CoverageResult>
 }
 
 export interface SymbolGaps {
-  symbol: string;
-  analysisTypes: Record<string, unknown>;
+  symbol: string
+  analysisTypes: Record<string, unknown>
 }
 
 export interface WatchlistGaps {
-  watchlistSymbols: string[];
-  symbolCoverage: Record<string, unknown>;
+  watchlistSymbols: string[]
+  symbolCoverage: Record<string, unknown>
   aggregateGaps: Array<{
-    capability: string;
-    description: string;
-    affectedSymbols: number;
-    totalSymbols: number;
-    affectedPct: number;
-    symbols: string[];
-  }>;
+    capability: string
+    description: string
+    affectedSymbols: number
+    totalSymbols: number
+    affectedPct: number
+    symbols: string[]
+  }>
 }
 
 export interface TaskListGenerated {
-  gapIds: string[];
-  taskFile: string;
-  message: string;
+  gapIds: string[]
+  taskFile: string
+  message: string
 }
 
 // ========================================================================
@@ -93,16 +93,16 @@ export interface TaskListGenerated {
 export async function fetchGapSummary(): Promise<GapSummary> {
   const response = await fetch(`${API_BASE}/api/gaps/summary`, {
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
-  });
+  })
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Failed to fetch gap summary");
+    const error = await response.json()
+    throw new Error(error.detail || 'Failed to fetch gap summary')
   }
 
-  return response.json();
+  return response.json()
 }
 
 /**
@@ -111,16 +111,16 @@ export async function fetchGapSummary(): Promise<GapSummary> {
 export async function fetchGapsByAnalysis(): Promise<GapsByAnalysis> {
   const response = await fetch(`${API_BASE}/api/gaps/by-analysis`, {
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
-  });
+  })
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Failed to fetch gaps by analysis");
+    const error = await response.json()
+    throw new Error(error.detail || 'Failed to fetch gaps by analysis')
   }
 
-  return response.json();
+  return response.json()
 }
 
 /**
@@ -129,16 +129,16 @@ export async function fetchGapsByAnalysis(): Promise<GapsByAnalysis> {
 export async function fetchSymbolGaps(symbol: string): Promise<SymbolGaps> {
   const response = await fetch(`${API_BASE}/api/gaps/by-symbol/${symbol}`, {
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
-  });
+  })
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Failed to fetch symbol gaps");
+    const error = await response.json()
+    throw new Error(error.detail || 'Failed to fetch symbol gaps')
   }
 
-  return response.json();
+  return response.json()
 }
 
 /**
@@ -147,34 +147,36 @@ export async function fetchSymbolGaps(symbol: string): Promise<SymbolGaps> {
 export async function fetchWatchlistGaps(): Promise<WatchlistGaps> {
   const response = await fetch(`${API_BASE}/api/gaps/watchlist`, {
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
-  });
+  })
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Failed to fetch watchlist gaps");
+    const error = await response.json()
+    throw new Error(error.detail || 'Failed to fetch watchlist gaps')
   }
 
-  return response.json();
+  return response.json()
 }
 
 /**
  * Generate task list to fill specific gaps
  */
-export async function generateTaskList(gapIds: string[]): Promise<TaskListGenerated> {
+export async function generateTaskList(
+  gapIds: string[],
+): Promise<TaskListGenerated> {
   const response = await fetch(`${API_BASE}/api/gaps/generate-task-list`, {
-    method: "POST",
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify({ gap_ids: gapIds }),
-  });
+  })
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Failed to generate task list");
+    const error = await response.json()
+    throw new Error(error.detail || 'Failed to generate task list')
   }
 
-  return response.json();
+  return response.json()
 }

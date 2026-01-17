@@ -3,32 +3,30 @@
  * Used across Market News, Watchlist News Intelligence, and Watchlist Sentiment sections
  */
 
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow } from 'date-fns'
 
 /**
  * Standard vendor labels for news sources
  */
 export const VENDOR_LABELS: Record<string, string> = {
-  polygon: "Polygon",
-  finnhub: "Finnhub",
-  fmp: "FMP",
-  googleNews: "Google News",
-  yfinance: "Yahoo Finance",
-};
+  polygon: 'Polygon',
+  finnhub: 'Finnhub',
+  fmp: 'FMP',
+  googleNews: 'Google News',
+  yfinance: 'Yahoo Finance',
+}
 
 /**
  * Format sentiment score with consistent null handling
  * @param score Sentiment score (-1.0 to +1.0) or null/undefined
  * @returns Formatted score string (e.g., "+0.85", "-0.23", "—")
  */
-export function formatSentimentScore(
-  score: number | null | undefined
-): string {
+export function formatSentimentScore(score: number | null | undefined): string {
   if (score === null || score === undefined || Number.isNaN(score)) {
-    return "—";
+    return '—'
   }
-  const rounded = score.toFixed(2);
-  return score > 0 ? `+${rounded}` : rounded;
+  const rounded = score.toFixed(2)
+  return score > 0 ? `+${rounded}` : rounded
 }
 
 /**
@@ -38,10 +36,10 @@ export function formatSentimentScore(
  */
 export function formatVendorLabel(vendor?: string | null): string {
   if (!vendor) {
-    return "Unknown Source";
+    return 'Unknown Source'
   }
-  const normalized = vendor.toLowerCase();
-  return VENDOR_LABELS[normalized] || vendor.trim();
+  const normalized = vendor.toLowerCase()
+  return VENDOR_LABELS[normalized] || vendor.trim()
 }
 
 /**
@@ -51,25 +49,25 @@ export function formatVendorLabel(vendor?: string | null): string {
  * @returns Badge variant for consistent color coding
  */
 export function getSentimentBadgeVariant(
-  labelOrScore: string | number | null | undefined
-): "gain" | "loss" | "neutral" {
+  labelOrScore: string | number | null | undefined,
+): 'gain' | 'loss' | 'neutral' {
   // Handle string labels
-  if (typeof labelOrScore === "string") {
-    const normalized = labelOrScore.toLowerCase();
-    if (normalized === "positive") return "gain";
-    if (normalized === "negative") return "loss";
-    return "neutral";
+  if (typeof labelOrScore === 'string') {
+    const normalized = labelOrScore.toLowerCase()
+    if (normalized === 'positive') return 'gain'
+    if (normalized === 'negative') return 'loss'
+    return 'neutral'
   }
 
   // Handle numeric scores
-  if (typeof labelOrScore === "number") {
-    if (labelOrScore > 0.1) return "gain";
-    if (labelOrScore < -0.1) return "loss";
-    return "neutral";
+  if (typeof labelOrScore === 'number') {
+    if (labelOrScore > 0.1) return 'gain'
+    if (labelOrScore < -0.1) return 'loss'
+    return 'neutral'
   }
 
   // Handle null/undefined
-  return "neutral";
+  return 'neutral'
 }
 
 /**
@@ -78,16 +76,16 @@ export function getSentimentBadgeVariant(
  * @returns Formatted percentage string (e.g., "92%", "—")
  */
 export function formatConfidence(
-  confidence: number | null | undefined
+  confidence: number | null | undefined,
 ): string {
   if (
     confidence === null ||
     confidence === undefined ||
     Number.isNaN(confidence)
   ) {
-    return "—";
+    return '—'
   }
-  return `${Math.round(confidence * 100)}%`;
+  return `${Math.round(confidence * 100)}%`
 }
 
 /**
@@ -96,13 +94,13 @@ export function formatConfidence(
  * @returns Relative date string (e.g., "5 hours ago", "2 days ago")
  */
 export function formatNewsDate(dateString: string | null | undefined): string {
-  if (!dateString) return "";
+  if (!dateString) return ''
 
   try {
-    const date = new Date(dateString);
-    return formatDistanceToNow(date, { addSuffix: true });
+    const date = new Date(dateString)
+    return formatDistanceToNow(date, { addSuffix: true })
   } catch {
-    return "";
+    return ''
   }
 }
 
@@ -110,10 +108,10 @@ export function formatNewsDate(dateString: string | null | undefined): string {
  * Article-like structure with optional sentiment fields
  */
 interface ArticleWithSentiment {
-  sentimentScore?: number;
+  sentimentScore?: number
   sentiment?: {
-    score: number;
-  };
+    score: number
+  }
 }
 
 /**
@@ -125,9 +123,9 @@ interface ArticleWithSentiment {
  */
 export function getSentimentScore(
   article: ArticleWithSentiment,
-  defaultValue: number = 0
+  defaultValue: number = 0,
 ): number {
-  return article.sentimentScore ?? article.sentiment?.score ?? defaultValue;
+  return article.sentimentScore ?? article.sentiment?.score ?? defaultValue
 }
 
 /**
@@ -137,7 +135,7 @@ export function getSentimentScore(
  * @returns Numeric sentiment score or undefined
  */
 export function getSentimentScoreOrUndefined(
-  article: ArticleWithSentiment
+  article: ArticleWithSentiment,
 ): number | undefined {
-  return article.sentimentScore ?? article.sentiment?.score;
+  return article.sentimentScore ?? article.sentiment?.score
 }

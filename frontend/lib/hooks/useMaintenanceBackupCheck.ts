@@ -1,16 +1,16 @@
-"use client";
+'use client'
 
-import { useState, useEffect, useCallback } from "react";
-import { toast } from "sonner";
+import { useCallback, useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import {
-  checkBackupRequirements,
   type BackupRequirementCheck,
-} from "@/lib/api/maintenance";
+  checkBackupRequirements,
+} from '@/lib/api/maintenance'
 
 export interface UseMaintenanceBackupCheckReturn {
-  backupCheck: BackupRequirementCheck | null;
-  isCheckingBackup: boolean;
-  checkBackupStatus: () => Promise<void>;
+  backupCheck: BackupRequirementCheck | null
+  isCheckingBackup: boolean
+  checkBackupStatus: () => Promise<void>
 }
 
 /**
@@ -24,21 +24,25 @@ export interface UseMaintenanceBackupCheckReturn {
 export function useMaintenanceBackupCheck(
   dryRun: boolean,
   maxAgeHours: number = 24,
-  requireVerified: boolean = true
+  requireVerified: boolean = true,
 ): UseMaintenanceBackupCheckReturn {
-  const [backupCheck, setBackupCheck] = useState<BackupRequirementCheck | null>(null);
-  const [isCheckingBackup, setIsCheckingBackup] = useState(false);
+  const [backupCheck, setBackupCheck] = useState<BackupRequirementCheck | null>(
+    null,
+  )
+  const [isCheckingBackup, setIsCheckingBackup] = useState(false)
 
   const checkBackupStatus = useCallback(async () => {
-    setIsCheckingBackup(true);
+    setIsCheckingBackup(true)
     try {
-      const check = await checkBackupRequirements(maxAgeHours, requireVerified);
-      setBackupCheck(check);
+      const check = await checkBackupRequirements(maxAgeHours, requireVerified)
+      setBackupCheck(check)
       if (!check.canProceed) {
-        toast.warning(`Backup check: ${check.blockingReason || "Requirements not met"}`);
+        toast.warning(
+          `Backup check: ${check.blockingReason || 'Requirements not met'}`,
+        )
       }
     } catch {
-      toast.error("Could not verify backup status");
+      toast.error('Could not verify backup status')
       setBackupCheck({
         backupExists: false,
         backupRecent: false,
@@ -46,26 +50,26 @@ export function useMaintenanceBackupCheck(
         backupName: null,
         backupAgeHours: null,
         canProceed: false,
-        blockingReason: "Could not verify backup status",
+        blockingReason: 'Could not verify backup status',
         warnings: [],
-      });
+      })
     } finally {
-      setIsCheckingBackup(false);
+      setIsCheckingBackup(false)
     }
-  }, [maxAgeHours, requireVerified]);
+  }, [maxAgeHours, requireVerified])
 
   // Check backup when dry-run is toggled off
   useEffect(() => {
     if (!dryRun) {
-      checkBackupStatus();
+      checkBackupStatus()
     } else {
-      setBackupCheck(null);
+      setBackupCheck(null)
     }
-  }, [dryRun, checkBackupStatus]);
+  }, [dryRun, checkBackupStatus])
 
   return {
     backupCheck,
     isCheckingBackup,
     checkBackupStatus,
-  };
+  }
 }

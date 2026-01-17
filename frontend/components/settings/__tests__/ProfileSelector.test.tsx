@@ -1,12 +1,12 @@
-import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
-import { ProfileSelector } from "../ProfileSelector";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import React from "react";
-import type { PreferencesResponse } from "@/lib/api/preferences";
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { render, screen } from '@testing-library/react'
+import type React from 'react'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import type { PreferencesResponse } from '@/lib/api/preferences'
+import { ProfileSelector } from '../ProfileSelector'
 
 // Mock hooks
-vi.mock("@/lib/hooks/useSettingsProfiles", () => ({
+vi.mock('@/lib/hooks/useSettingsProfiles', () => ({
   useProfiles: vi.fn(() => ({
     data: [],
     isLoading: false,
@@ -14,17 +14,20 @@ vi.mock("@/lib/hooks/useSettingsProfiles", () => ({
   useCreateProfile: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
   useDeleteProfile: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
   useActivateProfile: vi.fn(() => ({ mutateAsync: vi.fn() })),
-  useDuplicateProfile: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
+  useDuplicateProfile: vi.fn(() => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  })),
   useExportProfile: vi.fn(() => ({ mutateAsync: vi.fn() })),
   useImportProfile: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
-}));
+}))
 
-vi.mock("sonner", () => ({
+vi.mock('sonner', () => ({
   toast: {
     success: vi.fn(),
     error: vi.fn(),
   },
-}));
+}))
 
 const mockPreferences: PreferencesResponse = {
   riskTolerance: 5,
@@ -45,146 +48,150 @@ const mockPreferences: PreferencesResponse = {
   watchlistAutoExpand: false,
   watchlistPriceWeight: 0.5,
   watchlistTechnicalWeight: 0.5,
-  displayTimezone: "America/New_York",
+  displayTimezone: 'America/New_York',
   watchlistShowNews: true,
-};
+}
 
 function createWrapper() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
-  });
+  })
   function TestWrapper({ children }: { children: React.ReactNode }) {
-    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+    return (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
   }
-  return TestWrapper;
+  return TestWrapper
 }
 
-describe("ProfileSelector", () => {
-  const mockOnProfileLoad = vi.fn();
+describe('ProfileSelector', () => {
+  const mockOnProfileLoad = vi.fn()
 
   beforeEach(() => {
-    vi.clearAllMocks();
-  });
+    vi.clearAllMocks()
+  })
 
-  it("renders loading state", async () => {
-    const { useProfiles } = await import("@/lib/hooks/useSettingsProfiles");
-    (useProfiles as unknown as Mock).mockReturnValue({
+  it('renders loading state', async () => {
+    const { useProfiles } = await import('@/lib/hooks/useSettingsProfiles')
+    ;(useProfiles as unknown as Mock).mockReturnValue({
       data: [],
       isLoading: true,
-    });
+    })
 
     render(
       <ProfileSelector
         currentPreferences={mockPreferences}
         onProfileLoad={mockOnProfileLoad}
       />,
-      { wrapper: createWrapper() }
-    );
+      { wrapper: createWrapper() },
+    )
 
     // Should show loading skeleton
-    expect(document.querySelector(".animate-pulse")).toBeInTheDocument();
-  });
+    expect(document.querySelector('.animate-pulse')).toBeInTheDocument()
+  })
 
-  it("renders Settings Profiles label", async () => {
-    const { useProfiles } = await import("@/lib/hooks/useSettingsProfiles");
-    (useProfiles as unknown as Mock).mockReturnValue({
+  it('renders Settings Profiles label', async () => {
+    const { useProfiles } = await import('@/lib/hooks/useSettingsProfiles')
+    ;(useProfiles as unknown as Mock).mockReturnValue({
       data: [],
       isLoading: false,
-    });
+    })
 
     render(
       <ProfileSelector
         currentPreferences={mockPreferences}
         onProfileLoad={mockOnProfileLoad}
       />,
-      { wrapper: createWrapper() }
-    );
+      { wrapper: createWrapper() },
+    )
 
-    expect(screen.getByText("Settings Profiles")).toBeInTheDocument();
-  });
+    expect(screen.getByText('Settings Profiles')).toBeInTheDocument()
+  })
 
-  it("renders Import button", async () => {
-    const { useProfiles } = await import("@/lib/hooks/useSettingsProfiles");
-    (useProfiles as unknown as Mock).mockReturnValue({
+  it('renders Import button', async () => {
+    const { useProfiles } = await import('@/lib/hooks/useSettingsProfiles')
+    ;(useProfiles as unknown as Mock).mockReturnValue({
       data: [],
       isLoading: false,
-    });
+    })
 
     render(
       <ProfileSelector
         currentPreferences={mockPreferences}
         onProfileLoad={mockOnProfileLoad}
       />,
-      { wrapper: createWrapper() }
-    );
+      { wrapper: createWrapper() },
+    )
 
-    expect(screen.getByText("Import")).toBeInTheDocument();
-  });
+    expect(screen.getByText('Import')).toBeInTheDocument()
+  })
 
-  it("renders Save As button", async () => {
-    const { useProfiles } = await import("@/lib/hooks/useSettingsProfiles");
-    (useProfiles as unknown as Mock).mockReturnValue({
+  it('renders Save As button', async () => {
+    const { useProfiles } = await import('@/lib/hooks/useSettingsProfiles')
+    ;(useProfiles as unknown as Mock).mockReturnValue({
       data: [],
       isLoading: false,
-    });
+    })
 
     render(
       <ProfileSelector
         currentPreferences={mockPreferences}
         onProfileLoad={mockOnProfileLoad}
       />,
-      { wrapper: createWrapper() }
-    );
+      { wrapper: createWrapper() },
+    )
 
-    expect(screen.getByText("Save As")).toBeInTheDocument();
-  });
+    expect(screen.getByText('Save As')).toBeInTheDocument()
+  })
 
-  it("renders profile selector dropdown", async () => {
-    const { useProfiles } = await import("@/lib/hooks/useSettingsProfiles");
-    (useProfiles as unknown as Mock).mockReturnValue({
+  it('renders profile selector dropdown', async () => {
+    const { useProfiles } = await import('@/lib/hooks/useSettingsProfiles')
+    ;(useProfiles as unknown as Mock).mockReturnValue({
       data: [],
       isLoading: false,
-    });
+    })
 
     render(
       <ProfileSelector
         currentPreferences={mockPreferences}
         onProfileLoad={mockOnProfileLoad}
       />,
-      { wrapper: createWrapper() }
-    );
+      { wrapper: createWrapper() },
+    )
 
-    expect(screen.getByText("Select a profile...")).toBeInTheDocument();
-  });
+    expect(screen.getByText('Select a profile...')).toBeInTheDocument()
+  })
 
-  it("renders description text", async () => {
-    const { useProfiles } = await import("@/lib/hooks/useSettingsProfiles");
-    (useProfiles as unknown as Mock).mockReturnValue({
+  it('renders description text', async () => {
+    const { useProfiles } = await import('@/lib/hooks/useSettingsProfiles')
+    ;(useProfiles as unknown as Mock).mockReturnValue({
       data: [],
       isLoading: false,
-    });
+    })
 
     render(
       <ProfileSelector
         currentPreferences={mockPreferences}
         onProfileLoad={mockOnProfileLoad}
       />,
-      { wrapper: createWrapper() }
-    );
+      { wrapper: createWrapper() },
+    )
 
     expect(
-      screen.getByText(/Save different configurations for various trading strategies/)
-    ).toBeInTheDocument();
-  });
+      screen.getByText(
+        /Save different configurations for various trading strategies/,
+      ),
+    ).toBeInTheDocument()
+  })
 
-  it("displays active profile when available", async () => {
-    const { useProfiles } = await import("@/lib/hooks/useSettingsProfiles");
-    (useProfiles as unknown as Mock).mockReturnValue({
+  it('displays active profile when available', async () => {
+    const { useProfiles } = await import('@/lib/hooks/useSettingsProfiles')
+    ;(useProfiles as unknown as Mock).mockReturnValue({
       data: [
         {
           id: 1,
-          name: "Conservative Strategy",
-          description: "Low risk profile",
+          name: 'Conservative Strategy',
+          description: 'Low risk profile',
           isActive: true,
           profileData: mockPreferences,
           createdAt: new Date().toISOString(),
@@ -192,19 +199,19 @@ describe("ProfileSelector", () => {
         },
       ],
       isLoading: false,
-    });
+    })
 
     render(
       <ProfileSelector
         currentPreferences={mockPreferences}
         onProfileLoad={mockOnProfileLoad}
       />,
-      { wrapper: createWrapper() }
-    );
+      { wrapper: createWrapper() },
+    )
 
     // Profile name appears in both dropdown and active profile card
-    const profileNames = screen.getAllByText("Conservative Strategy");
-    expect(profileNames.length).toBeGreaterThan(0);
-    expect(screen.getByText("Low risk profile")).toBeInTheDocument();
-  });
-});
+    const profileNames = screen.getAllByText('Conservative Strategy')
+    expect(profileNames.length).toBeGreaterThan(0)
+    expect(screen.getByText('Low risk profile')).toBeInTheDocument()
+  })
+})
