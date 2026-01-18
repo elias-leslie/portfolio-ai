@@ -48,9 +48,7 @@ def test_execute_run_backtest_success(trading_tools, mock_storage):
         mock_run.num_trades = 10
 
         with (
-            patch(
-                "app.agents.tool_executors_trading.get_backtest_run", return_value=mock_run
-            ),
+            patch("app.agents.tool_executors_trading.get_backtest_run", return_value=mock_run),
             patch("app.agents.tool_executors_trading.time.sleep"),
         ):
             result = trading_tools.execute_run_backtest(
@@ -123,9 +121,7 @@ def test_execute_run_backtest_failed(trading_tools, mock_storage):
         mock_run.error_message = "Symbol not found"
 
         with (
-            patch(
-                "app.agents.tool_executors_trading.get_backtest_run", return_value=mock_run
-            ),
+            patch("app.agents.tool_executors_trading.get_backtest_run", return_value=mock_run),
             patch("app.agents.tool_executors_trading.time.sleep"),
         ):
             result = trading_tools.execute_run_backtest(
@@ -161,9 +157,7 @@ def test_execute_run_backtest_timeout(trading_tools, mock_storage):
         mock_run.status = "running"
 
         with (
-            patch(
-                "app.agents.tool_executors_trading.get_backtest_run", return_value=mock_run
-            ),
+            patch("app.agents.tool_executors_trading.get_backtest_run", return_value=mock_run),
             patch("app.agents.tool_executors_trading.time.sleep"),
         ):
             # Force immediate timeout by patching elapsed time
@@ -203,9 +197,7 @@ def test_execute_run_backtest_with_custom_params(trading_tools, mock_storage):
         mock_run.num_trades = 15
 
         with (
-            patch(
-                "app.agents.tool_executors_trading.get_backtest_run", return_value=mock_run
-            ),
+            patch("app.agents.tool_executors_trading.get_backtest_run", return_value=mock_run),
             patch("app.agents.tool_executors_trading.time.sleep"),
         ):
             result = trading_tools.execute_run_backtest(

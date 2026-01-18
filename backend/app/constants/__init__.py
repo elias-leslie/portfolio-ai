@@ -15,6 +15,15 @@ _env_file = Path.home() / ".env.local"
 if _env_file.exists():
     load_dotenv(_env_file)
 
+from app.constants.models import (  # noqa: E402
+    CLAUDE_HAIKU,
+    CLAUDE_OPUS,
+    CLAUDE_SONNET,
+    DEFAULT_CLAUDE_MODEL,
+    DEFAULT_GEMINI_MODEL,
+    GEMINI_FLASH,
+    GEMINI_PRO,
+)
 from app.constants.services import (  # noqa: E402
     SERVICE_PROCESS_PATTERNS,
     SERVICE_UNIT_MAPPING,
@@ -106,15 +115,20 @@ ENV_PRICE_CACHE_TTL = "PRICE_CACHE_TTL_MINUTES"
 __all__ = [
     "ALL_MARKET_SYMBOLS",
     "BENCHMARK_SPY",
+    "CLAUDE_HAIKU",
+    "CLAUDE_OPUS",
+    "CLAUDE_SONNET",
     "DATABASE_URL",
     "DEFAULT_AGENT_COST_LIMIT_USD",
     "DEFAULT_AGENT_TIMEOUT_MINUTES",
     "DEFAULT_API_TIMEOUT_SECONDS",
     "DEFAULT_BACKFILL_DAYS",
     "DEFAULT_BACKUP_DIR",
+    "DEFAULT_CLAUDE_MODEL",
     "DEFAULT_CONFIG_DIR",
     "DEFAULT_DAILY_REFRESH_DAYS",
     "DEFAULT_DB_PATH",
+    "DEFAULT_GEMINI_MODEL",
     "DEFAULT_LOG_DIR",
     "DEFAULT_PORTFOLIO_CONFIG_DIR",
     "DEFAULT_PRICE_CACHE_TTL_MINUTES",
@@ -125,6 +139,8 @@ __all__ = [
     "ENV_FRED_API_KEY",
     "ENV_POLYGON_API_KEY",
     "ENV_PRICE_CACHE_TTL",
+    "GEMINI_FLASH",
+    "GEMINI_PRO",
     "INDEX_DXY",
     "INDEX_SP500",
     "INDEX_TNX",
