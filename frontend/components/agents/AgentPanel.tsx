@@ -341,9 +341,10 @@ export function AgentPanel({
                 message={msg}
                 onViewEvidence={() => {
                   // Open SummitFlow evidence viewer
-                  const baseUrl =
-                    process.env.NEXT_PUBLIC_SUMMITFLOW_URL ||
-                    'https://dev.summitflow.dev'
+                  const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost'
+                  const isLocal = host === 'localhost' || host === '127.0.0.1'
+                  const baseUrl = process.env.NEXT_PUBLIC_SUMMITFLOW_URL ||
+                    (isLocal ? 'http://localhost:3001' : 'https://dev.summitflow.dev')
                   window.open(
                     `${baseUrl}/projects/portfolio-ai?tab=evidence`,
                     '_blank',

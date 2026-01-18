@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { HealthResponse } from '../api/status'
 import { useSystemStatus } from './useSystemStatus'
+import { buildApiUrl } from '../api-config'
 
 type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'fallback'
 
@@ -17,7 +18,6 @@ interface UseStatusStreamResult {
 }
 
 const MAX_FAILURES = 3
-const SSE_URL = `${process.env.NEXT_PUBLIC_API_URL || ''}/api/status/stream`
 
 /**
  * Hook to stream real-time status updates via Server-Sent Events
@@ -67,7 +67,8 @@ export function useStatusStream(): UseStatusStreamResult {
     }
 
     // Create EventSource
-    const eventSource = new EventSource(SSE_URL)
+    const sseUrl = buildApiUrl('/api/status/stream')
+    const eventSource = new EventSource(sseUrl)
     eventSourceRef.current = eventSource
 
     // Connection opened

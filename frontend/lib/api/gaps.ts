@@ -9,7 +9,7 @@
  * - POST /api/gaps/generate-task-list - Generate task list for gaps
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || ''
+import { buildApiUrl } from '../api-config'
 
 // ========================================================================
 // Types
@@ -91,7 +91,7 @@ export interface TaskListGenerated {
  * Fetch system-wide gap summary
  */
 export async function fetchGapSummary(): Promise<GapSummary> {
-  const response = await fetch(`${API_BASE}/api/gaps/summary`, {
+  const response = await fetch(`${buildApiUrl('/api/gaps/summary')}`, {
     headers: {
       'Content-Type': 'application/json',
     },
@@ -109,7 +109,7 @@ export async function fetchGapSummary(): Promise<GapSummary> {
  * Fetch gaps grouped by analysis type
  */
 export async function fetchGapsByAnalysis(): Promise<GapsByAnalysis> {
-  const response = await fetch(`${API_BASE}/api/gaps/by-analysis`, {
+  const response = await fetch(`${buildApiUrl('/api/gaps/by-analysis')}`, {
     headers: {
       'Content-Type': 'application/json',
     },
@@ -127,7 +127,7 @@ export async function fetchGapsByAnalysis(): Promise<GapsByAnalysis> {
  * Fetch per-symbol gap analysis
  */
 export async function fetchSymbolGaps(symbol: string): Promise<SymbolGaps> {
-  const response = await fetch(`${API_BASE}/api/gaps/by-symbol/${symbol}`, {
+  const response = await fetch(`${buildApiUrl(`/api/gaps/by-symbol/${symbol}`)}`, {
     headers: {
       'Content-Type': 'application/json',
     },
@@ -145,7 +145,7 @@ export async function fetchSymbolGaps(symbol: string): Promise<SymbolGaps> {
  * Fetch gaps affecting current watchlist
  */
 export async function fetchWatchlistGaps(): Promise<WatchlistGaps> {
-  const response = await fetch(`${API_BASE}/api/gaps/watchlist`, {
+  const response = await fetch(`${buildApiUrl('/api/gaps/watchlist')}`, {
     headers: {
       'Content-Type': 'application/json',
     },
@@ -165,7 +165,7 @@ export async function fetchWatchlistGaps(): Promise<WatchlistGaps> {
 export async function generateTaskList(
   gapIds: string[],
 ): Promise<TaskListGenerated> {
-  const response = await fetch(`${API_BASE}/api/gaps/generate-task-list`, {
+  const response = await fetch(`${buildApiUrl('/api/gaps/generate-task-list')}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

@@ -2,6 +2,8 @@
  * Celery task monitoring API client
  */
 
+import { buildApiUrl } from '../api-config'
+
 // Type definitions
 export interface TaskInfo {
   id: string
@@ -47,14 +49,13 @@ export async function fetchCeleryTasks(
   limit: number = 50,
   sort: 'time' | 'duration' | 'name' = 'time',
 ): Promise<TaskListResponse> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || ''
   const params = new URLSearchParams({
     status,
     limit: limit.toString(),
     sort,
   })
 
-  const response = await fetch(`${apiUrl}/api/status/celery/tasks?${params}`, {
+  const response = await fetch(buildApiUrl(`/api/status/celery/tasks?${params}`), {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
@@ -72,9 +73,7 @@ export async function fetchCeleryTasks(
  * Fetch Celery queue depth and consumer count
  */
 export async function fetchQueueDepth(): Promise<QueueInfo> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || ''
-
-  const response = await fetch(`${apiUrl}/api/status/celery/queue`, {
+  const response = await fetch(buildApiUrl('/api/status/celery/queue'), {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
@@ -92,9 +91,7 @@ export async function fetchQueueDepth(): Promise<QueueInfo> {
  * Fetch Celery Beat schedule information
  */
 export async function fetchBeatSchedule(): Promise<ScheduleInfo[]> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || ''
-
-  const response = await fetch(`${apiUrl}/api/status/celery/schedule`, {
+  const response = await fetch(buildApiUrl('/api/status/celery/schedule'), {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
