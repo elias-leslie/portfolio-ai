@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { ExpandableCard } from '@/components/status/ExpandableCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { buildApiUrl } from '@/lib/api-config'
 
 interface SourceMetrics {
   vendor: string
@@ -28,7 +29,7 @@ export function SourceQualityCard() {
   const fetchMetrics = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/news/source-stats')
+      const response = await fetch(buildApiUrl('/api/news/source-stats'))
       if (response.ok) {
         const data = await response.json()
         setMetrics(data)
@@ -44,7 +45,7 @@ export function SourceQualityCard() {
   const triggerProfiling = async () => {
     try {
       setProfiling(true)
-      const response = await fetch('/api/news/profile-sources', {
+      const response = await fetch(buildApiUrl('/api/news/profile-sources'), {
         method: 'POST',
       })
       if (response.ok) {

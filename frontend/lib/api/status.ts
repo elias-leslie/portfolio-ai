@@ -2,6 +2,7 @@
  * API client for system status and service monitoring
  */
 
+import { buildApiUrl } from '../api-config'
 import { get } from './client'
 
 /**
@@ -299,7 +300,7 @@ export async function fetchLogLevelConfig(): Promise<LogLevelConfig> {
  * Set log level for all services
  */
 export async function setLogLevel(level: string): Promise<void> {
-  const response = await fetch('/api/status/log-level', {
+  const response = await fetch(buildApiUrl('/api/status/log-level'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ level }),
@@ -314,7 +315,7 @@ export async function setLogLevel(level: string): Promise<void> {
  * Restart all services
  */
 export async function restartAllServices(): Promise<void> {
-  const response = await fetch('/api/status/restart-services', {
+  const response = await fetch(buildApiUrl('/api/status/restart-services'), {
     method: 'POST',
   })
   if (!response.ok) {

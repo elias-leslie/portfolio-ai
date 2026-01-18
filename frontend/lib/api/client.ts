@@ -3,6 +3,7 @@
  */
 
 import { toCamelCaseKeys, toSnakeCaseKeys } from 'es-toolkit'
+import { getApiBaseUrl as getBaseUrl } from '../api-config'
 
 /**
  * Re-export transformation utilities for WebSocket and other non-REST use cases
@@ -10,14 +11,11 @@ import { toCamelCaseKeys, toSnakeCaseKeys } from 'es-toolkit'
 export { toCamelCaseKeys, toSnakeCaseKeys }
 
 /**
- * Get the API base URL.
- * Returns empty string to use relative URLs - this allows Next.js to proxy
- * API requests, which is required for HTTPS frontend → HTTP backend.
+ * Get the API base URL from centralized config.
+ * Uses window.location to determine dev vs prod environment.
  */
 function getApiBaseUrl(): string {
-  // Always use relative URLs so Next.js proxy handles the request
-  // This avoids mixed content issues (HTTPS frontend calling HTTP backend)
-  return ''
+  return getBaseUrl()
 }
 
 /**

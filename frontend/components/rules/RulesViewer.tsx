@@ -17,6 +17,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { buildApiUrl } from '@/lib/api-config'
 import { useRules } from '@/lib/hooks/useRules'
 
 interface ExpandedSections {
@@ -31,7 +32,9 @@ export function RulesViewer() {
   const handleExport = async (format: 'yaml' | 'json') => {
     setIsExporting(true)
     try {
-      const response = await fetch(`/api/rules/export?format=${format}`)
+      const response = await fetch(
+        buildApiUrl(`/api/rules/export?format=${format}`),
+      )
       if (!response.ok) {
         throw new Error('Export failed')
       }

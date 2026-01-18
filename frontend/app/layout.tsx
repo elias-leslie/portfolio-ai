@@ -2,9 +2,9 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
 import './globals-watchlist.css'
-import { VoiceOverlay } from '@agent-hub/passport-client'
 import { Toaster } from 'sonner'
 import { Navigation } from '@/components/Navigation'
+import { VoiceOverlayWrapper } from '@/components/VoiceOverlayWrapper'
 import { cn } from '@/lib/utils'
 import { Providers } from './providers'
 
@@ -41,7 +41,7 @@ export default function RootLayout({
           <Navigation />
           <main className="flex-1 overflow-auto">{children}</main>
           <Toaster position="top-right" richColors />
-          <VoiceOverlay wsUrl="wss://agentapi.summitflow.dev/api/voice/ws?user_id=portfolio_user&app=portfolio" />
+          <VoiceOverlayWrapper />
         </Providers>
       </body>
     </html>
