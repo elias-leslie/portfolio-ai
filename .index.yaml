@@ -1,23 +1,24 @@
 project: portfolio-ai
-total_files: 1999
+generated_at: 2026-01-19 19:15 UTC
+total_files: 1963
 folders:
-  (root): 23 files - config, docs, services, tests - (claude, env, gemini, gitattributes,
-    gitignore)
-  .claude: 74 files - api, components, config, docs, services, storage, tests - (js,
-    json, md, sh)
+  (root): 24 files - config, docs, services, tests - (claude, dev-tools, env, gemini,
+    gitattributes)
+  .claude: 6 files - docs, services - (json, md)
+  .dev-tools: 15 files - tests - (txt)
   .gemini: 1 files - (json)
   automation: 2 files - (json)
-  backend: 828 files - api, config, docs, models, services, storage, tests - (0, conf,
+  backend: 829 files - api, config, docs, models, services, storage, tests - (0, conf,
     coverage, egg-info, example)
   certs: 3 files - (pem)
   config: 10 files - api, config - (yaml)
   docs: 161 files - api, config, docs, services, storage, tests - (gitkeep, html,
     json, last_update, md)
-  frontend: 329 files - api, components, config, docs, models, services, storage,
+  frontend: 331 files - api, components, config, docs, models, services, storage,
     tests - (css, gitignore, json, local, md)
-  reports: 40 files - (gitkeep, json)
-  scripts: 103 files - api, config, docs, models, services, tests - (bak, conf, deprecated,
+  reports: 44 files - (gitkeep, json)
+  scripts: 108 files - api, config, docs, models, services, tests - (bak, conf, deprecated,
     js, md)
-  services: 20 files - config, docs, services, storage, tests - (conf, md, py, toml)
-  tasks: 405 files - api, components, docs, models, storage, tests - (claude, example,
+  services: 21 files - config, docs, services, storage, tests - (conf, md, py, toml)
+  tasks: 408 files - api, components, docs, models, storage, tests - (claude, example,
     gitignore, json, md)
