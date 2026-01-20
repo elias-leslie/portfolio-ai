@@ -53,6 +53,7 @@ class AgentHubAPIClient(LLMClient):
             base_url=base_url,
             api_key=api_key,
             timeout=timeout,
+            client_name="portfolio-ai",  # Usage tracking
         )
 
         # Determine provider from model name
