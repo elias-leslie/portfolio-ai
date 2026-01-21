@@ -6,7 +6,7 @@ various market indicators (VIX, S&P 500, Treasury yields, Dollar Index).
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
 
@@ -315,5 +315,5 @@ def calculate_market_health(
         overall_label=label,
         components=components,
         sectors=sectors,
-        last_updated=datetime.utcnow().isoformat(),
+        last_updated=datetime.now(UTC).isoformat(),
     )

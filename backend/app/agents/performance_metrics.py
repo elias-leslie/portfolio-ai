@@ -9,7 +9,7 @@ Section 1.1: Add Performance Feedback to Trading Prompts
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from app.logging_config import get_logger
@@ -58,7 +58,7 @@ def get_rolling_performance_metrics(
     Returns:
         PerformanceMetrics dataclass with all metrics
     """
-    period_end = datetime.now()
+    period_end = datetime.now(UTC)
     period_start = period_end - timedelta(days=days)
 
     # Query paper trades for the period

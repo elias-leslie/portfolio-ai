@@ -7,7 +7,7 @@ performs sentiment analysis using VADER (Valence Aware Dictionary and sEntiment 
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import TYPE_CHECKING
 
 import feedparser  # type: ignore[import-untyped]
@@ -131,7 +131,7 @@ def fetch_news_headlines_cached(
     """
     # Check cache first
     # For sub-day TTLs, we use timestamp comparison instead of date comparison
-    cache_cutoff = datetime.now() - timedelta(hours=ttl_hours)
+    cache_cutoff = datetime.now(UTC) - timedelta(hours=ttl_hours)
 
     cached_row = conn.execute(
         """

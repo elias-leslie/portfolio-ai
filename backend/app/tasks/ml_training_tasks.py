@@ -7,7 +7,7 @@ import json
 import subprocess
 import tempfile
 import traceback
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -212,11 +212,11 @@ def _train_and_save_model(
     labels = [a["is_useful"] for a in combined_data]
 
     classifier = ArticleQualityClassifier()
-    start_time = datetime.now()
+    start_time = datetime.now(UTC)
     metrics = classifier.train(headlines, summaries, labels, test_size=0.2)
-    training_duration = (datetime.now() - start_time).total_seconds()
+    training_duration = (datetime.now(UTC) - start_time).total_seconds()
 
-    model_version = datetime.now().strftime("v%Y%m%d")
+    model_version = datetime.now(UTC).strftime("v%Y%m%d")
     model_path = Path(
         f"/home/kasadis/portfolio-ai/backend/models/article_quality_{model_version}.joblib"
     )
@@ -250,7 +250,7 @@ def _save_model_metrics(
         [
             "article_quality",
             model_version,
-            datetime.now(),
+            datetime.now(UTC),
             metrics["train_size"],
             metrics["test_size"],
             metrics["accuracy"],

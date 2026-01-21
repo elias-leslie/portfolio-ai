@@ -11,7 +11,7 @@ Data source: Finnhub /stock/recommendation (FREE, returns monthly data)
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, TypedDict
 
@@ -134,7 +134,7 @@ def parse_recommendation_response(
         return []
 
     revisions: list[AnalystRevision] = []
-    now = datetime.now()
+    now = datetime.now(UTC)
 
     def calc_buy_score(rec: dict[str, Any]) -> float | None:
         """Calculate buy score (0-100) from recommendation counts."""

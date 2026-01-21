@@ -7,7 +7,7 @@ system status, dependencies, and service availability including multi-source dat
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, Response
@@ -172,7 +172,7 @@ class HealthCheckResponse(BaseModel):
     """Complete health check response."""
 
     status: Literal["healthy", "degraded", "down"]
-    timestamp: str = Field(default_factory=lambda: str(__import__("datetime").datetime.now()))
+    timestamp: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
     version: str = "1.0.0"
     uptime_seconds: int
     checks: dict[str, CheckResult]

@@ -92,7 +92,7 @@ def test_get_cached_prices_valid(price_fetcher: PriceDataFetcher) -> None:
 def test_get_cached_prices_expired(price_fetcher: PriceDataFetcher) -> None:
     """Test that expired cache entries are not returned."""
     # Manually insert an expired cache entry
-    old_time = datetime.now() - timedelta(minutes=30)
+    old_time = datetime.now(UTC) - timedelta(minutes=30)
 
     df = pl.DataFrame(
         [

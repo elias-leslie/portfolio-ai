@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 from app.storage.connection import ConnectionManager
@@ -102,7 +102,7 @@ class TestGenerateEarningsWarning:
     def test_warning_0_5_days_away(self) -> None:
         """Test 🔴 warning for earnings 0-5 days away."""
         # Earnings in 2 days
-        earnings_date = datetime.now() + timedelta(days=2)
+        earnings_date = datetime.now(UTC) + timedelta(days=2)
 
         warning = generate_earnings_warning(earnings_date)
 
@@ -114,7 +114,7 @@ class TestGenerateEarningsWarning:
     def test_warning_6_14_days_away(self) -> None:
         """Test ⚠ warning for earnings 6-14 days away."""
         # Earnings in 10 days
-        earnings_date = datetime.now() + timedelta(days=10)
+        earnings_date = datetime.now(UTC) + timedelta(days=10)
 
         warning = generate_earnings_warning(earnings_date)
 
@@ -125,7 +125,7 @@ class TestGenerateEarningsWarning:
     def test_warning_15_30_days_away(self) -> None:
         """Test 💡 info for earnings 15-30 days away."""
         # Earnings in 20 days
-        earnings_date = datetime.now() + timedelta(days=20)
+        earnings_date = datetime.now(UTC) + timedelta(days=20)
 
         warning = generate_earnings_warning(earnings_date)
 
@@ -136,7 +136,7 @@ class TestGenerateEarningsWarning:
     def test_no_warning_over_30_days(self) -> None:
         """Test no warning for earnings >30 days away."""
         # Earnings in 45 days
-        earnings_date = datetime.now() + timedelta(days=45)
+        earnings_date = datetime.now(UTC) + timedelta(days=45)
 
         warning = generate_earnings_warning(earnings_date)
 
@@ -144,7 +144,7 @@ class TestGenerateEarningsWarning:
 
     def test_warning_today(self) -> None:
         """Test 🔴 warning for earnings today."""
-        earnings_date = datetime.now()
+        earnings_date = datetime.now(UTC)
 
         warning = generate_earnings_warning(earnings_date)
 
@@ -155,7 +155,7 @@ class TestGenerateEarningsWarning:
     def test_warning_past_earnings(self) -> None:
         """Test no warning for past earnings."""
         # Earnings was yesterday
-        earnings_date = datetime.now() - timedelta(days=1)
+        earnings_date = datetime.now(UTC) - timedelta(days=1)
 
         warning = generate_earnings_warning(earnings_date)
 
@@ -170,7 +170,7 @@ class TestGenerateEarningsWarning:
     def test_days_away_calculation(self) -> None:
         """Test that days_away is returned correctly."""
         # Earnings in 7 days
-        earnings_date = datetime.now() + timedelta(days=7)
+        earnings_date = datetime.now(UTC) + timedelta(days=7)
 
         warning = generate_earnings_warning(earnings_date)
 

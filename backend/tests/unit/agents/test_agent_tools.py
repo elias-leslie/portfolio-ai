@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from unittest.mock import Mock
 
 import pytest
@@ -297,8 +297,8 @@ def test_execute_get_portfolio_data_with_positions(
         shares=100.0,
         cost_basis=150.0,
         position_type="long",
-        created_at=datetime.now(),
-        updated_at=datetime.now(),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
     position2 = Position(
         id="pos2",
@@ -307,8 +307,8 @@ def test_execute_get_portfolio_data_with_positions(
         shares=50.0,
         cost_basis=2000.0,
         position_type="long",
-        created_at=datetime.now(),
-        updated_at=datetime.now(),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
     mock_portfolio_mgr.get_positions.return_value = [position1, position2]
 

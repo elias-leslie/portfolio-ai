@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import TYPE_CHECKING
 
 import requests
@@ -103,7 +103,7 @@ def generate_earnings_warning(earnings_date: datetime | None) -> str | None:  # 
         return None
 
     # Calculate days away (compare dates only, not datetime to avoid time precision issues)
-    now = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    now = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
     earnings_date_normalized = earnings_date.replace(hour=0, minute=0, second=0, microsecond=0)
     days_away = (earnings_date_normalized - now).days
 

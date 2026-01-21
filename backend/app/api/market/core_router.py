@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Any, TypedDict, cast
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -131,7 +131,7 @@ def _fetch_core_market_data() -> CoreMarketData:
 
     # Get actual timestamp from fetched data (respects 15-min cache)
     current_timestamp = (
-        sp500_data.cached_at.isoformat() if sp500_data else datetime.utcnow().isoformat() + "Z"
+        sp500_data.cached_at.isoformat() if sp500_data else datetime.now(UTC).isoformat()
     )
 
     # Fetch sector ETF data

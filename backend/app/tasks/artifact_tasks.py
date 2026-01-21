@@ -71,7 +71,7 @@ def cleanup_debug_captures(max_age_days: int = 7, dry_run: bool = False) -> dict
     """
     import re
     import shutil
-    from datetime import datetime, timedelta
+    from datetime import UTC, datetime, timedelta
     from pathlib import Path
 
     log_id = log_maintenance_start("cleanup_debug_captures", dry_run)
@@ -84,7 +84,7 @@ def cleanup_debug_captures(max_age_days: int = 7, dry_run: bool = False) -> dict
 
     try:
         artifacts_dir = Path("/home/kasadis/portfolio-ai/data/artifacts")
-        cutoff_date = datetime.now() - timedelta(days=max_age_days)
+        cutoff_date = datetime.now(UTC) - timedelta(days=max_age_days)
 
         deleted_count = 0
         deleted_size = 0
@@ -105,14 +105,14 @@ def cleanup_debug_captures(max_age_days: int = 7, dry_run: bool = False) -> dict
             mmdd = match.group(1)
             try:
                 # Assume current year
-                year = datetime.now().year
+                year = datetime.now(UTC).year
                 month = int(mmdd[:2])
                 day = int(mmdd[2:4])
-                capture_date = datetime(year, month, day)
+                capture_date = datetime(year, month, day, tzinfo=UTC)
 
                 # Handle year boundary (December captures in January)
-                if capture_date > datetime.now():
-                    capture_date = datetime(year - 1, month, day)
+                if capture_date > datetime.now(UTC):
+                    capture_date = datetime(year - 1, month, day, tzinfo=UTC)
 
                 if capture_date < cutoff_date:
                     # Calculate size

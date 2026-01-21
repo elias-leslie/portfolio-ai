@@ -10,7 +10,7 @@ Phase B: Multi-symbol portfolio backtests with realistic fill simulation.
 
 import logging
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING, Protocol
 
@@ -107,7 +107,7 @@ class BacktestState:
             cash=self.cash,
             position_value=Decimal(str(position_value)),
             drawdown_pct=drawdown_pct,
-            created_at=datetime.now(),  # Will be overridden by DB
+            created_at=datetime.now(UTC),  # Will be overridden by DB
         )
 
         self.equity_curve.append(snapshot)
@@ -332,7 +332,7 @@ def exit_trade(
         exit_reason=exit_reason,  # type: ignore[arg-type]  # Literal type is correct at runtime
         max_favorable_pct=position.max_favorable_pct,
         max_adverse_pct=position.max_adverse_pct,
-        created_at=datetime.now(),  # Will be overridden by DB
+        created_at=datetime.now(UTC),  # Will be overridden by DB
     )
 
     state.trades.append(trade)

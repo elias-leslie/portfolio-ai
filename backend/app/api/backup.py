@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import subprocess
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
@@ -162,14 +162,14 @@ def _read_backup_index(force_sync: bool = False) -> dict[str, Any]:
     # Determine if we should sync
     should_sync = force_sync or not BACKUP_INDEX_PATH.exists()
     if not should_sync and _last_sync_time:
-        time_since_sync = (datetime.now() - _last_sync_time).total_seconds()
+        time_since_sync = (datetime.now(UTC) - _last_sync_time).total_seconds()
         should_sync = time_since_sync > _SYNC_INTERVAL_SECONDS
     elif not _last_sync_time:
         should_sync = True  # First call, sync to ensure consistency
 
     if should_sync:
         _sync_backup_index()
-        _last_sync_time = datetime.now()
+        _last_sync_time = datetime.now(UTC)
 
     if not BACKUP_INDEX_PATH.exists():
         return {
@@ -235,7 +235,7 @@ def _run_backup_in_background(job_id: str, quick_mode: bool = False) -> None:
             cwd=str(PROJECT_DIR),
         )
 
-        _running_jobs[job_id]["completed_at"] = datetime.now().isoformat()
+        _running_jobs[job_id]["completed_at"] = datetime.now(UTC).isoformat()
         _running_jobs[job_id]["output"] = result.stdout[-2000:] if result.stdout else None
         _running_jobs[job_id]["error"] = result.stderr[-500:] if result.stderr else None
 
@@ -254,13 +254,13 @@ def _run_backup_in_background(job_id: str, quick_mode: bool = False) -> None:
     except subprocess.TimeoutExpired:
         _running_jobs[job_id]["status"] = "failed"
         _running_jobs[job_id]["error"] = "Backup timed out after 10 minutes"
-        _running_jobs[job_id]["completed_at"] = datetime.now().isoformat()
+        _running_jobs[job_id]["completed_at"] = datetime.now(UTC).isoformat()
         logger.error("backup_job_timeout", job_id=job_id)
 
     except Exception as e:
         _running_jobs[job_id]["status"] = "failed"
         _running_jobs[job_id]["error"] = str(e)
-        _running_jobs[job_id]["completed_at"] = datetime.now().isoformat()
+        _running_jobs[job_id]["completed_at"] = datetime.now(UTC).isoformat()
         logger.error("backup_job_exception", job_id=job_id, error=str(e))
 
 
@@ -362,7 +362,7 @@ async def trigger_backup(
     job_id = str(uuid.uuid4())[:8]
     _running_jobs[job_id] = {
         "status": "starting",
-        "started_at": datetime.now().isoformat(),
+        "started_at": datetime.now(UTC).isoformat(),
         "completed_at": None,
         "output": None,
         "error": None,

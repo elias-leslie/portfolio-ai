@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import tempfile
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -351,7 +351,7 @@ def test_portfolio_analyzer_execute_tool_store_idea(
         {
             "id": "test-run-id",
             "agent_type": "PortfolioAnalyzerAgent",
-            "started_at": datetime.now(),
+            "started_at": datetime.now(UTC),
             "completed_at": None,
             "status": "running",
             "num_ideas": 0,

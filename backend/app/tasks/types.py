@@ -6,7 +6,7 @@ Replaces loose dict[str, Any] with properly typed result dictionaries.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TypedDict
 
 
@@ -253,7 +253,7 @@ def build_task_success(
     result: TaskResultDict = {
         "status": "success",
         "message": message,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
     # Add optional numeric fields if provided
@@ -295,5 +295,5 @@ def build_task_failure(error: Exception) -> TaskResultDict:
         "status": "error",
         "message": "Task failed",
         "error": str(error),
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }

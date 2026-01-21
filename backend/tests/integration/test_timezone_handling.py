@@ -74,9 +74,9 @@ class TestCacheExpiration:
     def test_cache_expiration_with_mixed_timezone_timestamps(self) -> None:
         """Test cache expiration calculation with UTC timestamps.
 
-        This test currently FAILS because price_fetcher.py uses naive datetime.now()
-        at line 161, causing incorrect cache age calculations when timestamps
-        have different timezone awareness.
+        This test currently FAILS because price_fetcher.py uses naive datetime
+        (without UTC) at line 161, causing incorrect cache age calculations when
+        timestamps have different timezone awareness.
 
         Expected behavior: Cache entry from 30 minutes ago should be expired
         when TTL is 15 minutes.
@@ -108,7 +108,7 @@ class TestDatetimeArithmetic:
     def test_time_ago_calculation_with_utc_timestamps(self) -> None:
         """Test 'updated X minutes ago' calculation with UTC timestamps.
 
-        This test will FAIL if code uses naive datetime.now() instead of datetime.now(UTC).
+        This test will FAIL if code uses naive datetime instead of datetime.now(UTC).
         Various files need updating: preferences.py:177-178, ideas.py:308,
         manager.py:50,107,166, price_fetcher.py:161, tools.py:10.
 
@@ -131,13 +131,13 @@ class TestDatetimeArithmetic:
     def test_naive_vs_aware_datetime_subtraction_fails(self) -> None:
         """Test that naive and aware datetimes cannot be mixed.
 
-        This test demonstrates the bug: if some code uses datetime.now() (naive)
+        This test demonstrates the bug: if some code uses naive datetime (no tz)
         and other code uses datetime.now(UTC) (aware), subtraction will raise TypeError.
 
         This test PASSES currently (demonstrates the problem), but the actual
         application code will FAIL if we mix naive and aware datetimes.
         """
-        naive_dt = datetime.now()  # This is what buggy code does
+        naive_dt = datetime(2025, 1, 20, 12, 0, 0)  # Naive datetime (no tzinfo)
         aware_dt = datetime.now(UTC)  # This is what fixed code does
 
         # Attempting to subtract naive from aware raises TypeError
@@ -149,7 +149,7 @@ class TestDatetimeArithmetic:
     def test_future_timestamp_detection(self) -> None:
         """Test that future timestamps are detected correctly.
 
-        This can happen with naive datetime.now() if server timezone changes
+        This can happen with naive datetime (no tz) if server timezone changes
         or if timestamps are stored in different timezones.
         """
         # Create a timestamp 10 minutes in the future
@@ -168,10 +168,10 @@ class TestDatetimeArithmetic:
         """Test that scoring._is_stale() works correctly with UTC timestamps.
 
         The _is_stale() function is called with timestamps from database and
-        datetime.now() from various places. If datetime.now() is naive, this
+        the current time from various places. If naive datetime is used, this
         will cause incorrect comparisons.
         """
-        # This test will FAIL if any code passes naive datetime.now() to _is_stale
+        # This test will FAIL if any code passes naive datetime to _is_stale
         now = datetime.now(UTC)
         old_timestamp = now - timedelta(minutes=30)
         ttl = 15

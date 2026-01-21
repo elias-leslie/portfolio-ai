@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import asdict
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from app.logging_config import get_logger
@@ -195,7 +195,7 @@ async def strategy_research_workflow(
         result_summary = f"Generated {agent_result.strategy_type} strategy for {symbol} (confidence={optimized.confidence:.2f}, Sharpe={optimized.avg_sharpe:.2f})"
         commit_result = commit_workflow_results(
             workflow_type="strategy_research",
-            date=datetime.now(),
+            date=datetime.now(UTC),
             result_summary=result_summary,
             snapshot_data=snapshot,
         )

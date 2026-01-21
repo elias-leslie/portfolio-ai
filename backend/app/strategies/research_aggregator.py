@@ -13,7 +13,7 @@ Output: ResearchInsights dataclass with confidence scores for each dimension.
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any, Literal
 
 from app.analytics.indicators import calculate_indicators_for_symbol
@@ -233,7 +233,7 @@ class ResearchAggregationService:
             # Overall assessment
             overall_confidence=overall_confidence,
             research_quality=research_quality,
-            last_updated=datetime.now(),
+            last_updated=datetime.now(UTC),
         )
 
     def _fetch_news_data(

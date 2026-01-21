@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Generator
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
@@ -21,7 +21,7 @@ def mock_market_time(mock_time: datetime) -> Generator[None]:
         patch("app.utils.market_hours.datetime") as mock_datetime_utils,
         patch("app.middleware.cache.CACHE_ENABLED", False),  # Disable cache for tests
     ):
-        # Mock datetime.now() in both modules
+        # Mock datetime in both modules
         mock_datetime_api.now.return_value = mock_time
         mock_datetime_utils.now.return_value = mock_time
 

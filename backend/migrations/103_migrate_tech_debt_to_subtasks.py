@@ -16,7 +16,7 @@ Run: cd ~/portfolio-ai/backend && .venv/bin/python migrations/103_migrate_tech_d
 from __future__ import annotations
 
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -201,7 +201,7 @@ def main() -> None:
     print("=" * 60)
     print("Tech Debt to Feature Subtasks Migration")
     print("=" * 60)
-    print(f"Started at: {datetime.now().isoformat()}")
+    print(f"Started at: {datetime.now(UTC).isoformat()}")
     print()
 
     try:
@@ -218,7 +218,7 @@ def main() -> None:
     print(f"Created DEBT features:  {stats['created_debt_features']}")
     print(f"Added to existing DEBT: {stats['skipped_duplicates']}")
     print(f"Errors:                 {stats['errors']}")
-    print(f"\nFinished at: {datetime.now().isoformat()}")
+    print(f"\nFinished at: {datetime.now(UTC).isoformat()}")
 
 
 if __name__ == "__main__":

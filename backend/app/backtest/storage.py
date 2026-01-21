@@ -11,7 +11,7 @@ Follows existing storage patterns from watchlist/portfolio modules.
 
 import logging
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -61,7 +61,7 @@ def create_backtest_run(
         end_date.isoformat() if hasattr(end_date, "isoformat") else str(end_date),
         float(initial_capital),
         "pending",
-        datetime.now(),
+        datetime.now(UTC),
     )
 
     with storage.connection() as conn:
@@ -95,7 +95,7 @@ def update_backtest_status(
         WHERE id = %s
     """
 
-    params = (status, error_message, status, datetime.now(), run_id)
+    params = (status, error_message, status, datetime.now(UTC), run_id)
     with storage.connection() as conn:
         conn.execute(query, params)
         conn.commit()
@@ -179,7 +179,7 @@ def update_backtest_result(
         float(beta) if beta is not None else None,
         benchmark_symbol,
         "completed",
-        datetime.now(),
+        datetime.now(UTC),
         run_id,
     )
 
@@ -237,7 +237,7 @@ def save_backtest_trade(
         trade.exit_reason,
         float(trade.max_favorable_pct) if trade.max_favorable_pct is not None else None,
         float(trade.max_adverse_pct) if trade.max_adverse_pct is not None else None,
-        datetime.now(),
+        datetime.now(UTC),
     )
 
     with storage.connection() as conn:
@@ -292,7 +292,7 @@ def save_equity_snapshot(
         float(snapshot.cash),
         float(snapshot.position_value),
         float(snapshot.drawdown_pct),
-        datetime.now(),
+        datetime.now(UTC),
     )
 
     with storage.connection() as conn:

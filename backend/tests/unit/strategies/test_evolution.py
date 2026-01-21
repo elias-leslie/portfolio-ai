@@ -10,7 +10,7 @@ Tests cover:
 from __future__ import annotations
 
 import json
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
@@ -85,7 +85,7 @@ def mock_research_aggregator() -> AsyncMock:
             sector_rotation_signal="hold",
             overall_confidence=0.85,
             research_quality="high",
-            last_updated=datetime.now(),
+            last_updated=datetime.now(UTC),
         )
     )
     return aggregator
@@ -119,7 +119,7 @@ def sample_strategy() -> StrategyDefinition:
         expected_win_rate=Decimal("0.6"),
         expected_max_drawdown=Decimal("0.15"),
         created_by="test",
-        created_at=datetime.now(),
+        created_at=datetime.now(UTC),
         version=1,
         status="active",
     )

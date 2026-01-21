@@ -1,6 +1,6 @@
 """Unit tests for walk-forward backtesting module."""
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
@@ -668,7 +668,7 @@ class TestWalkForwardEngineRun:
                 shares=10,
                 pnl=Decimal("100"),
                 pnl_pct=Decimal("10.0"),
-                created_at=datetime.now(),
+                created_at=datetime.now(UTC),
             ),
         ]
 
@@ -682,7 +682,7 @@ class TestWalkForwardEngineRun:
                 cash=Decimal("100000"),
                 position_value=Decimal("0"),
                 drawdown_pct=Decimal("0.0"),
-                created_at=datetime.now(),
+                created_at=datetime.now(UTC),
             ),
             BacktestEquity(
                 id="e2",
@@ -692,7 +692,7 @@ class TestWalkForwardEngineRun:
                 cash=Decimal("0"),
                 position_value=Decimal("110000"),
                 drawdown_pct=Decimal("0.0"),
-                created_at=datetime.now(),
+                created_at=datetime.now(UTC),
             ),
         ]
 
@@ -808,7 +808,7 @@ class TestWalkForwardEngineRun:
                 shares=10,
                 pnl=Decimal("150"),
                 pnl_pct=Decimal("15.0"),
-                created_at=datetime.now(),
+                created_at=datetime.now(UTC),
             ),
         ]
 
@@ -821,7 +821,7 @@ class TestWalkForwardEngineRun:
                 cash=Decimal("100000"),
                 position_value=Decimal("0"),
                 drawdown_pct=Decimal("0.0"),
-                created_at=datetime.now(),
+                created_at=datetime.now(UTC),
             ),
             BacktestEquity(
                 id="e2",
@@ -831,7 +831,7 @@ class TestWalkForwardEngineRun:
                 cash=Decimal("0"),
                 position_value=Decimal("115000"),
                 drawdown_pct=Decimal("0.0"),
-                created_at=datetime.now(),
+                created_at=datetime.now(UTC),
             ),
         ]
 

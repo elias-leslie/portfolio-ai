@@ -18,7 +18,7 @@ import argparse
 import json
 import re
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -242,7 +242,7 @@ def save_scan(capabilities: list[dict]) -> None:
     with scan_file.open("w") as f:
         json.dump(
             {
-                "scanned_at": datetime.utcnow().isoformat(),
+                "scanned_at": datetime.now(UTC).isoformat(),
                 "capabilities": capabilities,
             },
             f,
@@ -256,7 +256,7 @@ def format_text_output(capabilities: list[dict], changes: dict | None = None) ->
 
     output.append("=" * 80)
     output.append("SYSTEM CAPABILITIES SCAN")
-    output.append(f"Scanned at: {datetime.utcnow().isoformat()}")
+    output.append(f"Scanned at: {datetime.now(UTC).isoformat()}")
     output.append(f"Total capabilities: {len(capabilities)}")
     output.append("=" * 80)
     output.append("")
@@ -347,7 +347,7 @@ def main() -> None:
     # Output
     if args.output == "json":
         output_data = {
-            "scanned_at": datetime.utcnow().isoformat(),
+            "scanned_at": datetime.now(UTC).isoformat(),
             "total": len(capabilities),
             "capabilities": capabilities,
         }

@@ -1,6 +1,6 @@
 """Unit tests for backtest comparison module."""
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from app.backtest.comparison import (
@@ -35,7 +35,7 @@ class TestNormalizeEquityCurve:
                 cash=Decimal("100000"),
                 position_value=Decimal("0"),
                 drawdown_pct=Decimal("0"),
-                created_at=datetime.now(),
+                created_at=datetime.now(UTC),
             )
         ]
         result = normalize_equity_curve(equity)
@@ -53,7 +53,7 @@ class TestNormalizeEquityCurve:
                 cash=Decimal("100000"),
                 position_value=Decimal("0"),
                 drawdown_pct=Decimal("0"),
-                created_at=datetime.now(),
+                created_at=datetime.now(UTC),
             ),
             BacktestEquity(
                 id="2",
@@ -63,7 +63,7 @@ class TestNormalizeEquityCurve:
                 cash=Decimal("10000"),
                 position_value=Decimal("100000"),
                 drawdown_pct=Decimal("0"),
-                created_at=datetime.now(),
+                created_at=datetime.now(UTC),
             ),
         ]
         result = normalize_equity_curve(equity)
@@ -82,7 +82,7 @@ class TestNormalizeEquityCurve:
                 cash=Decimal("100000"),
                 position_value=Decimal("0"),
                 drawdown_pct=Decimal("0"),
-                created_at=datetime.now(),
+                created_at=datetime.now(UTC),
             ),
             BacktestEquity(
                 id="2",
@@ -92,7 +92,7 @@ class TestNormalizeEquityCurve:
                 cash=Decimal("5000"),
                 position_value=Decimal("90000"),
                 drawdown_pct=Decimal("5"),
-                created_at=datetime.now(),
+                created_at=datetime.now(UTC),
             ),
         ]
         result = normalize_equity_curve(equity)
@@ -288,7 +288,7 @@ class TestCreateRunMetrics:
             num_trades=20,
             profit_factor=Decimal("1.5"),
             status="completed",
-            created_at=datetime.now(),
+            created_at=datetime.now(UTC),
         )
         result = create_run_metrics(run)
         assert result.run_id == "run1"
@@ -317,7 +317,7 @@ class TestCompareBacktests:
                 num_trades=5,
                 profit_factor=Decimal("1.5"),
                 status="completed",
-                created_at=datetime.now(),
+                created_at=datetime.now(UTC),
             ),
             BacktestRun(
                 id="run2",
@@ -333,7 +333,7 @@ class TestCompareBacktests:
                 num_trades=6,
                 profit_factor=Decimal("1.3"),
                 status="completed",
-                created_at=datetime.now(),
+                created_at=datetime.now(UTC),
             ),
         ]
         equity_curves = {
@@ -346,7 +346,7 @@ class TestCompareBacktests:
                     cash=Decimal("100000"),
                     position_value=Decimal("0"),
                     drawdown_pct=Decimal("0"),
-                    created_at=datetime.now(),
+                    created_at=datetime.now(UTC),
                 ),
             ],
             "run2": [
@@ -358,7 +358,7 @@ class TestCompareBacktests:
                     cash=Decimal("100000"),
                     position_value=Decimal("0"),
                     drawdown_pct=Decimal("0"),
-                    created_at=datetime.now(),
+                    created_at=datetime.now(UTC),
                 ),
             ],
         }
@@ -385,7 +385,7 @@ class TestCompareBacktests:
                 num_trades=5,
                 profit_factor=Decimal("1.5"),
                 status="completed",
-                created_at=datetime.now(),
+                created_at=datetime.now(UTC),
             ),
             BacktestRun(
                 id="run2",
@@ -401,7 +401,7 @@ class TestCompareBacktests:
                 num_trades=6,
                 profit_factor=Decimal("1.3"),
                 status="completed",
-                created_at=datetime.now(),
+                created_at=datetime.now(UTC),
             ),
         ]
         equity_curves = {

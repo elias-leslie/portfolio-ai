@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any, Literal
 
@@ -390,7 +390,7 @@ class StrategyStorage:
             Strategy name (e.g., "AAPL_Momentum_2024Q4")
         """
         # Get current quarter
-        now = datetime.now()
+        now = datetime.now(UTC)
         quarter = (now.month - 1) // 3 + 1
         return f"{symbol}_{strategy_type.capitalize()}_{now.year}Q{quarter}"
 

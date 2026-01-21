@@ -276,7 +276,7 @@ def test_discovery_agent_execute_tool_store_idea(
     storage: PortfolioStorage, agent_tools: AgentTools
 ) -> None:
     """Test executing store_idea tool."""
-    from datetime import datetime
+    from datetime import UTC, datetime
 
     agent = DiscoveryAgent(storage=storage, tools=agent_tools)
     agent.current_run_id = "test-run-id"
@@ -287,7 +287,7 @@ def test_discovery_agent_execute_tool_store_idea(
         {
             "id": "test-run-id",
             "agent_type": "DiscoveryAgent",
-            "started_at": datetime.now(),
+            "started_at": datetime.now(UTC),
             "completed_at": None,
             "status": "running",
             "num_ideas": 0,

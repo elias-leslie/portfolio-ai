@@ -91,7 +91,7 @@ def test_get_preferences_returns_existing(
 ) -> None:
     """Test GET /api/preferences returns existing preferences."""
     import uuid
-    from datetime import datetime
+    from datetime import UTC, datetime
 
     # Insert custom preferences
     user_id = str(uuid.uuid4())
@@ -115,8 +115,8 @@ def test_get_preferences_returns_existing(
                 False,
                 20.0,
                 False,
-                datetime.now(),
-                datetime.now(),
+                datetime.now(UTC),
+                datetime.now(UTC),
             ],
         )
         conn.commit()  # Commit the insert

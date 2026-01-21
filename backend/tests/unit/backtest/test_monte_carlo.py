@@ -1,6 +1,6 @@
 """Unit tests for Monte Carlo simulation module."""
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import numpy as np
@@ -42,7 +42,7 @@ class TestExtractTradeReturns:
                 shares=10,
                 pnl=Decimal("100"),
                 pnl_pct=Decimal("10.0"),
-                created_at=datetime.now(),
+                created_at=datetime.now(UTC),
             ),
             BacktestTrade(
                 id="2",
@@ -55,7 +55,7 @@ class TestExtractTradeReturns:
                 shares=10,
                 pnl=Decimal("-100"),
                 pnl_pct=Decimal("-9.09"),
-                created_at=datetime.now(),
+                created_at=datetime.now(UTC),
             ),
         ]
         result = extract_trade_returns(trades)
@@ -74,7 +74,7 @@ class TestExtractTradeReturns:
                 entry_price=Decimal("100"),
                 shares=10,
                 pnl_pct=Decimal("5.0"),
-                created_at=datetime.now(),
+                created_at=datetime.now(UTC),
             ),
             BacktestTrade(
                 id="2",
@@ -84,7 +84,7 @@ class TestExtractTradeReturns:
                 entry_price=Decimal("110"),
                 shares=10,
                 pnl_pct=None,  # Still open
-                created_at=datetime.now(),
+                created_at=datetime.now(UTC),
             ),
         ]
         result = extract_trade_returns(trades)
@@ -257,7 +257,7 @@ class TestRunMonteCarlo:
                 shares=10,
                 pnl=Decimal("100"),
                 pnl_pct=Decimal("10.0"),
-                created_at=datetime.now(),
+                created_at=datetime.now(UTC),
             ),
             BacktestTrade(
                 id="2",
@@ -270,7 +270,7 @@ class TestRunMonteCarlo:
                 shares=10,
                 pnl=Decimal("-50"),
                 pnl_pct=Decimal("-4.55"),
-                created_at=datetime.now(),
+                created_at=datetime.now(UTC),
             ),
         ]
 
@@ -304,7 +304,7 @@ class TestRunMonteCarlo:
                 shares=10,
                 pnl=Decimal("100"),
                 pnl_pct=Decimal("10.0"),
-                created_at=datetime.now(),
+                created_at=datetime.now(UTC),
             ),
         ]
 
