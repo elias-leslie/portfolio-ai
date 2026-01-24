@@ -6,6 +6,7 @@ Provides unified access to Claude and Gemini models via Agent Hub API.
 
 from __future__ import annotations
 
+import os
 import time
 from typing import Any
 
@@ -20,6 +21,11 @@ logger = get_logger(__name__)
 
 # Default Agent Hub URL
 DEFAULT_AGENT_HUB_URL = "http://localhost:8003"
+
+# Portfolio-AI client credentials for Agent Hub authentication
+PORTFOLIO_CLIENT_ID = os.getenv("PORTFOLIO_CLIENT_ID")
+PORTFOLIO_CLIENT_SECRET = os.getenv("PORTFOLIO_CLIENT_SECRET")
+PORTFOLIO_REQUEST_SOURCE = os.getenv("PORTFOLIO_REQUEST_SOURCE", "portfolio-ai")
 
 
 class AgentHubAPIClient(LLMClient):
@@ -54,6 +60,9 @@ class AgentHubAPIClient(LLMClient):
             api_key=api_key,
             timeout=timeout,
             client_name="portfolio-ai",  # Usage tracking
+            client_id=PORTFOLIO_CLIENT_ID,
+            client_secret=PORTFOLIO_CLIENT_SECRET,
+            request_source=PORTFOLIO_REQUEST_SOURCE,
         )
 
         # Determine provider from model name
