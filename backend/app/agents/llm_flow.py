@@ -302,7 +302,6 @@ class LLMFlowMixin:
                 tools=self.get_tools(),
                 system=self.get_system_prompt(),
                 conversation_history=conversation_history,
-                max_tokens=MAX_LLM_TOKENS,
                 temperature=1.0,
             )
 

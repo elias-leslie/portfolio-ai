@@ -141,7 +141,6 @@ class StrategyReviewer:
                     client.generate,
                     prompt=prompt,
                     system=get_system_prompt(self.storage),
-                    max_tokens=GUARDRAILS["max_tokens"],
                     temperature=GUARDRAILS["temperature"],
                 )
                 return response.content, provider, response.usage

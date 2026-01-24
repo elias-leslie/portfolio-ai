@@ -237,7 +237,6 @@ class ThesisService:
             response = llm.generate(
                 prompt=prompt,
                 system="You are an expert equity analyst. Always respond with valid JSON.",
-                max_tokens=4096,
                 temperature=0.7,  # Allow some creativity in reasoning
                 purpose="thesis_generation",
             )
@@ -279,7 +278,6 @@ class ThesisService:
             response = claude.generate(
                 prompt=prompt,
                 system="You are a thorough investment thesis reviewer. Always respond with valid JSON.",
-                max_tokens=2048,
                 temperature=0.3,  # Lower temperature for consistent reviews
                 purpose="thesis_validation",
             )

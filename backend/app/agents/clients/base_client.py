@@ -50,7 +50,6 @@ class LLMClient(ABC):
         prompt: str,
         system: str | None = None,
         tools: list[dict[str, Any]] | None = None,
-        max_tokens: int = 4096,
         temperature: float = 1.0,
         **kwargs: Any,
     ) -> LLMResponse:
@@ -60,7 +59,6 @@ class LLMClient(ABC):
             prompt: User prompt
             system: System prompt (optional)
             tools: Tool definitions (optional)
-            max_tokens: Maximum tokens to generate
             temperature: Sampling temperature
             **kwargs: Provider-specific options
 
@@ -78,7 +76,6 @@ class LLMClient(ABC):
         tools: list[dict[str, Any]],
         system: str | None = None,
         conversation_history: list[dict[str, Any]] | None = None,
-        max_tokens: int = 4096,
         temperature: float = 1.0,
         **kwargs: Any,
     ) -> LLMResponse:
@@ -98,7 +95,6 @@ class LLMClient(ABC):
             tools: Tool definitions in Anthropic API format
             system: Base system prompt (tools will be appended)
             conversation_history: Previous turns (optional, for context)
-            max_tokens: Maximum tokens to generate
             temperature: Sampling temperature
             **kwargs: Provider-specific options
 
@@ -128,7 +124,6 @@ class LLMClient(ABC):
         response = self.generate(
             prompt=full_prompt,
             system=system_with_tools,
-            max_tokens=max_tokens,
             temperature=temperature,
             **kwargs,
         )

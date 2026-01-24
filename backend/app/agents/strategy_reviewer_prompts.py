@@ -22,7 +22,6 @@ from app.agents.performance_metrics import get_full_performance_prompt_section
 class GuardrailsDict(TypedDict):
     """Type definition for guardrails configuration."""
 
-    max_tokens: int
     temperature: float
     forbidden_patterns: list[str]
     required_patterns: list[str]
@@ -106,7 +105,6 @@ Question: Does this signal have obvious blind spots or unusual risks the rules m
 Answer in 2-3 sentences. Focus on what rules CANNOT see (e.g., sector rotation, pending events, unusual correlations)."""
 
 GUARDRAILS: GuardrailsDict = {
-    "max_tokens": 200,  # Force brevity (2-3 sentences)
     "temperature": 0.3,  # Lower temp = more conservative/factual
     "forbidden_patterns": [
         r"\b(buy|sell|invest|trade)\b",  # No direct recommendations

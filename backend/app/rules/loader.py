@@ -281,8 +281,6 @@ def _load_thesis_management(data: dict[str, Any]) -> ThesisManagementRules:
     return ThesisManagementRules(
         thesis_generation_enabled=section.get("thesis_generation_enabled", True),
         thesis_cache_ttl_hours=section.get("thesis_cache_ttl_hours", 24),
-        max_tokens_per_generation=section.get("max_tokens_per_generation", 4096),
-        max_tokens_per_validation=section.get("max_tokens_per_validation", 2048),
         cross_validation_enabled=section.get("cross_validation_enabled", True),
         min_cross_validation_score=section.get("min_cross_validation_score", 0.5),
         auto_flag_low_confidence=section.get("auto_flag_low_confidence", True),

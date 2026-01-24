@@ -229,7 +229,6 @@ class MultiReviewer:
                 client.generate,
                 prompt=prompt,
                 system=get_system_prompt(self.storage),
-                max_tokens=GUARDRAILS["max_tokens"],
                 temperature=GUARDRAILS["temperature"],
             )
 

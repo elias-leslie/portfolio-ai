@@ -138,7 +138,6 @@ Based on this research, generate a trading strategy configuration as valid JSON.
             response: LLMResponse = self.llm_client.generate(
                 prompt=prompt,
                 system=STRATEGY_GENERATOR_PROMPT,
-                max_tokens=2000,
                 temperature=0.3,  # Low temperature for consistent output
                 purpose="strategy_generation",
             )

@@ -114,7 +114,6 @@ class AgentHubAPIClient(LLMClient):
         prompt: str,
         system: str | None = None,
         tools: list[dict[str, Any]] | None = None,
-        max_tokens: int = 4096,
         temperature: float = 1.0,
         purpose: str | None = None,
         **kwargs: Any,
@@ -125,7 +124,6 @@ class AgentHubAPIClient(LLMClient):
             prompt: User prompt
             system: System prompt (optional)
             tools: Tool definitions for function calling
-            max_tokens: Maximum tokens
             temperature: Sampling temperature
             purpose: Purpose of this request for session tracking
             **kwargs: Additional options
@@ -157,7 +155,6 @@ class AgentHubAPIClient(LLMClient):
             response = self._client.complete(
                 model=self.model,
                 messages=messages,
-                max_tokens=max_tokens,
                 temperature=temperature,
                 tools=tools,
                 project_id="portfolio-ai",

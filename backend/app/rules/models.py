@@ -284,8 +284,6 @@ class ThesisManagementRules:
     # Generation settings
     thesis_generation_enabled: bool = True
     thesis_cache_ttl_hours: int = 24
-    max_tokens_per_generation: int = 4096
-    max_tokens_per_validation: int = 2048
 
     # Cross-validation settings
     cross_validation_enabled: bool = True

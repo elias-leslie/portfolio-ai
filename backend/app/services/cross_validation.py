@@ -233,7 +233,6 @@ class CrossValidationService:
             response = validator.generate(
                 prompt=prompt,
                 system="You are a thorough AI output reviewer. Always respond with valid JSON.",
-                max_tokens=2048,
                 temperature=0.3,  # Lower temperature for consistent reviews
                 purpose="cross_validation",
             )

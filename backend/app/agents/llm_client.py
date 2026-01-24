@@ -94,7 +94,6 @@ class DualProviderClient(LLMClient):
         prompt: str,
         system: str | None = None,
         tools: list[dict[str, Any]] | None = None,
-        max_tokens: int = 4096,
         temperature: float = 1.0,
         **kwargs: Any,
     ) -> LLMResponse:
@@ -106,7 +105,6 @@ class DualProviderClient(LLMClient):
             prompt: User prompt
             system: System prompt
             tools: Tool definitions
-            max_tokens: Maximum tokens
             temperature: Sampling temperature
             **kwargs: Additional options
 
@@ -120,7 +118,6 @@ class DualProviderClient(LLMClient):
             prompt=prompt,
             system=system,
             tools=tools,
-            max_tokens=max_tokens,
             temperature=temperature,
             **kwargs,
         )
