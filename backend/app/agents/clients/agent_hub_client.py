@@ -27,6 +27,9 @@ PORTFOLIO_CLIENT_ID = os.getenv("PORTFOLIO_CLIENT_ID")
 PORTFOLIO_CLIENT_SECRET = os.getenv("PORTFOLIO_CLIENT_SECRET")
 PORTFOLIO_REQUEST_SOURCE = os.getenv("PORTFOLIO_REQUEST_SOURCE", "portfolio-ai")
 
+# Feature flag to enable/disable Agent Hub calls
+AGENT_HUB_ENABLED = os.getenv("AGENT_HUB_ENABLED", "false").lower() == "true"
+
 
 class AgentHubAPIClient(LLMClient):
     """Agent Hub API client.
@@ -51,8 +54,13 @@ class AgentHubAPIClient(LLMClient):
             timeout: Request timeout in seconds
 
         Raises:
-            RuntimeError: If Agent Hub service is not reachable
+            RuntimeError: If Agent Hub is disabled or service is not reachable
         """
+        if not AGENT_HUB_ENABLED:
+            raise RuntimeError(
+                "Agent Hub is disabled. Set AGENT_HUB_ENABLED=true to enable agentic calls."
+            )
+
         self.model = model
         self.base_url = base_url
         self._client = SDKClient(

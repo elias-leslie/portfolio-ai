@@ -1,24 +1,221 @@
 project: portfolio-ai
-generated_at: 2026-01-19 23:05 UTC
-total_files: 1963
+generated_at: 2026-01-24 07:07 UTC
+pages:
+- / (app)
+- /about (about)
+- /agent-hub (agent-hub)
+- /backtest (backtest)
+- /backup (backup)
+- /capabilities (capabilities)
+- /dev-assistant (dev-assistant)
+- /portfolio (portfolio)
+- /recommendations (recommendations)
+- /settings (settings)
+- /status (status)
+- /strategies (strategies)
+- /trading (trading)
+- /watchlist (watchlist)
+- /workflows (workflows)
+endpoints:
+- DELETE /api/layouts/{page_name} (reset_layout)
+- DELETE /api/portfolio/account/{account_id} (delete_account)
+- DELETE /api/portfolio/position/{position_id} (delete_position)
+- DELETE /api/settings/profiles/{profile_id} (delete)
+- DELETE /api/sitemap/entries/{entry_id} (delete_entry)
+- GET /api/agents/telemetry/history (get_run_history)
+- GET /api/agents/token-summary (get_token_summary)
+- GET /api/cross-validation/pending (get_pending_validations)
+- GET /api/cross-validation/settings (get_settings)
+- GET /api/cross-validation/summary (get_summary)
+- GET /api/cross-validation/{validation_id} (get_validation)
+- GET /api/db/agent-tables (get_agent_tables_overview)
+- GET /api/db/sample/{table_name} (get_table_sample)
+- GET /api/db/schema/{table_name} (get_table_schema)
+- GET /api/db/tables (list_tables)
+- GET /api/news/article-feedback/{article_hash} (get_article_feedback)
+- GET /api/paper-trading/transactions (get_transactions)
+- GET /api/paper-trading/transactions/{trade_id} (get_trade_transactions)
+- GET /api/rules (get_trading_rules)
+- GET /api/rules/export (export_trading_rules)
+- GET /api/settings/profiles/active (get_active)
+- GET /api/settings/profiles/{profile_id} (get_profile)
+- GET /api/settings/profiles/{profile_id}/export (export_profile)
+- GET /api/sources (list_sources)
+- GET /api/sources/routing/{data_type} (get_data_routing)
+- GET /api/sources/{provider} (get_source_detail)
+- GET /api/status/stream (stream_status_updates)
+- GET /health/simple (simple_health_check)
+- POST /api/agents/discuss (start_discussion)
+- POST /api/cross-validation/resolve/{validation_id} (resolve_validation)
+- POST /api/cross-validation/validate (validate_output)
+- POST /api/news/reset-source-metrics (reset_source_metrics)
+- POST /api/settings/profiles/import (import_profile)
+- POST /api/settings/profiles/{profile_id}/activate (activate)
+- POST /api/settings/profiles/{profile_id}/duplicate (duplicate)
+- POST /api/sitemap/check-all (check_all_health)
+- PUT /api/layouts/{page_name} (save_layout)
+- PUT /api/settings/profiles/{profile_id} (update)
+tables:
+- agent_conversation_messages
+- agent_messages
+- agent_runs
+- agent_tool_calls
+- agent_workflows
+- analyst_revisions
+- api_capabilities
+- artifacts
+- backtest_equity
+- backtest_runs
+- backtest_trades
+- capability_insights
+- capability_notes
+- cash_flow_metrics
+- celery_capabilities
+- celery_feature_mappings
+- claude_progress_log
+- corporate_actions
+- criteria_verification_runs
+- cross_validation_results
+- day_bars
+- db_capabilities
+- deletion_audit
+- earnings_surprises
+- endpoint_catalog
+- fear_greed_components
+- fear_greed_daily
+- fear_greed_inputs
+- feature_capabilities
+- feature_dependencies
+- feature_tasks
+- feature_vision_goal_mappings
+- file_audit
+- financial_health_scores
+- gap_analysis_history
+- idea_outcomes
+- insider_transactions
+- institutional_holdings
+- institutional_ownership_summary
+- macro_indicators
+- maintenance_log
+- maintenance_stats
+- market_events
+- ml_model_metrics
+- ml_training_progress
+- news_cache
+- news_summary_log
+- options_market_metrics
+- paper_trade_transactions
+- portfolio_accounts
+- portfolio_covariance
+- portfolio_positions
+- portfolio_snapshots
+- portfolio_volatility_cache
+- price_cache
+- qa_issues
+- qa_snapshots
+- reference_cache
+- rules_validation_reports
+- schema_migrations
+- sec_cik_cache
+- settings_profiles
+- short_interest
+- short_interest_summary
+- sitemap_entries
+- sitemap_health_history
+- source_credentials
+- source_metrics
+- source_performance
+- source_registry
+- strategy_definitions
+- strategy_lineage
+- strategy_metrics
+- strategy_performance
+- strategy_reviews
+- strategy_seeds
+- strategy_signals
+- symbol_risk_metrics
+- symbols
+- table_registry
+- technical_indicators
+- thesis_versions
+- user_article_feedback
+- user_preferences
+- valuation_metrics
+- vision_content
+- vision_goal_details
+- vision_goals
+- watchlist_daily_reports
+- watchlist_items
+- watchlist_narrative
+- watchlist_news_summary
+- watchlist_snapshots
+- watchlist_snapshots_core
+- watchlist_technical_metrics
+- watchlist_thesis
+- yield_curve
+tasks:
+- archive_strategies_for_invalidated_theses (crontab(hour=3, minute=30))
+- auto_paper_trade_from_signals (crontab(hour=21, minute=45))
+- auto_promote_strategies (crontab(hour=4, minute=15))
+- calculate_fear_greed (crontab(hour=22, minute=0))
+- calculate_fear_greed (crontab(hour=3, minute=2))
+- calculate_fear_greed (crontab(hour=hour, minute=minute_offset + 30))
+- check_all_data_freshness (crontab(minute=0, hour="*/2"))
+- check_data_source_health (crontab(minute=30, hour="*/6"))
+- check_disk_space_task (crontab(hour="*/6"))
+- check_sitemap_health (crontab(hour=20, minute=0))
+- check_sitemap_health (crontab(hour=8, minute=2))
+- cleanup_debug_captures (crontab(hour=6, minute=15))
+- cleanup_old_agent_runs_task (crontab(day_of_week=0, hour=4, minute=15))
+- cleanup_old_backups_task (crontab(day_of_week=0, hour=4, minute=45))
+- cleanup_old_logs_task (crontab(hour=2, minute=0))
+- cleanup_old_models_task (crontab(day_of_week=0, hour=5, minute=5))
+- cleanup_old_news_task (crontab(day_of_week=0, hour=4, minute=0))
+- cleanup_old_versions (crontab(hour=6, minute=0))
+- cleanup_orphaned_data_task (crontab(day_of_week=0, hour=4, minute=30))
+- cleanup_sitemap_history (crontab(hour=4, minute=4))
+- cleanup_solution_state_task (crontab(day_of_week=0, hour=5, minute=25))
+- cleanup_temp_files_task (crontab(hour=2, minute=15))
+- daily_qa_scan (crontab(hour=4, minute=30))
+- daily_rules_validation (crontab(hour=3, minute=8))
+- daily_strategy_refresh (crontab(hour=5, minute=15))
+- discover_sitemap_entries (crontab(hour=3, minute=33))
+- discover_watchlist_candidates (crontab(hour=8, minute=0))
+- evaluate_strategy_performance (crontab(hour=4, minute=0))
+- fetch_corporate_actions (crontab(hour=6, minute=30, day_of_week=0))
+- fetch_options_activity_metrics (crontab(hour=21, minute=15))
+- fetch_putcall_ratio (crontab(hour=14, minute=30))
+- fetch_putcall_ratio (crontab(hour=21, minute=39))
+- generate_daily_strategy_signals (crontab(hour=21, minute=30))
+- get_database_size_task (crontab(hour=5, minute=36))
+- ingest_fundamental_data (crontab(hour=6, minute=10, day_of_week=0))
+- ingest_macro_indicators (crontab(hour=6, minute=30))
+- maintain_data_freshness (crontab(hour="*/2"))
+- maintain_historical_market_data (crontab(hour=4, minute=15))
+- monitor_thesis_health (crontab(hour=3, minute=5))
+- parse_valuation_metrics (crontab(hour=4, minute=30))
+- populate_fear_greed_inputs (crontab(hour=2, minute=45))
+- populate_fear_greed_inputs (crontab(hour=hour, minute=minute_offset + 15))
+- process_invalidated_theses (crontab(hour=3, minute=15))
+- profile_news_sources (unknown)
+- refresh_alphavantage_reference_backup (crontab(hour=4, minute=45))
+- refresh_analyst_revisions (crontab(hour=7, minute=0))
+- refresh_daily_ohlcv (crontab(hour=2, minute=0))
+- refresh_expired_artifacts (crontab(hour=5, minute=33))
+- refresh_financial_health_scores (crontab(hour=5, minute=15, day_of_week=0))
+- weekly_strategy_generation (crontab(hour=5, minute=0, day_of_week=0))
 folders:
-  (root): 24 files - config, docs, services, tests - (claude, dev-tools, env, gemini,
-    gitattributes)
-  .claude: 6 files - docs, services - (json, md)
-  .dev-tools: 15 files - tests - (txt)
-  .gemini: 1 files - (json)
-  automation: 2 files - (json)
-  backend: 829 files - api, config, docs, models, services, storage, tests - (0, conf,
-    coverage, egg-info, example)
-  certs: 3 files - (pem)
-  config: 10 files - api, config - (yaml)
-  docs: 161 files - api, config, docs, services, storage, tests - (gitkeep, html,
-    json, last_update, md)
-  frontend: 331 files - api, components, config, docs, models, services, storage,
-    tests - (css, gitignore, json, local, md)
-  reports: 44 files - (gitkeep, json)
-  scripts: 108 files - api, config, docs, models, services, tests - (bak, conf, deprecated,
-    js, md)
-  services: 21 files - config, docs, services, storage, tests - (conf, md, py, toml)
-  tasks: 408 files - api, components, docs, models, storage, tests - (claude, example,
-    gitignore, json, md)
+  (root): 24 files - services, tests
+  .claude: 6 files - services
+  .dev-tools: 20 files - tests
+  .gemini: 1 files
+  automation: 2 files
+  backend: 829 files - api, services, tests
+  certs: 3 files
+  config: 10 files - api
+  docs: 161 files - api, services, tests
+  frontend: 334 files - api, components, services, tests
+  reports: 44 files
+  scripts: 108 files - api, services, tests
+  services: 21 files - services, tests
+  tasks: 408 files - api, components, tests
