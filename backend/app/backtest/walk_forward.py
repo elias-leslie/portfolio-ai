@@ -22,7 +22,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Literal
 
-from scipy import stats  # type: ignore[import-untyped]
+from scipy import stats
 
 from app.backtest.benchmark import BenchmarkComparisonEngine
 from app.backtest.enhanced_strategy import EnhancedSignalStrategy

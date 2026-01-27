@@ -19,7 +19,7 @@ from collections.abc import Callable
 from functools import wraps
 from typing import Any, TypedDict
 
-from cachetools import TTLCache  # type: ignore[import-untyped]
+from cachetools import TTLCache
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel

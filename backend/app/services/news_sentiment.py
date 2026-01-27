@@ -13,7 +13,7 @@ from typing import Any, Literal, cast
 if not os.environ.get("HOME"):
     os.environ["HOME"] = "/var/cache/portfolio-ai"
 
-from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer  # type: ignore[import-untyped]
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 from ..logging_config import get_logger
 from .news_models import SentimentScore

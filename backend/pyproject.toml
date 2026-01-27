@@ -69,6 +69,7 @@ dev = [
     "types-PyYAML==6.0.12.20250915",
     "types-requests==2.32.4.20250913",
     "pandas-stubs==2.3.3.251201",
+    "celery-types>=0.24.0",
 
     # Code quality metrics (/audit_it command)
     "radon==6.0.1",
@@ -136,59 +137,54 @@ python_version = "3.13"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
-disallow_untyped_defs = true
-# Suppress noisy errors that don't add value for this codebase
-disable_error_code = [
-    "type-arg",      # Missing type params for generic (dict, tuple)
-    "import-untyped", # Missing stubs (pandas, etc)
-    "list-item",      # date vs datetime in lists
-    "unused-ignore",  # Stale type: ignore comments
-    "arg-type",       # Argument type mismatches (common with Any/None)
-    "return-value",   # Return type mismatches
-    "no-any-return",  # Returning Any from typed function
-    "no-untyped-def", # Missing type annotations
-    "attr-defined",   # Attribute not explicitly exported
+
+[[tool.mypy.overrides]]
+module = [
+    "edgar", "edgar.*",
+    "sklearn", "sklearn.*",
+    "sentence_transformers", "sentence_transformers.*",
+    "psycopg2", "psycopg2.*",
+    "joblib", "joblib.*",
+    "yfinance", "yfinance.*",
+    "yahooquery", "yahooquery.*",
+    "agent_hub", "agent_hub.*",
+    "dotenv", "dotenv.*",
+    "transformers", "transformers.*",
+    "torch", "torch.*",
+    "pandas_ta", "pandas_ta.*",
+    "feedparser", "feedparser.*",
+    "vaderSentiment", "vaderSentiment.*",
+    "dateutil", "dateutil.*",
+    "pandas", "pandas.*",
+    "cachetools", "cachetools.*",
+    "scipy", "scipy.*",
 ]
-
-[[tool.mypy.overrides]]
-module = "edgar"
-ignore_missing_imports = true
-ignore_errors = true
-
-[[tool.mypy.overrides]]
-module = ["sklearn", "sklearn.*"]
-ignore_missing_imports = true
-ignore_errors = true
-
-[[tool.mypy.overrides]]
-module = ["sentence_transformers", "sentence_transformers.*"]
-ignore_missing_imports = true
-ignore_errors = true
-
-[[tool.mypy.overrides]]
-module = ["psycopg2", "psycopg2.*", "joblib", "joblib.*"]
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = ["celery", "celery.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["app.tasks", "app.tasks.*"]
-disable_error_code = ["misc", "has-type", "untyped-decorator"]  # celery.task decorator has no type stubs
+disable_error_code = ["misc", "untyped-decorator", "return-value", "type-arg", "typeddict-item", "arg-type", "dict-item", "unused-ignore"]
 
 [[tool.mypy.overrides]]
-module = ["yfinance", "yfinance.*"]
-ignore_missing_imports = true
+module = ["app.watchlist", "app.watchlist.*"]
+disable_error_code = ["arg-type", "unused-ignore"]
 
 [[tool.mypy.overrides]]
-module = ["yahooquery", "yahooquery.*"]
-ignore_missing_imports = true
+module = ["app.api", "app.api.*"]
+disable_error_code = ["type-arg", "arg-type", "no-untyped-def", "no-any-return", "unused-ignore", "var-annotated"]
 
 [[tool.mypy.overrides]]
-module = ["agent_hub", "agent_hub.*"]
-ignore_missing_imports = true  # Agent Hub client - stubs coming in future
+module = ["app.storage", "app.storage.*"]
+disable_error_code = ["no-any-return", "unused-ignore"]
 
 [[tool.mypy.overrides]]
-module = "dotenv"
-ignore_missing_imports = true
+module = ["app.repositories", "app.repositories.*"]
+disable_error_code = ["return-value", "list-item"]
+
+[[tool.mypy.overrides]]
+module = ["app.analytics", "app.analytics.*", "app.backtest", "app.backtest.*"]
+disable_error_code = ["import-untyped"]
+
+[[tool.mypy.overrides]]
+module = ["app.services.news_cache_refresh", "app.services.news_service"]
+disable_error_code = ["attr-defined"]

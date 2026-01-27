@@ -12,8 +12,8 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 import polars as pl
-from dateutil import parser as date_parser  # type: ignore[import-untyped]
-from feedparser import parse as parse_feed  # type: ignore[import-untyped]
+from dateutil import parser as date_parser
+from feedparser import parse as parse_feed
 
 from ..logging_config import get_logger
 from .base import BaseSource, DatasetRequest

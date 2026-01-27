@@ -11,7 +11,7 @@ from datetime import UTC, datetime, timedelta
 from time import perf_counter
 from typing import Any, Protocol, cast
 
-from dateutil import parser as date_parser  # type: ignore[import-untyped]
+from dateutil import parser as date_parser
 
 from ..logging_config import get_logger
 from .news_models import NewsArticle, NewsSummary, SentimentScore
