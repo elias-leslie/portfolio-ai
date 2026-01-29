@@ -2,314 +2,38 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import os
-import re
 import subprocess
-from datetime import UTC, datetime
 from pathlib import Path
-from typing import cast
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, ConfigDict, Field
 
-from ..constants.services import SERVICE_UNIT_MAPPING, USER_MODE_SERVICES, VALID_SERVICES
+from ..constants.services import SERVICE_UNIT_MAPPING, USER_MODE_SERVICES
 from ..logging_config import get_logger
+from .status_logs_core.constants import (
+    JOURNAL_FETCH_LIMIT,
+    LOG_LEVEL_PRIORITY,
+    SCRIPT_EXECUTION_TIMEOUT_SECONDS,
+    VALID_LEVELS,
+)
+from .status_logs_core.journal_parser import (
+    count_log_levels,
+    fetch_journal_logs,
+    merge_consecutive_logs,
+)
+from .status_logs_core.models import (
+    LogLevelConfigResponse,
+    SetLogLevelRequest,
+    SetLogLevelResponse,
+    TestLoggingResponse,
+    UnifiedLogsResponse,
+)
+from .status_logs_core.validators import normalize_log_level, validate_log_params
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/status", tags=["status", "logs"])
-
-# Log level priority mapping for merging/comparison (higher = more severe)
-LOG_LEVEL_PRIORITY: dict[str, int] = {
-    "CRITICAL": 5,
-    "ERROR": 4,
-    "WARN": 3,
-    "INFO": 2,
-    "DEBUG": 1,
-    "UNKNOWN": 0,
-}
-
-# Syslog priority to log level mapping (journald PRIORITY field)
-SYSLOG_PRIORITY_TO_LEVEL: dict[int, str] = {
-    0: "CRITICAL",  # Emergency
-    1: "CRITICAL",  # Alert
-    2: "CRITICAL",  # Critical
-    3: "ERROR",  # Error
-    4: "WARN",  # Warning
-    5: "INFO",  # Notice
-    6: "INFO",  # Informational
-    7: "DEBUG",  # Debug
-}
-
-# Fetch limits
-MAX_LOG_LINES = 5000
-JOURNAL_FETCH_LIMIT = 10000
-
-# Subprocess timeout constants
-JOURNALCTL_TIMEOUT_SECONDS = 15
-SCRIPT_EXECUTION_TIMEOUT_SECONDS = 30
-
-# Valid 'since' patterns for journalctl (prevents command injection)
-VALID_SINCE_PATTERN = re.compile(
-    r"^(\d+\s+(minute|hour|day|week)s?\s+ago|today|yesterday)$", re.IGNORECASE
-)
-
-
-def validate_since_parameter(since: str) -> str:
-    """Validate 'since' parameter against safe patterns.
-
-    Args:
-        since: Time range string (e.g., "5 minutes ago", "today")
-
-    Returns:
-        The validated 'since' string
-
-    Raises:
-        HTTPException: If the pattern is invalid
-    """
-    if not VALID_SINCE_PATTERN.match(since.strip()):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid 'since' parameter: '{since}'. "
-            "Must be like '5 minutes ago', '1 hour ago', 'today', or 'yesterday'.",
-        )
-    return since.strip()
-
-
-class UnifiedLogEntry(BaseModel):
-    """Single log entry from unified journald stream."""
-
-    model_config = ConfigDict(validate_assignment=True)
-
-    timestamp: datetime = Field(description="Log entry timestamp (unified from journald)")
-    service: str = Field(description="Service name (backend, celery_worker, postgresql, etc.)")
-    level: str = Field(description="Log level (ERROR, WARN, INFO, DEBUG, UNKNOWN)")
-    message: str = Field(description="Log message content")
-
-
-class UnifiedLogsResponse(BaseModel):
-    """Response model for unified logs endpoint."""
-
-    logs: list[UnifiedLogEntry] = Field(description="Chronologically sorted log entries")
-    total_entries: int = Field(description="Total number of log entries returned")
-    level_counts: dict[str, int] = Field(
-        description="Count of each log level in unfiltered data (for dropdown display)"
-    )
-    timestamp: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), description="Response timestamp"
-    )
-
-
-def _extract_journald_timestamp(entry: dict[str, object]) -> datetime:
-    """Extract timestamp from journald entry (microsecond precision)."""
-    timestamp_us = int(cast(int, entry.get("__REALTIME_TIMESTAMP", 0)))
-    return datetime.fromtimestamp(timestamp_us / 1000000, tz=UTC)
-
-
-def _map_service_name(entry: dict[str, object], service_units: dict[str, str]) -> str:
-    """Map systemd unit to service name.
-
-    Args:
-        entry: Journald entry dict
-        service_units: Mapping of service names to unit names
-
-    Returns:
-        Service name or "unknown" if no match
-    """
-    unit = str(entry.get("_SYSTEMD_UNIT", "") or entry.get("UNIT", ""))
-    for svc, unit_name in service_units.items():
-        if unit_name in unit:
-            return svc
-    return "unknown"
-
-
-def _extract_message(entry: dict[str, object]) -> str | None:
-    """Extract and decode message from journald entry.
-
-    Args:
-        entry: Journald entry dict
-
-    Returns:
-        Decoded message string, or None if extraction fails
-    """
-    message_raw = entry.get("MESSAGE", "")
-    if isinstance(message_raw, list):
-        try:
-            return "".join(chr(b) if isinstance(b, int) else str(b) for b in message_raw)
-        except (ValueError, TypeError):
-            return None
-    return str(message_raw)
-
-
-def _determine_log_level(entry: dict[str, object]) -> str:
-    """Determine log level from journald PRIORITY field."""
-    priority = int(cast(int, entry.get("PRIORITY", 6)))  # Default to info (6)
-    return SYSLOG_PRIORITY_TO_LEVEL.get(priority, "UNKNOWN")
-
-
-def _is_systemd_control_message(message: str) -> bool:
-    """Check if message is a systemd control message (start/stop notifications).
-
-    Args:
-        message: Log message to check
-
-    Returns:
-        True if message is a systemd control message, False otherwise
-    """
-    return (
-        message.startswith("Starting ")
-        or message.startswith("Started ")
-        or message.startswith("Stopping ")
-        or message.startswith("Stopped ")
-    )
-
-
-def parse_journal_output(output: str, service_units: dict[str, str]) -> list[UnifiedLogEntry]:
-    """Parse JSON output from journalctl into UnifiedLogEntry objects.
-
-    Args:
-        output: Raw stdout from journalctl -o json
-        service_units: Mapping of service names to unit names
-
-    Returns:
-        List of parsed log entries
-    """
-    logs: list[UnifiedLogEntry] = []
-    for line in output.strip().split("\n"):
-        if not line:
-            continue
-
-        try:
-            entry = json.loads(line)
-
-            timestamp = _extract_journald_timestamp(entry)
-            service_name = _map_service_name(entry, service_units)
-            message = _extract_message(entry)
-
-            # Skip if message extraction failed or is empty
-            if message is None or not message.strip():
-                continue
-
-            # Skip systemd control messages (service start/stop notifications)
-            if _is_systemd_control_message(message):
-                continue
-
-            log_level = _determine_log_level(entry)
-
-            logs.append(
-                UnifiedLogEntry(
-                    timestamp=timestamp,
-                    service=service_name,
-                    level=log_level,
-                    message=message,
-                )
-            )
-
-        except (json.JSONDecodeError, KeyError, ValueError) as e:
-            logger.debug("journal_entry_parse_failed", error=str(e), line=line[:100])
-            continue
-
-    return logs
-
-
-def fetch_journal_logs(
-    units: list[str],
-    is_user_mode: bool,
-    fetch_limit: int,
-    since: str,
-    service_units: dict[str, str],
-) -> list[UnifiedLogEntry]:
-    """Fetch logs from journald for specified units.
-
-    Args:
-        units: List of systemd unit names to fetch
-        is_user_mode: Whether to use --user flag for user services
-        fetch_limit: Maximum number of log entries to fetch
-        since: Time range (e.g., "5 minutes ago")
-        service_units: Mapping of service names to unit names (for parsing)
-
-    Returns:
-        List of parsed log entries
-    """
-    if not units:
-        return []
-
-    # Validate 'since' parameter to prevent command injection
-    validated_since = validate_since_parameter(since)
-
-    cmd = [
-        "journalctl",
-        "--no-pager",
-        "-o",
-        "json",
-        "--since",
-        validated_since,
-        "-n",
-        str(fetch_limit),
-    ]
-
-    if is_user_mode:
-        cmd.insert(1, "--user")
-
-    for unit in units:
-        cmd.extend(["-u", unit])
-
-    try:
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=JOURNALCTL_TIMEOUT_SECONDS, check=False
-        )
-        if result.returncode == 0:
-            return parse_journal_output(result.stdout, service_units)
-    except Exception as e:
-        mode = "user" if is_user_mode else "system"
-        logger.warning(f"{mode}_journal_fetch_failed", error=str(e))
-
-    return []
-
-
-# Derive VALID_LEVELS from LOG_LEVEL_PRIORITY (excluding UNKNOWN which is internal-only)
-# Include "WARNING" as an alias for "WARN" for user convenience
-VALID_LEVELS = {level for level in LOG_LEVEL_PRIORITY if level != "UNKNOWN"} | {"WARNING"}
-
-
-def normalize_log_level(level: str) -> str:
-    """Normalize log level to standard form.
-
-    Args:
-        level: Log level string (may be "WARNING" alias)
-
-    Returns:
-        Normalized log level ("WARNING" -> "WARN", others unchanged)
-    """
-    return "WARN" if level == "WARNING" else level
-
-
-def _validate_log_params(lines: int, service: str | None, level: str | None) -> None:
-    """Validate unified log query parameters.
-
-    Args:
-        lines: Number of log lines requested
-        service: Service filter (or None)
-        level: Level filter (or None)
-
-    Raises:
-        HTTPException: If any parameter is invalid
-    """
-    if lines < 1 or lines > MAX_LOG_LINES:
-        raise HTTPException(status_code=400, detail=f"Lines must be between 1 and {MAX_LOG_LINES}")
-
-    if service and service not in VALID_SERVICES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid service. Must be one of: {', '.join(VALID_SERVICES)}",
-        )
-
-    if level and level not in VALID_LEVELS:
-        raise HTTPException(
-            status_code=400, detail=f"Invalid level. Must be one of: {', '.join(VALID_LEVELS)}"
-        )
 
 
 def _categorize_units(
@@ -342,57 +66,20 @@ def _categorize_units(
     return system_units, user_units
 
 
-def _count_log_levels(logs: list[UnifiedLogEntry]) -> dict[str, int]:
-    """Count occurrences of each log level.
+def _get_sorted_levels(reverse: bool = False) -> list[str]:
+    """Get sorted list of valid log levels (excluding WARNING alias).
 
     Args:
-        logs: List of log entries
+        reverse: If True, sort from highest to lowest priority (default: False)
 
     Returns:
-        Dict with counts per level
+        List of valid log levels sorted by priority
     """
-    level_counts: dict[str, int] = {
-        "CRITICAL": 0,
-        "ERROR": 0,
-        "WARN": 0,
-        "INFO": 0,
-        "DEBUG": 0,
-        "UNKNOWN": 0,
-    }
-    for log in logs:
-        level_counts[log.level] = level_counts.get(log.level, 0) + 1
-    return level_counts
-
-
-def _merge_consecutive_logs(logs: list[UnifiedLogEntry]) -> list[UnifiedLogEntry]:
-    """Merge consecutive logs with same timestamp and service.
-
-    Handles multi-line PostgreSQL logs by combining messages.
-
-    Args:
-        logs: List of log entries (already filtered)
-
-    Returns:
-        List with consecutive same-timestamp entries merged
-    """
-    merged_logs: list[UnifiedLogEntry] = []
-    for log in logs:
-        if (
-            merged_logs
-            and merged_logs[-1].timestamp == log.timestamp
-            and merged_logs[-1].service == log.service
-        ):
-            # Same timestamp and service - merge messages
-            merged_logs[-1].message += "\n" + log.message
-            # Upgrade level if new entry has higher severity
-            if LOG_LEVEL_PRIORITY.get(log.level, 0) > LOG_LEVEL_PRIORITY.get(
-                merged_logs[-1].level, 0
-            ):
-                merged_logs[-1].level = log.level
-        else:
-            # Different timestamp or service - add as new entry
-            merged_logs.append(log)
-    return merged_logs
+    return sorted(
+        (level for level in VALID_LEVELS if level != "WARNING"),
+        key=lambda lvl: LOG_LEVEL_PRIORITY.get(lvl, 0),
+        reverse=reverse,
+    )
 
 
 @router.get("/unified-logs", response_model=UnifiedLogsResponse)
@@ -419,16 +106,16 @@ async def get_unified_logs(
     Raises:
         HTTPException: 400 if parameters invalid, 500 if journalctl fails
     """
-    # Validate parameters using helper
-    _validate_log_params(lines, service, level)
+    # Validate parameters
+    validate_log_params(lines, service, level)
 
     try:
-        # Categorize units using helper (uses module-level SERVICE_UNIT_MAPPING)
+        # Categorize units
         system_units, user_units = _categorize_units(SERVICE_UNIT_MAPPING, service)
         fetch_limit = JOURNAL_FETCH_LIMIT
 
         # Fetch logs from both system and user units
-        logs: list[UnifiedLogEntry] = []
+        logs = []
         logs.extend(
             fetch_journal_logs(
                 system_units,
@@ -451,14 +138,14 @@ async def get_unified_logs(
         # Sort by timestamp (chronological order)
         logs.sort(key=lambda x: x.timestamp)
 
-        # Calculate level counts from ALL logs (before filtering) using helper
-        level_counts = _count_log_levels(logs)
+        # Calculate level counts from ALL logs (before filtering)
+        level_counts = count_log_levels(logs)
 
         # Apply level filter if specified (exact match)
         filtered_logs = [log for log in logs if log.level == level] if level else logs
 
-        # Merge consecutive entries using helper
-        merged_logs = _merge_consecutive_logs(filtered_logs)
+        # Merge consecutive entries
+        merged_logs = merge_consecutive_logs(filtered_logs)
 
         # Limit to requested number of entries (take most recent)
         limited_logs = merged_logs[-lines:] if len(merged_logs) > lines else merged_logs
@@ -486,31 +173,6 @@ async def get_unified_logs(
         raise HTTPException(status_code=500, detail=f"Error retrieving unified logs: {e!s}") from e
 
 
-def _get_sorted_levels(reverse: bool = False) -> list[str]:
-    """Get sorted list of valid log levels (excluding WARNING alias).
-
-    Args:
-        reverse: If True, sort from highest to lowest priority (default: False)
-
-    Returns:
-        List of valid log levels sorted by priority
-    """
-    return sorted(
-        (level for level in VALID_LEVELS if level != "WARNING"),
-        key=lambda lvl: LOG_LEVEL_PRIORITY.get(lvl, 0),
-        reverse=reverse,
-    )
-
-
-class LogLevelConfigResponse(BaseModel):
-    """Log level configuration information."""
-
-    current_level: str = Field(description="Current log level (INFO, DEBUG, WARN, ERROR)")
-    available_levels: list[str] = Field(description="Available log levels")
-    configuration_method: str = Field(description="How to change the log level")
-    restart_required: bool = Field(description="Whether restart is required after change")
-
-
 @router.get("/log-level", response_model=LogLevelConfigResponse)
 def get_log_level_config() -> LogLevelConfigResponse:
     """Get current log level configuration.
@@ -528,21 +190,6 @@ def get_log_level_config() -> LogLevelConfigResponse:
         configuration_method="API endpoint: POST /api/status/log-level",
         restart_required=True,
     )
-
-
-class SetLogLevelRequest(BaseModel):
-    """Request to set log level."""
-
-    level: str = Field(description="Log level to set (DEBUG, INFO, WARN, ERROR, CRITICAL)")
-
-
-class SetLogLevelResponse(BaseModel):
-    """Response from setting log level."""
-
-    success: bool = Field(description="Whether the operation succeeded")
-    level: str = Field(description="Log level that was set")
-    message: str = Field(description="Status message")
-    restart_required: bool = Field(description="Whether services need restart")
 
 
 @router.post("/log-level", response_model=SetLogLevelResponse)
@@ -569,7 +216,7 @@ async def set_log_level(request: SetLogLevelRequest) -> SetLogLevelResponse:
             detail="Invalid log level. Must be one of: DEBUG, INFO, WARN, ERROR, CRITICAL",
         )
 
-    # Normalize WARNING to WARN using helper
+    # Normalize WARNING to WARN
     level = normalize_log_level(level)
 
     try:
@@ -608,14 +255,6 @@ async def set_log_level(request: SetLogLevelRequest) -> SetLogLevelResponse:
     except Exception as e:
         logger.error("set_log_level_error", error=str(e))
         raise HTTPException(status_code=500, detail=f"Error setting log level: {e!s}") from e
-
-
-class TestLoggingResponse(BaseModel):
-    """Response from test logging endpoint."""
-
-    success: bool
-    message: str
-    levels_tested: list[str]
 
 
 @router.post("/test-logging", response_model=TestLoggingResponse)

@@ -24,7 +24,7 @@ from ...services.maintenance_tracker import (
     get_cleanup_trends,
 )
 from ...tasks.cleanup.disk_monitoring import check_disk_space_impl
-from ...tasks.maintenance_tasks import _get_database_size_impl
+from ...tasks.maintenance_operations import get_database_size
 from ..maintenance_types import (
     DatabaseSizeResponseDict,
     DiskSpaceResponseDict,
@@ -117,7 +117,7 @@ async def get_disk_space() -> DiskSpaceResponseDict:
 
 
 @router.get("/database-size")
-async def get_database_size() -> DatabaseSizeResponseDict:
+async def get_database_size_endpoint() -> DatabaseSizeResponseDict:
     """Get current database size and table sizes.
 
     Returns:
@@ -128,7 +128,7 @@ async def get_database_size() -> DatabaseSizeResponseDict:
     """
     try:
         # Call implementation directly (no Celery, immediate response)
-        result = _get_database_size_impl()
+        result = get_database_size()
         return cast(DatabaseSizeResponseDict, result)
 
     except Exception as e:

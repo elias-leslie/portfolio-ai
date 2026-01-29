@@ -86,6 +86,8 @@ def calculate_risk_based_shares(
     """
     from app.analytics.position_sizing import (  # noqa: PLC0415
         DEFAULT_RISK_PERCENT,
+    )
+    from app.analytics.position_sizing import (  # noqa: PLC0415
         calculate_risk_based_shares as calc_shares,
     )
     from app.analytics.trade_calculations import calculate_stop_loss  # noqa: PLC0415
