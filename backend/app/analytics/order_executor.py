@@ -19,26 +19,32 @@ FEAT-210 Compliance:
 
 from __future__ import annotations
 
-from decimal import Decimal
 from typing import TYPE_CHECKING, Literal, TypedDict
 
 from app.analytics.cash_manager import CashManager
-from app.analytics.liquidity import calculate_adv
+from app.analytics.order_calculations import (
+    calculate_max_shares,
+    calculate_risk_based_shares,
+)
+from app.analytics.order_execution_helpers import (
+    execute_buy_order,
+    execute_sell_order,
+    log_order_transaction,
+)
+from app.analytics.order_validators import (
+    MAX_POSITION_PCT,
+    get_sector_exposure,
+    get_symbol_sector,
+)
+from app.analytics.slippage_calculator import calculate_order_slippage
 from app.analytics.transaction_logger import TransactionLogger
-from app.backtest.costs import SlippageModel, calculate_slippage, get_default_costs
 from app.logging_config import get_logger
-from app.portfolio.drawdown import check_portfolio_drawdown_halt
 from app.portfolio.price_fetcher import PriceDataFetcher
-from app.rules.loader import get_rules
 
 if TYPE_CHECKING:
     from app.storage import PortfolioStorage
 
 logger = get_logger(__name__)
-
-# VISION.md P2 position limits
-MAX_POSITION_PCT = 0.05  # 5% of portfolio per position
-MAX_SECTOR_EXPOSURE_PCT = 0.20  # 20% max exposure per sector
 
 
 class OrderExecutionResult(TypedDict, total=False):
@@ -118,51 +124,21 @@ class OrderExecutor:
                 "error": f"Failed to fetch price for {symbol}: {e}",
             }
 
-        # Calculate slippage
-        slippage_per_share = Decimal("0")
-        slippage_bps = 0.0
-        adv: float | None = None
-        slippage_model_used = "NONE"
-
-        if apply_slippage:
-            # Try DYNAMIC slippage first (uses ADV)
-            adv = calculate_adv(self.storage, symbol)
-            costs = get_default_costs()
-
-            if adv is not None and adv > 0:
-                # Use DYNAMIC model when ADV is available
-                slippage_per_share = calculate_slippage(
-                    price=Decimal(str(expected_price)),
-                    shares=shares,
-                    model=SlippageModel.DYNAMIC,
-                    average_daily_volume=int(adv),
-                    dynamic_factor=costs.slippage_dynamic_factor,
-                )
-                slippage_model_used = "DYNAMIC"
-            else:
-                # Fall back to FIXED_PCT (5 bps)
-                slippage_per_share = calculate_slippage(
-                    price=Decimal(str(expected_price)),
-                    shares=shares,
-                    model=SlippageModel.FIXED_PCT,
-                    slippage_bps=costs.slippage_bps,
-                )
-                slippage_model_used = "FIXED_PCT"
-
-            # Calculate bps
-            if expected_price > 0:
-                slippage_bps = float(slippage_per_share / Decimal(str(expected_price)) * 10000)
+        # Calculate slippage using extracted module
+        slippage_result = calculate_order_slippage(
+            self.storage, symbol, expected_price, shares, apply_slippage
+        )
 
         # Apply slippage to price
         # For buys: slippage increases price (we pay more)
         # For sells: slippage decreases price (we receive less)
         if action == "buy":
-            fill_price = expected_price + float(slippage_per_share)
+            fill_price = expected_price + float(slippage_result.slippage_per_share)
         else:
-            fill_price = expected_price - float(slippage_per_share)
+            fill_price = expected_price - float(slippage_result.slippage_per_share)
 
         # Calculate slippage amount (always positive cost)
-        slippage_amount = float(slippage_per_share) * shares
+        slippage_amount = float(slippage_result.slippage_per_share) * shares
 
         # Calculate order amount (based on fill price)
         amount = shares * fill_price
@@ -175,74 +151,40 @@ class OrderExecutor:
 
         # Execute order based on action
         if action == "buy":
-            # GAP-023: Check portfolio drawdown halt (no new buys at -10% drawdown)
-            can_trade, halt_reason = check_portfolio_drawdown_halt(self.storage, account_id)
-            if not can_trade:
-                return {
-                    "filled": False,
-                    "symbol": symbol,
-                    "action": action,
-                    "shares": shares,
-                    "price": fill_price,
-                    "expected_price": expected_price,
-                    "amount": amount,
-                    "cash_before": cash_before,
-                    "error": halt_reason or "Trading halted due to portfolio drawdown",
-                }
-
-            # Check sufficient cash
-            if not self.cash_manager.check_sufficient_cash(account_id, amount):
-                return {
-                    "filled": False,
-                    "symbol": symbol,
-                    "action": action,
-                    "shares": shares,
-                    "price": fill_price,
-                    "expected_price": expected_price,
-                    "amount": amount,
-                    "cash_before": cash_before,
-                    "error": f"Insufficient cash: need ${amount:.2f}, have ${cash_before:.2f}",
-                }
-
-            # P2: Check position size and sector exposure limits
-            valid, limit_error = self.validate_position_limits(symbol, amount, account_id)
-            if not valid:
-                logger.warning(f"Position limits exceeded for {symbol}: {limit_error}")
-                return {
-                    "filled": False,
-                    "symbol": symbol,
-                    "action": action,
-                    "shares": shares,
-                    "price": fill_price,
-                    "expected_price": expected_price,
-                    "amount": amount,
-                    "cash_before": cash_before,
-                    "error": limit_error,
-                }
-
-            # Deduct cash
-            reason = notes or f"Buy {shares} shares of {symbol} @ ${fill_price:.2f}"
-            success = self.cash_manager.deduct_cash(account_id, amount, reason)
-
+            success, error = execute_buy_order(
+                self.storage,
+                symbol,
+                shares,
+                fill_price,
+                expected_price,
+                amount,
+                account_id,
+                cash_before,
+                notes,
+            )
             if not success:
                 return {
                     "filled": False,
                     "symbol": symbol,
                     "action": action,
-                    "error": "Failed to deduct cash",
+                    "shares": shares,
+                    "price": fill_price,
+                    "expected_price": expected_price,
+                    "amount": amount,
+                    "cash_before": cash_before,
+                    "error": error,
                 }
 
         elif action == "sell":
-            # Add cash
-            reason = notes or f"Sell {shares} shares of {symbol} @ ${fill_price:.2f}"
-            success = self.cash_manager.add_cash(account_id, amount, reason)
-
+            success, error = execute_sell_order(
+                self.storage, symbol, shares, fill_price, amount, account_id, notes
+            )
             if not success:
                 return {
                     "filled": False,
                     "symbol": symbol,
                     "action": action,
-                    "error": "Failed to add cash",
+                    "error": error,
                 }
 
         else:
@@ -253,43 +195,24 @@ class OrderExecutor:
 
         # Log transaction if trade_id provided (with slippage data)
         if trade_id:
-            if action == "buy":
-                self.transaction_logger.log_entry(
-                    trade_id=trade_id,
-                    symbol=symbol,
-                    shares=shares,
-                    price=fill_price,
-                    cash_before=cash_before,
-                    cash_after=cash_after,
-                    notes=notes,
-                    expected_price=expected_price,
-                    slippage_amount=slippage_amount,
-                    slippage_bps=slippage_bps,
-                    adv=adv,
-                    slippage_model=slippage_model_used,
-                )
-            else:  # sell
-                # Calculate P&L (requires entry price from trade record)
-                pnl = 0.0  # Will be calculated by caller with entry price
-                self.transaction_logger.log_exit(
-                    trade_id=trade_id,
-                    symbol=symbol,
-                    shares=shares,
-                    price=fill_price,
-                    cash_before=cash_before,
-                    cash_after=cash_after,
-                    pnl=pnl,
-                    notes=notes,
-                    expected_price=expected_price,
-                    slippage_amount=slippage_amount,
-                    slippage_bps=slippage_bps,
-                    adv=adv,
-                    slippage_model=slippage_model_used,
-                )
+            log_order_transaction(
+                self.storage,
+                action,
+                trade_id,
+                symbol,
+                shares,
+                fill_price,
+                expected_price,
+                cash_before,
+                cash_after,
+                slippage_result,
+                slippage_amount,
+                notes,
+            )
 
         slippage_info = ""
-        if slippage_bps > 0:
-            slippage_info = f" [slippage: {slippage_bps:.1f}bps, ${slippage_amount:.2f}]"
+        if slippage_result.slippage_bps > 0:
+            slippage_info = f" [slippage: {slippage_result.slippage_bps:.1f}bps, ${slippage_amount:.2f}]"
 
         logger.info(
             f"Market order filled: {action.upper()} {shares} {symbol} @ ${fill_price:.2f} "
@@ -307,182 +230,25 @@ class OrderExecutor:
             "cash_before": cash_before,
             "cash_after": cash_after,
             "slippage_amount": slippage_amount,
-            "slippage_bps": slippage_bps,
-            "adv": adv,
-            "slippage_model": slippage_model_used,
+            "slippage_bps": slippage_result.slippage_bps,
+            "adv": slippage_result.adv,
+            "slippage_model": slippage_result.model_used,
             "error": None,
         }
 
     def calculate_max_shares(
         self, symbol: str, account_id: str, max_position_pct: float = MAX_POSITION_PCT
     ) -> int:
-        """Calculate maximum shares affordable for a position.
-
-        Uses simple equal-weight position sizing (5% of account by default per P2).
-
-        Args:
-            symbol: Stock symbol
-            account_id: Portfolio account ID
-            max_position_pct: Maximum position size as % of account (default 5%)
-
-        Returns:
-            Maximum number of shares affordable
-        """
-        try:
-            # Get current cash balance
-            cash_balance = self.cash_manager.get_cash_balance(account_id)
-
-            # Calculate position size
-            max_position_amount = cash_balance * max_position_pct
-
-            # Get current price
-            price_data_dict = self.price_fetcher.fetch_price_data([symbol])
-            current_price = price_data_dict[symbol].price
-
-            # Calculate max shares
-            max_shares = int(max_position_amount / current_price)
-
-            return max_shares
-
-        except Exception as e:
-            logger.error(f"Failed to calculate max shares for {symbol}: {e}")
-            return 0
+        """Calculate maximum shares affordable (delegates to order_calculations)."""
+        return calculate_max_shares(self.storage, symbol, account_id, max_position_pct)
 
     def get_symbol_sector(self, symbol: str) -> str | None:
-        """Get the sector for a given symbol from price_cache.
-
-        Args:
-            symbol: Stock symbol
-
-        Returns:
-            Sector name or None if not found
-        """
-        query = """
-            SELECT sector FROM price_cache
-            WHERE symbol = $1 AND sector IS NOT NULL AND sector != ''
-            ORDER BY cached_at DESC LIMIT 1
-        """
-        result = self.storage.query(query, [symbol])
-        if result.is_empty():
-            return None
-        return str(result.get_column("sector")[0])
+        """Get sector for symbol (delegates to order_validators)."""
+        return get_symbol_sector(self.storage, symbol)
 
     def get_sector_exposure(self, account_id: str, sector: str) -> float:
-        """Calculate current exposure to a sector as % of portfolio value.
-
-        Args:
-            account_id: Portfolio account ID
-            sector: Sector name to check
-
-        Returns:
-            Sector exposure as decimal (0.15 = 15%)
-        """
-        # Get all positions for this account with current prices from day_bars
-        positions_query = """
-            SELECT pp.symbol, pp.shares,
-                   COALESCE(db.close, pp.cost_basis) as price
-            FROM portfolio_positions pp
-            LEFT JOIN LATERAL (
-                SELECT close FROM day_bars
-                WHERE symbol = pp.symbol
-                ORDER BY date DESC LIMIT 1
-            ) db ON true
-            WHERE pp.account_id = $1
-        """
-        positions = self.storage.query(positions_query, [account_id])
-
-        if positions.is_empty():
-            return 0.0
-
-        # Get total portfolio value (cash + positions)
-        cash_balance = self.cash_manager.get_cash_balance(account_id)
-        total_position_value = 0.0
-        sector_value = 0.0
-
-        for row in positions.iter_rows(named=True):
-            symbol = row["symbol"]
-            shares = row["shares"] or 0
-            price = row["price"] or 0.0
-            position_value = shares * price
-            total_position_value += position_value
-
-            # Check if this position is in the target sector
-            pos_sector = self.get_symbol_sector(symbol)
-            if pos_sector and pos_sector.lower() == sector.lower():
-                sector_value += position_value
-
-        portfolio_value = cash_balance + total_position_value
-        if portfolio_value <= 0:
-            return 0.0
-
-        return sector_value / portfolio_value
-
-    def validate_position_limits(
-        self, symbol: str, amount: float, account_id: str
-    ) -> tuple[bool, str | None]:
-        """Validate position against P2 limits (5% position, 20% sector, max single trade loss).
-
-        Args:
-            symbol: Stock symbol
-            amount: Dollar amount of proposed position
-            account_id: Portfolio account ID
-
-        Returns:
-            Tuple of (valid, error_message)
-        """
-        try:
-            # Get portfolio value
-            cash_balance = self.cash_manager.get_cash_balance(account_id)
-
-            # For paper trading, just use cash balance as portfolio value
-            # Real portfolio would need to join with day_bars for current prices
-            portfolio_value = cash_balance
-
-            if portfolio_value <= 0:
-                return False, "Portfolio value is zero or negative"
-
-            # Check position size limit (5%)
-            position_pct = amount / portfolio_value
-            if position_pct > MAX_POSITION_PCT:
-                return False, (
-                    f"Position size {position_pct:.1%} exceeds {MAX_POSITION_PCT:.0%} limit. "
-                    f"Max allowed: ${portfolio_value * MAX_POSITION_PCT:.2f}"
-                )
-
-            # Check max single trade loss limit (from rules engine)
-            rules = get_rules()
-            max_loss_pct = (
-                rules.risk_management.max_single_trade_loss_pct / 100.0
-            )  # Convert to decimal
-            max_allowed_loss = portfolio_value * max_loss_pct
-
-            # Potential loss = position amount (worst case: 100% loss)
-            # In practice, stop-loss would limit this, but we check worst case
-            potential_loss = amount
-
-            if potential_loss > max_allowed_loss:
-                return False, (
-                    f"Potential loss ${potential_loss:.2f} exceeds max single trade loss limit "
-                    f"of {rules.risk_management.max_single_trade_loss_pct:.1f}% "
-                    f"(${max_allowed_loss:.2f})"
-                )
-
-            # Check sector exposure limit (20%)
-            sector = self.get_symbol_sector(symbol)
-            if sector:
-                current_exposure = self.get_sector_exposure(account_id, sector)
-                new_exposure = current_exposure + (amount / portfolio_value)
-                if new_exposure > MAX_SECTOR_EXPOSURE_PCT:
-                    return False, (
-                        f"Sector '{sector}' exposure would be {new_exposure:.1%}, "
-                        f"exceeding {MAX_SECTOR_EXPOSURE_PCT:.0%} limit"
-                    )
-
-            return True, None
-
-        except Exception as e:
-            logger.error(f"Failed to validate position limits for {symbol}: {e}")
-            return True, None  # Allow trade if validation fails (fail-open)
+        """Calculate sector exposure (delegates to order_validators)."""
+        return get_sector_exposure(self.storage, account_id, sector)
 
     def calculate_risk_based_shares(
         self,
@@ -491,83 +257,7 @@ class OrderExecutor:
         stop_loss: float | None = None,
         risk_percent: float = 0.015,
     ) -> tuple[int, dict[str, float | str | None]]:
-        """Calculate position size using risk-based sizing (GAP-043).
-
-        Integrates with position_sizing module for proper risk management.
-        Formula: shares = (risk_percent * equity) / (entry_price - stop_loss)
-
-        Args:
-            symbol: Stock symbol
-            account_id: Portfolio account ID
-            stop_loss: Stop-loss price. If None, calculates ATR-based stop.
-            risk_percent: Risk per trade as fraction (0.015 = 1.5%)
-
-        Returns:
-            Tuple of (shares, details dict)
-        """
-        from app.analytics.position_sizing import (  # noqa: PLC0415
-            DEFAULT_RISK_PERCENT,
-            calculate_risk_based_shares,
+        """Calculate risk-based position size (delegates to order_calculations)."""
+        return calculate_risk_based_shares(
+            self.storage, symbol, account_id, stop_loss, risk_percent
         )
-        from app.analytics.trade_calculations import calculate_stop_loss  # noqa: PLC0415
-
-        details: dict[str, float | str | None] = {
-            "symbol": symbol,
-            "account_id": account_id,
-            "equity": None,
-            "entry_price": None,
-            "stop_loss": None,
-            "stop_distance_pct": None,
-            "risk_percent": risk_percent or DEFAULT_RISK_PERCENT,
-            "shares": 0,
-            "position_value": None,
-            "error": None,
-        }
-
-        try:
-            # Get current price (entry price)
-            price_data_dict = self.price_fetcher.fetch_price_data([symbol])
-            entry_price = price_data_dict[symbol].price
-            details["entry_price"] = entry_price
-
-            # Get portfolio equity
-            cash_balance = self.cash_manager.get_cash_balance(account_id)
-            # For paper trading, just use cash as equity
-            # Real portfolio would need to join with day_bars for current prices
-            equity = cash_balance
-            details["equity"] = equity
-
-            # Get or calculate stop loss
-            if stop_loss is None:
-                stop_loss = calculate_stop_loss(self.storage, symbol, entry_price)
-                if stop_loss is None:
-                    details["error"] = "Cannot calculate ATR-based stop loss"
-                    return 0, details
-
-            details["stop_loss"] = stop_loss
-
-            # Calculate stop distance as percentage
-            if stop_loss and entry_price > stop_loss:
-                details["stop_distance_pct"] = (entry_price - stop_loss) / entry_price
-
-            # Calculate risk-based shares
-            shares, size_details = calculate_risk_based_shares(
-                equity=equity,
-                entry_price=entry_price,
-                stop_loss=stop_loss,
-                risk_percent=risk_percent or DEFAULT_RISK_PERCENT,
-            )
-
-            # Merge details
-            details["risk_amount"] = size_details.get("risk_amount")
-            details["risk_per_share"] = size_details.get("risk_per_share")
-            details["shares"] = float(shares)
-            details["position_value"] = size_details.get("position_value")
-            details["position_percent"] = size_details.get("position_percent")
-
-            return shares, details
-
-        except Exception as e:
-            logger.error(f"Failed to calculate risk-based shares for {symbol}: {e}")
-            details["error"] = str(e)
-            return 0, details
