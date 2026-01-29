@@ -108,7 +108,7 @@ class TestGetOrCreateSessionWithPermissions:
     @pytest.mark.asyncio
     async def test_creates_new_session(self):
         """Test that a new session is created when not in active sessions."""
-        from dev_companion.server import get_or_create_session_with_permissions
+        from dev_companion.session_utils import get_or_create_session_with_permissions
         from dev_companion.session_bridge import SessionBridge
         from dev_companion.database import Database
 
@@ -125,7 +125,7 @@ class TestGetOrCreateSessionWithPermissions:
         bridge = SessionBridge(mock_db)
         callback = AsyncMock()
 
-        with patch("dev_companion.server.ClaudeSession") as MockSession:
+        with patch("dev_companion.session_utils.ClaudeSession") as MockSession:
             mock_session = MagicMock()
             mock_session.is_active = True
             MockSession.return_value = mock_session
@@ -142,7 +142,7 @@ class TestGetOrCreateSessionWithPermissions:
     @pytest.mark.asyncio
     async def test_returns_existing_session(self):
         """Test that existing active session is returned."""
-        from dev_companion.server import get_or_create_session_with_permissions
+        from dev_companion.session_utils import get_or_create_session_with_permissions
         from dev_companion.session_bridge import SessionBridge
         from dev_companion.database import Database
         from dev_companion.claude_process import ClaudeSession
