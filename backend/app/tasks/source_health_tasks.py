@@ -29,7 +29,7 @@ logger = get_logger(__name__)
 
 
 @celery_app.task(bind=True, name="check_data_source_health", max_retries=1)
-def check_data_source_health(self: Task) -> dict[str, Any]:
+def check_data_source_health(self: Task[..., Any]) -> dict[str, Any]:
     """Periodically test each configured data source.
 
     Tests each source by fetching OHLCV data for SPY (reliable test symbol).

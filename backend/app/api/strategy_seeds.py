@@ -54,7 +54,7 @@ class StrategySeedList(BaseModel):
 # ============================================================================
 
 
-def _row_to_seed_item(row: tuple) -> StrategySeedItem:
+def _row_to_seed_item(row: tuple[object, ...]) -> StrategySeedItem:
     """Transform database row into StrategySeedItem.
 
     Args:

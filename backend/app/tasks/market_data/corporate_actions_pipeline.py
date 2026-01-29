@@ -39,7 +39,7 @@ def _get_watchlist_symbols() -> list[str]:
     retry_backoff_max=300,
 )
 def fetch_corporate_actions(
-    self: Task,
+    self: Task[..., Any],
     symbols: list[str] | None = None,
 ) -> dict[str, Any]:
     """

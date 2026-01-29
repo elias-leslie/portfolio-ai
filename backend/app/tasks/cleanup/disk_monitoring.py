@@ -106,13 +106,15 @@ def check_disk_space_impl() -> dict[str, Any]:
 
 
 @celery_app.task(name="check_disk_space_task", bind=True)
-def check_disk_space_task(self: Task) -> dict[str, int | str | float | list[dict[str, Any]]]:
+def check_disk_space_task(
+    self: Task[..., Any],
+) -> dict[str, int | str | float | list[dict[str, Any]]]:
     """Check disk space usage and alert if >85%.
 
     Returns:
         Dict with task_id, partitions, alerts, duration_seconds
     """
-    task_id = self.request.id
+    task_id = self.request.id or "unknown"
     start_time = dt.datetime.now(dt.UTC)
 
     logger.info("check_disk_space_started", task_id=task_id)

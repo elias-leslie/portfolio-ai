@@ -57,7 +57,7 @@ def schedule_new_symbol_tasks(symbol: str) -> None:
         logger.info("Triggered fundamental data ingestion", symbol=symbol)
 
         # Fetch earnings surprises (from Finnhub)
-        update_earnings_surprises.apply_async(args=[[symbol]], countdown=30)
+        update_earnings_surprises.apply_async(args=([symbol],), countdown=30)
         logger.info("Scheduled earnings surprises fetch", symbol=symbol)
 
         # Refresh yfinance reference data (valuation metrics)
@@ -68,14 +68,14 @@ def schedule_new_symbol_tasks(symbol: str) -> None:
         # Calculate technical indicators (will run after ingestion completes)
         # Increased delay to allow 5-year data fetch to complete
         update_technical_indicators.apply_async(
-            args=[[symbol]], countdown=120
+            args=([symbol],), countdown=120
         )  # Wait 2 min for ingestion
         logger.info("Scheduled technical indicators calculation", symbol=symbol)
 
         # Refresh scores for this specific symbol (bypasses global rate limit)
         # Uses the dedicated single-symbol task for immediate feedback
         refresh_single_symbol_scores_task.apply_async(
-            args=[symbol], countdown=180
+            args=(symbol,), countdown=180
         )  # Wait 3 min for data ingestion
         logger.info("Scheduled single-symbol score refresh", symbol=symbol)
 
@@ -115,7 +115,7 @@ def schedule_refresh_tasks(symbols: list[str]) -> None:
         logger.info("Triggered OHLCV data refresh", symbols=symbols)
 
         # Update technical indicators (will run after ingestion completes)
-        update_technical_indicators.apply_async(args=[symbols], countdown=15)
+        update_technical_indicators.apply_async(args=(symbols,), countdown=15)
         logger.info("Scheduled technical indicators update", symbols=symbols)
 
         # Refresh watchlist scores (will run after indicators complete)

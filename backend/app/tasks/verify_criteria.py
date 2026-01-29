@@ -23,7 +23,7 @@ logger = get_logger(__name__)
 
 @celery_app.task(bind=True, name="verify_all_acceptance_criteria")
 def verify_all_acceptance_criteria(
-    self: Task, type_filter: str | None = None, limit: int | None = None
+    self: Task[..., Any], type_filter: str | None = None, limit: int | None = None
 ) -> dict[str, Any]:
     """DISABLED: Verification is now managed by SummitFlow.
 
@@ -43,7 +43,7 @@ def verify_all_acceptance_criteria(
 
 
 @celery_app.task(bind=True, name="verify_feature_criteria")
-def verify_feature_criteria(self: Task, feature_id: str) -> dict[str, Any]:
+def verify_feature_criteria(self: Task[..., Any], feature_id: str) -> dict[str, Any]:
     """DISABLED: Verification is now managed by SummitFlow.
 
     This task is a no-op until SummitFlow has its own Celery infrastructure.
@@ -62,7 +62,7 @@ def verify_feature_criteria(self: Task, feature_id: str) -> dict[str, Any]:
 
 
 @celery_app.task(bind=True, name="verify_criteria_batch")
-def verify_criteria_batch(self: Task, feature_ids: list[str]) -> dict[str, Any]:
+def verify_criteria_batch(self: Task[..., Any], feature_ids: list[str]) -> dict[str, Any]:
     """DISABLED: Verification is now managed by SummitFlow.
 
     This task is a no-op until SummitFlow has its own Celery infrastructure.

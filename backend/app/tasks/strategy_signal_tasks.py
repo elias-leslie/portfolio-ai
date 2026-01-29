@@ -114,10 +114,8 @@ def _fetch_current_market_data(conn: Any, symbol: str) -> dict[str, Any] | None:
     }
 
 
-def _build_signal_inputs(
-    market_data: dict[str, Any], strategy_params: dict[str, Any]
-) -> SignalInputsDict:
-    """Build SignalInputsDict from market data and strategy parameters."""
+def _build_signal_inputs(market_data: dict[str, Any]) -> SignalInputsDict:
+    """Build SignalInputsDict from market data."""
     return SignalInputsDict(
         price=market_data.get("price", 0.0),
         ema_20=market_data.get("ema_20"),
@@ -171,7 +169,7 @@ def generate_signal_for_strategy(strategy_id: str, symbol: str) -> dict[str, Any
             return {"error": f"No market data available for {symbol}"}
 
         # Build signal inputs
-        signal_inputs = _build_signal_inputs(market_data, strategy.parameters)
+        signal_inputs = _build_signal_inputs(market_data)
 
         # Generate signal using the classifier
         signal = classify_signal(signal_inputs)

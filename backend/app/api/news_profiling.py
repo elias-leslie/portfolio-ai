@@ -76,7 +76,7 @@ async def trigger_profiling(user_id: str = "default") -> ProfilingTaskResponse:
     """
     try:
         # Trigger async task
-        task = profile_news_sources_task.apply_async(args=[user_id])
+        task = profile_news_sources_task.apply_async(args=(user_id,))
 
         return ProfilingTaskResponse(
             status="accepted",

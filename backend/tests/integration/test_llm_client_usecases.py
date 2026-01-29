@@ -22,6 +22,7 @@ from app.agents.llm_client import AgentHubAPIClient, DualProviderClient, LLMResp
 @pytest.fixture
 def mock_llm_response():
     """Factory fixture for creating mock LLM responses."""
+
     def _create_response(content: str, model: str = "claude-sonnet-4-5-20250514") -> LLMResponse:
         return LLMResponse(
             content=content,
@@ -29,6 +30,7 @@ def mock_llm_response():
             model=model,
             usage={"prompt_tokens": 100, "completion_tokens": 10, "total_tokens": 110},
         )
+
     return _create_response
 
 

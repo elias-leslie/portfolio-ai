@@ -280,7 +280,7 @@ def _process_cache_entries() -> tuple[int, int]:
 
 
 @celery_app.task(name="parse_valuation_metrics", bind=True)
-def parse_valuation_metrics(self: Task) -> dict[str, int | str]:
+def parse_valuation_metrics(self: Task[..., Any]) -> dict[str, int | str | float]:
     """Parse valuation metrics from cached JSON payloads.
 
     This task extracts valuation metrics (P/E, P/B, P/S, etc.) from JSON payloads
@@ -302,7 +302,7 @@ def parse_valuation_metrics(self: Task) -> dict[str, int | str]:
         >>> # Manual trigger for testing
         >>> celery -A app.celery_app call app.tasks.reference_tasks.parse_valuation_metrics
     """
-    task_id = self.request.id
+    task_id = self.request.id or "unknown"
     start_time = dt.datetime.now(dt.UTC)
 
     logger.info(
@@ -356,7 +356,7 @@ def parse_valuation_metrics(self: Task) -> dict[str, int | str]:
     retry_backoff_max=600,
     retry_jitter=True,
 )
-def refresh_yfinance_reference_data(self: Task) -> dict[str, int | str]:
+def refresh_yfinance_reference_data(self: Task[..., Any]) -> dict[str, int | str | float | None]:
     """Fetch reference data (including valuation metrics) from yfinance for watchlist symbols.
 
     Runs daily at 04:00 UTC to refresh fundamental and valuation data.
@@ -368,7 +368,7 @@ def refresh_yfinance_reference_data(self: Task) -> dict[str, int | str]:
         - symbols_updated: Number of symbols successfully updated
         - duration_seconds: Total execution time
     """
-    task_id = self.request.id
+    task_id = self.request.id or "unknown"
     start_time = dt.datetime.now(dt.UTC)
 
     logger.info("yfinance_reference_refresh_started", task_id=task_id)
@@ -488,7 +488,9 @@ def _store_alphavantage_payload(symbols: list[str]) -> int:
 
 
 @celery_app.task(name="refresh_alphavantage_reference_backup", bind=True)
-def refresh_alphavantage_reference_backup(self: Task) -> dict[str, int | str]:
+def refresh_alphavantage_reference_backup(
+    self: Task[..., Any],
+) -> dict[str, int | str | float | None]:
     """Fetch Alpha Vantage reference data for symbols with missing/stale yfinance data.
 
     Runs daily at 04:45 UTC, after yfinance refresh.
@@ -501,7 +503,7 @@ def refresh_alphavantage_reference_backup(self: Task) -> dict[str, int | str]:
         - symbols_updated: Number of symbols successfully updated
         - duration_seconds: Total execution time
     """
-    task_id = self.request.id
+    task_id = self.request.id or "unknown"
     start_time = dt.datetime.now(dt.UTC)
 
     logger.info("alphavantage_backup_refresh_started", task_id=task_id)
@@ -549,7 +551,7 @@ def refresh_alphavantage_reference_backup(self: Task) -> dict[str, int | str]:
 
 
 @celery_app.task(name="refresh_analyst_revisions", bind=True)
-def refresh_analyst_revisions(self: Task) -> dict[str, int | str]:
+def refresh_analyst_revisions(self: Task[..., Any]) -> dict[str, int | str | float | None]:
     """Fetch analyst estimate revisions for watchlist symbols (GAP-005).
 
     Runs daily at 07:00 UTC (after market close).
@@ -562,7 +564,7 @@ def refresh_analyst_revisions(self: Task) -> dict[str, int | str]:
         - records_saved: Number of revision records saved
         - duration_seconds: Total execution time
     """
-    task_id = self.request.id
+    task_id = self.request.id or "unknown"
     start_time = dt.datetime.now(dt.UTC)
 
     logger.info("analyst_revisions_refresh_started", task_id=task_id)
@@ -610,7 +612,7 @@ def refresh_analyst_revisions(self: Task) -> dict[str, int | str]:
 
 
 @celery_app.task(name="refresh_financial_health_scores", bind=True)
-def refresh_financial_health_scores(self: Task) -> dict[str, int | str]:
+def refresh_financial_health_scores(self: Task[..., Any]) -> dict[str, int | str | float | None]:
     """Calculate Piotroski F-Score and Altman Z-Score for watchlist symbols.
 
     GAP-008: Piotroski F-Score (9-point fundamental quality score)
@@ -626,7 +628,7 @@ def refresh_financial_health_scores(self: Task) -> dict[str, int | str]:
         - symbols_updated: Number of symbols with scores calculated
         - duration_seconds: Total execution time
     """
-    task_id = self.request.id
+    task_id = self.request.id or "unknown"
     start_time = dt.datetime.now(dt.UTC)
 
     logger.info("financial_health_scores_refresh_started", task_id=task_id)
@@ -729,7 +731,7 @@ def refresh_financial_health_scores(self: Task) -> dict[str, int | str]:
 
 
 @celery_app.task(name="refresh_risk_metrics", bind=True)
-def refresh_risk_metrics(self: Task) -> dict[str, int | str]:
+def refresh_risk_metrics(self: Task[..., Any]) -> dict[str, int | str | float | None]:
     """Calculate VaR, CVaR, and extended betas for watchlist symbols.
 
     GAP-027: VaR/CVaR (Value at Risk, Conditional VaR)
@@ -745,7 +747,7 @@ def refresh_risk_metrics(self: Task) -> dict[str, int | str]:
         - symbols_updated: Number of symbols with metrics calculated
         - duration_seconds: Total execution time
     """
-    task_id = self.request.id
+    task_id = self.request.id or "unknown"
     start_time = dt.datetime.now(dt.UTC)
 
     logger.info("risk_metrics_refresh_started", task_id=task_id)

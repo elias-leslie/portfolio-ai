@@ -150,7 +150,7 @@ async def get_task_status(task_id: str) -> TaskStatusResponseDict:
         HTTPException: If status check fails
     """
     try:
-        result = AsyncResult(task_id, app=celery_app)
+        result: AsyncResult[object] = AsyncResult(task_id, app=celery_app)
 
         return {
             "task_id": task_id,

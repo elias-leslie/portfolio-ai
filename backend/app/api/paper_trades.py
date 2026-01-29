@@ -10,7 +10,7 @@ This module provides REST API endpoints for paper trading operations:
 from __future__ import annotations
 
 from datetime import date
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -157,7 +157,7 @@ class UpdateSettingsResponse(BaseModel):
 # ============================================================================
 
 
-def _row_to_paper_trade_response(row: tuple) -> PaperTradeResponse:
+def _row_to_paper_trade_response(row: tuple[object, ...]) -> PaperTradeResponse:
     """Convert database row tuple to PaperTradeResponse model.
 
     Column indices:
@@ -180,24 +180,24 @@ def _row_to_paper_trade_response(row: tuple) -> PaperTradeResponse:
         agent_run_id=str(row[1]) if row[1] else "",
         symbol=str(row[2]) if row[2] else "",
         idea_type=str(row[3]) if row[3] in ["buy", "sell"] else "buy",  # type: ignore[arg-type]
-        shares=int(row[4]) if row[4] is not None else None,
-        entry_price=float(row[5]) if row[5] is not None else None,
-        entry_amount=float(row[6]) if row[6] is not None else None,
+        shares=int(cast(int, row[4])) if row[4] is not None else None,
+        entry_price=float(cast(float, row[5])) if row[5] is not None else None,
+        entry_amount=float(cast(float, row[6])) if row[6] is not None else None,
         entry_date=str(row[7]) if row[7] else None,
-        target_price=float(row[8]) if row[8] is not None else None,
-        stop_loss_price=float(row[9]) if row[9] is not None else None,
-        current_price=float(row[10]) if row[10] is not None else None,
-        current_return_pct=float(row[11]) if row[11] is not None else None,
+        target_price=float(cast(float, row[8])) if row[8] is not None else None,
+        stop_loss_price=float(cast(float, row[9])) if row[9] is not None else None,
+        current_price=float(cast(float, row[10])) if row[10] is not None else None,
+        current_return_pct=float(cast(float, row[11])) if row[11] is not None else None,
         status=str(row[12]) if row[12] else "",
-        exit_price=float(row[13]) if row[13] is not None else None,
+        exit_price=float(cast(float, row[13])) if row[13] is not None else None,
         exit_date=str(row[14]) if row[14] else None,
         exit_reason=str(row[15]) if row[15] else None,
-        realized_return_pct=float(row[16]) if row[16] is not None else None,
-        holding_days=int(row[17]) if row[17] is not None else None,
-        max_favorable_pct=float(row[18]) if row[18] is not None else None,
-        max_adverse_pct=float(row[19]) if row[19] is not None else None,
+        realized_return_pct=float(cast(float, row[16])) if row[16] is not None else None,
+        holding_days=int(cast(int, row[17])) if row[17] is not None else None,
+        max_favorable_pct=float(cast(float, row[18])) if row[18] is not None else None,
+        max_adverse_pct=float(cast(float, row[19])) if row[19] is not None else None,
         thesis=str(row[20]) if row[20] else None,
-        confidence_score=float(row[21]) if row[21] is not None else None,
+        confidence_score=float(cast(float, row[21])) if row[21] is not None else None,
         risk_level=str(row[22]) if row[22] else None,
         strategy_id=str(row[23]) if row[23] else None,
     )

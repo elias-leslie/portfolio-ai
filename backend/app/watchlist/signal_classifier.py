@@ -256,7 +256,6 @@ def _calculate_news_sentiment_score(news_sentiment: float) -> tuple[int, list[st
 
 def _calculate_options_flow_score(
     options_call_pct: float | None,
-    options_near_term_pct: float | None,
     symbol_in_active_sector: bool | None,
 ) -> tuple[int, list[str]]:
     """Calculate 0-4 point options flow sentiment score (GAP-031).
@@ -264,11 +263,9 @@ def _calculate_options_flow_score(
     Options flow provides insight into institutional positioning:
     - Call % > 55%: Bullish sentiment (institutions buying upside)
     - Call % < 45%: Bearish sentiment (put buying for protection/bet)
-    - Near-term concentration: Speculative/event-driven
 
     Args:
         options_call_pct: Percentage of call volume (0.0-1.0)
-        options_near_term_pct: Percentage of near-term options (0.0-1.0)
         symbol_in_active_sector: True if symbol's sector has high options volume
 
     Returns:
@@ -503,7 +500,6 @@ def classify_signal(inputs: SignalInputsDict) -> SignalClassification:
     # Add options flow component score (GAP-031)
     options_score, options_reasons = _calculate_options_flow_score(
         options_call_pct=data["options_call_pct"],
-        options_near_term_pct=data["options_near_term_pct"],
         symbol_in_active_sector=data["symbol_in_active_sector"],
     )
     confirmations += options_score

@@ -9,7 +9,7 @@ Pattern: Repository handles data access, tasks handle business logic.
 from __future__ import annotations
 
 import datetime as dt
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from app.storage import PortfolioStorage
@@ -48,7 +48,7 @@ class ReferenceRepository:
                 [symbol, source],
             ).fetchone()
 
-            return result[0] if result else None
+            return cast(dt.date, result[0]) if result else None
 
     def get_cache_entries_with_payloads(
         self,
@@ -104,7 +104,7 @@ class ReferenceRepository:
                     metrics.get("payout_ratio"),
                     symbol,
                     source,
-                    as_of_date,
+                    as_of_date.isoformat(),
                 ],
             )
             conn.commit()
@@ -143,7 +143,7 @@ class ReferenceRepository:
                 """,
                 [
                     symbol,
-                    as_of_date,
+                    as_of_date.isoformat(),
                     metrics.get("pe_ratio_trailing"),
                     metrics.get("pe_ratio_forward"),
                     metrics.get("ps_ratio"),
@@ -188,7 +188,14 @@ class ReferenceRepository:
                     z_score_zone = EXCLUDED.z_score_zone,
                     updated_at = NOW()
                 """,
-                [symbol, as_of_date, f_score, f_score_components, z_score, z_score_zone],
+                [
+                    symbol,
+                    as_of_date.isoformat(),
+                    f_score,
+                    f_score_components,
+                    z_score,
+                    z_score_zone,
+                ],
             )
             conn.commit()
 
@@ -344,14 +351,14 @@ class ReferenceRepository:
                 ON CONFLICT (symbol, as_of_date, source)
                 DO UPDATE SET payload = EXCLUDED.payload
                 """,
-                [symbol, as_of_date, payload, source],
+                [symbol, as_of_date.isoformat(), payload, source],
             )
             conn.commit()
 
     def upsert_dual_write_metrics(
         self,
         symbol: str,
-        as_of_date: dt.date | Any,
+        as_of_date: dt.date,
         base_table_update_sql: str,
         base_table_params: list[Any],
         metrics_table: str,
@@ -391,5 +398,5 @@ class ReferenceRepository:
                 VALUES ({placeholders})
                 ON CONFLICT ({conflict_clause}) DO UPDATE SET {update_set}
             """
-            conn.execute(insert_sql, [symbol, as_of_date, *metrics_values])
+            conn.execute(insert_sql, [symbol, as_of_date.isoformat(), *metrics_values])
             conn.commit()

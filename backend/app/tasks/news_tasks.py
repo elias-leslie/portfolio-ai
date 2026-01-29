@@ -104,7 +104,7 @@ def _record_summary(
 
 
 def _refresh_news_sentiment_task(
-    self: Task, account_id: str = "default"
+    self: Task[..., Any], account_id: str = "default"
 ) -> dict[str, int | str | float]:
     """Refresh market and watchlist news sentiment caches."""
     start_time = time.time()  # Track task duration

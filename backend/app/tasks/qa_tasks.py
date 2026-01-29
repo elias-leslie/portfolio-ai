@@ -30,7 +30,7 @@ logger = get_logger(__name__)
 
 
 @celery_app.task(bind=True, name="tasks.daily_qa_scan")
-def daily_qa_scan(self: Task) -> dict[str, Any]:
+def daily_qa_scan(self: Task[..., Any]) -> dict[str, Any]:
     """Run daily QA scan at 04:00 UTC, after capability scans.
 
     Workflow:
@@ -42,7 +42,7 @@ def daily_qa_scan(self: Task) -> dict[str, Any]:
     Returns:
         Dict with status, issues_found, categories_scanned
     """
-    task_id = self.request.id
+    task_id = self.request.id or "unknown"
 
     with task_logger("daily_qa_scan", task_id), task_lock("daily_qa_scan", ttl=1800) as acquired:
         if not acquired:
@@ -60,7 +60,7 @@ def daily_qa_scan(self: Task) -> dict[str, Any]:
         try:
             # Import here to avoid circular imports and ensure DB models are loaded
             try:
-                from app.services.qa_scanner import QAScanner  # type: ignore[import-not-found]
+                from app.services.qa_scanner import QAScanner
             except ImportError:
                 logger.warning(
                     "daily_qa_scan_skipped",

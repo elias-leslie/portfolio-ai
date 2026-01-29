@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+from typing import Any, cast
 
 from fastapi import HTTPException
 
-from app.agents.multi_reviewer import DualReviewResult, ProviderReview
+from app.agents.multi_reviewer import DualReviewResult, MultiReviewer, ProviderReview
+from app.agents.strategy_reviewer import StrategyReviewer
 from app.api.utils import require_nonempty_df
 from app.logging_config import get_logger
 from app.utils.db_helpers import generate_uuid
@@ -166,7 +168,10 @@ def _build_signal_data_from_snapshot(
         "recommended_style": snapshot_row.get("recommended_style"),
         "risk_level": snapshot_row.get("risk_level"),
         "rationale": snapshot_row.get("rationale"),
-        "current_score": parse_json_field(snapshot_row.get("current_score")) or {},
+        "current_score": parse_json_field(
+            cast(str | dict[str, Any] | None, snapshot_row.get("current_score"))
+        )
+        or {},
         "news_sentiment_score": snapshot_row.get("news_sentiment_score"),
     }
 
@@ -208,11 +213,11 @@ def _store_legacy_review(
 
 async def _handle_dual_review(
     watchlist_repo: WatchlistRepository,
-    multi_reviewer,
+    multi_reviewer: MultiReviewer,
     signal_data: dict[str, object],
     item_id: str,
     snapshot_id: str | None,
-) -> dict:
+) -> dict[str, object]:
     """Handle dual-provider review flow (both Gemini and Claude).
 
     Args:
@@ -267,11 +272,11 @@ async def _handle_dual_review(
 
 async def _handle_legacy_review(
     watchlist_repo: WatchlistRepository,
-    strategy_reviewer,
+    strategy_reviewer: StrategyReviewer,
     signal_data: dict[str, object],
     item_id: str,
     snapshot_id: str | None,
-) -> dict:
+) -> dict[str, object]:
     """Handle legacy single-provider review flow.
 
     Args:
@@ -284,7 +289,8 @@ async def _handle_legacy_review(
     Returns:
         Legacy review response dict
     """
-    review_result = await strategy_reviewer.review_signal(signal_data)
+    review_result_raw = await strategy_reviewer.review_signal(signal_data)
+    review_result = cast(dict[str, object], review_result_raw)
 
     # Store review
     _store_legacy_review(watchlist_repo, review_result, item_id, snapshot_id)

@@ -60,7 +60,7 @@ def get_watchlist_symbols_or_early_return(
     task_id: str | None,
     log_event: str,
     secondary_metric_name: str = "symbols_updated",
-) -> tuple[list[str], PortfolioStorage, dict[str, int | str | None] | None]:
+) -> tuple[list[str], PortfolioStorage, dict[str, int | str | float | None] | None]:
     """Get watchlist symbols or return early response if none found.
 
     Common boilerplate pattern used by Celery tasks that process watchlist symbols.

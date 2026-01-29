@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 
 from app.agents.workflows.strategy_research_workflow import strategy_research_workflow
 from app.logging_config import get_logger
+from app.strategies.models import StrategyDefinition
 from app.strategies.performance_utils import (
     calculate_performance_status,
     map_performance_flag_to_status,
@@ -36,7 +37,7 @@ router = APIRouter(prefix="/api/strategies", tags=["strategies"])
 # ============================================================================
 
 
-def _get_strategy_or_404(strategy_id: str):
+def _get_strategy_or_404(strategy_id: str) -> StrategyDefinition:
     """Get strategy by ID or raise 404 if not found.
 
     Args:
@@ -186,7 +187,7 @@ async def list_strategies(
                     live_sharpe_ratio=live,
                     live_win_rate=parse_float(s.live_win_rate),
                     trades_count=s.live_trades_count,
-                    created_at=format_db_date(s.created_at),
+                    created_at=format_db_date(s.created_at) or "",
                     activation_date=format_db_date(s.activation_date),
                     performance_variance=variance,
                     performance_flag=flag,
@@ -335,7 +336,7 @@ async def get_strategy(strategy_id: str) -> StrategyDetail:
             live_sharpe_ratio=parse_float(strategy.live_sharpe_ratio),
             status=strategy.status,
             version=strategy.version,
-            created_at=format_db_date(strategy.created_at),
+            created_at=format_db_date(strategy.created_at) or "",
             activation_date=format_db_date(strategy.activation_date),
             archive_date=format_db_date(strategy.archive_date),
             archive_reason=strategy.archive_reason,

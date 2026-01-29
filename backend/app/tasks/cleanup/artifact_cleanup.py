@@ -225,7 +225,7 @@ def _get_old_model_versions(
 
 @celery_app.task(name="cleanup_old_backups_task", bind=True)
 def cleanup_old_backups_task(
-    self: Task, keep_count: int = 5, dry_run: bool = False
+    self: Task[..., Any], keep_count: int = 5, dry_run: bool = False
 ) -> dict[str, Any]:
     """Delete old backup files, keeping N most recent.
 
@@ -236,7 +236,7 @@ def cleanup_old_backups_task(
     Returns:
         Dict with task_id, files_deleted, bytes_freed, duration_seconds, success status
     """
-    task_id = self.request.id
+    task_id = self.request.id or "unknown"
     start_time = dt.datetime.now(dt.UTC)
     log_id = log_maintenance_start("cleanup_old_backups_task", dry_run)
 
@@ -346,7 +346,7 @@ def cleanup_old_backups_task(
 
 @celery_app.task(name="cleanup_old_models_task", bind=True)
 def cleanup_old_models_task(
-    self: Task, keep_count: int = 3, dry_run: bool = False
+    self: Task[..., Any], keep_count: int = 3, dry_run: bool = False
 ) -> dict[str, Any]:
     """Delete old ML model versions, keeping N most recent per model type.
 
@@ -357,7 +357,7 @@ def cleanup_old_models_task(
     Returns:
         Dict with task_id, files_deleted, bytes_freed, duration_seconds, success status
     """
-    task_id = self.request.id
+    task_id = self.request.id or "unknown"
     start_time = dt.datetime.now(dt.UTC)
     log_id = log_maintenance_start("cleanup_old_models_task", dry_run)
 
@@ -457,7 +457,7 @@ def cleanup_old_models_task(
 
 @celery_app.task(name="cleanup_solution_state_task", bind=True)
 def cleanup_solution_state_task(
-    self: Task, keep_days: int = 14, dry_run: bool = False
+    self: Task[..., Any], keep_days: int = 14, dry_run: bool = False
 ) -> dict[str, Any]:
     """Delete old solution_state test artifacts, keeping N days of recent data.
 
@@ -468,7 +468,7 @@ def cleanup_solution_state_task(
     Returns:
         Dict with task_id, directories_deleted, bytes_freed, duration_seconds, success status
     """
-    task_id = self.request.id
+    task_id = self.request.id or "unknown"
     start_time = dt.datetime.now(dt.UTC)
     log_id = log_maintenance_start("cleanup_solution_state_task", dry_run)
 

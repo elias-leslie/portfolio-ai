@@ -7,7 +7,7 @@ based on VIX, momentum, RSI, credit spreads, and market breadth.
 from __future__ import annotations
 
 import datetime as dt
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from celery import Task
@@ -319,7 +319,9 @@ def _invalidate_redis_cache() -> None:
     retry_backoff_max=600,
     retry_jitter=True,
 )
-def calculate_fear_greed(self: Task, as_of_date: str | None = None) -> FearGreedCalculationDict:
+def calculate_fear_greed(
+    self: Task[..., Any], as_of_date: str | None = None
+) -> FearGreedCalculationDict:
     """Calculate Fear & Greed Index from inputs table.
 
     This task calculates percentile rankings for each component (VIX, Momentum,

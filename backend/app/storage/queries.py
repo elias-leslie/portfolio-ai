@@ -831,5 +831,5 @@ class QueryManager:
 
         metadata = df["metadata"][0]
         if isinstance(metadata, dict):
-            return metadata.get("sector", "Unknown")
+            return str(metadata.get("sector", "Unknown"))
         return "Unknown"

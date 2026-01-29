@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import datetime as dt
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from celery import Task
@@ -223,7 +223,7 @@ def _build_skip_result(
 
 @celery_app.task(name="refresh_watchlist_scores", bind=True)
 def refresh_watchlist_scores_task(
-    self: Task, account_id: str | None = None, force: bool = False
+    self: Task[..., Any], account_id: str | None = None, force: bool = False
 ) -> WatchlistResultDict:
     """Refresh watchlist scores for all items or a specific account.
 
@@ -237,7 +237,7 @@ def refresh_watchlist_scores_task(
     """
     skip_check_start = time.perf_counter()  # For skip duration measurement
     start_time = time.time()  # For result duration_seconds
-    task_id = self.request.id
+    task_id = self.request.id or "unknown"
     account_id = account_id or "default"
 
     # Use task lock to prevent duplicate concurrent executions
@@ -263,7 +263,7 @@ def refresh_watchlist_scores_task(
 
 
 def _refresh_watchlist_scores_impl(
-    self: Task,
+    self: Task[..., Any],
     account_id: str,
     skip_check_start: float,
     start_time: float,
@@ -385,7 +385,7 @@ def _refresh_watchlist_scores_impl(
 
 
 @celery_app.task(name="refresh_single_symbol_scores", bind=True)
-def refresh_single_symbol_scores_task(self: Task, symbol: str) -> dict[str, object]:
+def refresh_single_symbol_scores_task(self: Task[..., Any], symbol: str) -> dict[str, object]:
     """Refresh scores for a single symbol immediately (no rate limit check).
 
     This task is designed for newly-added symbols that need immediate scoring.

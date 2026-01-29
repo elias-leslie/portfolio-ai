@@ -114,6 +114,7 @@ def generate_recommendation(
 
     # Route to appropriate helper based on position status
     if held:
+        assert position is not None  # Type narrowing
         action, reasoning = generate_held_recommendation(position, signal, strength, fear_greed)
     else:
         action, reasoning = generate_new_position_recommendation(signal, strength, fear_greed)

@@ -121,7 +121,7 @@ def maintain_historical_market_data(  # type: ignore[no-untyped-def]
         >>> # Manual trigger for testing
         >>> celery -A app.celery_app call app.tasks.market_data.maintain_historical_market_data
     """
-    task_id = self.request.id
+    task_id = self.request.id or "unknown"
     start_time = dt.datetime.now(dt.UTC)
 
     # Get all symbols: market symbols + watchlist symbols (dynamically)

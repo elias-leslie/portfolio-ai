@@ -59,14 +59,11 @@ def get_confidence_tier(confidence: float) -> str:
     return "very_low"
 
 
-def calculate_confidence_adjusted_position(
-    confidence: float, base_max_position_pct: float = 0.05
-) -> float:
+def calculate_confidence_adjusted_position(confidence: float) -> float:
     """Calculate position size adjusted for confidence level.
 
     Args:
         confidence: Confidence score (0.0-1.0)
-        base_max_position_pct: Base position size (default 5%)
 
     Returns:
         Adjusted max_position_pct

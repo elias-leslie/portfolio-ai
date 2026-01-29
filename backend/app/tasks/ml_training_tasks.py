@@ -235,7 +235,6 @@ def _save_model_metrics(
     conn: DatabaseConnection,
     model_version: str,
     metrics: dict[str, Any],
-    newly_labeled_count: int,
     training_duration: float,
 ) -> None:
     """Save training metrics to database (Step 8)."""
@@ -336,7 +335,7 @@ def _retrain_article_quality_model_impl(
             )
             metrics, model_version, _, training_duration = _train_and_save_model(combined_data)
 
-            _save_model_metrics(conn, model_version, metrics, len(newly_labeled), training_duration)
+            _save_model_metrics(conn, model_version, metrics, training_duration)
             _update_progress(
                 conn,
                 session_id,

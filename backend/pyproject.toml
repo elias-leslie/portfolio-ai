@@ -161,30 +161,8 @@ module = [
 ]
 ignore_missing_imports = true
 
-[[tool.mypy.overrides]]
-module = ["app.tasks", "app.tasks.*"]
-disable_error_code = ["misc", "untyped-decorator", "return-value", "type-arg", "typeddict-item", "arg-type", "dict-item", "unused-ignore"]
 
-[[tool.mypy.overrides]]
-module = ["app.watchlist", "app.watchlist.*"]
-disable_error_code = ["arg-type", "unused-ignore"]
 
-[[tool.mypy.overrides]]
-module = ["app.api", "app.api.*"]
-disable_error_code = ["type-arg", "arg-type", "no-untyped-def", "no-any-return", "unused-ignore", "var-annotated"]
 
-[[tool.mypy.overrides]]
-module = ["app.storage", "app.storage.*"]
-disable_error_code = ["no-any-return", "unused-ignore"]
 
-[[tool.mypy.overrides]]
-module = ["app.repositories", "app.repositories.*"]
-disable_error_code = ["return-value", "list-item"]
 
-[[tool.mypy.overrides]]
-module = ["app.analytics", "app.analytics.*", "app.backtest", "app.backtest.*"]
-disable_error_code = ["import-untyped"]
-
-[[tool.mypy.overrides]]
-module = ["app.services.news_cache_refresh", "app.services.news_service"]
-disable_error_code = ["attr-defined"]

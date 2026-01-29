@@ -1,5 +1,5 @@
 project: portfolio-ai
-generated_at: 2026-01-24 07:07 UTC
+generated_at: 2026-01-29 02:14 UTC
 pages:
 - / (app)
 - /about (about)
@@ -207,7 +207,7 @@ tasks:
 folders:
   (root): 24 files - services, tests
   .claude: 6 files - services
-  .dev-tools: 20 files - tests
+  .dev-tools: 19 files - tests
   .gemini: 1 files
   automation: 2 files
   backend: 829 files - api, services, tests
@@ -215,7 +215,7 @@ folders:
   config: 10 files - api
   docs: 161 files - api, services, tests
   frontend: 334 files - api, components, services, tests
-  reports: 44 files
+  reports: 46 files
   scripts: 108 files - api, services, tests
   services: 21 files - services, tests
-  tasks: 408 files - api, components, tests
+  tasks: 412 files - api, components, tests

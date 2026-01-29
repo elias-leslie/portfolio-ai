@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Any
+from typing import Any, cast
 
 from app.api.market_data_sources import calculate_daily_change_pct
 from app.api.market_responses import SectorDataPoint, SectorHistory
@@ -170,4 +170,6 @@ def enrich_indicator_with_history(
         indicator_data.cached_at = actual_timestamp
 
     # Call the appropriate enrich function
-    return enrich_func(indicator_data, health_score_data, change_pct=change_pct)
+    return cast(
+        dict[str, Any], enrich_func(indicator_data, health_score_data, change_pct=change_pct)
+    )

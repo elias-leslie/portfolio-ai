@@ -191,7 +191,9 @@ def _cleanup_files(
 
 
 @celery_app.task(name="rotate_logs_task", bind=True)
-def rotate_logs_task(self: Task, dry_run: bool = False) -> dict[str, int | str | float | bool]:
+def rotate_logs_task(
+    self: Task[..., Any], dry_run: bool = False
+) -> dict[str, int | str | float | bool]:
     """Rotate logs in /tmp and /var/log/portfolio-ai directories.
 
     Args:
@@ -200,7 +202,7 @@ def rotate_logs_task(self: Task, dry_run: bool = False) -> dict[str, int | str |
     Returns:
         Dict with task_id, files_rotated, duration_seconds, success status
     """
-    task_id = self.request.id
+    task_id = self.request.id or "unknown"
     start_time = dt.datetime.now(dt.UTC)
     log_id = log_maintenance_start("rotate_logs_task", dry_run)
 
@@ -284,7 +286,9 @@ def rotate_logs_task(self: Task, dry_run: bool = False) -> dict[str, int | str |
 
 
 @celery_app.task(name="cleanup_old_logs_task", bind=True)
-def cleanup_old_logs_task(self: Task, days: int = 7, dry_run: bool = False) -> dict[str, Any]:
+def cleanup_old_logs_task(
+    self: Task[..., Any], days: int = 7, dry_run: bool = False
+) -> dict[str, Any]:
     """Delete log files older than specified days.
 
     Args:
@@ -294,7 +298,7 @@ def cleanup_old_logs_task(self: Task, days: int = 7, dry_run: bool = False) -> d
     Returns:
         Dict with task_id, files_deleted, bytes_freed, duration_seconds, success status
     """
-    task_id = self.request.id
+    task_id = self.request.id or "unknown"
     start_time = dt.datetime.now(dt.UTC)
     log_id = log_maintenance_start("cleanup_old_logs_task", dry_run)
 

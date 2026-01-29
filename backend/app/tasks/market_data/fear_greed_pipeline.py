@@ -10,7 +10,7 @@ Populates fear_greed_inputs table with market data for Fear & Greed Index calcul
 from __future__ import annotations
 
 import datetime as dt
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from app.celery_app import celery_app
 from app.constants import SECTOR_ETF_SYMBOLS
@@ -480,7 +480,7 @@ def _process_and_return_results(
     retry_backoff_max=600,
     retry_jitter=True,
 )
-def populate_fear_greed_inputs(self: Task, days: int = 7) -> FearGreedPipelineResultDict:
+def populate_fear_greed_inputs(self: Task[..., Any], days: int = 7) -> FearGreedPipelineResultDict:
     """Populate fear_greed_inputs table with latest market data.
 
     This task replaces the manual script update_fear_greed_inputs.py.
@@ -500,7 +500,7 @@ def populate_fear_greed_inputs(self: Task, days: int = 7) -> FearGreedPipelineRe
     Returns:
         FearGreedPipelineResultDict: Task result with update count and status
     """
-    task_id = self.request.id
+    task_id = self.request.id or "unknown"
     logger.info("populate_fear_greed_inputs_started", task_id=task_id, days=days)
 
     try:

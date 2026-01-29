@@ -260,7 +260,7 @@ def _build_enriched_indicators(
         enriched_indicators["putcall"] = intelligence.enrich_putcall_indicator(
             put_call_ratio,
             putcall_timestamp,
-            context=putcall_context,
+            context=cast(dict[str, Any], putcall_context),
         )
 
     return enriched_indicators

@@ -94,7 +94,7 @@ def _get_database_size_impl() -> dict[str, Any]:
 
 @celery_app.task(name="vacuum_database_task", bind=True)
 def vacuum_database_task(
-    self: Task, tables: list[str] | None = None, dry_run: bool = False
+    self: Task[..., Any], tables: list[str] | None = None, dry_run: bool = False
 ) -> dict[str, Any]:
     """VACUUM ANALYZE database tables to reclaim space and update statistics.
 
@@ -105,7 +105,7 @@ def vacuum_database_task(
     Returns:
         Dict with task_id, tables_processed, duration_seconds, success status
     """
-    task_id = self.request.id
+    task_id = self.request.id or "unknown"
     start_time = dt.datetime.now(dt.UTC)
     log_id = log_maintenance_start("vacuum_database_task", dry_run)
 
@@ -208,7 +208,9 @@ def vacuum_database_task(
 
 
 @celery_app.task(name="cleanup_old_news_task", bind=True)
-def cleanup_old_news_task(self: Task, days: int = 90, dry_run: bool = False) -> dict[str, Any]:
+def cleanup_old_news_task(
+    self: Task[..., Any], days: int = 90, dry_run: bool = False
+) -> dict[str, Any]:
     """Delete news articles older than specified days.
 
     Args:
@@ -218,7 +220,7 @@ def cleanup_old_news_task(self: Task, days: int = 90, dry_run: bool = False) -> 
     Returns:
         Dict with task_id, rows_deleted, duration_seconds, success status
     """
-    task_id = self.request.id
+    task_id = self.request.id or "unknown"
     start_time = dt.datetime.now(dt.UTC)
     log_id = log_maintenance_start("cleanup_old_news_task", dry_run)
 
@@ -305,7 +307,7 @@ def cleanup_old_news_task(self: Task, days: int = 90, dry_run: bool = False) -> 
 
 @celery_app.task(name="cleanup_old_agent_runs_task", bind=True)
 def cleanup_old_agent_runs_task(
-    self: Task, days: int = 30, dry_run: bool = False
+    self: Task[..., Any], days: int = 30, dry_run: bool = False
 ) -> dict[str, Any]:
     """Delete agent run history older than specified days.
 
@@ -316,7 +318,7 @@ def cleanup_old_agent_runs_task(
     Returns:
         Dict with task_id, runs_deleted, duration_seconds, success status
     """
-    task_id = self.request.id
+    task_id = self.request.id or "unknown"
     start_time = dt.datetime.now(dt.UTC)
     log_id = log_maintenance_start("cleanup_old_agent_runs_task", dry_run)
 
@@ -416,7 +418,7 @@ def cleanup_old_agent_runs_task(
 
 
 @celery_app.task(name="cleanup_orphaned_data_task", bind=True)
-def cleanup_orphaned_data_task(self: Task, dry_run: bool = False) -> dict[str, Any]:
+def cleanup_orphaned_data_task(self: Task[..., Any], dry_run: bool = False) -> dict[str, Any]:
     """Remove orphaned records and fix zombie runs.
 
     Args:
@@ -425,7 +427,7 @@ def cleanup_orphaned_data_task(self: Task, dry_run: bool = False) -> dict[str, A
     Returns:
         Dict with task_id, orphaned_insights_deleted, zombie_runs_fixed, duration_seconds, success status
     """
-    task_id = self.request.id
+    task_id = self.request.id or "unknown"
     start_time = dt.datetime.now(dt.UTC)
     log_id = log_maintenance_start("cleanup_orphaned_data_task", dry_run)
 
@@ -547,13 +549,15 @@ def cleanup_orphaned_data_task(self: Task, dry_run: bool = False) -> dict[str, A
 
 
 @celery_app.task(name="get_database_size_task", bind=True)
-def get_database_size_task(self: Task) -> dict[str, int | str | float | list[dict[str, Any]]]:
+def get_database_size_task(
+    self: Task[..., Any],
+) -> dict[str, int | str | float | list[dict[str, Any]]]:
     """Get database size and table sizes for monitoring.
 
     Returns:
         Dict with task_id, database_size_bytes, top_tables, duration_seconds
     """
-    task_id = self.request.id
+    task_id = self.request.id or "unknown"
     start_time = dt.datetime.now(dt.UTC)
 
     logger.info("get_database_size_started", task_id=task_id)
@@ -589,7 +593,7 @@ def get_database_size_task(self: Task) -> dict[str, int | str | float | list[dic
 
 
 @celery_app.task(name="refresh_sec_cik_cache", bind=True)
-def refresh_sec_cik_cache(self: Task) -> dict[str, Any]:
+def refresh_sec_cik_cache(self: Task[..., Any]) -> dict[str, Any]:
     """Refresh SEC CIK cache from SEC EDGAR.
 
     Fetches the latest symbol→CIK mapping from SEC and updates the database.
@@ -598,7 +602,7 @@ def refresh_sec_cik_cache(self: Task) -> dict[str, Any]:
     Returns:
         Dict with task_id, symbols_updated, duration_seconds, success
     """
-    task_id = self.request.id
+    task_id = self.request.id or "unknown"
     start_time = dt.datetime.now(dt.UTC)
 
     logger.info("refresh_sec_cik_cache_started", task_id=task_id)

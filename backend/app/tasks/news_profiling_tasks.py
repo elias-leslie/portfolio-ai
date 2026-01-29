@@ -265,7 +265,9 @@ def _store_metrics(metrics: list[tuple[str, dict[str, Any]]]) -> None:
 
 
 @celery_app.task(name="profile_news_sources", bind=True)
-def profile_news_sources_task(self: Task, user_id: str = "default") -> NewsProfilingResultDict:
+def profile_news_sources_task(
+    self: Task[..., Any], user_id: str = "default"
+) -> NewsProfilingResultDict:
     """Profile all active news sources and calculate quality metrics.
 
     Args:

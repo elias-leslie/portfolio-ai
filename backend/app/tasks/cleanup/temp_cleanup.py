@@ -249,7 +249,9 @@ def _get_cache_targets(project_root: Path) -> list[dict[str, Any]]:
 
 
 @celery_app.task(name="cleanup_temp_files_task", bind=True)
-def cleanup_temp_files_task(self: Task, hours: int = 24, dry_run: bool = False) -> dict[str, Any]:
+def cleanup_temp_files_task(
+    self: Task[..., Any], hours: int = 24, dry_run: bool = False
+) -> dict[str, Any]:
     """Delete temporary files older than specified hours.
 
     Args:
@@ -259,7 +261,7 @@ def cleanup_temp_files_task(self: Task, hours: int = 24, dry_run: bool = False) 
     Returns:
         Dict with task_id, files_deleted, bytes_freed, duration_seconds, success status
     """
-    task_id = self.request.id
+    task_id = self.request.id or "unknown"
     start_time = dt.datetime.now(dt.UTC)
     log_id = log_maintenance_start("cleanup_temp_files_task", dry_run)
 
@@ -339,7 +341,7 @@ def cleanup_temp_files_task(self: Task, hours: int = 24, dry_run: bool = False) 
 
 
 @celery_app.task(name="cleanup_cache_directories_task", bind=True)
-def cleanup_cache_directories_task(self: Task, dry_run: bool = False) -> dict[str, Any]:
+def cleanup_cache_directories_task(self: Task[..., Any], dry_run: bool = False) -> dict[str, Any]:
     """Clean up development cache directories to free disk space.
 
     This is an OPTIONAL manual task - not scheduled by default.
@@ -360,7 +362,7 @@ def cleanup_cache_directories_task(self: Task, dry_run: bool = False) -> dict[st
     Returns:
         Dict with directories_cleaned, files_deleted, bytes_freed, duration_seconds
     """
-    task_id = self.request.id
+    task_id = self.request.id or "unknown"
     start_time = dt.datetime.now(dt.UTC)
     log_id = log_maintenance_start("cleanup_cache_directories_task", dry_run)
 

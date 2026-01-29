@@ -9,6 +9,7 @@ import re
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
@@ -101,13 +102,13 @@ class UnifiedLogsResponse(BaseModel):
     )
 
 
-def _extract_journald_timestamp(entry: dict) -> datetime:
+def _extract_journald_timestamp(entry: dict[str, object]) -> datetime:
     """Extract timestamp from journald entry (microsecond precision)."""
-    timestamp_us = int(entry.get("__REALTIME_TIMESTAMP", 0))
+    timestamp_us = int(cast(int, entry.get("__REALTIME_TIMESTAMP", 0)))
     return datetime.fromtimestamp(timestamp_us / 1000000, tz=UTC)
 
 
-def _map_service_name(entry: dict, service_units: dict[str, str]) -> str:
+def _map_service_name(entry: dict[str, object], service_units: dict[str, str]) -> str:
     """Map systemd unit to service name.
 
     Args:
@@ -117,14 +118,14 @@ def _map_service_name(entry: dict, service_units: dict[str, str]) -> str:
     Returns:
         Service name or "unknown" if no match
     """
-    unit = entry.get("_SYSTEMD_UNIT", "") or entry.get("UNIT", "")
+    unit = str(entry.get("_SYSTEMD_UNIT", "") or entry.get("UNIT", ""))
     for svc, unit_name in service_units.items():
         if unit_name in unit:
             return svc
     return "unknown"
 
 
-def _extract_message(entry: dict) -> str | None:
+def _extract_message(entry: dict[str, object]) -> str | None:
     """Extract and decode message from journald entry.
 
     Args:
@@ -142,9 +143,9 @@ def _extract_message(entry: dict) -> str | None:
     return str(message_raw)
 
 
-def _determine_log_level(entry: dict) -> str:
+def _determine_log_level(entry: dict[str, object]) -> str:
     """Determine log level from journald PRIORITY field."""
-    priority = int(entry.get("PRIORITY", 6))  # Default to info (6)
+    priority = int(cast(int, entry.get("PRIORITY", 6)))  # Default to info (6)
     return SYSLOG_PRIORITY_TO_LEVEL.get(priority, "UNKNOWN")
 
 

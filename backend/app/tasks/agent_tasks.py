@@ -12,7 +12,7 @@ For other background tasks, see:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from app.agents.discovery import DiscoveryAgent
 from app.agents.llm_client import DualProviderClient
@@ -89,7 +89,7 @@ def _update_celery_task_id(storage: PortfolioStorage, task_id: str, run_id: str)
 
 
 @celery_app.task(name="run_discovery_agent", bind=True)
-def run_discovery_agent(self: Task) -> str:
+def run_discovery_agent(self: Task[..., Any]) -> str:
     """Run discovery agent as a background task.
 
     Returns:
@@ -101,7 +101,7 @@ def run_discovery_agent(self: Task) -> str:
         logger.info("discovery_agent_skipped", reason="thesis_generation_disabled")
         return "skipped:thesis_generation_disabled"
 
-    task_id = self.request.id
+    task_id = self.request.id or "unknown"
     logger.info(
         "discovery_agent_task_started",
         task_id=task_id,
@@ -152,7 +152,7 @@ def run_discovery_agent(self: Task) -> str:
 
 
 @celery_app.task(name="run_portfolio_analyzer", bind=True)
-def run_portfolio_analyzer(self: Task) -> str:
+def run_portfolio_analyzer(self: Task[..., Any]) -> str:
     """Run portfolio analyzer agent as a background task.
 
     Returns:
@@ -164,7 +164,7 @@ def run_portfolio_analyzer(self: Task) -> str:
         logger.info("portfolio_analyzer_skipped", reason="thesis_generation_disabled")
         return "skipped:thesis_generation_disabled"
 
-    task_id = self.request.id
+    task_id = self.request.id or "unknown"
     logger.info(
         "portfolio_analyzer_task_started",
         task_id=task_id,
