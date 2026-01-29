@@ -87,7 +87,7 @@ def build_reference_payload(symbol: str, info: dict[str, Any]) -> dict[str, Any]
 
 
 def parse_ohlcv_to_polars(
-    hist_df,
+    hist_df: Any,
     symbol: str,
     ingest_run_id: str | None = None,
 ) -> pl.DataFrame:
@@ -192,7 +192,7 @@ def parse_news_item(
     }
 
 
-def parse_cash_flow_data(cf_df, info: dict[str, Any], symbol: str) -> dict[str, Any] | None:
+def parse_cash_flow_data(cf_df: Any, info: dict[str, Any], symbol: str) -> dict[str, Any] | None:
     """Parse cash flow statement data."""
     if cf_df.empty:
         return None
@@ -228,7 +228,7 @@ def parse_cash_flow_data(cf_df, info: dict[str, Any], symbol: str) -> dict[str, 
     }
 
 
-def parse_insider_transactions(insiders_df, symbol: str) -> list[dict[str, Any]]:
+def parse_insider_transactions(insiders_df: Any, symbol: str) -> list[dict[str, Any]]:
     """Parse insider transactions DataFrame."""
     if insiders_df is None or insiders_df.empty:
         return []
@@ -252,7 +252,7 @@ def parse_insider_transactions(insiders_df, symbol: str) -> list[dict[str, Any]]
 
 
 def parse_institutional_holders(
-    holders_df, info: dict[str, Any], symbol: str
+    holders_df: Any, info: dict[str, Any], symbol: str
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Parse institutional holders DataFrame."""
     holders = []
