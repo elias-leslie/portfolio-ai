@@ -14,12 +14,14 @@ from ..logging_config import get_logger
 from ..storage import get_storage
 
 if TYPE_CHECKING:
-    from ..storage import Storage
+    from typing import Any
+
+    from ..storage.facade import PortfolioStorage
 
 logger = get_logger(__name__)
 
 
-def _get_signal_metrics(storage: Storage, date_str: str) -> tuple[dict, dict, float]:
+def _get_signal_metrics(storage: PortfolioStorage, date_str: str) -> tuple[dict[str, Any], dict[str, Any], float]:
     """Fetch signal counts and score stats from watchlist snapshots."""
     df = storage.query(
         "SELECT signal_type, COUNT(*) as count, AVG(overall_score) as avg_overall, "
@@ -28,19 +30,19 @@ def _get_signal_metrics(storage: Storage, date_str: str) -> tuple[dict, dict, fl
         "WHERE DATE(fetched_at) = ? GROUP BY signal_type",
         [date_str],
     )
-    signal_counts = {"BUY": 0, "HOLD": 0, "AVOID": 0}
-    avg_scores = {"overall": 0, "technical": 0, "fundamental": 0}
-    score_stdev = 0
+    signal_counts: dict[str, Any] = {"BUY": 0, "HOLD": 0, "AVOID": 0}
+    avg_scores: dict[str, Any] = {"overall": 0.0, "technical": 0.0, "fundamental": 0.0}
+    score_stdev = 0.0
     if not df.is_empty():
         for row in df.to_dicts():
-            signal_counts[row.get("signal_type", "HOLD")] = row.get("count", 0)
-            avg_scores = {"overall": row.get("avg_overall", 0), "technical": row.get("avg_technical", 0),
-                         "fundamental": row.get("avg_fundamental", 0)}
-            score_stdev = row.get("score_stdev", 0)
+            signal_counts[row.get("signal_type", "HOLD")] = int(row.get("count", 0))
+            avg_scores = {"overall": float(row.get("avg_overall", 0)), "technical": float(row.get("avg_technical", 0)),
+                         "fundamental": float(row.get("avg_fundamental", 0))}
+            score_stdev = float(row.get("score_stdev", 0))
     return signal_counts, avg_scores, score_stdev
 
 
-def _get_trades_metrics(storage: Storage, date_str: str) -> tuple[dict, float]:
+def _get_trades_metrics(storage: PortfolioStorage, date_str: str) -> tuple[dict[str, Any], float]:
     """Fetch trade outcomes and calculate win rate."""
     df = storage.query(
         "SELECT COUNT(*) as total, SUM(CASE WHEN status = 'closed_win' THEN 1 ELSE 0 END) as wins, "
@@ -49,18 +51,20 @@ def _get_trades_metrics(storage: Storage, date_str: str) -> tuple[dict, float]:
         "WHERE DATE(exit_date) = ? AND status IN ('closed_win', 'closed_loss', 'stopped_out')",
         [date_str],
     )
-    stats = {"total": 0, "wins": 0, "losses": 0, "avg_return": 0, "best": 0, "worst": 0}
-    win_rate = 0
+    stats: dict[str, Any] = {"total": 0, "wins": 0, "losses": 0, "avg_return": 0.0, "best": 0.0, "worst": 0.0}
+    win_rate = 0.0
     if not df.is_empty():
         row = df.to_dicts()[0]
-        stats = {"total": row.get("total", 0), "wins": row.get("wins", 0), "losses": row.get("losses", 0),
-                "avg_return": row.get("avg_return", 0), "best": row.get("best_return", 0),
-                "worst": row.get("worst_return", 0)}
-        win_rate = (stats["wins"] / stats["total"]) * 100 if stats["total"] > 0 else 0
+        stats = {"total": int(row.get("total", 0)), "wins": int(row.get("wins", 0)), "losses": int(row.get("losses", 0)),
+                "avg_return": float(row.get("avg_return", 0)), "best": float(row.get("best_return", 0)),
+                "worst": float(row.get("worst_return", 0))}
+        total = int(stats["total"])
+        wins = int(stats["wins"])
+        win_rate = (wins / total) * 100.0 if total > 0 else 0.0
     return stats, win_rate
 
 
-def _get_review_metrics(storage: Storage, date_str: str) -> tuple[dict, float, float]:
+def _get_review_metrics(storage: PortfolioStorage, date_str: str) -> tuple[dict[str, Any], float, float]:
     """Fetch strategy review disagreement stats."""
     df = storage.query(
         "SELECT COUNT(*) as total, SUM(CASE WHEN disagreement = true THEN 1 ELSE 0 END) as disagreements, "
@@ -70,19 +74,21 @@ def _get_review_metrics(storage: Storage, date_str: str) -> tuple[dict, float, f
         "AVG(agreement_score) as avg_agreement FROM strategy_reviews WHERE DATE(created_at) = ?",
         [date_str],
     )
-    stats = {"total": 0, "disagreements": 0, "provider_disagreements": 0, "major_disagreements": 0,
-            "minor_disagreements": 0, "avg_agreement": 0}
-    disagreement_rate = provider_disagreement_rate = 0
+    stats: dict[str, Any] = {"total": 0, "disagreements": 0, "provider_disagreements": 0, "major_disagreements": 0,
+            "minor_disagreements": 0, "avg_agreement": 0.0}
+    disagreement_rate = 0.0
+    provider_disagreement_rate = 0.0
     if not df.is_empty():
         row = df.to_dicts()[0]
-        stats = {k: row.get(k, 0) or 0 for k in stats}
-        if stats["total"] > 0:
-            disagreement_rate = (stats["disagreements"] / stats["total"]) * 100
-            provider_disagreement_rate = (stats["provider_disagreements"] / stats["total"]) * 100
+        stats = {k: float(row.get(k, 0) or 0) if k == "avg_agreement" else int(row.get(k, 0) or 0) for k in stats}
+        total = int(stats["total"])
+        if total > 0:
+            disagreement_rate = (float(stats["disagreements"]) / total) * 100.0
+            provider_disagreement_rate = (float(stats["provider_disagreements"]) / total) * 100.0
     return stats, disagreement_rate, provider_disagreement_rate
 
 
-def _get_cumulative_return(storage: Storage, date_str: str) -> float:
+def _get_cumulative_return(storage: PortfolioStorage, date_str: str) -> float:
     """Calculate cumulative return from all closed trades to date."""
     df = storage.query(
         "SELECT SUM(return_pct) as cumulative FROM idea_outcomes "
@@ -92,8 +98,8 @@ def _get_cumulative_return(storage: Storage, date_str: str) -> float:
     return df.to_dicts()[0].get("cumulative", 0) if not df.is_empty() else 0
 
 
-def _insert_metrics(storage: Storage, date_str: str, signal_counts: dict, avg_scores: dict,
-                    score_stdev: float, trades_stats: dict, win_rate: float, reviews_stats: dict,
+def _insert_metrics(storage: PortfolioStorage, date_str: str, signal_counts: dict[str, Any], avg_scores: dict[str, Any],
+                    score_stdev: float, trades_stats: dict[str, Any], win_rate: float, reviews_stats: dict[str, Any],
                     disagreement_rate: float, provider_disagreement_rate: float, cumulative_return: float) -> None:
     """Insert aggregated metrics into strategy_metrics table."""
     with storage.connection() as conn:
