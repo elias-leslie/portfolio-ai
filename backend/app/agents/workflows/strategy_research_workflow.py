@@ -151,7 +151,7 @@ async def strategy_research_workflow(
         # Step 5b: Persist final backtest run to backtest_runs table
         logger.info("Persisting backtest run", workflow_id=workflow_id, strategy_id=strategy_id)
         try:
-            backtest_run_id = optimizer.persist_best_backtest(
+            backtest_run_id = optimizer.persist_backtest(
                 symbol=symbol,
                 strategy_name=f"{agent_result.strategy_type}_{symbol}",
                 params=optimized.parameters,

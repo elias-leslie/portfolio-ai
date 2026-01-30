@@ -10,9 +10,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-# Import from scoring.py (file, not scoring/ package)
-# Use direct import to avoid package/file naming conflict
-from app.watchlist.scoring import _is_stale as scoring_is_stale
+# Import from scoring_service.helpers
+from app.watchlist.scoring_service.helpers import is_stale as scoring_is_stale
 
 from ...storage import PortfolioStorage
 
