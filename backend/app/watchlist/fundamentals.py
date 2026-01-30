@@ -39,22 +39,17 @@ from app.watchlist.fundamentals_sources import (
 )
 
 __all__ = [
-    # Models
     "BaseFundamentalSource",
-    "FundamentalData",
-    # Sources
-    "FinnhubSource",
     "FMPSource",
+    "FinnhubSource",
+    "FundamentalData",
     "YFinanceSource",
-    "fetch_fundamentals",
-    # Scoring
     "calculate_fundamental_score",
     "calculate_growth_score",
     "calculate_health_score",
     "calculate_sentiment_score",
     "calculate_valuation_score",
-    # Classification
     "classify_company_health",
-    # Caching
+    "fetch_fundamentals",
     "fetch_fundamentals_cached",
 ]

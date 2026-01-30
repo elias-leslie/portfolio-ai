@@ -936,8 +936,8 @@ class TestTrimUnderperformingWatchlistTask:
         assert result["status"] == "skipped"
         assert result["reason"] == "auto_trim_disabled"
 
-    @patch("app.tasks.watchlist_discovery.discovery.get_rules")
-    @patch("app.tasks.watchlist_discovery.discovery.PortfolioStorage")
+    @patch("app.tasks.watchlist_discovery.trimming.get_rules")
+    @patch("app.tasks.watchlist_discovery.trimming.PortfolioStorage")
     def test_respects_max_daily_removals_limit(
         self,
         mock_storage_class: MagicMock,
@@ -969,8 +969,8 @@ class TestTrimUnderperformingWatchlistTask:
         # Should remove at most max_daily_removals (3)
         assert len(result["removed"]) <= mock_rules.max_daily_removals
 
-    @patch("app.tasks.watchlist_discovery.discovery.get_rules")
-    @patch("app.tasks.watchlist_discovery.discovery.PortfolioStorage")
+    @patch("app.tasks.watchlist_discovery.trimming.get_rules")
+    @patch("app.tasks.watchlist_discovery.trimming.PortfolioStorage")
     def test_handles_empty_trim_candidates(
         self,
         mock_storage_class: MagicMock,
@@ -993,8 +993,8 @@ class TestTrimUnderperformingWatchlistTask:
         assert result["candidates_found"] == 0
         assert len(result["removed"]) == 0
 
-    @patch("app.tasks.watchlist_discovery.discovery.get_rules")
-    @patch("app.tasks.watchlist_discovery.discovery.PortfolioStorage")
+    @patch("app.tasks.watchlist_discovery.trimming.get_rules")
+    @patch("app.tasks.watchlist_discovery.trimming.PortfolioStorage")
     def test_handles_exception(
         self,
         mock_storage_class: MagicMock,
@@ -1014,8 +1014,8 @@ class TestTrimUnderperformingWatchlistTask:
         assert result["status"] == "error"
         assert "Database connection failed" in result["error"]
 
-    @patch("app.tasks.watchlist_discovery.discovery.get_rules")
-    @patch("app.tasks.watchlist_discovery.discovery.PortfolioStorage")
+    @patch("app.tasks.watchlist_discovery.trimming.get_rules")
+    @patch("app.tasks.watchlist_discovery.trimming.PortfolioStorage")
     def test_removal_failure_does_not_crash_task(
         self,
         mock_storage_class: MagicMock,

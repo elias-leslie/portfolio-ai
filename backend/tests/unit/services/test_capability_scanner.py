@@ -348,7 +348,7 @@ def fetch_prices():
             patch.object(Path, "exists", return_value=True),
             patch.object(Path, "read_text", return_value=mock_content),
         ):
-            tables = scanner._detect_populates_tables("app.tasks.market_data_tasks.fetch_prices")
+            tables = detect_populates_tables("app.tasks.market_data_tasks.fetch_prices")
 
             assert "market_data" in tables
             assert "price_cache" in tables

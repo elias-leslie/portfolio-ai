@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from app.logging_config import get_logger
 from app.middleware.cache import cache_response
+from app.portfolio.analytics import PortfolioAnalytics
 from app.portfolio.manager import PortfolioManager
 from app.portfolio.price_fetcher import PriceDataFetcher
 from app.storage import get_storage
@@ -65,12 +66,8 @@ async def get_portfolio(request: Request, include_paper: bool = False) -> Portfo
 
     price_data = price_fetcher.fetch_price_data(symbols)
 
-    # Import analytics here to avoid circular import
-    from app.portfolio.analytics import PortfolioAnalytics
-
-    analytics_calculator = PortfolioAnalytics()
-
     # Calculate analytics
+    analytics_calculator = PortfolioAnalytics()
     analytics = analytics_calculator.calculate_full_analytics(positions, price_data)
 
     # Build position responses with current values
