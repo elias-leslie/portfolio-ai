@@ -8,10 +8,8 @@ Tests cover:
 
 from __future__ import annotations
 
-from app.watchlist.signal_classifier import (
-    _calculate_options_flow_score,
-    classify_signal,
-)
+from app.watchlist.signal_classifier import classify_signal
+from app.watchlist.signal_scoring import calculate_options_flow_score
 
 
 class TestCalculateOptionsFlowScore:
@@ -19,7 +17,7 @@ class TestCalculateOptionsFlowScore:
 
     def test_no_options_data_returns_zero(self) -> None:
         """Missing options data contributes 0 points."""
-        score, reasons = _calculate_options_flow_score(
+        score, reasons = calculate_options_flow_score(
             options_call_pct=None,
             options_near_term_pct=None,
             symbol_in_active_sector=None,
@@ -29,7 +27,7 @@ class TestCalculateOptionsFlowScore:
 
     def test_strong_bullish_options_flow(self) -> None:
         """58%+ calls gives maximum 3 points."""
-        score, reasons = _calculate_options_flow_score(
+        score, reasons = calculate_options_flow_score(
             options_call_pct=0.60,
             options_near_term_pct=0.50,
             symbol_in_active_sector=False,
@@ -41,7 +39,7 @@ class TestCalculateOptionsFlowScore:
 
     def test_moderate_bullish_options_flow(self) -> None:
         """55-58% calls gives 2 points."""
-        score, reasons = _calculate_options_flow_score(
+        score, reasons = calculate_options_flow_score(
             options_call_pct=0.56,
             options_near_term_pct=0.50,
             symbol_in_active_sector=False,
@@ -51,7 +49,7 @@ class TestCalculateOptionsFlowScore:
 
     def test_slight_bullish_options_flow(self) -> None:
         """52-55% calls gives 1 point."""
-        score, reasons = _calculate_options_flow_score(
+        score, reasons = calculate_options_flow_score(
             options_call_pct=0.53,
             options_near_term_pct=0.50,
             symbol_in_active_sector=False,
@@ -61,7 +59,7 @@ class TestCalculateOptionsFlowScore:
 
     def test_neutral_options_flow(self) -> None:
         """45-52% calls is neutral (0 points)."""
-        score, reasons = _calculate_options_flow_score(
+        score, reasons = calculate_options_flow_score(
             options_call_pct=0.50,
             options_near_term_pct=0.50,
             symbol_in_active_sector=False,
@@ -71,7 +69,7 @@ class TestCalculateOptionsFlowScore:
 
     def test_bearish_options_flow(self) -> None:
         """<45% calls is bearish (0 points but noted)."""
-        score, reasons = _calculate_options_flow_score(
+        score, reasons = calculate_options_flow_score(
             options_call_pct=0.40,
             options_near_term_pct=0.50,
             symbol_in_active_sector=False,
@@ -82,7 +80,7 @@ class TestCalculateOptionsFlowScore:
 
     def test_sector_activity_bonus(self) -> None:
         """Ticker in active sector adds 1 point."""
-        score, reasons = _calculate_options_flow_score(
+        score, reasons = calculate_options_flow_score(
             options_call_pct=0.58,
             options_near_term_pct=0.50,
             symbol_in_active_sector=True,
@@ -92,7 +90,7 @@ class TestCalculateOptionsFlowScore:
 
     def test_max_score_with_all_factors(self) -> None:
         """Maximum score is 4 (3 call + 1 sector)."""
-        score, reasons = _calculate_options_flow_score(
+        score, reasons = calculate_options_flow_score(
             options_call_pct=0.65,
             options_near_term_pct=0.80,
             symbol_in_active_sector=True,

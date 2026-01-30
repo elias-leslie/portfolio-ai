@@ -10,21 +10,21 @@ Tests the new graded confidence scoring system:
 from __future__ import annotations
 
 from app.watchlist.models import SignalType
-from app.watchlist.signal_classifier import (
-    _calculate_analyst_component_score,
-    _calculate_fundamental_component_score,
-    _calculate_news_sentiment_score,
-    _calculate_signal_strength,
-    classify_signal,
+from app.watchlist.signal_classifier import classify_signal
+from app.watchlist.signal_scoring import (
+    calculate_analyst_component_score,
+    calculate_fundamental_component_score,
+    calculate_news_sentiment_score,
+    calculate_signal_strength,
 )
 
 
 class TestFundamentalComponentScore:
-    """Tests for _calculate_fundamental_component_score (Task 0074 - Task 1)."""
+    """Tests for calculate_fundamental_component_score (Task 0074 - Task 1)."""
 
     def test_excellent_fundamentals_max_score(self) -> None:
         """Test that excellent fundamentals (high margins, growth, low debt) get max score."""
-        score, reasons = _calculate_fundamental_component_score(
+        score, reasons = calculate_fundamental_component_score(
             profit_margin=0.35,  # 35% = +2
             revenue_growth=0.25,  # 25% = +2
             debt_to_equity=0.3,  # Low debt = +1
@@ -37,7 +37,7 @@ class TestFundamentalComponentScore:
 
     def test_good_fundamentals_medium_score(self) -> None:
         """Test that good fundamentals (moderate margins, growth) get medium score."""
-        score, reasons = _calculate_fundamental_component_score(
+        score, reasons = calculate_fundamental_component_score(
             profit_margin=0.15,  # 15% = +1
             revenue_growth=0.10,  # 10% = +1
             debt_to_equity=1.0,  # Moderate debt = 0
@@ -49,7 +49,7 @@ class TestFundamentalComponentScore:
 
     def test_weak_fundamentals_negative_score(self) -> None:
         """Test that weak fundamentals (negative margins, debt) get negative score."""
-        score, reasons = _calculate_fundamental_component_score(
+        score, reasons = calculate_fundamental_component_score(
             profit_margin=-0.05,  # Negative = -1
             revenue_growth=-0.10,  # Negative = -1
             debt_to_equity=2.0,  # High debt = -1
@@ -62,7 +62,7 @@ class TestFundamentalComponentScore:
 
     def test_none_values_zero_contribution(self) -> None:
         """Test that None values contribute 0 points."""
-        score, reasons = _calculate_fundamental_component_score(
+        score, reasons = calculate_fundamental_component_score(
             profit_margin=None,
             revenue_growth=None,
             debt_to_equity=None,
@@ -72,7 +72,7 @@ class TestFundamentalComponentScore:
 
     def test_partial_data(self) -> None:
         """Test with only some data available."""
-        score, reasons = _calculate_fundamental_component_score(
+        score, reasons = calculate_fundamental_component_score(
             profit_margin=0.25,  # 25% = +2
             revenue_growth=None,
             debt_to_equity=0.4,  # Low debt = +1
@@ -82,11 +82,11 @@ class TestFundamentalComponentScore:
 
 
 class TestAnalystComponentScore:
-    """Tests for _calculate_analyst_component_score (Task 0074 - Task 2)."""
+    """Tests for calculate_analyst_component_score (Task 0074 - Task 2)."""
 
     def test_strong_buy_consensus_max_score(self) -> None:
         """Test that strong buy consensus gets max score."""
-        score, reasons = _calculate_analyst_component_score(
+        score, reasons = calculate_analyst_component_score(
             recommendation_mean=1.8,  # Strong buy = +3
             analyst_buy_pct=0.75,  # >70% = +2
         )
@@ -97,7 +97,7 @@ class TestAnalystComponentScore:
 
     def test_buy_consensus_medium_score(self) -> None:
         """Test that buy consensus gets medium score."""
-        score, reasons = _calculate_analyst_component_score(
+        score, reasons = calculate_analyst_component_score(
             recommendation_mean=2.3,  # Buy = +2
             analyst_buy_pct=0.60,  # 50-70% = +1
         )
@@ -106,7 +106,7 @@ class TestAnalystComponentScore:
 
     def test_hold_consensus_low_score(self) -> None:
         """Test that hold consensus gets low score."""
-        score, reasons = _calculate_analyst_component_score(
+        score, reasons = calculate_analyst_component_score(
             recommendation_mean=2.8,  # Hold = +1
             analyst_buy_pct=0.40,  # <50% = 0
         )
@@ -115,7 +115,7 @@ class TestAnalystComponentScore:
 
     def test_sell_consensus_zero_score(self) -> None:
         """Test that sell consensus gets zero score."""
-        score, reasons = _calculate_analyst_component_score(
+        score, reasons = calculate_analyst_component_score(
             recommendation_mean=4.0,  # Sell = 0
             analyst_buy_pct=0.20,  # <50% = 0
         )
@@ -124,7 +124,7 @@ class TestAnalystComponentScore:
 
     def test_none_values_zero_contribution(self) -> None:
         """Test that None values contribute 0 points."""
-        score, reasons = _calculate_analyst_component_score(
+        score, reasons = calculate_analyst_component_score(
             recommendation_mean=None,
             analyst_buy_pct=None,
         )
@@ -133,70 +133,70 @@ class TestAnalystComponentScore:
 
 
 class TestNewsSentimentScore:
-    """Tests for _calculate_news_sentiment_score (Task 0074 - Task 4)."""
+    """Tests for calculate_news_sentiment_score (Task 0074 - Task 4)."""
 
     def test_strong_positive_sentiment(self) -> None:
         """Test strong positive sentiment (+0.8 → ~4.5 points)."""
-        score, reasons = _calculate_news_sentiment_score(0.8)
+        score, reasons = calculate_news_sentiment_score(0.8)
         assert score == 4  # (0.8 + 1.0) / 2.0 * 5.0 = 4.5 → 4
         assert len(reasons) == 1
         assert "positive" in reasons[0].lower()
 
     def test_weak_positive_sentiment(self) -> None:
         """Test weak positive sentiment (+0.2 → ~3.0 points)."""
-        score, reasons = _calculate_news_sentiment_score(0.2)
+        score, reasons = calculate_news_sentiment_score(0.2)
         assert score == 3  # (0.2 + 1.0) / 2.0 * 5.0 = 3.0
         assert len(reasons) == 1
         assert "positive" in reasons[0].lower()
 
     def test_neutral_sentiment(self) -> None:
         """Test neutral sentiment (0.0 → ~2.5 points)."""
-        score, reasons = _calculate_news_sentiment_score(0.0)
+        score, reasons = calculate_news_sentiment_score(0.0)
         assert score == 2  # (0.0 + 1.0) / 2.0 * 5.0 = 2.5 → 2
         assert len(reasons) == 0  # No reason for neutral
 
     def test_negative_sentiment(self) -> None:
         """Test negative sentiment (-0.5 → ~1.25 points)."""
-        score, reasons = _calculate_news_sentiment_score(-0.5)
+        score, reasons = calculate_news_sentiment_score(-0.5)
         assert score == 1  # (-0.5 + 1.0) / 2.0 * 5.0 = 1.25 → 1
         assert len(reasons) == 1
         assert "negative" in reasons[0].lower()
 
     def test_very_negative_sentiment(self) -> None:
         """Test very negative sentiment (-1.0 → 0 points)."""
-        score, reasons = _calculate_news_sentiment_score(-1.0)
+        score, reasons = calculate_news_sentiment_score(-1.0)
         assert score == 0
         assert len(reasons) == 1
         assert "negative" in reasons[0].lower()
 
 
 class TestSignalStrengthCalculation:
-    """Tests for _calculate_signal_strength with expanded range (Task 0074)."""
+    """Tests for calculate_signal_strength with expanded range (Task 0074)."""
 
     def test_max_confirmations_max_strength(self) -> None:
         """Test that max confirmations (21) gives max strength (10)."""
-        strength = _calculate_signal_strength(21)
+        strength = calculate_signal_strength(21)
         assert strength == 10
 
     def test_min_confirmations_zero_strength(self) -> None:
         """Test that min confirmations (-3) gives zero strength."""
-        strength = _calculate_signal_strength(-3)
+        strength = calculate_signal_strength(-3)
         assert strength == 0
 
     def test_medium_confirmations_medium_strength(self) -> None:
         """Test that medium confirmations (10) gives strength ~5."""
-        strength = _calculate_signal_strength(10)
+        strength = calculate_signal_strength(10)
         # (10 + 3) / 2.4 = 5.4 → 5
         assert strength == 5
 
     def test_negative_beyond_range_clamped(self) -> None:
         """Test that values below -3 are clamped to 0."""
-        strength = _calculate_signal_strength(-10)
+        strength = calculate_signal_strength(-10)
         assert strength == 0
 
     def test_beyond_max_clamped(self) -> None:
         """Test that values above 21 are clamped to 10."""
-        strength = _calculate_signal_strength(30)
+        strength = calculate_signal_strength(30)
         assert strength == 10
 
 

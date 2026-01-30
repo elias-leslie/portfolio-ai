@@ -24,7 +24,8 @@ from .narrative_generator import (
 )
 
 # Re-export from signal_classifier
-from .signal_classifier import INDEX_ETFS, classify_signal, classify_trading_style
+from .signal_classifier import classify_signal
+from .trading_style import INDEX_ETFS, classify_trading_style
 
 __all__ = [
     # Constants
