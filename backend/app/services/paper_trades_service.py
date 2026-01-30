@@ -241,9 +241,7 @@ def get_trade_summary() -> PaperTradeSummaryResponse:
         ).fetchone()
 
         # Type narrow: account_row[0] and account_row[1] are DB values (str | int | float | bool | None)
-        cash_balance = (
-            float(account_row[0]) if account_row and account_row[0] is not None else None
-        )
+        cash_balance = float(account_row[0]) if account_row and account_row[0] is not None else None
         starting_balance = (
             float(account_row[1]) if account_row and account_row[1] is not None else None
         )

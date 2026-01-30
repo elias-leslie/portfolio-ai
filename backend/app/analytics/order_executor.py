@@ -212,7 +212,9 @@ class OrderExecutor:
 
         slippage_info = ""
         if slippage_result.slippage_bps > 0:
-            slippage_info = f" [slippage: {slippage_result.slippage_bps:.1f}bps, ${slippage_amount:.2f}]"
+            slippage_info = (
+                f" [slippage: {slippage_result.slippage_bps:.1f}bps, ${slippage_amount:.2f}]"
+            )
 
         logger.info(
             f"Market order filled: {action.upper()} {shares} {symbol} @ ${fill_price:.2f} "

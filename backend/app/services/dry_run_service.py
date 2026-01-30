@@ -80,7 +80,9 @@ def _extract_files_from_result(result: dict[str, Any]) -> list[DryRunFileInfo]:
         if isinstance(item, dict):
             files.append(
                 {
-                    "file": item.get("file") or item.get("directory") or item.get("path", "unknown"),
+                    "file": item.get("file")
+                    or item.get("directory")
+                    or item.get("path", "unknown"),
                     "size_bytes": item.get("size_bytes", 0),
                     "age_days": item.get("age_days", 0.0) or item.get("age_hours", 0.0) / 24.0,
                     "reason": item.get("reason") or item.get("action") or "age/count exceeded",

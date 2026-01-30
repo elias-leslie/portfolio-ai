@@ -26,7 +26,7 @@ from ..services.thesis_service import ThesisService
 from ..storage import PortfolioStorage
 from ..storage.connection import get_connection_manager
 from ..strategies.storage import StrategyStorage
-from .watchlist_discovery import remove_symbol_from_watchlist
+from .watchlist_discovery.trimming import remove_symbol_from_watchlist
 
 logger = get_logger(__name__)
 

@@ -15,7 +15,9 @@ from app.logging_config import get_logger
 logger = get_logger(__name__)
 
 
-def execute_store_idea(storage: PortfolioStorage, agent_run_id: str, **idea_data: object) -> dict[str, object]:
+def execute_store_idea(
+    storage: PortfolioStorage, agent_run_id: str, **idea_data: object
+) -> dict[str, object]:
     """Execute store_idea tool and automatically create a paper trade.
 
     Args:

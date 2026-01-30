@@ -57,9 +57,7 @@ def calculate_metrics_from_state(state: BacktestState) -> BacktestMetrics:
     win_rate = len(wins) / num_trades if num_trades > 0 else 0.0
 
     total_wins = sum(float(t.pnl) for t in wins if t.pnl is not None) if wins else 0.0
-    total_losses = (
-        abs(sum(float(t.pnl) for t in losses if t.pnl is not None)) if losses else 0.0
-    )
+    total_losses = abs(sum(float(t.pnl) for t in losses if t.pnl is not None)) if losses else 0.0
     profit_factor = (
         total_wins / total_losses if total_losses > 0 else (2.0 if total_wins > 0 else 0.0)
     )

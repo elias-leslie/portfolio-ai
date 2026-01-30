@@ -43,9 +43,7 @@ def get_symbol_sector(storage: PortfolioStorage, symbol: str) -> str | None:
     return str(result.get_column("sector")[0])
 
 
-def get_sector_exposure(
-    storage: PortfolioStorage, account_id: str, sector: str
-) -> float:
+def get_sector_exposure(storage: PortfolioStorage, account_id: str, sector: str) -> float:
     """Calculate current exposure to a sector as % of portfolio value.
 
     Args:
@@ -136,9 +134,7 @@ def validate_position_limits(
 
         # Check max single trade loss limit (from rules engine)
         rules = get_rules()
-        max_loss_pct = (
-            rules.risk_management.max_single_trade_loss_pct / 100.0
-        )  # Convert to decimal
+        max_loss_pct = rules.risk_management.max_single_trade_loss_pct / 100.0  # Convert to decimal
         max_allowed_loss = portfolio_value * max_loss_pct
 
         # Potential loss = position amount (worst case: 100% loss)

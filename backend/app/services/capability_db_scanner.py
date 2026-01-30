@@ -164,9 +164,7 @@ class DatabaseScanner:
         date_range_end = None
 
         if self.db_config["track_freshness"]:
-            date_range_start, date_range_end = detect_date_range(
-                table_name, conn, column_names
-            )
+            date_range_start, date_range_end = detect_date_range(table_name, conn, column_names)
 
         # Get expected freshness and calculate status
         expected_freshness = get_expected_freshness(table_name)
@@ -214,7 +212,6 @@ class DatabaseScanner:
             "health_status": health_status,
             "fk_referenced_by": fk_references,  # NEW: tables that have FK to this table
         }
-
 
     def save_capabilities(self, capabilities: list[dict[str, Any]]) -> int:
         """Save scanned capabilities to db_capabilities table.

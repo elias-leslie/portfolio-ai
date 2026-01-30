@@ -229,13 +229,17 @@ def get_cache_status() -> CacheStatusResponse:
     # Ruff cache
     ruff_path = backend_root / ".ruff_cache"
     directories.append(
-        get_cache_dir_info(ruff_path, "Ruff Linter Cache", "Ruff analysis cache, regenerates on lint")
+        get_cache_dir_info(
+            ruff_path, "Ruff Linter Cache", "Ruff analysis cache, regenerates on lint"
+        )
     )
 
     # Pytest cache
     pytest_path = backend_root / ".pytest_cache"
     directories.append(
-        get_cache_dir_info(pytest_path, "Pytest Cache", "Test execution cache, regenerates on test run")
+        get_cache_dir_info(
+            pytest_path, "Pytest Cache", "Test execution cache, regenerates on test run"
+        )
     )
 
     # Mypy cache

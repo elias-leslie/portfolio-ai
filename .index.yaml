@@ -1,5 +1,5 @@
 project: portfolio-ai
-generated_at: 2026-01-30 05:30 UTC
+generated_at: 2026-01-30 15:47 UTC
 environment:
   python_version: '>=3.13'
   venv_path: backend/.venv
@@ -218,15 +218,15 @@ tasks:
 folders:
   (root): 25 files - services, tests
   .claude: 6 files - services
-  .dev-tools: 19 files - tests
+  .dev-tools: 24 files - tests
   .gemini: 1 files
   .summitflow: 1 files
   automation: 2 files
-  backend: 852 files - api, services, tests
+  backend: 897 files - api, components, services, tests
   certs: 3 files
   config: 10 files - api
   docs: 161 files - api, services, tests
-  frontend: 347 files - api, components, services, tests
+  frontend: 374 files - api, components, services, tests
   reports: 46 files
   scripts: 108 files - api, services, tests
   services: 26 files - api, services, tests

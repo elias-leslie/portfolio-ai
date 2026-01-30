@@ -80,8 +80,7 @@ def execute_run_backtest(
         )
 
         logger.info(
-            f"Agent {agent_run_id} started backtest {run_id}: {symbol} "
-            f"({start_date} to {end_date})"
+            f"Agent {agent_run_id} started backtest {run_id}: {symbol} ({start_date} to {end_date})"
         )
 
         # Update status to running

@@ -1,12 +1,7 @@
-"""Watchlist Discovery and Trimming Tasks.
+"""Watchlist Discovery Module.
 
-Automated watchlist management:
-1. Discovery: Find high-potential symbols from top gainers, volume spikes, news mentions
-2. Trimming: Remove underperforming symbols after minimum hold period
-
-Scheduled via Celery Beat:
-- discover_watchlist_candidates: Daily 08:00 UTC
-- trim_underperforming_watchlist: Daily 08:30 UTC
+Discovers high-potential symbols from top gainers, volume spikes, and news mentions.
+Scheduled via Celery Beat: Daily 08:00 UTC
 """
 
 from __future__ import annotations
@@ -18,15 +13,15 @@ from uuid import uuid4
 
 from celery import shared_task
 
-from ..logging_config import get_logger
-from ..rules.loader import get_rules
-from ..storage import PortfolioStorage
+from ...logging_config import get_logger
+from ...rules.loader import get_rules
+from ...storage import PortfolioStorage
 
 logger = get_logger(__name__)
 
 
 # =============================================================================
-# Discovery Functions
+# Data Retrieval Functions
 # =============================================================================
 
 
@@ -139,6 +134,11 @@ def get_news_mentions(
     ]
 
 
+# =============================================================================
+# Scoring Functions
+# =============================================================================
+
+
 def calculate_discovery_score(
     symbol: str,
     gainers_data: list[dict[str, Any]],
@@ -188,6 +188,11 @@ def calculate_discovery_score(
             score += 1.0
 
     return score
+
+
+# =============================================================================
+# Watchlist Helper Functions
+# =============================================================================
 
 
 def get_existing_watchlist_symbols(storage: PortfolioStorage) -> set[str]:
@@ -266,90 +271,7 @@ def add_symbol_to_watchlist(
 
 
 # =============================================================================
-# Trimming Functions
-# =============================================================================
-
-
-def get_trim_candidates(
-    storage: PortfolioStorage,
-    min_days_watched: int = 7,
-    min_score_threshold: float = 4.0,
-    exclude_portfolio: bool = True,
-) -> list[dict[str, Any]]:
-    """Find watchlist items eligible for trimming."""
-    exclude_clause = ""
-    if exclude_portfolio:
-        exclude_clause = """
-            AND wi.symbol NOT IN (
-                SELECT DISTINCT symbol FROM portfolio_positions WHERE shares > 0
-            )
-        """
-
-    sql = f"""
-        WITH watchlist_scores AS (
-            SELECT
-                wi.id,
-                wi.symbol,
-                wi.created_at,
-                EXTRACT(DAY FROM NOW() - wi.created_at) as days_watched,
-                COALESCE(AVG(wsc.overall_score), 0) as avg_score
-            FROM watchlist_items wi
-            LEFT JOIN watchlist_snapshots_core wsc ON wsc.item_id = wi.id
-            WHERE wi.created_at <= NOW() - make_interval(days => $1)
-            {exclude_clause}
-            GROUP BY wi.id, wi.symbol, wi.created_at
-        )
-        SELECT id, symbol, days_watched, avg_score
-        FROM watchlist_scores
-        WHERE avg_score < $2
-        ORDER BY avg_score ASC
-    """
-
-    df = storage.query(sql, [min_days_watched, min_score_threshold])
-    return [
-        {
-            "id": str(row["id"]),
-            "symbol": str(row["symbol"]),
-            "days_watched": int(row["days_watched"]) if row["days_watched"] else 0,
-            "avg_score": float(row["avg_score"]) if row["avg_score"] else 0.0,
-        }
-        for row in df.iter_rows(named=True)
-    ]
-
-
-def remove_symbol_from_watchlist(
-    storage: PortfolioStorage,
-    item_id: str,
-    symbol: str,
-    reason: str,
-) -> bool:
-    """Remove symbol from watchlist."""
-    try:
-        with storage.connection() as conn:
-            cursor = conn.raw_connection.cursor()
-            # Delete snapshots first (FK constraint)
-            cursor.execute("DELETE FROM watchlist_snapshots_core WHERE item_id = %s", (item_id,))
-            # Delete item
-            cursor.execute("DELETE FROM watchlist_items WHERE id = %s RETURNING id", (item_id,))
-            result = cursor.fetchone()
-            conn.commit()
-
-            if result:
-                logger.info(
-                    "watchlist_trim_removed",
-                    symbol=symbol,
-                    item_id=item_id,
-                    reason=reason,
-                )
-                return True
-            return False
-    except Exception as e:
-        logger.error("watchlist_trim_failed", symbol=symbol, error=str(e))
-        return False
-
-
-# =============================================================================
-# Celery Tasks
+# Celery Task
 # =============================================================================
 
 
@@ -447,219 +369,4 @@ def discover_watchlist_candidates_task(
 
     except Exception as e:
         logger.error("watchlist_discovery_failed", error=str(e))
-        return {"status": "error", "error": str(e)}
-
-
-@shared_task(name="trim_underperforming_watchlist", bind=True)
-def trim_underperforming_watchlist_task(
-    self: Any,
-) -> dict[str, Any]:
-    """Remove underperforming symbols from watchlist.
-
-    Scheduled: Daily 08:30 UTC
-    Limits: Max 3 removals per day
-    """
-    rules = get_rules()
-    wm = rules.watchlist_management
-
-    if not wm.auto_trim_enabled:
-        logger.info("watchlist_trim_skipped", reason="auto_trim_disabled")
-        return {"status": "skipped", "reason": "auto_trim_disabled"}
-
-    storage = PortfolioStorage()
-    try:
-        # Find trim candidates
-        candidates = get_trim_candidates(
-            storage,
-            min_days_watched=wm.min_days_watched,
-            min_score_threshold=wm.min_score_threshold,
-            exclude_portfolio=wm.exclude_portfolio_holdings,
-        )
-
-        # Limit removals per day
-        to_remove = candidates[: wm.max_daily_removals]
-
-        # Remove from watchlist
-        removed: list[dict[str, Any]] = []
-        for candidate in to_remove:
-            reason = f"avg_score={candidate['avg_score']:.1f} < {wm.min_score_threshold}"
-            success = remove_symbol_from_watchlist(
-                storage,
-                candidate["id"],
-                candidate["symbol"],
-                reason,
-            )
-            if success:
-                removed.append(
-                    {
-                        "symbol": candidate["symbol"],
-                        "avg_score": candidate["avg_score"],
-                        "days_watched": candidate["days_watched"],
-                    }
-                )
-
-        logger.info(
-            "watchlist_trim_complete",
-            candidates_found=len(candidates),
-            removed=len(removed),
-        )
-
-        return {
-            "status": "success",
-            "candidates_found": len(candidates),
-            "removed": removed,
-        }
-
-    except Exception as e:
-        logger.error("watchlist_trim_failed", error=str(e))
-        return {"status": "error", "error": str(e)}
-
-
-@shared_task(name="generate_daily_watchlist_report", bind=True)
-def generate_daily_watchlist_report_task(
-    self: Any,
-) -> dict[str, Any]:
-    """Generate daily watchlist report with additions, removals, and score changes.
-
-    Scheduled: Daily 09:00 UTC (after discovery and trim tasks)
-    Generates summary of last 24 hours of watchlist activity.
-    """
-    storage = PortfolioStorage()
-    try:
-        now = datetime.now(UTC)
-        yesterday = now.replace(hour=0, minute=0, second=0, microsecond=0)
-
-        # Find symbols added in last 24 hours
-        added_df = storage.query(
-            """
-            SELECT symbol, created_at, source, metadata
-            FROM watchlist_items
-            WHERE created_at >= $1
-            ORDER BY created_at DESC
-            """,
-            [yesterday],
-        )
-        symbols_added = [
-            {
-                "symbol": row["symbol"],
-                "added_at": row["created_at"].isoformat() if row["created_at"] else None,
-                "source": row["source"],
-            }
-            for row in added_df.iter_rows(named=True)
-        ]
-
-        # Find symbols removed in last 24 hours (from deletion_audit)
-        # Note: deletion_audit stores symbol in metadata JSONB, not as separate column
-        removed_df = storage.query(
-            """
-            SELECT metadata->>'symbol' as symbol, deleted_at
-            FROM deletion_audit
-            WHERE table_name = 'watchlist_items'
-              AND deleted_at >= $1
-            ORDER BY deleted_at DESC
-            """,
-            [yesterday],
-        )
-        symbols_removed = [
-            {
-                "symbol": row["symbol"] or "UNKNOWN",
-                "removed_at": row["deleted_at"].isoformat() if row["deleted_at"] else None,
-            }
-            for row in removed_df.iter_rows(named=True)
-        ]
-
-        # Find significant score changes (>10 points) in last 24 hours
-        score_changes_df = storage.query(
-            """
-            WITH yesterday_scores AS (
-                SELECT
-                    item_id,
-                    overall_score as old_score
-                FROM watchlist_snapshots_core
-                WHERE fetched_at >= $1 - INTERVAL '1 day'
-                  AND fetched_at < $1
-                ORDER BY fetched_at DESC
-            ),
-            today_scores AS (
-                SELECT
-                    item_id,
-                    overall_score as new_score
-                FROM watchlist_snapshots_core
-                WHERE fetched_at >= $1
-                ORDER BY fetched_at DESC
-            )
-            SELECT DISTINCT ON (wi.symbol)
-                wi.symbol,
-                ys.old_score,
-                ts.new_score,
-                ABS(ts.new_score - ys.old_score) as change_abs,
-                ((ts.new_score - ys.old_score) / NULLIF(ys.old_score, 0)) * 100 as change_pct
-            FROM watchlist_items wi
-            LEFT JOIN yesterday_scores ys ON ys.item_id = wi.id
-            LEFT JOIN today_scores ts ON ts.item_id = wi.id
-            WHERE ys.old_score IS NOT NULL
-              AND ts.new_score IS NOT NULL
-              AND ABS(ts.new_score - ys.old_score) >= 10
-            ORDER BY wi.symbol, change_abs DESC
-            """,
-            [yesterday],
-        )
-        score_changes = [
-            {
-                "symbol": row["symbol"],
-                "old_score": float(row["old_score"]) if row["old_score"] else 0.0,
-                "new_score": float(row["new_score"]) if row["new_score"] else 0.0,
-                "change_pct": float(row["change_pct"]) if row["change_pct"] else 0.0,
-            }
-            for row in score_changes_df.iter_rows(named=True)
-        ]
-
-        # Insert or update report for today
-        report_id = str(uuid4())
-        report_date = now.date()
-        with storage.connection() as conn:
-            cursor = conn.raw_connection.cursor()
-            cursor.execute(
-                """
-                INSERT INTO watchlist_daily_reports (
-                    id, report_date, symbols_added, symbols_removed, score_changes, generated_at
-                )
-                VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT (report_date)
-                DO UPDATE SET
-                    symbols_added = EXCLUDED.symbols_added,
-                    symbols_removed = EXCLUDED.symbols_removed,
-                    score_changes = EXCLUDED.score_changes,
-                    generated_at = EXCLUDED.generated_at
-                RETURNING id
-                """,
-                (
-                    report_id,
-                    report_date,
-                    json.dumps(symbols_added),
-                    json.dumps(symbols_removed),
-                    json.dumps(score_changes),
-                    now,
-                ),
-            )
-            conn.commit()
-
-        logger.info(
-            "watchlist_daily_report_generated",
-            report_date=str(report_date),
-            added_count=len(symbols_added),
-            removed_count=len(symbols_removed),
-            score_changes_count=len(score_changes),
-        )
-
-        return {
-            "status": "success",
-            "report_date": str(report_date),
-            "added_count": len(symbols_added),
-            "removed_count": len(symbols_removed),
-            "score_changes_count": len(score_changes),
-        }
-
-    except Exception as e:
-        logger.error("watchlist_daily_report_failed", error=str(e))
         return {"status": "error", "error": str(e)}

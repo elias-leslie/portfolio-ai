@@ -60,9 +60,7 @@ def execute_create_paper_trade(
         }
 
     # Normalize confidence score (handle 0-100 vs 0-1)
-    normalized_confidence = (
-        confidence_score / 100.0 if confidence_score > 1.0 else confidence_score
-    )
+    normalized_confidence = confidence_score / 100.0 if confidence_score > 1.0 else confidence_score
 
     # Calculate confidence-adjusted position size (Section 1.2)
     adjusted_position_pct = calculate_confidence_adjusted_position(normalized_confidence)

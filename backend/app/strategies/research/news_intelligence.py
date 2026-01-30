@@ -67,9 +67,7 @@ def calculate_news_confidence(news_volume: int) -> float:
     return NEWS_CONFIDENCE_DEFAULT
 
 
-def calculate_sentiment_metrics(
-    news_rows: list[dict[str, Any]], end_date: date
-) -> dict[str, Any]:
+def calculate_sentiment_metrics(news_rows: list[dict[str, Any]], end_date: date) -> dict[str, Any]:
     """Calculate sentiment metrics from news data.
 
     Args:
@@ -79,9 +77,7 @@ def calculate_sentiment_metrics(
     Returns:
         Dict with sentiment_score, sentiment_7d_avg, sentiment_30d_avg, sentiment_trend
     """
-    all_scores = [
-        row["sentiment_score"] for row in news_rows if row["sentiment_score"] is not None
-    ]
+    all_scores = [row["sentiment_score"] for row in news_rows if row["sentiment_score"] is not None]
     # Convert end_date to datetime for comparison with published_at (which is datetime)
     end_datetime = datetime.combine(end_date, datetime.min.time())
     recent_7d = [

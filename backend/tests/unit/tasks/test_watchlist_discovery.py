@@ -17,17 +17,21 @@ import pytest
 
 from app.rules.models import WatchlistManagementRules
 from app.tasks.watchlist_discovery import (
+    discover_watchlist_candidates_task,
+    trim_underperforming_watchlist_task,
+)
+from app.tasks.watchlist_discovery.discovery import (
     add_symbol_to_watchlist,
     calculate_discovery_score,
-    discover_watchlist_candidates_task,
     get_existing_watchlist_symbols,
     get_news_mentions,
     get_top_gainers,
-    get_trim_candidates,
     get_volume_spikes,
     get_watchlist_size,
+)
+from app.tasks.watchlist_discovery.trimming import (
+    get_trim_candidates,
     remove_symbol_from_watchlist,
-    trim_underperforming_watchlist_task,
 )
 
 # =============================================================================
@@ -579,8 +583,8 @@ class TestRemoveSymbolFromWatchlist:
 class TestDiscoverWatchlistCandidatesTask:
     """Test discover_watchlist_candidates_task main task."""
 
-    @patch("app.tasks.watchlist_discovery.get_rules")
-    @patch("app.tasks.watchlist_discovery.PortfolioStorage")
+    @patch("app.tasks.watchlist_discovery.discovery.get_rules")
+    @patch("app.tasks.watchlist_discovery.discovery.PortfolioStorage")
     def test_successful_discovery_and_addition(
         self,
         mock_storage_class: MagicMock,
@@ -646,8 +650,8 @@ class TestDiscoverWatchlistCandidatesTask:
         assert result["candidates_found"] == 2  # AAPL, NVDA (excluding MSFT)
         assert len(result["added"]) >= 1  # At least AAPL should qualify with score 10
 
-    @patch("app.tasks.watchlist_discovery.get_rules")
-    @patch("app.tasks.watchlist_discovery.PortfolioStorage")
+    @patch("app.tasks.watchlist_discovery.discovery.get_rules")
+    @patch("app.tasks.watchlist_discovery.discovery.PortfolioStorage")
     def test_skips_when_watchlist_full(
         self,
         mock_storage_class: MagicMock,
@@ -670,8 +674,8 @@ class TestDiscoverWatchlistCandidatesTask:
         assert result["reason"] == "watchlist_full"
         assert result["current_size"] == 50
 
-    @patch("app.tasks.watchlist_discovery.get_rules")
-    @patch("app.tasks.watchlist_discovery.PortfolioStorage")
+    @patch("app.tasks.watchlist_discovery.discovery.get_rules")
+    @patch("app.tasks.watchlist_discovery.discovery.PortfolioStorage")
     def test_respects_max_daily_additions_limit(
         self,
         mock_storage_class: MagicMock,
@@ -729,8 +733,8 @@ class TestDiscoverWatchlistCandidatesTask:
         # Should add at most max_daily_additions (5)
         assert len(result["added"]) <= mock_rules.max_daily_additions
 
-    @patch("app.tasks.watchlist_discovery.get_rules")
-    @patch("app.tasks.watchlist_discovery.PortfolioStorage")
+    @patch("app.tasks.watchlist_discovery.discovery.get_rules")
+    @patch("app.tasks.watchlist_discovery.discovery.PortfolioStorage")
     def test_respects_watchlist_size_limit(
         self,
         mock_storage_class: MagicMock,
@@ -775,8 +779,8 @@ class TestDiscoverWatchlistCandidatesTask:
         # Should only add 2 (48 + 2 = 50, at max)
         assert len(result["added"]) <= 2
 
-    @patch("app.tasks.watchlist_discovery.get_rules")
-    @patch("app.tasks.watchlist_discovery.PortfolioStorage")
+    @patch("app.tasks.watchlist_discovery.discovery.get_rules")
+    @patch("app.tasks.watchlist_discovery.discovery.PortfolioStorage")
     def test_filters_below_score_threshold(
         self,
         mock_storage_class: MagicMock,
@@ -814,8 +818,8 @@ class TestDiscoverWatchlistCandidatesTask:
         assert result["qualified"] == 0  # Score < threshold
         assert len(result["added"]) == 0
 
-    @patch("app.tasks.watchlist_discovery.get_rules")
-    @patch("app.tasks.watchlist_discovery.PortfolioStorage")
+    @patch("app.tasks.watchlist_discovery.discovery.get_rules")
+    @patch("app.tasks.watchlist_discovery.discovery.PortfolioStorage")
     def test_handles_empty_discovery_data(
         self,
         mock_storage_class: MagicMock,
@@ -845,8 +849,8 @@ class TestDiscoverWatchlistCandidatesTask:
         assert result["qualified"] == 0
         assert len(result["added"]) == 0
 
-    @patch("app.tasks.watchlist_discovery.get_rules")
-    @patch("app.tasks.watchlist_discovery.PortfolioStorage")
+    @patch("app.tasks.watchlist_discovery.discovery.get_rules")
+    @patch("app.tasks.watchlist_discovery.discovery.PortfolioStorage")
     def test_handles_exception(
         self,
         mock_storage_class: MagicMock,
@@ -870,8 +874,8 @@ class TestDiscoverWatchlistCandidatesTask:
 class TestTrimUnderperformingWatchlistTask:
     """Test trim_underperforming_watchlist_task main task."""
 
-    @patch("app.tasks.watchlist_discovery.get_rules")
-    @patch("app.tasks.watchlist_discovery.PortfolioStorage")
+    @patch("app.tasks.watchlist_discovery.trimming.get_rules")
+    @patch("app.tasks.watchlist_discovery.trimming.PortfolioStorage")
     def test_successful_trimming(
         self,
         mock_storage_class: MagicMock,
@@ -904,7 +908,7 @@ class TestTrimUnderperformingWatchlistTask:
         assert result["candidates_found"] == 2
         assert len(result["removed"]) == 2
 
-    @patch("app.tasks.watchlist_discovery.get_rules")
+    @patch("app.tasks.watchlist_discovery.trimming.get_rules")
     def test_skips_when_auto_trim_disabled(
         self,
         mock_get_rules: MagicMock,
@@ -932,8 +936,8 @@ class TestTrimUnderperformingWatchlistTask:
         assert result["status"] == "skipped"
         assert result["reason"] == "auto_trim_disabled"
 
-    @patch("app.tasks.watchlist_discovery.get_rules")
-    @patch("app.tasks.watchlist_discovery.PortfolioStorage")
+    @patch("app.tasks.watchlist_discovery.discovery.get_rules")
+    @patch("app.tasks.watchlist_discovery.discovery.PortfolioStorage")
     def test_respects_max_daily_removals_limit(
         self,
         mock_storage_class: MagicMock,
@@ -965,8 +969,8 @@ class TestTrimUnderperformingWatchlistTask:
         # Should remove at most max_daily_removals (3)
         assert len(result["removed"]) <= mock_rules.max_daily_removals
 
-    @patch("app.tasks.watchlist_discovery.get_rules")
-    @patch("app.tasks.watchlist_discovery.PortfolioStorage")
+    @patch("app.tasks.watchlist_discovery.discovery.get_rules")
+    @patch("app.tasks.watchlist_discovery.discovery.PortfolioStorage")
     def test_handles_empty_trim_candidates(
         self,
         mock_storage_class: MagicMock,
@@ -989,8 +993,8 @@ class TestTrimUnderperformingWatchlistTask:
         assert result["candidates_found"] == 0
         assert len(result["removed"]) == 0
 
-    @patch("app.tasks.watchlist_discovery.get_rules")
-    @patch("app.tasks.watchlist_discovery.PortfolioStorage")
+    @patch("app.tasks.watchlist_discovery.discovery.get_rules")
+    @patch("app.tasks.watchlist_discovery.discovery.PortfolioStorage")
     def test_handles_exception(
         self,
         mock_storage_class: MagicMock,
@@ -1010,8 +1014,8 @@ class TestTrimUnderperformingWatchlistTask:
         assert result["status"] == "error"
         assert "Database connection failed" in result["error"]
 
-    @patch("app.tasks.watchlist_discovery.get_rules")
-    @patch("app.tasks.watchlist_discovery.PortfolioStorage")
+    @patch("app.tasks.watchlist_discovery.discovery.get_rules")
+    @patch("app.tasks.watchlist_discovery.discovery.PortfolioStorage")
     def test_removal_failure_does_not_crash_task(
         self,
         mock_storage_class: MagicMock,

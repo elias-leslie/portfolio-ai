@@ -9,12 +9,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 from celery.schedules import crontab
 
-from app.services.capability_scanner import (
-    APIScanner,
-    CeleryScanner,
-    DatabaseScanner,
-    _to_json_string,
-)
+from app.services.capability_api_scanner import APIScanner
+from app.services.capability_celery_scanner import CeleryScanner
+from app.services.capability_celery_scanner_detection import detect_populates_tables
+from app.services.capability_celery_scanner_schedule import parse_schedule
+from app.services.capability_db_scanner import DatabaseScanner
+from app.services.capability_db_scanner_health import calculate_freshness_status
+from app.services.capability_utils import _to_json_string
 
 
 class TestDatabaseScanner:
@@ -132,8 +133,6 @@ class TestDatabaseScanner:
         self, mock_conn_mgr: MagicMock, mock_config: dict
     ) -> None:
         """Test freshness status calculation - current."""
-        scanner = DatabaseScanner(mock_conn_mgr, config=mock_config)
-
         # Mock thresholds
         with patch("app.services.config_loader.get_freshness_thresholds") as mock_thresholds:
             mock_thresholds.return_value = {
@@ -143,15 +142,13 @@ class TestDatabaseScanner:
                 "critical": 7,
             }
 
-            status = scanner._calculate_freshness_status("daily", 0)
+            status = calculate_freshness_status("daily", 0)
             assert status == "current"
 
     def test_calculate_freshness_status_stale(
         self, mock_conn_mgr: MagicMock, mock_config: dict
     ) -> None:
         """Test freshness status calculation - stale."""
-        scanner = DatabaseScanner(mock_conn_mgr, config=mock_config)
-
         with patch("app.services.config_loader.get_freshness_thresholds") as mock_thresholds:
             mock_thresholds.return_value = {
                 "current": 1,
@@ -160,15 +157,13 @@ class TestDatabaseScanner:
                 "critical": 7,
             }
 
-            status = scanner._calculate_freshness_status("daily", 5)
+            status = calculate_freshness_status("daily", 5)
             assert status == "stale"
 
     def test_calculate_freshness_status_critical(
         self, mock_conn_mgr: MagicMock, mock_config: dict
     ) -> None:
         """Test freshness status calculation - critical."""
-        scanner = DatabaseScanner(mock_conn_mgr, config=mock_config)
-
         with patch("app.services.config_loader.get_freshness_thresholds") as mock_thresholds:
             mock_thresholds.return_value = {
                 "current": 1,
@@ -177,7 +172,7 @@ class TestDatabaseScanner:
                 "critical": 7,
             }
 
-            status = scanner._calculate_freshness_status("daily", 10)
+            status = calculate_freshness_status("daily", 10)
             assert status == "critical"
 
     def test_save_capabilities_upsert(self, mock_conn_mgr: MagicMock, mock_config: dict) -> None:
@@ -323,10 +318,8 @@ class TestCeleryScanner:
 
     def test_parse_schedule_crontab(self, mock_conn_mgr: MagicMock, mock_config: dict) -> None:
         """Test parsing crontab schedule."""
-        scanner = CeleryScanner(mock_conn_mgr, config=mock_config)
-
         schedule_obj = crontab(hour=4, minute=30)
-        description, crontab_str, interval_seconds = scanner._parse_schedule(schedule_obj)
+        description, crontab_str, interval_seconds = parse_schedule(schedule_obj)
 
         assert "04:30 UTC" in description
         assert crontab_str == "30 4 * * *"
@@ -334,9 +327,7 @@ class TestCeleryScanner:
 
     def test_parse_schedule_interval(self, mock_conn_mgr: MagicMock, mock_config: dict) -> None:
         """Test parsing interval schedule."""
-        scanner = CeleryScanner(mock_conn_mgr, config=mock_config)
-
-        description, crontab_str, interval_seconds = scanner._parse_schedule(300)
+        description, crontab_str, interval_seconds = parse_schedule(300)
 
         assert "5 minutes" in description
         assert crontab_str is None

@@ -38,9 +38,7 @@ def execute_add_symbol(
     symbol = symbol.upper()
 
     # Check if symbol already exists
-    existing = storage.query(
-        "SELECT id, added_by FROM watchlist_items WHERE symbol = $1", [symbol]
-    )
+    existing = storage.query("SELECT id, added_by FROM watchlist_items WHERE symbol = $1", [symbol])
 
     if not existing.is_empty():
         added_by = existing.get_column("added_by")[0]

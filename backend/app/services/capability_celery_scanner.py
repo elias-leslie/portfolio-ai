@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
-import re
-from datetime import UTC, datetime
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from ..logging_config import get_logger
-from .capability_utils import _to_json_string
+from .capability_celery_scanner_detection import (
+    detect_populates_tables,
+    detect_reads_from_tables,
+    detect_task_callers,
+    detect_task_dependencies,
+)
+from .capability_celery_scanner_health import calculate_celery_health_status
+from .capability_celery_scanner_metadata import get_task_metadata
+from .capability_celery_scanner_persistence import save_capabilities
+from .capability_celery_scanner_schedule import parse_schedule
 from .config_loader import categorize_by_name, load_capabilities_config
 
 if TYPE_CHECKING:
@@ -109,7 +115,7 @@ class CeleryScanner:
 
         # Parse schedule
         schedule_obj = task_config["schedule"]
-        schedule_description, schedule_crontab, schedule_interval_seconds = self._parse_schedule(
+        schedule_description, schedule_crontab, schedule_interval_seconds = parse_schedule(
             schedule_obj
         )
 
@@ -122,25 +128,30 @@ class CeleryScanner:
             success_rate,
             avg_duration,
             max_duration,
-        ) = self._get_task_metadata(task_path)
+        ) = get_task_metadata(
+            self.conn_mgr,
+            task_path,
+            self.celery_config["track_success_rate"],
+            self.celery_config["lookback_days"],
+        )
 
         # Detect populated tables (basic regex scan of task file)
-        populates_tables = self._detect_populates_tables(task_path)
+        populates_tables = detect_populates_tables(task_path)
 
         # Detect tables this task reads from (for dependency inference)
-        reads_from_tables = self._detect_reads_from_tables(task_path)
+        reads_from_tables = detect_reads_from_tables(task_path)
 
         # Categorize task
         category = categorize_by_name(task_name)
 
         # Detect task callers (who calls this task via .delay() or send_task())
-        called_by = self._detect_task_callers(task_name, task_path)
+        called_by = detect_task_callers(task_name, task_path)
 
         # Detect dependencies (tasks this task calls)
-        depends_on_tasks = self._detect_task_dependencies(task_path)
+        depends_on_tasks = detect_task_dependencies(task_path)
 
         # Calculate health status
-        health_status = self._calculate_celery_health_status(
+        health_status = calculate_celery_health_status(
             populates_tables=populates_tables,
             depends_on_tasks=depends_on_tasks,
             called_by=called_by,
@@ -171,448 +182,6 @@ class CeleryScanner:
             "health_status": health_status,
         }
 
-    def _parse_schedule(
-        self,
-        schedule_obj: Any,
-    ) -> tuple[str, str | None, int | None]:
-        """Parse Celery schedule object into human-readable format.
-
-        Args:
-            schedule_obj: Celery schedule object (crontab or interval)
-
-        Returns:
-            Tuple of (description, crontab_string, interval_seconds)
-        """
-        from celery.schedules import crontab  # noqa: PLC0415
-
-        schedule_str = str(schedule_obj)
-
-        # Try to parse crontab
-        if isinstance(schedule_obj, crontab):
-            # Human-readable description
-            hour = schedule_obj._orig_hour if hasattr(schedule_obj, "_orig_hour") else "*"
-            minute = schedule_obj._orig_minute if hasattr(schedule_obj, "_orig_minute") else "*"
-
-            if hour != "*" and minute != "*":
-                description = f"Daily at {hour:02d}:{minute:02d} UTC"
-                crontab_str = f"{minute} {hour} * * *"
-            else:
-                description = f"Crontab: {schedule_str}"
-                crontab_str = schedule_str
-
-            # Estimate interval in seconds for daily tasks
-            interval_seconds = 86400 if hour != "*" else None
-
-        elif isinstance(schedule_obj, (int, float)):
-            # Interval in seconds
-            interval_seconds = int(schedule_obj)
-
-            if interval_seconds < 60:
-                description = f"Every {interval_seconds} seconds"
-            elif interval_seconds < 3600:
-                description = f"Every {interval_seconds // 60} minutes"
-            elif interval_seconds < 86400:
-                description = f"Every {interval_seconds // 3600} hours"
-            else:
-                description = f"Every {interval_seconds // 86400} days"
-
-            crontab_str = None
-
-        else:
-            # Unknown schedule type
-            description = f"Schedule: {schedule_str}"
-            crontab_str = None
-            interval_seconds = None
-
-        return description, crontab_str, interval_seconds
-
-    def _get_task_metadata(
-        self,
-        task_path: str,
-    ) -> tuple[Any | None, Any | None, int, int, int | None, int | None, int | None]:
-        """Get task execution metadata from celery_taskmeta table.
-
-        Args:
-            task_path: Task import path
-
-        Returns:
-            Tuple of (last_run_at, next_run_at, success_count_7d, failure_count_7d,
-                     success_rate_pct, avg_duration_ms, max_duration_ms)
-        """
-        if not self.celery_config["track_success_rate"]:
-            return None, None, 0, 0, None, None, None
-
-        try:
-            with self.conn_mgr.connection() as conn:
-                # Check if celery_taskmeta table exists
-                check_table = conn.execute(
-                    """
-                    SELECT EXISTS (
-                        SELECT FROM information_schema.tables
-                        WHERE table_name = 'celery_taskmeta'
-                    )
-                    """
-                )
-                row = check_table.fetchone()
-                table_exists = row[0] if row else False
-
-                if not table_exists:
-                    return None, None, 0, 0, None, None, None
-
-                # Query last 7 days of task execution
-                lookback_days = self.celery_config["lookback_days"]
-
-                result = conn.execute(
-                    f"""
-                    SELECT
-                        MAX(date_done) as last_run,
-                        COUNT(*) FILTER (WHERE status = 'SUCCESS') as success_count,
-                        COUNT(*) FILTER (WHERE status = 'FAILURE') as failure_count
-                    FROM celery_taskmeta
-                    WHERE name = %s
-                    AND date_done >= NOW() - INTERVAL '{lookback_days} days'
-                    """,
-                    [task_path],
-                )
-
-                row = result.fetchone()
-
-                if row:
-                    last_run = row[0]
-                    success_count = int(row[1] or 0)
-                    failure_count = int(row[2] or 0)
-
-                    # Calculate success rate
-                    total = success_count + failure_count
-                    success_rate = int((success_count / total) * 100) if total > 0 else None
-
-                    # TODO: Calculate duration metrics (requires parsing result JSONB)
-                    avg_duration = None
-                    max_duration = None
-
-                    return (
-                        last_run,
-                        None,  # next_run_at (requires celerybeat schedule tracking)
-                        success_count,
-                        failure_count,
-                        success_rate,
-                        avg_duration,
-                        max_duration,
-                    )
-
-        except Exception as e:
-            logger.warning("failed_to_query_task_metadata", task=task_path, error=str(e))
-
-        return None, None, 0, 0, None, None, None
-
-    def _calculate_celery_health_status(
-        self,
-        populates_tables: list[str],
-        depends_on_tasks: list[str],
-        called_by: list[str],
-        last_run_at: Any | None,
-        success_rate_pct: int | None,
-        schedule_interval_seconds: int | None,
-    ) -> str:
-        """Calculate health status for Celery task.
-
-        Args:
-            populates_tables: Tables this task populates
-            depends_on_tasks: Tasks this task depends on
-            called_by: Files/tasks that call this task
-            last_run_at: Last execution timestamp
-            success_rate_pct: Success rate over last 7 days
-            schedule_interval_seconds: Schedule interval in seconds
-
-        Returns:
-            Health status: "active", "orphaned", "legacy", or "suspect"
-
-        Celery health logic:
-        - active: Has callers (other code calls this task) OR healthy execution
-        - orphaned: Not in schedule AND no populates AND no depends_on AND no callers
-        - legacy: Never run (last_run_at=None) OR success_rate=0% consistently
-        - suspect: Low success rate (<50%) OR irregular execution
-        """
-        has_zero_success = success_rate_pct is not None and success_rate_pct == 0
-
-        # If other code calls this task, it's active (suspect if failing)
-        if called_by:
-            return "suspect" if has_zero_success else "active"
-
-        # Orphaned: Not scheduled and no dependencies and no callers
-        is_isolated = (
-            schedule_interval_seconds is None and not populates_tables and not depends_on_tasks
-        )
-        if is_isolated:
-            return "orphaned"
-
-        # Legacy: Never executed OR complete failure (0% success rate)
-        if last_run_at is None or has_zero_success:
-            return "legacy"
-
-        # Suspect: Low success rate (<50%)
-        has_low_success = success_rate_pct is not None and success_rate_pct < 50
-        return "suspect" if has_low_success else "active"
-
-    def _detect_populates_tables(self, task_path: str) -> list[str]:
-        """Detect which tables a task populates by scanning task file.
-
-        Uses basic regex to find INSERT INTO and UPDATE statements.
-
-        Args:
-            task_path: Task import path (e.g., app.tasks.market_data_tasks.fetch_prices)
-
-        Returns:
-            List of table names this task writes to
-        """
-        try:
-            # Convert import path to file path
-            # app.tasks.market_data_tasks.fetch_prices -> backend/app/tasks/market_data_tasks.py
-            path_parts = task_path.split(".")
-            if len(path_parts) < 2:
-                return []
-
-            # Remove function name
-            module_parts = path_parts[:-1]
-
-            # Build file path
-            file_path = Path(__file__).parent.parent / "/".join(module_parts[1:])
-            file_path = file_path.with_suffix(".py")
-
-            if not file_path.exists():
-                return []
-
-            # Read file and search for SQL statements
-            content = file_path.read_text()
-
-            # Regex patterns for INSERT/UPDATE
-            patterns = [
-                r"INSERT\s+INTO\s+([a-z_][a-z0-9_]*)",
-                r"UPDATE\s+([a-z_][a-z0-9_]*)",
-            ]
-
-            tables = set()
-            for pattern in patterns:
-                matches = re.findall(pattern, content, re.IGNORECASE)
-                tables.update(matches)
-
-            return sorted(tables)
-
-        except Exception as e:
-            logger.debug("failed_to_detect_populated_tables", task=task_path, error=str(e))
-            return []
-
-    def _detect_reads_from_tables(self, task_path: str) -> list[str]:
-        """Detect tables this task reads from via SQL patterns.
-
-        Searches for patterns like:
-        - SELECT ... FROM table_name (inside SQL strings)
-        - JOIN table_name (inside SQL strings)
-
-        Only detects tables inside string literals (SQL queries).
-
-        Args:
-            task_path: Task import path
-
-        Returns:
-            Sorted list of table names read by this task (excludes tables it writes to)
-        """
-        try:
-            # Convert import path to file path (same as _detect_populates_tables)
-            path_parts = task_path.split(".")
-            if len(path_parts) < 2:
-                return []
-
-            module_parts = path_parts[:-1]
-            file_path = Path(__file__).parent.parent / "/".join(module_parts[1:])
-            file_path = file_path.with_suffix(".py")
-
-            if not file_path.exists():
-                return []
-
-            content = file_path.read_text()
-            tables = set()
-
-            # Extract SQL string literals (triple-quoted and single-quoted)
-            # Look for strings containing SQL keywords
-            sql_string_pattern = r'(?:"""|\'\'\')(.*?)(?:"""|\'\'\')|(?:"([^"\\]*(?:\\.[^"\\]*)*)"|\'([^\'\\]*(?:\\.[^\'\\]*)*)\')'
-            sql_strings = []
-
-            for match in re.finditer(sql_string_pattern, content, re.DOTALL):
-                s = match.group(1) or match.group(2) or match.group(3) or ""
-                # Only consider strings that look like SQL (contain SELECT, INSERT, UPDATE, etc.)
-                if re.search(r"\b(SELECT|INSERT|UPDATE|DELETE|WITH)\b", s, re.IGNORECASE):
-                    sql_strings.append(s)
-
-            # Now search for table names only in SQL strings
-            # Pattern: FROM table_name
-            from_pattern = r"\bFROM\s+([a-z_][a-z0-9_]*)\b"
-            # Pattern: JOIN table_name
-            join_pattern = r"\bJOIN\s+([a-z_][a-z0-9_]*)\b"
-
-            # SQL keywords and common false positives to filter out
-            sql_keywords = {
-                "select",
-                "where",
-                "and",
-                "or",
-                "not",
-                "null",
-                "true",
-                "false",
-                "dual",
-                "information_schema",
-                "lateral",
-                "values",
-                "unnest",
-                "generate_series",
-                "excluded",
-                "returning",
-                "case",
-                "when",
-                "then",
-                "else",
-                "end",
-                "exists",
-                "between",
-                "like",
-                "in",
-                "is",
-                "as",
-                "on",
-                "set",
-                "into",
-                "table",
-            }
-
-            for sql in sql_strings:
-                for match in re.finditer(from_pattern, sql, re.IGNORECASE):
-                    table = match.group(1).lower()
-                    if table not in sql_keywords:
-                        tables.add(table)
-
-                for match in re.finditer(join_pattern, sql, re.IGNORECASE):
-                    table = match.group(1).lower()
-                    if table not in sql_keywords:
-                        tables.add(table)
-
-            # Remove tables that this task writes to (self-references)
-            writes = {t.lower() for t in self._detect_populates_tables(task_path)}
-            reads_only = tables - writes
-
-            return sorted(reads_only)
-
-        except Exception as e:
-            logger.debug("failed_to_detect_reads_from_tables", task=task_path, error=str(e))
-            return []
-
-    def _detect_task_callers(self, task_name: str, task_path: str) -> list[str]:
-        """Detect files/tasks that call this task.
-
-        Searches for patterns like:
-        - task_name.delay()
-        - task_name.apply_async()
-        - send_task('task_path')
-        - celery_app.send_task('task_path')
-
-        Args:
-            task_name: Beat schedule name (e.g., "fetch-market-data-hourly")
-            task_path: Task import path (e.g., "app.tasks.market_data_tasks.fetch_prices")
-
-        Returns:
-            List of file paths that call this task
-        """
-        try:
-            callers = set()
-            function_name = task_path.split(".")[-1] if "." in task_path else task_path
-
-            # Search patterns
-            patterns = [
-                rf"{function_name}\.delay\s*\(",
-                rf"{function_name}\.apply_async\s*\(",
-                rf"send_task\s*\(\s*['\"].*{function_name}['\"]",
-                rf"send_task\s*\(\s*['\"].*{task_path}['\"]",
-            ]
-
-            # Search in backend app directory
-            app_dir = Path(__file__).parent.parent
-            for py_file in app_dir.glob("**/*.py"):
-                # Skip the task's own file
-                if function_name in py_file.name:
-                    continue
-
-                try:
-                    content = py_file.read_text()
-                    for pattern in patterns:
-                        if re.search(pattern, content):
-                            # Get relative path from app/
-                            rel_path = str(py_file.relative_to(app_dir))
-                            callers.add(rel_path)
-                            break
-                except Exception:
-                    continue
-
-            return sorted(callers)
-
-        except Exception as e:
-            logger.debug("failed_to_detect_task_callers", task=task_name, error=str(e))
-            return []
-
-    def _detect_task_dependencies(self, task_path: str) -> list[str]:
-        """Detect tasks that this task calls (dependencies).
-
-        Searches for patterns like:
-        - other_task.delay()
-        - send_task('other_task')
-
-        Args:
-            task_path: Task import path
-
-        Returns:
-            List of task names this task depends on
-        """
-        try:
-            dependencies = set()
-
-            # Convert import path to file path
-            path_parts = task_path.split(".")
-            if len(path_parts) < 2:
-                return []
-
-            module_parts = path_parts[:-1]
-            file_path = Path(__file__).parent.parent / "/".join(module_parts[1:])
-            file_path = file_path.with_suffix(".py")
-
-            if not file_path.exists():
-                return []
-
-            content = file_path.read_text()
-
-            # Find all .delay() and .apply_async() calls
-            delay_pattern = r"(\w+)\.delay\s*\("
-            async_pattern = r"(\w+)\.apply_async\s*\("
-            send_pattern = r"send_task\s*\(\s*['\"]([^'\"]+)['\"]"
-
-            for match in re.finditer(delay_pattern, content):
-                task_var = match.group(1)
-                # Filter out common non-task variables
-                if task_var not in ["self", "cls", "result", "response", "data"]:
-                    dependencies.add(task_var)
-
-            for match in re.finditer(async_pattern, content):
-                task_var = match.group(1)
-                if task_var not in ["self", "cls", "result", "response", "data"]:
-                    dependencies.add(task_var)
-
-            for match in re.finditer(send_pattern, content):
-                dependencies.add(match.group(1))
-
-            return sorted(dependencies)
-
-        except Exception as e:
-            logger.debug("failed_to_detect_task_dependencies", task=task_path, error=str(e))
-            return []
-
     def save_capabilities(self, capabilities: list[dict[str, Any]]) -> int:
         """Save scanned Celery capabilities to celery_capabilities table.
 
@@ -624,120 +193,4 @@ class CeleryScanner:
         Returns:
             Number of rows inserted/updated
         """
-        if not capabilities:
-            logger.info("no_celery_capabilities_to_save")
-            return 0
-
-        logger.info("saving_celery_capabilities", count=len(capabilities))
-
-        with self.conn_mgr.connection() as conn:
-            for cap in capabilities:
-                # Convert lists to JSON strings for JSONB columns
-                populates_tables_json = _to_json_string(cap["populates_tables"])
-                reads_from_tables_json = _to_json_string(cap["reads_from_tables"])
-                depends_on_tasks_json = _to_json_string(cap["depends_on_tasks"])
-
-                # UPSERT query
-                conn.execute(
-                    """
-                    INSERT INTO celery_capabilities (
-                        task_name, category, task_path, function_name,
-                        schedule_description, schedule_crontab, schedule_interval_seconds,
-                        last_run_at, next_run_at,
-                        success_count_7d, failure_count_7d, success_rate_pct,
-                        avg_duration_ms, max_duration_ms,
-                        populates_tables, reads_from_tables, depends_on_tasks, health_status,
-                        last_scanned_at, created_at, updated_at
-                    ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
-                    )
-                    ON CONFLICT (task_name) DO UPDATE SET
-                        category = EXCLUDED.category,
-                        task_path = EXCLUDED.task_path,
-                        function_name = EXCLUDED.function_name,
-                        schedule_description = EXCLUDED.schedule_description,
-                        schedule_crontab = EXCLUDED.schedule_crontab,
-                        schedule_interval_seconds = EXCLUDED.schedule_interval_seconds,
-                        last_run_at = EXCLUDED.last_run_at,
-                        next_run_at = EXCLUDED.next_run_at,
-                        success_count_7d = EXCLUDED.success_count_7d,
-                        failure_count_7d = EXCLUDED.failure_count_7d,
-                        success_rate_pct = EXCLUDED.success_rate_pct,
-                        avg_duration_ms = EXCLUDED.avg_duration_ms,
-                        max_duration_ms = EXCLUDED.max_duration_ms,
-                        populates_tables = EXCLUDED.populates_tables,
-                        reads_from_tables = EXCLUDED.reads_from_tables,
-                        depends_on_tasks = EXCLUDED.depends_on_tasks,
-                        health_status = EXCLUDED.health_status,
-                        last_scanned_at = EXCLUDED.last_scanned_at,
-                        updated_at = EXCLUDED.updated_at
-                    """,
-                    [
-                        cap["task_name"],
-                        cap["category"],
-                        cap["task_path"],
-                        cap["function_name"],
-                        cap["schedule_description"],
-                        cap["schedule_crontab"],
-                        cap["schedule_interval_seconds"],
-                        cap["last_run_at"],
-                        cap["next_run_at"],
-                        cap["success_count_7d"],
-                        cap["failure_count_7d"],
-                        cap["success_rate_pct"],
-                        cap["avg_duration_ms"],
-                        cap["max_duration_ms"],
-                        populates_tables_json,
-                        reads_from_tables_json,
-                        depends_on_tasks_json,
-                        cap["health_status"],
-                        datetime.now(UTC),  # last_scanned_at
-                        datetime.now(UTC),  # created_at
-                        datetime.now(UTC),  # updated_at
-                    ],
-                )
-                conn.commit()
-
-            # Clean up removed tasks (inside the with block)
-            removed_count = self._cleanup_removed_capabilities(
-                conn, [cap["task_name"] for cap in capabilities]
-            )
-            if removed_count > 0:
-                logger.info("celery_capabilities_removed", count=removed_count)
-
-        logger.info("celery_capabilities_saved", count=len(capabilities))
-        return len(capabilities)
-
-    def _cleanup_removed_capabilities(
-        self,
-        conn: Any,
-        current_task_names: list[str],
-    ) -> int:
-        """Remove capabilities for tasks no longer in beat schedule.
-
-        Args:
-            conn: Database connection
-            current_task_names: List of task names currently in beat schedule
-
-        Returns:
-            Number of rows deleted
-        """
-        if not current_task_names:
-            return 0
-
-        # Find and delete tasks that are in DB but not in current schedule
-        result = conn.execute(
-            """
-            DELETE FROM celery_capabilities
-            WHERE task_name NOT IN %s
-            RETURNING task_name
-            """,
-            [tuple(current_task_names)],
-        )
-        deleted = result.fetchall()
-        conn.commit()
-
-        for row in deleted:
-            logger.info("celery_capability_removed", task_name=row[0])
-
-        return len(deleted)
+        return save_capabilities(self.conn_mgr, capabilities)

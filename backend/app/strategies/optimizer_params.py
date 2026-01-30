@@ -14,9 +14,7 @@ from .models import StrategyGenerationResult, StrategyParameters
 logger = logging.getLogger(__name__)
 
 
-def create_range(
-    base_value: float | int, options: list[float | int]
-) -> list[float | int]:
+def create_range(base_value: float | int, options: list[float | int]) -> list[float | int]:
     """Create parameter range around base value.
 
     Args:
