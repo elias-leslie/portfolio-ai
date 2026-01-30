@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import create_engine, inspect
 
@@ -11,11 +11,20 @@ from app.storage.types import DatabaseConnection
 
 from ..constants import DATABASE_URL
 from ..logging_config import get_logger
-from .capability_utils import _to_json_string
+from .capability_db_scanner_columns import (
+    analyze_column_completeness,
+    calculate_completeness_pct,
+    detect_date_range,
+)
+from .capability_db_scanner_health import (
+    calculate_freshness_status,
+    calculate_health_status,
+    get_foreign_key_references,
+)
+from .capability_db_scanner_persistence import save_capabilities as save_capabilities_to_db
 from .config_loader import (
     categorize_by_name,
     get_expected_freshness,
-    get_freshness_thresholds,
     load_capabilities_config,
 )
 
@@ -131,54 +140,31 @@ class DatabaseScanner:
         total_columns = len(column_names)
 
         # Detect columns with data and mostly null columns
-        columns_with_data = []
-        columns_mostly_null = []
+        columns_with_data: list[str] = []
+        columns_mostly_null: list[str] = []
 
         if self.db_config["track_field_completeness"] and row_count > 0:
             null_threshold = self.db_config["null_threshold_pct"]
             if not isinstance(null_threshold, (int, float)):
                 null_threshold = 50
 
-            for col_name in column_names:
-                try:
-                    # Count non-NULL values
-                    # Note: col_name from introspection, not user input
-                    result = conn.execute(
-                        f"SELECT COUNT({col_name}) as cnt FROM {table_name}"
-                    )  # validated: table/column from SQLAlchemy inspector
-                    row = result.fetchone()
-                    non_null_value = row[0] if row else 0
-                    non_null_count: int = (
-                        int(non_null_value) if isinstance(non_null_value, (int, float, str)) else 0
-                    )
-
-                    if non_null_count > 0:
-                        columns_with_data.append(col_name)
-
-                    # Calculate NULL percentage
-                    if row_count > 0:
-                        null_pct = ((row_count - non_null_count) / row_count) * 100
-                    else:
-                        null_pct = 0
-
-                    if null_pct > null_threshold:
-                        columns_mostly_null.append(col_name)
-
-                except Exception:
-                    # Skip columns that cause errors (e.g., incompatible types)
-                    continue
+            columns_with_data, columns_mostly_null = analyze_column_completeness(
+                table_name=table_name,
+                column_names=column_names,
+                row_count=row_count,
+                conn=conn,
+                null_threshold_pct=null_threshold,
+            )
 
         # Calculate completeness percentage
-        completeness_pct = (
-            int((len(columns_with_data) / total_columns) * 100) if total_columns > 0 else 0
-        )
+        completeness_pct = calculate_completeness_pct(columns_with_data, total_columns)
 
         # Detect date range
         date_range_start = None
         date_range_end = None
 
         if self.db_config["track_freshness"]:
-            date_range_start, date_range_end = self._detect_date_range(
+            date_range_start, date_range_end = detect_date_range(
                 table_name, conn, column_names
             )
 
@@ -189,7 +175,7 @@ class DatabaseScanner:
 
         if date_range_end:
             days_since_update = (datetime.now(UTC).date() - date_range_end).days
-            freshness_status = self._calculate_freshness_status(
+            freshness_status = calculate_freshness_status(
                 expected_freshness,
                 days_since_update,
             )
@@ -198,10 +184,10 @@ class DatabaseScanner:
         category = categorize_by_name(table_name)
 
         # Check for foreign key references (tables that depend on this one)
-        fk_references = self._get_foreign_key_references(table_name, conn)
+        fk_references = get_foreign_key_references(table_name, conn)
 
         # Calculate health status (now considers FK references)
-        health_status = self._calculate_health_status(
+        health_status = calculate_health_status(
             table_name=table_name,
             row_count=row_count,
             columns_with_data=columns_with_data,
@@ -229,206 +215,6 @@ class DatabaseScanner:
             "fk_referenced_by": fk_references,  # NEW: tables that have FK to this table
         }
 
-    def _detect_date_range(
-        self,
-        table_name: str,
-        conn: DatabaseConnection,
-        column_names: list[str],
-    ) -> tuple[Any | None, Any | None]:
-        """Detect date range for a table by finding MIN/MAX of timestamp columns.
-
-        Args:
-            table_name: Name of table
-            conn: SQLAlchemy connection
-            column_names: List of column names in table
-
-        Returns:
-            Tuple of (min_date, max_date) or (None, None) if no date columns found
-        """
-        # Try common timestamp column names in order of preference
-        date_columns = ["created_at", "updated_at", "as_of_date", "date", "timestamp"]
-
-        for col_name in date_columns:
-            if col_name in column_names:
-                try:
-                    # validated: table_name from inspector.get_table_names(), col_name from schema column list
-                    # Note: col_name validated from column_names list, not user input
-                    result = conn.execute(
-                        f"SELECT MIN({col_name}), MAX({col_name}) FROM {table_name} WHERE {col_name} IS NOT NULL"
-                    )
-                    row = result.fetchone()
-                    if row is None:
-                        continue
-
-                    min_date, max_date = row
-
-                    if min_date is not None and max_date is not None:
-                        # Convert to date if timestamp
-                        if hasattr(min_date, "date"):
-                            min_date = min_date.date()
-                        if hasattr(max_date, "date"):
-                            max_date = max_date.date()
-
-                        return min_date, max_date
-
-                except Exception:
-                    # Skip if column causes errors
-                    continue
-
-        return None, None
-
-    def _calculate_freshness_status(
-        self,
-        expected_freshness: str,
-        days_since_update: int,
-    ) -> str:
-        """Calculate freshness status based on expected freshness and days since update.
-
-        Args:
-            expected_freshness: Expected freshness string (e.g., "daily", "hourly")
-            days_since_update: Days since last update
-
-        Returns:
-            Freshness status: "current", "acceptable", "stale", or "critical"
-        """
-        thresholds = get_freshness_thresholds(expected_freshness)
-
-        if days_since_update <= thresholds["current"]:
-            return "current"
-        if days_since_update <= thresholds["acceptable"]:
-            return "acceptable"
-        if days_since_update <= thresholds["stale"]:
-            return "stale"
-        return "critical"
-
-    def _get_foreign_key_references(
-        self,
-        table_name: str,
-        conn: DatabaseConnection,
-    ) -> list[str]:
-        """Get tables that have foreign keys pointing TO this table.
-
-        This helps identify tables that cannot be safely removed because
-        other tables depend on them.
-
-        Args:
-            table_name: Name of table to check
-            conn: Database connection
-
-        Returns:
-            List of table names that reference this table via FK
-        """
-        try:
-            result = conn.execute(
-                """
-                SELECT DISTINCT tc.table_name
-                FROM information_schema.table_constraints tc
-                JOIN information_schema.key_column_usage kcu
-                    ON tc.constraint_name = kcu.constraint_name
-                JOIN information_schema.constraint_column_usage ccu
-                    ON ccu.constraint_name = tc.constraint_name
-                WHERE tc.constraint_type = 'FOREIGN KEY'
-                    AND ccu.table_name = %s
-                    AND tc.table_name != %s
-                """,
-                [table_name, table_name],
-            )
-            return [str(row[0]) for row in result.fetchall() if row[0]]
-        except Exception as e:
-            logger.debug("fk_reference_check_failed", table=table_name, error=str(e))
-            return []
-
-    # Infrastructure tables that should NOT be marked legacy/suspect based on freshness
-    # These tables don't need frequent updates to be considered healthy
-    FRESHNESS_EXEMPT_TABLES: ClassVar[set[str]] = {
-        # API credentials - only updated when credentials change
-        "source_credentials",
-        # Capabilities system - only updated during scans
-        "capability_insights",
-        "capability_notes",
-        "db_capabilities",
-        "celery_capabilities",
-        "api_capabilities",
-        # Celery infrastructure - managed by Celery
-        "celery_taskmeta",
-        "celery_tasksetmeta",
-        # Migration tracking - only updated during migrations
-        "schema_migrations",
-        "alembic_version",
-        # Maintenance tracking
-        "maintenance_log",
-    }
-
-    def _calculate_health_status(
-        self,
-        table_name: str,
-        row_count: int,
-        columns_with_data: list[str],
-        columns: list[str],
-        freshness_status: str,
-        days_since_update: int | None,
-        fk_references: list[str] | None = None,
-    ) -> str:
-        """Calculate health status for database table.
-
-        Args:
-            table_name: Name of the table
-            row_count: Number of rows in table
-            columns_with_data: Columns with non-NULL values
-            columns: All columns
-            freshness_status: Current freshness status
-            days_since_update: Days since last update
-            fk_references: Tables that have FK refs to this table
-
-        Returns:
-            Health status: "active", "orphaned", "legacy", or "suspect"
-
-        Database health logic:
-        - active: Has FK references (other tables depend on it) OR healthy data
-        - orphaned: Very low row count (<100) AND no substantial data AND no FK refs
-        - legacy: No data (row_count=0) AND no FK refs OR critically stale (>30 days)
-        - suspect: Low data completeness (<20%) OR stale freshness
-
-        Note: Infrastructure tables (FRESHNESS_EXEMPT_TABLES) are exempt from
-        freshness-based degradation since they don't need frequent updates.
-        """
-        # If other tables reference this via FK, it's active (needed for schema)
-        if fk_references:
-            return "active"
-
-        # Infrastructure tables with data are always active (exempt from freshness checks)
-        if table_name in self.FRESHNESS_EXEMPT_TABLES and row_count > 0:
-            return "active"
-
-        # Legacy: No data at all (and no FK refs)
-        if row_count == 0:
-            return "legacy"
-
-        # Calculate completeness once
-        completeness = len(columns_with_data) / len(columns) if columns else 0
-
-        # Orphaned: Very low row count and minimal data
-        if row_count < 100 and completeness < 0.2:
-            return "orphaned"
-
-        # Legacy: Critically stale data (>30 days with critical freshness)
-        # Skip for infrastructure tables
-        if table_name not in self.FRESHNESS_EXEMPT_TABLES:
-            is_critically_stale = (
-                freshness_status == "critical"
-                and days_since_update is not None
-                and days_since_update > 30
-            )
-            if is_critically_stale:
-                return "legacy"
-
-        # Suspect: Low completeness (<30%) or stale/critical freshness
-        # Skip freshness check for infrastructure tables
-        if table_name in self.FRESHNESS_EXEMPT_TABLES:
-            is_suspect = completeness < 0.3
-        else:
-            is_suspect = completeness < 0.3 or freshness_status in ["stale", "critical"]
-        return "suspect" if is_suspect else "active"
 
     def save_capabilities(self, capabilities: list[dict[str, Any]]) -> int:
         """Save scanned capabilities to db_capabilities table.
@@ -441,110 +227,4 @@ class DatabaseScanner:
         Returns:
             Number of rows inserted/updated
         """
-        if not capabilities:
-            logger.info("no_db_capabilities_to_save")
-            return 0
-
-        logger.info("saving_db_capabilities", count=len(capabilities))
-
-        with self.conn_mgr.connection() as conn:
-            for cap in capabilities:
-                # Convert lists to JSON strings for JSONB columns
-                columns_json = _to_json_string(cap["columns"])
-                columns_with_data_json = _to_json_string(cap["columns_with_data"])
-                columns_mostly_null_json = _to_json_string(cap["columns_mostly_null"])
-
-                # UPSERT query
-                conn.execute(
-                    """
-                    INSERT INTO db_capabilities (
-                        table_name, category, row_count, total_columns,
-                        columns, columns_with_data, columns_mostly_null,
-                        completeness_pct, date_range_start, date_range_end,
-                        expected_freshness, days_since_update, freshness_status,
-                        health_status, last_scanned_at, created_at, updated_at
-                    ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
-                    )
-                    ON CONFLICT (table_name) DO UPDATE SET
-                        category = EXCLUDED.category,
-                        row_count = EXCLUDED.row_count,
-                        total_columns = EXCLUDED.total_columns,
-                        columns = EXCLUDED.columns,
-                        columns_with_data = EXCLUDED.columns_with_data,
-                        columns_mostly_null = EXCLUDED.columns_mostly_null,
-                        completeness_pct = EXCLUDED.completeness_pct,
-                        date_range_start = EXCLUDED.date_range_start,
-                        date_range_end = EXCLUDED.date_range_end,
-                        expected_freshness = EXCLUDED.expected_freshness,
-                        days_since_update = EXCLUDED.days_since_update,
-                        freshness_status = EXCLUDED.freshness_status,
-                        health_status = EXCLUDED.health_status,
-                        last_scanned_at = EXCLUDED.last_scanned_at,
-                        updated_at = EXCLUDED.updated_at
-                    """,
-                    [
-                        cap["table_name"],
-                        cap["category"],
-                        cap["row_count"],
-                        cap["total_columns"],
-                        columns_json,
-                        columns_with_data_json,
-                        columns_mostly_null_json,
-                        cap["completeness_pct"],
-                        cap["date_range_start"],
-                        cap["date_range_end"],
-                        cap["expected_freshness"],
-                        cap["days_since_update"],
-                        cap["freshness_status"],
-                        cap["health_status"],
-                        datetime.now(UTC),  # last_scanned_at
-                        datetime.now(UTC),  # created_at
-                        datetime.now(UTC),  # updated_at
-                    ],
-                )
-                conn.commit()
-
-            # Clean up removed tables (inside the with block)
-            removed_count = self._cleanup_removed_capabilities(
-                conn, [cap["table_name"] for cap in capabilities]
-            )
-            if removed_count > 0:
-                logger.info("db_capabilities_removed", count=removed_count)
-
-        logger.info("db_capabilities_saved", count=len(capabilities))
-        return len(capabilities)
-
-    def _cleanup_removed_capabilities(
-        self,
-        conn: Any,
-        current_table_names: list[str],
-    ) -> int:
-        """Remove capabilities for tables that no longer exist.
-
-        Args:
-            conn: Database connection
-            current_table_names: List of table names currently in database
-
-        Returns:
-            Number of rows deleted
-        """
-        if not current_table_names:
-            return 0
-
-        # Find and delete tables that are in db_capabilities but no longer exist
-        result = conn.execute(
-            """
-            DELETE FROM db_capabilities
-            WHERE table_name NOT IN %s
-            RETURNING table_name
-            """,
-            [tuple(current_table_names)],
-        )
-        deleted = result.fetchall()
-        conn.commit()
-
-        for row in deleted:
-            logger.info("db_capability_removed", table_name=row[0])
-
-        return len(deleted)
+        return save_capabilities_to_db(self.conn_mgr, capabilities)
