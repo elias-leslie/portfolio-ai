@@ -1,0 +1,75 @@
+import { Pencil, Trash2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { TableCell, TableRow } from '@/components/ui/table'
+import type { PositionWithValue } from '@/lib/api/portfolio'
+import { formatCurrency, formatPercent, formatPnlDollars } from './portfolio-utils'
+
+interface PositionTableRowProps {
+  position: PositionWithValue
+  onEdit: (position: PositionWithValue) => void
+  onDelete: (positionId: string, symbol: string) => void
+  isDeleting: boolean
+}
+
+export function PositionTableRow({
+  position,
+  onEdit,
+  onDelete,
+  isDeleting,
+}: PositionTableRowProps) {
+  const costBasisTotal = position.shares * position.costBasis
+  const pnlDollars = position.currentValue
+    ? position.currentValue - costBasisTotal
+    : 0
+  const pnlPercent =
+    costBasisTotal > 0 ? (pnlDollars / costBasisTotal) * 100 : 0
+
+  return (
+    <TableRow>
+      <TableCell className="font-medium">{position.symbol}</TableCell>
+      <TableCell className="text-right">{position.shares}</TableCell>
+      <TableCell className="text-right">
+        {formatCurrency(position.costBasis)}
+      </TableCell>
+      <TableCell className="text-right">
+        {position.currentPrice ? formatCurrency(position.currentPrice) : '—'}
+      </TableCell>
+      <TableCell className="text-right">
+        {position.currentValue ? formatCurrency(position.currentValue) : '—'}
+      </TableCell>
+      <TableCell
+        className={`text-right font-semibold ${
+          pnlDollars >= 0 ? 'text-profit' : 'text-loss'
+        }`}
+      >
+        {position.currentValue ? formatPnlDollars(pnlDollars) : '—'}
+      </TableCell>
+      <TableCell
+        className={`text-right ${pnlPercent >= 0 ? 'text-profit' : 'text-loss'}`}
+      >
+        {position.currentValue ? formatPercent(pnlPercent) : '—'}
+      </TableCell>
+      <TableCell className="text-right">
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onEdit(position)}
+            className="h-8 w-8 p-0"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onDelete(position.id, position.symbol)}
+            disabled={isDeleting}
+            className="h-8 w-8 p-0"
+          >
+            <Trash2 className="h-3.5 w-3.5 text-loss" />
+          </Button>
+        </div>
+      </TableCell>
+    </TableRow>
+  )
+}
