@@ -20,7 +20,7 @@ from app.tasks.watchlist_discovery import (
     discover_watchlist_candidates_task,
     trim_underperforming_watchlist_task,
 )
-from app.tasks.watchlist_discovery.discovery import (
+from app.tasks.watchlist_discovery.helpers import (
     add_symbol_to_watchlist,
     calculate_discovery_score,
     get_existing_watchlist_symbols,
