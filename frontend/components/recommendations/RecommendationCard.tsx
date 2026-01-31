@@ -3,11 +3,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { TradeRecommendation } from '@/lib/api/recommendations'
-import {
-  SignalBadge,
-  SignalStatusBadge,
-  ValidationBadge,
-} from './SignalBadges'
+import { SignalBadge, SignalStatusBadge, ValidationBadge } from './SignalBadges'
 
 interface RecommendationCardProps {
   rec: TradeRecommendation

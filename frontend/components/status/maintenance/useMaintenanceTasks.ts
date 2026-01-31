@@ -83,8 +83,13 @@ export function useMaintenanceTasks(
       liveDescription: string
       dryActionLabel: string
       liveActionLabel: string
-      apiCall: (isDryRun: boolean) => Promise<{ status: string; summary?: Record<string, unknown> | null }>
-      formatSuccess: (result: { status: string; summary?: Record<string, unknown> | null }, isDryRun: boolean) => string
+      apiCall: (
+        isDryRun: boolean,
+      ) => Promise<{ status: string; summary?: Record<string, unknown> | null }>
+      formatSuccess: (
+        result: { status: string; summary?: Record<string, unknown> | null },
+        isDryRun: boolean,
+      ) => string
     }) => {
       const execute = async () => {
         setTriggeringTask(config.taskId)
@@ -108,8 +113,12 @@ export function useMaintenanceTasks(
         if (shouldShowDialog(config.storageKey, !dryRun)) {
           setActionDialogConfig({
             title: config.title,
-            description: dryRun ? config.dryDescription : config.liveDescription,
-            actionLabel: dryRun ? config.dryActionLabel : config.liveActionLabel,
+            description: dryRun
+              ? config.dryDescription
+              : config.liveDescription,
+            actionLabel: dryRun
+              ? config.dryActionLabel
+              : config.liveActionLabel,
             onConfirm: execute,
             storageKey: dryRun ? config.storageKey : undefined,
           })
@@ -128,8 +137,10 @@ export function useMaintenanceTasks(
     taskId: 'cleanup_news',
     storageKey: 'status.confirm.cleanupNews',
     title: 'Cleanup Old News',
-    dryDescription: 'Preview articles older than 90 days that would be deleted.',
-    liveDescription: '⚠️ DESTRUCTIVE: Permanently delete news articles older than 90 days.',
+    dryDescription:
+      'Preview articles older than 90 days that would be deleted.',
+    liveDescription:
+      '⚠️ DESTRUCTIVE: Permanently delete news articles older than 90 days.',
     dryActionLabel: 'Preview',
     liveActionLabel: 'Delete',
     apiCall: cleanupOldNews,
@@ -161,8 +172,10 @@ export function useMaintenanceTasks(
     apiCall: validateIntegrity,
     formatSuccess: (result, isDryRun) => {
       const summary = result.summary as Record<string, unknown> | null
-      const totalErrors = typeof summary?.totalErrors === 'number' ? summary.totalErrors : 0
-      const totalWarnings = typeof summary?.totalWarnings === 'number' ? summary.totalWarnings : 0
+      const totalErrors =
+        typeof summary?.totalErrors === 'number' ? summary.totalErrors : 0
+      const totalWarnings =
+        typeof summary?.totalWarnings === 'number' ? summary.totalWarnings : 0
       const mode = isDryRun ? 'Check' : 'Validation'
       return `${mode} ${result.status}: ${totalErrors} errors, ${totalWarnings} warnings`
     },

@@ -9,7 +9,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { Progress } from '@/components/ui/progress'
-import { type DatabaseSize } from './types'
+import type { DatabaseSize } from './types'
 
 export function DatabaseSizeCard({
   database,

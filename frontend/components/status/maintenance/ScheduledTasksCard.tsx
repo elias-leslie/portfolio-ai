@@ -9,7 +9,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { formatRelativeTime } from '@/lib/utils'
-import { type ScheduledTask } from './types'
+import type { ScheduledTask } from './types'
 import { formatDateTime } from './utils'
 
 export function ScheduledTasksCard({

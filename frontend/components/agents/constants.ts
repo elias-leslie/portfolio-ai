@@ -25,6 +25,7 @@ export function getSummitFlowProjectApiUrl(): string {
 }
 
 // For backwards compatibility - callers should migrate to the function
-export const SUMMITFLOW_API = typeof window !== 'undefined'
-  ? getSummitFlowProjectApiUrl()
-  : 'http://localhost:8001/api/projects/portfolio-ai'
+export const SUMMITFLOW_API =
+  typeof window !== 'undefined'
+    ? getSummitFlowProjectApiUrl()
+    : 'http://localhost:8001/api/projects/portfolio-ai'

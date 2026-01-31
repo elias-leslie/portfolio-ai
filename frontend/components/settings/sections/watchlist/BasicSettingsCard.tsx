@@ -1,8 +1,8 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-import { RefreshIntervalSlider } from './RefreshIntervalSlider'
 import { RadioGroupOptions } from './RadioGroupOptions'
+import { RefreshIntervalSlider } from './RefreshIntervalSlider'
 
 interface BasicSettingsCardProps {
   defaultRefreshMinutes: number
@@ -77,10 +77,7 @@ export function BasicSettingsCard({
               checked={showNews}
               onCheckedChange={(checked) => onShowNewsChange(checked === true)}
             />
-            <Label
-              htmlFor="toggle-news-visibility"
-              className="cursor-pointer"
-            >
+            <Label htmlFor="toggle-news-visibility" className="cursor-pointer">
               Show news sentiment and headlines in watchlist
             </Label>
           </div>

@@ -3,13 +3,13 @@ import {
   DEFAULT_SCORE_WEIGHTS,
   DEFAULT_TECH_WEIGHTS,
 } from '@/components/settings/DEFAULTS'
+import { TIMEZONE_OPTIONS } from '@/components/settings/sections/DisplaySettings'
 import type {
   FundamentalSubWeights,
   PreferencesResponse,
   ScoreWeights,
   TechnicalSubWeights,
 } from '@/lib/api/preferences'
-import { TIMEZONE_OPTIONS } from '@/components/settings/sections/DisplaySettings'
 import type { EditablePreferences } from './types'
 import { OBJECT_FIELDS, PRIMITIVE_FIELDS } from './types'
 
@@ -107,7 +107,8 @@ export const mergeEditableIntoResponse = (
   ...editableToApiPayload(editable),
 })
 
-export const deepEqual = <T,>(a: T, b: T) => JSON.stringify(a) === JSON.stringify(b)
+export const deepEqual = <T>(a: T, b: T) =>
+  JSON.stringify(a) === JSON.stringify(b)
 
 export const countEditableDifferences = (
   current: EditablePreferences,

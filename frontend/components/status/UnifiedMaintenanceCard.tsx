@@ -1,6 +1,13 @@
 'use client'
 
-import { Calendar, Loader2, PlayCircle, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react'
+import {
+  Calendar,
+  Loader2,
+  PlayCircle,
+  RefreshCw,
+  ShieldAlert,
+  ShieldCheck,
+} from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { ExpandableCard } from '@/components/status/ExpandableCard'
@@ -11,6 +18,7 @@ import { Switch } from '@/components/ui/switch'
 import {
   type BackupRequirementCheck,
   type CacheStatusResponse,
+  checkBackupRequirements,
   type DatabaseSizeResponse,
   type DiskSpaceResponse,
   type FileCleanupStatusResponse,
@@ -22,11 +30,10 @@ import {
   getMaintenanceSchedule,
   type LastRunSummary,
   type MaintenanceScheduleResponse,
-  checkBackupRequirements,
 } from '@/lib/api/maintenance'
 import { CacheCleanupSection } from './maintenance/CacheCleanupSection'
-import { DataCleanupSection } from './maintenance/DataCleanupSection'
 import { DatabaseMaintenanceSection } from './maintenance/DatabaseMaintenanceSection'
+import { DataCleanupSection } from './maintenance/DataCleanupSection'
 import { FileCleanupSection } from './maintenance/FileCleanupSection'
 import { SystemStatusSection } from './maintenance/SystemStatusSection'
 import { useMaintenanceTasks } from './maintenance/useMaintenanceTasks'
@@ -34,13 +41,22 @@ import { ServiceActionDialog } from './ServiceActionDialog'
 
 export function UnifiedMaintenanceCard() {
   // State for all data sources
-  const [fileCleanup, setFileCleanup] = useState<FileCleanupStatusResponse | null>(null)
-  const [lastRunSummary, setLastRunSummary] = useState<LastRunSummary | null>(null)
+  const [fileCleanup, setFileCleanup] =
+    useState<FileCleanupStatusResponse | null>(null)
+  const [lastRunSummary, setLastRunSummary] = useState<LastRunSummary | null>(
+    null,
+  )
   const [diskSpace, setDiskSpace] = useState<DiskSpaceResponse | null>(null)
   const [dbSize, setDbSize] = useState<DatabaseSizeResponse | null>(null)
-  const [schedule, setSchedule] = useState<MaintenanceScheduleResponse | null>(null)
-  const [backupCheck, setBackupCheck] = useState<BackupRequirementCheck | null>(null)
-  const [cacheStatus, setCacheStatus] = useState<CacheStatusResponse | null>(null)
+  const [schedule, setSchedule] = useState<MaintenanceScheduleResponse | null>(
+    null,
+  )
+  const [backupCheck, setBackupCheck] = useState<BackupRequirementCheck | null>(
+    null,
+  )
+  const [cacheStatus, setCacheStatus] = useState<CacheStatusResponse | null>(
+    null,
+  )
 
   // UI state
   const [isLoading, setIsLoading] = useState(true)
@@ -139,7 +155,8 @@ export function UnifiedMaintenanceCard() {
   // Summary text
   const getSummary = () => {
     if (isLoading) return 'Loading...'
-    if (diskSpace?.alerts?.length) return `⚠️ ${diskSpace.alerts.length} disk alert(s)`
+    if (diskSpace?.alerts?.length)
+      return `⚠️ ${diskSpace.alerts.length} disk alert(s)`
     return 'Ready'
   }
 
@@ -161,7 +178,10 @@ export function UnifiedMaintenanceCard() {
                 checked={dryRun}
                 onCheckedChange={setDryRun}
               />
-              <Label htmlFor="dry-run-unified" className="cursor-pointer text-sm">
+              <Label
+                htmlFor="dry-run-unified"
+                className="cursor-pointer text-sm"
+              >
                 Dry Run
               </Label>
             </div>
@@ -169,17 +189,26 @@ export function UnifiedMaintenanceCard() {
             {!dryRun && (
               <div className="flex items-center gap-1.5">
                 {isCheckingBackup ? (
-                  <Badge variant="secondary" className="flex items-center gap-1">
+                  <Badge
+                    variant="secondary"
+                    className="flex items-center gap-1"
+                  >
                     <Loader2 className="h-3 w-3 animate-spin" />
                     Checking...
                   </Badge>
                 ) : canRunLive ? (
-                  <Badge variant="default" className="flex items-center gap-1 bg-status-success">
+                  <Badge
+                    variant="default"
+                    className="flex items-center gap-1 bg-status-success"
+                  >
                     <ShieldCheck className="h-3 w-3" />
                     Backup OK
                   </Badge>
                 ) : (
-                  <Badge variant="destructive" className="flex items-center gap-1">
+                  <Badge
+                    variant="destructive"
+                    className="flex items-center gap-1"
+                  >
                     <ShieldAlert className="h-3 w-3" />
                     {backupCheck?.blockingReason?.split('.')[0] || 'No backup'}
                   </Badge>
@@ -205,7 +234,9 @@ export function UnifiedMaintenanceCard() {
               disabled={isRefreshing}
               title="Refresh all data"
             >
-              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <RefreshCw
+                className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
+              />
             </Button>
           </div>
         }
@@ -258,12 +289,16 @@ export function UnifiedMaintenanceCard() {
                 </summary>
                 <div className="mt-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                   {schedule &&
-                    Object.entries(schedule.scheduledTasks).map(([name, task]) => (
-                      <div key={name} className="text-xs border rounded p-2">
-                        <div className="font-medium truncate">{name}</div>
-                        <div className="text-muted-foreground">{task.schedule}</div>
-                      </div>
-                    ))}
+                    Object.entries(schedule.scheduledTasks).map(
+                      ([name, task]) => (
+                        <div key={name} className="text-xs border rounded p-2">
+                          <div className="font-medium truncate">{name}</div>
+                          <div className="text-muted-foreground">
+                            {task.schedule}
+                          </div>
+                        </div>
+                      ),
+                    )}
                 </div>
               </details>
             </div>
@@ -303,9 +338,16 @@ export function UnifiedMaintenanceCard() {
               {taskResult.result &&
                 Object.entries(taskResult.result).map(([key, value]) => {
                   if (key === 'task_id' || key === 'success') return null
-                  if (key === 'details' && Array.isArray(value) && value.length > 0) {
+                  if (
+                    key === 'details' &&
+                    Array.isArray(value) &&
+                    value.length > 0
+                  ) {
                     return (
-                      <details key={key} className="border rounded p-2 bg-background">
+                      <details
+                        key={key}
+                        className="border rounded p-2 bg-background"
+                      >
                         <summary className="cursor-pointer font-medium">
                           Details ({value.length} items)
                         </summary>
@@ -329,7 +371,11 @@ export function UnifiedMaintenanceCard() {
                       </details>
                     )
                   }
-                  if (key === 'details' && Array.isArray(value) && value.length === 0)
+                  if (
+                    key === 'details' &&
+                    Array.isArray(value) &&
+                    value.length === 0
+                  )
                     return null
                   return (
                     <div
@@ -340,7 +386,11 @@ export function UnifiedMaintenanceCard() {
                         {key.replace(/_/g, ' ')}:
                       </span>
                       <span className="font-mono font-medium">
-                        {typeof value === 'boolean' ? (value ? 'Yes' : 'No') : String(value)}
+                        {typeof value === 'boolean'
+                          ? value
+                            ? 'Yes'
+                            : 'No'
+                          : String(value)}
                       </span>
                     </div>
                   )

@@ -127,11 +127,14 @@ export async function fetchGapsByAnalysis(): Promise<GapsByAnalysis> {
  * Fetch per-symbol gap analysis
  */
 export async function fetchSymbolGaps(symbol: string): Promise<SymbolGaps> {
-  const response = await fetch(`${buildApiUrl(`/api/gaps/by-symbol/${symbol}`)}`, {
-    headers: {
-      'Content-Type': 'application/json',
+  const response = await fetch(
+    `${buildApiUrl(`/api/gaps/by-symbol/${symbol}`)}`,
+    {
+      headers: {
+        'Content-Type': 'application/json',
+      },
     },
-  })
+  )
 
   if (!response.ok) {
     const error = await response.json()
@@ -165,13 +168,16 @@ export async function fetchWatchlistGaps(): Promise<WatchlistGaps> {
 export async function generateTaskList(
   gapIds: string[],
 ): Promise<TaskListGenerated> {
-  const response = await fetch(`${buildApiUrl('/api/gaps/generate-task-list')}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+  const response = await fetch(
+    `${buildApiUrl('/api/gaps/generate-task-list')}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ gap_ids: gapIds }),
     },
-    body: JSON.stringify({ gap_ids: gapIds }),
-  })
+  )
 
   if (!response.ok) {
     const error = await response.json()

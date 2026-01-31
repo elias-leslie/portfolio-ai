@@ -3,8 +3,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { TaskStatusBadge } from './TaskStatusBadge'
 import { TaskSummary } from './TaskSummary'
-import { formatDate } from './utils'
 import type { TaskSectionProps } from './types'
+import { formatDate } from './utils'
 
 export function TaskSection({
   title,
@@ -47,7 +47,9 @@ export function TaskSection({
               Dry Run
             </Badge>
           )}
-          {lastRun.status === 'success' && <TaskSummary summary={lastRun.summary} />}
+          {lastRun.status === 'success' && (
+            <TaskSummary summary={lastRun.summary} />
+          )}
           {lastRun.status === 'error' && lastRun.errorMessage && (
             <div className="text-sm text-loss bg-loss/10 p-2 rounded">
               {lastRun.errorMessage}

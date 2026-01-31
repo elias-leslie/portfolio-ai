@@ -55,12 +55,15 @@ export async function fetchCeleryTasks(
     sort,
   })
 
-  const response = await fetch(buildApiUrl(`/api/status/celery/tasks?${params}`), {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
+  const response = await fetch(
+    buildApiUrl(`/api/status/celery/tasks?${params}`),
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
     },
-  })
+  )
 
   if (!response.ok) {
     throw new Error(`Failed to fetch Celery tasks: ${response.statusText}`)

@@ -2,7 +2,11 @@ import { Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { TableCell, TableRow } from '@/components/ui/table'
 import type { PositionWithValue } from '@/lib/api/portfolio'
-import { formatCurrency, formatPercent, formatPnlDollars } from './portfolio-utils'
+import {
+  formatCurrency,
+  formatPercent,
+  formatPnlDollars,
+} from './portfolio-utils'
 
 interface PositionTableRowProps {
   position: PositionWithValue

@@ -128,6 +128,7 @@ ignore = [
 "app/api/**/*.py" = ["B008"]  # FastAPI Depends/Query in argument defaults is intentional
 "app/tasks/**/*.py" = ["PLC0415"]  # Task-specific: lazy imports to avoid circular dependencies
 "app/agents/**/*.py" = ["PLC0415", "PLR0911"]  # Agent-specific: lazy imports, many return statements in tool executors
+"app/watchlist/scoring_service/__init__.py" = ["PLC0415", "PLR0911"]  # Lazy loading pattern via __getattr__
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]

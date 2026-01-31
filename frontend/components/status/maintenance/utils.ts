@@ -1,4 +1,4 @@
-import { type MaintenanceResult } from '@/lib/api/maintenance'
+import type { MaintenanceResult } from '@/lib/api/maintenance'
 
 export function formatDate(dateStr: string | null): string {
   if (!dateStr) return 'Never run'

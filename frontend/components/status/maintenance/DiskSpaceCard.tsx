@@ -2,7 +2,7 @@ import { HardDrive, RefreshCw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
-import { type DiskSpaceInfo } from './types'
+import type { DiskSpaceInfo } from './types'
 import { getStatusText } from './utils'
 
 export function DiskSpaceCard({

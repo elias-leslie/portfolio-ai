@@ -1,11 +1,6 @@
 'use client'
 
-import {
-  CheckCircle2,
-  Database,
-  RefreshCw,
-  Trash2,
-} from 'lucide-react'
+import { CheckCircle2, Database, RefreshCw, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { ExpandableCard } from '@/components/status/ExpandableCard'
@@ -18,12 +13,12 @@ import {
   getMaintenanceLastRun,
   type LastRunSummary,
 } from '@/lib/api/maintenance'
-import { ServiceActionDialog } from './ServiceActionDialog'
 import { BackupStatusBadge } from './maintenance/BackupStatusBadge'
 import { TaskSection } from './maintenance/TaskSection'
+import type { ActionDialogConfig } from './maintenance/types'
 import { useMaintenanceTasks } from './maintenance/useMaintenanceTasks'
 import { formatTaskSummary } from './maintenance/utils'
-import type { ActionDialogConfig } from './maintenance/types'
+import { ServiceActionDialog } from './ServiceActionDialog'
 
 export function MaintenanceCard() {
   const [lastRunSummary, setLastRunSummary] = useState<LastRunSummary | null>(

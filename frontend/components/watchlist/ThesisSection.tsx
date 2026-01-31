@@ -14,13 +14,13 @@ import {
 import { fetchThesis, generateThesis, invalidateThesis } from '@/lib/api/thesis'
 import { formatTimestamp } from './ExpandedRowUtils'
 import { ActionBadge } from './thesis/ActionBadge'
-import { StatusBadge } from './thesis/StatusBadge'
+import { ClaudeValidationSection } from './thesis/ClaudeValidationSection'
 import { CoreReasonsSection } from './thesis/CoreReasonsSection'
+import { ExpectedReturnsSection } from './thesis/ExpectedReturnsSection'
 import { KeyCatalystsSection } from './thesis/KeyCatalystsSection'
 import { RisksSection } from './thesis/RisksSection'
+import { StatusBadge } from './thesis/StatusBadge'
 import { ValueDriversSection } from './thesis/ValueDriversSection'
-import { ExpectedReturnsSection } from './thesis/ExpectedReturnsSection'
-import { ClaudeValidationSection } from './thesis/ClaudeValidationSection'
 import { VersionHistorySection } from './thesis/VersionHistorySection'
 
 interface ThesisSectionProps {

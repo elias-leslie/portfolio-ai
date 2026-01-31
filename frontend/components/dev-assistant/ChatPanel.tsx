@@ -3,12 +3,12 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 
 import { useEffect, useRef, useState } from 'react'
-import type { ChatMessage, ChatPanelProps } from './types'
-import { getDefaultWsUrl } from './utils'
-import { useWebSocket } from './useWebSocket'
-import { MessageBubble } from './MessageBubble'
 import { ContentBlockView } from './ContentBlockView'
+import { MessageBubble } from './MessageBubble'
 import { PermissionModal } from './PermissionModal'
+import type { ChatMessage, ChatPanelProps } from './types'
+import { useWebSocket } from './useWebSocket'
+import { getDefaultWsUrl } from './utils'
 
 export default function ChatPanel({ sessionId, serverUrl }: ChatPanelProps) {
   const effectiveServerUrl = serverUrl || getDefaultWsUrl()

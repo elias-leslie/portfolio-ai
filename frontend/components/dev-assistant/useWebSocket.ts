@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toCamelCaseKeys } from '@/lib/api/client'
 import type {
-  ContentBlock,
-  WebSocketMessage,
-  PermissionRequest,
   ChatMessage,
+  ContentBlock,
+  PermissionRequest,
+  WebSocketMessage,
 } from './types'
 import { blocksToText } from './utils'
 
@@ -165,28 +165,31 @@ export function useWebSocket(sessionId: string, wsUrl: string) {
     setPendingPermission(null)
   }, [])
 
-  const handlePermissionResponse = useCallback((allowed: boolean) => {
-    if (!wsRef.current || !pendingPermission) return
+  const handlePermissionResponse = useCallback(
+    (allowed: boolean) => {
+      if (!wsRef.current || !pendingPermission) return
 
-    const responseTime = new Date()
-    wsRef.current.send(
-      JSON.stringify({
-        type: 'permission_response',
-        allowed,
-      }),
-    )
+      const responseTime = new Date()
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'permission_response',
+          allowed,
+        }),
+      )
 
-    messagesCallbackRef.current((prev) => [
-      ...prev,
-      {
-        role: 'system',
-        content: `Permission ${allowed ? 'ALLOWED' : 'DENIED'} for: ${pendingPermission.toolName}`,
-        timestamp: responseTime,
-      },
-    ])
+      messagesCallbackRef.current((prev) => [
+        ...prev,
+        {
+          role: 'system',
+          content: `Permission ${allowed ? 'ALLOWED' : 'DENIED'} for: ${pendingPermission.toolName}`,
+          timestamp: responseTime,
+        },
+      ])
 
-    setPendingPermission(null)
-  }, [pendingPermission])
+      setPendingPermission(null)
+    },
+    [pendingPermission],
+  )
 
   return {
     isConnected,

@@ -1,7 +1,7 @@
 import { PlayCircle, RefreshCw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { type MaintenanceResult } from '@/lib/api/maintenance'
+import type { MaintenanceResult } from '@/lib/api/maintenance'
 import { StatusBadge } from './StatusBadge'
 import { formatDateTime } from './utils'
 

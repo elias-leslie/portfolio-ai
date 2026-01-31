@@ -4,20 +4,20 @@ import { AlertCircle, CheckCircle2, Database, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { ExpandableCard } from '@/components/status/ExpandableCard'
-import { ServiceActionDialog } from '@/components/status/ServiceActionDialog'
 import { DatabaseSizeCard } from '@/components/status/maintenance/DatabaseSizeCard'
 import { DiskSpaceCard } from '@/components/status/maintenance/DiskSpaceCard'
 import { ScheduledTasksCard } from '@/components/status/maintenance/ScheduledTasksCard'
 import { TaskTriggerSection } from '@/components/status/maintenance/TaskTriggerSection'
-import {
-  type DatabaseSize,
-  type DatabaseSizeResponse,
-  type DiskSpaceInfo,
-  type DiskSpaceResponse,
-  type ScheduledTask,
-  type ScheduleResponse,
+import type {
+  DatabaseSize,
+  DatabaseSizeResponse,
+  DiskSpaceInfo,
+  DiskSpaceResponse,
+  ScheduledTask,
+  ScheduleResponse,
 } from '@/components/status/maintenance/types'
 import { API_BASE_URL } from '@/components/status/maintenance/utils'
+import { ServiceActionDialog } from '@/components/status/ServiceActionDialog'
 import { Button } from '@/components/ui/button'
 import {
   getMaintenanceLastRun,
@@ -95,7 +95,9 @@ export function MaintenanceStatus() {
   const fetchDatabaseSize = useCallback(async () => {
     setDatabaseLoading(true)
     try {
-      const response = await fetch(`${API_BASE_URL}/api/maintenance/database-size`)
+      const response = await fetch(
+        `${API_BASE_URL}/api/maintenance/database-size`,
+      )
       if (!response.ok) throw new Error('Failed to fetch database size')
       const data: DatabaseSizeResponse = await response.json()
       setDatabase(data.database)
@@ -161,16 +163,21 @@ export function MaintenanceStatus() {
   const handleTriggerTask = async (taskName: string) => {
     setIsTriggering(true)
     try {
-      const response = await fetch(`${API_BASE_URL}/api/maintenance/trigger/${taskName}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      })
+      const response = await fetch(
+        `${API_BASE_URL}/api/maintenance/trigger/${taskName}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        },
+      )
       if (!response.ok) throw new Error(`Failed to trigger ${taskName}`)
       await response.json()
       toast.success(`${taskName} triggered successfully`)
       await fetchLastRunData()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to trigger task')
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to trigger task',
+      )
     } finally {
       setIsTriggering(false)
     }
@@ -190,8 +197,15 @@ export function MaintenanceStatus() {
           </div>
           <ScheduledTasksCard tasks={scheduledTasks} isLoading={tasksLoading} />
           <div className="flex justify-center pt-2">
-            <Button variant="outline" size="sm" onClick={fetchAllData} disabled={isFetching}>
-              <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchAllData}
+              disabled={isFetching}
+            >
+              <RefreshCw
+                className={`h-4 w-4 mr-2 ${isFetching ? 'animate-spin' : ''}`}
+              />
               Refresh
             </Button>
           </div>
@@ -207,25 +221,55 @@ export function MaintenanceStatus() {
           <TaskTriggerSection
             title="Cleanup Old News"
             description="Remove news articles older than 90 days"
-            icon={<AlertCircle className="h-5 w-5 text-status-warning flex-shrink-0" />}
-            lastRun={lastRunSummary?.tasks?.cleanupOldNewsTask || lastRunSummary?.tasks?.cleanupNews || null}
-            onTrigger={() => triggerTask('cleanup_news', 'Cleanup News', () => handleTriggerTask('cleanup_news'))}
+            icon={
+              <AlertCircle className="h-5 w-5 text-status-warning flex-shrink-0" />
+            }
+            lastRun={
+              lastRunSummary?.tasks?.cleanupOldNewsTask ||
+              lastRunSummary?.tasks?.cleanupNews ||
+              null
+            }
+            onTrigger={() =>
+              triggerTask('cleanup_news', 'Cleanup News', () =>
+                handleTriggerTask('cleanup_news'),
+              )
+            }
             isLoading={isTriggering}
           />
           <TaskTriggerSection
             title="Vacuum Database"
             description="Optimize tables and reclaim disk space"
-            icon={<Database className="h-5 w-5 text-status-info flex-shrink-0" />}
-            lastRun={lastRunSummary?.tasks?.vacuumDatabaseTask || lastRunSummary?.tasks?.vacuumDatabase || null}
-            onTrigger={() => triggerTask('vacuum_database', 'Vacuum Database', () => handleTriggerTask('vacuum_database'))}
+            icon={
+              <Database className="h-5 w-5 text-status-info flex-shrink-0" />
+            }
+            lastRun={
+              lastRunSummary?.tasks?.vacuumDatabaseTask ||
+              lastRunSummary?.tasks?.vacuumDatabase ||
+              null
+            }
+            onTrigger={() =>
+              triggerTask('vacuum_database', 'Vacuum Database', () =>
+                handleTriggerTask('vacuum_database'),
+              )
+            }
             isLoading={isTriggering}
           />
           <TaskTriggerSection
             title="Validate Data Integrity"
             description="Check for orphaned records and consistency issues"
-            icon={<CheckCircle2 className="h-5 w-5 text-status-success flex-shrink-0" />}
-            lastRun={lastRunSummary?.tasks?.validateIntegrityTask || lastRunSummary?.tasks?.validateIntegrity || null}
-            onTrigger={() => triggerTask('validate_integrity', 'Validate Integrity', () => handleTriggerTask('validate_integrity'))}
+            icon={
+              <CheckCircle2 className="h-5 w-5 text-status-success flex-shrink-0" />
+            }
+            lastRun={
+              lastRunSummary?.tasks?.validateIntegrityTask ||
+              lastRunSummary?.tasks?.validateIntegrity ||
+              null
+            }
+            onTrigger={() =>
+              triggerTask('validate_integrity', 'Validate Integrity', () =>
+                handleTriggerTask('validate_integrity'),
+              )
+            }
             isLoading={isTriggering}
           />
         </div>

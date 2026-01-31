@@ -4,8 +4,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { HealthResponse } from '../api/status'
-import { useSystemStatus } from './useSystemStatus'
 import { buildApiUrl } from '../api-config'
+import { useSystemStatus } from './useSystemStatus'
 
 type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'fallback'
 

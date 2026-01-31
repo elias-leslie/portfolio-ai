@@ -1,5 +1,5 @@
-import type { ChatMessage } from './types'
 import { ContentBlockView } from './ContentBlockView'
+import type { ChatMessage } from './types'
 
 export function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === 'user'

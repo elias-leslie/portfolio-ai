@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useMemo, useState, startTransition } from 'react'
+import {
+  startTransition,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
 import { toast } from 'sonner'
 import {
   DEFAULT_FUND_WEIGHTS,
@@ -11,7 +17,10 @@ import type {
   ScoreWeights,
   TechnicalSubWeights,
 } from '@/lib/api/preferences'
-import { usePreferences, useUpdatePreferences } from '@/lib/hooks/usePreferences'
+import {
+  usePreferences,
+  useUpdatePreferences,
+} from '@/lib/hooks/usePreferences'
 import type { EditablePreferences } from './types'
 import {
   buildEditableFromResponse,
@@ -38,11 +47,14 @@ export const useSettingsState = () => {
   const [maxPositionSizePct, setMaxPositionSizePct] = useState<string>('20')
 
   // Display state
-  const [displayTimezone, setDisplayTimezone] = useState<string>('America/New_York')
+  const [displayTimezone, setDisplayTimezone] =
+    useState<string>('America/New_York')
 
   // Watchlist state
   const [defaultRefreshMinutes, setDefaultRefreshMinutes] = useState(15)
-  const [watchlistOverride, setWatchlistOverride] = useState<number | null>(null)
+  const [watchlistOverride, setWatchlistOverride] = useState<number | null>(
+    null,
+  )
   const [newsOverride, setNewsOverride] = useState<number | null>(null)
   const [newsLookbackHours, setNewsLookbackHours] = useState(24)
   const [newsMaxArticles, setNewsMaxArticles] = useState(10)
@@ -51,12 +63,14 @@ export const useSettingsState = () => {
   const [scoreWeights, setScoreWeights] = useState<ScoreWeights>({
     ...DEFAULT_SCORE_WEIGHTS,
   })
-  const [technicalSubWeights, setTechnicalSubWeights] = useState<TechnicalSubWeights>({
-    ...DEFAULT_TECH_WEIGHTS,
-  })
-  const [fundamentalSubWeights, setFundamentalSubWeights] = useState<FundamentalSubWeights>({
-    ...DEFAULT_FUND_WEIGHTS,
-  })
+  const [technicalSubWeights, setTechnicalSubWeights] =
+    useState<TechnicalSubWeights>({
+      ...DEFAULT_TECH_WEIGHTS,
+    })
+  const [fundamentalSubWeights, setFundamentalSubWeights] =
+    useState<FundamentalSubWeights>({
+      ...DEFAULT_FUND_WEIGHTS,
+    })
 
   const applyEditable = useCallback((editable: EditablePreferences) => {
     setRiskTolerance(editable.riskTolerance)
@@ -138,7 +152,9 @@ export const useSettingsState = () => {
     [preferences],
   )
 
-  const hasChanges = persistedEditable ? !deepEqual(currentEditable, persistedEditable) : false
+  const hasChanges = persistedEditable
+    ? !deepEqual(currentEditable, persistedEditable)
+    : false
   const changeCount = persistedEditable
     ? countEditableDifferences(currentEditable, persistedEditable)
     : 0
@@ -184,7 +200,9 @@ export const useSettingsState = () => {
       currentEditable.fundamentalSubWeights.sentiment
 
     if (Math.abs(mainTotal - 100) > 0.1) {
-      toast.error('Main score weights (Price + Technical + Fundamental) must sum to 100%')
+      toast.error(
+        'Main score weights (Price + Technical + Fundamental) must sum to 100%',
+      )
       return false
     }
     if (Math.abs(techTotal - 100) > 0.1) {

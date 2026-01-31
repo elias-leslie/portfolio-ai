@@ -7,8 +7,8 @@ import type {
   TechnicalSubWeights,
 } from '@/lib/api/preferences'
 import { WeightConfigurator } from '../WeightConfigurator'
-import { BasicSettingsCard } from './watchlist/BasicSettingsCard'
 import { AdvancedOverridesCard } from './watchlist/AdvancedOverridesCard'
+import { BasicSettingsCard } from './watchlist/BasicSettingsCard'
 import { CollapsibleWeightCard } from './watchlist/CollapsibleWeightCard'
 import { StaticSchedulesCard } from './watchlist/StaticSchedulesCard'
 
@@ -168,12 +168,10 @@ export function WatchlistSettingsSection({
         ]}
         onChange={(weights) => {
           onFundamentalSubWeightsChange({
-            valuation:
-              weights.find((w) => w.id === 'valuation')?.value ?? 30,
+            valuation: weights.find((w) => w.id === 'valuation')?.value ?? 30,
             growth: weights.find((w) => w.id === 'growth')?.value ?? 35,
             health: weights.find((w) => w.id === 'health')?.value ?? 25,
-            sentiment:
-              weights.find((w) => w.id === 'sentiment')?.value ?? 10,
+            sentiment: weights.find((w) => w.id === 'sentiment')?.value ?? 10,
           })
         }}
       />
