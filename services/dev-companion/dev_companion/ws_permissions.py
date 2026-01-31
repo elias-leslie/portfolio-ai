@@ -28,7 +28,7 @@ def create_permission_callback(
             return
 
         # Format tool input for display (truncate long values)
-        display_input = {}
+        display_input: dict[str, Any] = {}
         for key, value in tool_input.items():
             if isinstance(value, str) and len(value) > PERMISSION_DISPLAY_STRING_LIMIT:
                 display_input[key] = value[:PERMISSION_DISPLAY_STRING_LIMIT] + "..."
@@ -37,7 +37,7 @@ def create_permission_callback(
                 if len(serialized) > PERMISSION_DISPLAY_JSON_LIMIT:
                     display_input[key] = serialized[:PERMISSION_DISPLAY_JSON_LIMIT] + "..."
                 else:
-                    display_input[key] = value
+                    display_input[key] = value  # type: ignore[assignment]
             else:
                 display_input[key] = value
 

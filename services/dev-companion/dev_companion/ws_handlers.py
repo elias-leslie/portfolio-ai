@@ -11,6 +11,8 @@ from .session_utils import (
     build_handoff_context,
     store_agent_message,
 )
+from .claude_process import ClaudeSession
+from .gemini_process import GeminiSession
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +40,7 @@ async def handle_user_message(
     logger.info(f"Single provider mode: {provider}")
 
     # Create session based on provider
+    session: ClaudeSession | GeminiSession | None
     if provider == "gemini":
         session = await get_or_create_gemini_session(bridge, session_id)
         logger.info(f"Gemini session created: {session is not None}")
