@@ -1,5 +1,5 @@
 project: portfolio-ai
-generated_at: 2026-01-30 16:01 UTC
+generated_at: 2026-01-31 06:08 UTC
 environment:
   python_version: '>=3.13'
   venv_path: backend/.venv
@@ -29,8 +29,6 @@ pages:
 - /workflows (workflows)
 endpoints:
 - DELETE /api/layouts/{page_name} (reset_layout)
-- DELETE /api/portfolio/account/{account_id} (delete_account)
-- DELETE /api/portfolio/position/{position_id} (delete_position)
 - DELETE /api/settings/profiles/{profile_id} (delete)
 - DELETE /api/sitemap/entries/{entry_id} (delete_entry)
 - GET /api/agents/telemetry/history (get_run_history)
