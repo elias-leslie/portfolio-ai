@@ -2,12 +2,16 @@
 
 This module provides centralized test fixtures to ensure test isolation
 and proper database cleanup between tests.
+
+CRITICAL: Tests NEVER touch production database. All tests run against
+portfolio_ai_test database automatically.
 """
 
 from __future__ import annotations
 
 import logging
 import os
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -35,8 +39,29 @@ if not _prod_db_url:
         "PORTFOLIO_DB_URL environment variable is required. "
         "Create ~/.env.local with PORTFOLIO_DB_URL=postgresql://..."
     )
+
+# PRODUCTION GUARD - refuse to run if URL doesn't contain portfolio_ai
+if "/portfolio_ai" not in _prod_db_url:
+    print("\n" + "=" * 70, file=sys.stderr)
+    print("FATAL: PORTFOLIO_DB_URL does not appear to be a valid portfolio database", file=sys.stderr)
+    print("=" * 70, file=sys.stderr)
+    print(f"\nPORTFOLIO_DB_URL: {_prod_db_url}", file=sys.stderr)
+    print("\nExpected format: postgresql://...@localhost:5432/portfolio_ai", file=sys.stderr)
+    print("=" * 70 + "\n", file=sys.stderr)
+    raise RuntimeError("Invalid PORTFOLIO_DB_URL configuration")
+
 # Replace database name with test database
 TEST_DB_URL = _prod_db_url.replace("/portfolio_ai", "/portfolio_ai_test")
+
+# Final safety check - refuse if somehow still pointing at production
+if "/portfolio_ai_test" not in TEST_DB_URL:
+    print("\n" + "=" * 70, file=sys.stderr)
+    print("FATAL: TEST_DB_URL derivation failed - would still hit production!", file=sys.stderr)
+    print("=" * 70, file=sys.stderr)
+    print(f"\nDerived TEST_DB_URL: {TEST_DB_URL}", file=sys.stderr)
+    print("=" * 70 + "\n", file=sys.stderr)
+    raise RuntimeError("Test database URL derivation failed")
+
 os.environ["PORTFOLIO_DB_URL"] = TEST_DB_URL
 
 # Configure minimal connection pool for tests
