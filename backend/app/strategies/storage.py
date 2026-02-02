@@ -148,9 +148,7 @@ class StrategyStorage(StrategyStorageDelegator):
 
         return row_to_strategy_definition(result[0])
 
-    def get_top_watchlist_symbols(
-        self, limit: int = 20, require_score: bool = False
-    ) -> list[str]:
+    def get_top_watchlist_symbols(self, limit: int = 20, require_score: bool = False) -> list[str]:
         """Get top watchlist symbols ordered by overall score."""
         score_condition = "WHERE overall_score IS NOT NULL" if require_score else ""
 

@@ -43,7 +43,9 @@ if not _prod_db_url:
 # PRODUCTION GUARD - refuse to run if URL doesn't contain portfolio_ai
 if "/portfolio_ai" not in _prod_db_url:
     print("\n" + "=" * 70, file=sys.stderr)
-    print("FATAL: PORTFOLIO_DB_URL does not appear to be a valid portfolio database", file=sys.stderr)
+    print(
+        "FATAL: PORTFOLIO_DB_URL does not appear to be a valid portfolio database", file=sys.stderr
+    )
     print("=" * 70, file=sys.stderr)
     print(f"\nPORTFOLIO_DB_URL: {_prod_db_url}", file=sys.stderr)
     print("\nExpected format: postgresql://...@localhost:5432/portfolio_ai", file=sys.stderr)

@@ -91,9 +91,7 @@ class NewsVendorManager:
         self, vendor_sources: Sequence[BaseSource] | None
     ) -> list[BaseSource]:
         """Initialise vendor sources from overrides or environment configuration."""
-        return prepare_vendor_sources(
-            self.storage, vendor_sources, self._register_vendor
-        )
+        return prepare_vendor_sources(self.storage, vendor_sources, self._register_vendor)
 
     def update_vendor_runtime(
         self,

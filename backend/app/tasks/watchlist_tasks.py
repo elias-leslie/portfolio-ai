@@ -340,7 +340,7 @@ def _refresh_watchlist_scores_impl(
                 "markets_open": markets_open,
             },
         ):
-            result = refresh_watchlist_scores_service(storage, account_id=account_id)  # type: ignore[misc]  # mypy can't infer type through lazy-loaded __getattr__
+            result = refresh_watchlist_scores_service(storage, account_id=account_id)
             result.update(
                 {
                     "task_id": task_id,
@@ -427,7 +427,7 @@ def refresh_single_symbol_scores_task(self: Task[..., Any], symbol: str) -> dict
             )
 
             # Call scoring service with symbols_filter for just this one symbol
-            result = refresh_watchlist_scores_service(  # type: ignore[misc]  # mypy can't infer type through lazy-loaded __getattr__
+            result = refresh_watchlist_scores_service(
                 storage,
                 symbols_filter=[symbol],
                 batch_size=1,  # Single symbol, minimal batch

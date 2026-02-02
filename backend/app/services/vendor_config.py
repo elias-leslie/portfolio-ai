@@ -76,9 +76,7 @@ def init_free_vendor(
             enabled = False
             logger.warning(f"{vendor_name}_source_init_failed", error=str(exc))
 
-    register_callback(
-        vendor_name, configured=True, enabled=enabled, notes=notes, reason=reason
-    )
+    register_callback(vendor_name, configured=True, enabled=enabled, notes=notes, reason=reason)
 
 
 def init_api_vendor(
@@ -179,8 +177,13 @@ def init_rss_vendors(sources: list[BaseSource], register_callback: Any) -> None:
 
     for vendor_name, source_cls, notes, env_var in rss_configs:
         init_free_vendor(
-            vendor_name, source_cls, env_var, notes, None, sources=sources,
-            register_callback=register_callback
+            vendor_name,
+            source_cls,
+            env_var,
+            notes,
+            None,
+            sources=sources,
+            register_callback=register_callback,
         )
 
 
@@ -205,9 +208,7 @@ def prepare_vendor_sources(
     if vendor_sources_override is not None:
         for source in vendor_sources_override:
             sources.append(source)
-            register_callback(
-                source.name, configured=True, enabled=True, notes=None, reason=None
-            )
+            register_callback(source.name, configured=True, enabled=True, notes=None, reason=None)
         return sources
 
     # Initialize primary news vendors

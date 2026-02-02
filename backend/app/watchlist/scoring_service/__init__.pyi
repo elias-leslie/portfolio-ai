@@ -18,7 +18,6 @@ def aggregate_results(
     results: list[dict[str, Any]],
     failed: list[str],
 ) -> dict[str, Any]: ...
-
 def process_all_symbols(
     storage: PortfolioStorage,
     account_id: str,
@@ -31,23 +30,19 @@ def process_all_symbols(
 
 # Batch loader functions
 def fetch_news_batch(storage: PortfolioStorage, symbols: list[str]) -> dict[str, Any]: ...
-
 def fetch_prices_in_batches(
     storage: PortfolioStorage,
     symbols: list[str],
     batch_size: int = 100,
 ) -> dict[str, Any]: ...
-
 def load_latest_technical(
     storage: PortfolioStorage,
     symbols: list[str],
 ) -> dict[str, Any]: ...
-
 def load_watchlist_items(
     storage: PortfolioStorage,
     account_id: str,
 ) -> dict[str, WatchlistItem]: ...
-
 def trigger_auto_backfill(storage: PortfolioStorage, symbols: list[str]) -> None: ...
 
 # Context functions
@@ -69,11 +64,8 @@ def process_single_symbol(
 
 # Redis tracker functions
 def complete_refresh(account_id: str, stats: dict[str, Any]) -> None: ...
-
 def get_redis_client() -> Redis[bytes]: ...
-
 def init_refresh_status(account_id: str, total_symbols: int) -> None: ...
-
 def update_progress(account_id: str, processed: int) -> None: ...
 
 # Main scoring service function

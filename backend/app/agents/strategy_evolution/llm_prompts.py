@@ -85,9 +85,7 @@ async def propose_mutations(
     Returns:
         List of proposed mutations (max 5)
     """
-    logger.info(
-        f"Proposing mutations for {strategy.symbol} (Sharpe: {analysis.actual_sharpe:.2f})"
-    )
+    logger.info(f"Proposing mutations for {strategy.symbol} (Sharpe: {analysis.actual_sharpe:.2f})")
 
     # Build LLM prompt
     prompt = f"""You are a quantitative trading strategist analyzing an underperforming strategy.

@@ -124,7 +124,9 @@ def update_workflow_status(
 
     if status in ("running", "blocked", "complete", "failed"):
         # Set started_at if not already set
-        result = storage.query("SELECT started_at FROM agent_workflows WHERE id = $1", [workflow_id])
+        result = storage.query(
+            "SELECT started_at FROM agent_workflows WHERE id = $1", [workflow_id]
+        )
         if not result.is_empty() and result.get_column("started_at")[0] is None:
             updates["started_at"] = datetime.now(UTC)
 
