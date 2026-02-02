@@ -1,6 +1,6 @@
 import { AlertCircle, CheckCircle2, Clock, HardDrive } from 'lucide-react'
 
-import { type BackupStatusResponse } from '@/lib/api/backup'
+import type { BackupStatusResponse } from '@/lib/api/backup'
 
 export function StatusIcon({
   status,
