@@ -15,72 +15,32 @@ Main entry point:
 
 from __future__ import annotations
 
+# Lazy import mapping: attribute name -> (module, import name or None if same)
+_LAZY_IMPORTS = {
+    "_is_stale": ("helpers", "is_stale"),
+    "aggregate_results": ("aggregator", None),
+    "process_all_symbols": ("aggregator", None),
+    "fetch_news_batch": ("batch_loader", None),
+    "fetch_prices_in_batches": ("batch_loader", None),
+    "load_latest_technical": ("batch_loader", None),
+    "load_watchlist_items": ("batch_loader", None),
+    "trigger_auto_backfill": ("batch_loader", None),
+    "initialize_scoring_context": ("context", None),
+    "process_single_symbol": ("processor", None),
+    "complete_refresh": ("redis_tracker", None),
+    "get_redis_client": ("redis_tracker", None),
+    "init_refresh_status": ("redis_tracker", None),
+    "update_progress": ("redis_tracker", None),
+    "refresh_watchlist_scores": ("scoring_service", None),
+}
+
 
 def __getattr__(name: str) -> object:
     """Lazy import to avoid circular dependencies during module initialization."""
-    # Helper functions - can be imported immediately
-    if name == "_is_stale":
-        from .helpers import is_stale as _is_stale
-
-        return _is_stale
-
-    # Service functions - lazy load to avoid circular imports
-    if name == "aggregate_results":
-        from .aggregator import aggregate_results
-
-        return aggregate_results
-    if name == "process_all_symbols":
-        from .aggregator import process_all_symbols
-
-        return process_all_symbols
-    if name == "fetch_news_batch":
-        from .batch_loader import fetch_news_batch
-
-        return fetch_news_batch
-    if name == "fetch_prices_in_batches":
-        from .batch_loader import fetch_prices_in_batches
-
-        return fetch_prices_in_batches
-    if name == "load_latest_technical":
-        from .batch_loader import load_latest_technical
-
-        return load_latest_technical
-    if name == "load_watchlist_items":
-        from .batch_loader import load_watchlist_items
-
-        return load_watchlist_items
-    if name == "trigger_auto_backfill":
-        from .batch_loader import trigger_auto_backfill
-
-        return trigger_auto_backfill
-    if name == "initialize_scoring_context":
-        from .context import initialize_scoring_context
-
-        return initialize_scoring_context
-    if name == "process_single_symbol":
-        from .processor import process_single_symbol
-
-        return process_single_symbol
-    if name == "complete_refresh":
-        from .redis_tracker import complete_refresh
-
-        return complete_refresh
-    if name == "get_redis_client":
-        from .redis_tracker import get_redis_client
-
-        return get_redis_client
-    if name == "init_refresh_status":
-        from .redis_tracker import init_refresh_status
-
-        return init_refresh_status
-    if name == "update_progress":
-        from .redis_tracker import update_progress
-
-        return update_progress
-    if name == "refresh_watchlist_scores":
-        from .scoring_service import refresh_watchlist_scores
-
-        return refresh_watchlist_scores
+    if name in _LAZY_IMPORTS:
+        module_name, import_name = _LAZY_IMPORTS[name]
+        module = __import__(f"{__name__}.{module_name}", fromlist=[import_name or name])
+        return getattr(module, import_name or name)
 
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
