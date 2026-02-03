@@ -142,6 +142,7 @@ class StrategyReviewer:
                     prompt=prompt,
                     system=get_system_prompt(self.storage),
                     temperature=GUARDRAILS["temperature"],
+                    purpose="strategy_review",
                 )
                 return response.content, provider, response.usage
             except Exception as e:

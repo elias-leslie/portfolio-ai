@@ -230,6 +230,7 @@ class MultiReviewer:
                 prompt=prompt,
                 system=get_system_prompt(self.storage),
                 temperature=GUARDRAILS["temperature"],
+                purpose=f"multi_review:{provider}",
             )
 
             # Validate against guardrails

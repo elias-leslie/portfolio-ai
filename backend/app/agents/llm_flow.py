@@ -30,6 +30,7 @@ class LLMFlowMixin:
 
     storage: PortfolioStorage
     llm_client: LLMClient | None
+    agent_type: str
 
     def get_system_prompt(self) -> str:
         """Get system prompt (implemented by concrete agent)."""
@@ -303,6 +304,7 @@ class LLMFlowMixin:
                 system=self.get_system_prompt(),
                 conversation_history=conversation_history,
                 temperature=1.0,
+                purpose=f"agent:{self.agent_type}",
             )
 
             # Accumulate token usage from this iteration
