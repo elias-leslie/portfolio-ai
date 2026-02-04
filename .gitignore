@@ -91,3 +91,5 @@ certs/
 # Dev tools output (TOON details)
 .dev-tools/
 .st/
+
+backup-index.json
