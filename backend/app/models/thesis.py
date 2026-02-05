@@ -6,13 +6,13 @@ Supports versioning, invalidation tracking, and cross-validation between Claude 
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
 
-class ThesisStatus(str, Enum):
+class ThesisStatus(StrEnum):
     """Status of an investment thesis."""
 
     ACTIVE = "active"
@@ -20,7 +20,7 @@ class ThesisStatus(str, Enum):
     FLAGGED = "flagged_for_review"
 
 
-class ThesisAction(str, Enum):
+class ThesisAction(StrEnum):
     """Recommended action for the thesis."""
 
     BUY = "BUY"

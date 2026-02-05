@@ -121,7 +121,7 @@ def _should_visit_link(link: str, visited: set[str]) -> bool:
     if any(x in link for x in FRONTEND_CRAWL_SKIP_PATTERNS):
         return False
     # Extract clean path (remove query and fragments)
-    clean_path = link.split("?")[0].split("#")[0]
+    clean_path = link.split("?", maxsplit=1)[0].split("#")[0]
     return clean_path not in visited
 
 

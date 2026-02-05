@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any, TypedDict
 
 from pydantic import BaseModel, Field, field_validator
@@ -174,7 +174,7 @@ class NewsIntelligence(BaseModel):
     recent_articles: list[NewsArticleDict] = Field(default_factory=list)  # Top 5 articles
 
 
-class SignalType(str, Enum):
+class SignalType(StrEnum):
     """Signal classification type for watchlist items."""
 
     BUY = "BUY"

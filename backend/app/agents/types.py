@@ -6,11 +6,11 @@ replacing loose dict[str, Any] with properly typed structures.
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import TypedDict
 
 
-class AgentRunStatus(str, Enum):
+class AgentRunStatus(StrEnum):
     """Status values for agent runs."""
 
     RUNNING = "running"
@@ -19,7 +19,7 @@ class AgentRunStatus(str, Enum):
     MAX_ITERATIONS = "max_iterations"
 
 
-class StopReason(str, Enum):
+class StopReason(StrEnum):
     """Stop reason values for LLM responses."""
 
     END_TURN = "end_turn"

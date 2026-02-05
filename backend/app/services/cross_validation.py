@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any, TypedDict
 
 from pydantic import BaseModel, Field
@@ -27,7 +27,7 @@ from ..storage.connection import get_connection_manager
 logger = get_logger(__name__)
 
 
-class ValidationStatus(str, Enum):
+class ValidationStatus(StrEnum):
     """Status of a cross-validation result."""
 
     PENDING = "pending"  # Awaiting human review
@@ -37,7 +37,7 @@ class ValidationStatus(str, Enum):
     MODIFIED = "modified"  # Human modified before applying
 
 
-class DisagreementReason(str, Enum):
+class DisagreementReason(StrEnum):
     """Reasons agents might disagree."""
 
     FACTUAL = "factual"  # Different facts cited

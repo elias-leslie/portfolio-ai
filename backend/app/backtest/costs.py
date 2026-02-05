@@ -24,11 +24,11 @@ Usage:
 
 from dataclasses import dataclass
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 from typing import Literal
 
 
-class SlippageModel(str, Enum):
+class SlippageModel(StrEnum):
     """Slippage model types for price impact estimation."""
 
     NONE = "none"  # No slippage (unrealistic)
@@ -36,7 +36,7 @@ class SlippageModel(str, Enum):
     DYNAMIC = "dynamic"  # Volume-based slippage (position_size / ADV)
 
 
-class CommissionModel(str, Enum):
+class CommissionModel(StrEnum):
     """Commission model types for trading costs."""
 
     NONE = "none"  # No commission (unrealistic)

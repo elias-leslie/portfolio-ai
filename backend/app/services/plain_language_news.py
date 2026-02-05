@@ -9,14 +9,14 @@ Zero jargon rule: No financial terms like "EPS", "guidance", "EBITDA" without ex
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 from ..logging_config import get_logger
 
 logger = get_logger(__name__)
 
 
-class EventCategory(str, Enum):
+class EventCategory(StrEnum):
     """News event categories for pattern matching."""
 
     EARNINGS_BEAT = "earnings_beat"

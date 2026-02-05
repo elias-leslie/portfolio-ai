@@ -7,7 +7,7 @@ GET /api/rules/export - Export rules in JSON or YAML format
 
 import json
 import logging
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 import yaml
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-class ExportFormat(str, Enum):
+class ExportFormat(StrEnum):
     json = "json"
     yaml = "yaml"
 

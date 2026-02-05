@@ -109,9 +109,9 @@ class TestDrawdownMetrics:
             # Peak equity from snapshots
             MagicMock(
                 is_empty=lambda: False,
-                get_column=lambda col: [10000.0]
-                if "equity" in col
-                else [date.today() - timedelta(days=5)],
+                get_column=lambda col: (
+                    [10000.0] if "equity" in col else [date.today() - timedelta(days=5)]
+                ),
             ),
             # Underwater days - no peak at current
             MagicMock(is_empty=lambda: True),

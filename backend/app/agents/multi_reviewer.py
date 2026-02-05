@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 import uuid
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
@@ -30,7 +30,7 @@ from .strategy_reviewer_prompts import (
 logger = get_logger(__name__)
 
 
-class DisagreementSeverity(str, Enum):
+class DisagreementSeverity(StrEnum):
     """Severity of disagreement between providers."""
 
     NONE = "none"  # Both providers agree

@@ -182,7 +182,7 @@ def detect_task_callers(task_name: str, task_path: str) -> list[str]:
     """
     try:
         callers = set()
-        function_name = task_path.split(".")[-1] if "." in task_path else task_path
+        function_name = task_path.rsplit(".", maxsplit=1)[-1] if "." in task_path else task_path
 
         # Search patterns
         patterns = [
