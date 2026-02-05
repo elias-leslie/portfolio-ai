@@ -3,6 +3,7 @@ from app.logging_config import get_logger
 
 logger = get_logger(__name__)
 
+
 def cleanup_stuck_backtests():
     storage = PortfolioStorage()
 
@@ -21,7 +22,9 @@ def cleanup_stuck_backtests():
 
         if running:
             # Mark all as failed except the most recent one (in case it's legitimately running)
-            print(f"\nMarking {len(running)} backtests as 'failed' (stuck from testing)...")
+            print(
+                f"\nMarking {len(running)} backtests as 'failed' (stuck from testing)..."
+            )
             conn.execute("""
                 UPDATE backtest_runs
                 SET status = 'failed',
@@ -31,6 +34,7 @@ def cleanup_stuck_backtests():
             """)
             conn.commit()
             print("✅ Cleanup complete")
+
 
 if __name__ == "__main__":
     cleanup_stuck_backtests()

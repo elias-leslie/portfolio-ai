@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Quick backtest verification - runs a short backtest and verifies completion."""
+
 import sys
 from datetime import date, timedelta
 from decimal import Decimal
@@ -7,6 +8,7 @@ from decimal import Decimal
 from app.storage.facade import PortfolioStorage
 from app.backtest.replay import replay_backtest, Strategy
 from app.storage.connection import ConnectionManager
+
 
 def main():
     print("=== Running Quick Backtest Verification ===\n")
@@ -29,7 +31,9 @@ def main():
                 rsi = indicators.get("rsi_14")
                 return rsi is not None and rsi < 40
 
-            def should_exit(self, date, entry_price, current_price, days_held, indicators):
+            def should_exit(
+                self, date, entry_price, current_price, days_held, indicators
+            ):
                 # Simple exit: sell if RSI > 60 or 5% profit
                 rsi = indicators.get("rsi_14")
                 profit_pct = ((current_price - entry_price) / entry_price) * 100
@@ -44,7 +48,7 @@ def main():
             initial_capital=Decimal("100000"),
             strategy=strategy,
             sizing_method="fixed_dollars",
-            size_value=Decimal("10000")
+            size_value=Decimal("10000"),
         )
 
         print("\n✅ Backtest completed successfully!")
@@ -57,8 +61,10 @@ def main():
     except Exception as e:
         print(f"\n❌ Backtest failed: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

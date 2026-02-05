@@ -9,7 +9,11 @@ from .session_bridge import SessionBridge
 from .roundtable import handle_roundtable_message
 from .ws_connection import ConnectionManager
 from .ws_permissions import create_permission_callback
-from .ws_handlers import handle_user_message, handle_permission_response, handle_interrupt
+from .ws_handlers import (
+    handle_user_message,
+    handle_permission_response,
+    handle_interrupt,
+)
 from .ws_validation import validate_provider, validate_order, validate_max_turns
 
 logger = logging.getLogger(__name__)
@@ -44,7 +48,9 @@ async def websocket_endpoint(
     - Server sends: {"type": "discussion_round", "round": 1|2} (roundtable)
     """
     await websocket.accept()
-    logger.info(f"WebSocket connected for session {session_id}, provider={provider}, order={order}")
+    logger.info(
+        f"WebSocket connected for session {session_id}, provider={provider}, order={order}"
+    )
 
     # Validate parameters
     provider = validate_provider(provider)
@@ -86,7 +92,9 @@ async def websocket_endpoint(
             if msg_type == "message":
                 content = msg.get("content", "").strip()
                 if not content:
-                    await conn.safe_send_json({"type": "error", "message": "Empty message"})
+                    await conn.safe_send_json(
+                        {"type": "error", "message": "Empty message"}
+                    )
                     continue
 
                 # Store user message
@@ -132,10 +140,12 @@ async def websocket_endpoint(
                 await conn.safe_send_json({"type": "pong"})
 
             else:
-                await conn.safe_send_json({
-                    "type": "error",
-                    "message": f"Unknown message type: {msg_type}",
-                })
+                await conn.safe_send_json(
+                    {
+                        "type": "error",
+                        "message": f"Unknown message type: {msg_type}",
+                    }
+                )
 
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected for session {session_id}")

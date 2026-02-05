@@ -54,9 +54,9 @@ def main() -> None:
     days = 200 if args.initial else 5
     mode = "INITIAL" if args.initial else "REFRESH"
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  Watchlist Data {mode} ({days} days)")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     # Initialize storage
     storage = get_storage()
@@ -120,7 +120,9 @@ def main() -> None:
     print(f"  Historical bars in database: {bars_count}")
 
     # Check technical_indicators
-    indicators_result = storage.query("SELECT COUNT(*) as count FROM technical_indicators")
+    indicators_result = storage.query(
+        "SELECT COUNT(*) as count FROM technical_indicators"
+    )
     indicators_count = indicators_result[0][0]
     print(f"  Technical indicators calculated: {indicators_count}")
 
@@ -151,9 +153,9 @@ def main() -> None:
         print(f"  {symbol:<10} {price:<12.2f} {technical:<14.2f} {overall:<10.2f}")
     print("  " + "-" * 56)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  ✓ Watchlist data {mode.lower()} complete!")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     if all(row[3] == 0 for row in scores_result):
         print("⚠️  All scores are 0. Check Celery worker logs for errors.")

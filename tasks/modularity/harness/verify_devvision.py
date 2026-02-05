@@ -68,6 +68,7 @@ def main() -> None:
 
     # Verify Claude CLI is available (OAuth credentials)
     import shutil
+
     if not shutil.which("claude"):
         print("Error: Claude CLI not found")
         print("\nInstall Claude CLI:")

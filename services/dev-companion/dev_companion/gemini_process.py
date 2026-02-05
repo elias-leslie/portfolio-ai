@@ -144,7 +144,9 @@ class GeminiSession:
                                 yield StreamMessage(
                                     type=MessageType.ASSISTANT,
                                     content=[
-                                        ContentBlock(type=ContentType.TEXT, text=content)
+                                        ContentBlock(
+                                            type=ContentType.TEXT, text=content
+                                        )
                                     ],
                                     model=self.model,
                                 )
@@ -202,7 +204,9 @@ class GeminiSession:
 
                         # Log any unhandled message types for debugging
                         elif msg_type and msg_type not in ("init", "message", "result"):
-                            logger.info(f"Gemini unhandled msg_type: {msg_type}, data: {data}")
+                            logger.info(
+                                f"Gemini unhandled msg_type: {msg_type}, data: {data}"
+                            )
 
                     except json.JSONDecodeError:
                         # Non-JSON output - treat as system message

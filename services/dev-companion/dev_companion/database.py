@@ -153,10 +153,18 @@ class Database:
                     "created_at": row["created_at"],
                     "updated_at": row["updated_at"],
                     "metadata": json.loads(row["metadata"]),
-                    "original_provider": row["original_provider"] if "original_provider" in row.keys() else None,
-                    "message_count": row["message_count"] if "message_count" in row.keys() else 0,
-                    "description": row["description"] if "description" in row.keys() else None,
-                    "participants": json.loads(row["participants"]) if "participants" in row.keys() and row["participants"] else [],
+                    "original_provider": row["original_provider"]
+                    if "original_provider" in row.keys()
+                    else None,
+                    "message_count": row["message_count"]
+                    if "message_count" in row.keys()
+                    else 0,
+                    "description": row["description"]
+                    if "description" in row.keys()
+                    else None,
+                    "participants": json.loads(row["participants"])
+                    if "participants" in row.keys() and row["participants"]
+                    else [],
                 }
         return None
 
@@ -225,17 +233,27 @@ class Database:
             (limit, offset),
         ) as cursor:
             async for row in cursor:
-                sessions.append({
-                    "id": row["id"],
-                    "working_dir": row["working_dir"],
-                    "created_at": row["created_at"],
-                    "updated_at": row["updated_at"],
-                    "metadata": json.loads(row["metadata"]),
-                    "original_provider": row["original_provider"] if "original_provider" in row.keys() else None,
-                    "message_count": row["message_count"] if "message_count" in row.keys() else 0,
-                    "description": row["description"] if "description" in row.keys() else None,
-                    "participants": json.loads(row["participants"]) if "participants" in row.keys() and row["participants"] else [],
-                })
+                sessions.append(
+                    {
+                        "id": row["id"],
+                        "working_dir": row["working_dir"],
+                        "created_at": row["created_at"],
+                        "updated_at": row["updated_at"],
+                        "metadata": json.loads(row["metadata"]),
+                        "original_provider": row["original_provider"]
+                        if "original_provider" in row.keys()
+                        else None,
+                        "message_count": row["message_count"]
+                        if "message_count" in row.keys()
+                        else 0,
+                        "description": row["description"]
+                        if "description" in row.keys()
+                        else None,
+                        "participants": json.loads(row["participants"])
+                        if "participants" in row.keys() and row["participants"]
+                        else [],
+                    }
+                )
         return sessions
 
     async def delete_session(self, session_id: str) -> bool:
@@ -324,15 +342,17 @@ class Database:
             (session_id, limit),
         ) as cursor:
             async for row in cursor:
-                messages.append({
-                    "id": row["id"],
-                    "session_id": row["session_id"],
-                    "role": row["role"],
-                    "content": row["content"],
-                    "created_at": row["created_at"],
-                    "metadata": json.loads(row["metadata"]),
-                    "agent": row["agent"],
-                })
+                messages.append(
+                    {
+                        "id": row["id"],
+                        "session_id": row["session_id"],
+                        "role": row["role"],
+                        "content": row["content"],
+                        "created_at": row["created_at"],
+                        "metadata": json.loads(row["metadata"]),
+                        "agent": row["agent"],
+                    }
+                )
         return messages
 
     async def _migrate_sessions_table(self) -> None:
@@ -376,9 +396,7 @@ class Database:
         # Add agent column if missing
         if "agent" not in existing_cols:
             try:
-                await self._conn.execute(
-                    "ALTER TABLE messages ADD COLUMN agent TEXT"
-                )
+                await self._conn.execute("ALTER TABLE messages ADD COLUMN agent TEXT")
                 logger.info("Added column agent to messages table")
             except Exception as e:
                 logger.warning(f"Could not add column agent: {e}")
@@ -528,13 +546,15 @@ class Database:
             (session_id, limit),
         ) as cursor:
             async for row in cursor:
-                logs.append({
-                    "id": row["id"],
-                    "session_id": row["session_id"],
-                    "timestamp": row["timestamp"],
-                    "agent": row["agent"],
-                    "log_entry": row["log_entry"],
-                    "key_files": row["key_files"],
-                    "learnings": row["learnings"],
-                })
+                logs.append(
+                    {
+                        "id": row["id"],
+                        "session_id": row["session_id"],
+                        "timestamp": row["timestamp"],
+                        "agent": row["agent"],
+                        "log_entry": row["log_entry"],
+                        "key_files": row["key_files"],
+                        "learnings": row["learnings"],
+                    }
+                )
         return logs

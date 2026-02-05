@@ -424,14 +424,20 @@ def create_indexes(conn: PgConnection) -> None:
         ("idx_indicators_ticker", "technical_indicators", "(ticker, date)"),
         ("idx_reference_cache_ticker", "reference_cache", "(ticker, as_of_date)"),
         ("idx_watchlist_items_account", "watchlist_items", "(account_id, symbol)"),
-        ("idx_watchlist_snapshots_item", "watchlist_snapshots", "(item_id, fetched_at DESC)"),
+        (
+            "idx_watchlist_snapshots_item",
+            "watchlist_snapshots",
+            "(item_id, fetched_at DESC)",
+        ),
         ("idx_outcomes_status", "idea_outcomes", "(status)"),
         ("idx_price_cache_symbol", "price_cache", "(symbol, cached_at DESC)"),
     ]
 
     for idx_name, table_name, columns in indexes:
         try:
-            cur.execute(f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table_name} {columns}")
+            cur.execute(
+                f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table_name} {columns}"
+            )
             logger.info(f"Created index: {idx_name}")
         except Exception as e:
             logger.warning(f"Index {idx_name} creation failed (may already exist): {e}")

@@ -9,6 +9,7 @@ sys.path.append(os.path.join(os.getcwd(), "backend"))
 from app.storage.facade import PortfolioStorage
 from app.agents.tool_executors_trading import TradingTools
 
+
 def verify_backend_e2e():
     storage = PortfolioStorage()
     tools = TradingTools(storage)
@@ -16,12 +17,15 @@ def verify_backend_e2e():
 
     # Create dummy agent_run
     print(f"Creating dummy agent_run {run_id}...")
-    storage.insert_dict("agent_runs", {
-        "id": run_id,
-        "agent_type": "test_agent",
-        "status": "running",
-        "started_at": date.today().isoformat()
-    })
+    storage.insert_dict(
+        "agent_runs",
+        {
+            "id": run_id,
+            "agent_type": "test_agent",
+            "status": "running",
+            "started_at": date.today().isoformat(),
+        },
+    )
 
     print("=== 1. Testing Paper Trade Creation ===")
     # Create a trade with "70" confidence (should be normalized to 0.7)
@@ -36,14 +40,16 @@ def verify_backend_e2e():
         reward_estimate=10.0,
         portfolio_impact=5.0,
         data_needed="None",
-        risks="None"
+        risks="None",
     )
 
     idea_id = result["idea_id"]
     print(f"Created idea {idea_id}")
 
     # Verify in DB
-    record = storage.query("SELECT confidence_score FROM agent_ideas WHERE id = %s", [idea_id]).to_dicts()[0]
+    record = storage.query(
+        "SELECT confidence_score FROM agent_ideas WHERE id = %s", [idea_id]
+    ).to_dicts()[0]
     score = float(record["confidence_score"])
     print(f"Stored score: {score}")
 
@@ -60,7 +66,7 @@ def verify_backend_e2e():
         symbol="AAPL",
         action="buy",
         thesis="E2E Test Trade Thesis",
-        confidence_score=75.0  # Should be normalized to 0.75
+        confidence_score=75.0,  # Should be normalized to 0.75
     )
     print(f"Created trade: {trade_result}")
 
@@ -72,10 +78,7 @@ def verify_backend_e2e():
 
     print(f"Starting backtest for {symbol} ({start_date} to {end_date})...")
     bt_result = tools.execute_run_backtest(
-        agent_run_id=run_id,
-        symbol=symbol,
-        start_date=start_date,
-        end_date=end_date
+        agent_run_id=run_id, symbol=symbol, start_date=start_date, end_date=end_date
     )
 
     if bt_result["status"] == "completed":
@@ -85,6 +88,7 @@ def verify_backend_e2e():
     else:
         print(f"❌ Backtest failed: {bt_result.get('error')}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     verify_backend_e2e()

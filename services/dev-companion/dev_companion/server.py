@@ -13,7 +13,6 @@ from .session_bridge import SessionBridge
 from .models import CreateSessionRequest, SessionResponse, MessageCreate
 from .routes import (
     require_bridge,
-    session_to_response,
     health_check,
     create_session,
     list_sessions,

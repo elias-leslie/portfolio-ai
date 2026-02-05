@@ -25,11 +25,14 @@ logger = logging.getLogger(__name__)
 
 
 # Type for permission request callback
-PermissionCallback = Callable[[str, dict[str, Any], ToolPermissionContext], asyncio.Future[bool]]
+PermissionCallback = Callable[
+    [str, dict[str, Any], ToolPermissionContext], asyncio.Future[bool]
+]
 
 
 class ClaudeProcessError(Exception):
     """Error from Claude process."""
+
     pass
 
 
@@ -105,7 +108,9 @@ class ClaudeSession:
                 # Resume previous conversation if we have a session ID
                 resume=self._sdk_session_id,
                 # Permission callback for handling dangerous operations
-                can_use_tool=self._handle_permission_request if self._permission_callback else None,
+                can_use_tool=self._handle_permission_request
+                if self._permission_callback
+                else None,
             )
 
             client = ClaudeSDKClient(options=options)
@@ -120,15 +125,17 @@ class ClaudeSession:
                         logger.info(f"[{self.session_id}] Received: {msg_type}")
 
                         # Capture SDK session ID from init message
-                        if isinstance(msg, SystemMessage) and msg.subtype == 'init':
-                            self._sdk_session_id = msg.data.get('session_id')
+                        if isinstance(msg, SystemMessage) and msg.subtype == "init":
+                            self._sdk_session_id = msg.data.get("session_id")
                             logger.info(f"SDK session ID: {self._sdk_session_id}")
 
                         stream_msg = self._convert_message(msg)
                         if stream_msg:
                             yield stream_msg
                         else:
-                            logger.debug(f"[{self.session_id}] Skipped {msg_type}: {str(msg)[:200]}")
+                            logger.debug(
+                                f"[{self.session_id}] Skipped {msg_type}: {str(msg)[:200]}"
+                            )
             finally:
                 self._active_client = None
 
@@ -155,29 +162,41 @@ class ClaudeSession:
         if isinstance(msg, AssistantMessage):
             for block in msg.content:
                 if isinstance(block, TextBlock):
-                    content_blocks.append(ContentBlock(
-                        type=ContentType.TEXT,
-                        text=block.text,
-                    ))
+                    content_blocks.append(
+                        ContentBlock(
+                            type=ContentType.TEXT,
+                            text=block.text,
+                        )
+                    )
                 elif isinstance(block, ToolUseBlock):
-                    content_blocks.append(ContentBlock(
-                        type=ContentType.TOOL_USE,
-                        tool_name=block.name,
-                        tool_input=block.input if hasattr(block, 'input') else None,
-                        tool_use_id=block.id if hasattr(block, 'id') else None,
-                    ))
+                    content_blocks.append(
+                        ContentBlock(
+                            type=ContentType.TOOL_USE,
+                            tool_name=block.name,
+                            tool_input=block.input if hasattr(block, "input") else None,
+                            tool_use_id=block.id if hasattr(block, "id") else None,
+                        )
+                    )
                 elif isinstance(block, ToolResultBlock):
-                    content_blocks.append(ContentBlock(
-                        type=ContentType.TOOL_RESULT,
-                        text=str(block.content) if hasattr(block, 'content') else None,
-                        tool_use_id=block.tool_use_id if hasattr(block, 'tool_use_id') else None,
-                    ))
+                    content_blocks.append(
+                        ContentBlock(
+                            type=ContentType.TOOL_RESULT,
+                            text=str(block.content)
+                            if hasattr(block, "content")
+                            else None,
+                            tool_use_id=block.tool_use_id
+                            if hasattr(block, "tool_use_id")
+                            else None,
+                        )
+                    )
 
             if content_blocks:
                 return StreamMessage(
                     type=MessageType.ASSISTANT,
                     content=content_blocks,
-                    stop_reason=msg.stop_reason if hasattr(msg, 'stop_reason') else None,
+                    stop_reason=msg.stop_reason
+                    if hasattr(msg, "stop_reason")
+                    else None,
                 )
 
         # Handle UserMessage (slash command output, tool results echoed back)
@@ -188,22 +207,31 @@ class ClaudeSession:
             if isinstance(content, str):
                 # Extract content from local-command-stdout tags if present
                 import re
-                stdout_match = re.search(r'<local-command-stdout>(.*?)</local-command-stdout>', content, re.DOTALL)
+
+                stdout_match = re.search(
+                    r"<local-command-stdout>(.*?)</local-command-stdout>",
+                    content,
+                    re.DOTALL,
+                )
                 if stdout_match:
                     text = stdout_match.group(1).strip()
                 else:
                     text = content
-                content_blocks.append(ContentBlock(
-                    type=ContentType.TEXT,
-                    text=text,
-                ))
+                content_blocks.append(
+                    ContentBlock(
+                        type=ContentType.TEXT,
+                        text=text,
+                    )
+                )
             elif isinstance(content, list):
                 for block in content:
                     if isinstance(block, TextBlock):
-                        content_blocks.append(ContentBlock(
-                            type=ContentType.TEXT,
-                            text=block.text,
-                        ))
+                        content_blocks.append(
+                            ContentBlock(
+                                type=ContentType.TEXT,
+                                text=block.text,
+                            )
+                        )
 
             if content_blocks:
                 return StreamMessage(
@@ -221,7 +249,7 @@ class ClaudeSession:
         # Handle SystemMessage (init, etc.)
         elif isinstance(msg, SystemMessage):
             # Skip init messages, they're not useful to display
-            if msg.subtype == 'init':
+            if msg.subtype == "init":
                 return None
 
         return None
@@ -259,7 +287,9 @@ class ClaudeSession:
 
         if not self._permission_callback:
             # No callback configured - deny by default for safety
-            logger.warning(f"[{self.session_id}] No permission callback - denying {tool_name}")
+            logger.warning(
+                f"[{self.session_id}] No permission callback - denying {tool_name}"
+            )
             return PermissionResultDeny(message="No permission handler configured")
 
         try:
@@ -273,9 +303,13 @@ class ClaudeSession:
 
             # Wait for user response (with timeout)
             try:
-                allowed = await asyncio.wait_for(self._pending_permission, timeout=300)  # 5 min timeout
+                allowed = await asyncio.wait_for(
+                    self._pending_permission, timeout=300
+                )  # 5 min timeout
             except asyncio.TimeoutError:
-                logger.warning(f"[{self.session_id}] Permission request timed out for {tool_name}")
+                logger.warning(
+                    f"[{self.session_id}] Permission request timed out for {tool_name}"
+                )
                 return PermissionResultDeny(message="Permission request timed out")
 
             if allowed:
@@ -310,7 +344,9 @@ class ClaudeSession:
     @property
     def has_pending_permission(self) -> bool:
         """Check if there's a pending permission request."""
-        return self._pending_permission is not None and not self._pending_permission.done()
+        return (
+            self._pending_permission is not None and not self._pending_permission.done()
+        )
 
     async def stop(self) -> None:
         """Stop the session."""

@@ -6,6 +6,7 @@ sys.path.append(os.path.join(os.getcwd(), "backend"))
 
 from app.storage.facade import PortfolioStorage
 
+
 def cleanup_confidence_scores():
     storage = PortfolioStorage()
 
@@ -37,12 +38,13 @@ def cleanup_confidence_scores():
 
             conn.execute(
                 "UPDATE agent_ideas SET confidence_score = %s WHERE id = %s",
-                [new_score, record["id"]]
+                [new_score, record["id"]],
             )
             count += 1
         conn.commit()
 
     print(f"Successfully fixed {count} records.")
+
 
 if __name__ == "__main__":
     cleanup_confidence_scores()

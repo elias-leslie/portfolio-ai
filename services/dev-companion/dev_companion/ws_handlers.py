@@ -50,10 +50,12 @@ async def handle_user_message(
         )
 
     if not session:
-        await safe_send_json({
-            "type": "error",
-            "message": f"Failed to start {provider} session",
-        })
+        await safe_send_json(
+            {
+                "type": "error",
+                "message": f"Failed to start {provider} session",
+            }
+        )
         return
 
     # Always inject conversation context if session has history
@@ -81,10 +83,12 @@ async def handle_user_message(
                 logger.info(f"WebSocket closed during streaming for {session_id}")
                 break
             msg_dict = message_to_dict(stream_msg)
-            if not await safe_send_json({
-                "type": "stream",
-                "data": msg_dict,
-            }):
+            if not await safe_send_json(
+                {
+                    "type": "stream",
+                    "data": msg_dict,
+                }
+            ):
                 break  # WebSocket closed
             # Collect text for storage
             for block in msg_dict.get("content", []):
@@ -117,10 +121,12 @@ async def handle_user_message(
 
     except Exception as e:
         logger.error(f"Error streaming response: {e}")
-        await safe_send_json({
-            "type": "error",
-            "message": str(e),
-        })
+        await safe_send_json(
+            {
+                "type": "error",
+                "message": str(e),
+            }
+        )
 
 
 async def handle_permission_response(
@@ -161,13 +167,17 @@ async def handle_interrupt(
         if session.has_pending_permission:
             session.resolve_permission(False)
         success = await session.interrupt()
-        await safe_send_json({
-            "type": "interrupt_ack",
-            "success": success,
-        })
+        await safe_send_json(
+            {
+                "type": "interrupt_ack",
+                "success": success,
+            }
+        )
     else:
-        await safe_send_json({
-            "type": "interrupt_ack",
-            "success": False,
-            "message": "No active session",
-        })
+        await safe_send_json(
+            {
+                "type": "interrupt_ack",
+                "success": False,
+                "message": "No active session",
+            }
+        )

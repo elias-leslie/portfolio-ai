@@ -5,6 +5,7 @@ from app.storage.facade import PortfolioStorage
 # Add backend to path
 sys.path.append(os.path.join(os.getcwd(), "backend"))
 
+
 def inspect_schema():
     storage = PortfolioStorage()
     with storage.connection() as conn:
@@ -18,6 +19,7 @@ def inspect_schema():
 
             for row in result:
                 print(f"- {row[0]}: {row[1]}")
+
 
 if __name__ == "__main__":
     inspect_schema()

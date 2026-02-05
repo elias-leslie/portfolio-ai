@@ -53,7 +53,7 @@ def main():
     print(f"  Successful: {len(successes)}")
     print(f"  Failed: {len(failures)}")
     print(f"  Total time: {duration:.2f}s")
-    print(f"  Avg latency: {avg_latency*1000:.1f}ms")
+    print(f"  Avg latency: {avg_latency * 1000:.1f}ms")
 
     if failures:
         print("\n⚠️  Failures detected:")

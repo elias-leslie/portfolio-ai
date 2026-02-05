@@ -17,26 +17,30 @@ def analyze_health(report_path: str) -> dict:
         "P1_high": [],
         "P2_medium": [],
         "P3_low": [],
-        "P4_info": []
+        "P4_info": [],
     }
 
     # P0 - Critical (services down)
     main_health = data.get("main_health", {})
     if main_health.get("status") == "down":
-        issues["P0_critical"].append({
-            "issue": "System Down",
-            "details": "Database or critical service unreachable",
-            "severity": "critical"
-        })
+        issues["P0_critical"].append(
+            {
+                "issue": "System Down",
+                "details": "Database or critical service unreachable",
+                "severity": "critical",
+            }
+        )
 
     services = data.get("service_status", {})
     for service, status in services.items():
         if status != "active" and service in ["backend", "celery_worker", "redis"]:
-            issues["P0_critical"].append({
-                "issue": f"{service} service down",
-                "details": f"Service status: {status}",
-                "severity": "critical"
-            })
+            issues["P0_critical"].append(
+                {
+                    "issue": f"{service} service down",
+                    "details": f"Service status: {status}",
+                    "severity": "critical",
+                }
+            )
 
     # P1 - High (data freshness)
     detailed = data.get("detailed_health", {})
@@ -47,10 +51,10 @@ def analyze_health(report_path: str) -> dict:
     for item in day_bars:
         last_updated_str = item["last_updated"]
         # Handle both with and without 'Z' suffix
-        if last_updated_str.endswith('Z'):
-            last_updated_str = last_updated_str[:-1] + '+00:00'
-        elif '+' not in last_updated_str:
-            last_updated_str += '+00:00'
+        if last_updated_str.endswith("Z"):
+            last_updated_str = last_updated_str[:-1] + "+00:00"
+        elif "+" not in last_updated_str:
+            last_updated_str += "+00:00"
 
         last_updated = datetime.fromisoformat(last_updated_str)
         age_days = (now - last_updated).days
@@ -61,24 +65,28 @@ def analyze_health(report_path: str) -> dict:
             stale_symbols.append((item["symbol"], age_days))
 
     if stale_symbols:
-        issues["P1_high"].append({
-            "issue": "OHLCV Data Stale",
-            "details": f"{len(stale_symbols)} symbols with data {stale_symbols[0][1]}+ days old",
-            "symbols": stale_symbols[:5],  # Top 5
-            "severity": "high"
-        })
+        issues["P1_high"].append(
+            {
+                "issue": "OHLCV Data Stale",
+                "details": f"{len(stale_symbols)} symbols with data {stale_symbols[0][1]}+ days old",
+                "symbols": stale_symbols[:5],  # Top 5
+                "severity": "high",
+            }
+        )
 
     # P2 - Medium (data sources down)
     sources = main_health.get("sources", {})
     for source_name, source_data in sources.items():
         if source_data.get("status") == "down":
             last_success = source_data.get("last_success")
-            issues["P2_medium"].append({
-                "issue": f"{source_name} source DOWN",
-                "details": f"Last success: {last_success or 'Never'}",
-                "success_rate": source_data.get("success_rate", 0),
-                "severity": "medium"
-            })
+            issues["P2_medium"].append(
+                {
+                    "issue": f"{source_name} source DOWN",
+                    "details": f"Last success: {last_success or 'Never'}",
+                    "success_rate": source_data.get("success_rate", 0),
+                    "severity": "medium",
+                }
+            )
 
     # P3 - Low (performance issues)
     cache_stats = main_health.get("cache_stats", {})
@@ -87,21 +95,25 @@ def analyze_health(report_path: str) -> dict:
     for source_name, source_data in sources.items():
         latency = source_data.get("avg_latency_ms")
         if latency and latency > 2000:
-            issues["P3_low"].append({
-                "issue": f"{source_name} high latency",
-                "details": f"Average latency: {latency}ms",
-                "severity": "low"
-            })
+            issues["P3_low"].append(
+                {
+                    "issue": f"{source_name} high latency",
+                    "details": f"Average latency: {latency}ms",
+                    "severity": "low",
+                }
+            )
 
     # P4 - Info (configuration)
     api_quotas = main_health.get("api_quotas", [])
     for quota in api_quotas:
         if not quota.get("configured"):
-            issues["P4_info"].append({
-                "issue": f"{quota['source_name']} not configured",
-                "details": "API key not set",
-                "severity": "info"
-            })
+            issues["P4_info"].append(
+                {
+                    "issue": f"{quota['source_name']} not configured",
+                    "details": "API key not set",
+                    "severity": "info",
+                }
+            )
 
     return issues
 

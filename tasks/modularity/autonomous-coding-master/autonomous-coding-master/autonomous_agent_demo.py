@@ -84,7 +84,9 @@ def main() -> None:
     args = parse_args()
 
     # Check for API key
-    if not os.environ.get("ANTHROPIC_API_KEY") and not os.environ.get("CLAUDE_CODE_OAUTH_TOKEN"):
+    if not os.environ.get("ANTHROPIC_API_KEY") and not os.environ.get(
+        "CLAUDE_CODE_OAUTH_TOKEN"
+    ):
         print("Error: ANTHROPIC_API_KEY environment variable not set")
         print("Error: CLAUDE_CODE_OAUTH_TOKEN environment variable not set")
         print("\nGet your API key from: https://console.anthropic.com/")

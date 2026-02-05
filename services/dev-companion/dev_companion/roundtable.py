@@ -3,7 +3,6 @@
 import json
 import logging
 import re
-from typing import Any
 
 from .session_bridge import SessionBridge
 from .claude_process import ClaudeSession
@@ -21,12 +20,27 @@ logger = logging.getLogger(__name__)
 
 # Disagreement keywords for roundtable auto-discussion
 DISAGREEMENT_KEYWORDS = [
-    "disagree", "incorrect", "wrong", "mistake", "error",
-    "actually", "however", "but i think", "not quite",
-    "missing", "overlooked", "failed to consider",
-    "inaccurate", "misleading", "contrary to",
-    "i would argue", "that's not", "flaw", "omission",
-    "hallucination", "incorrect assumption",
+    "disagree",
+    "incorrect",
+    "wrong",
+    "mistake",
+    "error",
+    "actually",
+    "however",
+    "but i think",
+    "not quite",
+    "missing",
+    "overlooked",
+    "failed to consider",
+    "inaccurate",
+    "misleading",
+    "contrary to",
+    "i would argue",
+    "that's not",
+    "flaw",
+    "omission",
+    "hallucination",
+    "incorrect assumption",
 ]
 
 
@@ -64,7 +78,7 @@ def parse_agent_response(response: str) -> tuple[str, str, str]:
     if json_match:
         try:
             data = json.loads(json_match.group())
-            message = response[:json_match.start()].strip()
+            message = response[: json_match.start()].strip()
             return (
                 message or data.get("message", response),
                 data.get("addressing", "user"),
@@ -115,7 +129,9 @@ DO NOT repeat what {other_agent.upper()} said correctly. Only speak up if there'
 """
 
     # Regular response prompt
-    parts = [f"You are {agent_name.upper()} in a roundtable discussion with {other_agent.upper()} and a user."]
+    parts = [
+        f"You are {agent_name.upper()} in a roundtable discussion with {other_agent.upper()} and a user."
+    ]
 
     if history_context:
         parts.append(f"\nConversation history:\n{history_context}\n")
@@ -155,11 +171,13 @@ async def stream_agent_response(
             break
         msg_dict = message_to_dict(stream_msg)
         # Add agent attribution to stream messages
-        if not await safe_send_json({
-            "type": "stream",
-            "data": msg_dict,
-            "agent": agent_name,
-        }):
+        if not await safe_send_json(
+            {
+                "type": "stream",
+                "data": msg_dict,
+                "agent": agent_name,
+            }
+        ):
             break
         # Collect text
         for block in msg_dict.get("content", []):
@@ -212,10 +230,12 @@ async def handle_roundtable_message(
                     bridge, session_id, permission_callback
                 )
             if not sessions[agent]:
-                await safe_send_json({
-                    "type": "error",
-                    "message": f"Failed to start {agent} session",
-                })
+                await safe_send_json(
+                    {
+                        "type": "error",
+                        "message": f"Failed to start {agent} session",
+                    }
+                )
                 return
 
         # Set original_provider for roundtable
@@ -231,7 +251,11 @@ async def handle_roundtable_message(
 
         await safe_send_json({"type": "agent_start", "agent": first_agent})
         first_response_raw = await stream_agent_response(
-            sessions[first_agent], first_prompt, safe_send_json, ws_closed_check, first_agent
+            sessions[first_agent],
+            first_prompt,
+            safe_send_json,
+            ws_closed_check,
+            first_agent,
         )
         await safe_send_json({"type": "agent_done", "agent": first_agent})
 
@@ -283,7 +307,11 @@ async def handle_roundtable_message(
 
             await safe_send_json({"type": "agent_start", "agent": next_agent})
             next_response_raw = await stream_agent_response(
-                sessions[next_agent], next_prompt, safe_send_json, ws_closed_check, next_agent
+                sessions[next_agent],
+                next_prompt,
+                safe_send_json,
+                ws_closed_check,
+                next_agent,
             )
             await safe_send_json({"type": "agent_done", "agent": next_agent})
 
@@ -291,7 +319,9 @@ async def handle_roundtable_message(
                 return
 
             # Parse response
-            next_message, next_addressing, action = parse_agent_response(next_response_raw)
+            next_message, next_addressing, action = parse_agent_response(
+                next_response_raw
+            )
 
             # Handle silent review pass
             if is_review and action == "pass":
@@ -302,7 +332,9 @@ async def handle_roundtable_message(
 
             # Store response if not a pass
             if action != "pass":
-                await store_agent_message(bridge.db, session_id, next_message, next_agent)
+                await store_agent_message(
+                    bridge.db, session_id, next_message, next_agent
+                )
 
             # If review resulted in correction, end (user got both perspectives)
             if is_review and action == "correct":
@@ -324,7 +356,9 @@ async def handle_roundtable_message(
 
     except Exception as e:
         logger.error(f"Roundtable error: {e}")
-        await safe_send_json({
-            "type": "error",
-            "message": f"Roundtable error: {str(e)}",
-        })
+        await safe_send_json(
+            {
+                "type": "error",
+                "message": f"Roundtable error: {str(e)}",
+            }
+        )

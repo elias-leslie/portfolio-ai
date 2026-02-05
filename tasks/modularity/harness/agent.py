@@ -88,6 +88,7 @@ async def run_agent_session(
 
         # Check if all verifications complete
         from progress import count_verified_items
+
         verified, total = count_verified_items(project_dir)
         if total > 0 and verified >= total:
             return "complete", response_text

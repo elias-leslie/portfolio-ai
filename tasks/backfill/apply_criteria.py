@@ -72,11 +72,15 @@ def main():
         feat_id = feature["feature_id"]  # FEAT-XXX format
 
         if existing and len(existing) > 0:
-            print(f"  SKIP: {feat_id} ({feature['name']}) already has {len(existing)} criteria")
+            print(
+                f"  SKIP: {feat_id} ({feature['name']}) already has {len(existing)} criteria"
+            )
             skipped += 1
             continue
 
-        print(f"  UPDATE: {feat_id} ({feature['name']}) - adding {len(data['acceptance_criteria'])} criteria")
+        print(
+            f"  UPDATE: {feat_id} ({feature['name']}) - adding {len(data['acceptance_criteria'])} criteria"
+        )
         if update_feature(feat_id, data):
             updated += 1
         else:

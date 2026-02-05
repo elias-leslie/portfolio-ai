@@ -113,9 +113,7 @@ def import_table_from_json(
             # Commit batch
             conn.commit()
 
-        logger.info(
-            f"  {table_name}: {inserted} rows inserted, {skipped} skipped"
-        )
+        logger.info(f"  {table_name}: {inserted} rows inserted, {skipped} skipped")
 
     except Exception as e:
         conn.rollback()
@@ -151,9 +149,7 @@ def main() -> None:
     logger.info("Starting PostgreSQL data import...")
 
     # Find input directory
-    input_dir = (
-        Path.home() / "portfolio-ai" / "backend" / "data" / "migration_export"
-    )
+    input_dir = Path.home() / "portfolio-ai" / "backend" / "data" / "migration_export"
     if not input_dir.exists():
         logger.error(f"Input directory not found: {input_dir}")
         logger.error("Run export-postgres-data.py first!")

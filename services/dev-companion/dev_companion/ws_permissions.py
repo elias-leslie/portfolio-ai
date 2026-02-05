@@ -35,16 +35,20 @@ def create_permission_callback(
             elif isinstance(value, (dict, list)):
                 serialized = json.dumps(value)
                 if len(serialized) > PERMISSION_DISPLAY_JSON_LIMIT:
-                    display_input[key] = serialized[:PERMISSION_DISPLAY_JSON_LIMIT] + "..."
+                    display_input[key] = (
+                        serialized[:PERMISSION_DISPLAY_JSON_LIMIT] + "..."
+                    )
                 else:
                     display_input[key] = value  # type: ignore[assignment]
             else:
                 display_input[key] = value
 
-        await safe_send_json({
-            "type": "permission_request",
-            "tool_name": tool_name,
-            "tool_input": display_input,
-        })
+        await safe_send_json(
+            {
+                "type": "permission_request",
+                "tool_name": tool_name,
+                "tool_input": display_input,
+            }
+        )
 
     return permission_callback

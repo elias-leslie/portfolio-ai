@@ -19,7 +19,9 @@ def main():
 
     for feature_id, data in fixes.items():
         payload = {"acceptance_criteria": data["acceptance_criteria"]}
-        resp = requests.patch(f"{API_BASE}/{feature_id}/acceptance-criteria", json=payload)
+        resp = requests.patch(
+            f"{API_BASE}/{feature_id}/acceptance-criteria", json=payload
+        )
         if resp.status_code == 200:
             print(f"  ✓ {feature_id}")
         else:

@@ -123,7 +123,10 @@ def create_client(project_dir: Path, model: str) -> ClaudeSDKClient:
                 *PLAYWRIGHT_TOOLS,
             ],
             mcp_servers={
-                "playwright": {"command": "npx", "args": ["@playwright/mcp@latest", "--headless"]}
+                "playwright": {
+                    "command": "npx",
+                    "args": ["@playwright/mcp@latest", "--headless"],
+                }
                 # "playwright": {"command": "npx", "args": ["@playwright/mcp@latest", "--viewport-size", "1280x720"]}
             },
             hooks={

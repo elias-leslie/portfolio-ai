@@ -50,7 +50,7 @@ def send_progress_webhook(passing: int, total: int, project_dir: Path) -> None:
                         current_passing_indices.append(i)
                         if i not in previous_passing_tests:
                             # This test is newly passing
-                            desc = test.get("description", f"Test #{i+1}")
+                            desc = test.get("description", f"Test #{i + 1}")
                             category = test.get("category", "")
                             if category:
                                 completed_tests.append(f"[{category}] {desc}")
@@ -68,24 +68,23 @@ def send_progress_webhook(passing: int, total: int, project_dir: Path) -> None:
             "tests_completed_this_session": passing - previous,
             "completed_tests": completed_tests,
             "project": project_dir.name,
-            "timestamp": datetime.utcnow().isoformat() + "Z"
+            "timestamp": datetime.utcnow().isoformat() + "Z",
         }
 
         try:
             req = urllib.request.Request(
                 WEBHOOK_URL,
-                data=json.dumps([payload]).encode('utf-8'),  # n8n expects array
-                headers={'Content-Type': 'application/json'}
+                data=json.dumps([payload]).encode("utf-8"),  # n8n expects array
+                headers={"Content-Type": "application/json"},
             )
             urllib.request.urlopen(req, timeout=5)
         except Exception as e:
             print(f"[Webhook notification failed: {e}]")
 
         # Update cache with count and passing indices
-        cache_file.write_text(json.dumps({
-            "count": passing,
-            "passing_indices": current_passing_indices
-        }))
+        cache_file.write_text(
+            json.dumps({"count": passing, "passing_indices": current_passing_indices})
+        )
     else:
         # Update cache even if no change (for initial state)
         if not cache_file.exists():
@@ -100,10 +99,11 @@ def send_progress_webhook(passing: int, total: int, project_dir: Path) -> None:
                             current_passing_indices.append(i)
                 except:
                     pass
-            cache_file.write_text(json.dumps({
-                "count": passing,
-                "passing_indices": current_passing_indices
-            }))
+            cache_file.write_text(
+                json.dumps(
+                    {"count": passing, "passing_indices": current_passing_indices}
+                )
+            )
 
 
 def count_passing_tests(project_dir: Path) -> tuple[int, int]:

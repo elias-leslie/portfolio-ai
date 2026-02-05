@@ -3,6 +3,7 @@ from app.logging_config import get_logger
 
 logger = get_logger(__name__)
 
+
 def add_composite_index():
     storage = PortfolioStorage()
     index_name = "idx_outcomes_status_entry_date"
@@ -26,6 +27,7 @@ def add_composite_index():
         """)
         conn.commit()
         logger.info("Composite index created successfully.")
+
 
 if __name__ == "__main__":
     add_composite_index()

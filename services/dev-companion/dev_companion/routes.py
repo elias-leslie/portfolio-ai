@@ -16,6 +16,7 @@ def require_bridge() -> SessionBridge:
         The initialized SessionBridge instance
     """
     from .server import bridge
+
     if not bridge:
         raise HTTPException(status_code=503, detail="Service not ready")
     return bridge
@@ -74,8 +75,7 @@ async def list_sessions(
     """List all sessions."""
     sessions = await bridge.list_sessions(limit=limit)
     return [
-        session_to_response(s, is_active=s.get("is_active", False))
-        for s in sessions
+        session_to_response(s, is_active=s.get("is_active", False)) for s in sessions
     ]
 
 
@@ -88,10 +88,7 @@ async def get_session(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    return session_to_response(
-        session,
-        is_active=session_id in bridge._active_sessions
-    )
+    return session_to_response(session, is_active=session_id in bridge._active_sessions)
 
 
 async def delete_session(

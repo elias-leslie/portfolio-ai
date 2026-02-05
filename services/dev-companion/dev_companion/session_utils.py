@@ -186,12 +186,16 @@ async def build_handoff_context(db: Database, session_id: str) -> str:
                 parts.append(f"[{agent_label}] {content}")
         parts.append("")
 
-    parts.append("You are now joining this conversation. Continue naturally from where it left off.")
+    parts.append(
+        "You are now joining this conversation. Continue naturally from where it left off."
+    )
 
     return "\n".join(parts)
 
 
-async def store_agent_message(db: Database, session_id: str, content: str, agent: str) -> None:
+async def store_agent_message(
+    db: Database, session_id: str, content: str, agent: str
+) -> None:
     """Store an agent message and update session metadata.
 
     Args:
