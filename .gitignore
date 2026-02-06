@@ -83,6 +83,7 @@ app/references/
 
 # Checkpoint data
 .st/
+.summitflow/
 
 # Claude settings
 .claude/settings.local.json
