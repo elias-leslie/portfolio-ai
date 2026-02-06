@@ -93,3 +93,14 @@ certs/
 .st/
 
 backup-index.json
+
+# Build artifacts
+frontend/tsconfig.tsbuildinfo
+
+# Log files
+backend.log
+pytestdebug.log
+
+# Playwright (frontend-specific paths)
+frontend/playwright-report/
+frontend/test-results/
