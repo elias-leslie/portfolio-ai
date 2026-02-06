@@ -4,7 +4,7 @@ Provides functions for checking database, sources, cache, agents, and watchlist 
 
 This module aggregates health check functionality from specialized sub-modules:
 - health_database: Database connectivity checks
-- health_services: Service health (sources, celery, agents, watchlist)
+- health_checks_impl: Service health (sources, celery, agents, watchlist)
 - health_storage: Storage/cache health (cache stats, quotas, API keys)
 """
 
@@ -12,7 +12,7 @@ from __future__ import annotations
 
 # Re-export data classes from sub-modules for backward compatibility
 from app.utils.health_database import CheckResult, check_database
-from app.utils.health_services import (
+from app.utils.health_checks_impl import (
     AgentStats,
     CeleryWorkerInfo,
     SourceHealthCheck,
