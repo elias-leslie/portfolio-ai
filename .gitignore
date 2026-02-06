@@ -1,53 +1,97 @@
 # Python
 __pycache__/
 *.py[cod]
+*$py.class
 *.so
 .Python
 .venv/
 venv/
+backend/.venv.python312.backup/
+*.egg-info/
+dist/
+build/
 
-# Pip artifacts (from pip install package>=version)
+# Pip artifacts
 =*
 
-# Node / Next.js
+# Node
 node_modules/
-.npm/
-.pnpm-store/
+.next/
 web/.next/
+out/
 web/out/
 web/.turbo/
+*.tsbuildinfo
+frontend/tsconfig.tsbuildinfo
+.npm/
+.pnpm-store/
 
-# Project data / logs
-data/
-logs/
-
-# Celery runtime files (scheduler state database)
-celerybeat-schedule
-celerybeat-schedule.db
-celerybeat-schedule-shm
-celerybeat-schedule-wal
-
-# Tool caches (should only exist in backend/)
-/.mypy_cache/
-/.ruff_cache/
-
-# Prevent root-level duplicates (files belong in backend/)
-/tests/
-
-# Prevent nested backend directory (legacy artifact)
-/backend/backend/
-
-# Environment & tooling
-.env
-.env.local
+# IDE
 .idea/
 .vscode/
 *.swp
 *.swo
-Thumbs.db
-.DS_Store
+*~
 
-# Ignore deb files
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env*.local
+
+# Logs
+*.log
+backend.log
+pytestdebug.log
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+/.mypy_cache/
+/.ruff_cache/
+.playwright-mcp/
+playwright-report/
+test-results/
+frontend/playwright-report/
+frontend/test-results/
+
+# Secrets
+*.pem
+*.key
+credentials.json
+secrets.json
+api_keys.md
+
+# Celery
+celerybeat-schedule*
+
+# Project data
+data/
+backups/
+backup-index.json
+
+# Dev tools
+.dev-tools/
+
+# Reference repos
+references/
+app/references/
+
+# Checkpoint data
+.st/
+
+# Claude settings
+.claude/settings.local.json
+
+# Prevent root-level duplicates
+/tests/
+/backend/backend/
+
+# Archive formats
 *.deb
 *.rpm
 *.tar.gz
@@ -56,51 +100,10 @@ Thumbs.db
 *.tar.lzma
 *.tar.lz
 *.tar.zst
-*.tar.zstd
-*.tar.zstd
 
-# References
-references/
-app/references/
-
-# API Keys
-api_keys.md
-
-# Claude (ignore settings but track commands)
-.claude/settings.local.json
-# Note: .claude/skills/browser-automation/node_modules/ already ignored by global node_modules/ rule
-
-# Playwright artifacts (replaced with Chrome DevTools MCP)
-.playwright-mcp/
-playwright-report/
-test-results/
-
-# Command validation state
+# Project-specific
 .validation-state.json
-backend/.venv.python312.backup/
-backups/
-
-# Backend models
 backend/models/
-
-# Beads local cache
 .beads/beads.db
 .beads/bd.sock
 certs/
-
-# Dev tools output (TOON details)
-.dev-tools/
-.st/
-
-backup-index.json
-
-# Build artifacts
-frontend/tsconfig.tsbuildinfo
-
-# Log files
-backend.log
-pytestdebug.log
-
-# Playwright (frontend-specific paths)
-frontend/playwright-report/
-frontend/test-results/
