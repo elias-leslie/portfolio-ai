@@ -11,6 +11,7 @@ dependencies = [
     "starlette==0.50.0",
 
     # Database & data processing
+    "alembic>=1.13.0",
     "sqlalchemy==2.0.45",
     "psycopg2-binary==2.9.11",
     "polars==1.36.1",
