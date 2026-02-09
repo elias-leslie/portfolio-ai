@@ -1,4 +1,4 @@
-"""Integration tests for capability Celery tasks."""
+"""Integration tests for capability scan tasks."""
 
 from __future__ import annotations
 
@@ -25,11 +25,11 @@ def setup_test_environment() -> None:
 
 
 class TestScanSystemCapabilities:
-    """Test scan_system_capabilities Celery task."""
+    """Test scan_system_capabilities task."""
 
     def test_scan_task_success(self) -> None:
         """Test that scan task executes successfully."""
-        # Run the task synchronously (not via Celery)
+        # Run the task synchronously
         result = scan_system_capabilities()
 
         # Verify result structure
@@ -58,9 +58,9 @@ class TestScanSystemCapabilities:
             db_count = conn.execute("SELECT COUNT(*) FROM db_capabilities").fetchone()[0]
             assert db_count > 0  # Should have discovered some tables
 
-            # Check celery_capabilities
-            celery_count = conn.execute("SELECT COUNT(*) FROM celery_capabilities").fetchone()[0]
-            assert celery_count == 0  # Celery scanner disabled, no tasks scanned
+            # Check celery_capabilities (DB table not yet renamed)
+            hatchet_count = conn.execute("SELECT COUNT(*) FROM celery_capabilities").fetchone()[0]
+            assert hatchet_count == 0  # Task scanner disabled, no tasks scanned
 
             # Check api_capabilities
             api_count = conn.execute("SELECT COUNT(*) FROM api_capabilities").fetchone()[0]
@@ -73,13 +73,13 @@ class TestScanSystemCapabilities:
         conn_mgr = get_connection_manager()
         with conn_mgr.connection() as conn:
             db_count = conn.execute("SELECT COUNT(*) FROM db_capabilities").fetchone()[0]
-            celery_count = 0  # Celery scanner disabled, no tasks scanned
+            hatchet_count = 0  # Task scanner disabled, no tasks scanned
             api_count = conn.execute("SELECT COUNT(*) FROM api_capabilities").fetchone()[0]
 
             assert result["db_tables_scanned"] == db_count
-            assert result["celery_tasks_scanned"] == celery_count
+            assert result["celery_tasks_scanned"] == hatchet_count
             assert result["api_endpoints_scanned"] == api_count
-            assert result["total_capabilities"] == db_count + celery_count + api_count
+            assert result["total_capabilities"] == db_count + hatchet_count + api_count
 
     def test_scan_task_upsert_behavior(self) -> None:
         """Test that scan task updates existing records (UPSERT)."""

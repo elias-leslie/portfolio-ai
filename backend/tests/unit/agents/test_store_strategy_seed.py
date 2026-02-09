@@ -113,7 +113,7 @@ class TestStoreStrategySeed:
         assert result_low["workflow_triggered"] is False
 
         # Note: High confidence trigger is tested in integration tests
-        # since it involves lazy imports and Celery task dispatch
+        # since it involves lazy imports and task dispatch
 
     def test_store_seed_inserts_correct_data(self) -> None:
         """Test correct data is inserted into strategy_seeds table."""

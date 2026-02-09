@@ -1,7 +1,7 @@
 """Integration tests for database query and API call deduplication.
 
 These tests validate hypotheses about duplicate queries and redundant API calls
-across Celery tasks and service layers. Each test measures actual behavior before
+across scheduled tasks and service layers. Each test measures actual behavior before
 implementing fixes.
 
 Test Strategy:

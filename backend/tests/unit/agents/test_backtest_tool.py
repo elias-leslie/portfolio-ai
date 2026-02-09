@@ -35,7 +35,7 @@ def test_execute_run_backtest_success(trading_tools, mock_storage):
         patch("app.agents.tool_executors_trading.update_backtest_status"),
         patch("app.tasks.backtest_tasks.run_backtest_task") as mock_task,
     ):
-        # Mock Celery task
+        # Mock backtest task
         mock_task.delay.return_value = Mock(id="task-123")
 
         # Mock get_backtest_run to return completed run

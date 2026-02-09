@@ -29,7 +29,7 @@ def test_backtest_tool_executor_integration(storage):
     end_date = date.today()
     start_date = end_date - timedelta(days=30)
 
-    # Mock the Celery task to avoid actual backtest execution
+    # Mock the backtest task to avoid actual backtest execution
     with patch("app.tasks.backtest_tasks.run_backtest_task") as mock_task:
         mock_task.delay.return_value = Mock(id="task-123")
 
