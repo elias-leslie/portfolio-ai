@@ -5,7 +5,7 @@ Automated watchlist management:
 2. Trimming: Remove underperforming symbols after minimum hold period
 3. Reporting: Generate daily reports of watchlist changes
 
-Scheduled via Celery Beat:
+Scheduled via Hatchet cron:
 - discover_watchlist_candidates: Daily 08:00 UTC
 - trim_underperforming_watchlist: Daily 08:30 UTC
 - generate_daily_watchlist_report: Daily 09:00 UTC

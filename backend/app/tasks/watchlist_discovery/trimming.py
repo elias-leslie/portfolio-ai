@@ -1,7 +1,7 @@
 """Watchlist Trimming Module.
 
 Removes underperforming symbols from watchlist after minimum hold period.
-Scheduled via Celery Beat: Daily 08:30 UTC
+Scheduled via Hatchet cron: Daily 08:30 UTC
 """
 
 from __future__ import annotations

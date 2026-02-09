@@ -31,7 +31,7 @@ LOG_ROTATION_SIZE_THRESHOLD_BYTES = 10 * 1024 * 1024  # 10MB
 SECONDS_PER_DAY = 86400
 
 
-# Helper functions (pure logic, no Celery)
+# Helper functions (pure logic)
 
 
 def _bytes_to_mb(bytes_value: int) -> float:

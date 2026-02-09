@@ -1,6 +1,6 @@
 """Market data pipeline tasks.
 
-This package contains Celery tasks for maintaining market data:
+This package contains tasks for maintaining market data:
 - historical_ohlcv_pipeline: Maintains 1260 days (5 years) of historical OHLCV data
 - options_pipeline: Fetches put/call ratios and options activity metrics
 - fear_greed_pipeline: Populates fear & greed indicator inputs
