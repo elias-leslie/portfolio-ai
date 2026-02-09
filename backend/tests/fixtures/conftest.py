@@ -116,8 +116,6 @@ TABLES_TO_CLEAN = [
     "validation_results",
     # User preferences
     "user_preferences",
-    # Celery task metadata (for Celery testing)
-    "celery_taskmeta",
 ]
 
 
