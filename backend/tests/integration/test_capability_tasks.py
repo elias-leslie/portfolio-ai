@@ -60,7 +60,7 @@ class TestScanSystemCapabilities:
 
             # Check celery_capabilities
             celery_count = conn.execute("SELECT COUNT(*) FROM celery_capabilities").fetchone()[0]
-            assert celery_count > 0  # Should have discovered scheduled tasks
+            assert celery_count == 0  # Celery scanner disabled, no tasks scanned
 
             # Check api_capabilities
             api_count = conn.execute("SELECT COUNT(*) FROM api_capabilities").fetchone()[0]
@@ -73,7 +73,7 @@ class TestScanSystemCapabilities:
         conn_mgr = get_connection_manager()
         with conn_mgr.connection() as conn:
             db_count = conn.execute("SELECT COUNT(*) FROM db_capabilities").fetchone()[0]
-            celery_count = conn.execute("SELECT COUNT(*) FROM celery_capabilities").fetchone()[0]
+            celery_count = 0  # Celery scanner disabled, no tasks scanned
             api_count = conn.execute("SELECT COUNT(*) FROM api_capabilities").fetchone()[0]
 
             assert result["db_tables_scanned"] == db_count

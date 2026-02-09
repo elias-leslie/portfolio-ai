@@ -7,12 +7,8 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from celery.schedules import crontab
 
 from app.services.capability_api_scanner import APIScanner
-from app.services.capability_celery_scanner import CeleryScanner
-from app.services.capability_celery_scanner_detection import detect_populates_tables
-from app.services.capability_celery_scanner_schedule import parse_schedule
 from app.services.capability_db_scanner import DatabaseScanner
 from app.services.capability_db_scanner_health import calculate_freshness_status
 from app.services.capability_utils import _to_json_string
@@ -223,135 +219,6 @@ class TestDatabaseScanner:
         count = scanner.save_capabilities([])
 
         assert count == 0
-
-
-class TestCeleryScanner:
-    """Test CeleryScanner class."""
-
-    @pytest.fixture
-    def mock_conn_mgr(self) -> MagicMock:
-        """Create mock ConnectionManager."""
-        return MagicMock()
-
-    @pytest.fixture
-    def mock_config(self) -> dict:
-        """Create mock config dict."""
-        return {
-            "scan_config": {
-                "targets": {
-                    "celery": {
-                        "enabled": True,
-                        "track_success_rate": True,
-                        "lookback_days": 7,
-                    }
-                }
-            },
-            "categorization": {
-                "market_data": {"patterns": ["market", "price"]},
-                "infrastructure": {"patterns": ["maintenance"]},
-            },
-        }
-
-    def test_init(self, mock_conn_mgr: MagicMock, mock_config: dict) -> None:
-        """Test scanner initialization."""
-        scanner = CeleryScanner(mock_conn_mgr, config=mock_config)
-
-        assert scanner.conn_mgr == mock_conn_mgr
-        assert scanner.config == mock_config
-        assert scanner.celery_config == mock_config["scan_config"]["targets"]["celery"]
-
-    def test_scan_disabled(self, mock_conn_mgr: MagicMock, mock_config: dict) -> None:
-        """Test scan returns empty list when disabled."""
-        mock_config["scan_config"]["targets"]["celery"]["enabled"] = False
-
-        scanner = CeleryScanner(mock_conn_mgr, config=mock_config)
-        result = scanner.scan()
-
-        assert result == []
-
-    @patch("app.services.capability_celery_scanner.categorize_by_name")
-    def test_scan_with_tasks(
-        self,
-        mock_categorize: MagicMock,
-        mock_conn_mgr: MagicMock,
-        mock_config: dict,
-    ) -> None:
-        """Test scanning Celery tasks."""
-        mock_categorize.return_value = "market_data"
-
-        # Mock celery_app - patch the global app since it's imported locally
-        with patch("app.celery_app.celery_app") as mock_celery:
-            mock_celery.conf.beat_schedule = {
-                "fetch-prices": {
-                    "task": "app.tasks.market_data_tasks.fetch_prices",
-                    "schedule": crontab(hour=4, minute=0),
-                }
-            }
-
-            # Mock task metadata query
-            mock_conn = MagicMock()
-            mock_conn_mgr.connection.return_value.__enter__.return_value = mock_conn
-
-            # Table exists check
-            table_check = MagicMock()
-            table_check.scalar.return_value = True
-            mock_conn.execute.side_effect = [
-                table_check,  # Table exists check
-                MagicMock(
-                    first=lambda: (
-                        datetime(2025, 1, 10, 4, 0, tzinfo=UTC),
-                        5,
-                        0,
-                    )
-                ),  # Metadata query
-            ]
-
-            scanner = CeleryScanner(mock_conn_mgr, config=mock_config)
-            result = scanner.scan()
-
-            assert len(result) == 1
-            assert result[0]["task_name"] == "fetch-prices"
-            assert result[0]["category"] == "market_data"
-            assert result[0]["task_path"] == "app.tasks.market_data_tasks.fetch_prices"
-            assert result[0]["function_name"] == "fetch_prices"
-            assert "Daily at 04:00 UTC" in result[0]["schedule_description"]
-
-    def test_parse_schedule_crontab(self, mock_conn_mgr: MagicMock, mock_config: dict) -> None:
-        """Test parsing crontab schedule."""
-        schedule_obj = crontab(hour=4, minute=30)
-        description, crontab_str, interval_seconds = parse_schedule(schedule_obj)
-
-        assert "04:30 UTC" in description
-        assert crontab_str == "30 4 * * *"
-        assert interval_seconds == 86400  # Daily
-
-    def test_parse_schedule_interval(self, mock_conn_mgr: MagicMock, mock_config: dict) -> None:
-        """Test parsing interval schedule."""
-        description, crontab_str, interval_seconds = parse_schedule(300)
-
-        assert "5 minutes" in description
-        assert crontab_str is None
-        assert interval_seconds == 300
-
-    def test_detect_populates_tables(self, mock_conn_mgr: MagicMock, mock_config: dict) -> None:
-        """Test detecting populated tables from task file."""
-        scanner = CeleryScanner(mock_conn_mgr, config=mock_config)
-
-        # Mock file content
-        mock_content = """
-def fetch_prices():
-    conn.execute("INSERT INTO market_data (symbol, price) VALUES (%s, %s)")
-    conn.execute("UPDATE price_cache SET last_updated = NOW()")
-"""
-
-        with (
-            patch.object(Path, "exists", return_value=True),
-            patch.object(Path, "read_text", return_value=mock_content),
-        ):
-            tables = detect_populates_tables("app.tasks.market_data_tasks.fetch_prices")
-
-            assert "market_data" in tables
-            assert "price_cache" in tables
 
 
 class TestAPIScanner:

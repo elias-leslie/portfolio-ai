@@ -28,25 +28,25 @@ client = TestClient(app)
 
 
 @pytest.fixture
-def mock_celery_task_factory() -> callable:
-    """Create factory for mock Celery task results with unique IDs."""
+def mock_hatchet_task_factory() -> callable:
+    """Create factory for mock Hatchet workflow run results with unique IDs."""
     counter = {"value": 0}
 
-    def create_task() -> MagicMock:
-        mock_task = MagicMock()
+    def create_run() -> MagicMock:
+        mock_run = MagicMock()
         counter["value"] += 1
-        mock_task.id = f"test-task-id-{counter['value']:05d}"
-        return mock_task
+        mock_run.workflow_run_id = f"test-task-id-{counter['value']:05d}"
+        return mock_run
 
-    return create_task
+    return create_run
 
 
 @pytest.fixture
-def mock_celery_app(mock_celery_task_factory: callable) -> MagicMock:
-    """Mock celery_app.send_task method."""
-    with patch("app.api.automation.celery_app") as mock_app:
-        # Return new unique task each time send_task is called
-        mock_app.send_task.side_effect = lambda *_args, **_kwargs: mock_celery_task_factory()
+def mock_hatchet_app(mock_hatchet_task_factory: callable) -> MagicMock:
+    """Mock Hatchet admin.run_workflow method."""
+    with patch("app.api.automation.hatchet") as mock_app:
+        # Return new unique run each time run_workflow is called
+        mock_app.admin.run_workflow.side_effect = lambda *_args, **_kwargs: mock_hatchet_task_factory()
         yield mock_app
 
 
@@ -78,7 +78,7 @@ def mock_connection_manager(mock_connection: MagicMock) -> MagicMock:
 class TestStrategyResearchEndpoint:
     """Tests for POST /api/automation/run/strategy-research endpoint."""
 
-    def test_trigger_strategy_research_without_symbol(self, mock_celery_app: MagicMock) -> None:
+    def test_trigger_strategy_research_without_symbol(self, mock_hatchet_app: MagicMock) -> None:
         """Test triggering strategy research for top watchlist symbols."""
         response = client.post("/api/automation/run/strategy-research")
 
@@ -90,13 +90,13 @@ class TestStrategyResearchEndpoint:
         assert data["stage"] == "strategy_research"
         assert "top 5 watchlist symbols" in data["message"]
 
-        # Verify correct Celery task called
-        mock_celery_app.send_task.assert_called_once()
-        call_args = mock_celery_app.send_task.call_args
+        # Verify correct Hatchet workflow called
+        mock_hatchet_app.admin.run_workflow.assert_called_once()
+        call_args = mock_hatchet_app.admin.run_workflow.call_args
         assert call_args[0][0] == "app.tasks.strategy.generation_tasks.daily_strategy_refresh"
-        assert call_args[1]["kwargs"]["max_symbols"] == 5
+        assert call_args[1]["input"]["max_symbols"] == 5
 
-    def test_trigger_strategy_research_with_symbol(self, mock_celery_app: MagicMock) -> None:
+    def test_trigger_strategy_research_with_symbol(self, mock_hatchet_app: MagicMock) -> None:
         """Test triggering strategy research for specific symbol."""
         response = client.post("/api/automation/run/strategy-research?symbol=AAPL&force=false")
 
@@ -108,13 +108,14 @@ class TestStrategyResearchEndpoint:
         assert data["stage"] == "strategy_research"
         assert "AAPL" in data["message"]
 
-        # Verify correct Celery task called
-        mock_celery_app.send_task.assert_called_once()
-        call_args = mock_celery_app.send_task.call_args
+        # Verify correct Hatchet workflow called
+        mock_hatchet_app.admin.run_workflow.assert_called_once()
+        call_args = mock_hatchet_app.admin.run_workflow.call_args
         assert call_args[0][0] == "run_strategy_research_for_symbol"
-        assert call_args[1]["args"] == ["AAPL", False]
+        assert call_args[1]["input"]["symbol"] == "AAPL"
+        assert call_args[1]["input"]["force"] is False
 
-    def test_trigger_strategy_research_with_force_flag(self, mock_celery_app: MagicMock) -> None:
+    def test_trigger_strategy_research_with_force_flag(self, mock_hatchet_app: MagicMock) -> None:
         """Test triggering strategy research with force regeneration."""
         response = client.post("/api/automation/run/strategy-research?symbol=TSLA&force=true")
 
@@ -124,21 +125,22 @@ class TestStrategyResearchEndpoint:
         assert data["status"] == "started"
         assert data["task_id"].startswith("test-task-id-")
 
-        # Verify force=True passed to task
-        call_args = mock_celery_app.send_task.call_args
-        assert call_args[1]["args"] == ["TSLA", True]
+        # Verify force=True passed to workflow
+        call_args = mock_hatchet_app.admin.run_workflow.call_args
+        assert call_args[1]["input"]["symbol"] == "TSLA"
+        assert call_args[1]["input"]["force"] is True
 
     def test_strategy_research_error_handling(self) -> None:
-        """Test error handling when Celery task fails to start."""
-        with patch("app.api.automation.celery_app") as mock_app:
-            mock_app.send_task.side_effect = Exception("Celery unavailable")
+        """Test error handling when Hatchet workflow fails to start."""
+        with patch("app.api.automation.hatchet") as mock_app:
+            mock_app.admin.run_workflow.side_effect = Exception("Hatchet unavailable")
 
             response = client.post("/api/automation/run/strategy-research")
 
             assert response.status_code == 500
-            assert "Celery unavailable" in response.json()["detail"]
+            assert "Hatchet unavailable" in response.json()["detail"]
 
-    def test_strategy_research_response_model_validation(self, mock_celery_app: MagicMock) -> None:
+    def test_strategy_research_response_model_validation(self, mock_hatchet_app: MagicMock) -> None:
         """Test response model matches PipelineResponse schema."""
         response = client.post("/api/automation/run/strategy-research?symbol=NVDA")
 
@@ -166,7 +168,7 @@ class TestStrategyResearchEndpoint:
 class TestSignalGenerationEndpoint:
     """Tests for POST /api/automation/run/signal-generation endpoint."""
 
-    def test_trigger_signal_generation(self, mock_celery_app: MagicMock) -> None:
+    def test_trigger_signal_generation(self, mock_hatchet_app: MagicMock) -> None:
         """Test triggering signal generation for all active strategies."""
         response = client.post("/api/automation/run/signal-generation")
 
@@ -178,22 +180,22 @@ class TestSignalGenerationEndpoint:
         assert data["stage"] == "signal_generation"
         assert "all active strategies" in data["message"]
 
-        # Verify correct Celery task called
-        mock_celery_app.send_task.assert_called_once_with(
-            "app.tasks.strategy_signal_tasks.generate_daily_strategy_signals"
-        )
+        # Verify correct Hatchet workflow called
+        mock_hatchet_app.admin.run_workflow.assert_called_once()
+        call_args = mock_hatchet_app.admin.run_workflow.call_args
+        assert call_args[0][0] == "app.tasks.strategy_signal_tasks.generate_daily_strategy_signals"
 
     def test_signal_generation_error_handling(self) -> None:
-        """Test error handling when signal generation task fails."""
-        with patch("app.api.automation.celery_app") as mock_app:
-            mock_app.send_task.side_effect = RuntimeError("Task queue full")
+        """Test error handling when signal generation workflow fails."""
+        with patch("app.api.automation.hatchet") as mock_app:
+            mock_app.admin.run_workflow.side_effect = RuntimeError("Workflow queue full")
 
             response = client.post("/api/automation/run/signal-generation")
 
             assert response.status_code == 500
-            assert "Task queue full" in response.json()["detail"]
+            assert "Workflow queue full" in response.json()["detail"]
 
-    def test_signal_generation_response_validation(self, mock_celery_app: MagicMock) -> None:
+    def test_signal_generation_response_validation(self, mock_hatchet_app: MagicMock) -> None:
         """Test response model validation for signal generation."""
         response = client.post("/api/automation/run/signal-generation")
 
@@ -214,7 +216,7 @@ class TestSignalGenerationEndpoint:
 class TestAutoPaperTradeEndpoint:
     """Tests for POST /api/automation/run/auto-paper-trade endpoint."""
 
-    def test_trigger_auto_paper_trade_default_strength(self, mock_celery_app: MagicMock) -> None:
+    def test_trigger_auto_paper_trade_default_strength(self, mock_hatchet_app: MagicMock) -> None:
         """Test triggering auto paper trade with default min_strength=5."""
         response = client.post("/api/automation/run/auto-paper-trade")
 
@@ -226,13 +228,13 @@ class TestAutoPaperTradeEndpoint:
         assert data["stage"] == "auto_paper_trade"
         assert "min strength: 5" in data["message"]
 
-        # Verify correct Celery task called with default strength
-        mock_celery_app.send_task.assert_called_once()
-        call_args = mock_celery_app.send_task.call_args
+        # Verify correct Hatchet workflow called with default strength
+        mock_hatchet_app.admin.run_workflow.assert_called_once()
+        call_args = mock_hatchet_app.admin.run_workflow.call_args
         assert call_args[0][0] == "app.tasks.strategy_signal_tasks.auto_paper_trade_from_signals"
-        assert call_args[1]["kwargs"]["min_signal_strength"] == 5
+        assert call_args[1]["input"]["min_signal_strength"] == 5
 
-    def test_trigger_auto_paper_trade_custom_strength(self, mock_celery_app: MagicMock) -> None:
+    def test_trigger_auto_paper_trade_custom_strength(self, mock_hatchet_app: MagicMock) -> None:
         """Test triggering auto paper trade with custom min_strength."""
         response = client.post("/api/automation/run/auto-paper-trade?min_strength=8")
 
@@ -242,9 +244,9 @@ class TestAutoPaperTradeEndpoint:
         assert data["status"] == "started"
         assert "min strength: 8" in data["message"]
 
-        # Verify custom strength passed to task
-        call_args = mock_celery_app.send_task.call_args
-        assert call_args[1]["kwargs"]["min_signal_strength"] == 8
+        # Verify custom strength passed to workflow
+        call_args = mock_hatchet_app.admin.run_workflow.call_args
+        assert call_args[1]["input"]["min_signal_strength"] == 8
 
     def test_auto_paper_trade_strength_validation_min(self) -> None:
         """Test min_strength validation rejects values < 1."""
@@ -258,7 +260,7 @@ class TestAutoPaperTradeEndpoint:
 
         assert response.status_code == 422  # Validation error
 
-    def test_auto_paper_trade_strength_boundary_values(self, mock_celery_app: MagicMock) -> None:
+    def test_auto_paper_trade_strength_boundary_values(self, mock_hatchet_app: MagicMock) -> None:
         """Test min_strength boundary values (1 and 10) are accepted."""
         # Test min boundary
         response = client.post("/api/automation/run/auto-paper-trade?min_strength=1")
@@ -269,14 +271,14 @@ class TestAutoPaperTradeEndpoint:
         assert response.status_code == 200
 
     def test_auto_paper_trade_error_handling(self) -> None:
-        """Test error handling when auto paper trade task fails."""
-        with patch("app.api.automation.celery_app") as mock_app:
-            mock_app.send_task.side_effect = ConnectionError("Redis connection failed")
+        """Test error handling when auto paper trade workflow fails."""
+        with patch("app.api.automation.hatchet") as mock_app:
+            mock_app.admin.run_workflow.side_effect = ConnectionError("Hatchet connection failed")
 
             response = client.post("/api/automation/run/auto-paper-trade")
 
             assert response.status_code == 500
-            assert "Redis connection failed" in response.json()["detail"]
+            assert "Hatchet connection failed" in response.json()["detail"]
 
 
 # =============================================================================
@@ -287,7 +289,7 @@ class TestAutoPaperTradeEndpoint:
 class TestFullPipelineEndpoint:
     """Tests for POST /api/automation/run/full-pipeline endpoint."""
 
-    def test_trigger_full_pipeline_all_stages(self, mock_celery_app: MagicMock) -> None:
+    def test_trigger_full_pipeline_all_stages(self, mock_hatchet_app: MagicMock) -> None:
         """Test triggering full pipeline with all stages."""
         response = client.post("/api/automation/run/full-pipeline")
 
@@ -309,10 +311,10 @@ class TestFullPipelineEndpoint:
             assert "task_id" in stage_data
             assert stage_data["status"] == "started"
 
-        # Verify 3 Celery tasks called
-        assert mock_celery_app.send_task.call_count == 3
+        # Verify 3 Hatchet workflows called
+        assert mock_hatchet_app.admin.run_workflow.call_count == 3
 
-    def test_trigger_full_pipeline_skip_research(self, mock_celery_app: MagicMock) -> None:
+    def test_trigger_full_pipeline_skip_research(self, mock_hatchet_app: MagicMock) -> None:
         """Test triggering full pipeline with skip_research=true."""
         response = client.post("/api/automation/run/full-pipeline?skip_research=true")
 
@@ -328,17 +330,17 @@ class TestFullPipelineEndpoint:
         assert "signal_generation" in stages
         assert "auto_paper_trade" in stages
 
-        # Verify only 2 Celery tasks called
-        assert mock_celery_app.send_task.call_count == 2
+        # Verify only 2 Hatchet workflows called
+        assert mock_hatchet_app.admin.run_workflow.call_count == 2
 
-    def test_full_pipeline_task_order(self, mock_celery_app: MagicMock) -> None:
-        """Test full pipeline tasks called in correct order."""
+    def test_full_pipeline_task_order(self, mock_hatchet_app: MagicMock) -> None:
+        """Test full pipeline workflows called in correct order."""
         response = client.post("/api/automation/run/full-pipeline")
 
         assert response.status_code == 200
 
-        # Verify task call order
-        calls = mock_celery_app.send_task.call_args_list
+        # Verify workflow call order
+        calls = mock_hatchet_app.admin.run_workflow.call_args_list
         assert len(calls) == 3
 
         # Order: strategy_research, signal_generation, auto_paper_trade
@@ -347,20 +349,20 @@ class TestFullPipelineEndpoint:
         assert "auto_paper_trade_from_signals" in calls[2][0][0]
 
     def test_full_pipeline_error_handling(self) -> None:
-        """Test error handling when pipeline task fails to start."""
-        with patch("app.api.automation.celery_app") as mock_app:
-            # First task succeeds, second fails
-            mock_app.send_task.side_effect = [
-                MagicMock(id="task-1"),
-                ValueError("Invalid task config"),
+        """Test error handling when pipeline workflow fails to start."""
+        with patch("app.api.automation.hatchet") as mock_app:
+            # First workflow succeeds, second fails
+            mock_app.admin.run_workflow.side_effect = [
+                MagicMock(workflow_run_id="task-1"),
+                ValueError("Invalid workflow config"),
             ]
 
             response = client.post("/api/automation/run/full-pipeline")
 
             assert response.status_code == 500
-            assert "Invalid task config" in response.json()["detail"]
+            assert "Invalid workflow config" in response.json()["detail"]
 
-    def test_full_pipeline_response_structure(self, mock_celery_app: MagicMock) -> None:
+    def test_full_pipeline_response_structure(self, mock_hatchet_app: MagicMock) -> None:
         """Test full pipeline response structure validation."""
         response = client.post("/api/automation/run/full-pipeline")
 
@@ -517,7 +519,7 @@ class TestAutomationPipelineIntegration:
     """Integration tests for automation pipeline workflow."""
 
     def test_full_pipeline_workflow_simulation(
-        self, mock_celery_app: MagicMock, mock_connection_manager: MagicMock
+        self, mock_hatchet_app: MagicMock, mock_connection_manager: MagicMock
     ) -> None:
         """Test simulated full pipeline workflow: trigger → check status."""
         # Mock connection for status endpoint
@@ -549,7 +551,7 @@ class TestAutomationPipelineIntegration:
         assert status_data["stages"]["signals"]["today_count"] == 10
         assert status_data["stages"]["paper_trades"]["open_count"] == 2
 
-    def test_individual_stage_triggers(self, mock_celery_app: MagicMock) -> None:
+    def test_individual_stage_triggers(self, mock_hatchet_app: MagicMock) -> None:
         """Test triggering individual pipeline stages independently."""
         # Trigger each stage independently
         response1 = client.post("/api/automation/run/strategy-research?symbol=AAPL")
@@ -561,10 +563,10 @@ class TestAutomationPipelineIntegration:
         assert response2.status_code == 200
         assert response3.status_code == 200
 
-        # Verify correct number of Celery tasks dispatched
-        assert mock_celery_app.send_task.call_count == 3
+        # Verify correct number of Hatchet workflows dispatched
+        assert mock_hatchet_app.admin.run_workflow.call_count == 3
 
-        # Verify each returned task IDs (should be unique due to factory)
+        # Verify each returned workflow run IDs (should be unique due to factory)
         task_ids = [
             response1.json()["task_id"],
             response2.json()["task_id"],
