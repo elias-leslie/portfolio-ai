@@ -272,7 +272,7 @@ def fetch_putcall_ratio(
 
     Returns:
         Dict with task results:
-        - task_id: Celery task ID
+        - task_id: Task ID
         - date: Date of data (today)
         - put_call_ratio: Aggregate ratio across SPY/QQQ/IWM
         - symbol_ratios: Individual ratios per symbol
@@ -364,14 +364,10 @@ def fetch_options_activity_metrics() -> dict[str, Any]:
 
     Returns:
         Dict with task results:
-        - task_id: Celery task ID
+        - task_id: Task ID
         - as_of_date: Date of metrics (YYYY-MM-DD)
         - metrics: Dict with all calculated metrics
         - success: Boolean indicating success
-
-    Example:
-        >>> # Manual trigger for testing
-        >>> celery -A app.celery_app call app.tasks.market_data.fetch_options_activity_metrics
 
     Note:
         This task should be scheduled daily at 21:15 UTC (4:15 PM ET, after market close).

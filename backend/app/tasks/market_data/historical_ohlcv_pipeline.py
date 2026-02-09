@@ -100,15 +100,11 @@ def maintain_historical_market_data() -> dict[str, int | str | float]:
 
     Returns:
         Dict with task results:
-        - task_id: Celery task ID
+        - task_id: Task ID
         - symbols_checked: Total symbols checked
         - symbols_backfilled: Number of symbols backfilled
         - symbols_ok: Number of symbols with sufficient data
         - duration_seconds: Total execution time
-
-    Example:
-        >>> # Manual trigger for testing
-        >>> celery -A app.celery_app call app.tasks.market_data.maintain_historical_market_data
     """
     task_id = str(uuid.uuid4())
     start_time = dt.datetime.now(dt.UTC)

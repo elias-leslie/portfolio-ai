@@ -1,4 +1,4 @@
-"""Celery tasks for watchlist score refresh.
+"""Tasks for watchlist score refresh.
 
 This module defines background tasks for refreshing watchlist scores asynchronously.
 """
@@ -182,7 +182,7 @@ def _build_skip_result(
     """Build result dictionary for skipped refresh.
 
     Args:
-        task_id: Celery task ID
+        task_id: Task ID
         minutes_since_refresh: Minutes elapsed since last refresh
         refresh_interval_minutes: Configured refresh interval
         start_time: Task start time
@@ -205,7 +205,7 @@ def refresh_watchlist_scores_task(
 ) -> WatchlistResultDict:
     """Refresh watchlist scores for all items or a specific account.
 
-    This task runs every 1 minute via Celery Beat, but respects the user's
+    This task runs every 1 minute via Hatchet cron, but respects the user's
     watchlist_refresh_minutes preference by skipping execution if not enough
     time has passed since the last refresh.
 
