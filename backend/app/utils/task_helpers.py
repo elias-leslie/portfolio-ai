@@ -1,4 +1,4 @@
-"""Shared helper functions for Celery tasks.
+"""Shared helper functions for background tasks.
 
 This module provides common utilities used across multiple task modules,
 reducing code duplication and standardizing patterns.
@@ -25,7 +25,7 @@ def build_error_result(
     """Build standardized error result dict for cleanup/maintenance tasks.
 
     Args:
-        task_id: The Celery task ID
+        task_id: The task ID
         error: The exception that occurred
         duration_seconds: Task execution duration in seconds
         dry_run: Whether this was a dry run (optional, omitted if None)
@@ -63,10 +63,10 @@ def get_watchlist_symbols_or_early_return(
 ) -> tuple[list[str], PortfolioStorage, dict[str, int | str | float | None] | None]:
     """Get watchlist symbols or return early response if none found.
 
-    Common boilerplate pattern used by Celery tasks that process watchlist symbols.
+    Common boilerplate pattern used by background tasks that process watchlist symbols.
 
     Args:
-        task_id: Celery task ID for response
+        task_id: Task ID for response
         log_event: Log event name for empty list (e.g., "no_watchlist_symbols_for_health_scores")
         secondary_metric_name: Name of secondary metric in response (default: "symbols_updated")
 
@@ -77,7 +77,7 @@ def get_watchlist_symbols_or_early_return(
 
     Example:
         symbols, storage, early_return = get_watchlist_symbols_or_early_return(
-            self.request.id, "no_symbols_for_my_task"
+            task_id, "no_symbols_for_my_task"
         )
         if early_return:
             return early_return

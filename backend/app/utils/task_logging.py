@@ -1,4 +1,4 @@
-"""Context manager for structured Celery task logging.
+"""Context manager for structured background task logging.
 
 This module provides a context manager that automatically logs task execution
 with consistent structured fields including timing, parameters, and error details.
@@ -22,11 +22,11 @@ def task_logger(
     input_params: dict[str, Any] | None = None,
     logger_name: str | None = None,
 ) -> Generator[None]:
-    """Context manager for structured Celery task logging with automatic timing.
+    """Context manager for structured background task logging with automatic timing.
 
     Logs task execution with consistent structured fields:
     - task_name: Human-readable task identifier
-    - task_id: Celery task ID
+    - task_id: Task ID
     - duration_ms: Execution time in milliseconds
     - input_params: Dictionary of input parameters
     - status: "started", "completed", "failed"
@@ -34,9 +34,8 @@ def task_logger(
 
     Usage:
         ```python
-        @celery_app.task(name="my_task", bind=True)
-        def my_task(self, param1: str, param2: int) -> dict[str, Any]:
-            task_id = self.request.id
+        def my_task(param1: str, param2: int) -> dict[str, Any]:
+            task_id = str(uuid.uuid4())
 
             with task_logger("my_task", task_id, {"param1": param1, "param2": param2}):
                 # Task logic here
@@ -46,7 +45,7 @@ def task_logger(
 
     Args:
         task_name: Human-readable task name (e.g., "refresh_watchlist_scores")
-        task_id: Celery task ID from self.request.id
+        task_id: Task ID
         input_params: Dictionary of task input parameters for logging
         logger_name: Optional logger name (defaults to task_name)
 
@@ -98,7 +97,7 @@ def task_logger(
             traceback=error_traceback,
             **params,
         )
-        raise  # Re-raise to preserve Celery's error handling
+        raise  # Re-raise to preserve error handling
 
 
 def log_task_skip(
@@ -116,7 +115,7 @@ def log_task_skip(
 
     Args:
         task_name: Human-readable task name
-        task_id: Celery task ID
+        task_id: Task ID
         reason: Explanation for why task was skipped
         duration_ms: Time spent checking conditions before skipping
         extra_fields: Additional structured fields to log

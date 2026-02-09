@@ -1,4 +1,4 @@
-"""Celery tasks for agent execution and paper trading.
+"""Background tasks for agent execution and paper trading.
 
 This module defines background tasks for:
 - Running AI agents (Discovery, Portfolio Analyzer)
@@ -67,11 +67,11 @@ def _setup_agent_tools(storage: PortfolioStorage) -> AgentTools:
 
 
 def _update_celery_task_id(storage: PortfolioStorage, task_id: str, run_id: str) -> None:
-    """Update agent_runs table with Celery task ID.
+    """Update agent_runs table with task ID.
 
     Args:
         storage: StorageFacade instance for database access
-        task_id: Celery task ID
+        task_id: Task ID
         run_id: Agent run ID
     """
     with storage.connection() as conn:
@@ -239,14 +239,9 @@ def update_paper_trades_task(  # type: ignore[no-untyped-def]
         >>> update_paper_trades_task()
 
     Note:
-        This task should be configured in Celery beat schedule to run daily:
+        This task should be configured in the workflow scheduler to run daily:
         ```python
-        celery_app.conf.beat_schedule = {
-            'update-paper-trades-daily': {
-                'task': 'update_paper_trades_task',
-                'schedule': crontab(hour=16, minute=30),  # 4:30 PM ET
-            },
-        }
+        # Scheduled via Hatchet workflow with cron: "30 16 * * *"  # 4:30 PM ET
         ```
     """
     task_id = str(uuid.uuid4())

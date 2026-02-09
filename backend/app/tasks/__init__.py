@@ -1,4 +1,4 @@
-"""Celery tasks for background execution.
+"""Background tasks for asynchronous execution.
 
 This package contains task modules organized by function:
 - agent_tasks: AI agent execution and paper trading
@@ -7,12 +7,11 @@ This package contains task modules organized by function:
 - indicators: Technical indicator calculations (package)
 
 For backward compatibility, all tasks are re-exported from this __init__.py.
-Additionally, modules are exposed for Celery task registration.
 """
 
 from __future__ import annotations
 
-# Import task modules (needed for Celery task registration in celery_app.py)
+# Import task modules for backward compatibility
 from . import (
     agent_tasks,
     artifact_tasks,  # Evidence capture cleanup

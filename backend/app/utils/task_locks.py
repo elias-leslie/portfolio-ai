@@ -1,8 +1,8 @@
 """Redis-based task deduplication locks.
 
-Prevents duplicate Celery tasks from running concurrently by using Redis locks.
-This is especially useful for tasks that are scheduled frequently (Beat) or
-triggered from multiple sources (cascades).
+Prevents duplicate background tasks from running concurrently by using Redis locks.
+This is especially useful for tasks that are scheduled frequently or
+triggered from multiple sources.
 
 PROBLEM:
 - Tasks like ingest_historical_ohlcv can be triggered from multiple sources
@@ -18,7 +18,6 @@ SOLUTION:
 USAGE:
     from app.utils.task_locks import task_lock, is_task_locked
 
-    @celery_app.task
     def my_task(symbol: str):
         lock_key = f"my_task:{symbol}"
         with task_lock(lock_key, ttl=300) as acquired:
