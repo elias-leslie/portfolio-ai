@@ -1,4 +1,4 @@
-"""QA system Celery tasks - daily scanning and snapshot generation.
+"""QA system tasks - daily scanning and snapshot generation.
 
 This module provides automated QA scanning for:
 - Dead code detection (unused functions/classes/imports)
@@ -11,7 +11,7 @@ This module provides automated QA scanning for:
 All tasks are designed to be:
 - Idempotent (safe to run multiple times)
 - Self-healing (detect and auto-resolve issues)
-- Scheduled (run on Celery Beat schedule)
+- Scheduled via Hatchet cron workflows
 """
 
 from __future__ import annotations

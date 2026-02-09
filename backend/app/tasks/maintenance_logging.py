@@ -1,8 +1,8 @@
-"""Maintenance logging utilities for Celery tasks.
+"""Maintenance logging utilities for scheduled tasks.
 
-This module provides functions for Celery tasks to log their execution
+This module provides functions for tasks to log their execution
 to the maintenance_log table, enabling unified tracking across all
-maintenance operations (both script-based and Celery-based).
+maintenance operations (both script-based and Hatchet-based).
 """
 
 from __future__ import annotations
