@@ -32,7 +32,7 @@ from .yfinance_parsers import (
 if not os.environ.get("HOME"):
     os.environ["HOME"] = "/var/cache/portfolio-ai"
 
-# Configure yfinance cache location to avoid SQLite readonly errors in Celery workers
+# Configure yfinance cache location to avoid SQLite readonly errors in worker processes
 # The default location may have permission issues or concurrent access conflicts
 _yf_cache_dir = Path(os.environ.get("HOME", "/tmp")) / ".cache" / "yfinance"
 _yf_cache_dir.mkdir(parents=True, exist_ok=True)

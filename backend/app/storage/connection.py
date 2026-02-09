@@ -366,7 +366,7 @@ class ConnectionManager:
         logger.debug("Getting connection from PostgreSQL pool")
         pg_conn = self.engine.raw_connection()
         # Rollback any implicit transaction to start fresh and see latest committed data
-        # This fixes stale reads when Celery workers commit data that FastAPI doesn't see
+        # This fixes stale reads when worker processes commit data that FastAPI doesn't see
         pg_conn.rollback()
         wrapper = PostgreSQLConnectionWrapper(pg_conn, engine=self.engine)
         try:

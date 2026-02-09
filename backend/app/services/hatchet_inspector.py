@@ -1,7 +1,6 @@
 """Hatchet workflow run inspection service.
 
-Provides functions to inspect Hatchet workflow runs, replacing
-the old celery_inspector.py. Uses the Hatchet REST API to query
+Provides functions to inspect Hatchet workflow runs. Uses the Hatchet REST API to query
 workflow run statuses.
 """
 

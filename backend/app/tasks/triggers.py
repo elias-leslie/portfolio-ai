@@ -278,7 +278,7 @@ def cross_validate_insight_task(
             "error": str(e),
         }
 def emit_event_async(event_type: str, payload: dict[str, Any]) -> dict[str, Any]:
-    """Async wrapper for emit_event to allow Celery .delay() calls.
+    """Synchronous wrapper for emit_event.
 
     Args:
         event_type: Type of event
