@@ -1,6 +1,6 @@
 """Workflow Graph API - React Flow visualization for scheduled tasks.
 
-This module transforms celery_capabilities data into React Flow compatible
+This module transforms task capabilities data into React Flow compatible
 graph format for workflow visualization.
 
 Phase 1.5 adds intelligent dependency inference from table relationships.
@@ -236,8 +236,8 @@ async def get_workflow_graph(
 ) -> WorkflowGraphResponse:
     """Get workflow graph in React Flow format.
 
-    Transforms celery_capabilities into nodes and edges for visualization.
-    Overlays current task status from live Celery inspection.
+    Transforms task capabilities into nodes and edges for visualization.
+    Overlays current task status from live Hatchet inspection.
     """
     conn_mgr = get_connection_manager()
     nodes: list[WorkflowNode] = []
@@ -265,7 +265,7 @@ async def get_workflow_graph(
         logger.warning("failed_to_get_live_tasks", error=str(e))
 
     with conn_mgr.connection() as conn:
-        # Query celery_capabilities for tasks with dependencies
+        # Query celery_capabilities table (not yet renamed) for tasks with dependencies
         # Phase 1.5: Now includes reads_from_tables and dependency_overrides
         query = """
             SELECT
