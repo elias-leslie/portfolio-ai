@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from ..celery_app import celery_app
+from ..hatchet_app import get_hatchet
 from ..logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -36,14 +36,14 @@ def refresh_watchlist() -> WatchlistRefreshResponse:
     logger.info("refresh_watchlist_request")
 
     try:
-        # Trigger the refresh_watchlist Celery task
-        task = celery_app.send_task("app.tasks.refresh_watchlist")
+        hatchet = get_hatchet()
+        workflow_run = hatchet.admin.run_workflow("portfolio-refresh-watchlist-scores", {})
 
-        logger.info("refresh_watchlist_triggered", task_id=task.id)
+        logger.info("refresh_watchlist_triggered", task_id=workflow_run.workflow_run_id)
         return WatchlistRefreshResponse(
             success=True,
-            task_id=task.id,
-            message=f"Watchlist refresh task triggered (ID: {task.id})",
+            task_id=workflow_run.workflow_run_id,
+            message=f"Watchlist refresh task triggered (ID: {workflow_run.workflow_run_id})",
         )
 
     except Exception as e:

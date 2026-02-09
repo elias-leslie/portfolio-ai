@@ -14,7 +14,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from app.celery_app import celery_app
+from app.hatchet_app import get_hatchet
 from app.logging_config import get_logger
 from app.storage.connection import get_connection_manager
 
@@ -62,26 +62,25 @@ async def trigger_strategy_research(
     Otherwise runs daily_strategy_refresh for top watchlist symbols.
     """
     try:
+        hatchet = get_hatchet()
         if symbol:
-            # Run for specific symbol using async task
-            task = celery_app.send_task(
-                "run_strategy_research_for_symbol",
-                args=[symbol, force],
+            workflow_run = hatchet.admin.run_workflow(
+                "portfolio-strategy-research-symbol",
+                {"symbol": symbol, "force": force},
             )
             message = f"Started strategy research for {symbol}"
         else:
-            # Run daily refresh for top symbols
-            task = celery_app.send_task(
-                "app.tasks.strategy.generation_tasks.daily_strategy_refresh",
-                kwargs={"max_symbols": 5},
+            workflow_run = hatchet.admin.run_workflow(
+                "portfolio-daily-strategy",
+                {},
             )
             message = "Started strategy research for top 5 watchlist symbols"
 
-        logger.info("strategy_research_triggered", symbol=symbol, task_id=task.id)
+        logger.info("strategy_research_triggered", symbol=symbol, task_id=workflow_run.workflow_run_id)
 
         return PipelineResponse(
             status="started",
-            task_id=task.id,
+            task_id=workflow_run.workflow_run_id,
             stage="strategy_research",
             message=message,
         )
@@ -95,15 +94,17 @@ async def trigger_strategy_research(
 async def trigger_signal_generation() -> PipelineResponse:
     """Trigger signal generation for all active strategies."""
     try:
-        task = celery_app.send_task(
-            "app.tasks.strategy_signal_tasks.generate_daily_strategy_signals",
+        hatchet = get_hatchet()
+        workflow_run = hatchet.admin.run_workflow(
+            "portfolio-daily-signals",
+            {},
         )
 
-        logger.info("signal_generation_triggered", task_id=task.id)
+        logger.info("signal_generation_triggered", task_id=workflow_run.workflow_run_id)
 
         return PipelineResponse(
             status="started",
-            task_id=task.id,
+            task_id=workflow_run.workflow_run_id,
             stage="signal_generation",
             message="Started signal generation for all active strategies",
         )
@@ -119,16 +120,17 @@ async def trigger_auto_paper_trade(
 ) -> PipelineResponse:
     """Trigger auto paper trading from signals."""
     try:
-        task = celery_app.send_task(
-            "app.tasks.strategy_signal_tasks.auto_paper_trade_from_signals",
-            kwargs={"min_signal_strength": min_strength},
+        hatchet = get_hatchet()
+        workflow_run = hatchet.admin.run_workflow(
+            "portfolio-auto-paper-trade",
+            {"min_signal_strength": min_strength},
         )
 
-        logger.info("auto_paper_trade_triggered", task_id=task.id, min_strength=min_strength)
+        logger.info("auto_paper_trade_triggered", task_id=workflow_run.workflow_run_id, min_strength=min_strength)
 
         return PipelineResponse(
             status="started",
-            task_id=task.id,
+            task_id=workflow_run.workflow_run_id,
             stage="auto_paper_trade",
             message=f"Started auto paper trading (min strength: {min_strength})",
         )
@@ -152,34 +154,28 @@ async def trigger_full_pipeline(
     Each stage runs as a separate Celery task.
     """
     try:
+        hatchet = get_hatchet()
         tasks = {}
 
         # Stage 1: Strategy research (optional)
         if not skip_research:
-            task1 = celery_app.send_task(
-                "app.tasks.strategy.generation_tasks.daily_strategy_refresh",
-                kwargs={"max_symbols": 5},
-            )
+            run1 = hatchet.admin.run_workflow("portfolio-daily-strategy", {})
             tasks["strategy_research"] = {
-                "task_id": task1.id,
+                "task_id": run1.workflow_run_id,
                 "status": "started",
             }
 
         # Stage 2: Signal generation
-        task2 = celery_app.send_task(
-            "app.tasks.strategy_signal_tasks.generate_daily_strategy_signals",
-        )
+        run2 = hatchet.admin.run_workflow("portfolio-daily-signals", {})
         tasks["signal_generation"] = {
-            "task_id": task2.id,
+            "task_id": run2.workflow_run_id,
             "status": "started",
         }
 
         # Stage 3: Auto paper trading
-        task3 = celery_app.send_task(
-            "app.tasks.strategy_signal_tasks.auto_paper_trade_from_signals",
-        )
+        run3 = hatchet.admin.run_workflow("portfolio-auto-paper-trade", {})
         tasks["auto_paper_trade"] = {
-            "task_id": task3.id,
+            "task_id": run3.workflow_run_id,
             "status": "started",
         }
 

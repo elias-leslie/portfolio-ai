@@ -8,7 +8,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from ..celery_app import celery_app
+from ..hatchet_app import get_hatchet
 from ..logging_config import get_logger
 from ..storage.connection import get_connection_manager
 
@@ -82,9 +82,12 @@ async def trigger_training() -> TrainingTriggerResponse:
             status_code=500, detail=f"Failed to initialize progress tracking: {e}"
         ) from e
 
-    # Trigger async Celery task
     try:
-        celery_app.send_task("retrain_article_quality_model_manual", args=[session_id])
+        hatchet = get_hatchet()
+        hatchet.admin.run_workflow(
+            "portfolio-ml-train-manual",
+            {"session_id": session_id},
+        )
 
         return TrainingTriggerResponse(
             success=True,

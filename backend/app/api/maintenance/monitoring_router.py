@@ -10,9 +10,7 @@ from typing import Any, cast
 
 from fastapi import APIRouter, HTTPException
 
-from ...celery_app import celery_app
 from ...logging_config import get_logger
-from ...services.celery_schedule_service import get_maintenance_schedule as get_schedule_info
 from ...services.dry_run_service import generate_dry_run_report
 from ...services.file_monitoring_service import (
     get_cache_status as get_cache_status_service,
@@ -154,7 +152,23 @@ async def get_maintenance_schedule() -> MaintenanceScheduleResponseDict:
         HTTPException: If schedule retrieval fails
     """
     try:
-        return get_schedule_info(celery_app)
+        scheduled_tasks = {
+            "vacuum-database": {"task": "portfolio-vacuum-db", "schedule": "crontab(0 2 * * 0)"},
+            "cleanup-old-news": {"task": "portfolio-cleanup-old-news", "schedule": "crontab(0 3 * * *)"},
+            "cleanup-agent-runs": {"task": "portfolio-cleanup-agent-runs", "schedule": "crontab(30 3 * * *)"},
+            "cleanup-orphaned": {"task": "portfolio-cleanup-orphaned-data", "schedule": "crontab(0 4 * * 0)"},
+            "cleanup-logs": {"task": "portfolio-cleanup-logs", "schedule": "crontab(0 2 * * *)"},
+            "cleanup-temp": {"task": "portfolio-cleanup-temp", "schedule": "crontab(30 2 * * *)"},
+            "cleanup-backups": {"task": "portfolio-cleanup-backups", "schedule": "crontab(0 1 * * 0)"},
+            "cleanup-models": {"task": "portfolio-cleanup-models", "schedule": "crontab(30 1 * * 0)"},
+            "cleanup-solution-state": {"task": "portfolio-cleanup-solution-state", "schedule": "crontab(0 5 * * *)"},
+            "check-disk": {"task": "portfolio-check-disk", "schedule": "crontab(*/30 * * * *)"},
+            "rotate-logs": {"task": "portfolio-rotate-logs", "schedule": "crontab(0 0 * * *)"},
+        }
+        return {
+            "scheduled_tasks": scheduled_tasks,
+            "total_count": len(scheduled_tasks),
+        }
 
     except Exception as e:
         logger.error(
@@ -237,7 +251,7 @@ async def get_dry_run_report(timeout: int = 60) -> DryRunReportResponse:
         HTTPException: If report generation fails
     """
     try:
-        return generate_dry_run_report(celery_app, timeout)
+        return generate_dry_run_report(timeout)
 
     except Exception as e:
         logger.error(

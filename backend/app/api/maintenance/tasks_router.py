@@ -6,10 +6,9 @@ Celery-based maintenance tasks.
 
 from __future__ import annotations
 
-from celery.result import AsyncResult
 from fastapi import APIRouter, HTTPException
 
-from ...celery_app import celery_app
+from ...hatchet_app import get_hatchet
 from ...logging_config import get_logger
 from ..maintenance_types import TaskStatusResponseDict, TaskTriggerResponseDict
 
@@ -42,24 +41,25 @@ async def trigger_maintenance_task(
     Raises:
         HTTPException: If task name is invalid or trigger fails
     """
-    # Validate task name
-    valid_tasks = {
-        "vacuum_database_task",
-        "cleanup_old_news_task",
-        "cleanup_old_agent_runs_task",
-        "cleanup_orphaned_data_task",
-        "cleanup_old_logs_task",
-        "cleanup_temp_files_task",
-        "cleanup_old_backups_task",
-        "cleanup_old_models_task",
-        "cleanup_solution_state_task",
-        "cleanup_cache_directories_task",  # Manual-only: Python/Next.js/Claude caches
-        "cleanup_old_versions",  # Artifact version cleanup (keep 5 per criterion)
-        "cleanup_debug_captures",  # Debug screenshot cleanup (>7 days)
-        "check_disk_space_task",
-        "get_database_size_task",
-        "rotate_logs_task",
+    task_to_workflow = {
+        "vacuum_database_task": "portfolio-vacuum-db",
+        "cleanup_old_news_task": "portfolio-cleanup-old-news",
+        "cleanup_old_agent_runs_task": "portfolio-cleanup-agent-runs",
+        "cleanup_orphaned_data_task": "portfolio-cleanup-orphaned-data",
+        "cleanup_old_logs_task": "portfolio-cleanup-logs",
+        "cleanup_temp_files_task": "portfolio-cleanup-temp",
+        "cleanup_old_backups_task": "portfolio-cleanup-backups",
+        "cleanup_old_models_task": "portfolio-cleanup-models",
+        "cleanup_solution_state_task": "portfolio-cleanup-solution-state",
+        "cleanup_cache_directories_task": "portfolio-cleanup-caches",
+        "cleanup_old_versions": "portfolio-cleanup-versions",
+        "cleanup_debug_captures": "portfolio-cleanup-debug-captures",
+        "check_disk_space_task": "portfolio-check-disk",
+        "get_database_size_task": "portfolio-db-size",
+        "rotate_logs_task": "portfolio-rotate-logs",
     }
+
+    valid_tasks = set(task_to_workflow.keys())
 
     if task_name not in valid_tasks:
         raise HTTPException(
@@ -88,38 +88,32 @@ async def trigger_maintenance_task(
     }
 
     try:
-        # Build kwargs for task - pass dry_run for tasks that support it
-        kwargs = {}
-        if task_name in tasks_with_dry_run:
-            kwargs["dry_run"] = dry_run
+        hatchet = get_hatchet()
+        workflow_name = task_to_workflow[task_name]
 
-        # Trigger the Celery task with optional kwargs
-        task = celery_app.send_task(task_name, kwargs=kwargs if kwargs else None)
+        input_data = {}
+        if task_name in tasks_with_dry_run:
+            input_data["dry_run"] = dry_run
+
+        workflow_run = hatchet.admin.run_workflow(workflow_name, input_data)
 
         logger.info(
             "maintenance_task_triggered",
             task_name=task_name,
-            task_id=task.id,
+            task_id=workflow_run.workflow_run_id,
             dry_run=dry_run,
         )
 
         response: TaskTriggerResponseDict = {
-            "task_id": task.id,
+            "task_id": workflow_run.workflow_run_id,
             "task_name": task_name,
             "status": "triggered",
             "message": f"Task {task_name} has been triggered{' (dry run)' if dry_run else ''}",
         }
 
-        # Optionally wait for result (useful for dry-run previews)
         if wait_for_result:
-            try:
-                result = task.get(timeout=timeout)
-                response["status"] = "completed"
-                response["result"] = result
-                response["message"] = f"Task {task_name} completed{' (dry run)' if dry_run else ''}"
-            except TimeoutError:
-                response["status"] = "timeout"
-                response["message"] = f"Task {task_name} is still running after {timeout}s"
+            response["status"] = "running"
+            response["message"] = f"Task {task_name} running (polling not yet implemented)"
 
         return response
 
@@ -141,7 +135,7 @@ async def get_task_status(task_id: str) -> TaskStatusResponseDict:
     """Get status of a running maintenance task.
 
     Args:
-        task_id: Celery task ID
+        task_id: Hatchet workflow run ID
 
     Returns:
         Dict with task status and result
@@ -150,14 +144,15 @@ async def get_task_status(task_id: str) -> TaskStatusResponseDict:
         HTTPException: If status check fails
     """
     try:
-        result: AsyncResult[object] = AsyncResult(task_id, app=celery_app)
+        hatchet = get_hatchet()
+        run = hatchet.admin.get_workflow_run(task_id)
 
         return {
             "task_id": task_id,
-            "state": result.state,
-            "ready": result.ready(),
-            "successful": result.successful() if result.ready() else None,
-            "result": result.result if result.ready() else None,
+            "state": run.status if run else "UNKNOWN",
+            "ready": run.status in ("SUCCEEDED", "FAILED") if run else False,
+            "successful": run.status == "SUCCEEDED" if run else None,
+            "result": None,
         }
 
     except Exception as e:
