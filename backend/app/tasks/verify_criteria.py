@@ -13,14 +13,13 @@ from __future__ import annotations
 
 from typing import Any
 
-
 from ..logging_config import get_logger
 
 logger = get_logger(__name__)
 
 
 def verify_all_acceptance_criteria(
-    self: Task[..., Any], type_filter: str | None = None, limit: int | None = None
+    type_filter: str | None = None, limit: int | None = None
 ) -> dict[str, Any]:
     """DISABLED: Verification is now managed by SummitFlow.
 

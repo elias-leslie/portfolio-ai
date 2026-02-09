@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 from ...logging_config import get_logger
 from ...rules.loader import get_rules
 from ...storage import PortfolioStorage
@@ -103,9 +102,7 @@ def remove_symbol_from_watchlist(
 # =============================================================================
 
 
-def trim_underperforming_watchlist_task(
-    self: Any,
-) -> dict[str, Any]:
+def trim_underperforming_watchlist_task() -> dict[str, Any]:
     """Remove underperforming symbols from watchlist.
 
     Scheduled: Daily 08:30 UTC

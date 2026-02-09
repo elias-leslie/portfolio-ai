@@ -10,6 +10,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
+import uuid
 from typing import TYPE_CHECKING, Any
 
 import requests
@@ -17,7 +18,6 @@ import yfinance as yf
 
 from app.logging_config import get_logger
 from app.storage import get_storage
-import uuid
 
 if TYPE_CHECKING:
     pass
@@ -252,8 +252,7 @@ def _get_putcall_ratio_with_fallbacks() -> dict[str, Any]:
     raise RuntimeError("All put/call ratio sources failed (yfinance, Polygon, Finnhub)")
 
 
-def fetch_putcall_ratio(  # type: ignore[no-untyped-def]
-    self,
+def fetch_putcall_ratio(
     as_of_date: str | None = None,
 ) -> dict[str, Any]:
     """Fetch Put/Call Ratio from yfinance options chains.
@@ -352,9 +351,7 @@ def fetch_putcall_ratio(  # type: ignore[no-untyped-def]
         }
 
 
-def fetch_options_activity_metrics(  # type: ignore[no-untyped-def]
-    self,
-) -> dict[str, Any]:
+def fetch_options_activity_metrics() -> dict[str, Any]:
     """Fetch aggregated options activity metrics from CBOE Most Active page.
 
     Scrapes CBOE Most Active Options page and calculates daily metrics:

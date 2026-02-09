@@ -14,12 +14,12 @@ from __future__ import annotations
 
 import datetime as dt
 import shutil
+import uuid
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from app.logging_config import get_logger
 from app.tasks.maintenance_logging import (
-import uuid
     log_maintenance_complete,
     log_maintenance_start,
     record_maintenance_metric,
@@ -246,7 +246,7 @@ def _get_cache_targets(project_root: Path) -> list[dict[str, Any]]:
 
 
 def cleanup_temp_files_task(
-    self: Task[..., Any], hours: int = 24, dry_run: bool = False
+    hours: int = 24, dry_run: bool = False
 ) -> dict[str, Any]:
     """Delete temporary files older than specified hours.
 

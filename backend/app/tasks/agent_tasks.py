@@ -12,7 +12,8 @@ For other background tasks, see:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+import uuid
+from typing import TYPE_CHECKING
 
 from app.agents.discovery import DiscoveryAgent
 from app.agents.llm_client import DualProviderClient
@@ -27,10 +28,8 @@ from app.rules.loader import get_rules
 from app.services import NewsService
 from app.sources.fred import FREDSource
 from app.storage import get_storage
-from app.tasks.triggers import emit_event
-
 from app.storage.credential_loader import load_credentials_from_database
-import uuid
+from app.tasks.triggers import emit_event
 
 if TYPE_CHECKING:
     from app.storage import PortfolioStorage
@@ -211,7 +210,7 @@ def run_portfolio_analyzer() -> str:
 
 
 def update_paper_trades_task(  # type: ignore[no-untyped-def]
-    self, max_holding_days: int = 60
+    max_holding_days: int = 60,
 ):
     """Update all open paper trades with current prices and check for exits.
 

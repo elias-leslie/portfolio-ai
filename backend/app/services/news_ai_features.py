@@ -8,8 +8,8 @@ try:
     from .story_clusterer import NewsArticle as ClustererArticle
     from .story_clusterer import StoryClusterer
 except Exception:  # pragma: no cover - handled via availability checks
-    ClustererArticle = cast(Any, None)  # type: ignore[misc]
-    StoryClusterer = cast(Any, None)  # type: ignore[misc]
+    ClustererArticle = cast(Any, None)
+    StoryClusterer = cast(Any, None)
 
 try:
     from .plain_language_news import (

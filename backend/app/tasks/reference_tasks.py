@@ -9,10 +9,8 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-from typing import TYPE_CHECKING, Any, TypedDict
-
-from psycopg2 import OperationalError
-from requests.exceptions import RequestException
+import uuid
+from typing import Any, TypedDict
 
 from app.analytics.analyst_revisions import refresh_analyst_revisions_for_symbols
 from app.analytics.financial_health_scores import get_financial_health_scores
@@ -24,7 +22,6 @@ from app.sources.yfinance_source import YFinanceSource
 from app.storage import get_storage
 from app.utils.formatters import parse_float
 from app.utils.task_helpers import get_watchlist_symbols_or_early_return
-import uuid
 
 logger = get_logger(__name__)
 
@@ -475,8 +472,7 @@ def _store_alphavantage_payload(symbols: list[str]) -> int:
 
 
 def refresh_alphavantage_reference_backup(
-    self: Task[..., Any],
-) -> dict[str, int | str | float | None]:
+    ) -> dict[str, int | str | float | None]:
     """Fetch Alpha Vantage reference data for symbols with missing/stale yfinance data.
 
     Runs daily at 04:45 UTC, after yfinance refresh.

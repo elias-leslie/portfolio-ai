@@ -141,13 +141,14 @@ def _on_price_alert_triggered(payload: dict[str, Any]) -> None:
 
     refresh_single_symbol_scores_task(symbol)
 
-    # Also trigger signal generation if there's an active strategy
-    from app.tasks.strategy_signal_tasks import (
-        generate_signal_for_strategy_task,
-    )
+    # Also trigger signal generation for active strategies on this symbol
+    from app.strategies.storage import get_strategy_storage
+    from app.tasks.strategy_signal_tasks import generate_signal_for_strategy_task
 
-    # This will check for active strategy internally
-    generate_signal_for_strategy_task(symbol)
+    strategy_storage = get_strategy_storage()
+    strategies = strategy_storage.list_strategies(symbol=symbol, status="active")
+    for strategy in strategies:
+        generate_signal_for_strategy_task(str(strategy.id), symbol)
 
     logger.info(
         "triggered_from_price_alert",
@@ -176,12 +177,14 @@ def _on_earnings_released(payload: dict[str, Any]) -> None:
 
     refresh_single_symbol_scores_task(symbol)
 
-    # Trigger signal generation
-    from app.tasks.strategy_signal_tasks import (
-        generate_signal_for_strategy_task,
-    )
+    # Trigger signal generation for active strategies on this symbol
+    from app.strategies.storage import get_strategy_storage
+    from app.tasks.strategy_signal_tasks import generate_signal_for_strategy_task
 
-    generate_signal_for_strategy_task(symbol)
+    strategy_storage = get_strategy_storage()
+    strategies = strategy_storage.list_strategies(symbol=symbol, status="active")
+    for strategy in strategies:
+        generate_signal_for_strategy_task(str(strategy.id), symbol)
 
     logger.info(
         "triggered_from_earnings_release",

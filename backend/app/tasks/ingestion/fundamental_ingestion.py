@@ -57,7 +57,7 @@ def _ensure_symbol_exists(storage: PortfolioStorage, symbol: str) -> None:
 
 
 def ingest_fundamental_data(
-    self: Task[..., Any], symbols: list[str] | None = None
+    symbols: list[str] | None = None
 ) -> dict[str, Any]:
     """Ingest fundamental data for watchlist symbols.
 

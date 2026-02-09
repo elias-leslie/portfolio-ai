@@ -10,13 +10,12 @@ FEAT-175: Share Buybacks
 from __future__ import annotations
 
 import datetime as dt
+import uuid
 from typing import Any
-
 
 from app.logging_config import get_logger
 from app.sources.buyback_source import fetch_and_store_buybacks
 from app.storage import get_storage
-import uuid
 
 logger = get_logger(__name__)
 
@@ -30,7 +29,6 @@ def _get_watchlist_symbols() -> list[str]:
 
 
 def fetch_corporate_actions(
-    self: Task[..., Any],
     symbols: list[str] | None = None,
 ) -> dict[str, Any]:
     """

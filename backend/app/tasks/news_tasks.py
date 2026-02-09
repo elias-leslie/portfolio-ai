@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import time
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from app.logging_config import get_logger
 from app.services import NewsBundle, NewsService, NewsSummary
@@ -99,7 +99,7 @@ def _record_summary(
 
 
 def _refresh_news_sentiment_task(
-    self: Task[..., Any], account_id: str = "default"
+    account_id: str = "default"
 ) -> dict[str, int | str | float]:
     """Refresh market and watchlist news sentiment caches."""
     start_time = time.time()  # Track task duration

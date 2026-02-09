@@ -167,8 +167,7 @@ def _save_backtest_results(
     )
 
 
-def run_backtest_task(  # type: ignore[no-untyped-def]
-    self,
+def run_backtest_task(
     run_id: str,
     symbol: str,
     start_date: str,  # ISO format (YYYY-MM-DD)

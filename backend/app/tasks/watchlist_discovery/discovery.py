@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 from ...logging_config import get_logger
 from ...rules.loader import get_rules
 from ...storage import PortfolioStorage
@@ -29,9 +28,7 @@ logger = get_logger(__name__)
 # =============================================================================
 
 
-def discover_watchlist_candidates_task(
-    self: Any,
-) -> dict[str, Any]:
+def discover_watchlist_candidates_task() -> dict[str, Any]:
     """Discover and add high-potential symbols to watchlist.
 
     Scheduled: Daily 08:00 UTC

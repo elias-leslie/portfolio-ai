@@ -312,8 +312,8 @@ def _ingest_historical_ohlcv_impl(
         raise
 
 
-def refresh_daily_ohlcv(  # type: ignore[no-untyped-def]
-    self, symbols: list[str] | None = None
+def refresh_daily_ohlcv(
+    symbols: list[str] | None = None,
 ) -> dict[str, int | str | float]:
     """Refresh latest OHLCV data for critical symbols (SPY by default).
 
@@ -364,9 +364,7 @@ def refresh_daily_ohlcv(  # type: ignore[no-untyped-def]
         raise
 
 
-def refresh_watchlist_ohlcv(  # type: ignore[no-untyped-def]
-    self,
-) -> dict[str, int | str | float]:
+def refresh_watchlist_ohlcv() -> dict[str, int | str | float]:
     """Refresh latest OHLCV data for all watchlist symbols.
 
     Fetches the most recent 5 trading days to ensure fresh data.
@@ -498,8 +496,8 @@ def refresh_watchlist_ohlcv(  # type: ignore[no-untyped-def]
         raise
 
 
-def ingest_historical_ohlcv(  # type: ignore[no-untyped-def]
-    self, symbols: list[str], days: int = 252
+def ingest_historical_ohlcv(
+    symbols: list[str], days: int = 252
 ) -> dict[str, int | str | float]:
     """Backfill historical OHLCV data using multi-source fetcher.
 

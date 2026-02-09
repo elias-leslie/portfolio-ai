@@ -7,13 +7,13 @@ Runs daily to ensure data is current and complete.
 from __future__ import annotations
 
 import datetime as dt
+import uuid
 from typing import TYPE_CHECKING
 
 from app.constants import ALL_MARKET_SYMBOLS
 from app.logging_config import get_logger
 from app.storage import get_storage
 from app.tasks.ingestion import ingest_historical_ohlcv
-import uuid
 
 if TYPE_CHECKING:
     pass
@@ -89,9 +89,7 @@ def _get_all_symbols() -> list[str]:
     return all_symbols
 
 
-def maintain_historical_market_data(  # type: ignore[no-untyped-def]
-    self,
-) -> dict[str, int | str | float]:
+def maintain_historical_market_data() -> dict[str, int | str | float]:
     """Maintain historical market data for all required indicators and sectors.
 
     This task is idempotent and self-healing:
@@ -158,7 +156,6 @@ def maintain_historical_market_data(  # type: ignore[no-untyped-def]
             )
 
             # Call the existing ingest_historical_ohlcv task
-            # Note: This is a bound task so self is automatically provided
             backfill_result = ingest_historical_ohlcv(
                 symbols=symbols_to_backfill,
                 days=TARGET_DAYS,

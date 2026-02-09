@@ -7,7 +7,7 @@ based on VIX, momentum, RSI, credit spreads, and market breadth.
 from __future__ import annotations
 
 import datetime as dt
-from typing import TYPE_CHECKING, Any
+import uuid
 
 import redis
 
@@ -15,7 +15,6 @@ from app.logging_config import get_logger
 from app.storage import get_storage
 from app.storage.types import DatabaseConnection
 from app.tasks.types import FearGreedCalculationDict
-import uuid
 
 logger = get_logger(__name__)
 
@@ -308,7 +307,7 @@ def _invalidate_redis_cache() -> None:
 
 
 def calculate_fear_greed(
-    self: Task[..., Any], as_of_date: str | None = None
+    as_of_date: str | None = None
 ) -> FearGreedCalculationDict:
     """Calculate Fear & Greed Index from inputs table.
 

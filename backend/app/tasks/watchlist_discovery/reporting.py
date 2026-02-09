@@ -11,7 +11,6 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
-
 from ...logging_config import get_logger
 from ...storage import PortfolioStorage
 
@@ -22,9 +21,7 @@ logger = get_logger(__name__)
 # =============================================================================
 
 
-def generate_daily_watchlist_report_task(
-    self: Any,
-) -> dict[str, Any]:
+def generate_daily_watchlist_report_task() -> dict[str, Any]:
     """Generate daily watchlist report with additions, removals, and score changes.
 
     Scheduled: Daily 09:00 UTC (after discovery and trim tasks)

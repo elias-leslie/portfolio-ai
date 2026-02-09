@@ -13,12 +13,12 @@ All tasks are designed to be:
 from __future__ import annotations
 
 import datetime as dt
+import uuid
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from app.logging_config import get_logger
 from app.tasks.maintenance_logging import (
-import uuid
     log_maintenance_complete,
     log_maintenance_start,
 )
@@ -188,7 +188,7 @@ def _cleanup_files(
 
 
 def rotate_logs_task(
-    self: Task[..., Any], dry_run: bool = False
+    dry_run: bool = False
 ) -> dict[str, int | str | float | bool]:
     """Rotate logs in /tmp and /var/log/portfolio-ai directories.
 
@@ -282,7 +282,7 @@ def rotate_logs_task(
 
 
 def cleanup_old_logs_task(
-    self: Task[..., Any], days: int = 7, dry_run: bool = False
+    days: int = 7, dry_run: bool = False
 ) -> dict[str, Any]:
     """Delete log files older than specified days.
 

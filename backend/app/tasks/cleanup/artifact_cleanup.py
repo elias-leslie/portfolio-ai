@@ -16,12 +16,12 @@ from __future__ import annotations
 import datetime as dt
 import re
 import shutil
+import uuid
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from app.logging_config import get_logger
 from app.tasks.maintenance_logging import (
-import uuid
     log_maintenance_complete,
     log_maintenance_start,
     record_maintenance_metric,
@@ -221,7 +221,7 @@ def _get_old_model_versions(
 
 
 def cleanup_old_backups_task(
-    self: Task[..., Any], keep_count: int = 5, dry_run: bool = False
+    keep_count: int = 5, dry_run: bool = False
 ) -> dict[str, Any]:
     """Delete old backup files, keeping N most recent.
 
@@ -341,7 +341,7 @@ def cleanup_old_backups_task(
 
 
 def cleanup_old_models_task(
-    self: Task[..., Any], keep_count: int = 3, dry_run: bool = False
+    keep_count: int = 3, dry_run: bool = False
 ) -> dict[str, Any]:
     """Delete old ML model versions, keeping N most recent per model type.
 
@@ -451,7 +451,7 @@ def cleanup_old_models_task(
 
 
 def cleanup_solution_state_task(
-    self: Task[..., Any], keep_days: int = 14, dry_run: bool = False
+    keep_days: int = 14, dry_run: bool = False
 ) -> dict[str, Any]:
     """Delete old solution_state test artifacts, keeping N days of recent data.
 

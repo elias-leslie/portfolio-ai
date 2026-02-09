@@ -10,14 +10,14 @@ Populates fear_greed_inputs table with market data for Fear & Greed Index calcul
 from __future__ import annotations
 
 import datetime as dt
-from typing import TYPE_CHECKING, Any
+import uuid
+from typing import TYPE_CHECKING
 
 from app.logging_config import get_logger
 from app.storage import get_storage
 from app.tasks.indicators import calculate_fear_greed
 from app.tasks.market_data.fear_greed_data import fetch_market_indicators, fetch_spy_data
 from app.tasks.market_data.fear_greed_data import (
-import uuid
     fetch_market_indicators as _fetch_market_indicators,
 )
 from app.tasks.market_data.fear_greed_data import fetch_spy_data as _fetch_spy_data
@@ -30,7 +30,7 @@ from app.tasks.market_data.fear_greed_processing import (
 )
 from app.tasks.types import FearGreedPipelineResultDict
 
-
+if TYPE_CHECKING:
     from app.storage.facade import PortfolioStorage
 
 logger = get_logger(__name__)

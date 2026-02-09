@@ -96,7 +96,7 @@ def execute_run_backtest(
             end_date=end_date,
             initial_capital=initial_capital,
             strategy_name=strategy_name,
-            min_signal_strength=min_signal_strength,
+            min_confirmations=max(min_signal_strength - 2, 3),
             max_holding_days=max_holding_days,
             position_sizing_method=position_sizing_method,
             position_size_value=position_size_value,

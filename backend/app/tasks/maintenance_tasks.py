@@ -14,14 +14,14 @@ All tasks are designed to be:
 from __future__ import annotations
 
 import datetime as dt
-from typing import TYPE_CHECKING, Any
+import uuid
+from typing import Any
 
 from app.logging_config import get_logger
 from app.sources.sec_cik_fetcher import fetch_and_save as fetch_cik_mapping
 from app.storage import get_storage
 from app.tasks.maintenance_helpers import execute_maintenance_task
 from app.tasks.maintenance_operations import (
-import uuid
     cleanup_old_agent_runs,
     cleanup_old_news,
     cleanup_orphaned_data,
@@ -34,7 +34,7 @@ logger = get_logger(__name__)
 
 
 def vacuum_database_task(
-    self: Task[..., Any], tables: list[str] | None = None, dry_run: bool = False
+    tables: list[str] | None = None, dry_run: bool = False
 ) -> dict[str, Any]:
     """VACUUM ANALYZE database tables to reclaim space and update statistics.
 
@@ -54,7 +54,7 @@ def vacuum_database_task(
 
 
 def cleanup_old_news_task(
-    self: Task[..., Any], days: int = 90, dry_run: bool = False
+    days: int = 90, dry_run: bool = False
 ) -> dict[str, Any]:
     """Delete news articles older than specified days.
 
@@ -74,7 +74,7 @@ def cleanup_old_news_task(
 
 
 def cleanup_old_agent_runs_task(
-    self: Task[..., Any], days: int = 30, dry_run: bool = False
+    days: int = 30, dry_run: bool = False
 ) -> dict[str, Any]:
     """Delete agent run history older than specified days.
 
@@ -111,8 +111,7 @@ def cleanup_orphaned_data_task(dry_run: bool = False) -> dict[str, Any]:
 
 
 def get_database_size_task(
-    self: Task[..., Any],
-) -> dict[str, int | str | float | list[dict[str, Any]]]:
+    ) -> dict[str, int | str | float | list[dict[str, Any]]]:
     """Get database size and table sizes for monitoring.
 
     Returns:

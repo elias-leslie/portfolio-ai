@@ -6,20 +6,19 @@ like RSI, MACD, SMA, EMA, Bollinger Bands, ATR, and Stochastic indicators.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+import uuid
 
 from app.analytics.indicators import calculate_indicators
 from app.logging_config import get_logger
 from app.storage import get_storage
 from app.tasks.indicators.helpers import build_indicator_data, upsert_indicators
 from app.tasks.types import TechnicalIndicatorResultDict
-import uuid
 
 logger = get_logger(__name__)
 
 
 def update_technical_indicators(
-    self: Task[..., Any], symbols: list[str]
+    symbols: list[str]
 ) -> TechnicalIndicatorResultDict:
     """Calculate and cache technical indicators for given symbols.
 
@@ -109,7 +108,7 @@ def update_technical_indicators(
 
 
 def backfill_technical_indicators(
-    self: Task[..., Any], symbols: list[str] | None = None, batch_size: int = 50
+    symbols: list[str] | None = None, batch_size: int = 50
 ) -> dict[str, int]:
     """Backfill technical indicators for all historical dates with OHLCV data.
 

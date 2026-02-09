@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import time
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from app.logging_config import get_logger
 from app.services.news_quality_metrics import (
@@ -261,7 +261,7 @@ def _store_metrics(metrics: list[tuple[str, dict[str, Any]]]) -> None:
 
 
 def profile_news_sources_task(
-    self: Task[..., Any], user_id: str = "default"
+    user_id: str = "default"
 ) -> NewsProfilingResultDict:
     """Profile all active news sources and calculate quality metrics.
 

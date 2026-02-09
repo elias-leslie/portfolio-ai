@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import datetime as dt
 import time
-from typing import TYPE_CHECKING, Any
+import uuid
 
 from app.constants import DEFAULT_BACKFILL_DAYS
 from app.logging_config import get_logger
@@ -17,7 +17,6 @@ from app.utils.market_hours import is_market_hours
 from app.utils.task_locks import task_lock
 from app.utils.task_logging import log_task_skip, task_logger
 from app.watchlist.service import refresh_watchlist_scores as refresh_watchlist_scores_service
-import uuid
 
 logger = get_logger(__name__)
 
@@ -202,7 +201,7 @@ def _build_skip_result(
 
 
 def refresh_watchlist_scores_task(
-    self: Task[..., Any], account_id: str | None = None, force: bool = False
+    account_id: str | None = None, force: bool = False
 ) -> WatchlistResultDict:
     """Refresh watchlist scores for all items or a specific account.
 
@@ -237,12 +236,11 @@ def refresh_watchlist_scores_task(
             }
 
         return _refresh_watchlist_scores_impl(
-            self, account_id, skip_check_start, start_time, task_id, force
+            account_id, skip_check_start, start_time, task_id, force
         )
 
 
 def _refresh_watchlist_scores_impl(
-    self: Task[..., Any],
     account_id: str,
     skip_check_start: float,
     start_time: float,

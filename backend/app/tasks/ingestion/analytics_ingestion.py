@@ -18,8 +18,7 @@ from app.storage import get_storage
 logger = get_logger(__name__)
 
 
-def update_portfolio_covariance(  # type: ignore[no-untyped-def]
-    self,
+def update_portfolio_covariance(
     symbols: list[str] | None = None,
     lookback_days: int = 252,
 ) -> dict[str, int | str]:
@@ -105,8 +104,7 @@ def update_portfolio_covariance(  # type: ignore[no-untyped-def]
         raise
 
 
-def update_earnings_surprises(  # type: ignore[no-untyped-def]
-    self,
+def update_earnings_surprises(
     symbols: list[str] | None = None,
 ) -> dict[str, Any]:
     """Update earnings surprise data for watchlist/portfolio symbols (GAP-003).

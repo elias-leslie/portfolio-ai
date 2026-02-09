@@ -13,13 +13,13 @@ from __future__ import annotations
 
 import datetime as dt
 import shutil
+import uuid
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from app.logging_config import get_logger
 from app.tasks.maintenance_logging import record_maintenance_metric
 from app.utils.task_helpers import build_error_result, calculate_duration
-import uuid
 
 logger = get_logger(__name__)
 
@@ -103,8 +103,7 @@ def check_disk_space_impl() -> dict[str, Any]:
 
 
 def check_disk_space_task(
-    self: Task[..., Any],
-) -> dict[str, int | str | float | list[dict[str, Any]]]:
+    ) -> dict[str, int | str | float | list[dict[str, Any]]]:
     """Check disk space usage and alert if >85%.
 
     Returns:
