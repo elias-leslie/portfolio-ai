@@ -284,19 +284,19 @@ async def get_health_summary() -> HealthSummaryDict:
                     summary["by_status"][health_status_val] += count
                     summary["total"] += count
 
-            # Query celery_capabilities
-            celery_query = """
+            # Query celery_capabilities (DB table not yet renamed)
+            hatchet_query = """
                 SELECT health_status, COUNT(*) as count
                 FROM celery_capabilities
                 WHERE health_status IS NOT NULL
                 GROUP BY health_status
             """
-            result = conn.execute(celery_query)
+            result = conn.execute(hatchet_query)
             for row in result.fetchall():
                 health_status_val, count = row
                 # Type narrowing: ensure we have a string health_status and int count
                 if isinstance(health_status_val, str) and isinstance(count, int):
-                    summary["by_type"]["celery"][health_status_val] = count
+                    summary["by_type"]["hatchet"][health_status_val] = count
                     summary["by_status"][health_status_val] += count
                     summary["total"] += count
 
@@ -336,13 +336,13 @@ async def get_health_summary() -> HealthSummaryDict:
 
 @router.get("/{capability_type}/{capability_id}", response_model=CapabilityDetailResponse)
 async def get_capability_detail(
-    capability_type: Literal["db", "celery", "api"],
+    capability_type: Literal["db", "hatchet", "api"],
     capability_id: int,
 ) -> CapabilityDetailResponse:
     """Get detailed view of a single capability with related insights, notes, and dependencies.
 
     Path params:
-        - capability_type: Type of capability (db|celery|api)
+        - capability_type: Type of capability (db|hatchet|api)
         - capability_id: Unique ID of the capability
 
     Returns:
@@ -400,7 +400,7 @@ async def get_capability_detail(
             if capability_type == "db":
                 # No dependencies tracked for db_capabilities
                 pass
-            elif capability_type == "celery":
+            elif capability_type == "hatchet":
                 populates_tables = capability.get("populates_tables", [])
                 depends_on_tasks = capability.get("depends_on_tasks", [])
                 if isinstance(populates_tables, list) and isinstance(depends_on_tasks, list):
@@ -480,7 +480,7 @@ async def get_cleanup_candidates() -> dict[str, Any]:
         with conn_mgr.connection() as conn:
             candidates: dict[str, Any] = {
                 "database": [],
-                "celery": [],
+                "hatchet": [],
                 "api": [],
                 "summary": {
                     "total_candidates": 0,
@@ -555,8 +555,8 @@ async def get_cleanup_candidates() -> dict[str, Any]:
                 if isinstance(health_status, str):
                     candidates["summary"]["by_status"][health_status] += 1
 
-            # Query orphaned/legacy Celery tasks
-            celery_query = """
+            # Query orphaned/legacy Hatchet tasks (DB table not yet renamed)
+            hatchet_task_query = """
                 SELECT
                     id,
                     task_name,
@@ -571,7 +571,7 @@ async def get_cleanup_candidates() -> dict[str, Any]:
                 WHERE health_status IN ('orphaned', 'legacy')
                 ORDER BY health_status, task_name
             """
-            result = conn.execute(celery_query)
+            result = conn.execute(hatchet_task_query)
             for row in result.fetchall():
                 # Type annotations for row values
                 task_id: Any = row[0]
@@ -586,9 +586,9 @@ async def get_cleanup_candidates() -> dict[str, Any]:
 
                 has_schedule = bool(schedule_crontab or schedule_interval)
                 populates_tables_list = populates_tables_raw if populates_tables_raw else []
-                evidence_list_celery: list[str] = []
+                evidence_list_hatchet: list[str] = []
 
-                item_celery: dict[str, Any] = {
+                item_hatchet: dict[str, Any] = {
                     "id": task_id,
                     "name": task_name,
                     "category": task_category,
