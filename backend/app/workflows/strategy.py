@@ -171,7 +171,7 @@ async def portfolio_snapshots_wf(input: EmptyInput, ctx: Context) -> dict[str, A
     ),
 )
 async def covariance_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.portfolio_tasks import update_portfolio_covariance
+    from ..tasks.ingestion.analytics_ingestion import update_portfolio_covariance
 
     return await asyncio.to_thread(update_portfolio_covariance)
 

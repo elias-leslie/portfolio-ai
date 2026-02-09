@@ -82,7 +82,7 @@ async def refresh_analyst_revisions_wf(input: EmptyInput, ctx: Context) -> dict[
     ),
 )
 async def earnings_surprises_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.ingestion.fundamental_ingestion import update_earnings_surprises
+    from ..tasks.ingestion.analytics_ingestion import update_earnings_surprises
 
     return await asyncio.to_thread(update_earnings_surprises)
 

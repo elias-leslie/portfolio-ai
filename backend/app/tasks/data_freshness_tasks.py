@@ -116,7 +116,7 @@ def maintain_data_freshness() -> dict[str, Any]:
         # Refresh stale symbols by triggering full watchlist refresh
         # Note: refresh_watchlist_scores_task refreshes all symbols
         try:
-            refresh_watchlist_scores_task.apply(args=("default",))
+            refresh_watchlist_scores_task(account_id="default")
             refreshed = len(stale_symbols)
             failed = 0
             logger.info("watchlist_refreshed", stale_count=len(stale_symbols))
