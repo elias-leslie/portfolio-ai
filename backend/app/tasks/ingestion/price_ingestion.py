@@ -338,7 +338,7 @@ def refresh_daily_ohlcv(  # type: ignore[no-untyped-def]
     if symbols is None:
         symbols = ["SPY"]  # Default to SPY for Fear & Greed calculations
 
-    task_id = self.request.id
+    task_id = str(uuid.uuid4())
 
     logger.info(
         "refresh_daily_ohlcv_started",
@@ -384,7 +384,7 @@ def refresh_watchlist_ohlcv(  # type: ignore[no-untyped-def]
     Example:
         >>> refresh_watchlist_ohlcv.delay()  # Refreshes all watchlist symbols
     """
-    task_id = self.request.id
+    task_id = str(uuid.uuid4())
     ingest_run_id = str(uuid.uuid4())
     start_time = dt.datetime.now(dt.UTC)
 
@@ -535,16 +535,16 @@ def ingest_historical_ohlcv(  # type: ignore[no-untyped-def]
         if not acquired:
             logger.info(
                 "ingest_historical_ohlcv_skipped_duplicate",
-                task_id=self.request.id,
+                task_id=str(uuid.uuid4()),
                 symbols=symbols,
                 days=days,
                 reason="duplicate_task_running",
             )
             return {
-                "task_id": self.request.id,
+                "task_id": str(uuid.uuid4()),
                 "skipped": True,
                 "reason": "duplicate_task_running",
                 "symbols_count": len(symbols),
             }
 
-        return _ingest_historical_ohlcv_impl(symbols, days, self.request.id)
+        return _ingest_historical_ohlcv_impl(symbols, days, str(uuid.uuid4()))

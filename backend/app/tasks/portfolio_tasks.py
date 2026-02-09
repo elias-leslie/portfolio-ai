@@ -103,4 +103,4 @@ def save_portfolio_snapshots_task(dict[str, Any]]) -> dict[str, Any]:
 
     except Exception as e:
         logger.error("portfolio_snapshots_task_failed", error=str(e))
-        raise self.retry(exc=e) from e
+        raise

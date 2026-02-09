@@ -21,6 +21,7 @@ from app.sources.sec_cik_fetcher import fetch_and_save as fetch_cik_mapping
 from app.storage import get_storage
 from app.tasks.maintenance_helpers import execute_maintenance_task
 from app.tasks.maintenance_operations import (
+import uuid
     cleanup_old_agent_runs,
     cleanup_old_news,
     cleanup_orphaned_data,
@@ -44,7 +45,7 @@ def vacuum_database_task(
     Returns:
         Dict with task_id, tables_processed, duration_seconds, success status
     """
-    task_id = self.request.id or "unknown"
+    task_id = str(uuid.uuid4())
 
     def vacuum_impl() -> dict[str, Any]:
         return vacuum_tables(tables=tables, dry_run=dry_run)
@@ -64,7 +65,7 @@ def cleanup_old_news_task(
     Returns:
         Dict with task_id, rows_deleted, duration_seconds, success status
     """
-    task_id = self.request.id or "unknown"
+    task_id = str(uuid.uuid4())
 
     def cleanup_impl() -> dict[str, Any]:
         return cleanup_old_news(days=days, dry_run=dry_run)
@@ -84,7 +85,7 @@ def cleanup_old_agent_runs_task(
     Returns:
         Dict with task_id, runs_deleted, duration_seconds, success status
     """
-    task_id = self.request.id or "unknown"
+    task_id = str(uuid.uuid4())
 
     def cleanup_impl() -> dict[str, Any]:
         return cleanup_old_agent_runs(days=days, dry_run=dry_run)
@@ -101,7 +102,7 @@ def cleanup_orphaned_data_task(dry_run: bool = False) -> dict[str, Any]:
     Returns:
         Dict with task_id, orphaned_insights_deleted, zombie_runs_fixed, duration_seconds, success status
     """
-    task_id = self.request.id or "unknown"
+    task_id = str(uuid.uuid4())
 
     def cleanup_impl() -> dict[str, Any]:
         return cleanup_orphaned_data(dry_run=dry_run)
@@ -117,7 +118,7 @@ def get_database_size_task(
     Returns:
         Dict with task_id, database_size_bytes, top_tables, duration_seconds
     """
-    task_id = self.request.id or "unknown"
+    task_id = str(uuid.uuid4())
     start_time = dt.datetime.now(dt.UTC)
 
     logger.info("get_database_size_started", task_id=task_id)
@@ -162,7 +163,7 @@ def refresh_sec_cik_cache() -> dict[str, Any]:
     Returns:
         Dict with task_id, symbols_updated, duration_seconds, success
     """
-    task_id = self.request.id or "unknown"
+    task_id = str(uuid.uuid4())
     start_time = dt.datetime.now(dt.UTC)
 
     logger.info("refresh_sec_cik_cache_started", task_id=task_id)

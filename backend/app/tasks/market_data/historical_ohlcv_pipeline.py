@@ -13,6 +13,7 @@ from app.constants import ALL_MARKET_SYMBOLS
 from app.logging_config import get_logger
 from app.storage import get_storage
 from app.tasks.ingestion import ingest_historical_ohlcv
+import uuid
 
 if TYPE_CHECKING:
     pass
@@ -111,7 +112,7 @@ def maintain_historical_market_data(  # type: ignore[no-untyped-def]
         >>> # Manual trigger for testing
         >>> celery -A app.celery_app call app.tasks.market_data.maintain_historical_market_data
     """
-    task_id = self.request.id or "unknown"
+    task_id = str(uuid.uuid4())
     start_time = dt.datetime.now(dt.UTC)
 
     # Get all symbols: market symbols + watchlist symbols (dynamically)

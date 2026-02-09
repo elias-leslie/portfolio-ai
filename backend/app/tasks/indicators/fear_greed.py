@@ -15,6 +15,7 @@ from app.logging_config import get_logger
 from app.storage import get_storage
 from app.storage.types import DatabaseConnection
 from app.tasks.types import FearGreedCalculationDict
+import uuid
 
 logger = get_logger(__name__)
 
@@ -333,7 +334,7 @@ def calculate_fear_greed(
         This task can be scheduled daily after market close to update the index.
         It requires fear_greed_inputs table to be populated first.
     """
-    task_id = self.request.id
+    task_id = str(uuid.uuid4())
     logger.info("calculate_fear_greed_started", task_id=task_id, as_of_date=as_of_date)
 
     storage = get_storage()

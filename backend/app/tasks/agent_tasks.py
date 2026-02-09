@@ -30,6 +30,7 @@ from app.storage import get_storage
 from app.tasks.triggers import emit_event
 
 from app.storage.credential_loader import load_credentials_from_database
+import uuid
 
 if TYPE_CHECKING:
     from app.storage import PortfolioStorage
@@ -97,7 +98,7 @@ def run_discovery_agent() -> str:
         logger.info("discovery_agent_skipped", reason="thesis_generation_disabled")
         return "skipped:thesis_generation_disabled"
 
-    task_id = self.request.id or "unknown"
+    task_id = str(uuid.uuid4())
     logger.info(
         "discovery_agent_task_started",
         task_id=task_id,
@@ -159,7 +160,7 @@ def run_portfolio_analyzer() -> str:
         logger.info("portfolio_analyzer_skipped", reason="thesis_generation_disabled")
         return "skipped:thesis_generation_disabled"
 
-    task_id = self.request.id or "unknown"
+    task_id = str(uuid.uuid4())
     logger.info(
         "portfolio_analyzer_task_started",
         task_id=task_id,
@@ -248,7 +249,7 @@ def update_paper_trades_task(  # type: ignore[no-untyped-def]
         }
         ```
     """
-    task_id = self.request.id
+    task_id = str(uuid.uuid4())
     logger.info(
         "update_paper_trades_task_started",
         task_id=task_id,

@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any
 from app.logging_config import get_logger
 from app.utils.task_locks import task_lock
 from app.utils.task_logging import task_logger
+import uuid
 
 logger = get_logger(__name__)
 
@@ -82,7 +83,7 @@ def daily_qa_scan() -> dict[str, Any]:
     Returns:
         Dict with status, issues_found, categories_scanned
     """
-    task_id = self.request.id or "unknown"
+    task_id = str(uuid.uuid4())
 
     with task_logger("daily_qa_scan", task_id), task_lock("daily_qa_scan", ttl=1800) as acquired:
         if not acquired:

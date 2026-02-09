@@ -16,6 +16,7 @@ from typing import Any
 from app.logging_config import get_logger
 from app.sources.buyback_source import fetch_and_store_buybacks
 from app.storage import get_storage
+import uuid
 
 logger = get_logger(__name__)
 
@@ -41,7 +42,7 @@ def fetch_corporate_actions(
     Returns:
         Summary dict with processing results.
     """
-    task_id = getattr(self.request, "id", None)
+    task_id = str(uuid.uuid4())
 
     logger.info(
         "fetch_corporate_actions_started",

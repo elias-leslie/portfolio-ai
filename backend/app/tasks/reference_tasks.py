@@ -24,6 +24,7 @@ from app.sources.yfinance_source import YFinanceSource
 from app.storage import get_storage
 from app.utils.formatters import parse_float
 from app.utils.task_helpers import get_watchlist_symbols_or_early_return
+import uuid
 
 logger = get_logger(__name__)
 
@@ -297,7 +298,7 @@ def parse_valuation_metrics() -> dict[str, int | str | float]:
         >>> # Manual trigger for testing
         >>> celery -A app.celery_app call app.tasks.reference_tasks.parse_valuation_metrics
     """
-    task_id = self.request.id or "unknown"
+    task_id = str(uuid.uuid4())
     start_time = dt.datetime.now(dt.UTC)
 
     logger.info(
@@ -354,7 +355,7 @@ def refresh_yfinance_reference_data() -> dict[str, int | str | float | None]:
         - symbols_updated: Number of symbols successfully updated
         - duration_seconds: Total execution time
     """
-    task_id = self.request.id or "unknown"
+    task_id = str(uuid.uuid4())
     start_time = dt.datetime.now(dt.UTC)
 
     logger.info("yfinance_reference_refresh_started", task_id=task_id)
@@ -488,7 +489,7 @@ def refresh_alphavantage_reference_backup(
         - symbols_updated: Number of symbols successfully updated
         - duration_seconds: Total execution time
     """
-    task_id = self.request.id or "unknown"
+    task_id = str(uuid.uuid4())
     start_time = dt.datetime.now(dt.UTC)
 
     logger.info("alphavantage_backup_refresh_started", task_id=task_id)
@@ -548,7 +549,7 @@ def refresh_analyst_revisions() -> dict[str, int | str | float | None]:
         - records_saved: Number of revision records saved
         - duration_seconds: Total execution time
     """
-    task_id = self.request.id or "unknown"
+    task_id = str(uuid.uuid4())
     start_time = dt.datetime.now(dt.UTC)
 
     logger.info("analyst_revisions_refresh_started", task_id=task_id)
@@ -611,7 +612,7 @@ def refresh_financial_health_scores() -> dict[str, int | str | float | None]:
         - symbols_updated: Number of symbols with scores calculated
         - duration_seconds: Total execution time
     """
-    task_id = self.request.id or "unknown"
+    task_id = str(uuid.uuid4())
     start_time = dt.datetime.now(dt.UTC)
 
     logger.info("financial_health_scores_refresh_started", task_id=task_id)
@@ -729,7 +730,7 @@ def refresh_risk_metrics() -> dict[str, int | str | float | None]:
         - symbols_updated: Number of symbols with metrics calculated
         - duration_seconds: Total execution time
     """
-    task_id = self.request.id or "unknown"
+    task_id = str(uuid.uuid4())
     start_time = dt.datetime.now(dt.UTC)
 
     logger.info("risk_metrics_refresh_started", task_id=task_id)

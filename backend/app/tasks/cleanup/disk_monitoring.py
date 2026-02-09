@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any
 from app.logging_config import get_logger
 from app.tasks.maintenance_logging import record_maintenance_metric
 from app.utils.task_helpers import build_error_result, calculate_duration
+import uuid
 
 logger = get_logger(__name__)
 
@@ -109,7 +110,7 @@ def check_disk_space_task(
     Returns:
         Dict with task_id, partitions, alerts, duration_seconds
     """
-    task_id = self.request.id or "unknown"
+    task_id = str(uuid.uuid4())
     start_time = dt.datetime.now(dt.UTC)
 
     logger.info("check_disk_space_started", task_id=task_id)

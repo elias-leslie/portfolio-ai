@@ -45,7 +45,7 @@ def update_portfolio_covariance(  # type: ignore[no-untyped-def]
     """
     from app.analytics.covariance import update_covariance_matrix
 
-    task_id = self.request.id
+    task_id = str(uuid.uuid4())
     logger.info(
         "update_portfolio_covariance_started",
         task_id=task_id,
@@ -128,7 +128,7 @@ def update_earnings_surprises(  # type: ignore[no-untyped-def]
     """
     from app.analytics.earnings_surprise import fetch_and_store_earnings_surprises
 
-    task_id = self.request.id or str(uuid.uuid4())
+    task_id = str(uuid.uuid4())
 
     logger.info(
         "update_earnings_surprises_started",

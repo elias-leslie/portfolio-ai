@@ -215,7 +215,7 @@ def run_backtest_task(  # type: ignore[no-untyped-def]
     logger.info(
         f"Starting backtest task: {run_id} | {symbol} | {start_date} to {end_date} | "
         f"Strategy: {strategy_name} | Stop: {stop_loss_atr_multiplier}x ATR | "
-        f"Max Hold: {max_holding_days}d | Target: {target_profit_pct}% | Retry: {self.request.retries}"
+        f"Max Hold: {max_holding_days}d | Target: {target_profit_pct}% | Retry: {0}"
     )
 
     storage_mgr = get_storage()
@@ -328,11 +328,11 @@ def run_backtest_task(  # type: ignore[no-untyped-def]
             storage=storage_mgr,
             run_id=run_id,
             status="running",
-            error_message=f"Fetching historical data... (retry {self.request.retries + 1}/2)",
+            error_message=f"Fetching historical data... (retry {0 + 1}/2)",
         )
 
         # Retry after delay to allow data to be fetched
-        raise self.retry(exc=e, countdown=120) from e  # Retry in 2 minutes
+        raise  # Retry in 2 minutes
 
     except Exception as e:
         logger.error(f"Backtest failed: {run_id} | Error: {e}", exc_info=True)

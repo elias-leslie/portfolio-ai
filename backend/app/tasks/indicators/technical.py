@@ -13,6 +13,7 @@ from app.logging_config import get_logger
 from app.storage import get_storage
 from app.tasks.indicators.helpers import build_indicator_data, upsert_indicators
 from app.tasks.types import TechnicalIndicatorResultDict
+import uuid
 
 logger = get_logger(__name__)
 
@@ -44,7 +45,7 @@ def update_technical_indicators(
         This task can be scheduled daily at market close + 30 minutes (4:30 PM ET)
         using Celery beat for automated indicator updates.
     """
-    task_id = self.request.id
+    task_id = str(uuid.uuid4())
     logger.info(
         "update_technical_indicators_started",
         task_id=task_id,
@@ -139,7 +140,7 @@ def backfill_technical_indicators(
         This task can take several minutes for large datasets. Run manually or schedule
         during off-hours. Progress is logged for monitoring.
     """
-    task_id = self.request.id
+    task_id = str(uuid.uuid4())
     logger.info(
         "backfill_technical_indicators_started",
         task_id=task_id,

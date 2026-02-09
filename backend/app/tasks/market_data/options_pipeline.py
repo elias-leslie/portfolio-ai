@@ -17,6 +17,7 @@ import yfinance as yf
 
 from app.logging_config import get_logger
 from app.storage import get_storage
+import uuid
 
 if TYPE_CHECKING:
     pass
@@ -282,7 +283,7 @@ def fetch_putcall_ratio(  # type: ignore[no-untyped-def]
         Runs twice daily at 14:30 UTC (9:30 AM ET, market open) and
         21:30 UTC (4:30 PM ET, after market close) to capture intraday changes.
     """
-    task_id = self.request.id or "unknown"
+    task_id = str(uuid.uuid4())
     today = dt.date.today().isoformat()
 
     logger.info(
@@ -380,7 +381,7 @@ def fetch_options_activity_metrics(  # type: ignore[no-untyped-def]
         Uses Playwright to render JavaScript-heavy CBOE page.
         Stores aggregated metrics (not raw contracts) for trend analysis.
     """
-    task_id = self.request.id or "unknown"
+    task_id = str(uuid.uuid4())
 
     logger.info(
         "fetch_options_activity_started",

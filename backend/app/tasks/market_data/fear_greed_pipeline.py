@@ -17,6 +17,7 @@ from app.storage import get_storage
 from app.tasks.indicators import calculate_fear_greed
 from app.tasks.market_data.fear_greed_data import fetch_market_indicators, fetch_spy_data
 from app.tasks.market_data.fear_greed_data import (
+import uuid
     fetch_market_indicators as _fetch_market_indicators,
 )
 from app.tasks.market_data.fear_greed_data import fetch_spy_data as _fetch_spy_data
@@ -140,7 +141,7 @@ def populate_fear_greed_inputs(days: int = 7) -> FearGreedPipelineResultDict:
     Returns:
         FearGreedPipelineResultDict: Task result with update count and status
     """
-    task_id = self.request.id or "unknown"
+    task_id = str(uuid.uuid4())
     logger.info("populate_fear_greed_inputs_started", task_id=task_id, days=days)
 
     try:

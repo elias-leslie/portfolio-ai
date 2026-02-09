@@ -17,6 +17,7 @@ from app.utils.market_hours import is_market_hours
 from app.utils.task_locks import task_lock
 from app.utils.task_logging import log_task_skip, task_logger
 from app.watchlist.service import refresh_watchlist_scores as refresh_watchlist_scores_service
+import uuid
 
 logger = get_logger(__name__)
 
@@ -232,7 +233,7 @@ def refresh_watchlist_scores_task(
     """
     skip_check_start = time.perf_counter()  # For skip duration measurement
     start_time = time.time()  # For result duration_seconds
-    task_id = self.request.id or "unknown"
+    task_id = str(uuid.uuid4())
     account_id = account_id or "default"
 
     # Use task lock to prevent duplicate concurrent executions
@@ -391,7 +392,7 @@ def refresh_single_symbol_scores_task(symbol: str) -> dict[str, object]:
     Returns:
         Dict with processing result for the single symbol
     """
-    task_id = self.request.id
+    task_id = str(uuid.uuid4())
     start_time = time.time()
 
     # Use task lock to prevent duplicate concurrent executions for same symbol

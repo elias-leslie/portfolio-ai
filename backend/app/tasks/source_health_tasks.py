@@ -21,6 +21,7 @@ from ..sources.polygon_source import PolygonSource
 from ..sources.twelvedata_source import TwelveDataSource
 from ..sources.yfinance_source import YFinanceSource
 from ..storage import PortfolioStorage
+import uuid
 
 logger = get_logger(__name__)
 
@@ -37,7 +38,7 @@ def check_data_source_health() -> dict[str, Any]:
     Returns:
         dict: Health status per source and summary counts
     """
-    task_id = self.request.id or "unknown"
+    task_id = str(uuid.uuid4())
     logger.info("source_health_check_started", task_id=task_id)
 
     storage = PortfolioStorage()

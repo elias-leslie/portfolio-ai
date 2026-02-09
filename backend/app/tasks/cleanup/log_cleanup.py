@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 from app.logging_config import get_logger
 from app.tasks.maintenance_logging import (
+import uuid
     log_maintenance_complete,
     log_maintenance_start,
 )
@@ -197,7 +198,7 @@ def rotate_logs_task(
     Returns:
         Dict with task_id, files_rotated, duration_seconds, success status
     """
-    task_id = self.request.id or "unknown"
+    task_id = str(uuid.uuid4())
     start_time = dt.datetime.now(dt.UTC)
     log_id = log_maintenance_start("rotate_logs_task", dry_run)
 
@@ -292,7 +293,7 @@ def cleanup_old_logs_task(
     Returns:
         Dict with task_id, files_deleted, bytes_freed, duration_seconds, success status
     """
-    task_id = self.request.id or "unknown"
+    task_id = str(uuid.uuid4())
     start_time = dt.datetime.now(dt.UTC)
     log_id = log_maintenance_start("cleanup_old_logs_task", dry_run)
 

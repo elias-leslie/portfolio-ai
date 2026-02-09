@@ -14,6 +14,7 @@ from app.services.maintenance_tracker import record_maintenance_completion, reco
 from app.storage import get_storage
 from app.storage.connection import get_connection_manager
 from app.tasks.watchlist_tasks import refresh_watchlist_scores_task
+import uuid
 
 logger = get_logger(__name__)
 
@@ -90,7 +91,7 @@ def maintain_data_freshness() -> dict[str, Any]:
     Returns:
         Dict with status, symbols_checked, stale_found, refreshed, failed counts
     """
-    task_id = self.request.id
+    task_id = str(uuid.uuid4())
     start_time = dt.datetime.now(dt.UTC)
     logger.info("maintain_data_freshness_started", task_id=task_id)
 
@@ -171,7 +172,7 @@ def check_all_data_freshness(auto_remediate: bool = True) -> dict[str, Any]:
     Returns:
         Dict with status, tables_checked, fresh, stale, critical, alerts_created, remediations_triggered
     """
-    task_id = self.request.id
+    task_id = str(uuid.uuid4())
     start_time = dt.datetime.now(dt.UTC)
     logger.info("check_all_data_freshness_started", task_id=task_id, auto_remediate=auto_remediate)
 
