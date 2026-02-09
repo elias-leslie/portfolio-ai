@@ -1,4 +1,4 @@
-"""Celery tasks for system capability scanning.
+"""Tasks for system capability scanning.
 
 These tasks run on schedule to auto-discover system capabilities.
 AI analysis (analyze_capabilities) has been removed - tech debt is now
@@ -9,11 +9,9 @@ from __future__ import annotations
 
 import time
 
-from ..celery_app import celery_app
 from ..logging_config import get_logger
 from ..services.capability_scanner import (
     APIScanner,
-    CeleryScanner,
     DatabaseScanner,
     FeatureScanner,
 )
@@ -24,27 +22,19 @@ logger = get_logger(__name__)
 
 
 def scan_system_capabilities() -> CapabilityResultDict:
-    """Scan system capabilities (database tables, Celery tasks, API endpoints).
+    """Scan system capabilities (database tables, API endpoints).
 
     Runs automatically on schedule (daily at 03:00 UTC) to discover and update
-    capability metadata for monitoring and AI analysis.
+    capability metadata for monitoring.
 
     Returns:
-        CapabilityResultDict with scan results:
-            - status: "success" or "error"
-            - db_tables_scanned: int
-            - celery_tasks_scanned: int
-            - api_endpoints_scanned: int
-            - total_capabilities: int
-            - scan_duration_seconds: float
-            - error: str | None
+        CapabilityResultDict with scan results
     """
     start_time = time.time()
 
     logger.info("capability_scan_started")
 
     try:
-        # Get connection manager
         conn_mgr = get_connection_manager()
 
         # Scan database tables
@@ -53,13 +43,6 @@ def scan_system_capabilities() -> CapabilityResultDict:
         db_caps = db_scanner.scan()
         db_saved = db_scanner.save_capabilities(db_caps)
         logger.info("database_scan_saved", count=db_saved)
-
-        # Scan Celery tasks
-        logger.info("scanning_celery_capabilities")
-        celery_scanner = CeleryScanner(conn_mgr)
-        celery_caps = celery_scanner.scan()
-        celery_saved = celery_scanner.save_capabilities(celery_caps)
-        logger.info("celery_scan_saved", count=celery_saved)
 
         # Scan API endpoints
         logger.info("scanning_api_capabilities")
@@ -74,26 +57,21 @@ def scan_system_capabilities() -> CapabilityResultDict:
         feature_caps = feature_scanner.scan()
         logger.info("feature_scan_complete", count=len(feature_caps))
 
-        # Calculate duration
         duration = time.time() - start_time
 
         result: CapabilityResultDict = {
             "status": "success",
             "db_tables_scanned": len(db_caps),
-            "celery_tasks_scanned": len(celery_caps),
+            "celery_tasks_scanned": 0,
             "api_endpoints_scanned": len(api_caps),
             "features_scanned": len(feature_caps),
-            "total_capabilities": len(db_caps)
-            + len(celery_caps)
-            + len(api_caps)
-            + len(feature_caps),
+            "total_capabilities": len(db_caps) + len(api_caps) + len(feature_caps),
             "scan_duration_seconds": round(duration, 2),
         }
 
         logger.info(
             "capability_scan_complete",
             db_tables=len(db_caps),
-            celery_tasks=len(celery_caps),
             api_endpoints=len(api_caps),
             features=len(feature_caps),
             duration_seconds=round(duration, 2),
@@ -134,34 +112,19 @@ def scan_feature_capabilities() -> CapabilityResultDict:
     - Detecting inconsistencies (passes=True but tasks incomplete)
 
     Returns:
-        CapabilityResultDict with scan results:
-            - status: "success" or "error"
-            - features_scanned: int
-            - needs_review_count: int
-            - scan_duration_seconds: float
-            - error: str | None
+        CapabilityResultDict with scan results
     """
     start_time = time.time()
 
     logger.info("feature_capability_scan_started")
 
     try:
-        # Get connection manager
         conn_mgr = get_connection_manager()
-
-        # Initialize scanner
         scanner = FeatureScanner(conn_mgr)
-
-        # Run scan
         features = scanner.scan()
-
-        # Count features needing review
         needs_review_count = sum(1 for f in features if f.get("needs_review", False))
-
-        # Get summary
         summary = scanner.get_summary()
 
-        # Calculate duration
         duration = time.time() - start_time
 
         result: CapabilityResultDict = {

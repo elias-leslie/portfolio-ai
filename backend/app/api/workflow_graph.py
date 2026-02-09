@@ -16,7 +16,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from ..logging_config import get_logger
-from ..services.celery_inspector import get_unified_task_list
+from ..services.hatchet_inspector import get_unified_task_list
 from ..storage.connection import get_connection_manager
 
 logger = get_logger(__name__)

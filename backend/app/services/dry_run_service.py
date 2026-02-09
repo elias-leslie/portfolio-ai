@@ -129,13 +129,12 @@ def _build_category_report(
     }
 
 
-def generate_dry_run_report(celery_app, timeout: int = 60) -> DryRunReportResponse:  # type: ignore[no-untyped-def]
+def generate_dry_run_report(timeout: int = 60) -> DryRunReportResponse:
     """Generate a comprehensive dry-run report for all cleanup tasks.
 
     This runs ALL cleanup tasks in dry-run mode and aggregates the results.
 
     Args:
-        celery_app: Celery application instance
         timeout: Max seconds to wait for each task (default: 60)
 
     Returns:
@@ -174,8 +173,12 @@ def generate_dry_run_report(celery_app, timeout: int = 60) -> DryRunReportRespon
         """Run a single task in dry-run mode and return result."""
         task_name, category, _retention = task_info
         try:
-            task = celery_app.send_task(task_name, kwargs={"dry_run": True})
-            result = task.get(timeout=timeout)
+            from app.tasks import cleanup  # noqa: PLC0415
+
+            task_fn = getattr(cleanup, task_name, None)
+            if task_fn is None:
+                return (category, None, f"Task {task_name} not found")
+            result = task_fn(dry_run=True)
             return (category, result, None)
         except Exception as e:
             return (category, None, str(e))
