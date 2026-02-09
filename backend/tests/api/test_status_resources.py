@@ -2,7 +2,7 @@
 
 Tests cover:
 - FEAT-093: Resource Monitoring
-- FEAT-147: Celery Task Status Table
+- FEAT-147: Task Status Table
 - FEAT-101: Agent Statistics (via health detailed)
 - FEAT-146: Fear Greed Trend Chart (via market intelligence)
 """
@@ -88,24 +88,24 @@ class TestResourceMonitoringEndpoint:
         assert "disk" in data
 
 
-class TestCeleryTaskStatusEndpoint:
-    """Tests for FEAT-147 Celery Task Status Table API."""
+class TestTaskStatusEndpoint:
+    """Tests for FEAT-147 Task Status Table API (backward-compat /api/status/celery URLs)."""
 
-    def test_celery_tasks_endpoint_returns_200(self) -> None:
-        """Test celery tasks endpoint returns data."""
+    def test_tasks_endpoint_returns_200(self) -> None:
+        """Test tasks endpoint returns data."""
         response = requests.get(f"{BASE_URL}/api/status/celery/tasks", timeout=10)
         assert response.status_code == 200
 
-    def test_celery_tasks_has_tasks_list(self) -> None:
-        """Test celery tasks response includes tasks array."""
+    def test_tasks_has_tasks_list(self) -> None:
+        """Test tasks response includes tasks array."""
         response = requests.get(f"{BASE_URL}/api/status/celery/tasks", timeout=10)
         assert response.status_code == 200
         data = response.json()
         assert "tasks" in data
         assert isinstance(data["tasks"], list)
 
-    def test_celery_tasks_has_counts(self) -> None:
-        """Test celery tasks response includes count fields."""
+    def test_tasks_has_counts(self) -> None:
+        """Test tasks response includes count fields."""
         response = requests.get(f"{BASE_URL}/api/status/celery/tasks", timeout=10)
         assert response.status_code == 200
         data = response.json()
@@ -113,8 +113,8 @@ class TestCeleryTaskStatusEndpoint:
         assert "active_count" in data
         assert "completed_count" in data
 
-    def test_celery_task_item_fields(self) -> None:
-        """Test celery task items have required fields."""
+    def test_task_item_fields(self) -> None:
+        """Test task items have required fields."""
         response = requests.get(f"{BASE_URL}/api/status/celery/tasks", timeout=10)
         if response.status_code == 200:
             data = response.json()
@@ -123,13 +123,13 @@ class TestCeleryTaskStatusEndpoint:
                 assert "name" in task
                 assert "status" in task
 
-    def test_celery_queue_endpoint_returns_200(self) -> None:
-        """Test celery queue endpoint returns data."""
+    def test_queue_endpoint_returns_200(self) -> None:
+        """Test queue endpoint returns data."""
         response = requests.get(f"{BASE_URL}/api/status/celery/queue", timeout=10)
         assert response.status_code == 200
 
-    def test_celery_schedule_endpoint_returns_200(self) -> None:
-        """Test celery schedule endpoint returns data."""
+    def test_schedule_endpoint_returns_200(self) -> None:
+        """Test schedule endpoint returns data."""
         response = requests.get(f"{BASE_URL}/api/status/celery/schedule", timeout=10)
         assert response.status_code == 200
 
