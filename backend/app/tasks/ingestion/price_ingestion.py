@@ -1,4 +1,4 @@
-"""Celery tasks for OHLCV price data ingestion.
+"""Tasks for OHLCV price data ingestion.
 
 This module defines background tasks for ingesting historical and daily OHLCV data.
 """
@@ -200,7 +200,7 @@ def _build_ingestion_result(
     """Build result dictionary for ingestion task.
 
     Args:
-        task_id: Celery task ID
+        task_id: Task ID
         ingest_run_id: Unique ID for this ingestion run
         symbols: List of symbols processed
         rows_inserted: Number of rows inserted
@@ -238,7 +238,7 @@ def _ingest_historical_ohlcv_impl(
     Args:
         symbols: List of symbols to fetch data for
         days: Number of trading days to backfill (default: 252 = ~1 year)
-        task_id: Optional Celery task ID (for logging)
+        task_id: Optional Task ID (for logging)
 
     Returns:
         Dict with ingestion results
@@ -325,7 +325,7 @@ def refresh_daily_ohlcv(
 
     Returns:
         Dict with task results:
-        - task_id: Celery task ID
+        - task_id: Task ID
         - ingest_run_id: Unique ID for this ingestion run
         - symbols_count: Number of symbols processed
         - rows_inserted: Total rows inserted into day_bars table
@@ -373,7 +373,7 @@ def refresh_watchlist_ohlcv() -> dict[str, int | str | float]:
 
     Returns:
         Dict with task results:
-        - task_id: Celery task ID
+        - task_id: Task ID
         - ingest_run_id: Unique ID for this ingestion run
         - symbols_count: Number of symbols processed
         - rows_inserted: Total rows upserted into day_bars table
@@ -513,7 +513,7 @@ def ingest_historical_ohlcv(
 
     Returns:
         Dict with task results:
-        - task_id: Celery task ID
+        - task_id: Task ID
         - ingest_run_id: Unique ID for this ingestion run
         - symbols_count: Number of symbols processed
         - rows_inserted: Total rows inserted into day_bars table

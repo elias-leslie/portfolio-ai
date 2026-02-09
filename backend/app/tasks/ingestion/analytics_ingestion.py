@@ -1,4 +1,4 @@
-"""Celery tasks for analytics data ingestion.
+"""Tasks for analytics data ingestion.
 
 This module defines background tasks for ingesting analytics data like
 covariance matrices and earnings surprises.
@@ -33,7 +33,7 @@ def update_portfolio_covariance(
 
     Returns:
         Dict with task results:
-        - task_id: Celery task ID
+        - task_id: Task ID
         - symbols_count: Number of unique symbols processed
         - pairs_updated: Number of covariance pairs calculated
         - status: 'success' or 'error'
@@ -119,7 +119,7 @@ def update_earnings_surprises(
 
     Returns:
         Dict with:
-        - task_id: Celery task ID
+        - task_id: Task ID
         - symbols_count: Number of symbols processed
         - records_saved: Number of earnings records saved
         - status: success or error

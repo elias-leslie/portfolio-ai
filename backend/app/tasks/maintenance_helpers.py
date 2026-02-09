@@ -30,7 +30,7 @@ def execute_maintenance_task(
 
     Args:
         task_name: Name of the task for logging
-        task_id: Celery task ID
+        task_id: Task ID
         task_func: Function that performs the actual work, returns result dict
         dry_run: Whether this is a dry run
 
