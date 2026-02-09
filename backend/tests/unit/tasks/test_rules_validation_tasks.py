@@ -1,4 +1,4 @@
-"""Unit tests for Rules Validation Celery Tasks (FEAT-008).
+"""Unit tests for Rules Validation Tasks (FEAT-008).
 
 Tests cover:
 1. daily_rules_validation task execution
@@ -93,7 +93,7 @@ def mock_recommendations() -> list[Recommendation]:
 
 
 class TestDailyRulesValidation:
-    """Test daily_rules_validation Celery task."""
+    """Test daily_rules_validation task."""
 
     @patch("app.tasks.rules_validation_tasks.get_connection_manager")
     @patch("app.tasks.rules_validation_tasks.RulesValidatorAgent")
@@ -263,7 +263,7 @@ class TestDailyRulesValidation:
 
 
 class TestWeeklyOptimizationReview:
-    """Test weekly_optimization_review Celery task."""
+    """Test weekly_optimization_review task."""
 
     @patch("app.tasks.rules_validation_tasks.get_connection_manager")
     @patch("app.tasks.rules_validation_tasks._get_recent_performance_data")

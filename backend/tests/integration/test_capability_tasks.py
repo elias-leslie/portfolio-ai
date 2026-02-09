@@ -110,7 +110,7 @@ class TestScanSystemCapabilities:
 
 @pytest.mark.skip(reason="analyze_capabilities function was removed")
 class TestAnalyzeCapabilities:
-    """Test analyze_capabilities Celery task (SKIPPED - function removed)."""
+    """Test analyze_capabilities task (SKIPPED - function removed)."""
 
     def test_analyze_task_without_api_key(self) -> None:
         """Placeholder - analyze_capabilities was removed."""

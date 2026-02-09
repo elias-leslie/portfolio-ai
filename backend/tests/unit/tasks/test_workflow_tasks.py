@@ -1,4 +1,4 @@
-"""Unit tests for multi-agent workflow Celery tasks.
+"""Unit tests for multi-agent workflow tasks.
 
 Tests cover:
 - daily_gap_analysis_workflow (Gemini + Claude agents)

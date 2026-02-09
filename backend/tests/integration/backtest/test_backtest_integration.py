@@ -121,12 +121,12 @@ class TestBacktestStorage:
 class TestBacktestExecution:
     """Test backtest execution flow."""
 
-    @pytest.mark.skipif(True, reason="Requires Celery worker running")
+    @pytest.mark.skipif(True, reason="Requires Hatchet worker running")
     def test_full_backtest_flow(self, storage, cleanup_backtest):
         """Test complete backtest from submission to completion.
 
         This test requires:
-        - Celery worker running
+        - Hatchet worker running
         - day_bars data for the symbol
 
         Skip for CI/CD environments.

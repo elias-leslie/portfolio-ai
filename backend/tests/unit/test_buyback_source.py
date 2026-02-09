@@ -512,8 +512,8 @@ class TestFetchAndStoreBuybacks:
         mock_store.assert_not_called()
 
 
-class TestCeleryTask:
-    """Test fetch_corporate_actions Celery task."""
+class TestFetchCorporateActionsTask:
+    """Test fetch_corporate_actions task."""
 
     @patch("app.tasks.market_data.corporate_actions_pipeline._get_watchlist_symbols")
     @patch("app.tasks.market_data.corporate_actions_pipeline.fetch_and_store_buybacks")

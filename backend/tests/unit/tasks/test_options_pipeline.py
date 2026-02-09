@@ -600,7 +600,7 @@ class TestGetPutcallRatioWithFallbacks:
 
 
 class TestFetchPutcallRatioTask:
-    """Test fetch_putcall_ratio Celery task."""
+    """Test fetch_putcall_ratio task."""
 
     @pytest.fixture
     def mock_storage(self) -> MagicMock:
@@ -786,7 +786,7 @@ class TestFetchPutcallRatioTask:
 
 
 class TestFetchOptionsActivityMetricsTask:
-    """Test fetch_options_activity_metrics Celery task."""
+    """Test fetch_options_activity_metrics task."""
 
     @pytest.fixture
     def mock_storage(self) -> MagicMock:
@@ -798,8 +798,8 @@ class TestFetchOptionsActivityMetricsTask:
         return storage
 
     @pytest.fixture
-    def mock_celery_request(self) -> MagicMock:
-        """Create mock Celery request."""
+    def mock_task_request(self) -> MagicMock:
+        """Create mock task request."""
         request = MagicMock()
         request.id = "test-task-456"
         return request
@@ -823,7 +823,7 @@ class TestFetchOptionsActivityMetricsTask:
         return source
 
     def test_happy_path_successful_metrics_fetch(
-        self, mock_storage: MagicMock, mock_celery_request: MagicMock, mock_cboe_source: MagicMock
+        self, mock_storage: MagicMock, mock_task_request: MagicMock, mock_cboe_source: MagicMock
     ) -> None:
         """Test successful metrics fetch and storage."""
         with (
@@ -862,7 +862,7 @@ class TestFetchOptionsActivityMetricsTask:
         assert sector_weights["Technology"] == 35.0
 
     def test_cboe_source_failure_returns_error_dict(
-        self, mock_storage: MagicMock, mock_celery_request: MagicMock, mock_cboe_source: MagicMock
+        self, mock_storage: MagicMock, mock_task_request: MagicMock, mock_cboe_source: MagicMock
     ) -> None:
         """Test that CBOE source failure returns error dictionary."""
         mock_cboe_source.fetch_most_active_metrics.side_effect = Exception("CBOE scraping failed")
@@ -886,7 +886,7 @@ class TestFetchOptionsActivityMetricsTask:
         assert not mock_conn.commit.called
 
     def test_database_error_returns_error_dict(
-        self, mock_storage: MagicMock, mock_celery_request: MagicMock, mock_cboe_source: MagicMock
+        self, mock_storage: MagicMock, mock_task_request: MagicMock, mock_cboe_source: MagicMock
     ) -> None:
         """Test that database errors are caught and returned."""
         # Mock database error
@@ -901,7 +901,7 @@ class TestFetchOptionsActivityMetricsTask:
             ),
         ):
             task_mock = MagicMock()
-            task_mock.request = mock_celery_request
+            task_mock.request = mock_task_request
 
             result = fetch_options_activity_metrics()
 
@@ -910,7 +910,7 @@ class TestFetchOptionsActivityMetricsTask:
         assert "Database insert failed" in result["error"]
 
     def test_storage_passed_to_cboe_source(
-        self, mock_storage: MagicMock, mock_celery_request: MagicMock, mock_cboe_source: MagicMock
+        self, mock_storage: MagicMock, mock_task_request: MagicMock, mock_cboe_source: MagicMock
     ) -> None:
         """Test that storage is passed to CBOE source constructor."""
         with (
@@ -930,7 +930,7 @@ class TestFetchOptionsActivityMetricsTask:
             assert call_kwargs["storage"] == mock_storage
 
     def test_empty_sector_weights_handled(
-        self, mock_storage: MagicMock, mock_celery_request: MagicMock, mock_cboe_source: MagicMock
+        self, mock_storage: MagicMock, mock_task_request: MagicMock, mock_cboe_source: MagicMock
     ) -> None:
         """Test that empty sector weights are handled correctly."""
         mock_cboe_source.fetch_most_active_metrics.return_value = {
