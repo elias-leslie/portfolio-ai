@@ -76,7 +76,7 @@ async def trigger_profiling(user_id: str = "default") -> ProfilingTaskResponse:
     """
     try:
         # Trigger async task
-        task = profile_news_sources_task.apply_async(args=(user_id,))
+        task = profile_news_sources_task(user_id,)
 
         return ProfilingTaskResponse(
             status="accepted",
@@ -399,7 +399,7 @@ async def reset_source_metrics() -> ResetSourceMetricsDict:
         dict with deletion counts
     """
     try:
-        task = reset_source_metrics_task.apply_async()
+        task = reset_source_metrics_task()
 
         return {
             "status": "accepted",

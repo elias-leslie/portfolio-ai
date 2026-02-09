@@ -211,7 +211,7 @@ class WatchlistService:
             try:
                 from ...tasks.ingestion import ingest_historical_ohlcv  # noqa: PLC0415
 
-                ingest_historical_ohlcv.delay([symbol], days=DEFAULT_BACKFILL_DAYS)
+                ingest_historical_ohlcv([symbol], days=DEFAULT_BACKFILL_DAYS)
                 logger.info(
                     "watchlist_refresh_scores_queued_backfill",
                     symbol=symbol,

@@ -129,7 +129,7 @@ def trigger_auto_backfill(storage: PortfolioStorage, symbols: list[str]) -> None
             )
 
             # Trigger async backfill task (non-blocking)
-            ingest_historical_ohlcv.delay(symbols_needing_backfill, days=DEFAULT_BACKFILL_DAYS)
+            ingest_historical_ohlcv(symbols_needing_backfill, days=DEFAULT_BACKFILL_DAYS)
 
             logger.info(
                 "auto_backfill_task_dispatched",

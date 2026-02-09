@@ -40,8 +40,8 @@ def update_portfolio_covariance(  # type: ignore[no-untyped-def]
         - status: 'success' or 'error'
 
     Example:
-        >>> update_portfolio_covariance.delay()  # Updates all watchlist/portfolio symbols
-        >>> update_portfolio_covariance.delay(["AAPL", "MSFT", "GOOGL"])  # Custom list
+        >>> update_portfolio_covariance()  # Updates all watchlist/portfolio symbols
+        >>> update_portfolio_covariance(["AAPL", "MSFT", "GOOGL"])  # Custom list
     """
     from app.analytics.covariance import update_covariance_matrix
 

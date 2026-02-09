@@ -89,7 +89,7 @@ def execute_run_backtest(
         # Launch Celery task (lazy import to avoid circular dependency)
         from app.tasks.backtest_tasks import run_backtest_task
 
-        run_backtest_task.delay(
+        run_backtest_task(
             run_id=run_id,
             symbol=symbol,
             start_date=start_date,

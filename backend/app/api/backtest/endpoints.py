@@ -77,7 +77,7 @@ async def start_backtest(request: StartBacktestRequest) -> StartBacktestResponse
         params = request.parameters or StrategyParametersRequest()
 
         # Launch Celery task (async execution)
-        task = run_backtest_task.delay(
+        task = run_backtest_task(
             run_id=run_id,
             symbol=request.symbol,
             start_date=request.start_date.isoformat(),

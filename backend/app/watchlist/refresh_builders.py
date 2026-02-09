@@ -145,7 +145,7 @@ def handle_price_change_and_backfill(
             )
 
             # Queue backfill for 1260 trading days (~5 years)
-            ingest_historical_ohlcv.delay([symbol], days=1260)
+            ingest_historical_ohlcv([symbol], days=1260)
             logger.info(
                 "watchlist_refresh_queued_backfill",
                 symbol=symbol,

@@ -332,8 +332,8 @@ def refresh_daily_ohlcv(  # type: ignore[no-untyped-def]
         - errors: Number of symbols that failed to fetch
 
     Example:
-        >>> refresh_daily_ohlcv.delay()  # Refreshes SPY
-        >>> refresh_daily_ohlcv.delay(["SPY", "QQQ", "IWM"])  # Custom list
+        >>> refresh_daily_ohlcv()  # Refreshes SPY
+        >>> refresh_daily_ohlcv(["SPY", "QQQ", "IWM"])  # Custom list
     """
     if symbols is None:
         symbols = ["SPY"]  # Default to SPY for Fear & Greed calculations
@@ -382,7 +382,7 @@ def refresh_watchlist_ohlcv(  # type: ignore[no-untyped-def]
         - errors: Number of symbols that failed to fetch
 
     Example:
-        >>> refresh_watchlist_ohlcv.delay()  # Refreshes all watchlist symbols
+        >>> refresh_watchlist_ohlcv()  # Refreshes all watchlist symbols
     """
     task_id = str(uuid.uuid4())
     ingest_run_id = str(uuid.uuid4())
@@ -524,7 +524,7 @@ def ingest_historical_ohlcv(  # type: ignore[no-untyped-def]
         - skipped: True if task was skipped due to duplicate lock
 
     Example:
-        >>> ingest_historical_ohlcv.delay(["AAPL", "MSFT", "GOOGL"], days=252)
+        >>> ingest_historical_ohlcv(["AAPL", "MSFT", "GOOGL"], days=252)
         >>> # Backfills 252 days of OHLCV data for 3 symbols
     """
     # Use task lock to prevent duplicate concurrent executions

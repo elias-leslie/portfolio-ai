@@ -236,7 +236,7 @@ def update_paper_trades_task(  # type: ignore[no-untyped-def]
         {"trades_updated": 10, "trades_closed": 2, "target_hits": 1, "stop_hits": 0, "expired": 1}
 
         >>> # Schedule as background task (daily at 4:30 PM ET)
-        >>> update_paper_trades_task.delay()
+        >>> update_paper_trades_task()
 
     Note:
         This task should be configured in Celery beat schedule to run daily:

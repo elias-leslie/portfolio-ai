@@ -111,7 +111,7 @@ def _process_and_return_results(
         updates_count=updates_count,
     )
 
-    calculate_fear_greed.apply_async()
+    calculate_fear_greed()
 
     return {
         "task_id": task_id,

@@ -321,7 +321,7 @@ def run_backtest_task(  # type: ignore[no-untyped-def]
         )
 
         logger.info(f"Triggering historical data backfill for {symbol} ({BACKFILL_DAYS} days)")
-        ingest_historical_ohlcv.delay([symbol], days=BACKFILL_DAYS)
+        ingest_historical_ohlcv([symbol], days=BACKFILL_DAYS)
 
         # Update status to show we're waiting for data
         storage.update_backtest_status(

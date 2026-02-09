@@ -328,7 +328,7 @@ def calculate_fear_greed(
         {"score": 42, "label": "Fear", "date": "2025-11-11"}
 
         >>> # Schedule as background task
-        >>> calculate_fear_greed.delay()
+        >>> calculate_fear_greed()
 
     Note:
         This task can be scheduled daily after market close to update the index.

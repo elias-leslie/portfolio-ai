@@ -443,7 +443,7 @@ async def generate_batch(request: GenerateBatchRequest) -> dict[str, Any]:
         )
 
         # For now, run synchronously since the Celery task is already sync
-        # In future can make this async with task.delay()
+        # In future can make this async with task()
         result = weekly_strategy_generation()
 
         return {

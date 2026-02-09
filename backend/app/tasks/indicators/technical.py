@@ -39,7 +39,7 @@ def update_technical_indicators(
         {"success": 3, "failed": 0, "symbols_processed": 3}
 
         >>> # Schedule as background task
-        >>> update_technical_indicators.delay(["AAPL", "MSFT", "GOOGL"])
+        >>> update_technical_indicators(["AAPL", "MSFT", "GOOGL"])
 
     Note:
         This task can be scheduled daily at market close + 30 minutes (4:30 PM ET)
@@ -131,10 +131,10 @@ def backfill_technical_indicators(
 
     Example:
         >>> # Backfill all symbols
-        >>> backfill_technical_indicators.delay()
+        >>> backfill_technical_indicators()
 
         >>> # Backfill specific symbols
-        >>> backfill_technical_indicators.delay(["AAPL", "MSFT", "GOOGL"])
+        >>> backfill_technical_indicators(["AAPL", "MSFT", "GOOGL"])
 
     Note:
         This task can take several minutes for large datasets. Run manually or schedule

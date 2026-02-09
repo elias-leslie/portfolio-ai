@@ -77,7 +77,7 @@ def _on_strategy_performance_updated(payload: dict[str, Any]) -> None:
     # Trigger watchlist refresh for the specific symbol
     from app.tasks.watchlist_tasks import refresh_single_symbol_scores_task
 
-    refresh_single_symbol_scores_task.delay(symbol)
+    refresh_single_symbol_scores_task(symbol)
     logger.info(
         "triggered_watchlist_refresh_from_performance",
         symbol=symbol,
@@ -105,7 +105,7 @@ def _on_seed_created(payload: dict[str, Any]) -> None:
             trigger_strategy_from_seed,
         )
 
-        trigger_strategy_from_seed.delay(seed_id, symbol)
+        trigger_strategy_from_seed(seed_id, symbol)
         logger.info(
             "triggered_strategy_from_seed_event",
             seed_id=seed_id,
@@ -139,7 +139,7 @@ def _on_price_alert_triggered(payload: dict[str, Any]) -> None:
     # Trigger watchlist refresh
     from app.tasks.watchlist_tasks import refresh_single_symbol_scores_task
 
-    refresh_single_symbol_scores_task.delay(symbol)
+    refresh_single_symbol_scores_task(symbol)
 
     # Also trigger signal generation if there's an active strategy
     from app.tasks.strategy_signal_tasks import (
@@ -147,7 +147,7 @@ def _on_price_alert_triggered(payload: dict[str, Any]) -> None:
     )
 
     # This will check for active strategy internally
-    generate_signal_for_strategy_task.delay(symbol)
+    generate_signal_for_strategy_task(symbol)
 
     logger.info(
         "triggered_from_price_alert",
@@ -174,14 +174,14 @@ def _on_earnings_released(payload: dict[str, Any]) -> None:
     # Trigger watchlist refresh (catalyst scores may change)
     from app.tasks.watchlist_tasks import refresh_single_symbol_scores_task
 
-    refresh_single_symbol_scores_task.delay(symbol)
+    refresh_single_symbol_scores_task(symbol)
 
     # Trigger signal generation
     from app.tasks.strategy_signal_tasks import (
         generate_signal_for_strategy_task,
     )
 
-    generate_signal_for_strategy_task.delay(symbol)
+    generate_signal_for_strategy_task(symbol)
 
     logger.info(
         "triggered_from_earnings_release",
@@ -212,7 +212,7 @@ def _on_insight_generated(payload: dict[str, Any]) -> None:
         return
 
     # Trigger cross-validation asynchronously
-    cross_validate_insight_task.delay(
+    cross_validate_insight_task(
         output=output,
         context_type=context_type,
         symbol=symbol,

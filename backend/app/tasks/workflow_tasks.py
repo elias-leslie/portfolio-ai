@@ -346,7 +346,7 @@ def paper_trade_validation_workflow(  # noqa: PLR0911
             # Trigger historical data fetch
             from app.tasks.ingestion.price_ingestion import ingest_historical_ohlcv
 
-            ingest_historical_ohlcv.delay([symbol], days=1300)  # ~5 years
+            ingest_historical_ohlcv([symbol], days=1300)  # ~5 years
             return {
                 "status": "pending_data",
                 "message": f"Triggered historical data fetch for {symbol}. Retry in 5 minutes.",

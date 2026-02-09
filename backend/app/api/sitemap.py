@@ -224,7 +224,7 @@ async def check_all_health() -> dict[str, Any]:
     """
     from app.tasks.sitemap_tasks import check_sitemap_health  # noqa: PLC0415
 
-    task = check_sitemap_health.delay()
+    task = check_sitemap_health()
     return {
         "status": "queued",
         "task_id": task.id,

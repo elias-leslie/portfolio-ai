@@ -447,7 +447,7 @@ async def trigger_scan() -> ScanTriggerResponse:
     """
     try:
         # Trigger async scan task
-        task = scan_system_capabilities.delay()
+        task = scan_system_capabilities()
 
         logger.info("capabilities_scan_triggered", task_id=task.id)
 
