@@ -12,7 +12,7 @@ from typing import TypedDict
 class CapabilityDict(TypedDict, total=False):
     """Single capability record from database.
 
-    Contains fields from all three capability tables (db, celery, api)
+    Contains fields from all three capability tables (db, hatchet, api)
     as this is a union type used for the capabilities list endpoint.
     """
 
@@ -45,7 +45,7 @@ class CapabilityDict(TypedDict, total=False):
     source: str | None
     description: str
 
-    # celery_capabilities fields
+    # celery_capabilities table fields (DB table not yet renamed)
     task_name: str
     task_path: str | None
     function_name: str | None

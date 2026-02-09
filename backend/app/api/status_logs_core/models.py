@@ -11,7 +11,7 @@ class UnifiedLogEntry(BaseModel):
     model_config = ConfigDict(validate_assignment=True)
 
     timestamp: datetime = Field(description="Log entry timestamp (unified from journald)")
-    service: str = Field(description="Service name (backend, celery_worker, postgresql, etc.)")
+    service: str = Field(description="Service name (backend, hatchet_worker, postgresql, etc.)")
     level: str = Field(description="Log level (ERROR, WARN, INFO, DEBUG, UNKNOWN)")
     message: str = Field(description="Log message content")
 

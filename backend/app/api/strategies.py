@@ -365,7 +365,7 @@ async def generate_strategy(request: GenerateStrategyRequest) -> dict[str, Any]:
             force=request.force_regenerate,
         )
 
-        # Trigger workflow (synchronous for now, can be async Celery task later)
+        # Trigger workflow (synchronous for now, can be async Hatchet workflow later)
         result = await strategy_research_workflow(
             symbol=request.symbol,
             force_regenerate=request.force_regenerate,
