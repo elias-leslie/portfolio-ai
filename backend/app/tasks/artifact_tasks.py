@@ -26,7 +26,7 @@ def refresh_expired_artifacts() -> dict[str, int | str]:
     """
     logger.info(
         "refresh_expired_artifacts_skipped",
-        reason="Migrated to SummitFlow - awaiting Celery integration",
+        reason="Migrated to SummitFlow - awaiting task integration",
     )
     return {
         "status": "skipped",
@@ -44,7 +44,7 @@ def cleanup_old_versions(
     """
     logger.info(
         "cleanup_old_versions_skipped",
-        reason="Migrated to SummitFlow - awaiting Celery integration",
+        reason="Migrated to SummitFlow - awaiting task integration",
     )
     return {
         "status": "skipped",

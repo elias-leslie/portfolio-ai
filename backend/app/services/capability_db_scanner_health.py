@@ -24,7 +24,7 @@ FRESHNESS_EXEMPT_TABLES: set[str] = {
     "db_capabilities",
     "celery_capabilities",
     "api_capabilities",
-    # Celery infrastructure - managed by Celery
+    # Legacy infrastructure tables (DB not yet renamed)
     "celery_taskmeta",
     "celery_tasksetmeta",
     # Migration tracking - only updated during migrations
