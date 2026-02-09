@@ -1,6 +1,6 @@
 """Strategy generation tasks.
 
-Celery tasks for generating new trading strategies based on watchlist analysis,
+Tasks for generating new trading strategies based on watchlist analysis,
 discovery seeds, and scheduled generation workflows.
 """
 

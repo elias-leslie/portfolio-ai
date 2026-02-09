@@ -1,6 +1,6 @@
 """Strategy performance monitoring tasks.
 
-Celery tasks for evaluating active strategies and archiving underperformers.
+Tasks for evaluating active strategies and archiving underperformers.
 Runs daily to track live performance vs expected metrics.
 """
 

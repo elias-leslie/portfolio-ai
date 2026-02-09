@@ -1,6 +1,6 @@
 """Strategy evolution tasks.
 
-Celery tasks for evolving underperforming strategies using LLM-based
+Tasks for evolving underperforming strategies using LLM-based
 parameter mutation and walk-forward backtesting.
 """
 

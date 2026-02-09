@@ -1,6 +1,6 @@
 """Strategy tasks module.
 
-Exports all strategy-related Celery tasks:
+Exports all strategy-related tasks:
 - Performance monitoring and evaluation
 - Strategy generation and refresh
 - Strategy evolution via LLM mutation

@@ -1,4 +1,4 @@
-"""Celery tasks for technical indicator calculations.
+"""Tasks for technical indicator calculations.
 
 This module defines background tasks for calculating and caching technical indicators
 like RSI, MACD, SMA, EMA, Bollinger Bands, ATR, and Stochastic indicators.
