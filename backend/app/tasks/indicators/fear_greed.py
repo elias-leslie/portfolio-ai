@@ -1,4 +1,4 @@
-"""Celery tasks for Fear & Greed Index calculation.
+"""Tasks for Fear & Greed Index calculation.
 
 This module defines background tasks for calculating market sentiment metrics
 based on VIX, momentum, RSI, credit spreads, and market breadth.

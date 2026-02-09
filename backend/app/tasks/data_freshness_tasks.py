@@ -1,4 +1,4 @@
-"""Celery task for automated data freshness monitoring and refresh.
+"""Task for automated data freshness monitoring and refresh.
 
 VISION.md requirement: <24 hour data freshness for all monitored symbols
 """

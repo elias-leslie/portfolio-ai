@@ -42,7 +42,7 @@ def update_technical_indicators(
 
     Note:
         This task can be scheduled daily at market close + 30 minutes (4:30 PM ET)
-        using Celery beat for automated indicator updates.
+        using Hatchet cron for automated indicator updates.
     """
     task_id = str(uuid.uuid4())
     logger.info(

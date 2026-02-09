@@ -1,4 +1,4 @@
-"""Celery tasks for news source quality profiling.
+"""Tasks for news source quality profiling.
 
 This module provides scheduled and on-demand profiling of news sources
 to calculate quality metrics and track vendor performance.
