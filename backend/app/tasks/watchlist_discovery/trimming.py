@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from celery import shared_task
 
 from ...logging_config import get_logger
 from ...rules.loader import get_rules
@@ -101,11 +100,9 @@ def remove_symbol_from_watchlist(
 
 
 # =============================================================================
-# Celery Task
 # =============================================================================
 
 
-@shared_task(name="trim_underperforming_watchlist", bind=True)
 def trim_underperforming_watchlist_task(
     self: Any,
 ) -> dict[str, Any]:

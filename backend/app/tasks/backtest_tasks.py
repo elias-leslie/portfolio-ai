@@ -21,7 +21,6 @@ from app.backtest.additional_strategies import (
 from app.backtest.benchmark import BenchmarkComparisonEngine
 from app.backtest.enhanced_strategy import EnhancedSignalStrategy
 from app.backtest.replay import InsufficientDataError
-from app.celery_app import celery_app
 from app.storage.facade import get_storage
 
 logger = logging.getLogger(__name__)
@@ -168,12 +167,6 @@ def _save_backtest_results(
     )
 
 
-@celery_app.task(
-    bind=True,
-    max_retries=2,  # Retry after data backfill
-    default_retry_delay=120,  # Wait 2 minutes for data to be fetched
-    time_limit=600,  # 10 minute timeout (prevent infinite loops)
-)
 def run_backtest_task(  # type: ignore[no-untyped-def]
     self,
     run_id: str,

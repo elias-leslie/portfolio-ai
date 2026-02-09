@@ -13,14 +13,12 @@ from typing import Any
 from psycopg2.extras import Json
 
 from app.agents.rules_validator_agent import RulesValidatorAgent
-from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.storage.connection import get_connection_manager
 
 logger = get_logger(__name__)
 
 
-@celery_app.task(name="daily_rules_validation")
 def daily_rules_validation() -> dict[str, Any]:
     """Validate trading rules configuration daily.
 
@@ -174,7 +172,6 @@ def daily_rules_validation() -> dict[str, Any]:
         }
 
 
-@celery_app.task(name="weekly_optimization_review")
 def weekly_optimization_review() -> dict[str, Any]:
     """Generate optimization recommendations based on recent performance.
 

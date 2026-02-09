@@ -12,7 +12,6 @@ import json
 from datetime import UTC, date, datetime
 from typing import Any
 
-from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.storage.connection import get_connection_manager
 from app.strategies.storage import get_strategy_storage
@@ -240,7 +239,6 @@ def store_signal(conn: Any, signal_data: dict[str, Any]) -> str | None:
         return None
 
 
-@celery_app.task(name="app.tasks.strategy_signal_tasks.generate_daily_strategy_signals")
 def generate_daily_strategy_signals() -> dict[str, Any]:
     """Generate signals for all active strategies.
 
@@ -344,7 +342,6 @@ def generate_daily_strategy_signals() -> dict[str, Any]:
     return results
 
 
-@celery_app.task(name="app.tasks.strategy_signal_tasks.generate_signal_for_strategy_task")
 def generate_signal_for_strategy_task(strategy_id: str, symbol: str) -> dict[str, Any]:
     """Celery task wrapper for single strategy signal generation.
 
@@ -353,7 +350,6 @@ def generate_signal_for_strategy_task(strategy_id: str, symbol: str) -> dict[str
     return generate_signal_for_strategy(strategy_id, symbol)
 
 
-@celery_app.task(name="app.tasks.strategy_signal_tasks.auto_paper_trade_from_signals")
 def auto_paper_trade_from_signals(min_signal_strength: int = 5) -> dict[str, Any]:
     """Create paper trades from BUY signals.
 

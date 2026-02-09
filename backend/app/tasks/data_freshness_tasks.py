@@ -8,16 +8,12 @@ from __future__ import annotations
 import datetime as dt
 from typing import TYPE_CHECKING, Any
 
-from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.services.data_freshness_service import check_all_tables_freshness
 from app.services.maintenance_tracker import record_maintenance_completion, record_maintenance_start
 from app.storage import get_storage
 from app.storage.connection import get_connection_manager
 from app.tasks.watchlist_tasks import refresh_watchlist_scores_task
-
-if TYPE_CHECKING:
-    from celery import Task
 
 logger = get_logger(__name__)
 
@@ -79,15 +75,6 @@ def _check_data_freshness_impl() -> dict[str, Any]:
     }
 
 
-@celery_app.task(
-    bind=True,
-    name="maintain_data_freshness",
-    max_retries=3,
-    autoretry_for=(Exception,),
-    retry_backoff=True,
-    retry_backoff_max=600,
-    retry_jitter=True,
-)
 def maintain_data_freshness(self: Task[..., Any]) -> dict[str, Any]:
     """Check all watchlist symbols for freshness and auto-refresh stale data.
 
@@ -165,15 +152,6 @@ def maintain_data_freshness(self: Task[..., Any]) -> dict[str, Any]:
         }
 
 
-@celery_app.task(
-    bind=True,
-    name="check_all_data_freshness",
-    max_retries=3,
-    autoretry_for=(Exception,),
-    retry_backoff=True,
-    retry_backoff_max=600,
-    retry_jitter=True,
-)
 def check_all_data_freshness(self: Task[..., Any], auto_remediate: bool = True) -> dict[str, Any]:
     """Comprehensive data freshness check for all critical tables with auto-remediation.
 

@@ -183,7 +183,6 @@ def _insert_metrics(
         conn.commit()
 
 
-@celery_app.task(name="strategy_metrics.daily_collection")
 def collect_daily_strategy_metrics() -> dict[str, object]:
     """Collect strategy performance metrics for the previous day."""
     storage = get_storage()

@@ -11,7 +11,6 @@ Tasks:
 
 from __future__ import annotations
 
-from celery import shared_task
 
 from ..logging_config import get_logger
 from .maintenance_logging import log_maintenance_complete, log_maintenance_start
@@ -19,7 +18,6 @@ from .maintenance_logging import log_maintenance_complete, log_maintenance_start
 logger = get_logger(__name__)
 
 
-@shared_task(name="refresh_expired_artifacts")
 def refresh_expired_artifacts() -> dict[str, int | str]:
     """DISABLED: Evidence is now managed by SummitFlow.
 
@@ -36,7 +34,6 @@ def refresh_expired_artifacts() -> dict[str, int | str]:
     }
 
 
-@shared_task(name="cleanup_old_versions")
 def cleanup_old_versions(
     max_versions: int = 5, dry_run: bool = False
 ) -> dict[str, int | str | bool]:
@@ -56,7 +53,6 @@ def cleanup_old_versions(
     }
 
 
-@shared_task(name="cleanup_debug_captures")
 def cleanup_debug_captures(max_age_days: int = 7, dry_run: bool = False) -> dict[str, object]:
     """Delete old debug capture directories (DBG-* pattern).
 

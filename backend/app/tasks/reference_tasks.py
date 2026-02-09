@@ -11,16 +11,12 @@ import datetime as dt
 import json
 from typing import TYPE_CHECKING, Any, TypedDict
 
-if TYPE_CHECKING:
-    from celery import Task
-
 from psycopg2 import OperationalError
 from requests.exceptions import RequestException
 
 from app.analytics.analyst_revisions import refresh_analyst_revisions_for_symbols
 from app.analytics.financial_health_scores import get_financial_health_scores
 from app.analytics.risk_metrics import calculate_symbol_beta, calculate_symbol_var
-from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.repositories import ReferenceRepository
 from app.sources.alphavantage_source import AlphaVantageSource
@@ -279,7 +275,6 @@ def _process_cache_entries() -> tuple[int, int]:
     return entries_processed, entries_updated
 
 
-@celery_app.task(name="parse_valuation_metrics", bind=True)
 def parse_valuation_metrics(self: Task[..., Any]) -> dict[str, int | str | float]:
     """Parse valuation metrics from cached JSON payloads.
 
@@ -347,15 +342,6 @@ def parse_valuation_metrics(self: Task[..., Any]) -> dict[str, int | str | float
         }
 
 
-@celery_app.task(
-    bind=True,
-    name="refresh_yfinance_reference_data",
-    max_retries=3,
-    autoretry_for=(RequestException, TimeoutError, OperationalError),
-    retry_backoff=True,
-    retry_backoff_max=600,
-    retry_jitter=True,
-)
 def refresh_yfinance_reference_data(self: Task[..., Any]) -> dict[str, int | str | float | None]:
     """Fetch reference data (including valuation metrics) from yfinance for watchlist symbols.
 
@@ -487,7 +473,6 @@ def _store_alphavantage_payload(symbols: list[str]) -> int:
     return rows_upserted
 
 
-@celery_app.task(name="refresh_alphavantage_reference_backup", bind=True)
 def refresh_alphavantage_reference_backup(
     self: Task[..., Any],
 ) -> dict[str, int | str | float | None]:
@@ -550,7 +535,6 @@ def refresh_alphavantage_reference_backup(
         raise
 
 
-@celery_app.task(name="refresh_analyst_revisions", bind=True)
 def refresh_analyst_revisions(self: Task[..., Any]) -> dict[str, int | str | float | None]:
     """Fetch analyst estimate revisions for watchlist symbols (GAP-005).
 
@@ -611,7 +595,6 @@ def refresh_analyst_revisions(self: Task[..., Any]) -> dict[str, int | str | flo
         raise
 
 
-@celery_app.task(name="refresh_financial_health_scores", bind=True)
 def refresh_financial_health_scores(self: Task[..., Any]) -> dict[str, int | str | float | None]:
     """Calculate Piotroski F-Score and Altman Z-Score for watchlist symbols.
 
@@ -730,7 +713,6 @@ def refresh_financial_health_scores(self: Task[..., Any]) -> dict[str, int | str
         raise
 
 
-@celery_app.task(name="refresh_risk_metrics", bind=True)
 def refresh_risk_metrics(self: Task[..., Any]) -> dict[str, int | str | float | None]:
     """Calculate VaR, CVaR, and extended betas for watchlist symbols.
 

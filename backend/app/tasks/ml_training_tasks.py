@@ -11,7 +11,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from app.celery_app import celery_app as celery
 from app.ml.article_quality_classifier import ArticleQualityClassifier
 from app.storage import get_storage
 from app.storage.types import DatabaseConnection

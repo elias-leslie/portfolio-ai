@@ -19,13 +19,9 @@ from __future__ import annotations
 from collections import Counter
 from typing import TYPE_CHECKING, Any
 
-from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.utils.task_locks import task_lock
 from app.utils.task_logging import task_logger
-
-if TYPE_CHECKING:
-    from celery import Task
 
 logger = get_logger(__name__)
 
@@ -74,7 +70,6 @@ def _build_skipped_response(task_id: str, reason: str) -> dict[str, Any]:
     }
 
 
-@celery_app.task(bind=True, name="tasks.daily_qa_scan")
 def daily_qa_scan(self: Task[..., Any]) -> dict[str, Any]:
     """Run daily QA scan at 04:00 UTC, after capability scans.
 

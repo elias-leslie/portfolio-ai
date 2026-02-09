@@ -8,15 +8,11 @@ from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, cast
 
-from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.services import NewsBundle, NewsService, NewsSummary
 from app.storage import PortfolioStorage, get_storage
 from app.storage.credential_loader import load_credentials_from_database
 from app.watchlist.watchlist_service import WatchlistService
-
-if TYPE_CHECKING:
-    from celery import Task
 
 logger = get_logger(__name__)
 

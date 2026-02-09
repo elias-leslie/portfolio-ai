@@ -19,7 +19,6 @@ import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.tasks.maintenance_logging import (
     log_maintenance_complete,
@@ -27,9 +26,6 @@ from app.tasks.maintenance_logging import (
     record_maintenance_metric,
 )
 from app.utils.task_helpers import build_error_result, calculate_duration
-
-if TYPE_CHECKING:
-    from celery import Task
 
 logger = get_logger(__name__)
 
@@ -223,7 +219,6 @@ def _get_old_model_versions(
     return old_versions
 
 
-@celery_app.task(name="cleanup_old_backups_task", bind=True)
 def cleanup_old_backups_task(
     self: Task[..., Any], keep_count: int = 5, dry_run: bool = False
 ) -> dict[str, Any]:
@@ -344,7 +339,6 @@ def cleanup_old_backups_task(
         return error_result
 
 
-@celery_app.task(name="cleanup_old_models_task", bind=True)
 def cleanup_old_models_task(
     self: Task[..., Any], keep_count: int = 3, dry_run: bool = False
 ) -> dict[str, Any]:
@@ -455,7 +449,6 @@ def cleanup_old_models_task(
         return error_result
 
 
-@celery_app.task(name="cleanup_solution_state_task", bind=True)
 def cleanup_solution_state_task(
     self: Task[..., Any], keep_days: int = 14, dry_run: bool = False
 ) -> dict[str, Any]:

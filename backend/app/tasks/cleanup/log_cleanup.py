@@ -16,16 +16,12 @@ import datetime as dt
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.tasks.maintenance_logging import (
     log_maintenance_complete,
     log_maintenance_start,
 )
 from app.utils.task_helpers import build_error_result, calculate_duration
-
-if TYPE_CHECKING:
-    from celery import Task
 
 logger = get_logger(__name__)
 
@@ -190,7 +186,6 @@ def _cleanup_files(
     return files_deleted, bytes_freed, would_delete
 
 
-@celery_app.task(name="rotate_logs_task", bind=True)
 def rotate_logs_task(
     self: Task[..., Any], dry_run: bool = False
 ) -> dict[str, int | str | float | bool]:
@@ -285,7 +280,6 @@ def rotate_logs_task(
         return error_result
 
 
-@celery_app.task(name="cleanup_old_logs_task", bind=True)
 def cleanup_old_logs_task(
     self: Task[..., Any], days: int = 7, dry_run: bool = False
 ) -> dict[str, Any]:

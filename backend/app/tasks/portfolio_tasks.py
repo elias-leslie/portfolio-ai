@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from celery import Task, shared_task
 
 from app.logging_config import get_logger
 from app.portfolio.drawdown import (
@@ -20,12 +19,6 @@ from app.storage import PortfolioStorage
 logger = get_logger(__name__)
 
 
-@shared_task(  # celery decorator lacks type stubs
-    name="save_portfolio_snapshots",
-    bind=True,
-    max_retries=3,
-    default_retry_delay=300,  # 5 minutes
-)
 def save_portfolio_snapshots_task(self: Task[[], dict[str, Any]]) -> dict[str, Any]:
     """Save daily equity snapshots for all portfolio accounts.
 

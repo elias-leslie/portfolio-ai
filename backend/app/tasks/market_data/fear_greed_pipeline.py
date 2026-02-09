@@ -12,7 +12,6 @@ from __future__ import annotations
 import datetime as dt
 from typing import TYPE_CHECKING, Any
 
-from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.storage import get_storage
 from app.tasks.indicators import calculate_fear_greed
@@ -30,8 +29,6 @@ from app.tasks.market_data.fear_greed_processing import (
 )
 from app.tasks.types import FearGreedPipelineResultDict
 
-if TYPE_CHECKING:
-    from celery import Task
 
     from app.storage.facade import PortfolioStorage
 
@@ -123,15 +120,6 @@ def _process_and_return_results(
     }
 
 
-@celery_app.task(
-    bind=True,
-    name="populate_fear_greed_inputs",
-    max_retries=3,
-    autoretry_for=(Exception,),
-    retry_backoff=True,
-    retry_backoff_max=600,
-    retry_jitter=True,
-)
 def populate_fear_greed_inputs(self: Task[..., Any], days: int = 7) -> FearGreedPipelineResultDict:
     """Populate fear_greed_inputs table with latest market data.
 

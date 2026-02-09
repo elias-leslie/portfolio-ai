@@ -22,7 +22,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.services.celery_inspector import should_skip_cascade
 
@@ -237,7 +236,6 @@ def _on_insight_generated(payload: dict[str, Any]) -> None:
     )
 
 
-@celery_app.task(name="app.tasks.triggers.cross_validate_insight")
 def cross_validate_insight_task(
     output: str,
     context_type: str = "insight",
@@ -286,10 +284,6 @@ def cross_validate_insight_task(
             "status": "failed",
             "error": str(e),
         }
-
-
-# Celery task wrapper for async event emission (allows .delay() call)
-@celery_app.task(name="app.tasks.triggers.emit_event_async")
 def emit_event_async(event_type: str, payload: dict[str, Any]) -> dict[str, Any]:
     """Async wrapper for emit_event to allow Celery .delay() calls.
 

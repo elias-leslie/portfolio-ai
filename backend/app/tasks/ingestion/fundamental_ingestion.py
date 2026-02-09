@@ -17,9 +17,7 @@ from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from celery import Task
 
-from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.sources.fred import FREDSource
 from app.sources.yfinance_source import YFinanceSource
@@ -58,7 +56,6 @@ def _ensure_symbol_exists(storage: PortfolioStorage, symbol: str) -> None:
     )
 
 
-@celery_app.task(bind=True, max_retries=2)
 def ingest_fundamental_data(
     self: Task[..., Any], symbols: list[str] | None = None
 ) -> dict[str, Any]:
@@ -343,7 +340,6 @@ def _insert_short_interest(
     )
 
 
-@celery_app.task(bind=True, max_retries=2)
 def ingest_macro_indicators(self: Task[..., Any]) -> dict[str, Any]:
     """Ingest macro economic indicators from FRED.
 

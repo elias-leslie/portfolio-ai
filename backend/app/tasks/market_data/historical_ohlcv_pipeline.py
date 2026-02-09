@@ -9,7 +9,6 @@ from __future__ import annotations
 import datetime as dt
 from typing import TYPE_CHECKING
 
-from app.celery_app import celery_app
 from app.constants import ALL_MARKET_SYMBOLS
 from app.logging_config import get_logger
 from app.storage import get_storage
@@ -89,15 +88,6 @@ def _get_all_symbols() -> list[str]:
     return all_symbols
 
 
-@celery_app.task(
-    bind=True,
-    name="maintain_historical_market_data",
-    max_retries=3,
-    autoretry_for=(Exception,),
-    retry_backoff=True,
-    retry_backoff_max=600,
-    retry_jitter=True,
-)
 def maintain_historical_market_data(  # type: ignore[no-untyped-def]
     self,
 ) -> dict[str, int | str | float]:

@@ -8,11 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-if TYPE_CHECKING:
-    from celery import Task
-
 from app.analytics.indicators import calculate_indicators
-from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.storage import get_storage
 from app.tasks.indicators.helpers import build_indicator_data, upsert_indicators
@@ -21,15 +17,6 @@ from app.tasks.types import TechnicalIndicatorResultDict
 logger = get_logger(__name__)
 
 
-@celery_app.task(
-    bind=True,
-    name="update_technical_indicators",
-    max_retries=3,
-    autoretry_for=(Exception,),
-    retry_backoff=True,
-    retry_backoff_max=600,
-    retry_jitter=True,
-)
 def update_technical_indicators(
     self: Task[..., Any], symbols: list[str]
 ) -> TechnicalIndicatorResultDict:
@@ -120,15 +107,6 @@ def update_technical_indicators(
     return task_result
 
 
-@celery_app.task(
-    bind=True,
-    name="backfill_technical_indicators",
-    max_retries=1,
-    autoretry_for=(Exception,),
-    retry_backoff=True,
-    retry_backoff_max=600,
-    retry_jitter=True,
-)
 def backfill_technical_indicators(
     self: Task[..., Any], symbols: list[str] | None = None, batch_size: int = 50
 ) -> dict[str, int]:

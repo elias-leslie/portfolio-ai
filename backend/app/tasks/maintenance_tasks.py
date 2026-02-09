@@ -16,7 +16,6 @@ from __future__ import annotations
 import datetime as dt
 from typing import TYPE_CHECKING, Any
 
-from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.sources.sec_cik_fetcher import fetch_and_save as fetch_cik_mapping
 from app.storage import get_storage
@@ -30,13 +29,9 @@ from app.tasks.maintenance_operations import (
 )
 from app.utils.task_helpers import calculate_duration
 
-if TYPE_CHECKING:
-    from celery import Task
-
 logger = get_logger(__name__)
 
 
-@celery_app.task(name="vacuum_database_task", bind=True)
 def vacuum_database_task(
     self: Task[..., Any], tables: list[str] | None = None, dry_run: bool = False
 ) -> dict[str, Any]:
@@ -57,7 +52,6 @@ def vacuum_database_task(
     return execute_maintenance_task("vacuum_database_task", task_id, vacuum_impl, dry_run)
 
 
-@celery_app.task(name="cleanup_old_news_task", bind=True)
 def cleanup_old_news_task(
     self: Task[..., Any], days: int = 90, dry_run: bool = False
 ) -> dict[str, Any]:
@@ -78,7 +72,6 @@ def cleanup_old_news_task(
     return execute_maintenance_task("cleanup_old_news_task", task_id, cleanup_impl, dry_run)
 
 
-@celery_app.task(name="cleanup_old_agent_runs_task", bind=True)
 def cleanup_old_agent_runs_task(
     self: Task[..., Any], days: int = 30, dry_run: bool = False
 ) -> dict[str, Any]:
@@ -99,7 +92,6 @@ def cleanup_old_agent_runs_task(
     return execute_maintenance_task("cleanup_old_agent_runs_task", task_id, cleanup_impl, dry_run)
 
 
-@celery_app.task(name="cleanup_orphaned_data_task", bind=True)
 def cleanup_orphaned_data_task(self: Task[..., Any], dry_run: bool = False) -> dict[str, Any]:
     """Remove orphaned records and fix zombie runs.
 
@@ -117,7 +109,6 @@ def cleanup_orphaned_data_task(self: Task[..., Any], dry_run: bool = False) -> d
     return execute_maintenance_task("cleanup_orphaned_data_task", task_id, cleanup_impl, dry_run)
 
 
-@celery_app.task(name="get_database_size_task", bind=True)
 def get_database_size_task(
     self: Task[..., Any],
 ) -> dict[str, int | str | float | list[dict[str, Any]]]:
@@ -162,7 +153,6 @@ def get_database_size_task(
         }
 
 
-@celery_app.task(name="refresh_sec_cik_cache", bind=True)
 def refresh_sec_cik_cache(self: Task[..., Any]) -> dict[str, Any]:
     """Refresh SEC CIK cache from SEC EDGAR.
 

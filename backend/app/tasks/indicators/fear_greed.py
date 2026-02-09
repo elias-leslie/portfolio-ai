@@ -9,12 +9,8 @@ from __future__ import annotations
 import datetime as dt
 from typing import TYPE_CHECKING, Any
 
-if TYPE_CHECKING:
-    from celery import Task
-
 import redis
 
-from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.storage import get_storage
 from app.storage.types import DatabaseConnection
@@ -310,15 +306,6 @@ def _invalidate_redis_cache() -> None:
         )
 
 
-@celery_app.task(
-    bind=True,
-    name="calculate_fear_greed",
-    max_retries=3,
-    autoretry_for=(Exception,),
-    retry_backoff=True,
-    retry_backoff_max=600,
-    retry_jitter=True,
-)
 def calculate_fear_greed(
     self: Task[..., Any], as_of_date: str | None = None
 ) -> FearGreedCalculationDict:

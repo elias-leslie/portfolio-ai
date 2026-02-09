@@ -9,7 +9,6 @@ import datetime as dt
 import uuid
 from typing import Any
 
-from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.sources import initialize_data_sources
 from app.sources.base import DatasetRequest
@@ -313,15 +312,6 @@ def _ingest_historical_ohlcv_impl(
         raise
 
 
-@celery_app.task(
-    bind=True,
-    name="refresh_daily_ohlcv",
-    max_retries=3,
-    autoretry_for=(Exception,),
-    retry_backoff=True,
-    retry_backoff_max=600,
-    retry_jitter=True,
-)
 def refresh_daily_ohlcv(  # type: ignore[no-untyped-def]
     self, symbols: list[str] | None = None
 ) -> dict[str, int | str | float]:
@@ -374,15 +364,6 @@ def refresh_daily_ohlcv(  # type: ignore[no-untyped-def]
         raise
 
 
-@celery_app.task(
-    bind=True,
-    name="refresh_watchlist_ohlcv",
-    max_retries=3,
-    autoretry_for=(Exception,),
-    retry_backoff=True,
-    retry_backoff_max=600,
-    retry_jitter=True,
-)
 def refresh_watchlist_ohlcv(  # type: ignore[no-untyped-def]
     self,
 ) -> dict[str, int | str | float]:
@@ -517,15 +498,6 @@ def refresh_watchlist_ohlcv(  # type: ignore[no-untyped-def]
         raise
 
 
-@celery_app.task(
-    bind=True,
-    name="ingest_historical_ohlcv",
-    max_retries=3,
-    autoretry_for=(Exception,),
-    retry_backoff=True,
-    retry_backoff_max=600,
-    retry_jitter=True,
-)
 def ingest_historical_ohlcv(  # type: ignore[no-untyped-def]
     self, symbols: list[str], days: int = 252
 ) -> dict[str, int | str | float]:

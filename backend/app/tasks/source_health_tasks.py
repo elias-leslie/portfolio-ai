@@ -22,13 +22,9 @@ from ..sources.twelvedata_source import TwelveDataSource
 from ..sources.yfinance_source import YFinanceSource
 from ..storage import PortfolioStorage
 
-if TYPE_CHECKING:
-    from celery import Task
-
 logger = get_logger(__name__)
 
 
-@celery_app.task(bind=True, name="check_data_source_health", max_retries=1)
 def check_data_source_health(self: Task[..., Any]) -> dict[str, Any]:
     """Periodically test each configured data source.
 

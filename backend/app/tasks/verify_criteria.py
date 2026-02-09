@@ -13,7 +13,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from celery import Task
 
 from ..celery_app import celery_app
 from ..logging_config import get_logger
@@ -21,7 +20,6 @@ from ..logging_config import get_logger
 logger = get_logger(__name__)
 
 
-@celery_app.task(bind=True, name="verify_all_acceptance_criteria")
 def verify_all_acceptance_criteria(
     self: Task[..., Any], type_filter: str | None = None, limit: int | None = None
 ) -> dict[str, Any]:
@@ -42,7 +40,6 @@ def verify_all_acceptance_criteria(
     }
 
 
-@celery_app.task(bind=True, name="verify_feature_criteria")
 def verify_feature_criteria(self: Task[..., Any], feature_id: str) -> dict[str, Any]:
     """DISABLED: Verification is now managed by SummitFlow.
 
@@ -61,7 +58,6 @@ def verify_feature_criteria(self: Task[..., Any], feature_id: str) -> dict[str, 
     }
 
 
-@celery_app.task(bind=True, name="verify_criteria_batch")
 def verify_criteria_batch(self: Task[..., Any], feature_ids: list[str]) -> dict[str, Any]:
     """DISABLED: Verification is now managed by SummitFlow.
 

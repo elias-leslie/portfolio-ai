@@ -11,7 +11,6 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
-from celery import shared_task
 
 from ...logging_config import get_logger
 from ...storage import PortfolioStorage
@@ -20,11 +19,9 @@ logger = get_logger(__name__)
 
 
 # =============================================================================
-# Celery Task
 # =============================================================================
 
 
-@shared_task(name="generate_daily_watchlist_report", bind=True)
 def generate_daily_watchlist_report_task(
     self: Any,
 ) -> dict[str, Any]:

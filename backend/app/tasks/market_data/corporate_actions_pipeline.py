@@ -12,9 +12,7 @@ from __future__ import annotations
 import datetime as dt
 from typing import Any
 
-from celery import Task
 
-from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.sources.buyback_source import fetch_and_store_buybacks
 from app.storage import get_storage
@@ -30,14 +28,6 @@ def _get_watchlist_symbols() -> list[str]:
     return [str(r[0]) for r in result]
 
 
-@celery_app.task(
-    bind=True,
-    name="tasks.fetch_corporate_actions",
-    max_retries=2,
-    autoretry_for=(Exception,),
-    retry_backoff=True,
-    retry_backoff_max=300,
-)
 def fetch_corporate_actions(
     self: Task[..., Any],
     symbols: list[str] | None = None,

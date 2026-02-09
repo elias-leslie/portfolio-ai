@@ -11,7 +11,6 @@ from decimal import Decimal
 from typing import Any, Literal
 
 from app.backtest.metrics import calculate_simple_max_drawdown, calculate_simple_sharpe
-from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.storage.connection import get_connection_manager
 from app.strategies.storage import (
@@ -332,7 +331,6 @@ def _evaluate_single_strategy(
     return result_msg, archived
 
 
-@celery_app.task(name="app.tasks.strategy.performance_tasks.evaluate_strategy_performance")
 def evaluate_strategy_performance() -> StrategyMonitoringResultDict:
     """Evaluate all active strategies and archive underperformers.
 
@@ -404,7 +402,6 @@ def evaluate_strategy_performance() -> StrategyMonitoringResultDict:
         return build_strategy_failure(e)
 
 
-@celery_app.task(name="app.tasks.strategy.performance_tasks.auto_promote_strategies")
 def auto_promote_strategies(
     min_days: int = 3,
     min_sharpe: float = MIN_SHARPE_FOR_PROMOTION,

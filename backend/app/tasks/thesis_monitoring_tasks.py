@@ -18,7 +18,6 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
-from celery import shared_task
 
 from ..logging_config import get_logger
 from ..rules.loader import get_rules
@@ -102,7 +101,6 @@ def get_active_strategies_for_symbol(
     return [{"id": str(s.id), "name": s.name} for s in strategies]
 
 
-@shared_task(name="monitor_thesis_health", bind=True)
 def monitor_thesis_health_task(self: Any) -> dict[str, Any]:
     """Daily thesis health check - evaluate invalidation triggers for all active theses.
 
@@ -234,7 +232,6 @@ def monitor_thesis_health_task(self: Any) -> dict[str, Any]:
         return {"status": "error", "error": str(e)}
 
 
-@shared_task(name="process_invalidated_theses", bind=True)
 def process_invalidated_theses_task(self: Any) -> dict[str, Any]:
     """Process invalidated theses - remove from watchlist based on rules config.
 
@@ -405,7 +402,6 @@ def process_invalidated_theses_task(self: Any) -> dict[str, Any]:
         return {"status": "error", "error": str(e)}
 
 
-@shared_task(name="archive_strategies_for_invalidated_theses", bind=True)
 def archive_strategies_for_invalidated_theses_task(self: Any) -> dict[str, Any]:
     """Archive strategies when thesis invalidated (thesis invalidation triggers strategy lifecycle).
 

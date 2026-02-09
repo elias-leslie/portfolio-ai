@@ -10,7 +10,6 @@ import asyncio
 import contextlib
 from typing import Any
 
-from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.storage.credential_loader import load_credentials_from_database
 from app.strategies.storage import get_strategy_storage
@@ -131,7 +130,6 @@ def _filter_symbols_without_active_strategy(
     return symbols_to_generate
 
 
-@celery_app.task(name="app.tasks.strategy.generation_tasks.weekly_strategy_generation")
 def weekly_strategy_generation() -> StrategyMonitoringResultDict:
     """Generate new strategies for top watchlist symbols.
 
@@ -190,7 +188,6 @@ def weekly_strategy_generation() -> StrategyMonitoringResultDict:
         return build_strategy_failure(e)
 
 
-@celery_app.task(name="app.tasks.strategy.generation_tasks.daily_strategy_refresh")
 def daily_strategy_refresh(max_symbols: int = 5) -> dict[str, Any]:
     """Daily strategy refresh - regenerate strategies for underperformers.
 
@@ -281,7 +278,6 @@ def daily_strategy_refresh(max_symbols: int = 5) -> dict[str, Any]:
         return {"status": "failed", "error": str(e)}
 
 
-@celery_app.task(name="app.tasks.strategy.generation_tasks.trigger_strategies_for_top_watchlist")
 def trigger_strategies_for_top_watchlist(
     top_n: int = TOP_WATCHLIST_TRIGGER_SYMBOLS,
     max_per_day: int = 3,
@@ -362,7 +358,6 @@ def trigger_strategies_for_top_watchlist(
         return {"status": "failed", "error": str(e)}
 
 
-@celery_app.task(name="app.tasks.strategy.generation_tasks.trigger_strategy_from_seed")
 def trigger_strategy_from_seed(seed_id: str, symbol: str) -> dict[str, Any]:
     """Generate strategy from a high-confidence seed.
 

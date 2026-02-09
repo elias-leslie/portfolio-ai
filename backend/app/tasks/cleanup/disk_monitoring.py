@@ -16,13 +16,9 @@ import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.tasks.maintenance_logging import record_maintenance_metric
 from app.utils.task_helpers import build_error_result, calculate_duration
-
-if TYPE_CHECKING:
-    from celery import Task
 
 logger = get_logger(__name__)
 
@@ -105,7 +101,6 @@ def check_disk_space_impl() -> dict[str, Any]:
     }
 
 
-@celery_app.task(name="check_disk_space_task", bind=True)
 def check_disk_space_task(
     self: Task[..., Any],
 ) -> dict[str, int | str | float | list[dict[str, Any]]]:

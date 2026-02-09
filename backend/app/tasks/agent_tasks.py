@@ -19,7 +19,6 @@ from app.agents.llm_client import DualProviderClient
 from app.agents.portfolio_analyzer import PortfolioAnalyzerAgent
 from app.agents.tools import AgentTools
 from app.analytics.paper_trading import update_paper_trades
-from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.portfolio.analytics import PortfolioAnalytics
 from app.portfolio.manager import PortfolioManager
@@ -30,8 +29,6 @@ from app.sources.fred import FREDSource
 from app.storage import get_storage
 from app.tasks.triggers import emit_event
 
-if TYPE_CHECKING:
-    from celery import Task
 from app.storage.credential_loader import load_credentials_from_database
 
 if TYPE_CHECKING:
@@ -88,7 +85,6 @@ def _update_celery_task_id(storage: PortfolioStorage, task_id: str, run_id: str)
         conn.commit()
 
 
-@celery_app.task(name="run_discovery_agent", bind=True)
 def run_discovery_agent(self: Task[..., Any]) -> str:
     """Run discovery agent as a background task.
 
@@ -151,7 +147,6 @@ def run_discovery_agent(self: Task[..., Any]) -> str:
         raise
 
 
-@celery_app.task(name="run_portfolio_analyzer", bind=True)
 def run_portfolio_analyzer(self: Task[..., Any]) -> str:
     """Run portfolio analyzer agent as a background task.
 
@@ -214,7 +209,6 @@ def run_portfolio_analyzer(self: Task[..., Any]) -> str:
         raise
 
 
-@celery_app.task(name="update_paper_trades_task", bind=True)
 def update_paper_trades_task(  # type: ignore[no-untyped-def]
     self, max_holding_days: int = 60
 ):

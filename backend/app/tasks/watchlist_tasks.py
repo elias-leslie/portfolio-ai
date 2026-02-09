@@ -9,10 +9,6 @@ import datetime as dt
 import time
 from typing import TYPE_CHECKING, Any
 
-if TYPE_CHECKING:
-    from celery import Task
-
-from app.celery_app import celery_app
 from app.constants import DEFAULT_BACKFILL_DAYS
 from app.logging_config import get_logger
 from app.storage import PortfolioStorage, get_storage
@@ -221,7 +217,6 @@ def _build_skip_result(
     }
 
 
-@celery_app.task(name="refresh_watchlist_scores", bind=True)
 def refresh_watchlist_scores_task(
     self: Task[..., Any], account_id: str | None = None, force: bool = False
 ) -> WatchlistResultDict:
@@ -384,7 +379,6 @@ def _refresh_watchlist_scores_impl(
         raise
 
 
-@celery_app.task(name="refresh_single_symbol_scores", bind=True)
 def refresh_single_symbol_scores_task(self: Task[..., Any], symbol: str) -> dict[str, object]:
     """Refresh scores for a single symbol immediately (no rate limit check).
 

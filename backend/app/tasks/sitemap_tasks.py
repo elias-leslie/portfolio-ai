@@ -19,7 +19,6 @@ from ..services.sitemap import SitemapService
 logger = get_logger(__name__)
 
 
-@celery_app.task(name="check_sitemap_health")
 def check_sitemap_health() -> dict[str, Any]:
     """Periodic health check for all sitemap entries.
 
@@ -59,7 +58,6 @@ def check_sitemap_health() -> dict[str, Any]:
         return {"status": "error", "error": str(e)}
 
 
-@celery_app.task(name="discover_sitemap_entries")
 def discover_sitemap_entries() -> dict[str, Any]:
     """Discover new sitemap entries from OpenAPI and crawling.
 
@@ -99,7 +97,6 @@ def discover_sitemap_entries() -> dict[str, Any]:
         return {"status": "error", "error": str(e)}
 
 
-@celery_app.task(name="cleanup_sitemap_history")
 def cleanup_sitemap_history(retention_days: int = 7) -> dict[str, Any]:
     """Delete health history older than retention period.
 

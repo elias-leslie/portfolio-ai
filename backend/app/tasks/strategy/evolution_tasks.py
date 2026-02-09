@@ -9,7 +9,6 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.strategies.storage import StrategyStorage, get_strategy_storage
 
@@ -22,7 +21,6 @@ MAX_EVOLUTION_STRATEGIES = 5  # Maximum strategies to evolve per week
 ERROR_MESSAGE_TRUNCATE = 100  # Truncate error messages to prevent log bloat
 
 
-@celery_app.task(name="app.tasks.strategy.evolution_tasks.weekly_strategy_evolution")
 def weekly_strategy_evolution() -> dict[str, Any]:
     """Weekly strategy evolution - evolve underperforming strategies via LLM.
 

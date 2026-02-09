@@ -17,7 +17,6 @@ import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.tasks.maintenance_logging import (
     log_maintenance_complete,
@@ -25,9 +24,6 @@ from app.tasks.maintenance_logging import (
     record_maintenance_metric,
 )
 from app.utils.task_helpers import build_error_result, calculate_duration
-
-if TYPE_CHECKING:
-    from celery import Task
 
 logger = get_logger(__name__)
 
@@ -248,7 +244,6 @@ def _get_cache_targets(project_root: Path) -> list[dict[str, Any]]:
     ]
 
 
-@celery_app.task(name="cleanup_temp_files_task", bind=True)
 def cleanup_temp_files_task(
     self: Task[..., Any], hours: int = 24, dry_run: bool = False
 ) -> dict[str, Any]:
@@ -340,7 +335,6 @@ def cleanup_temp_files_task(
         return error_result
 
 
-@celery_app.task(name="cleanup_cache_directories_task", bind=True)
 def cleanup_cache_directories_task(self: Task[..., Any], dry_run: bool = False) -> dict[str, Any]:
     """Clean up development cache directories to free disk space.
 

@@ -12,7 +12,6 @@ import time
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
-from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.services.news_quality_metrics import (
     QualityWeights,
@@ -22,9 +21,6 @@ from app.services.news_quality_metrics import (
 from app.storage import get_storage
 from app.storage.facade import PortfolioStorage
 from app.tasks.types import NewsProfilingResultDict
-
-if TYPE_CHECKING:
-    from celery import Task
 
 logger = get_logger(__name__)
 
@@ -264,7 +260,6 @@ def _store_metrics(metrics: list[tuple[str, dict[str, Any]]]) -> None:
         conn.commit()
 
 
-@celery_app.task(name="profile_news_sources", bind=True)
 def profile_news_sources_task(
     self: Task[..., Any], user_id: str = "default"
 ) -> NewsProfilingResultDict:
@@ -341,7 +336,6 @@ def profile_news_sources_task(
     return result
 
 
-@celery_app.task(name="reset_source_metrics")
 def reset_source_metrics_task() -> NewsProfilingResultDict:
     """Reset all source metrics and user feedback.
 

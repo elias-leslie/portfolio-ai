@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING, Any
 import requests
 import yfinance as yf
 
-from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.storage import get_storage
 
@@ -252,15 +251,6 @@ def _get_putcall_ratio_with_fallbacks() -> dict[str, Any]:
     raise RuntimeError("All put/call ratio sources failed (yfinance, Polygon, Finnhub)")
 
 
-@celery_app.task(
-    bind=True,
-    name="fetch_putcall_ratio",
-    max_retries=3,
-    autoretry_for=(Exception,),
-    retry_backoff=True,
-    retry_backoff_max=600,
-    retry_jitter=True,
-)
 def fetch_putcall_ratio(  # type: ignore[no-untyped-def]
     self,
     as_of_date: str | None = None,
@@ -361,7 +351,6 @@ def fetch_putcall_ratio(  # type: ignore[no-untyped-def]
         }
 
 
-@celery_app.task(name="fetch_options_activity_metrics", bind=True)
 def fetch_options_activity_metrics(  # type: ignore[no-untyped-def]
     self,
 ) -> dict[str, Any]:
