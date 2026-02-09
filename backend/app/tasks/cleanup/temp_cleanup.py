@@ -50,7 +50,7 @@ def _build_cleanup_result(
     """Build standardized success result dict for cleanup tasks.
 
     Args:
-        task_id: The Celery task ID
+        task_id: The task ID
         dry_run: Whether this was a dry run
         duration_seconds: Task execution duration in seconds
         task_specific_fields: Task-specific fields to merge (e.g., files_deleted, bytes_freed)

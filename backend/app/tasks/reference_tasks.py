@@ -1,4 +1,4 @@
-"""Celery tasks for reference data maintenance.
+"""Tasks for reference data maintenance.
 
 This module defines background tasks for maintaining cached reference data,
 including extraction of valuation metrics from JSON payloads and enriching
@@ -286,14 +286,11 @@ def parse_valuation_metrics() -> dict[str, int | str | float]:
 
     Returns:
         Dict with task results:
-        - task_id: Celery task ID
+        - task_id: Task ID
         - entries_processed: Number of cache entries processed
         - entries_updated: Number of entries with metrics found and updated
         - duration_seconds: Total execution time
 
-    Example:
-        >>> # Manual trigger for testing
-        >>> celery -A app.celery_app call app.tasks.reference_tasks.parse_valuation_metrics
     """
     task_id = str(uuid.uuid4())
     start_time = dt.datetime.now(dt.UTC)
@@ -347,7 +344,7 @@ def refresh_yfinance_reference_data() -> dict[str, int | str | float | None]:
 
     Returns:
         Dict with task results:
-        - task_id: Celery task ID
+        - task_id: Task ID
         - symbols_processed: Number of symbols attempted
         - symbols_updated: Number of symbols successfully updated
         - duration_seconds: Total execution time
@@ -480,7 +477,7 @@ def refresh_alphavantage_reference_backup(
 
     Returns:
         Dict with task results:
-        - task_id: Celery task ID
+        - task_id: Task ID
         - symbols_processed: Number of symbols attempted
         - symbols_updated: Number of symbols successfully updated
         - duration_seconds: Total execution time
@@ -540,7 +537,7 @@ def refresh_analyst_revisions() -> dict[str, int | str | float | None]:
 
     Returns:
         Dict with task results:
-        - task_id: Celery task ID
+        - task_id: Task ID
         - symbols_processed: Number of symbols attempted
         - records_saved: Number of revision records saved
         - duration_seconds: Total execution time
@@ -603,7 +600,7 @@ def refresh_financial_health_scores() -> dict[str, int | str | float | None]:
 
     Returns:
         Dict with task results:
-        - task_id: Celery task ID
+        - task_id: Task ID
         - symbols_processed: Number of symbols attempted
         - symbols_updated: Number of symbols with scores calculated
         - duration_seconds: Total execution time
@@ -721,7 +718,7 @@ def refresh_risk_metrics() -> dict[str, int | str | float | None]:
 
     Returns:
         Dict with task results:
-        - task_id: Celery task ID
+        - task_id: Task ID
         - symbols_processed: Number of symbols attempted
         - symbols_updated: Number of symbols with metrics calculated
         - duration_seconds: Total execution time
