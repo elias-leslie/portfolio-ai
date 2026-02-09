@@ -26,23 +26,16 @@ else
 fi
 echo ""
 
-# Start Celery services
-echo "Starting Celery services..."
-systemctl --user start portfolio-celery.service
-systemctl --user start portfolio-celery-beat.service
+# Start Hatchet worker
+echo "Starting Hatchet worker..."
+systemctl --user start portfolio-hatchet-worker.service
 sleep 2
 
-if systemctl --user is-active --quiet portfolio-celery.service; then
-    echo "✓ Celery worker started"
+if systemctl --user is-active --quiet portfolio-hatchet-worker.service; then
+    echo "✓ Hatchet worker started"
 else
-    echo "✗ Failed to start Celery worker"
-    exit 1
-fi
-
-if systemctl --user is-active --quiet portfolio-celery-beat.service; then
-    echo "✓ Celery beat started"
-else
-    echo "✗ Failed to start Celery beat"
+    echo "✗ Failed to start Hatchet worker"
+    echo "  Check logs: journalctl --user -u portfolio-hatchet-worker -n 50"
     exit 1
 fi
 echo ""
@@ -67,14 +60,12 @@ echo "✓ All services started!"
 echo "================================"
 echo ""
 echo "Service Status (User Mode):"
-echo "  Backend:      $(systemctl --user is-active portfolio-backend.service && echo '✓ Running (http://localhost:8000)' || echo '✗ Stopped')"
-echo "  Celery Worker:$(systemctl --user is-active portfolio-celery.service && echo '✓ Running' || echo '✗ Stopped')"
-echo "  Celery Beat:  $(systemctl --user is-active portfolio-celery-beat.service && echo '✓ Running' || echo '✗ Stopped')"
-echo "  Frontend:     $(systemctl --user is-active portfolio-frontend.service && echo '✓ Running (http://localhost:3000)' || echo '✗ Stopped')"
+echo "  Backend:        $(systemctl --user is-active portfolio-backend.service && echo '✓ Running (http://localhost:8000)' || echo '✗ Stopped')"
+echo "  Hatchet Worker: $(systemctl --user is-active portfolio-hatchet-worker.service && echo '✓ Running' || echo '✗ Stopped')"
+echo "  Frontend:       $(systemctl --user is-active portfolio-frontend.service && echo '✓ Running (http://localhost:3000)' || echo '✗ Stopped')"
 echo ""
 echo "Logs:"
-echo "  Backend:      journalctl --user -u portfolio-backend -f"
-echo "  Celery Worker:journalctl --user -u portfolio-celery -f"
-echo "  Celery Beat:  journalctl --user -u portfolio-celery-beat -f"
-echo "  Frontend:     journalctl --user -u portfolio-frontend -f"
+echo "  Backend:        journalctl --user -u portfolio-backend -f"
+echo "  Hatchet Worker: journalctl --user -u portfolio-hatchet-worker -f"
+echo "  Frontend:       journalctl --user -u portfolio-frontend -f"
 echo ""

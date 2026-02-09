@@ -17,7 +17,7 @@ echo ""
 ERRORS=0
 
 # Check Redis (system service)
-echo -n "Redis:         "
+echo -n "Redis:           "
 if systemctl is-active --quiet redis-server 2>/dev/null || pgrep -x redis-server > /dev/null; then
     if redis-cli ping > /dev/null 2>&1; then
         echo -e "${GREEN}✓ Running${NC}"
@@ -31,7 +31,7 @@ else
 fi
 
 # Check PostgreSQL (system service)
-echo -n "PostgreSQL:    "
+echo -n "PostgreSQL:      "
 if systemctl is-active --quiet postgresql 2>/dev/null; then
     echo -e "${GREEN}✓ Running${NC}"
 else
@@ -44,7 +44,7 @@ echo "--- Portfolio AI Services (User Mode) ---"
 echo ""
 
 # Check Backend (user service)
-echo -n "Backend API:   "
+echo -n "Backend API:     "
 if systemctl --user is-active --quiet portfolio-backend.service; then
     if curl -s http://localhost:8000/api/health > /dev/null 2>&1; then
         echo -e "${GREEN}✓ Running (http://localhost:8000)${NC}"
@@ -57,27 +57,18 @@ else
     ERRORS=$((ERRORS + 1))
 fi
 
-# Check Celery Worker (user service)
-echo -n "Celery Worker: "
-if systemctl --user is-active --quiet portfolio-celery.service; then
-    WORKER_COUNT=$(pgrep -f "celery.*worker" | wc -l)
-    echo -e "${GREEN}✓ Running ($WORKER_COUNT processes)${NC}"
-else
-    echo -e "${RED}✗ Not running${NC}"
-    ERRORS=$((ERRORS + 1))
-fi
-
-# Check Celery Beat (user service)
-echo -n "Celery Beat:   "
-if systemctl --user is-active --quiet portfolio-celery-beat.service; then
-    echo -e "${GREEN}✓ Running${NC}"
+# Check Hatchet Worker (user service)
+echo -n "Hatchet Worker:  "
+if systemctl --user is-active --quiet portfolio-hatchet-worker.service; then
+    WORKER_PID=$(systemctl --user show -p MainPID portfolio-hatchet-worker.service | cut -d= -f2)
+    echo -e "${GREEN}✓ Running (PID: ${WORKER_PID})${NC}"
 else
     echo -e "${RED}✗ Not running${NC}"
     ERRORS=$((ERRORS + 1))
 fi
 
 # Check Frontend (user service)
-echo -n "Frontend:      "
+echo -n "Frontend:        "
 if systemctl --user is-active --quiet portfolio-frontend.service; then
     if curl -s http://localhost:3000 > /dev/null 2>&1; then
         echo -e "${GREEN}✓ Running (http://localhost:3000)${NC}"
@@ -108,10 +99,9 @@ fi
 
 echo ""
 echo "Logs (via journalctl):"
-echo "  Backend:       journalctl --user -u portfolio-backend -f"
-echo "  Celery Worker: journalctl --user -u portfolio-celery -f"
-echo "  Celery Beat:   journalctl --user -u portfolio-celery-beat -f"
-echo "  Frontend:      journalctl --user -u portfolio-frontend -f"
+echo "  Backend:        journalctl --user -u portfolio-backend -f"
+echo "  Hatchet Worker: journalctl --user -u portfolio-hatchet-worker -f"
+echo "  Frontend:       journalctl --user -u portfolio-frontend -f"
 echo ""
 
 exit $ERRORS

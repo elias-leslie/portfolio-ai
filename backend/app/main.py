@@ -23,6 +23,7 @@ from app.api import (
     celery_endpoints,
     # claude_progress removed - Beads handles session tracking
     cross_validation,
+    task_endpoints,
     db_inspect,
     # disagreements removed - feature disabled (no data, unused)
     # files removed - use SummitFlow for file browsing
@@ -180,6 +181,8 @@ app.include_router(health.router)
 app.include_router(status.router)
 app.include_router(status_stream.router)
 app.include_router(celery_endpoints.router)
+app.include_router(task_endpoints.router)
+app.include_router(task_endpoints.compat_router)
 app.include_router(maintenance.router)
 app.include_router(portfolio.router)
 # ideas.router removed - deprecated in favor of strategy-seeds (FEAT-218)
