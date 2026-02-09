@@ -1,212 +1,181 @@
-# Portfolio AI Platform
+# Portfolio AI
 
 AI-led investment intelligence platform combining portfolio analytics with autonomous agent-driven market insights.
 
-## 🎯 Project Status
+## Overview
 
-**Last Updated**: 2025-11-02
-**Development Phase**: v1.3.0-dev - Post-MVP Enhancements Complete
-**Version**: 1.3.0-dev
+Portfolio AI is a full-stack application for managing investment portfolios, tracking watchlists, and generating AI-powered market intelligence. It integrates data from multiple financial APIs with failover routing, runs autonomous agents for opportunity discovery, and provides a narrative intelligence system that translates complex market data into actionable plain-language insights.
 
-### ✅ Completed Features
-- ✅ Full-stack application (FastAPI + Next.js)
-- ✅ Portfolio management with real-time analytics
-- ✅ AI agent system (Discovery Agent + Portfolio Analyzer)
-- ✅ PostgreSQL migration with connection pooling (4x concurrency)
-- ✅ Multi-source data failover (6 operational adapters)
-- ✅ Watchlist Intelligence Hub with narrative system
-- ✅ **Narrative Intelligence System** (PRD #0021 100% complete):
-  - Signal classification (BUY/HOLD/AVOID with 0-10 strength)
-  - Trading style recommendations (Index/Trend/Value/Swing/Event)
-  - Plain-language insights with zero jargon
-  - Multi-source fundamentals and earnings data
-  - Entry/stop/target calculations with position sizing
-- ✅ 145 tests passing (100% pass rate), 85% coverage
-- ✅ Mypy --strict compliance
-- ✅ Complete UI with navigation, forms, error handling
+## Tech Stack
 
-### 🎯 Active Development
-- Intelligence layer enhancements (sentiment scoring, fundamental data)
-- Risk management suite (position sizing, stop-loss, correlation)
-- See **[docs/core/REFACTOR_STATUS.md](./docs/core/REFACTOR_STATUS.md)** for current priorities.
+| Layer | Technology |
+|-------|-----------|
+| Backend | FastAPI, Python 3.13+, SQLAlchemy 2.0, Pydantic 2 |
+| Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS 4, shadcn/ui |
+| Database | PostgreSQL 15+ (psycopg 3, connection pooling) |
+| Caching | Redis |
+| Workflows | Hatchet (background tasks, scheduling) |
+| AI | Anthropic Claude (via Agent Hub completion API) |
+| Data | yfinance, Finnhub, Polygon.io, FMP, TwelveData, AlphaVantage, FRED, RSS feeds |
+| Quality | Ruff, Mypy (strict), pytest, Vitest, Playwright, Biome |
 
-## 🚀 Quick Start
+## Architecture
+
+```
+portfolio-ai/
+├── backend/
+│   ├── app/
+│   │   ├── agents/        # AI agents (Discovery, Portfolio Analyzer)
+│   │   ├── api/           # REST endpoint routers
+│   │   ├── analytics/     # Analytics calculations
+│   │   ├── backtest/      # Backtesting engine
+│   │   ├── config/        # YAML/JSON configuration
+│   │   ├── market/        # Market data handling
+│   │   ├── ml/            # Machine learning models
+│   │   ├── models/        # SQLAlchemy ORM models
+│   │   ├── portfolio/     # Portfolio management logic
+│   │   ├── services/      # Business logic services
+│   │   ├── sources/       # Data source adapters (multi-source failover)
+│   │   ├── strategies/    # Strategy definitions and management
+│   │   ├── tasks/         # Background tasks (Hatchet workflows)
+│   │   ├── watchlist/     # Watchlist intelligence + narrative system
+│   │   └── workflows/     # Hatchet workflow definitions
+│   └── tests/
+├── frontend/
+│   ├── app/               # Pages (App Router)
+│   ├── components/        # React components
+│   └── lib/               # API clients, hooks, utilities
+└── scripts/               # Service management (symlinks to SummitFlow)
+```
+
+## Key Features
+
+### Portfolio Management
+- Multi-account support (IRA, Taxable, 401k, Roth, HSA)
+- Real-time position tracking with automatic price updates (15-minute refresh)
+- Analytics: beta, volatility, concentration, sector exposure
+- Snapshot system for historical tracking
+
+### AI-Powered Intelligence
+- **Discovery Agent** - Scans news and economic data for market opportunities
+- **Portfolio Analyzer** - Generates personalized ideas based on current holdings
+- **Narrative Intelligence System** - Signal classification (BUY/HOLD/AVOID), trading style recommendations, entry/stop/target calculations with position sizing
+
+### Data Integration
+- Multi-source failover across 6+ financial data providers
+- Economic indicators via FRED (VIX, Treasury yields, HY spreads)
+- News aggregation from 10+ RSS feeds and API sources
+- Rate-limited request routing with quota management
+
+### Backtesting
+- Historical strategy testing with trade simulation
+- Performance metrics (Sharpe ratio, win rate, drawdown)
+- Paper trading with live updates
+
+### Scheduled Automation
+- 60+ Hatchet-scheduled background tasks
+- Daily OHLCV refresh, fear/greed index calculation
+- Automated data freshness monitoring and stale data alerts
+- Strategy signal generation and watchlist candidate discovery
+
+## Ports
+
+| Service | Port |
+|---------|------|
+| Frontend (Next.js) | 3000 |
+| Backend (FastAPI) | 8000 |
+
+## Getting Started
 
 ### Prerequisites
 
-See [docs/core/STACK.md](docs/core/STACK.md) for current versions.
+- Python 3.13+
+- Node.js 20+
+- PostgreSQL 15+
+- Redis
 
-- Python, Node.js, PostgreSQL (versions in STACK.md)
-- Anthropic API key (for AI agents)
+### Backend
 
-### Backend Setup
 ```bash
-cd ~/portfolio-ai/backend
-python3 -m venv .venv
-source ~/portfolio-ai/backend/.venv/bin/activate
-pip install -r ~/portfolio-ai/backend/requirements.txt
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
 
-# Create .env file with your API key
-echo "ANTHROPIC_API_KEY=your-key-here" > ~/portfolio-ai/backend/.env
+# Run migrations
+alembic upgrade head
 
-# Start backend
+# Start server
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-### Frontend Setup
+### Frontend
+
 ```bash
-cd ~/portfolio-ai/frontend
+cd frontend
 npm install
 npm run dev
 ```
 
-### Access
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:8000
-- **API Docs**: http://localhost:8000/docs
+### Environment
 
-## 📱 Remote Access (Tailscale)
+API keys are configured in `~/.env.local`. Optional data source keys:
 
-For testing on your phone:
+- `POLYGON_API_KEY` - Polygon.io (5 req/min, 15m delay)
+- `TWELVEDATA_API_KEY` - TwelveData (8 req/min)
+- `FMP_API_KEY` - Financial Modeling Prep (250 req/day)
+- `FINNHUB_API_KEY` - Finnhub (60 req/min)
+- `ALPHAVANTAGE_API_KEY` - AlphaVantage (5 req/min, 25 req/day)
 
-```bash
-# Terminal 1: Start backend
-cd ~/portfolio-ai/backend && source ~/portfolio-ai/backend/.venv/bin/activate && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+yfinance, FRED, and RSS feeds are free and require no keys.
 
-# Terminal 2: Start frontend
-cd ~/portfolio-ai/frontend && npm run dev
-
-# Terminal 3: Configure Tailscale
-tailscale serve --bg 3000
-tailscale serve --bg 8000
-
-# Get your URL
-tailscale status
-```
-
-Then open `https://<your-machine>.tail-scale.net` on your phone.
-
-## 🏗️ Architecture
-
-See **[docs/core/ARCHITECTURE.md](./docs/core/ARCHITECTURE.md)** for comprehensive system design.
-
-**High-level stack** (see [STACK.md](docs/core/STACK.md) for versions):
-- **Frontend**: Next.js, React Query, shadcn/ui, Tailwind CSS
-- **Backend**: FastAPI, PostgreSQL, SQLAlchemy, Pydantic
-- **AI**: Anthropic Claude API
-- **Data**: Multi-source failover (YFinance, TwelveData, FMP, Polygon, Finnhub, AlphaVantage), FRED, Google News RSS
-
-## 📊 Key Features
-
-### Portfolio Management
-- Multi-account support (IRA, Taxable, 401k, Roth, HSA)
-- Real-time position tracking
-- Analytics: beta, volatility, concentration, sector exposure
-- Automatic price updates (15-min refresh)
-
-### AI-Powered Ideas
-- **Discovery Agent**: Scans news/economic data for general market opportunities
-- **Portfolio Analyzer**: Generates personalized ideas based on your holdings
-- Confidence scoring and risk assessment
-- Idea status workflow (pending → validated → executed → rejected)
-
-### User Experience
-- Responsive UI with navigation
-- Toast notifications for all actions
-- Error handling and loading states
-- Form validation
-- Real-time data updates
-
-## 🧪 Testing
+## Testing
 
 ```bash
-# Backend tests (145 passing, 85% coverage)
-cd ~/portfolio-ai/backend
-source ~/portfolio-ai/backend/.venv/bin/activate
-pytest tests/ -v --cov=app --cov-report=term-missing
-
-# Linting and type checking
-~/portfolio-ai/scripts/lint.sh  # ruff + mypy
-
-# Frontend build
-cd ~/portfolio-ai/frontend
-npm run build
-```
-
-## 📁 Project Structure
-
-```
-~/portfolio-ai/
-├── backend/              # Python FastAPI application
-│   ├── app/
-│   │   ├── agents/       # AI agent system
-│   │   ├── api/          # API routers
-│   │   ├── portfolio/    # Portfolio management
-│   │   ├── watchlist/    # Watchlist intelligence + narrative system
-│   │   ├── sources/      # Data sources (multi-source failover)
-│   │   └── storage/      # PostgreSQL storage layer
-│   ├── tests/            # 145 tests (100% passing, 85% coverage)
-│   ├── migrations/       # Database schema migrations
-│   └── data/             # Database backups only (PostgreSQL managed externally)
-├── frontend/             # Next.js application
-│   ├── app/              # Pages (dashboard, portfolio, settings, ideas)
-│   ├── components/       # React components
-│   └── lib/              # API clients & hooks
-├── docs/core/            # Documentation
-└── tasks/                # PRDs and task lists
-```
-
-## 📚 Documentation
-
-- **[/capabilities → Vision tab](http://localhost:3000/capabilities)** - Mission, vision, and strategic goals (DB-backed)
-- **[docs/core/ARCHITECTURE.md](docs/core/ARCHITECTURE.md)** - System design and components
-- **[docs/core/DEVELOPMENT.md](docs/core/DEVELOPMENT.md)** - Development workflows and standards
-- **[docs/core/SETUP.md](docs/core/SETUP.md)** - Installation and setup guide
-- **[docs/core/REFACTOR_STATUS.md](docs/core/REFACTOR_STATUS.md)** - Current status and priorities
-- **[CLAUDE.md](CLAUDE.md)** - Project governance and AI agent guidelines
-- **[tasks/](tasks/)** - PRD and detailed task breakdowns
-
-## 🔧 Development Workflow
-
-See **[CLAUDE.md](./CLAUDE.md#-command-quick-reference)** for complete commands.
-
-```bash
-# Run tests
-cd ~/portfolio-ai/backend && pytest tests/ -v --cov=app
-
-# Linting
-~/portfolio-ai/scripts/lint.sh
+# Backend tests
+cd backend
+pytest tests/ -v --cov=app
 
 # Type checking
-cd ~/portfolio-ai/backend && mypy app/ --strict
+mypy app/ --strict
 
-# Validate slash commands
-~/portfolio-ai/scripts/validate-commands.sh
+# Frontend
+cd frontend
+npm run test        # Unit tests (Vitest)
+npm run test:e2e    # E2E tests (Playwright)
 ```
 
-## 🎯 Next Steps
+## API
 
-See [docs/core/REFACTOR_STATUS.md](docs/core/REFACTOR_STATUS.md) for detailed priorities.
+Key endpoint groups:
 
-**Immediate**:
-1. Complete PRD #0014 Phase 2: Intelligence Layer (sentiment scoring, fundamentals, AI summaries)
-2. Complete remaining PRD #0011 features (risk management suite, MCP server)
+| Group | Endpoints | Description |
+|-------|-----------|-------------|
+| Portfolio | `/api/portfolio/*` | Accounts, positions, analytics |
+| Watchlist | `/api/watchlist/*` | Items, snapshots, narrative intelligence |
+| Agents | `/api/agents/*` | Telemetry, token summary, discussion |
+| Sources | `/api/sources/*` | Data source status, routing |
+| Strategies | `/api/strategies/*` | Strategy definitions, signals, backtesting |
+| Tasks | `/api/tasks/*` | Background task management |
+| Status | `/api/status/*` | System health, data freshness |
 
-**Short-term**:
-1. Remote access configuration (Tailscale serve)
-2. User guides and agent documentation
+Full interactive docs at `http://localhost:8000/docs`.
 
-## 💡 Tips
+## Database
 
-- Agents cost money - each run uses Claude API
-- Price data requires internet (yfinance)
-- Database auto-created on first backend startup
-- Use `/do_it ~/portfolio-ai/tasks/tasks-0009-prd-portfolio-ai-platform.md` to continue development
+163+ tables covering portfolio positions, watchlist intelligence, market data caching, agent runs, strategy management, backtesting, and system monitoring. Schema managed via Alembic migrations.
 
-## 📝 License
+## Services
+
+Managed via systemd user services. Control scripts:
+
+```bash
+scripts/start.sh      # Start all services
+scripts/restart.sh    # Restart services
+scripts/status.sh     # Check service status
+scripts/rebuild.sh    # Full rebuild and restart
+```
+
+## License
 
 Private project - All rights reserved
-
----
-
-**Built with Claude Code** 🤖
