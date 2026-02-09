@@ -75,7 +75,7 @@ def _check_data_freshness_impl() -> dict[str, Any]:
     }
 
 
-def maintain_data_freshness(self: Task[..., Any]) -> dict[str, Any]:
+def maintain_data_freshness() -> dict[str, Any]:
     """Check all watchlist symbols for freshness and auto-refresh stale data.
 
     VISION.md requirement: <24 hour data freshness for all monitored tables
@@ -152,7 +152,7 @@ def maintain_data_freshness(self: Task[..., Any]) -> dict[str, Any]:
         }
 
 
-def check_all_data_freshness(self: Task[..., Any], auto_remediate: bool = True) -> dict[str, Any]:
+def check_all_data_freshness(auto_remediate: bool = True) -> dict[str, Any]:
     """Comprehensive data freshness check for all critical tables with auto-remediation.
 
     VISION.md requirement: <24 hour data freshness for all monitored tables

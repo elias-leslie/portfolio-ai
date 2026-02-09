@@ -379,7 +379,7 @@ def _refresh_watchlist_scores_impl(
         raise
 
 
-def refresh_single_symbol_scores_task(self: Task[..., Any], symbol: str) -> dict[str, object]:
+def refresh_single_symbol_scores_task(symbol: str) -> dict[str, object]:
     """Refresh scores for a single symbol immediately (no rate limit check).
 
     This task is designed for newly-added symbols that need immediate scoring.

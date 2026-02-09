@@ -340,7 +340,7 @@ def _insert_short_interest(
     )
 
 
-def ingest_macro_indicators(self: Task[..., Any]) -> dict[str, Any]:
+def ingest_macro_indicators() -> dict[str, Any]:
     """Ingest macro economic indicators from FRED.
 
     Fetches and stores:

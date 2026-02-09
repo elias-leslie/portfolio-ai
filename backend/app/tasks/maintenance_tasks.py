@@ -92,7 +92,7 @@ def cleanup_old_agent_runs_task(
     return execute_maintenance_task("cleanup_old_agent_runs_task", task_id, cleanup_impl, dry_run)
 
 
-def cleanup_orphaned_data_task(self: Task[..., Any], dry_run: bool = False) -> dict[str, Any]:
+def cleanup_orphaned_data_task(dry_run: bool = False) -> dict[str, Any]:
     """Remove orphaned records and fix zombie runs.
 
     Args:
@@ -153,7 +153,7 @@ def get_database_size_task(
         }
 
 
-def refresh_sec_cik_cache(self: Task[..., Any]) -> dict[str, Any]:
+def refresh_sec_cik_cache() -> dict[str, Any]:
     """Refresh SEC CIK cache from SEC EDGAR.
 
     Fetches the latest symbol→CIK mapping from SEC and updates the database.

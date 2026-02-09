@@ -85,7 +85,7 @@ def _update_celery_task_id(storage: PortfolioStorage, task_id: str, run_id: str)
         conn.commit()
 
 
-def run_discovery_agent(self: Task[..., Any]) -> str:
+def run_discovery_agent() -> str:
     """Run discovery agent as a background task.
 
     Returns:
@@ -147,7 +147,7 @@ def run_discovery_agent(self: Task[..., Any]) -> str:
         raise
 
 
-def run_portfolio_analyzer(self: Task[..., Any]) -> str:
+def run_portfolio_analyzer() -> str:
     """Run portfolio analyzer agent as a background task.
 
     Returns:

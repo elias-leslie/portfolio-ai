@@ -120,7 +120,7 @@ def _process_and_return_results(
     }
 
 
-def populate_fear_greed_inputs(self: Task[..., Any], days: int = 7) -> FearGreedPipelineResultDict:
+def populate_fear_greed_inputs(days: int = 7) -> FearGreedPipelineResultDict:
     """Populate fear_greed_inputs table with latest market data.
 
     This task replaces the manual script update_fear_greed_inputs.py.

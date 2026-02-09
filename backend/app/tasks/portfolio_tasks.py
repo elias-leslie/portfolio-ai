@@ -19,7 +19,7 @@ from app.storage import PortfolioStorage
 logger = get_logger(__name__)
 
 
-def save_portfolio_snapshots_task(self: Task[[], dict[str, Any]]) -> dict[str, Any]:
+def save_portfolio_snapshots_task(dict[str, Any]]) -> dict[str, Any]:
     """Save daily equity snapshots for all portfolio accounts.
 
     This task:

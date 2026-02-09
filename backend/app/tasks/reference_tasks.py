@@ -275,7 +275,7 @@ def _process_cache_entries() -> tuple[int, int]:
     return entries_processed, entries_updated
 
 
-def parse_valuation_metrics(self: Task[..., Any]) -> dict[str, int | str | float]:
+def parse_valuation_metrics() -> dict[str, int | str | float]:
     """Parse valuation metrics from cached JSON payloads.
 
     This task extracts valuation metrics (P/E, P/B, P/S, etc.) from JSON payloads
@@ -342,7 +342,7 @@ def parse_valuation_metrics(self: Task[..., Any]) -> dict[str, int | str | float
         }
 
 
-def refresh_yfinance_reference_data(self: Task[..., Any]) -> dict[str, int | str | float | None]:
+def refresh_yfinance_reference_data() -> dict[str, int | str | float | None]:
     """Fetch reference data (including valuation metrics) from yfinance for watchlist symbols.
 
     Runs daily at 04:00 UTC to refresh fundamental and valuation data.
@@ -535,7 +535,7 @@ def refresh_alphavantage_reference_backup(
         raise
 
 
-def refresh_analyst_revisions(self: Task[..., Any]) -> dict[str, int | str | float | None]:
+def refresh_analyst_revisions() -> dict[str, int | str | float | None]:
     """Fetch analyst estimate revisions for watchlist symbols (GAP-005).
 
     Runs daily at 07:00 UTC (after market close).
@@ -595,7 +595,7 @@ def refresh_analyst_revisions(self: Task[..., Any]) -> dict[str, int | str | flo
         raise
 
 
-def refresh_financial_health_scores(self: Task[..., Any]) -> dict[str, int | str | float | None]:
+def refresh_financial_health_scores() -> dict[str, int | str | float | None]:
     """Calculate Piotroski F-Score and Altman Z-Score for watchlist symbols.
 
     GAP-008: Piotroski F-Score (9-point fundamental quality score)
@@ -713,7 +713,7 @@ def refresh_financial_health_scores(self: Task[..., Any]) -> dict[str, int | str
         raise
 
 
-def refresh_risk_metrics(self: Task[..., Any]) -> dict[str, int | str | float | None]:
+def refresh_risk_metrics() -> dict[str, int | str | float | None]:
     """Calculate VaR, CVaR, and extended betas for watchlist symbols.
 
     GAP-027: VaR/CVaR (Value at Risk, Conditional VaR)

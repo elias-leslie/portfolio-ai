@@ -70,7 +70,7 @@ def _build_skipped_response(task_id: str, reason: str) -> dict[str, Any]:
     }
 
 
-def daily_qa_scan(self: Task[..., Any]) -> dict[str, Any]:
+def daily_qa_scan() -> dict[str, Any]:
     """Run daily QA scan at 04:00 UTC, after capability scans.
 
     Workflow:

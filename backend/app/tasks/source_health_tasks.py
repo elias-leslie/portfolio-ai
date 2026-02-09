@@ -25,7 +25,7 @@ from ..storage import PortfolioStorage
 logger = get_logger(__name__)
 
 
-def check_data_source_health(self: Task[..., Any]) -> dict[str, Any]:
+def check_data_source_health() -> dict[str, Any]:
     """Periodically test each configured data source.
 
     Tests each source by fetching OHLCV data for SPY (reliable test symbol).

@@ -335,7 +335,7 @@ def cleanup_temp_files_task(
         return error_result
 
 
-def cleanup_cache_directories_task(self: Task[..., Any], dry_run: bool = False) -> dict[str, Any]:
+def cleanup_cache_directories_task(dry_run: bool = False) -> dict[str, Any]:
     """Clean up development cache directories to free disk space.
 
     This is an OPTIONAL manual task - not scheduled by default.

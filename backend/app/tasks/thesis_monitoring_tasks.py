@@ -101,7 +101,7 @@ def get_active_strategies_for_symbol(
     return [{"id": str(s.id), "name": s.name} for s in strategies]
 
 
-def monitor_thesis_health_task(self: Any) -> dict[str, Any]:
+def monitor_thesis_health_task() -> dict[str, Any]:
     """Daily thesis health check - evaluate invalidation triggers for all active theses.
 
     Scheduled: Daily 03:00 UTC (after fear/greed calculation, before strategy tasks)
@@ -232,7 +232,7 @@ def monitor_thesis_health_task(self: Any) -> dict[str, Any]:
         return {"status": "error", "error": str(e)}
 
 
-def process_invalidated_theses_task(self: Any) -> dict[str, Any]:
+def process_invalidated_theses_task() -> dict[str, Any]:
     """Process invalidated theses - remove from watchlist based on rules config.
 
     Scheduled: Daily 03:15 UTC (after thesis health check)
@@ -402,7 +402,7 @@ def process_invalidated_theses_task(self: Any) -> dict[str, Any]:
         return {"status": "error", "error": str(e)}
 
 
-def archive_strategies_for_invalidated_theses_task(self: Any) -> dict[str, Any]:
+def archive_strategies_for_invalidated_theses_task() -> dict[str, Any]:
     """Archive strategies when thesis invalidated (thesis invalidation triggers strategy lifecycle).
 
     Scheduled: Daily 03:30 UTC (after thesis processing)
