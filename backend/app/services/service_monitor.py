@@ -10,8 +10,6 @@ import httpx
 import psutil
 from pydantic import BaseModel, Field
 
-from ..celery_app import celery_app
-
 
 class ServiceStatus(BaseModel):
     """Status information for a service/process."""
@@ -140,47 +138,13 @@ def check_backend_api(skip_http_check: bool = False) -> ServiceStatus:
     return status
 
 
-def check_celery_worker(skip_inspect: bool = False) -> ServiceStatus:
-    """Check Celery worker service status.
-
-    Args:
-        skip_inspect: If True, only check process status (fast).
-                     If False, also call inspect.stats() (slow, 2-40s).
+def check_hatchet_worker() -> ServiceStatus:
+    """Check Hatchet worker service status.
 
     Returns:
-        ServiceStatus for Celery worker
+        ServiceStatus for Hatchet worker
     """
-    status = get_service_status("portfolio-celery", r"celery.*worker")
-
-    if status.status == "running" and not skip_inspect:
-        # Additional check: try to inspect worker (SLOW - only for detailed status page)
-        try:
-            inspect = celery_app.control.inspect(timeout=2.0)
-            try:
-                stats = inspect.stats()
-
-                if not stats:
-                    status.status = "degraded"
-                    status.message = "Worker not responding to inspect"
-            finally:
-                # Close the inspect connection to prevent connection leaks
-                if hasattr(inspect, "close"):
-                    inspect.close()
-
-        except Exception as e:
-            status.status = "degraded"
-            status.message = f"Worker inspect failed: {e!s}"
-
-    return status
-
-
-def check_celery_beat() -> ServiceStatus:
-    """Check Celery beat scheduler status.
-
-    Returns:
-        ServiceStatus for Celery beat
-    """
-    return get_service_status("portfolio-celery-beat", r"celery.*beat")
+    return get_service_status("portfolio-hatchet-worker", r"python.*app\.worker")
 
 
 def check_frontend() -> ServiceStatus:
@@ -280,7 +244,7 @@ def get_all_service_statuses(skip_slow_checks: bool = False) -> dict[str, Servic
     """Get status of all monitored services.
 
     Args:
-        skip_slow_checks: If True, skip slow operations like Celery inspect() and backend HTTP checks (fast).
+        skip_slow_checks: If True, skip slow operations like backend HTTP checks (fast).
                          If False, perform all checks including slow ones (detailed status page).
 
     Returns:
@@ -289,8 +253,7 @@ def get_all_service_statuses(skip_slow_checks: bool = False) -> dict[str, Servic
     return {
         "portfolio-redis": check_redis(),
         "portfolio-backend": check_backend_api(skip_http_check=skip_slow_checks),
-        "portfolio-celery": check_celery_worker(skip_inspect=skip_slow_checks),
-        "portfolio-celery-beat": check_celery_beat(),
+        "portfolio-hatchet-worker": check_hatchet_worker(),
         "portfolio-frontend": check_frontend(),
         "portfolio-dev-companion": check_dev_companion(),
     }

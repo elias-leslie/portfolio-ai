@@ -179,7 +179,7 @@ class HealthCheckResponse(BaseModel):
     sources: dict[str, SourceHealthCheck] = Field(default_factory=dict)
     services: dict[str, Any] = Field(
         default_factory=dict,
-        description="Service process status (backend, celery, frontend, redis)",
+        description="Service process status (backend, hatchet worker, frontend, redis)",
     )
     cache_stats: CacheStats | None = None
     agent_stats: AgentStats | None = None
@@ -192,7 +192,7 @@ class DetailedHealthCheckResponse(HealthCheckResponse):
     """Extended health check response with additional system details."""
 
     day_bars_freshness: list[DayBarFreshnessInfo] = Field(default_factory=list)
-    celery_worker: CeleryWorkerStatus | None = None
+    celery_worker: CeleryWorkerStatus | None = None  # Backward compat field name
     api_keys: list[APIKeyStatusInfo] = Field(default_factory=list)
     disk_usage: DiskUsageInfo | None = None
     workflow_metrics: dict[str, Any] = Field(

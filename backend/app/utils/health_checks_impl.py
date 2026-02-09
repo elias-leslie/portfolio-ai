@@ -1,4 +1,4 @@
-"""Service health check functions (sources, celery, agents, watchlist)."""
+"""Service health check functions (sources, workers, agents, watchlist)."""
 
 from __future__ import annotations
 
@@ -44,8 +44,8 @@ class WatchlistStats(BaseModel):
     items_with_scores: int = 0
 
 
-class CeleryWorkerInfo(BaseModel):
-    """Celery worker status information."""
+class WorkerInfo(BaseModel):
+    """Worker status information."""
 
     active: bool
     pool_size: int | None = None
@@ -255,45 +255,20 @@ def get_watchlist_stats(storage: PortfolioStorage) -> WatchlistStats:
         return WatchlistStats(total_items=0)
 
 
-def get_celery_worker_info() -> CeleryWorkerInfo:
-    """Get Celery worker active status and stats.
+def get_worker_info() -> WorkerInfo:
+    """Get Hatchet worker active status.
 
     Returns:
-        CeleryWorkerInfo with worker status
+        WorkerInfo with worker status
     """
     try:
-        # Import here to avoid circular dependency
-        from app.celery_app import celery_app  # noqa: PLC0415
-
-        inspect = celery_app.control.inspect(timeout=2.0)
-        try:
-            stats = inspect.stats()
-
-            if not stats:
-                return CeleryWorkerInfo(active=False, message="No workers responding to inspect")
-
-            # Get stats from first worker
-            worker_name = next(iter(stats.keys()))
-            worker_stats = stats[worker_name]
-
-            pool_size = worker_stats.get("pool", {}).get("max-concurrency")
-
-            # Get active tasks count
-            active = inspect.active()
-            active_tasks = len(active.get(worker_name, [])) if active else None
-
-            return CeleryWorkerInfo(
-                active=True,
-                pool_size=pool_size,
-                active_tasks=active_tasks,
-                message="Worker responding",
-            )
-
-        finally:
-            # Close the inspect connection to prevent connection leaks
-            if hasattr(inspect, "close"):
-                inspect.close()
-
+        import subprocess
+        result = subprocess.run(
+            ["systemctl", "--user", "is-active", "portfolio-hatchet-worker"],
+            capture_output=True, text=True, timeout=5
+        )
+        active = result.stdout.strip() == "active"
+        return WorkerInfo(active=active, message="Hatchet worker active" if active else "Hatchet worker not active")
     except Exception as e:
-        logger.error("get_celery_worker_info_failed", error=str(e))
-        return CeleryWorkerInfo(active=False, message=f"Worker check failed: {e!s}")
+        logger.error("get_worker_info_failed", error=str(e))
+        return WorkerInfo(active=False, message=f"Worker check failed: {e!s}")

@@ -14,12 +14,12 @@ from __future__ import annotations
 from app.utils.health_database import CheckResult, check_database
 from app.utils.health_checks_impl import (
     AgentStats,
-    CeleryWorkerInfo,
+    WorkerInfo,
     SourceHealthCheck,
     WatchlistStats,
     check_sources,
     get_agent_stats,
-    get_celery_worker_info,
+    get_worker_info,
     get_watchlist_stats,
 )
 from app.utils.health_storage import (
@@ -39,7 +39,7 @@ __all__ = [
     "APIQuotaInfo",
     "AgentStats",
     "CacheStats",
-    "CeleryWorkerInfo",
+    "WorkerInfo",
     # Data classes
     "CheckResult",
     "DayBarFreshness",
@@ -54,7 +54,7 @@ __all__ = [
     "get_api_quotas",
     # Functions - Storage
     "get_cache_stats",
-    "get_celery_worker_info",
+    "get_worker_info",
     "get_day_bars_freshness",
     "get_watchlist_stats",
     "load_quota_config",

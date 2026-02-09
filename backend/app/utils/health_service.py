@@ -16,7 +16,7 @@ from .health_checks import (
     APIKeyStatus,
     APIQuotaInfo,
     CacheStats,
-    CeleryWorkerInfo,
+    WorkerInfo,
     CheckResult,
     DayBarFreshness,
     SourceHealthCheck,
@@ -27,7 +27,7 @@ from .health_checks import (
     get_api_key_statuses,
     get_api_quotas,
     get_cache_stats,
-    get_celery_worker_info,
+    get_worker_info,
     get_day_bars_freshness,
     get_watchlist_stats,
 )
@@ -41,7 +41,7 @@ APP_START_TIME = datetime.now(UTC)
 # Backward compatibility aliases for renamed models
 APIKeyStatusInfo = APIKeyStatus  # Old name -> new name
 DayBarFreshnessInfo = DayBarFreshness  # Old name -> new name
-CeleryWorkerStatus = CeleryWorkerInfo  # Old name -> new name
+CeleryWorkerStatus = WorkerInfo  # Old name -> new name (backward compat)
 
 # Re-export models for backward compatibility with any external imports
 __all__ = [
@@ -50,7 +50,7 @@ __all__ = [
     "APIQuotaInfo",
     "AgentStats",
     "CacheStats",
-    "CeleryWorkerInfo",
+    "WorkerInfo",
     "CeleryWorkerStatus",  # Alias
     "CheckResult",
     "DayBarFreshness",
@@ -145,7 +145,7 @@ class HealthCheckService:
 
         # Get additional detailed checks - now returns Pydantic models directly
         day_bars_freshness = get_day_bars_freshness(self.storage)
-        celery_worker = get_celery_worker_info()
+        worker = get_worker_info()
         api_keys = get_api_key_statuses(self.storage)
 
         disk_usage_internal = get_disk_usage()
@@ -163,7 +163,7 @@ class HealthCheckService:
             "detailed_health_check_performed",
             status=base_health["status"],
             day_bars_symbols=len(day_bars_freshness),
-            celery_active=celery_worker.active,
+            worker_active=worker.active,
             api_keys_configured=sum(1 for k in api_keys if k.configured),
             disk_percent_used=disk_usage.percent_used,
         )
@@ -173,7 +173,7 @@ class HealthCheckService:
             **base_health,
             # Detailed fields
             "day_bars_freshness": day_bars_freshness,
-            "celery_worker": celery_worker,
+            "celery_worker": worker,
             "api_keys": api_keys,
             "disk_usage": disk_usage,
             "workflow_metrics": workflow_metrics,

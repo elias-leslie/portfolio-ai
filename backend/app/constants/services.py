@@ -14,8 +14,7 @@ from __future__ import annotations
 # Used by status_logs.py for journalctl queries and service_monitor.py for status checks
 SERVICE_UNIT_MAPPING: dict[str, str] = {
     "backend": "portfolio-backend",
-    "celery_worker": "portfolio-celery",
-    "celery_beat": "portfolio-beat",
+    "hatchet_worker": "portfolio-hatchet-worker",
     "frontend": "portfolio-frontend",
     "redis": "redis-server",
     "postgresql": "postgresql@16-main",
@@ -25,8 +24,7 @@ SERVICE_UNIT_MAPPING: dict[str, str] = {
 # Maps systemd unit names to regex patterns for process matching
 SERVICE_PROCESS_PATTERNS: dict[str, str] = {
     "portfolio-backend": r"uvicorn.*main:app",
-    "portfolio-celery": r"celery.*worker",
-    "portfolio-celery-beat": r"celery.*beat",
+    "portfolio-hatchet-worker": r"python.*app\.worker",
     "portfolio-frontend": r"next.*dev",
     "portfolio-redis": r"redis-server",
     "portfolio-dev-companion": r"dev-companion",
@@ -37,7 +35,7 @@ VALID_SERVICES: frozenset[str] = frozenset(SERVICE_UNIT_MAPPING.keys())
 
 # User-mode services (run via systemctl --user, not system-wide)
 # Used by status_logs.py for categorizing journalctl queries
-USER_MODE_SERVICES: frozenset[str] = frozenset({"celery_worker", "celery_beat"})
+USER_MODE_SERVICES: frozenset[str] = frozenset({"hatchet_worker"})
 
 __all__ = [
     "SERVICE_PROCESS_PATTERNS",

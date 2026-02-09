@@ -179,7 +179,7 @@ def restart_service(service: str) -> ServiceRestartResponse:
     """Restart a specific service.
 
     Args:
-        service: Service name (backend, celery_worker, celery_beat, frontend, redis)
+        service: Service name (backend, hatchet_worker, frontend, redis)
 
     Returns:
         ServiceRestartResponse: Result of restart operation
@@ -187,8 +187,7 @@ def restart_service(service: str) -> ServiceRestartResponse:
     # Map service names from health endpoint to restart script names
     service_name_map = {
         "backend": "backend",
-        "celery_worker": "celery",
-        "celery_beat": "beat",
+        "hatchet_worker": "hatchet-worker",
         "frontend": "frontend",
         "redis": "redis",
     }
@@ -197,7 +196,7 @@ def restart_service(service: str) -> ServiceRestartResponse:
     mapped_service = service_name_map.get(service, service)
 
     # Whitelist of valid mapped service names
-    valid_services = ["backend", "celery", "beat", "frontend", "redis"]
+    valid_services = ["backend", "hatchet-worker", "frontend", "redis"]
 
     if mapped_service not in valid_services:
         raise HTTPException(
