@@ -41,7 +41,7 @@ SYSTEM_TABLES = {
     "db_capabilities",
     "celery_capabilities",  # DB table not yet renamed
     "api_capabilities",
-    # Celery infrastructure
+    # Hatchet/legacy infrastructure (DB tables not yet renamed)
     "celery_taskmeta",
     "celery_tasksetmeta",
     # Migration tracking
@@ -56,7 +56,7 @@ SYSTEM_TABLES = {
 # Endpoints
 @router.get("/", response_model=CapabilitiesListResponse)
 async def get_capabilities(
-    type: str = Query("all", description="Filter by type: db, celery, api, or all"),
+    type: str = Query("all", description="Filter by type: db, hatchet, api, or all"),
     category: str | None = Query(None, description="Filter by category"),
     status: str | None = Query(None, description="Filter by status (db only)"),
     health_status: str | None = Query(
@@ -71,7 +71,7 @@ async def get_capabilities(
     for insights and notes.
 
     Query params:
-        - type: Filter by capability type (db|celery|api|all)
+        - type: Filter by capability type (db|hatchet|api|all)
         - category: Filter by category
         - status: Filter by status (freshness_status for db_capabilities)
         - health_status: Filter by health (active|orphaned|legacy|suspect)
@@ -88,7 +88,7 @@ async def get_capabilities(
                 all_capabilities = []
                 total = 0
 
-                for cap_type in ["db", "celery", "api"]:
+                for cap_type in ["db", "hatchet", "api"]:
                     table = get_table_name(cap_type)
                     query_params: list[Any] = [cap_type, cap_type]
 
@@ -145,7 +145,7 @@ async def get_capabilities(
 
             else:
                 # Single table query
-                if type not in ["db", "celery", "api"]:
+                if type not in ["db", "hatchet", "api"]:
                     raise HTTPException(status_code=400, detail=f"Invalid type: {type}")
 
                 table = get_table_name(type)
@@ -242,7 +242,7 @@ async def get_health_summary() -> HealthSummaryDict:
         "total": 71,
         "by_type": {
             "database": {"active": 35, "orphaned": 3, "legacy": 2, "suspect": 2},
-            "celery": {"active": 11, "orphaned": 1, "legacy": 0, "suspect": 1},
+            "hatchet": {"active": 11, "orphaned": 1, "legacy": 0, "suspect": 1},
             "api": {"active": 14, "orphaned": 1, "legacy": 0, "suspect": 1}
         },
         "by_status": {
@@ -262,7 +262,7 @@ async def get_health_summary() -> HealthSummaryDict:
                 "total": 0,
                 "by_type": {
                     "database": {"active": 0, "orphaned": 0, "legacy": 0, "suspect": 0},
-                    "celery": {"active": 0, "orphaned": 0, "legacy": 0, "suspect": 0},
+                    "hatchet": {"active": 0, "orphaned": 0, "legacy": 0, "suspect": 0},
                     "api": {"active": 0, "orphaned": 0, "legacy": 0, "suspect": 0},
                 },
                 "by_status": {"active": 0, "orphaned": 0, "legacy": 0, "suspect": 0},
