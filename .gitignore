@@ -68,9 +68,6 @@ credentials.json
 secrets.json
 api_keys.md
 
-# Celery
-celerybeat-schedule*
-
 # Project data
 data/
 backups/
