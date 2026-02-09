@@ -1,6 +1,6 @@
-"""Celery tasks for artifact lifecycle management.
+"""Tasks for artifact lifecycle management.
 
-DEPRECATED: These tasks will be removed when SummitFlow has Celery infrastructure.
+DEPRECATED: These tasks will be removed when SummitFlow has task infrastructure.
 Evidence/artifacts are now managed by SummitFlow (port 8001).
 
 Tasks:

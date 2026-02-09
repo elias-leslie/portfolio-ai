@@ -28,7 +28,7 @@ def verify_all_acceptance_criteria(
     """
     logger.info(
         "verify_all_acceptance_criteria_skipped",
-        reason="Migrated to SummitFlow - awaiting Celery integration",
+        reason="Migrated to SummitFlow - awaiting task integration",
         type_filter=type_filter,
         limit=limit,
     )
@@ -46,7 +46,7 @@ def verify_feature_criteria(feature_id: str) -> dict[str, Any]:
     """
     logger.info(
         "verify_feature_criteria_skipped",
-        reason="Migrated to SummitFlow - awaiting Celery integration",
+        reason="Migrated to SummitFlow - awaiting task integration",
         feature_id=feature_id,
     )
     return {
@@ -64,7 +64,7 @@ def verify_criteria_batch(feature_ids: list[str]) -> dict[str, Any]:
     """
     logger.info(
         "verify_criteria_batch_skipped",
-        reason="Migrated to SummitFlow - awaiting Celery integration",
+        reason="Migrated to SummitFlow - awaiting task integration",
         feature_count=len(feature_ids),
     )
     return {
