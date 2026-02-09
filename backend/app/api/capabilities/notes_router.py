@@ -27,7 +27,7 @@ async def create_note(note: NoteCreateRequest) -> NoteCreateResponse:
     """Create a new capability note.
 
     Body:
-        - capability_type: Type of capability (db, celery, api)
+        - capability_type: Type of capability (db, hatchet, api)
         - capability_id: ID of the capability (optional)
         - insight_id: ID of related insight (optional)
         - note_type: Type of note (observation, recommendation, question, decision, reference)
@@ -105,7 +105,7 @@ async def get_notes(
     """Get notes filtered by capability or insight.
 
     Query params:
-        - capability_type: Filter by capability type (db, celery, api)
+        - capability_type: Filter by capability type (db, hatchet, api)
         - capability_id: Filter by capability ID
         - insight_id: Filter by insight ID
     """

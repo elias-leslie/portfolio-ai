@@ -45,7 +45,7 @@ class CapabilityDetailResponse(BaseModel):
 class InsightCreateRequest(BaseModel):
     """Request for creating a capability insight."""
 
-    capability_type: str = Field(description="Capability type: db, celery, api")
+    capability_type: str = Field(description="Capability type: db, hatchet, api")
     capability_id: int | None = Field(default=None, description="Capability ID (optional)")
     table_name: str | None = Field(default=None, description="Table name for quick reference")
     insight_type: str = Field(
@@ -104,7 +104,7 @@ class InsightsListResponse(BaseModel):
 class NoteCreateRequest(BaseModel):
     """Request for creating a capability note."""
 
-    capability_type: str = Field(description="Capability type: db, celery, api")
+    capability_type: str = Field(description="Capability type: db, hatchet, api")
     capability_id: int | None = Field(default=None, description="Capability ID (optional)")
     insight_id: int | None = Field(default=None, description="Related insight ID (optional)")
     note_type: str = Field(

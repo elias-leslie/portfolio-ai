@@ -3,7 +3,7 @@
 This module combines all maintenance-related routers:
 - scripts_router: Script-based maintenance operations (cleanup, vacuum, validate)
 - history_router: Maintenance execution history and logging
-- tasks_router: Celery task management (trigger, status)
+- tasks_router: Task management (trigger, status)
 - monitoring_router: System monitoring (disk space, database size, stats, schedule)
 """
 

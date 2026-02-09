@@ -37,7 +37,7 @@ class MaintenanceHistory(BaseModel):
 class LastRunSummary(BaseModel):
     """Response model for last-run summary.
 
-    Uses a dynamic dict to support all maintenance tasks (Celery + script-based).
+    Uses a dynamic dict to support all maintenance tasks (Hatchet + script-based).
     Keys are task names, values are MaintenanceResult or None.
     """
 

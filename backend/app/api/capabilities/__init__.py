@@ -2,7 +2,7 @@
 
 This package provides REST API endpoints to expose system capability data:
 - Database table capabilities (db_capabilities)
-- Celery task capabilities (celery_capabilities)
+- Hatchet workflow capabilities (celery_capabilities table)
 - API endpoint capabilities (api_capabilities)
 - Human annotations (capability_notes)
 

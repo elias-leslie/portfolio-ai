@@ -4,7 +4,7 @@ Provides functions for checking database, sources, cache, agents, and watchlist 
 
 This module aggregates health check functionality from specialized sub-modules:
 - health_database: Database connectivity checks
-- health_checks_impl: Service health (sources, celery, agents, watchlist)
+- health_checks_impl: Service health (sources, workers, agents, watchlist)
 - health_storage: Storage/cache health (cache stats, quotas, API keys)
 """
 
