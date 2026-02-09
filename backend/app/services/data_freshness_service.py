@@ -15,7 +15,7 @@ from __future__ import annotations
 import datetime as dt
 from typing import TYPE_CHECKING, TypedDict
 
-from app.celery_app import celery_app
+from app.hatchet_app import get_hatchet
 from app.logging_config import get_logger
 from app.services.maintenance_tracker import record_maintenance_completion, record_maintenance_start
 from app.utils.market_hours import (
@@ -34,15 +34,15 @@ logger = get_logger(__name__)
 # because it fetches new data AND triggers calculate_fear_greed afterwards.
 # Triggering just calculate_fear_greed would only recalculate from existing inputs.
 REMEDIATION_TASKS: dict[str, str] = {
-    "day_bars": "maintain_historical_market_data",
-    "technical_indicators": "update_technical_indicators",
-    "fear_greed_inputs": "populate_fear_greed_inputs",
-    "fear_greed_daily": "populate_fear_greed_inputs",  # Populates inputs then calculates
-    "fear_greed_components": "populate_fear_greed_inputs",  # Populates inputs then calculates
-    "options_market_metrics": "fetch_options_activity_metrics",
-    "news_cache": "refresh_news_sentiment",
-    "reference_cache": "refresh_yfinance_reference_data",
-    "watchlist_snapshots": "refresh_watchlist_scores",
+    "day_bars": "portfolio-maintain-historical",
+    "technical_indicators": "portfolio-update-indicators",
+    "fear_greed_inputs": "portfolio-fg-inputs",
+    "fear_greed_daily": "portfolio-fg-inputs",
+    "fear_greed_components": "portfolio-fg-inputs",
+    "options_market_metrics": "portfolio-options-activity",
+    "news_cache": "portfolio-refresh-news-sentiment",
+    "reference_cache": "portfolio-yfinance-ref",
+    "watchlist_snapshots": "portfolio-refresh-watchlist-scores",
 }
 
 
@@ -216,9 +216,9 @@ def trigger_remediation(
     # Record cooldown before triggering
     _remediation_cooldowns[table_name] = now
 
-    # Use celery_app.send_task to trigger by name
-    result = celery_app.send_task(task_name)
-    task_id = str(result.id) if result.id else None
+    hatchet = get_hatchet()
+    result = hatchet.admin.run_workflow(task_name, {})
+    task_id = str(result.workflow_run_id) if result else None
     logger.info(
         "remediation_triggered",
         table_name=table_name,
