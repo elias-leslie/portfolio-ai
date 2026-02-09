@@ -27,7 +27,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from sqlalchemy import create_engine, inspect, text
 
-from app.celery_app import celery_app
 from app.constants import DATABASE_URL
 
 
@@ -85,30 +84,8 @@ def scan_database_tables() -> list[dict[str, Any]]:
 
 
 def scan_celery_tasks() -> list[dict[str, Any]]:
-    """Scan Celery beat schedule for scheduled tasks."""
-    capabilities = []
-    schedule = celery_app.conf.beat_schedule
-
-    for task_name, config in schedule.items():
-        task_path = config["task"]
-        schedule_info = str(config["schedule"])
-
-        capabilities.append(
-            {
-                "category": _categorize_celery_task(task_name),
-                "name": f"Scheduled Task: {task_name.replace('-', ' ').replace('_', ' ').title()}",
-                "source_type": "celery_task",
-                "source_location": f"Celery task: {task_path}",
-                "coverage": f"Runs {schedule_info}",
-                "metadata": {
-                    "task_name": task_name,
-                    "task_path": task_path,
-                    "schedule": schedule_info,
-                },
-            }
-        )
-
-    return capabilities
+    """Scan scheduled workflows (migrated from Celery to Hatchet)."""
+    return []
 
 
 def scan_api_endpoints() -> list[dict[str, Any]]:
