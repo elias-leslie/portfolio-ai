@@ -44,9 +44,10 @@ def mock_hatchet_task_factory() -> callable:
 @pytest.fixture
 def mock_hatchet_app(mock_hatchet_task_factory: callable) -> MagicMock:
     """Mock Hatchet admin.run_workflow method."""
-    with patch("app.api.automation.hatchet") as mock_app:
-        # Return new unique run each time run_workflow is called
-        mock_app.admin.run_workflow.side_effect = lambda *_args, **_kwargs: mock_hatchet_task_factory()
+    mock_app = MagicMock()
+    # Return new unique run each time run_workflow is called
+    mock_app.admin.run_workflow.side_effect = lambda *_args, **_kwargs: mock_hatchet_task_factory()
+    with patch("app.api.automation.get_hatchet", return_value=mock_app):
         yield mock_app
 
 
@@ -62,8 +63,7 @@ def mock_connection() -> MagicMock:
 @pytest.fixture
 def mock_connection_manager(mock_connection: MagicMock) -> MagicMock:
     """Mock connection manager."""
-    # The import is inside the function, so patch at the storage.connection module level
-    with patch("app.storage.connection.get_connection_manager") as mock_mgr:
+    with patch("app.api.automation.get_connection_manager") as mock_mgr:
         mock_cm = MagicMock()
         mock_cm.connection.return_value = mock_connection
         mock_mgr.return_value = mock_cm
@@ -93,8 +93,8 @@ class TestStrategyResearchEndpoint:
         # Verify correct Hatchet workflow called
         mock_hatchet_app.admin.run_workflow.assert_called_once()
         call_args = mock_hatchet_app.admin.run_workflow.call_args
-        assert call_args[0][0] == "app.tasks.strategy.generation_tasks.daily_strategy_refresh"
-        assert call_args[1]["input"]["max_symbols"] == 5
+        assert call_args[0][0] == "portfolio-daily-strategy"
+        assert call_args[0][1] == {}
 
     def test_trigger_strategy_research_with_symbol(self, mock_hatchet_app: MagicMock) -> None:
         """Test triggering strategy research for specific symbol."""
@@ -111,9 +111,9 @@ class TestStrategyResearchEndpoint:
         # Verify correct Hatchet workflow called
         mock_hatchet_app.admin.run_workflow.assert_called_once()
         call_args = mock_hatchet_app.admin.run_workflow.call_args
-        assert call_args[0][0] == "run_strategy_research_for_symbol"
-        assert call_args[1]["input"]["symbol"] == "AAPL"
-        assert call_args[1]["input"]["force"] is False
+        assert call_args[0][0] == "portfolio-strategy-research-symbol"
+        assert call_args[0][1]["symbol"] == "AAPL"
+        assert call_args[0][1]["force"] is False
 
     def test_trigger_strategy_research_with_force_flag(self, mock_hatchet_app: MagicMock) -> None:
         """Test triggering strategy research with force regeneration."""
@@ -127,14 +127,14 @@ class TestStrategyResearchEndpoint:
 
         # Verify force=True passed to workflow
         call_args = mock_hatchet_app.admin.run_workflow.call_args
-        assert call_args[1]["input"]["symbol"] == "TSLA"
-        assert call_args[1]["input"]["force"] is True
+        assert call_args[0][1]["symbol"] == "TSLA"
+        assert call_args[0][1]["force"] is True
 
     def test_strategy_research_error_handling(self) -> None:
         """Test error handling when Hatchet workflow fails to start."""
-        with patch("app.api.automation.hatchet") as mock_app:
-            mock_app.admin.run_workflow.side_effect = Exception("Hatchet unavailable")
-
+        mock_app = MagicMock()
+        mock_app.admin.run_workflow.side_effect = Exception("Hatchet unavailable")
+        with patch("app.api.automation.get_hatchet", return_value=mock_app):
             response = client.post("/api/automation/run/strategy-research")
 
             assert response.status_code == 500
@@ -183,13 +183,13 @@ class TestSignalGenerationEndpoint:
         # Verify correct Hatchet workflow called
         mock_hatchet_app.admin.run_workflow.assert_called_once()
         call_args = mock_hatchet_app.admin.run_workflow.call_args
-        assert call_args[0][0] == "app.tasks.strategy_signal_tasks.generate_daily_strategy_signals"
+        assert call_args[0][0] == "portfolio-daily-signals"
 
     def test_signal_generation_error_handling(self) -> None:
         """Test error handling when signal generation workflow fails."""
-        with patch("app.api.automation.hatchet") as mock_app:
-            mock_app.admin.run_workflow.side_effect = RuntimeError("Workflow queue full")
-
+        mock_app = MagicMock()
+        mock_app.admin.run_workflow.side_effect = RuntimeError("Workflow queue full")
+        with patch("app.api.automation.get_hatchet", return_value=mock_app):
             response = client.post("/api/automation/run/signal-generation")
 
             assert response.status_code == 500
@@ -231,8 +231,8 @@ class TestAutoPaperTradeEndpoint:
         # Verify correct Hatchet workflow called with default strength
         mock_hatchet_app.admin.run_workflow.assert_called_once()
         call_args = mock_hatchet_app.admin.run_workflow.call_args
-        assert call_args[0][0] == "app.tasks.strategy_signal_tasks.auto_paper_trade_from_signals"
-        assert call_args[1]["input"]["min_signal_strength"] == 5
+        assert call_args[0][0] == "portfolio-auto-paper-trade"
+        assert call_args[0][1]["min_signal_strength"] == 5
 
     def test_trigger_auto_paper_trade_custom_strength(self, mock_hatchet_app: MagicMock) -> None:
         """Test triggering auto paper trade with custom min_strength."""
@@ -246,7 +246,7 @@ class TestAutoPaperTradeEndpoint:
 
         # Verify custom strength passed to workflow
         call_args = mock_hatchet_app.admin.run_workflow.call_args
-        assert call_args[1]["input"]["min_signal_strength"] == 8
+        assert call_args[0][1]["min_signal_strength"] == 8
 
     def test_auto_paper_trade_strength_validation_min(self) -> None:
         """Test min_strength validation rejects values < 1."""
@@ -272,9 +272,9 @@ class TestAutoPaperTradeEndpoint:
 
     def test_auto_paper_trade_error_handling(self) -> None:
         """Test error handling when auto paper trade workflow fails."""
-        with patch("app.api.automation.hatchet") as mock_app:
-            mock_app.admin.run_workflow.side_effect = ConnectionError("Hatchet connection failed")
-
+        mock_app = MagicMock()
+        mock_app.admin.run_workflow.side_effect = ConnectionError("Hatchet connection failed")
+        with patch("app.api.automation.get_hatchet", return_value=mock_app):
             response = client.post("/api/automation/run/auto-paper-trade")
 
             assert response.status_code == 500
@@ -344,19 +344,19 @@ class TestFullPipelineEndpoint:
         assert len(calls) == 3
 
         # Order: strategy_research, signal_generation, auto_paper_trade
-        assert "daily_strategy_refresh" in calls[0][0][0]
-        assert "generate_daily_strategy_signals" in calls[1][0][0]
-        assert "auto_paper_trade_from_signals" in calls[2][0][0]
+        assert calls[0][0][0] == "portfolio-daily-strategy"
+        assert calls[1][0][0] == "portfolio-daily-signals"
+        assert calls[2][0][0] == "portfolio-auto-paper-trade"
 
     def test_full_pipeline_error_handling(self) -> None:
         """Test error handling when pipeline workflow fails to start."""
-        with patch("app.api.automation.hatchet") as mock_app:
-            # First workflow succeeds, second fails
-            mock_app.admin.run_workflow.side_effect = [
-                MagicMock(workflow_run_id="task-1"),
-                ValueError("Invalid workflow config"),
-            ]
-
+        mock_app = MagicMock()
+        # First workflow succeeds, second fails
+        mock_app.admin.run_workflow.side_effect = [
+            MagicMock(workflow_run_id="task-1"),
+            ValueError("Invalid workflow config"),
+        ]
+        with patch("app.api.automation.get_hatchet", return_value=mock_app):
             response = client.post("/api/automation/run/full-pipeline")
 
             assert response.status_code == 500
@@ -473,7 +473,7 @@ class TestPipelineStatusEndpoint:
 
     def test_get_pipeline_status_database_error(self) -> None:
         """Test error handling when database query fails."""
-        with patch("app.storage.connection.get_connection_manager") as mock_mgr:
+        with patch("app.api.automation.get_connection_manager") as mock_mgr:
             mock_mgr.side_effect = ConnectionError("Database unavailable")
 
             response = client.get("/api/automation/status")

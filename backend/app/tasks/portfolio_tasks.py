@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 from app.logging_config import get_logger
 from app.portfolio.drawdown import (
     calculate_drawdown_metrics,
@@ -19,7 +18,7 @@ from app.storage import PortfolioStorage
 logger = get_logger(__name__)
 
 
-def save_portfolio_snapshots_task(dict[str, Any]]) -> dict[str, Any]:
+def save_portfolio_snapshots_task() -> dict[str, Any]:
     """Save daily equity snapshots for all portfolio accounts.
 
     This task:

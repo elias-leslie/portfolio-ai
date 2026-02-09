@@ -642,7 +642,7 @@ class TestFetchPutcallRatioTask:
             patch("app.tasks.market_data.options_pipeline.get_storage", return_value=mock_storage),
         ):
             # Call the task .run() method
-            result = fetch_putcall_ratio.run(as_of_date=None)
+            result = fetch_putcall_ratio(as_of_date=None)
 
         # Verify result structure
         assert result["success"] is True
@@ -694,7 +694,7 @@ class TestFetchPutcallRatioTask:
             task_mock = MagicMock()
             task_mock.request = mock_task_request
 
-            result = fetch_putcall_ratio.run(as_of_date=custom_date)
+            result = fetch_putcall_ratio(as_of_date=custom_date)
 
         # Should still use today's date for storage (yfinance returns current data)
         assert result["date"] == dt.date.today().isoformat()
@@ -710,7 +710,7 @@ class TestFetchPutcallRatioTask:
             ),
             patch("app.tasks.market_data.options_pipeline.get_storage", return_value=mock_storage),
         ):
-            result = fetch_putcall_ratio.run(as_of_date=None)
+            result = fetch_putcall_ratio(as_of_date=None)
 
         assert result["success"] is False
         assert "task_id" in result
@@ -747,14 +747,14 @@ class TestFetchPutcallRatioTask:
             task_mock = MagicMock()
             task_mock.request = mock_task_request
 
-            result = fetch_putcall_ratio.run(as_of_date=None)
+            result = fetch_putcall_ratio(as_of_date=None)
 
         assert result["success"] is False
         assert "error" in result
         assert "Database connection failed" in result["error"]
 
     def test_symbol_ratios_rounded(
-        self, mock_storage: MagicMock, mock_celery_request: MagicMock
+        self, mock_storage: MagicMock, mock_task_request: MagicMock
     ) -> None:
         """Test that symbol ratios are rounded to 2 decimal places in result."""
         fallback_result = {
@@ -778,7 +778,7 @@ class TestFetchPutcallRatioTask:
             task_mock = MagicMock()
             task_mock.request = mock_task_request
 
-            result = fetch_putcall_ratio.run(as_of_date=None)
+            result = fetch_putcall_ratio(as_of_date=None)
 
         # Ratios should be rounded to 2 decimal places
         assert result["symbol_ratios"]["SPY"] == pytest.approx(0.86, rel=0.01)
@@ -833,7 +833,7 @@ class TestFetchOptionsActivityMetricsTask:
                 return_value=mock_cboe_source,
             ),
         ):
-            result = fetch_options_activity_metrics.run()
+            result = fetch_options_activity_metrics()
 
         # Verify result structure
         assert result["success"] is True
@@ -874,7 +874,7 @@ class TestFetchOptionsActivityMetricsTask:
                 return_value=mock_cboe_source,
             ),
         ):
-            result = fetch_options_activity_metrics.run()
+            result = fetch_options_activity_metrics()
 
         assert result["success"] is False
         assert "task_id" in result
@@ -903,7 +903,7 @@ class TestFetchOptionsActivityMetricsTask:
             task_mock = MagicMock()
             task_mock.request = mock_celery_request
 
-            result = fetch_options_activity_metrics.run()
+            result = fetch_options_activity_metrics()
 
         assert result["success"] is False
         assert "error" in result
@@ -921,7 +921,7 @@ class TestFetchOptionsActivityMetricsTask:
         ):
             mock_get_cboe.return_value = mock_cboe_source
 
-            fetch_options_activity_metrics.run()
+            fetch_options_activity_metrics()
 
             # Verify get_cboe_most_active_source was called with storage
             mock_get_cboe.assert_called_once()
@@ -949,7 +949,7 @@ class TestFetchOptionsActivityMetricsTask:
                 return_value=mock_cboe_source,
             ),
         ):
-            result = fetch_options_activity_metrics.run()
+            result = fetch_options_activity_metrics()
 
         assert result["success"] is True
         assert result["metrics"]["sectors"] == 0
