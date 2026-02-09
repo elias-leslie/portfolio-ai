@@ -1,4 +1,4 @@
-"""Celery tasks for acceptance criteria verification.
+"""Tasks for acceptance criteria verification.
 
 DEPRECATED: These tasks will be removed when SummitFlow has task infrastructure.
 Features/verification are now managed by SummitFlow (port 8001).
@@ -24,7 +24,7 @@ def verify_all_acceptance_criteria(
     """DISABLED: Verification is now managed by SummitFlow.
 
     This task is a no-op until SummitFlow has its own task infrastructure.
-    See: portfolio-ai-4tg (SummitFlow: Add Celery task infrastructure)
+    See: portfolio-ai-4tg (SummitFlow: Add task infrastructure)
     """
     logger.info(
         "verify_all_acceptance_criteria_skipped",
@@ -42,7 +42,7 @@ def verify_feature_criteria(feature_id: str) -> dict[str, Any]:
     """DISABLED: Verification is now managed by SummitFlow.
 
     This task is a no-op until SummitFlow has its own task infrastructure.
-    See: portfolio-ai-4tg (SummitFlow: Add Celery task infrastructure)
+    See: portfolio-ai-4tg (SummitFlow: Add task infrastructure)
     """
     logger.info(
         "verify_feature_criteria_skipped",
@@ -60,7 +60,7 @@ def verify_criteria_batch(feature_ids: list[str]) -> dict[str, Any]:
     """DISABLED: Verification is now managed by SummitFlow.
 
     This task is a no-op until SummitFlow has its own task infrastructure.
-    See: portfolio-ai-4tg (SummitFlow: Add Celery task infrastructure)
+    See: portfolio-ai-4tg (SummitFlow: Add task infrastructure)
     """
     logger.info(
         "verify_criteria_batch_skipped",
