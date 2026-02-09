@@ -29,7 +29,7 @@ def gather_comprehensive_status() -> SystemStatusDict:
     # Get full health check (includes database, sources, stats)
     health_response = health_service.perform_health_check()
 
-    # Get service statuses (skip slow Celery inspect for streaming performance)
+    # Get service statuses (skip slow service inspect for streaming performance)
     service_statuses = get_all_service_statuses(skip_slow_checks=True)
     services: dict[str, object] = {
         name: status.model_dump() for name, status in service_statuses.items()

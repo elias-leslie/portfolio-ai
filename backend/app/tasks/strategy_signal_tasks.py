@@ -343,7 +343,7 @@ def generate_daily_strategy_signals() -> dict[str, Any]:
 
 
 def generate_signal_for_strategy_task(strategy_id: str, symbol: str) -> dict[str, Any]:
-    """Celery task wrapper for single strategy signal generation.
+    """Task wrapper for single strategy signal generation.
 
     Can be called on-demand via API.
     """

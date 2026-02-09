@@ -47,7 +47,7 @@ class PortDiscovery:
     SERVICE_TYPE_HINTS: ClassVar[dict[str, str]] = {
         "backend": "backend",
         "frontend": "frontend",
-        "celery": "worker",
+        "hatchet": "worker",
         "beat": "scheduler",
         "redis": "cache",
         "companion": "websocket",

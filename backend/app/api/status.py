@@ -3,7 +3,7 @@
 This module aggregates status-related endpoints from specialized sub-modules:
 - status_logs: Log viewing and management
 - status_system: System resources and service management
-- status_tasks: Celery task operations
+- status_tasks: Task operations
 - status_data: Data freshness and cache management
 - status_ml: ML model metrics and status
 """

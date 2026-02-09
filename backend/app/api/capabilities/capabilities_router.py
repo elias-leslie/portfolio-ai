@@ -39,7 +39,7 @@ SYSTEM_TABLES = {
     "capability_insights",
     "capability_notes",
     "db_capabilities",
-    "celery_capabilities",
+    "celery_capabilities",  # DB table not yet renamed
     "api_capabilities",
     # Celery infrastructure
     "celery_taskmeta",

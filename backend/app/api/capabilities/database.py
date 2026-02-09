@@ -13,7 +13,7 @@ from ..types import CapabilityDict, InsightDict, NoteDict
 # Table mapping
 TABLE_MAPPING = {
     "db": "db_capabilities",
-    "celery": "celery_capabilities",
+    "hatchet": "celery_capabilities",  # DB table not yet renamed
     "api": "api_capabilities",
 }
 
@@ -22,7 +22,7 @@ def get_table_name(capability_type: str) -> str:
     """Get database table name for capability type.
 
     Args:
-        capability_type: One of 'db', 'celery', 'api'
+        capability_type: One of 'db', 'hatchet', 'api'
 
     Returns:
         Corresponding table name
