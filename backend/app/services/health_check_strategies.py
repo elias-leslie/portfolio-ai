@@ -32,8 +32,8 @@ PROBE_CHECK_PATTERNS: list[str] = [
     "/api/news/intelligence",  # Fetches news from APIs
     # Valuation endpoints - expensive calculations
     "/api/valuation/metrics",
-    # Celery endpoints - may interact with worker
-    "/api/celery/",  # Celery inspection can be slow
+    # Task status endpoints - may interact with worker
+    "/api/celery/",  # Backward compat URL, worker inspection can be slow
     # Backup endpoints - may trigger filesystem operations
     "/api/backup/status",
     "/api/backup/latest",

@@ -38,7 +38,7 @@ router = APIRouter(tags=["backtest"])
 async def start_backtest(request: StartBacktestRequest) -> StartBacktestResponse:
     """Start a new backtest.
 
-    Creates backtest_run record and launches Celery task for async execution.
+    Creates backtest_run record and launches task for async execution.
 
     Args:
         request: Backtest configuration including optional strategy parameters
@@ -76,7 +76,7 @@ async def start_backtest(request: StartBacktestRequest) -> StartBacktestResponse
         # Extract parameters with defaults
         params = request.parameters or StrategyParametersRequest()
 
-        # Launch Celery task (async execution)
+        # Launch backtest task (async execution)
         task = run_backtest_task(
             run_id=run_id,
             symbol=request.symbol,
