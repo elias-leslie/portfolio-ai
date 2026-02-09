@@ -1,4 +1,4 @@
-"""TypedDict definitions for Celery task result dictionaries.
+"""TypedDict definitions for task result dictionaries.
 
 Standardized result types for all scheduled and triggered tasks.
 Replaces loose dict[str, Any] with properly typed result dictionaries.
@@ -11,7 +11,7 @@ from typing import TypedDict
 
 
 class TaskResultDict(TypedDict, total=False):
-    """Standard task result dictionary returned by most Celery tasks.
+    """Standard task result dictionary returned by most tasks.
 
     Fields:
         status: Task status ("success", "error", "skipped", "completed", "insufficient_data")
@@ -132,7 +132,7 @@ class WatchlistResultDict(TaskResultDict, total=False):
 class StrategyMonitoringResultDict(TypedDict, total=False):
     """Result from strategy monitoring and evaluation tasks.
 
-    Uses 'completed'/'failed' status to match existing Celery task contracts.
+    Uses 'completed'/'failed' status to match existing task contracts.
     """
 
     status: str  # "completed" or "failed"

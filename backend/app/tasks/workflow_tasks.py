@@ -156,7 +156,7 @@ def daily_gap_analysis_workflow() -> dict[str, object]:
                 "analysis_depth": "comprehensive",
             },
             agents_involved=["gemini", "claude"],
-            triggered_by="celery_scheduled",
+            triggered_by="hatchet_scheduled",
             priority=3,
             max_duration_seconds=1800,
         )
