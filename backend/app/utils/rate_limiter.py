@@ -1,6 +1,6 @@
 """Rate limiting utilities using Redis.
 
-Provides daily and sliding window rate limiting for Celery tasks and API endpoints.
+Provides daily and sliding window rate limiting for scheduled tasks and API endpoints.
 """
 
 from __future__ import annotations

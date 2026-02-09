@@ -32,7 +32,7 @@ def execute_run_backtest(
     """Execute run_backtest tool for strategy validation.
 
     Runs backtest synchronously and waits for completion (agents need results
-    to make decisions). Uses Celery task but blocks until done.
+    to make decisions). Runs task and blocks until done.
 
     Args:
         storage: PortfolioStorage instance
@@ -86,7 +86,7 @@ def execute_run_backtest(
         # Update status to running
         update_backtest_status(storage, run_id, "running")
 
-        # Launch Celery task (lazy import to avoid circular dependency)
+        # Launch task (lazy import to avoid circular dependency)
         from app.tasks.backtest_tasks import run_backtest_task
 
         run_backtest_task(

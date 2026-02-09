@@ -1,7 +1,7 @@
 """Maintenance & cleanup workflows.
 
 Thin async wrappers around existing business logic in tasks/.
-Each Celery task becomes a Hatchet workflow with cron scheduling.
+Hatchet workflows with cron scheduling.
 """
 
 from __future__ import annotations

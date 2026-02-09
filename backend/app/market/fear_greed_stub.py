@@ -1,7 +1,7 @@
 """Fear & Greed Index service.
 
 Queries the fear_greed_daily table for the latest Fear & Greed Index score.
-The score is computed by Celery tasks and stored in the database.
+The score is computed by scheduled workflows and stored in the database.
 
 Uses Redis caching since F&G updates only once daily at 03:00 UTC.
 

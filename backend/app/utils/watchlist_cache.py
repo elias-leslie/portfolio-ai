@@ -1,7 +1,7 @@
 """Redis cache for watchlist data to prevent duplicate queries across concurrent tasks.
 
 This module provides caching for watchlist symbols to eliminate duplicate database
-queries when multiple Celery tasks (watchlist refresh, news refresh) run concurrently.
+queries when multiple workflows (watchlist refresh, news refresh) run concurrently.
 
 PROBLEM (Issue #4):
 - watchlist_tasks and news_tasks both query watchlist_items independently

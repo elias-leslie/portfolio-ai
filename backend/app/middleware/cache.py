@@ -354,7 +354,7 @@ def invalidate_endpoint_cache(endpoint: str, method: str = "GET") -> int:
 def invalidate_market_data_cache() -> int:
     """Invalidate all market-related cache entries.
 
-    Call this after Celery tasks update market data (OHLCV, F&G, indicators).
+    Call this after scheduled workflows update market data (OHLCV, F&G, indicators).
 
     Returns:
         Number of cache entries invalidated

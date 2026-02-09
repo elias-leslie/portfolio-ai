@@ -371,7 +371,7 @@ def get_indicators_history(
         if df.is_empty():
             raise ValueError(
                 f"No indicator data found for symbol {symbol}. "
-                "Run the update_technical_indicators Celery task first."
+                "Run the update_technical_indicators workflow first."
             )
 
         # Convert to list of IndicatorsResponse

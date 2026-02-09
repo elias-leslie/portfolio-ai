@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 async def emit_event(event_type: str, payload: dict[str, Any]) -> bool:
     """Emit an event to trigger downstream Hatchet workflows.
 
-    Replaces the old Celery-based emit_event() with direct Hatchet dispatch.
+    Dispatches events via Hatchet workflows.
     Hatchet's ConcurrencyExpression handles backpressure natively.
 
     Args:
