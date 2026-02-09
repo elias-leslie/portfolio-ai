@@ -9,7 +9,6 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
-from ..celery_app import celery_app
 from ..logging_config import get_logger
 from ..storage import get_storage
 

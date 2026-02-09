@@ -12,7 +12,6 @@ import asyncio
 import time
 from typing import Any
 
-from ..celery_app import celery_app
 from ..logging_config import get_logger
 from ..services.sitemap import SitemapService
 

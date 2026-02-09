@@ -10,7 +10,6 @@ from __future__ import annotations
 import datetime as dt
 from typing import TYPE_CHECKING, Any
 
-from ..celery_app import celery_app
 from ..logging_config import get_logger
 from ..sources.alphavantage_source import AlphaVantageSource
 from ..sources.base import DATASET_DAY, DatasetRequest
