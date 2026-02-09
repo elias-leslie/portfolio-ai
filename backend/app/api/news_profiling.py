@@ -81,7 +81,7 @@ async def trigger_profiling(user_id: str = "default") -> ProfilingTaskResponse:
         return ProfilingTaskResponse(
             status="accepted",
             task_id=str(task.id),
-            message="Profiling task triggered successfully. Check /api/celery/status/{task_id} for progress.",
+            message="Profiling task triggered successfully. Check /api/status/tasks/{task_id} for progress.",
         )
     except Exception as exc:
         return ProfilingTaskResponse(

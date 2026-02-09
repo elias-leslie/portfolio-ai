@@ -151,7 +151,7 @@ async def trigger_full_pipeline(
     2. Signal generation
     3. Auto paper trading
 
-    Each stage runs as a separate Celery task.
+    Each stage runs as a separate Hatchet workflow.
     """
     try:
         hatchet = get_hatchet()

@@ -219,7 +219,7 @@ async def check_entry_health(entry_id: int) -> HealthCheckResponse:
 async def check_all_health() -> dict[str, Any]:
     """Trigger health check of all sitemap entries.
 
-    Queues a Celery task to run in background - does not block.
+    Queues a background task - does not block.
     The health check spawns Playwright for frontend pages which is resource-intensive.
     """
     from app.tasks.sitemap_tasks import check_sitemap_health  # noqa: PLC0415

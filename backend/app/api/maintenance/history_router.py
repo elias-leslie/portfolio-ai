@@ -24,7 +24,7 @@ router = APIRouter(prefix="/api/maintenance", tags=["maintenance"])
 async def get_last_run() -> LastRunSummary:
     """Get last run details for each maintenance task.
 
-    Returns all maintenance tasks dynamically (Celery + script-based).
+    Returns all maintenance tasks dynamically (Hatchet + script-based).
     Task names are stored as-is from the maintenance_log table.
 
     Returns:

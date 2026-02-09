@@ -1,7 +1,7 @@
-"""Celery task management router.
+"""Task management router.
 
 This module provides REST API endpoints for triggering and monitoring
-Celery-based maintenance tasks.
+maintenance tasks.
 """
 
 from __future__ import annotations
