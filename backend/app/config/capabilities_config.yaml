@@ -36,7 +36,7 @@ scan_config:
         ml_model_metrics: "weekly"
         ml_training_progress: "on-demand"
 
-    celery:
+    hatchet:
       enabled: true
       track_success_rate: true
       track_duration: true
@@ -102,7 +102,7 @@ categorization:
       - "user"
       - "auth"
       - "schema_migration"
-      - "celery_"
+      - "hatchet_"
       - "maintenance"
       - "table_registry"
 

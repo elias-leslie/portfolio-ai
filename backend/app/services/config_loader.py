@@ -80,7 +80,7 @@ def load_capabilities_config() -> dict[str, Any]:
         "capabilities_config_loaded",
         scan_enabled=config["scan_config"]["enabled"],
         db_enabled=config["scan_config"]["targets"]["database"]["enabled"],
-        celery_enabled=config["scan_config"]["targets"]["celery"]["enabled"],
+        hatchet_enabled=config["scan_config"]["targets"]["hatchet"]["enabled"],
         api_enabled=config["scan_config"]["targets"]["api"]["enabled"],
         ai_enabled=config["scan_config"].get("ai_analysis", {}).get("enabled", False),
     )
