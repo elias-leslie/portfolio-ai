@@ -1,4 +1,4 @@
-"""Celery tasks for news sentiment refresh."""
+"""Tasks for news sentiment refresh."""
 
 from __future__ import annotations
 

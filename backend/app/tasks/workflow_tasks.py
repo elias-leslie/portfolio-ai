@@ -1,4 +1,4 @@
-"""Multi-agent workflow Celery tasks for autonomous trading intelligence."""
+"""Multi-agent workflow tasks for autonomous trading intelligence."""
 
 from __future__ import annotations
 

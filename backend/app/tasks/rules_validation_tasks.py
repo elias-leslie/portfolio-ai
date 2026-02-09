@@ -1,4 +1,4 @@
-"""Rules Validation Celery Tasks.
+"""Rules Validation Tasks.
 
 Scheduled tasks for validating trading rules configuration and generating
 optimization recommendations.

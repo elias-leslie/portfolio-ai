@@ -1,4 +1,4 @@
-"""Thesis Monitoring Celery Tasks.
+"""Thesis Monitoring Tasks.
 
 Daily thesis health monitoring and automated lifecycle management:
 1. Health check: Evaluate invalidation triggers for all active theses
@@ -6,7 +6,7 @@ Daily thesis health monitoring and automated lifecycle management:
 3. Strategy archival: Archive strategies when thesis invalidated (thesis drives lifecycle)
 4. Audit trail: Log all actions to maintenance_log and deletion_audit
 
-Scheduled via Celery Beat:
+Scheduled via Hatchet cron:
 - monitor_thesis_health: Daily 03:00 UTC (after fear/greed calculation)
 - process_invalidated_theses: Daily 03:15 UTC (after health check)
 - archive_strategies_for_invalidated_theses: Daily 03:30 UTC (after processing)
@@ -39,7 +39,7 @@ def log_thesis_action(
     """Log thesis action to maintenance_log for audit trail.
 
     Args:
-        task_name: Name of the Celery task
+        task_name: Name of the task
         symbol: Stock symbol
         action: Action taken (invalidated, removed, archived)
         details: Additional details dictionary
