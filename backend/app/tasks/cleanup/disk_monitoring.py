@@ -1,4 +1,4 @@
-"""Celery tasks for disk space monitoring operations.
+"""Disk space monitoring tasks.
 
 This module provides automated disk space monitoring tasks for:
 - Disk space usage alerts (when usage exceeds threshold)
@@ -6,7 +6,7 @@ This module provides automated disk space monitoring tasks for:
 All tasks are designed to be:
 - Idempotent (safe to run multiple times)
 - Non-destructive (read-only monitoring)
-- Scheduled (run on Celery Beat schedule)
+- Scheduled via Hatchet cron workflows
 """
 
 from __future__ import annotations

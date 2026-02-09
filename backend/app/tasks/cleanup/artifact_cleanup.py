@@ -1,4 +1,4 @@
-"""Celery tasks for artifact cleanup operations.
+"""Artifact cleanup tasks.
 
 This module provides automated cleanup tasks for:
 - Old backup files (SQL dumps)
@@ -8,7 +8,7 @@ This module provides automated cleanup tasks for:
 All tasks are designed to be:
 - Idempotent (safe to run multiple times)
 - Non-destructive (respect retention periods)
-- Scheduled (run on Celery Beat schedule)
+- Scheduled via Hatchet cron workflows
 """
 
 from __future__ import annotations

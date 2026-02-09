@@ -1,4 +1,4 @@
-"""Celery tasks for log file rotation and cleanup operations.
+"""Log file rotation and cleanup tasks.
 
 This module provides automated log cleanup tasks for:
 - Log file rotation (when files exceed size threshold)
@@ -7,7 +7,7 @@ This module provides automated log cleanup tasks for:
 All tasks are designed to be:
 - Idempotent (safe to run multiple times)
 - Non-destructive (respect retention periods)
-- Scheduled (run on Celery Beat schedule)
+- Scheduled via Hatchet cron workflows
 """
 
 from __future__ import annotations

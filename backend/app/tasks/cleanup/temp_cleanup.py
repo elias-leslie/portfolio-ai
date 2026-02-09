@@ -1,4 +1,4 @@
-"""Celery tasks for temporary file and cache cleanup operations.
+"""Temporary file and cache cleanup tasks.
 
 This module provides automated cleanup tasks for:
 - Temporary files in /tmp

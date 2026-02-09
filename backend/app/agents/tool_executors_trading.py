@@ -173,7 +173,7 @@ class TradingTools:
         """Execute run_backtest tool for strategy validation.
 
         Runs backtest synchronously and waits for completion (agents need results
-        to make decisions). Uses Celery task but blocks until done.
+        to make decisions). Runs task and blocks until done.
 
         Args:
             agent_run_id: ID of the agent run

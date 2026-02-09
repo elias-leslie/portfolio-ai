@@ -96,7 +96,7 @@ async def get_unified_logs(
 
     Args:
         lines: Maximum number of log entries to return (default 500, max MAX_LOG_LINES)
-        service: Filter by service name (backend, celery_worker, celery_beat, frontend, redis, postgresql)
+        service: Filter by service name (backend, hatchet_worker, frontend, redis, postgresql)
         level: Filter by log level (ERROR, WARN, INFO, DEBUG)
         since: Time range (e.g., "5 minutes ago", "1 hour ago", "today")
 

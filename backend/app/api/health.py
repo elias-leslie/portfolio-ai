@@ -282,7 +282,7 @@ async def detailed_health_check(response: Response) -> DetailedHealthCheckRespon
     Returns detailed health status including:
     - All standard health checks (database, sources, services, etc.)
     - Day bars data freshness per symbol
-    - Celery worker active status and pool information
+    - Hatchet worker status
     - API key configuration status
     - Disk usage statistics
     - Data freshness monitoring status (pipeline execution)

@@ -1,4 +1,4 @@
-"""Celery tasks for database maintenance operations.
+"""Database maintenance tasks.
 
 This module provides automated maintenance tasks for:
 - Database vacuuming and optimization
@@ -8,7 +8,7 @@ This module provides automated maintenance tasks for:
 All tasks are designed to be:
 - Idempotent (safe to run multiple times)
 - Self-healing (detect and fix issues automatically)
-- Scheduled (run on Celery Beat schedule)
+- Scheduled via Hatchet cron workflows
 """
 
 from __future__ import annotations
