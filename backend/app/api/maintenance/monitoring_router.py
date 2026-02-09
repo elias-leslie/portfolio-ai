@@ -51,7 +51,7 @@ async def get_disk_space() -> DiskSpaceResponseDict:
         HTTPException: If disk space check fails
     """
     try:
-        # Call implementation directly (no Celery, immediate response)
+        # Call implementation directly (immediate response)
         result = check_disk_space_impl()
         return cast(DiskSpaceResponseDict, result)
 
@@ -78,7 +78,7 @@ async def get_database_size_endpoint() -> DatabaseSizeResponseDict:
         HTTPException: If database size check fails
     """
     try:
-        # Call implementation directly (no Celery, immediate response)
+        # Call implementation directly (immediate response)
         result = get_database_size()
         return cast(DatabaseSizeResponseDict, result)
 

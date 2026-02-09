@@ -93,7 +93,7 @@ class HealthCheckService:
         # Data source checks - now returns Pydantic models directly
         sources = check_sources(self.storage)
 
-        # Service process checks (skip slow Celery inspect for fast health checks)
+        # Service process checks (skip slow service inspect for fast health checks)
         service_statuses = get_all_service_statuses(skip_slow_checks=True)
         services_dict = {name: status.model_dump() for name, status in service_statuses.items()}
 

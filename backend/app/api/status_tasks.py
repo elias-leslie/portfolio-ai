@@ -1,4 +1,4 @@
-"""Celery task management endpoints."""
+"""Task management endpoints."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ class WatchlistRefreshResponse(BaseModel):
 
 @router.post("/watchlist/refresh", response_model=WatchlistRefreshResponse)
 def refresh_watchlist() -> WatchlistRefreshResponse:
-    """Trigger manual watchlist refresh (Celery task).
+    """Trigger manual watchlist refresh via Hatchet workflow.
 
     Returns:
         WatchlistRefreshResponse: Result with task ID
