@@ -1,7 +1,7 @@
 """Watchlist Discovery Module.
 
 Discovers high-potential symbols from top gainers, volume spikes, and news mentions.
-Scheduled via Celery Beat: Daily 08:00 UTC
+Scheduled via Hatchet cron: Daily 08:00 UTC
 """
 
 from __future__ import annotations

@@ -1,7 +1,7 @@
 """Watchlist Reporting Module.
 
 Generates daily watchlist reports with additions, removals, and score changes.
-Scheduled via Celery Beat: Daily 09:00 UTC
+Scheduled via Hatchet cron: Daily 09:00 UTC
 """
 
 from __future__ import annotations

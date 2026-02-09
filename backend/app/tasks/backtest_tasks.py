@@ -1,5 +1,5 @@
 """
-Celery tasks for backtesting.
+Tasks for backtesting.
 
 Async task execution for running backtests without blocking HTTP requests.
 
@@ -344,5 +344,5 @@ def run_backtest_task(
             error_message=str(e),
         )
 
-        # Re-raise so Celery marks task as failed
+        # Re-raise so caller sees the failure
         raise
