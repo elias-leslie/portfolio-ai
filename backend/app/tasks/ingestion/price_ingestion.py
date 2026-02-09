@@ -23,7 +23,7 @@ logger = get_logger(__name__)
 def _initialize_data_sources_with_credentials() -> list[Any]:
     """Initialize data sources after loading credentials from database.
 
-    This wrapper ensures Celery workers have access to API keys stored in
+    This wrapper ensures worker processes have access to API keys stored in
     source_credentials table before initializing the sources.
 
     Returns:
@@ -232,7 +232,7 @@ def _ingest_historical_ohlcv_impl(
 ) -> dict[str, int | str | float]:
     """Implementation of OHLCV ingestion logic (shared by task and direct calls).
 
-    This is the actual implementation that can be called both from the Celery task
+    This is the actual implementation that can be called both from the scheduled task
     and directly from other tasks (like refresh_daily_ohlcv).
 
     Args:
@@ -349,8 +349,8 @@ def refresh_daily_ohlcv(
     try:
         # Fetch last 5 trading days to ensure we have the latest data
         # (accounts for holidays, weekends, and delayed data feeds)
-        # Call the implementation function directly (not as a task) to avoid Celery's
-        # synchronous subtask prohibition. This runs within the refresh_daily_ohlcv task context.
+        # Call the implementation function directly (not as a separate task).
+        # This runs within the refresh_daily_ohlcv task context.
         result = _ingest_historical_ohlcv_impl(symbols, days=5, task_id=task_id)
         return result
 
