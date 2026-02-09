@@ -21,8 +21,8 @@ logger = get_logger(__name__)
 def refresh_expired_artifacts() -> dict[str, int | str]:
     """DISABLED: Evidence is now managed by SummitFlow.
 
-    This task is a no-op until SummitFlow has its own Celery infrastructure.
-    See: portfolio-ai-4tg (SummitFlow: Add Celery task infrastructure)
+    This task is a no-op until SummitFlow has its own task infrastructure.
+    See: portfolio-ai-4tg (SummitFlow: Add task infrastructure)
     """
     logger.info(
         "refresh_expired_artifacts_skipped",
@@ -39,8 +39,8 @@ def cleanup_old_versions(
 ) -> dict[str, int | str | bool]:
     """DISABLED: Evidence is now managed by SummitFlow.
 
-    This task is a no-op until SummitFlow has its own Celery infrastructure.
-    See: portfolio-ai-4tg (SummitFlow: Add Celery task infrastructure)
+    This task is a no-op until SummitFlow has its own task infrastructure.
+    See: portfolio-ai-4tg (SummitFlow: Add task infrastructure)
     """
     logger.info(
         "cleanup_old_versions_skipped",
