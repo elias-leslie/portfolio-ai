@@ -17,7 +17,7 @@ from app.services.hatchet_inspector import (
 
 router = APIRouter(prefix="/api/status/tasks", tags=["tasks"])
 
-# Keep backward-compatible router for frontend
+# Backward compat: keep /api/status/celery prefix for existing frontend consumers
 compat_router = APIRouter(prefix="/api/status/celery", tags=["tasks"])
 
 

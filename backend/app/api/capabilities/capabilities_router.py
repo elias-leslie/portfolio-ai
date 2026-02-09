@@ -597,21 +597,21 @@ async def get_cleanup_candidates() -> dict[str, Any]:
                     "has_schedule": has_schedule,
                     "success_rate_pct": success_rate,
                     "populates_tables": populates_tables_list,
-                    "evidence": evidence_list_celery,
+                    "evidence": evidence_list_hatchet,
                 }
 
                 if task_health_status == "orphaned":
-                    evidence_list_celery.append("Marked as orphaned (no active usage detected)")
+                    evidence_list_hatchet.append("Marked as orphaned (no active usage detected)")
                 if task_health_status == "legacy":
-                    evidence_list_celery.append("Marked as legacy (outdated or inactive)")
+                    evidence_list_hatchet.append("Marked as legacy (outdated or inactive)")
                 if not has_schedule:
-                    evidence_list_celery.append("Not scheduled (no crontab/interval)")
+                    evidence_list_hatchet.append("Not scheduled (no crontab/interval)")
                 if not populates_tables_list:
-                    evidence_list_celery.append("Does not populate any tables")
+                    evidence_list_hatchet.append("Does not populate any tables")
                 if isinstance(success_rate, (int, float)) and success_rate < 50:
-                    evidence_list_celery.append(f"Low success rate ({success_rate}%)")
+                    evidence_list_hatchet.append(f"Low success rate ({success_rate}%)")
 
-                candidates["celery"].append(item_celery)
+                candidates["hatchet"].append(item_hatchet)
                 candidates["summary"]["total_candidates"] += 1
                 if isinstance(task_health_status, str):
                     candidates["summary"]["by_status"][task_health_status] += 1
@@ -669,7 +669,7 @@ async def get_cleanup_candidates() -> dict[str, Any]:
                 "cleanup_candidates_retrieved",
                 total=candidates["summary"]["total_candidates"],
                 database=len(candidates["database"]),
-                celery=len(candidates["celery"]),
+                hatchet=len(candidates["hatchet"]),
                 api=len(candidates["api"]),
             )
 
