@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import json
 import time
-from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from app.logging_config import get_logger
 from app.services import NewsBundle, NewsService, NewsSummary
@@ -170,10 +169,4 @@ def _refresh_news_sentiment_task(
     }
 
 
-refresh_news_sentiment_task = cast(
-    Callable[[Any, str], dict[str, int | str | float]],
-    celery_app.task(
-        name="refresh_news_sentiment",
-        bind=True,
-    )(_refresh_news_sentiment_task),
-)
+refresh_news_sentiment_task = _refresh_news_sentiment_task

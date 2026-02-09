@@ -105,22 +105,11 @@ def _trigger_strategy_generation_for_top_symbols() -> None:
     The task itself handles rate limiting (max 3/day).
     """
     try:
-        from ..services.celery_inspector import should_skip_cascade
-
-        # Check queue backpressure before scheduling strategy generation
-        if should_skip_cascade():
-            logger.info(
-                "strategy_generation_skipped_backpressure",
-                reason="queue_depth_exceeded",
-            )
-            return
-
-        # Import and dispatch strategy generation task
         from .strategy.generation_tasks import (
             trigger_strategies_for_top_watchlist,
         )
 
-        trigger_strategies_for_top_watchlist.delay()
+        trigger_strategies_for_top_watchlist()
         logger.info("strategy_generation_triggered_from_watchlist")
 
     except Exception as e:
@@ -140,13 +129,7 @@ def _trigger_auto_backfill(storage: PortfolioStorage) -> None:
         storage: Storage instance for database operations
     """
     try:
-        from ..services.celery_inspector import should_skip_cascade
         from ..watchlist.service import detect_missing_historical_data
-
-        # Check queue backpressure before scheduling more work
-        if should_skip_cascade():
-            logger.info("auto_backfill_skipped_backpressure", reason="queue_depth_exceeded")
-            return
 
         # Load watchlist items to get symbols
         with storage.connection() as conn:

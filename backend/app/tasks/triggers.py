@@ -23,7 +23,6 @@ from __future__ import annotations
 from typing import Any
 
 from app.logging_config import get_logger
-from app.services.celery_inspector import should_skip_cascade
 
 logger = get_logger(__name__)
 
@@ -38,15 +37,6 @@ def emit_event(event_type: str, payload: dict[str, Any]) -> bool:
     Returns:
         True if event was emitted, False if skipped (backpressure)
     """
-    # Check backpressure before dispatching
-    if should_skip_cascade():
-        logger.info(
-            "event_skipped_backpressure",
-            event_type=event_type,
-            payload_keys=list(payload.keys()),
-        )
-        return False
-
     logger.info(
         "event_emitted",
         event_type=event_type,

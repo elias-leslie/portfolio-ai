@@ -20,7 +20,6 @@ from app.api import (
     backtest,
     backup,
     capabilities,
-    celery_endpoints,
     # claude_progress removed - Beads handles session tracking
     cross_validation,
     task_endpoints,
@@ -180,7 +179,6 @@ app.add_middleware(RequestIDMiddleware)
 app.include_router(health.router)
 app.include_router(status.router)
 app.include_router(status_stream.router)
-app.include_router(celery_endpoints.router)
 app.include_router(task_endpoints.router)
 app.include_router(task_endpoints.compat_router)
 app.include_router(maintenance.router)
