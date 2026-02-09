@@ -133,8 +133,6 @@ def clean_database() -> None:
         - Uses CASCADE to handle foreign key dependencies
         - Preserves schema_migrations, source_registry, source_credentials,
           endpoint_catalog, and table_registry (these are configuration data)
-        - Does NOT clean Celery tables (celery_taskmeta, celery_tasksetmeta)
-          as they're managed by Celery itself
     """
     # Create connection manager and clean tables
     cm = ConnectionManager()

@@ -1,4 +1,4 @@
-"""Unit tests for options pipeline Celery tasks.
+"""Unit tests for options pipeline tasks.
 
 Tests cover:
 - Put/Call ratio calculation from yfinance, Polygon, Finnhub
@@ -612,14 +612,14 @@ class TestFetchPutcallRatioTask:
         return storage
 
     @pytest.fixture
-    def mock_celery_request(self) -> MagicMock:
-        """Create mock Celery request."""
+    def mock_task_request(self) -> MagicMock:
+        """Create mock task request."""
         request = MagicMock()
         request.id = "test-task-123"
         return request
 
     def test_happy_path_successful_task(
-        self, mock_storage: MagicMock, mock_celery_request: MagicMock
+        self, mock_storage: MagicMock, mock_task_request: MagicMock
     ) -> None:
         """Test successful task execution with data storage."""
         fallback_result = {
@@ -671,7 +671,7 @@ class TestFetchPutcallRatioTask:
         assert source_map["put_call_ratio"] == "yfinance_options_chain"
 
     def test_custom_as_of_date(
-        self, mock_storage: MagicMock, mock_celery_request: MagicMock
+        self, mock_storage: MagicMock, mock_task_request: MagicMock
     ) -> None:
         """Test task with custom as_of_date parameter."""
         fallback_result = {
@@ -692,7 +692,7 @@ class TestFetchPutcallRatioTask:
             patch("app.tasks.market_data.options_pipeline.get_storage", return_value=mock_storage),
         ):
             task_mock = MagicMock()
-            task_mock.request = mock_celery_request
+            task_mock.request = mock_task_request
 
             result = fetch_putcall_ratio.run(as_of_date=custom_date)
 
@@ -700,7 +700,7 @@ class TestFetchPutcallRatioTask:
         assert result["date"] == dt.date.today().isoformat()
 
     def test_task_failure_returns_error_dict(
-        self, mock_storage: MagicMock, mock_celery_request: MagicMock
+        self, mock_storage: MagicMock, mock_task_request: MagicMock
     ) -> None:
         """Test that task failure returns error dictionary."""
         with (
@@ -722,7 +722,7 @@ class TestFetchPutcallRatioTask:
         assert not mock_conn.commit.called
 
     def test_database_error_returns_error_dict(
-        self, mock_storage: MagicMock, mock_celery_request: MagicMock
+        self, mock_storage: MagicMock, mock_task_request: MagicMock
     ) -> None:
         """Test that database errors are caught and returned."""
         fallback_result = {
@@ -745,7 +745,7 @@ class TestFetchPutcallRatioTask:
             patch("app.tasks.market_data.options_pipeline.get_storage", return_value=mock_storage),
         ):
             task_mock = MagicMock()
-            task_mock.request = mock_celery_request
+            task_mock.request = mock_task_request
 
             result = fetch_putcall_ratio.run(as_of_date=None)
 
@@ -776,7 +776,7 @@ class TestFetchPutcallRatioTask:
             patch("app.tasks.market_data.options_pipeline.get_storage", return_value=mock_storage),
         ):
             task_mock = MagicMock()
-            task_mock.request = mock_celery_request
+            task_mock.request = mock_task_request
 
             result = fetch_putcall_ratio.run(as_of_date=None)
 

@@ -294,7 +294,7 @@ def test_discovery_agent_execute_tool_store_idea(
             "cost_usd": 0.0,
             "error_message": None,
             "metadata": None,
-            "celery_task_id": None,
+            "hatchet_workflow_run_id": None,
         },
     )
 

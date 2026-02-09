@@ -28,7 +28,7 @@ class TestLoadCapabilitiesConfig:
                 "enabled": True,
                 "targets": {
                     "database": {"enabled": True},
-                    "celery": {"enabled": True},
+                    "hatchet": {"enabled": True},
                     "api": {"enabled": True},
                 },
             },
@@ -370,7 +370,7 @@ class TestReloadConfig:
                 "enabled": True,
                 "targets": {
                     "database": {"enabled": True},
-                    "celery": {"enabled": True},
+                    "hatchet": {"enabled": True},
                     "api": {"enabled": True},
                 },
             },

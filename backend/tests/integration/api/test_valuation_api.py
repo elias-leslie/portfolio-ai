@@ -39,7 +39,6 @@ def clean_before_test() -> Iterator[None]:
         "source_performance",
         "validation_results",
         "user_preferences",
-        "celery_taskmeta",
     ]
 
     with cm.connection() as conn:
