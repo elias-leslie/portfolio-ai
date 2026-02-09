@@ -25,8 +25,13 @@ if _env_file.exists():
 # This prevents app/main.py from configuring production logging
 os.environ["PYTEST_RUNNING"] = "1"
 
+# Hatchet test configuration - prevent real connections during tests
+os.environ.setdefault("HATCHET_CLIENT_TOKEN", "test-token-not-real")
+os.environ.setdefault("HATCHET_CLIENT_TLS_STRATEGY", "none")
+
 import pytest  # noqa: E402
 
+from app.hatchet_app import get_hatchet  # noqa: E402
 from app.logging_config import configure_logging  # noqa: E402
 from app.storage.connection import ConnectionManager  # noqa: E402
 
@@ -147,3 +152,13 @@ def clean_database() -> None:
             # Log but don't fail if tables don't exist yet
             logger.warning(f"Database cleanup failed (may be expected on first run): {e}")
             conn.rollback()
+
+
+@pytest.fixture(autouse=True)
+def clear_hatchet_cache() -> None:
+    """Clear the cached Hatchet client between tests.
+
+    Prevents test pollution from a real Hatchet connection leaking
+    into subsequent tests.
+    """
+    get_hatchet.cache_clear()

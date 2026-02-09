@@ -34,6 +34,9 @@ dependencies = [
     "billiard==4.2.4",
     "vine==5.1.0",
 
+    # Workflow orchestration
+    "hatchet-sdk>=1.22.0",
+
     # Utilities
     "python-dateutil==2.9.0.post0",
     "pyyaml==6.0.3",
