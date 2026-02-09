@@ -1,4 +1,4 @@
-"""Celery tasks for ML model training and retraining."""
+"""Tasks for ML model training and retraining."""
 
 from __future__ import annotations
 

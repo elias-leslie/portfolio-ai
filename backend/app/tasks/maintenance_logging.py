@@ -21,7 +21,7 @@ def log_maintenance_start(task_name: str, dry_run: bool = False) -> int:
     """Log the start of a maintenance task.
 
     Args:
-        task_name: Name of the Celery task (e.g., 'cleanup_old_logs_task')
+        task_name: Name of the task (e.g., 'cleanup_old_logs_task')
         dry_run: Whether running in dry-run mode
 
     Returns:
@@ -102,7 +102,7 @@ def log_maintenance_complete(
 
     Args:
         log_id: ID returned from log_maintenance_start (0 if start failed)
-        task_name: Name of the Celery task
+        task_name: Name of the task
         success: Whether task completed successfully
         summary: Task result summary dict
         error_message: Error message if failed

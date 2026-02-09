@@ -1,4 +1,4 @@
-"""Celery tasks for sitemap health monitoring.
+"""Tasks for sitemap health monitoring.
 
 These tasks run on schedule to:
 - Check health of all sitemap entries (hourly)
