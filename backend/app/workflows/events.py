@@ -13,7 +13,7 @@ from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy, Context
 
 from ..hatchet_app import hatchet
 from ..logging_config import get_logger
-from .models import EmptyInput, InsightInput, SeedInput, SymbolInput
+from .models import InsightInput, SeedInput, SymbolInput
 
 logger = get_logger(__name__)
 
@@ -35,17 +35,16 @@ async def emit_event(event_type: str, payload: dict[str, Any]) -> bool:
 
     if event_type == "strategy_performance_updated":
         return await _on_strategy_performance_updated(payload)
-    elif event_type == "seed_created":
+    if event_type == "seed_created":
         return await _on_seed_created(payload)
-    elif event_type == "price_alert_triggered":
+    if event_type == "price_alert_triggered":
         return await _on_price_alert_triggered(payload)
-    elif event_type == "earnings_released":
+    if event_type == "earnings_released":
         return await _on_earnings_released(payload)
-    elif event_type == "insight_generated":
+    if event_type == "insight_generated":
         return await _on_insight_generated(payload)
-    else:
-        logger.warning("unknown_event_type", event_type=event_type)
-        return False
+    logger.warning("unknown_event_type", event_type=event_type)
+    return False
 
 
 def emit_event_sync(event_type: str, payload: dict[str, Any]) -> bool:

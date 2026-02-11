@@ -45,6 +45,7 @@ def get_trim_candidates(
                 COALESCE(AVG(wsc.overall_score), 0) as avg_score
             FROM watchlist_items wi
             LEFT JOIN watchlist_snapshots_core wsc ON wsc.item_id = wi.id
+                AND wsc.fetched_at >= NOW() - INTERVAL '60 days'
             WHERE wi.created_at <= NOW() - make_interval(days => $1)
             {exclude_clause}
             GROUP BY wi.id, wi.symbol, wi.created_at

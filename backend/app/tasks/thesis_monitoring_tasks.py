@@ -18,7 +18,6 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
-
 from ..logging_config import get_logger
 from ..rules.loader import get_rules
 from ..services.thesis_service import ThesisService

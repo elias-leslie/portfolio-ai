@@ -30,6 +30,16 @@ retention:
   # Weekly cleanup runs Sunday 04:30 UTC
   orphaned_data_cleanup_enabled: true
 
+  # Watchlist snapshots: How long to keep snapshot history
+  # Weekly cleanup runs Sunday 05:00 UTC
+  watchlist_snapshot_retention_days: 60
+
+  # Maintenance tables: Self-cleanup for stats and logs
+  # Weekly cleanup runs Sunday 05:30 UTC
+  maintenance_stats_retention_days: 90
+  maintenance_log_retention_days: 90
+  news_summary_log_retention_days: 90
+
 # Monitoring Thresholds
 # ---------------------
 monitoring:

@@ -245,6 +245,135 @@ def cleanup_old_agent_runs(days: int = 30, dry_run: bool = False) -> dict[str, A
     }
 
 
+def cleanup_old_watchlist_snapshots(days: int = 60, dry_run: bool = False) -> dict[str, Any]:
+    """Delete watchlist snapshots older than specified days.
+
+    Deletes from both normalized tables (via CASCADE from watchlist_snapshots_core)
+    and the legacy watchlist_snapshots table.
+
+    Args:
+        days: Delete snapshots older than N days
+        dry_run: If True, only report how many rows would be deleted
+
+    Returns:
+        Dict with rows_deleted/rows_to_delete for each table, cutoff_date, retention_days
+    """
+    storage = get_connection_manager()
+    cutoff_date = dt.datetime.now(dt.UTC) - dt.timedelta(days=days)
+
+    with storage.connection() as conn:
+        if dry_run:
+            core_count = conn.execute(
+                """
+                SELECT COUNT(*) FROM watchlist_snapshots_core
+                WHERE fetched_at < %s
+                """,
+                [cutoff_date],
+            ).fetchone()
+            legacy_count = conn.execute(
+                """
+                SELECT COUNT(*) FROM watchlist_snapshots
+                WHERE fetched_at < %s
+                """,
+                [cutoff_date],
+            ).fetchone()
+
+            return {
+                "core_rows_to_delete": core_count[0] if core_count else 0,
+                "legacy_rows_to_delete": legacy_count[0] if legacy_count else 0,
+                "cutoff_date": cutoff_date.isoformat(),
+                "retention_days": days,
+                "message": (
+                    f"Would delete {core_count[0] if core_count else 0} core rows "
+                    f"and {legacy_count[0] if legacy_count else 0} legacy rows"
+                ),
+            }
+
+        # Delete from normalized tables (CASCADE handles technical_metrics, narrative, news_summary)
+        conn.execute(
+            """
+            DELETE FROM watchlist_snapshots_core
+            WHERE fetched_at < %s
+            """,
+            [cutoff_date],
+        )
+        core_deleted = conn._cursor.rowcount
+
+        # Delete from legacy table
+        conn.execute(
+            """
+            DELETE FROM watchlist_snapshots
+            WHERE fetched_at < %s
+            """,
+            [cutoff_date],
+        )
+        legacy_deleted = conn._cursor.rowcount
+
+        conn.commit()
+
+    return {
+        "core_rows_deleted": core_deleted,
+        "legacy_rows_deleted": legacy_deleted,
+        "cutoff_date": cutoff_date.isoformat(),
+        "retention_days": days,
+    }
+
+
+def cleanup_maintenance_tables(days: int = 90, dry_run: bool = False) -> dict[str, Any]:
+    """Delete old entries from maintenance tracking tables.
+
+    Cleans up: maintenance_stats, maintenance_log, news_summary_log.
+
+    Args:
+        days: Delete entries older than N days
+        dry_run: If True, only report how many rows would be deleted
+
+    Returns:
+        Dict with rows_deleted per table, cutoff_date, retention_days
+    """
+    storage = get_connection_manager()
+    cutoff_date = dt.datetime.now(dt.UTC) - dt.timedelta(days=days)
+
+    tables = [
+        ("maintenance_stats", "recorded_at"),
+        ("maintenance_log", "started_at"),
+        ("news_summary_log", "created_at"),
+    ]
+
+    with storage.connection() as conn:
+        if dry_run:
+            counts: dict[str, int] = {}
+            for table, col in tables:
+                result = conn.execute(
+                    f"SELECT COUNT(*) FROM {table} WHERE {col} < %s",  # table/col from constant list
+                    [cutoff_date],
+                ).fetchone()
+                counts[f"{table}_to_delete"] = int(result[0]) if result else 0
+
+            return {
+                **counts,
+                "cutoff_date": cutoff_date.isoformat(),
+                "retention_days": days,
+                "message": f"Would delete {sum(counts.values())} total rows across {len(tables)} tables",
+            }
+
+        deleted: dict[str, int] = {}
+        for table, col in tables:
+            conn.execute(
+                f"DELETE FROM {table} WHERE {col} < %s",  # table/col from constant list
+                [cutoff_date],
+            )
+            deleted[f"{table}_deleted"] = conn._cursor.rowcount
+
+        conn.commit()
+
+    return {
+        **deleted,
+        "cutoff_date": cutoff_date.isoformat(),
+        "retention_days": days,
+    }
+
+
 def cleanup_orphaned_data(dry_run: bool = False) -> dict[str, Any]:
     """Remove orphaned records and fix zombie runs.
 

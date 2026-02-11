@@ -16,20 +16,20 @@ from .health_checks import (
     APIKeyStatus,
     APIQuotaInfo,
     CacheStats,
-    WorkerInfo,
     CheckResult,
     DayBarFreshness,
     SourceHealthCheck,
     WatchlistStats,
+    WorkerInfo,
     check_database,
     check_sources,
     get_agent_stats,
     get_api_key_statuses,
     get_api_quotas,
     get_cache_stats,
-    get_worker_info,
     get_day_bars_freshness,
     get_watchlist_stats,
+    get_worker_info,
 )
 from .health_workflows import get_workflow_health, get_workflow_metrics
 
@@ -50,7 +50,6 @@ __all__ = [
     "APIQuotaInfo",
     "AgentStats",
     "CacheStats",
-    "WorkerInfo",
     "CeleryWorkerStatus",  # Alias
     "CheckResult",
     "DayBarFreshness",
@@ -59,6 +58,7 @@ __all__ = [
     "HealthCheckService",
     "SourceHealthCheck",
     "WatchlistStats",
+    "WorkerInfo",
 ]
 
 

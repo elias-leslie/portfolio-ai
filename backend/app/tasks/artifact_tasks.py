@@ -11,7 +11,6 @@ Tasks:
 
 from __future__ import annotations
 
-
 from ..logging_config import get_logger
 from .maintenance_logging import log_maintenance_complete, log_maintenance_start
 

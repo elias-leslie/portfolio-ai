@@ -22,8 +22,10 @@ from app.sources.sec_cik_fetcher import fetch_and_save as fetch_cik_mapping
 from app.storage import get_storage
 from app.tasks.maintenance_helpers import execute_maintenance_task
 from app.tasks.maintenance_operations import (
+    cleanup_maintenance_tables,
     cleanup_old_agent_runs,
     cleanup_old_news,
+    cleanup_old_watchlist_snapshots,
     cleanup_orphaned_data,
     get_database_size,
     vacuum_tables,
@@ -91,6 +93,46 @@ def cleanup_old_agent_runs_task(
         return cleanup_old_agent_runs(days=days, dry_run=dry_run)
 
     return execute_maintenance_task("cleanup_old_agent_runs_task", task_id, cleanup_impl, dry_run)
+
+
+def cleanup_old_watchlist_snapshots_task(
+    days: int = 60, dry_run: bool = False
+) -> dict[str, Any]:
+    """Delete watchlist snapshots older than specified days.
+
+    Args:
+        days: Delete snapshots older than N days (default: 60)
+        dry_run: If True, only report how many rows would be deleted
+
+    Returns:
+        Dict with task_id, rows_deleted, duration_seconds, success status
+    """
+    task_id = str(uuid.uuid4())
+
+    def cleanup_impl() -> dict[str, Any]:
+        return cleanup_old_watchlist_snapshots(days=days, dry_run=dry_run)
+
+    return execute_maintenance_task("cleanup_old_watchlist_snapshots_task", task_id, cleanup_impl, dry_run)
+
+
+def cleanup_maintenance_tables_task(
+    days: int = 90, dry_run: bool = False
+) -> dict[str, Any]:
+    """Delete old maintenance stats, logs, and news summary logs.
+
+    Args:
+        days: Delete entries older than N days (default: 90)
+        dry_run: If True, only report how many rows would be deleted
+
+    Returns:
+        Dict with task_id, rows_deleted per table, duration_seconds, success status
+    """
+    task_id = str(uuid.uuid4())
+
+    def cleanup_impl() -> dict[str, Any]:
+        return cleanup_maintenance_tables(days=days, dry_run=dry_run)
+
+    return execute_maintenance_task("cleanup_maintenance_tables_task", task_id, cleanup_impl, dry_run)
 
 
 def cleanup_orphaned_data_task(dry_run: bool = False) -> dict[str, Any]:

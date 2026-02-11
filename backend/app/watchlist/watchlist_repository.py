@@ -421,21 +421,24 @@ class WatchlistRepository:
             [item_id],
         )
 
-    def get_snapshots_with_metrics(self, item_id: str) -> pl.DataFrame:
-        """Get all snapshots for history with raw_metrics.
+    def get_snapshots_with_metrics(self, item_id: str, days: int = 60) -> pl.DataFrame:
+        """Get recent snapshots for history with raw_metrics.
 
         Args:
             item_id: Watchlist item ID
+            days: Number of days of history to return (default: 60)
 
         Returns:
             DataFrame with snapshots including raw_metrics
         """
+        cutoff = datetime.now(UTC) - timedelta(days=days)
         return self.storage.query(
             """
             SELECT item_id, fetched_at, price, technical_score, overall_score, raw_metrics
             FROM watchlist_snapshots_v
             WHERE item_id = ?
+              AND fetched_at >= ?
             ORDER BY fetched_at DESC
             """,
-            [item_id],
+            [item_id, cutoff],
         )

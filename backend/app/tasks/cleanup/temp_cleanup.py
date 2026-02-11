@@ -228,6 +228,12 @@ def _get_cache_targets(project_root: Path) -> list[dict[str, Any]]:
             "pattern": None,
             "recursive": False,
         },
+        {
+            "name": "Root Mypy cache",
+            "path": project_root / ".mypy_cache",
+            "pattern": None,
+            "recursive": False,
+        },
         # Frontend cache (only .next/cache, not server)
         {
             "name": "Next.js cache",

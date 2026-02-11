@@ -88,6 +88,46 @@ async def cleanup_orphaned_wf(input: CleanupInput, ctx: Context) -> dict[str, An
 
 
 @hatchet.task(
+    name="portfolio-cleanup-snapshots",
+    input_validator=CleanupInput,
+    execution_timeout="3600s",
+    retries=1,
+    on_crons=["0 5 * * 0"],
+    concurrency=ConcurrencyExpression(
+        expression="'portfolio-cleanup-snapshots'",
+        max_runs=1,
+        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
+    ),
+)
+async def cleanup_snapshots_wf(input: CleanupInput, ctx: Context) -> dict[str, Any]:
+    from ..tasks.maintenance_tasks import cleanup_old_watchlist_snapshots_task
+
+    return await asyncio.to_thread(
+        cleanup_old_watchlist_snapshots_task, days=input.days or 60, dry_run=input.dry_run
+    )
+
+
+@hatchet.task(
+    name="portfolio-cleanup-maintenance",
+    input_validator=CleanupInput,
+    execution_timeout="3600s",
+    retries=1,
+    on_crons=["30 5 * * 0"],
+    concurrency=ConcurrencyExpression(
+        expression="'portfolio-cleanup-maintenance'",
+        max_runs=1,
+        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
+    ),
+)
+async def cleanup_maintenance_wf(input: CleanupInput, ctx: Context) -> dict[str, Any]:
+    from ..tasks.maintenance_tasks import cleanup_maintenance_tables_task
+
+    return await asyncio.to_thread(
+        cleanup_maintenance_tables_task, days=input.days or 90, dry_run=input.dry_run
+    )
+
+
+@hatchet.task(
     name="portfolio-cleanup-backups",
     input_validator=EmptyInput,
     execution_timeout="3600s",

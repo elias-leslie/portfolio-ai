@@ -8,7 +8,8 @@ as healthy, degraded, or down.
 from __future__ import annotations
 
 import datetime as dt
-from typing import TYPE_CHECKING, Any
+import uuid
+from typing import Any
 
 from ..logging_config import get_logger
 from ..sources.alphavantage_source import AlphaVantageSource
@@ -20,7 +21,6 @@ from ..sources.polygon_source import PolygonSource
 from ..sources.twelvedata_source import TwelveDataSource
 from ..sources.yfinance_source import YFinanceSource
 from ..storage import PortfolioStorage
-import uuid
 
 logger = get_logger(__name__)
 

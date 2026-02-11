@@ -10,18 +10,19 @@ This module aggregates health check functionality from specialized sub-modules:
 
 from __future__ import annotations
 
-# Re-export data classes from sub-modules for backward compatibility
-from app.utils.health_database import CheckResult, check_database
 from app.utils.health_checks_impl import (
     AgentStats,
-    WorkerInfo,
     SourceHealthCheck,
     WatchlistStats,
+    WorkerInfo,
     check_sources,
     get_agent_stats,
-    get_worker_info,
     get_watchlist_stats,
+    get_worker_info,
 )
+
+# Re-export data classes from sub-modules for backward compatibility
+from app.utils.health_database import CheckResult, check_database
 from app.utils.health_storage import (
     APIKeyStatus,
     APIQuotaInfo,

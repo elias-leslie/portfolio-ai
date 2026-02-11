@@ -85,9 +85,9 @@ async def schedule_new_symbol_wf(input: SymbolInput, ctx: Context) -> dict[str, 
     Replaces the old schedule_new_symbol_tasks() which used .apply_async(countdown=N)
     for staggered execution. Here we use explicit sequential steps with sleeps.
     """
+    from ..tasks.indicators.technical import update_technical_indicators
     from ..tasks.ingestion.fundamental_ingestion import ingest_fundamental_data
     from ..tasks.ingestion.price_ingestion import ingest_historical_ohlcv
-    from ..tasks.indicators.technical import update_technical_indicators
     from ..tasks.reference_tasks import refresh_yfinance_reference_data
     from ..tasks.watchlist_tasks import refresh_single_symbol_scores_task
 

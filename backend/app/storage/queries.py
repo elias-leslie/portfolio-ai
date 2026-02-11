@@ -140,70 +140,24 @@ class QueryManager:
         )
 
     def _build_snapshot_upsert_sql(self) -> str:
-        """Build the SQL query for watchlist snapshot upsert.
+        """Build the SQL query for watchlist snapshot upsert (legacy table).
+
+        Only writes core metric columns. Narrative/JSONB data goes exclusively
+        to the normalized tables to prevent TOAST bloat.
 
         Returns:
             SQL query string with INSERT...ON CONFLICT UPDATE
         """
         return """
             INSERT INTO watchlist_snapshots (
-                item_id, fetched_at, price, change_pct, beta, volatility,
-                news_score, technical_score, fundamental_score, ai_score, ai_confidence,
-                sector_score, competitor_score, overall_score, is_stale, raw_metrics,
-                signal_type, signal_strength, narrative_headline, narrative_why_bullets,
-                narrative_company_health, narrative_technical, narrative_action_plan,
-                narrative_position_sizing, narrative_special_notes,
-                entry_price, stop_loss, profit_target, position_size_shares,
-                recommended_style, style_confidence, optimal_holding_period, risk_level,
-                company_health, earnings_date, earnings_days_away,
-                news_sentiment_score, recent_news_headlines,
-                volume_relative, timeframe_short_aligned, timeframe_long_aligned, percentile_rank_30d
-            ) VALUES (
-                ?, ?, ?, ?, ?, ?,  ?, ?, ?, ?, ?,  ?, ?, ?, ?, ?,
-                ?, ?, ?, ?,  ?, ?, ?, ?, ?,  ?, ?, ?, ?,
-                ?, ?, ?, ?,  ?, ?, ?,  ?, ?,  ?, ?, ?, ?
-            )
+                item_id, fetched_at, price, change_pct,
+                overall_score, is_stale
+            ) VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT (item_id, fetched_at) DO UPDATE SET
                 price = EXCLUDED.price,
                 change_pct = EXCLUDED.change_pct,
-                beta = EXCLUDED.beta,
-                volatility = EXCLUDED.volatility,
-                news_score = EXCLUDED.news_score,
-                technical_score = EXCLUDED.technical_score,
-                fundamental_score = EXCLUDED.fundamental_score,
-                ai_score = EXCLUDED.ai_score,
-                ai_confidence = EXCLUDED.ai_confidence,
-                sector_score = EXCLUDED.sector_score,
-                competitor_score = EXCLUDED.competitor_score,
                 overall_score = EXCLUDED.overall_score,
-                is_stale = EXCLUDED.is_stale,
-                raw_metrics = EXCLUDED.raw_metrics,
-                signal_type = EXCLUDED.signal_type,
-                signal_strength = EXCLUDED.signal_strength,
-                narrative_headline = EXCLUDED.narrative_headline,
-                narrative_why_bullets = EXCLUDED.narrative_why_bullets,
-                narrative_company_health = EXCLUDED.narrative_company_health,
-                narrative_technical = EXCLUDED.narrative_technical,
-                narrative_action_plan = EXCLUDED.narrative_action_plan,
-                narrative_position_sizing = EXCLUDED.narrative_position_sizing,
-                narrative_special_notes = EXCLUDED.narrative_special_notes,
-                entry_price = EXCLUDED.entry_price,
-                stop_loss = EXCLUDED.stop_loss,
-                profit_target = EXCLUDED.profit_target,
-                position_size_shares = EXCLUDED.position_size_shares,
-                recommended_style = EXCLUDED.recommended_style,
-                style_confidence = EXCLUDED.style_confidence,
-                optimal_holding_period = EXCLUDED.optimal_holding_period,
-                risk_level = EXCLUDED.risk_level,
-                company_health = EXCLUDED.company_health,
-                earnings_date = EXCLUDED.earnings_date,
-                earnings_days_away = EXCLUDED.earnings_days_away,
-                news_sentiment_score = EXCLUDED.news_sentiment_score,
-                recent_news_headlines = EXCLUDED.recent_news_headlines,
-                volume_relative = EXCLUDED.volume_relative,
-                timeframe_short_aligned = EXCLUDED.timeframe_short_aligned,
-                timeframe_long_aligned = EXCLUDED.timeframe_long_aligned,
-                percentile_rank_30d = EXCLUDED.percentile_rank_30d
+                is_stale = EXCLUDED.is_stale
         """
 
     def _prepare_snapshot_parameters(
@@ -212,49 +166,12 @@ class QueryManager:
         fetched_at: datetime,
         price: float | None,
         change_pct: float | None,
-        beta: float | None,
-        volatility: float | None,
-        news_score: float | None,
-        technical_score: float | None,
-        fundamental_score: float | None,
-        ai_score: float | None,
-        ai_confidence: float | None,
-        sector_score: float | None,
-        competitor_score: float | None,
         overall_score: float | None,
         is_stale: bool,
-        raw_metrics_json: str | None,
-        signal_type: str | None,
-        signal_strength: int | None,
-        narrative_headline: str | None,
-        narrative_why_bullets_json: str | None,
-        narrative_company_health_json: str | None,
-        narrative_technical_json: str | None,
-        narrative_action_plan: str | None,
-        narrative_position_sizing: str | None,
-        narrative_special_notes: str | None,
-        entry_price: float | None,
-        stop_loss: float | None,
-        profit_target: float | None,
-        position_size_shares: int | None,
-        recommended_style: str | None,
-        style_confidence: int | None,
-        optimal_holding_period: str | None,
-        risk_level: str | None,
-        company_health: str | None,
-        earnings_date: datetime | None,
-        earnings_days_away: int | None,
-        news_sentiment_score: float | None,
-        recent_news_headlines_json: str | None,
-        volume_relative: float | None,
-        timeframe_short_aligned: bool,
-        timeframe_long_aligned: bool,
-        percentile_rank_30d: float | None,
     ) -> list[ParameterValue]:
-        """Prepare parameter list for snapshot upsert query.
+        """Prepare parameter list for legacy snapshot upsert query.
 
-        Args:
-            All parameters that will be bound to the SQL query
+        Only core metrics — narrative/JSONB data goes to normalized tables.
 
         Returns:
             List of parameters in the correct order for the SQL query
@@ -264,44 +181,8 @@ class QueryManager:
             fetched_at,
             price,
             change_pct,
-            beta,
-            volatility,
-            news_score,
-            technical_score,
-            fundamental_score,
-            ai_score,
-            ai_confidence,
-            sector_score,
-            competitor_score,
             overall_score,
             is_stale,
-            raw_metrics_json,
-            signal_type,
-            signal_strength,
-            narrative_headline,
-            narrative_why_bullets_json,
-            narrative_company_health_json,
-            narrative_technical_json,
-            narrative_action_plan,
-            narrative_position_sizing,
-            narrative_special_notes,
-            entry_price,
-            stop_loss,
-            profit_target,
-            position_size_shares,
-            recommended_style,
-            style_confidence,
-            optimal_holding_period,
-            risk_level,
-            company_health,
-            earnings_date,
-            earnings_days_away,
-            news_sentiment_score,
-            recent_news_headlines_json,
-            volume_relative,
-            timeframe_short_aligned,
-            timeframe_long_aligned,
-            percentile_rank_30d,
         ]
 
     def upsert_watchlist_snapshot(
@@ -371,56 +252,20 @@ class QueryManager:
             recent_news_headlines,
         )
 
-        # Build SQL query
+        # Build SQL query for legacy table (core metrics only)
         sql = self._build_snapshot_upsert_sql()
 
-        # Prepare parameters
+        # Prepare parameters (core metrics only for legacy table)
         params = self._prepare_snapshot_parameters(
             item_id,
             fetched_at,
             price,
             change_pct,
-            beta,
-            volatility,
-            news_score,
-            technical_score,
-            fundamental_score,
-            ai_score,
-            ai_confidence,
-            sector_score,
-            competitor_score,
             overall_score,
             is_stale,
-            raw_metrics_json,
-            signal_type,
-            signal_strength,
-            narrative_headline,
-            narrative_why_bullets_json,
-            narrative_company_health_json,
-            narrative_technical_json,
-            narrative_action_plan,
-            narrative_position_sizing,
-            narrative_special_notes,
-            entry_price,
-            stop_loss,
-            profit_target,
-            position_size_shares,
-            recommended_style,
-            style_confidence,
-            optimal_holding_period,
-            risk_level,
-            company_health,
-            earnings_date,
-            earnings_days_away,
-            news_sentiment_score,
-            recent_news_headlines_json,
-            volume_relative,
-            timeframe_short_aligned,
-            timeframe_long_aligned,
-            percentile_rank_30d,
         )
 
-        # Execute upsert to legacy table
+        # Execute upsert to legacy table (core metrics only)
         with self.connection_mgr.connection() as conn:
             conn.execute(sql, params)
 

@@ -11,7 +11,7 @@ from typing import Any
 from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy, Context
 
 from ..hatchet_app import hatchet
-from .models import EmptyInput, SeedInput, StrategyInput, SymbolInput
+from .models import EmptyInput, SeedInput, StrategyInput
 
 
 @hatchet.task(

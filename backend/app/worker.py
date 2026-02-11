@@ -7,6 +7,27 @@ Run with: python -m app.worker
 from __future__ import annotations
 
 from app.hatchet_app import hatchet
+from app.workflows.agents import (
+    run_discovery_agent_wf,
+    run_portfolio_analyzer_wf,
+    schedule_new_symbol_wf,
+    update_paper_trades_wf,
+)
+from app.workflows.data_refresh import (
+    backfill_indicators_wf,
+    calculate_fear_greed_wf,
+    fetch_options_activity_wf,
+    fetch_putcall_ratio_wf,
+    ingest_fundamental_data_wf,
+    ingest_macro_indicators_wf,
+    ingest_ohlcv_wf,
+    maintain_historical_wf,
+    populate_fear_greed_inputs_wf,
+    refresh_daily_ohlcv_wf,
+    refresh_watchlist_ohlcv_wf,
+    update_technical_indicators_wf,
+)
+from app.workflows.events import cross_validate_insight_wf
 from app.workflows.maintenance import (
     check_all_data_freshness_wf,
     check_data_source_health_wf,
@@ -27,19 +48,10 @@ from app.workflows.maintenance import (
     reset_source_metrics_wf,
     vacuum_db_wf,
 )
-from app.workflows.data_refresh import (
-    backfill_indicators_wf,
-    calculate_fear_greed_wf,
-    fetch_options_activity_wf,
-    fetch_putcall_ratio_wf,
-    ingest_fundamental_data_wf,
-    ingest_macro_indicators_wf,
-    ingest_ohlcv_wf,
-    maintain_historical_wf,
-    populate_fear_greed_inputs_wf,
-    refresh_daily_ohlcv_wf,
-    refresh_watchlist_ohlcv_wf,
-    update_technical_indicators_wf,
+from app.workflows.monitoring import (
+    generate_sitemap_wf,
+    monitor_theses_wf,
+    qa_scan_wf,
 )
 from app.workflows.reference import (
     corporate_actions_wf,
@@ -76,18 +88,6 @@ from app.workflows.watchlist import (
     refresh_watchlist_scores_wf,
     trim_underperforming_wf,
 )
-from app.workflows.agents import (
-    run_discovery_agent_wf,
-    run_portfolio_analyzer_wf,
-    schedule_new_symbol_wf,
-    update_paper_trades_wf,
-)
-from app.workflows.monitoring import (
-    generate_sitemap_wf,
-    monitor_theses_wf,
-    qa_scan_wf,
-)
-from app.workflows.events import cross_validate_insight_wf
 
 
 def main() -> None:

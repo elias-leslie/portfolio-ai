@@ -16,13 +16,13 @@ All tasks are designed to be:
 
 from __future__ import annotations
 
+import uuid
 from collections import Counter
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from app.logging_config import get_logger
 from app.utils.task_locks import task_lock
 from app.utils.task_logging import task_logger
-import uuid
 
 logger = get_logger(__name__)
 

@@ -22,7 +22,6 @@ from app.api import (
     capabilities,
     # claude_progress removed - Beads handles session tracking
     cross_validation,
-    task_endpoints,
     db_inspect,
     # disagreements removed - feature disabled (no data, unused)
     # files removed - use SummitFlow for file browsing
@@ -51,6 +50,7 @@ from app.api import (
     strategies,
     strategy_seeds,
     symbols,
+    task_endpoints,
     test_feature,
     thesis,
     valuation,

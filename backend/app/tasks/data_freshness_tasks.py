@@ -6,7 +6,8 @@ VISION.md requirement: <24 hour data freshness for all monitored symbols
 from __future__ import annotations
 
 import datetime as dt
-from typing import TYPE_CHECKING, Any
+import uuid
+from typing import Any
 
 from app.logging_config import get_logger
 from app.services.data_freshness_service import check_all_tables_freshness
@@ -14,7 +15,6 @@ from app.services.maintenance_tracker import record_maintenance_completion, reco
 from app.storage import get_storage
 from app.storage.connection import get_connection_manager
 from app.tasks.watchlist_tasks import refresh_watchlist_scores_task
-import uuid
 
 logger = get_logger(__name__)
 
