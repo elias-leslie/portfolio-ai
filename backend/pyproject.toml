@@ -25,6 +25,7 @@ dependencies = [
     "feedparser==6.0.12",
     "anthropic==0.75.0",
     "httpx==0.28.1",
+    "agent-hub-client @ file:///home/kasadis/agent-hub/packages/agent-hub-client",
 
     # Caching & message broker
     "redis==7.1.0",
