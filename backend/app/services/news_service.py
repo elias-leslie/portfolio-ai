@@ -27,7 +27,7 @@ from .news_health_metrics import NewsHealthMetrics
 from .news_models import NewsBundle, NewsSummary
 from .news_processing import FinBertUnavailableError, NewsProcessor
 from .news_quality_scoring import NewsQualityScorer
-from .news_sentiment import FinBertSentimentAnalyzer, VaderSentimentAnalyzer
+from .news_sentiment import FinBertSentimentAnalyzer, VaderSentimentAnalyzer, get_finbert_analyzer
 from .news_vendor_manager import NewsVendorManager
 
 logger = get_logger(__name__)
@@ -57,7 +57,7 @@ class NewsService:
 
         self.storage = storage
         self.ttl = ttl or timedelta(hours=DEFAULT_TTL_HOURS)
-        self.finbert_analyzer = finbert_analyzer or FinBertSentimentAnalyzer()
+        self.finbert_analyzer = finbert_analyzer or get_finbert_analyzer()
         self.fallback_analyzer = fallback_analyzer or VaderSentimentAnalyzer()
         self.lookback_hours = max(1, int(self.ttl.total_seconds() // 3600))
         self.selection_overfetch = max(1, selection_overfetch)

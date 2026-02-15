@@ -16,6 +16,9 @@ from .fred import FREDSource
 
 logger = get_logger(__name__)
 
+# Module-level cache for data sources (expensive to recreate per task)
+_cached_sources: list[BaseSource] | None = None
+
 
 def initialize_data_sources() -> list[BaseSource]:
     """Initialize all available OHLCV data sources for multi-source fetching.
@@ -32,6 +35,10 @@ def initialize_data_sources() -> list[BaseSource]:
         5. Finnhub
         6. AlphaVantage
     """
+    global _cached_sources  # noqa: PLW0603
+    if _cached_sources is not None:
+        return _cached_sources
+
     # Import here to avoid circular imports (lazy loading pattern)
     from .alphavantage_source import AlphaVantageSource  # noqa: PLC0415
     from .finnhub_source import FinnhubSource  # noqa: PLC0415
@@ -79,6 +86,7 @@ def initialize_data_sources() -> list[BaseSource]:
         count=len(sources),
     )
 
+    _cached_sources = sources
     return sources
 
 

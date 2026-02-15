@@ -35,6 +35,27 @@ except Exception:  # pragma: no cover - handled via availability checks
     AutoTokenizer = cast(Any, None)
 
 
+_finbert_instance: FinBertSentimentAnalyzer | None = None
+_finbert_lock = threading.Lock()
+
+
+def get_finbert_analyzer() -> FinBertSentimentAnalyzer:
+    """Return a module-level singleton FinBertSentimentAnalyzer.
+
+    The FinBERT model (~420MB) is expensive to load and should only exist
+    once in the worker process. This avoids re-loading the model on every
+    task execution.
+    """
+    global _finbert_instance  # noqa: PLW0603
+    if _finbert_instance is not None:
+        return _finbert_instance
+    with _finbert_lock:
+        if _finbert_instance is not None:
+            return _finbert_instance
+        _finbert_instance = FinBertSentimentAnalyzer()
+        return _finbert_instance
+
+
 class FinBertSentimentAnalyzer:
     """Sentiment analyzer powered by the ProsusAI/finbert model."""
 

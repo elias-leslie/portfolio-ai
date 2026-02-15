@@ -30,6 +30,7 @@ from app.sources.fred import FREDSource
 from app.storage import get_storage
 from app.storage.credential_loader import load_credentials_from_database
 from app.tasks.triggers import emit_event
+from app.utils.task_lifecycle import task_cleanup
 
 if TYPE_CHECKING:
     from app.storage import PortfolioStorage
@@ -103,6 +104,7 @@ def run_discovery_agent() -> str:
         task_id=task_id,
     )
 
+    llm_client: DualProviderClient | None = None
     try:
         storage = get_storage()
 
@@ -145,6 +147,10 @@ def run_discovery_agent() -> str:
             error=str(e),
         )
         raise
+    finally:
+        if llm_client is not None:
+            llm_client.close()
+        task_cleanup("run_discovery_agent")
 
 
 def run_portfolio_analyzer() -> str:
@@ -165,6 +171,7 @@ def run_portfolio_analyzer() -> str:
         task_id=task_id,
     )
 
+    llm_client: DualProviderClient | None = None
     try:
         storage = get_storage()
 
@@ -207,6 +214,10 @@ def run_portfolio_analyzer() -> str:
             error=str(e),
         )
         raise
+    finally:
+        if llm_client is not None:
+            llm_client.close()
+        task_cleanup("run_portfolio_analyzer")
 
 
 def update_paper_trades_task(  # type: ignore[no-untyped-def]

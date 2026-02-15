@@ -19,6 +19,7 @@ from app.tasks.types import (
     build_strategy_success,
 )
 from app.utils.rate_limiter import check_daily_limit, increment_daily_count
+from app.utils.task_lifecycle import task_cleanup
 
 logger = get_logger(__name__)
 
@@ -68,6 +69,8 @@ def _run_strategy_workflow(
     except Exception as e:
         logger.exception("Strategy generation failed", symbol=symbol, error=str(e))
         return f"Error for {symbol}: {str(e)[:ERROR_MESSAGE_TRUNCATE]}", None
+    finally:
+        task_cleanup("run_strategy_workflow")
 
 
 def _generate_strategies_batch(

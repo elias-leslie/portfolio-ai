@@ -15,6 +15,7 @@ from app.sources.base import DatasetRequest
 from app.sources.multi_source_fetcher import MultiSourceFetcher
 from app.storage import PortfolioStorage, get_storage
 from app.storage.credential_loader import load_credentials_from_database
+from app.utils.task_lifecycle import task_cleanup
 from app.utils.task_locks import generate_task_lock_key, task_lock
 
 logger = get_logger(__name__)
@@ -362,6 +363,8 @@ def refresh_daily_ohlcv(
             error_type=type(e).__name__,
         )
         raise
+    finally:
+        task_cleanup("refresh_daily_ohlcv")
 
 
 def refresh_watchlist_ohlcv() -> dict[str, int | str | float]:
@@ -494,6 +497,8 @@ def refresh_watchlist_ohlcv() -> dict[str, int | str | float]:
             error_type=type(e).__name__,
         )
         raise
+    finally:
+        task_cleanup("refresh_watchlist_ohlcv")
 
 
 def ingest_historical_ohlcv(
@@ -545,4 +550,7 @@ def ingest_historical_ohlcv(
                 "symbols_count": len(symbols),
             }
 
-        return _ingest_historical_ohlcv_impl(symbols, days, str(uuid.uuid4()))
+        try:
+            return _ingest_historical_ohlcv_impl(symbols, days, str(uuid.uuid4()))
+        finally:
+            task_cleanup("ingest_historical_ohlcv")
