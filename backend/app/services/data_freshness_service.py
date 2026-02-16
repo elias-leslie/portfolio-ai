@@ -15,7 +15,7 @@ from __future__ import annotations
 import datetime as dt
 from typing import TYPE_CHECKING, TypedDict
 
-from app.hatchet_app import get_hatchet
+from app.hatchet_app import get_admin_client
 from app.logging_config import get_logger
 from app.services.maintenance_tracker import record_maintenance_completion, record_maintenance_start
 from app.utils.market_hours import (
@@ -216,8 +216,8 @@ def trigger_remediation(
     # Record cooldown before triggering
     _remediation_cooldowns[table_name] = now
 
-    hatchet = get_hatchet()
-    result = hatchet.admin.run_workflow(task_name, {})
+    admin = get_admin_client()
+    result = admin.run_workflow(task_name, {})
     task_id = str(result.workflow_run_id) if result else None
     logger.info(
         "remediation_triggered",

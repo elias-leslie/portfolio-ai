@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any  # Any: __getattr__ return is inherently d
 
 if TYPE_CHECKING:
     from hatchet_sdk import Hatchet
+    from hatchet_sdk.clients.admin import AdminClient
 
 
 @lru_cache
@@ -20,6 +21,15 @@ def get_hatchet() -> Hatchet:
     from hatchet_sdk import Hatchet as HatchetClass
 
     return HatchetClass()
+
+
+def get_admin_client() -> AdminClient:
+    """Get the Hatchet admin client for triggering workflows.
+
+    The Hatchet public API doesn't expose the admin client as a property,
+    so we access it through the internal Client instance.
+    """
+    return get_hatchet()._client.admin
 
 
 class _LazyHatchet:

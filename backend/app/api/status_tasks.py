@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from ..hatchet_app import get_hatchet
+from ..hatchet_app import get_admin_client
 from ..logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -36,8 +36,8 @@ def refresh_watchlist() -> WatchlistRefreshResponse:
     logger.info("refresh_watchlist_request")
 
     try:
-        hatchet = get_hatchet()
-        workflow_run = hatchet.admin.run_workflow("portfolio-refresh-watchlist-scores", {})
+        admin = get_admin_client()
+        workflow_run = admin.run_workflow("portfolio-refresh-watchlist-scores", {})
 
         logger.info("refresh_watchlist_triggered", task_id=workflow_run.workflow_run_id)
         return WatchlistRefreshResponse(

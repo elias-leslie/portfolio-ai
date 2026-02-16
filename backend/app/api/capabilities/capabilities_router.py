@@ -449,12 +449,12 @@ async def trigger_scan() -> ScanTriggerResponse:
         # Trigger async scan task
         task = scan_system_capabilities()
 
-        logger.info("capabilities_scan_triggered", task_id=task.id)
+        logger.info("capabilities_scan_triggered", task_id=task.get("status"))
 
         return ScanTriggerResponse(
-            task_id=task.id,
-            status="queued",
-            message=f"Capabilities scan queued with task ID: {task.id}",
+            task_id=task.get("status", "completed"),
+            status="completed",
+            message="Capabilities scan completed",
         )
 
     except Exception as e:

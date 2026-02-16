@@ -6,7 +6,7 @@ Thin async wrappers around existing business logic in tasks/.
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import Any, cast
 
 from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy, Context
 
@@ -29,7 +29,7 @@ from .models import EmptyInput, SymbolInput, WatchlistInput
 async def refresh_watchlist_scores_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
     from ..tasks.watchlist_tasks import refresh_watchlist_scores_task
 
-    return await asyncio.to_thread(refresh_watchlist_scores_task)
+    return cast(dict[str, Any], await asyncio.to_thread(refresh_watchlist_scores_task))
 
 
 @hatchet.task(

@@ -50,7 +50,7 @@ async def get_refresh_status() -> RefreshStatusResponse:
         Refresh status with progress information
     """
     try:
-        redis_client = _get_redis_client()  # type: ignore[misc]  # mypy can't infer type through lazy-loaded __getattr__
+        redis_client = _get_redis_client()
         status_json = redis_client.get(REDIS_WATCHLIST_REFRESH_KEY)
 
         if not status_json:
@@ -123,7 +123,7 @@ async def refresh_watchlist_scores(data: RefreshRequest) -> RefreshResponse:
     schedule_refresh_tasks(symbols)
 
     # Do immediate synchronous refresh with Redis progress tracking
-    result = refresh_watchlist_scores_service(storage)  # type: ignore[misc]  # mypy can't infer type through lazy-loaded __getattr__
+    result = refresh_watchlist_scores_service(storage)
     success_count = result.get("success_count", 0)
     failed_count = result.get("failed_count", 0)
     failed_list = [FailedTickerInfo(**f) for f in result.get("failed", [])]

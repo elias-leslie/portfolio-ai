@@ -7,7 +7,7 @@ Hatchet workflows with cron scheduling.
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import Any, cast
 
 from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy, Context
 
@@ -354,7 +354,7 @@ async def cleanup_old_versions_wf(input: EmptyInput, ctx: Context) -> dict[str, 
 async def reset_source_metrics_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
     from ..tasks.news_profiling_tasks import reset_source_metrics_task
 
-    return await asyncio.to_thread(reset_source_metrics_task)
+    return cast(dict[str, Any], await asyncio.to_thread(reset_source_metrics_task))
 
 
 @hatchet.task(
@@ -372,4 +372,4 @@ async def reset_source_metrics_wf(input: EmptyInput, ctx: Context) -> dict[str, 
 async def profile_news_wf(input: WatchlistInput, ctx: Context) -> dict[str, Any]:
     from ..tasks.news_profiling_tasks import profile_news_sources_task
 
-    return await asyncio.to_thread(profile_news_sources_task, user_id=input.user_id)
+    return cast(dict[str, Any], await asyncio.to_thread(profile_news_sources_task, user_id=input.user_id))

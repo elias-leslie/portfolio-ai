@@ -8,7 +8,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from ..hatchet_app import get_hatchet
+from ..hatchet_app import get_admin_client
 from ..logging_config import get_logger
 from ..storage.connection import get_connection_manager
 
@@ -83,8 +83,8 @@ async def trigger_training() -> TrainingTriggerResponse:
         ) from e
 
     try:
-        hatchet = get_hatchet()
-        hatchet.admin.run_workflow(
+        admin = get_admin_client()
+        admin.run_workflow(
             "portfolio-ml-train-manual",
             {"session_id": session_id},
         )

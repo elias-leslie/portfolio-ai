@@ -3,23 +3,25 @@
 from __future__ import annotations
 
 import copy
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
+from typing import Any
 
 import polars as pl
 import pytest
 
-from app.api.preferences import _get_or_create_preferences
 from app.services.news_models import NewsArticle, NewsBundle, NewsSummary, SentimentScore
 from app.services.news_processing import FinBertUnavailableError
 from app.services.news_service import NewsService
+from app.services.preferences_service import get_or_create_preferences
 from app.sources.base import BaseSource
 from app.storage import get_storage
 from app.watchlist.refresh_builders import build_recent_news_payload
 
 
 @pytest.fixture()
-def storage():
+def storage() -> Any:
     return get_storage()
 
 
@@ -27,16 +29,16 @@ class StubAnalyzer:
     def __init__(self, scores: list[SentimentScore]) -> None:
         self._scores = scores
 
-    def score_batch(self, texts: list[str]):  # pragma: no cover - simple stub
+    def score_batch(self, texts: Sequence[str]) -> list[SentimentScore]:
         assert len(texts) == len(self._scores)
         return self._scores
 
 
 class FailingAnalyzer:
-    def score_batch(self, texts: list[str]):  # pragma: no cover - simple stub
+    def score_batch(self, texts: Sequence[str]) -> list[SentimentScore]:
         raise FinBertUnavailableError("finbert unavailable")
 
-    def is_available(self) -> bool:  # pragma: no cover - simple stub
+    def is_available(self) -> bool:
         return False
 
 
@@ -44,7 +46,7 @@ def _format_gmt(dt: datetime) -> str:
     return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
 
 
-def _sample_entries(now: datetime | None = None) -> list[dict[str, str]]:
+def _sample_entries(now: datetime | None = None) -> list[dict[str, Any]]:
     """Generate sample feed entries with recent timestamps to satisfy TTL filtering."""
 
     reference = now or datetime.now(UTC)
@@ -69,7 +71,7 @@ def _sample_entries(now: datetime | None = None) -> list[dict[str, str]]:
     ]
 
 
-def _build_entry(title: str, published: datetime) -> dict[str, str]:
+def _build_entry(title: str, published: datetime) -> dict[str, Any]:
     return {
         "title": title,
         "link": f"https://example.com/{title.lower().replace(' ', '-')}",
@@ -86,23 +88,23 @@ class StubNewsSource(BaseSource):
     priority = 1
     supports_news = True
 
-    def __init__(self, entries: list[dict[str, str]] | None = None) -> None:
+    def __init__(self, entries: list[dict[str, Any]] | None = None) -> None:
         self._entries = entries or []
         self.fetch_call_count = 0
 
-    def set_entries(self, entries: list[dict[str, str]]) -> None:
+    def set_entries(self, entries: list[dict[str, Any]]) -> None:
         self._entries = entries
 
     def reset_calls(self) -> None:
         self.fetch_call_count = 0
 
-    def fetch_day_bars(self, request):  # pragma: no cover - unused
+    def fetch_day_bars(self, request: Any) -> pl.DataFrame:
         return pl.DataFrame()
 
-    def fetch_reference_payload(self, tickers, as_of):  # pragma: no cover - unused
+    def fetch_reference_payload(self, tickers: Any, as_of: Any) -> pl.DataFrame:
         return pl.DataFrame()
 
-    def fetch_news_payload(self, tickers, start, end) -> pl.DataFrame:
+    def fetch_news_payload(self, tickers: Any, start: Any, end: Any) -> pl.DataFrame:
         self.fetch_call_count += 1
         rows: list[dict[str, str | None]] = []
         for ticker in tickers:
@@ -128,16 +130,18 @@ class StubNewsSource(BaseSource):
         return pl.from_dicts(rows) if rows else pl.DataFrame()
 
 
-def test_news_service_caches_articles(storage):
+def test_news_service_caches_articles(storage: Any) -> None:
     news_source = StubNewsSource(_sample_entries())
 
-    analyzer = StubAnalyzer(
+    # Stubs satisfy SentimentAnalyzer Protocol at runtime; NewsService.__init__
+    # uses concrete types (FinBert/Vader) because it calls .is_available().
+    analyzer: Any = StubAnalyzer(
         [
             SentimentScore(score=0.6, label="positive", confidence=0.9, model="finbert"),
             SentimentScore(score=0.2, label="positive", confidence=0.7, model="finbert"),
         ]
     )
-    fallback = StubAnalyzer(
+    fallback: Any = StubAnalyzer(
         [
             SentimentScore(score=0.1, label="neutral", confidence=0.5, model="vader"),
             SentimentScore(score=-0.1, label="neutral", confidence=0.5, model="vader"),
@@ -166,13 +170,13 @@ def test_news_service_caches_articles(storage):
     assert len(cached_bundle.articles) == len(bundle.articles)
 
 
-def test_news_service_falls_back_to_vader(storage):
+def test_news_service_falls_back_to_vader(storage: Any) -> None:
     news_source = StubNewsSource()
     seed_entry = _sample_entries()[0]
     news_source.set_entries([copy.deepcopy(seed_entry)])
 
-    failing_finbert = FailingAnalyzer()
-    vader_analyzer = StubAnalyzer(
+    failing_finbert: Any = FailingAnalyzer()
+    vader_analyzer: Any = StubAnalyzer(
         [SentimentScore(score=-0.4, label="negative", confidence=0.8, model="vader")]
     )
 
@@ -180,7 +184,7 @@ def test_news_service_falls_back_to_vader(storage):
         storage,
         ttl=timedelta(hours=6),
         vendor_sources=[news_source],
-        finbert_analyzer=failing_finbert,  # type: ignore[arg-type]
+        finbert_analyzer=failing_finbert,
         fallback_analyzer=vader_analyzer,
         auto_load_credentials=False,
     )
@@ -197,13 +201,13 @@ def test_news_service_falls_back_to_vader(storage):
     assert fallback_meta.get("latency_ms") is not None
 
 
-def test_news_health_reports_fallback_metrics(storage):
+def test_news_health_reports_fallback_metrics(storage: Any) -> None:
     news_source = StubNewsSource()
     seed_entry = _sample_entries()[0]
     news_source.set_entries([copy.deepcopy(seed_entry)])
 
-    failing_finbert = FailingAnalyzer()
-    vader_analyzer = StubAnalyzer(
+    failing_finbert: Any = FailingAnalyzer()
+    vader_analyzer: Any = StubAnalyzer(
         [SentimentScore(score=-0.2, label="negative", confidence=0.6, model="vader")]
     )
 
@@ -211,7 +215,7 @@ def test_news_health_reports_fallback_metrics(storage):
         storage,
         ttl=timedelta(hours=6),
         vendor_sources=[news_source],
-        finbert_analyzer=failing_finbert,  # type: ignore[arg-type]
+        finbert_analyzer=failing_finbert,
         fallback_analyzer=vader_analyzer,
         auto_load_credentials=False,
     )
@@ -230,18 +234,18 @@ def test_news_health_reports_fallback_metrics(storage):
     assert news_source.name in health["vendors"]
 
 
-def test_news_service_tracks_score_change(storage):
+def test_news_service_tracks_score_change(storage: Any) -> None:
     news_source = StubNewsSource()
     seed_entry = _sample_entries()[0]
     news_source.set_entries([copy.deepcopy(seed_entry)])
 
-    positive_analyzer = StubAnalyzer(
+    positive_analyzer: Any = StubAnalyzer(
         [SentimentScore(score=0.6, label="positive", confidence=0.9, model="finbert")]
     )
-    negative_analyzer = StubAnalyzer(
+    negative_analyzer: Any = StubAnalyzer(
         [SentimentScore(score=-0.6, label="negative", confidence=0.9, model="finbert")]
     )
-    fallback = StubAnalyzer(
+    fallback: Any = StubAnalyzer(
         [SentimentScore(score=0.0, label="neutral", confidence=0.5, model="vader")]
     )
 
@@ -290,7 +294,7 @@ def test_news_service_tracks_score_change(storage):
     assert bundle.summary.score_change < 0
 
 
-def test_recent_selection_backfills_with_stale_articles(storage):
+def test_recent_selection_backfills_with_stale_articles(storage: Any) -> None:
     now = datetime.now(UTC)
     stale_base = now - timedelta(hours=5)
 
@@ -304,7 +308,7 @@ def test_recent_selection_backfills_with_stale_articles(storage):
 
     news_source = StubNewsSource(copy.deepcopy(entries))
 
-    analyzer = StubAnalyzer(
+    analyzer: Any = StubAnalyzer(
         [
             SentimentScore(score=0.3, label="positive", confidence=0.8, model="finbert"),
             SentimentScore(score=0.1, label="neutral", confidence=0.6, model="finbert"),
@@ -333,7 +337,7 @@ def test_recent_selection_backfills_with_stale_articles(storage):
     assert bundle.summary.model_breakdown.get("finbert") == 2
 
 
-def test_build_recent_news_payload_includes_vendor_and_publisher():
+def test_build_recent_news_payload_includes_vendor_and_publisher() -> None:
     now = datetime.now(UTC)
     summary = NewsSummary(
         symbol="AAPL",
@@ -385,7 +389,7 @@ def test_build_recent_news_payload_includes_vendor_and_publisher():
     assert article_payload["publisher"] == "Example Publisher"
 
 
-def test_vendor_entries_round_robin_selection(storage):
+def test_vendor_entries_round_robin_selection(storage: Any) -> None:
     now = datetime.now(UTC)
     rows = [
         {
@@ -431,7 +435,7 @@ def test_vendor_entries_round_robin_selection(storage):
                 SimpleNamespace(name="finnhub", priority=20),
             ]
 
-        def fetch_with_fallback(self, request, verbose=False):
+        def fetch_with_fallback(self, request: Any, verbose: bool = False) -> tuple[Any, dict[str, Any]]:
             return dataframe, {}
 
     news_source = StubNewsSource([])
@@ -440,11 +444,12 @@ def test_vendor_entries_round_robin_selection(storage):
         conn.execute("DELETE FROM news_cache WHERE symbol = %s", ["AAPL"])
         conn.commit()
 
+    stub_fetcher: Any = StubFetcher()
     service = NewsService(
         storage,
         ttl=timedelta(hours=6),
         vendor_sources=[news_source],
-        multi_source_fetcher=StubFetcher(),
+        multi_source_fetcher=stub_fetcher,
         selection_overfetch=1,
         auto_load_credentials=False,
     )
@@ -456,9 +461,9 @@ def test_vendor_entries_round_robin_selection(storage):
     assert len(bundle.articles) == 3
 
 
-def test_refresh_max_articles_from_preferences(storage):
+def test_refresh_max_articles_from_preferences(storage: Any) -> None:
     service = NewsService(storage, auto_load_credentials=False)
-    _get_or_create_preferences()
+    get_or_create_preferences()
     with storage.connection() as conn:
         conn.execute(
             "UPDATE user_preferences SET news_max_articles = %s",

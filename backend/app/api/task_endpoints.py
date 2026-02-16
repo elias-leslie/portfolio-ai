@@ -106,7 +106,7 @@ def _get_schedule_response() -> list[ScheduleInfo]:
     """Get all registered cron schedules from workflow definitions."""
 
     # All workflows with on_crons defined
-    _SCHEDULED_WORKFLOWS: list[tuple[str, str, str]] = [
+    scheduled_workflows: list[tuple[str, str, str]] = [
         # Maintenance
         ("portfolio-vacuum-db", "vacuum_db_wf", "30 3 * * 0"),
         ("portfolio-cleanup-news", "cleanup_news_wf", "0 4 * * 0"),
@@ -182,7 +182,7 @@ def _get_schedule_response() -> list[ScheduleInfo]:
             last_run=None,
             next_run=None,
         )
-        for name, _wf_name, cron in _SCHEDULED_WORKFLOWS
+        for name, _wf_name, cron in scheduled_workflows
     ]
 
 

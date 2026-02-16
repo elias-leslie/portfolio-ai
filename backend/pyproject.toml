@@ -136,6 +136,9 @@ ignore = [
 "app/agents/**/*.py" = ["PLC0415", "PLR0911"]  # Agent-specific: lazy imports, many return statements in tool executors
 "app/watchlist/scoring_service/__init__.py" = ["PLC0415", "PLR0911"]  # Lazy loading pattern via __getattr__
 "app/hatchet_app.py" = ["PLC0415"]  # Lazy import for deferred SDK initialization
+"app/workflows/*.py" = ["PLC0415"]  # Workflow-specific: lazy imports to avoid circular dependencies
+"app/services/hatchet_inspector.py" = ["PLC0415"]  # Lazy import to defer Hatchet SDK initialization
+"app/worker.py" = ["ERA001"]  # Section comments in workflow registration list
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]

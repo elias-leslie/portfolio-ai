@@ -6,7 +6,7 @@ Thin async wrappers around existing business logic in tasks/.
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import Any, cast
 
 from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy, Context
 
@@ -29,7 +29,7 @@ from .models import EmptyInput, SeedInput, StrategyInput
 async def eval_strategy_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
     from ..tasks.strategy.performance_tasks import evaluate_strategy_performance
 
-    return await asyncio.to_thread(evaluate_strategy_performance)
+    return cast(dict[str, Any], await asyncio.to_thread(evaluate_strategy_performance))
 
 
 @hatchet.task(
@@ -47,7 +47,7 @@ async def eval_strategy_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
 async def auto_promote_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
     from ..tasks.strategy.performance_tasks import auto_promote_strategies
 
-    return await asyncio.to_thread(auto_promote_strategies)
+    return cast(dict[str, Any], await asyncio.to_thread(auto_promote_strategies))
 
 
 @hatchet.task(
@@ -83,7 +83,7 @@ async def daily_strategy_refresh_wf(input: EmptyInput, ctx: Context) -> dict[str
 async def weekly_strategy_gen_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
     from ..tasks.strategy.generation_tasks import weekly_strategy_generation
 
-    return await asyncio.to_thread(weekly_strategy_generation)
+    return cast(dict[str, Any], await asyncio.to_thread(weekly_strategy_generation))
 
 
 @hatchet.task(

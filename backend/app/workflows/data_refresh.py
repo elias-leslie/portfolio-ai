@@ -6,7 +6,7 @@ Thin async wrappers around existing business logic in tasks/.
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import Any, cast
 
 from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy, Context
 
@@ -86,7 +86,7 @@ async def backfill_indicators_wf(input: EmptyInput, ctx: Context) -> dict[str, A
 async def populate_fear_greed_inputs_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
     from ..tasks.market_data.fear_greed_pipeline import populate_fear_greed_inputs
 
-    return await asyncio.to_thread(populate_fear_greed_inputs)
+    return cast(dict[str, Any], await asyncio.to_thread(populate_fear_greed_inputs))
 
 
 @hatchet.task(
@@ -105,7 +105,7 @@ async def populate_fear_greed_inputs_wf(input: EmptyInput, ctx: Context) -> dict
 async def calculate_fear_greed_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
     from ..tasks.indicators.fear_greed import calculate_fear_greed
 
-    return await asyncio.to_thread(calculate_fear_greed)
+    return cast(dict[str, Any], await asyncio.to_thread(calculate_fear_greed))
 
 
 @hatchet.task(
@@ -197,7 +197,7 @@ async def ingest_ohlcv_wf(input: SymbolsInput, ctx: Context) -> dict[str, Any]:
 async def update_technical_indicators_wf(input: SymbolsInput, ctx: Context) -> dict[str, Any]:
     from ..tasks.indicators.technical import update_technical_indicators
 
-    return await asyncio.to_thread(update_technical_indicators, symbols=input.symbols)
+    return cast(dict[str, Any], await asyncio.to_thread(update_technical_indicators, symbols=input.symbols))
 
 
 @hatchet.task(

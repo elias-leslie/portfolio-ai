@@ -348,7 +348,7 @@ def cleanup_maintenance_tables(days: int = 90, dry_run: bool = False) -> dict[st
                     f"SELECT COUNT(*) FROM {table} WHERE {col} < %s",  # table/col from constant list
                     [cutoff_date],
                 ).fetchone()
-                counts[f"{table}_to_delete"] = int(result[0]) if result else 0
+                counts[f"{table}_to_delete"] = int(result[0] or 0) if result else 0
 
             return {
                 **counts,

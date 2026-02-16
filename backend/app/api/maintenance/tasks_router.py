@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from ...hatchet_app import get_hatchet
+from ...hatchet_app import get_admin_client
 from ...logging_config import get_logger
 from ..maintenance_types import TaskStatusResponseDict, TaskTriggerResponseDict
 
@@ -88,14 +88,14 @@ async def trigger_maintenance_task(
     }
 
     try:
-        hatchet = get_hatchet()
+        admin = get_admin_client()
         workflow_name = task_to_workflow[task_name]
 
         input_data = {}
         if task_name in tasks_with_dry_run:
             input_data["dry_run"] = dry_run
 
-        workflow_run = hatchet.admin.run_workflow(workflow_name, input_data)
+        workflow_run = admin.run_workflow(workflow_name, input_data)
 
         logger.info(
             "maintenance_task_triggered",
@@ -144,14 +144,14 @@ async def get_task_status(task_id: str) -> TaskStatusResponseDict:
         HTTPException: If status check fails
     """
     try:
-        hatchet = get_hatchet()
-        run = hatchet.admin.get_workflow_run(task_id)
+        admin = get_admin_client()
+        details = admin.get_details(task_id)
 
         return {
             "task_id": task_id,
-            "state": run.status if run else "UNKNOWN",
-            "ready": run.status in ("SUCCEEDED", "FAILED") if run else False,
-            "successful": run.status == "SUCCEEDED" if run else None,
+            "state": details.status.value if details else "UNKNOWN",
+            "ready": details.status.value in ("COMPLETED", "FAILED") if details else False,
+            "successful": details.status.value == "COMPLETED" if details else None,
             "result": None,
         }
 

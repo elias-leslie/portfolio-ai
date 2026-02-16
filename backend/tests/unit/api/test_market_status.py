@@ -30,8 +30,8 @@ def mock_market_time(mock_time: datetime) -> Generator[None]:
         mock_datetime_api.combine = datetime.combine
 
         # Allow datetime constructor calls to work
-        mock_datetime_utils.side_effect = lambda *args, **kw: datetime(*args, **kw)
-        mock_datetime_api.side_effect = lambda *args, **kw: datetime(*args, **kw)
+        mock_datetime_utils.side_effect = datetime
+        mock_datetime_api.side_effect = datetime
 
         yield
 

@@ -152,7 +152,7 @@ async def get_maintenance_schedule() -> MaintenanceScheduleResponseDict:
         HTTPException: If schedule retrieval fails
     """
     try:
-        scheduled_tasks = {
+        scheduled_tasks: dict[str, dict[str, object]] = {
             "vacuum-database": {"task": "portfolio-vacuum-db", "schedule": "crontab(0 2 * * 0)"},
             "cleanup-old-news": {"task": "portfolio-cleanup-old-news", "schedule": "crontab(0 3 * * *)"},
             "cleanup-agent-runs": {"task": "portfolio-cleanup-agent-runs", "schedule": "crontab(30 3 * * *)"},

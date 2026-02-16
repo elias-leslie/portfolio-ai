@@ -76,12 +76,12 @@ async def trigger_profiling(user_id: str = "default") -> ProfilingTaskResponse:
     """
     try:
         # Trigger async task
-        task = profile_news_sources_task(user_id,)
+        result = profile_news_sources_task(user_id,)
 
         return ProfilingTaskResponse(
-            status="accepted",
-            task_id=str(task.id),
-            message="Profiling task triggered successfully. Check /api/status/tasks/{task_id} for progress.",
+            status="completed",
+            task_id=result.get("status", "completed"),
+            message="Profiling task completed successfully.",
         )
     except Exception as exc:
         return ProfilingTaskResponse(
@@ -399,12 +399,12 @@ async def reset_source_metrics() -> ResetSourceMetricsDict:
         dict with deletion counts
     """
     try:
-        task = reset_source_metrics_task()
+        result = reset_source_metrics_task()
 
         return {
-            "status": "accepted",
-            "task_id": str(task.id),
-            "message": "Reset task triggered. All metrics and feedback will be deleted.",
+            "status": "completed",
+            "task_id": result.get("status", "completed"),
+            "message": "Reset task completed. All metrics and feedback have been deleted.",
         }
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to reset metrics: {exc!s}") from exc

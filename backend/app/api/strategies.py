@@ -444,13 +444,13 @@ async def generate_batch(request: GenerateBatchRequest) -> dict[str, Any]:
 
         # For now, run synchronously since the task is already sync
         # In future can make this async with task()
-        result = weekly_strategy_generation()
+        gen_result = weekly_strategy_generation()
 
         return {
             "status": "completed",
-            "symbols_evaluated": result.get("symbols_evaluated", 0),
-            "strategies_generated": result.get("strategies_generated", 0),
-            "details": result.get("details", []),
+            "symbols_evaluated": gen_result.get("symbols_evaluated", 0),
+            "strategies_generated": gen_result.get("strategies_generated", 0),
+            "details": gen_result.get("details", []),
         }
 
     except Exception as e:

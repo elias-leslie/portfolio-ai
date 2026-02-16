@@ -29,7 +29,8 @@ from .models import EmptyInput, SymbolInput
 async def run_discovery_agent_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
     from ..tasks.agent_tasks import run_discovery_agent
 
-    return await asyncio.to_thread(run_discovery_agent)
+    result = await asyncio.to_thread(run_discovery_agent)
+    return {"result": result}
 
 
 @hatchet.task(
@@ -47,7 +48,8 @@ async def run_discovery_agent_wf(input: EmptyInput, ctx: Context) -> dict[str, A
 async def run_portfolio_analyzer_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
     from ..tasks.agent_tasks import run_portfolio_analyzer
 
-    return await asyncio.to_thread(run_portfolio_analyzer)
+    result = await asyncio.to_thread(run_portfolio_analyzer)
+    return {"result": result}
 
 
 @hatchet.task(
@@ -94,7 +96,7 @@ async def schedule_new_symbol_wf(input: SymbolInput, ctx: Context) -> dict[str, 
     results: dict[str, Any] = {"symbol": input.symbol, "steps": []}
 
     # Step 1: Ingest historical OHLCV
-    r = await asyncio.to_thread(ingest_historical_ohlcv, symbols=[input.symbol], days=252)
+    r: Any = await asyncio.to_thread(ingest_historical_ohlcv, symbols=[input.symbol], days=252)
     results["steps"].append({"step": "ingest_ohlcv", "result": r})
     await asyncio.sleep(5)
 

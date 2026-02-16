@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from app.utils.market_hours import NY_TZ, is_stale
-from app.watchlist.scoring import _is_stale as scoring_is_stale
+from app.watchlist.scoring_service.helpers import is_stale as scoring_is_stale
 
 
 class TestTimezoneStaleness:

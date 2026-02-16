@@ -40,23 +40,19 @@ __all__ = [
     "APIQuotaInfo",
     "AgentStats",
     "CacheStats",
-    "WorkerInfo",
-    # Data classes
     "CheckResult",
     "DayBarFreshness",
     "SourceHealthCheck",
     "WatchlistStats",
-    # Functions - Database
+    "WorkerInfo",
     "check_database",
-    # Functions - Services
     "check_sources",
     "get_agent_stats",
     "get_api_key_statuses",
     "get_api_quotas",
-    # Functions - Storage
     "get_cache_stats",
-    "get_worker_info",
     "get_day_bars_freshness",
     "get_watchlist_stats",
+    "get_worker_info",
     "load_quota_config",
 ]

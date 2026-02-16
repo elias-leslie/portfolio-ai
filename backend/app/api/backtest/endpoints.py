@@ -92,11 +92,12 @@ async def start_backtest(request: StartBacktestRequest) -> StartBacktestResponse
             position_size_value=float(request.position_size_value),
         )
 
-        logger.info(f"Started backtest: {run_id} | Task: {task.id} | Symbol: {request.symbol}")
+        task_id = str(task.get("id", run_id))
+        logger.info(f"Started backtest: {run_id} | Task: {task_id} | Symbol: {request.symbol}")
 
         return StartBacktestResponse(
             run_id=run_id,
-            task_id=task.id,
+            task_id=task_id,
             status="running",
             message=f"Backtest started for {request.symbol} ({request.start_date} to {request.end_date})",
         )

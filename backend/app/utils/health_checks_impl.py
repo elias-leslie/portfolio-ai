@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
@@ -262,10 +263,9 @@ def get_worker_info() -> WorkerInfo:
         WorkerInfo with worker status
     """
     try:
-        import subprocess
         result = subprocess.run(
             ["systemctl", "--user", "is-active", "portfolio-hatchet-worker"],
-            capture_output=True, text=True, timeout=5
+            capture_output=True, text=True, timeout=5, check=False,
         )
         active = result.stdout.strip() == "active"
         return WorkerInfo(active=active, message="Hatchet worker active" if active else "Hatchet worker not active")

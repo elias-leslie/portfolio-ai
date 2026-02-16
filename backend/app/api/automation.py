@@ -14,7 +14,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from app.hatchet_app import get_hatchet
+from app.hatchet_app import get_admin_client
 from app.logging_config import get_logger
 from app.storage.connection import get_connection_manager
 
@@ -62,15 +62,15 @@ async def trigger_strategy_research(
     Otherwise runs daily_strategy_refresh for top watchlist symbols.
     """
     try:
-        hatchet = get_hatchet()
+        admin = get_admin_client()
         if symbol:
-            workflow_run = hatchet.admin.run_workflow(
+            workflow_run = admin.run_workflow(
                 "portfolio-strategy-research-symbol",
                 {"symbol": symbol, "force": force},
             )
             message = f"Started strategy research for {symbol}"
         else:
-            workflow_run = hatchet.admin.run_workflow(
+            workflow_run = admin.run_workflow(
                 "portfolio-daily-strategy",
                 {},
             )
@@ -94,8 +94,8 @@ async def trigger_strategy_research(
 async def trigger_signal_generation() -> PipelineResponse:
     """Trigger signal generation for all active strategies."""
     try:
-        hatchet = get_hatchet()
-        workflow_run = hatchet.admin.run_workflow(
+        admin = get_admin_client()
+        workflow_run = admin.run_workflow(
             "portfolio-daily-signals",
             {},
         )
@@ -120,8 +120,8 @@ async def trigger_auto_paper_trade(
 ) -> PipelineResponse:
     """Trigger auto paper trading from signals."""
     try:
-        hatchet = get_hatchet()
-        workflow_run = hatchet.admin.run_workflow(
+        admin = get_admin_client()
+        workflow_run = admin.run_workflow(
             "portfolio-auto-paper-trade",
             {"min_signal_strength": min_strength},
         )
@@ -154,26 +154,26 @@ async def trigger_full_pipeline(
     Each stage runs as a separate Hatchet workflow.
     """
     try:
-        hatchet = get_hatchet()
+        admin = get_admin_client()
         tasks = {}
 
         # Stage 1: Strategy research (optional)
         if not skip_research:
-            run1 = hatchet.admin.run_workflow("portfolio-daily-strategy", {})
+            run1 = admin.run_workflow("portfolio-daily-strategy", {})
             tasks["strategy_research"] = {
                 "task_id": run1.workflow_run_id,
                 "status": "started",
             }
 
         # Stage 2: Signal generation
-        run2 = hatchet.admin.run_workflow("portfolio-daily-signals", {})
+        run2 = admin.run_workflow("portfolio-daily-signals", {})
         tasks["signal_generation"] = {
             "task_id": run2.workflow_run_id,
             "status": "started",
         }
 
         # Stage 3: Auto paper trading
-        run3 = hatchet.admin.run_workflow("portfolio-auto-paper-trade", {})
+        run3 = admin.run_workflow("portfolio-auto-paper-trade", {})
         tasks["auto_paper_trade"] = {
             "task_id": run3.workflow_run_id,
             "status": "started",

@@ -224,11 +224,11 @@ async def check_all_health() -> dict[str, Any]:
     """
     from app.tasks.sitemap_tasks import check_sitemap_health  # noqa: PLC0415
 
-    task = check_sitemap_health()
+    result = check_sitemap_health()
     return {
-        "status": "queued",
-        "task_id": task.id,
-        "message": "Health check queued as background task",
+        "status": "completed",
+        "task_id": result.get("status", "completed"),
+        "message": "Health check completed",
     }
 
 
