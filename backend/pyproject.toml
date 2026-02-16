@@ -33,6 +33,10 @@ dependencies = [
     # Workflow orchestration
     "hatchet-sdk>=1.22.0",
 
+    # Configuration
+    "pydantic-settings>=2.6.0",
+    "python-dotenv>=1.0.0",
+
     # Utilities
     "python-dateutil==2.9.0.post0",
     "pyyaml==6.0.3",
@@ -54,7 +58,6 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     # Development tools
-    "python-dotenv==1.2.1",
     "rich==14.2.0",
 
     # Testing - Core
@@ -132,6 +135,7 @@ ignore = [
 "app/tasks/**/*.py" = ["PLC0415"]  # Task-specific: lazy imports to avoid circular dependencies
 "app/agents/**/*.py" = ["PLC0415", "PLR0911"]  # Agent-specific: lazy imports, many return statements in tool executors
 "app/watchlist/scoring_service/__init__.py" = ["PLC0415", "PLR0911"]  # Lazy loading pattern via __getattr__
+"app/hatchet_app.py" = ["PLC0415"]  # Lazy import for deferred SDK initialization
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]

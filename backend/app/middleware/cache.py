@@ -13,7 +13,6 @@ ETag Support:
 import hashlib
 import json
 import logging
-import os
 import re
 from collections.abc import Callable
 from functools import wraps
@@ -23,6 +22,8 @@ from cachetools import TTLCache
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+
+from ..config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -40,10 +41,10 @@ class CacheStatsDict(TypedDict):
     invalidations: int
 
 
-# Environment configuration
-CACHE_ENABLED = os.getenv("CACHE_ENABLED", "true").lower() == "true"
-CACHE_MAX_SIZE = int(os.getenv("CACHE_MAX_SIZE", "1000"))
-CACHE_DEFAULT_TTL = int(os.getenv("CACHE_DEFAULT_TTL", "300"))
+# Configuration from centralized settings
+CACHE_ENABLED = settings.cache_enabled
+CACHE_MAX_SIZE = settings.cache_max_size
+CACHE_DEFAULT_TTL = settings.cache_default_ttl
 
 # Global cache storage (TTL-based)
 # Cache stores: {cache_key: (response_data, status_code, headers)}

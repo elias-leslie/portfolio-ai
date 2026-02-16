@@ -6,13 +6,13 @@ Provides unified access to Claude and Gemini models via Agent Hub API.
 
 from __future__ import annotations
 
-import os
 import time
 from typing import Any
 
 from agent_hub import AgentHubClient as SDKClient
 from agent_hub.exceptions import AgentHubError
 
+from ...config import settings
 from ...constants import CLAUDE_SONNET
 from ...logging_config import get_logger
 from .base_client import LLMClient, LLMResponse
@@ -22,13 +22,13 @@ logger = get_logger(__name__)
 # Default Agent Hub URL
 DEFAULT_AGENT_HUB_URL = "http://localhost:8003"
 
-# Portfolio-AI client credentials for Agent Hub authentication
-PORTFOLIO_CLIENT_ID = os.getenv("PORTFOLIO_CLIENT_ID")
-PORTFOLIO_CLIENT_SECRET = os.getenv("PORTFOLIO_CLIENT_SECRET")
-PORTFOLIO_REQUEST_SOURCE = os.getenv("PORTFOLIO_REQUEST_SOURCE", "portfolio-ai")
+# Portfolio-AI client credentials from centralized settings
+PORTFOLIO_CLIENT_ID = settings.portfolio_client_id or None
+PORTFOLIO_CLIENT_SECRET = settings.portfolio_client_secret or None
+PORTFOLIO_REQUEST_SOURCE = settings.portfolio_request_source
 
 # Feature flag to enable/disable Agent Hub calls
-AGENT_HUB_ENABLED = os.getenv("AGENT_HUB_ENABLED", "false").lower() == "true"
+AGENT_HUB_ENABLED = settings.agent_hub_enabled
 
 
 class AgentHubAPIClient(LLMClient):

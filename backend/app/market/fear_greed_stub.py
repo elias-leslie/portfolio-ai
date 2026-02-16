@@ -12,15 +12,13 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-import os
 from typing import Any, Literal
 
 import redis
 
+from app.config import REDIS_URL
 from app.storage import get_storage
 
-# Redis connection
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 _redis_client: redis.Redis[str] | None = None  # redis.Redis with decode_responses=True
 
 

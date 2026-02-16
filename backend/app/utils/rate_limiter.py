@@ -5,11 +5,12 @@ Provides daily and sliding window rate limiting for scheduled tasks and API endp
 
 from __future__ import annotations
 
-import os
 from datetime import date
 from typing import Any, NamedTuple
 
 import redis
+
+from ..config import REDIS_URL
 
 
 class RateLimitResult(NamedTuple):
@@ -25,10 +26,9 @@ def get_redis_client() -> redis.Redis[Any]:
     """Get a Redis client instance.
 
     Returns:
-        Redis client configured from REDIS_URL environment variable
+        Redis client configured from REDIS_URL setting
     """
-    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
-    return redis.Redis.from_url(redis_url, decode_responses=True)
+    return redis.Redis.from_url(REDIS_URL, decode_responses=True)
 
 
 def check_daily_limit(key_prefix: str, max_count: int) -> RateLimitResult:

@@ -1,21 +1,15 @@
-"""
-Application-wide constants for portfolio-ai.
+"""Application-wide constants for portfolio-ai.
 
 This module centralizes magic numbers, cache sizes, limits, and default paths
 to improve maintainability and reduce duplication.
 """
 
-import os
+from __future__ import annotations
+
 from pathlib import Path
 
-from dotenv import load_dotenv
-
-# Load environment from ~/.env.local
-_env_file = Path.home() / ".env.local"
-if _env_file.exists():
-    load_dotenv(_env_file)
-
-from app.constants.models import (  # noqa: E402
+from app.config import DATABASE_URL  # re-exported for backward compatibility
+from app.constants.models import (
     CLAUDE_HAIKU,
     CLAUDE_OPUS,
     CLAUDE_SONNET,
@@ -24,12 +18,12 @@ from app.constants.models import (  # noqa: E402
     GEMINI_FLASH,
     GEMINI_PRO,
 )
-from app.constants.services import (  # noqa: E402
+from app.constants.services import (
     SERVICE_PROCESS_PATTERNS,
     SERVICE_UNIT_MAPPING,
     VALID_SERVICES,
 )
-from app.constants.symbols import (  # noqa: E402
+from app.constants.symbols import (
     ALL_MARKET_SYMBOLS,
     BENCHMARK_SPY,
     INDEX_DXY,
@@ -47,16 +41,6 @@ from app.constants.symbols import (  # noqa: E402
 # =============================================================================
 # Pseudo-symbol for market-wide events and readings (fear/greed history)
 MARKET_SYMBOL = "__MARKET__"
-
-# =============================================================================
-# FILE PATHS & DATABASE
-# =============================================================================
-DATABASE_URL = os.environ.get("PORTFOLIO_DB_URL")
-if not DATABASE_URL:
-    raise RuntimeError(
-        "PORTFOLIO_DB_URL environment variable is required. "
-        "Create ~/.env.local with PORTFOLIO_DB_URL=postgresql://..."
-    )
 
 DEFAULT_DB_PATH = Path("data/portfolio-ai.db")
 DEFAULT_CONFIG_DIR = Path("config")

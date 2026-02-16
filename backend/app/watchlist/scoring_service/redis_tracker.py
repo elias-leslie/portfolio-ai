@@ -10,17 +10,14 @@ This module handles:
 from __future__ import annotations
 
 import json
-import os
 from datetime import UTC, datetime
 
 import redis
 
+from ...config import REDIS_URL
 from ...logging_config import get_logger
 
 logger = get_logger(__name__)
-
-# Redis client for tracking refresh progress
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 _redis_client: redis.Redis[str] | None = None
 
 

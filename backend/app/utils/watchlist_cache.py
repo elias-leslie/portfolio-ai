@@ -23,18 +23,17 @@ IMPACT:
 from __future__ import annotations
 
 import json
-import os
 from typing import cast
 
 import redis
 
+from ..config import REDIS_URL
 from ..logging_config import get_logger
 from ..storage import PortfolioStorage
 
 logger = get_logger(__name__)
 
 # Redis client for caching (singleton)
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 _redis_client: redis.Redis[bytes] | None = None
 
 

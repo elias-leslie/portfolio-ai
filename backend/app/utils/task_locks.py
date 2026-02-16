@@ -28,22 +28,19 @@ USAGE:
 
 from __future__ import annotations
 
-import os
 from collections.abc import Generator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 import redis
 
+from ..config import REDIS_URL
 from ..logging_config import get_logger
 
 if TYPE_CHECKING:
     pass
 
 logger = get_logger(__name__)
-
-# Redis client for task locks (singleton)
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 _redis_client: redis.Redis[bytes] | None = None
 
 # Default lock TTL in seconds (5 minutes - enough for most tasks to complete)
