@@ -55,15 +55,24 @@ class TestScanSystemCapabilities:
         conn_mgr = get_connection_manager()
         with conn_mgr.connection() as conn:
             # Check db_capabilities
-            db_count = conn.execute("SELECT COUNT(*) FROM db_capabilities").fetchone()[0]
+            row = conn.execute("SELECT COUNT(*) FROM db_capabilities").fetchone()
+            assert row is not None
+            db_count = row[0]
+            assert isinstance(db_count, int)
             assert db_count > 0  # Should have discovered some tables
 
             # Check celery_capabilities (DB table not yet renamed)
-            hatchet_count = conn.execute("SELECT COUNT(*) FROM celery_capabilities").fetchone()[0]
+            row = conn.execute("SELECT COUNT(*) FROM celery_capabilities").fetchone()
+            assert row is not None
+            hatchet_count = row[0]
+            assert isinstance(hatchet_count, int)
             assert hatchet_count == 0  # Task scanner disabled, no tasks scanned
 
             # Check api_capabilities
-            api_count = conn.execute("SELECT COUNT(*) FROM api_capabilities").fetchone()[0]
+            row = conn.execute("SELECT COUNT(*) FROM api_capabilities").fetchone()
+            assert row is not None
+            api_count = row[0]
+            assert isinstance(api_count, int)
             assert api_count > 0  # Should have discovered API endpoints
 
     def test_scan_task_result_counts_match(self) -> None:
@@ -72,9 +81,17 @@ class TestScanSystemCapabilities:
 
         conn_mgr = get_connection_manager()
         with conn_mgr.connection() as conn:
-            db_count = conn.execute("SELECT COUNT(*) FROM db_capabilities").fetchone()[0]
+            row = conn.execute("SELECT COUNT(*) FROM db_capabilities").fetchone()
+            assert row is not None
+            db_count = row[0]
+            assert isinstance(db_count, int)
+
             hatchet_count = 0  # Task scanner disabled, no tasks scanned
-            api_count = conn.execute("SELECT COUNT(*) FROM api_capabilities").fetchone()[0]
+
+            row = conn.execute("SELECT COUNT(*) FROM api_capabilities").fetchone()
+            assert row is not None
+            api_count = row[0]
+            assert isinstance(api_count, int)
 
             assert result["db_tables_scanned"] == db_count
             assert result["celery_tasks_scanned"] == hatchet_count
@@ -105,7 +122,9 @@ class TestScanSystemCapabilities:
             """
             ).fetchone()
 
-            assert db_result[0] == db_result[1]  # total == unique (no duplicates)
+            assert db_result is not None
+            total, unique_tables = db_result
+            assert total == unique_tables  # total == unique (no duplicates)
 
 
 @pytest.mark.skip(reason="analyze_capabilities function was removed")

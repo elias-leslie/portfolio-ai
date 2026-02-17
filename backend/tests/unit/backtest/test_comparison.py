@@ -404,7 +404,7 @@ class TestCompareBacktests:
                 created_at=datetime.now(UTC),
             ),
         ]
-        equity_curves = {
+        equity_curves: dict[str, list[BacktestEquity]] = {
             "run1": [],
             "run2": [],
         }

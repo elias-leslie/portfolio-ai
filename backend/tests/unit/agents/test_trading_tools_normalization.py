@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from unittest.mock import MagicMock
 
 import pytest
@@ -6,11 +8,11 @@ from app.agents.tool_executors_trading import TradingTools
 
 
 @pytest.fixture
-def mock_storage():
+def mock_storage() -> MagicMock:
     return MagicMock()
 
 
-def test_execute_store_idea_normalization(mock_storage):
+def test_execute_store_idea_normalization(mock_storage: MagicMock) -> None:
     tools = TradingTools(mock_storage)
 
     # Test case 1: Score > 1.0 (e.g., 70)

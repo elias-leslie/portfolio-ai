@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+from typing import Any
 
 import polars as pl
 import pytest
@@ -11,15 +12,15 @@ from app.sources.yfinance_source import YFinanceSource
 
 
 @pytest.fixture()
-def mock_ticker(monkeypatch):
+def mock_ticker(monkeypatch: pytest.MonkeyPatch) -> Any:
     """Patch yfinance.Ticker for news calls and return accessor."""
 
     class DummyTicker:
         def __init__(self, symbol: str) -> None:
             self.symbol = symbol
-            self._news: list[dict] = []
+            self._news: list[dict[str, Any]] = []
 
-        def get_news(self):
+        def get_news(self) -> list[dict[str, Any]]:
             return self._news
 
     dummy_instances: dict[str, DummyTicker] = {}
@@ -29,7 +30,9 @@ def mock_ticker(monkeypatch):
             dummy_instances[symbol] = DummyTicker(symbol)
         return dummy_instances[symbol]
 
-    monkeypatch.setattr("app.sources.yfinance_source.yf.Ticker", ticker_factory)
+    import yfinance as _yf
+
+    monkeypatch.setattr(_yf, "Ticker", ticker_factory)
 
     def get_instance(symbol: str) -> DummyTicker:
         return ticker_factory(symbol)
@@ -37,7 +40,7 @@ def mock_ticker(monkeypatch):
     return get_instance
 
 
-def test_yfinance_fetch_news_payload_ticker(mock_ticker):
+def test_yfinance_fetch_news_payload_ticker(mock_ticker: Any) -> None:
     source = YFinanceSource()
     dummy = mock_ticker("AAPL")
     published_ts = int(dt.datetime(2025, 11, 6, 14, 0, tzinfo=dt.UTC).timestamp())
@@ -66,7 +69,7 @@ def test_yfinance_fetch_news_payload_ticker(mock_ticker):
     assert row["headline"] == "Apple unveils new product"
 
 
-def test_yfinance_fetch_news_payload_market(mock_ticker):
+def test_yfinance_fetch_news_payload_market(mock_ticker: Any) -> None:
     source = YFinanceSource()
     dummy = mock_ticker(source.MARKET_SYMBOL)
     published_ts = int(dt.datetime(2025, 11, 6, 10, 0, tzinfo=dt.UTC).timestamp())
@@ -87,7 +90,7 @@ def test_yfinance_fetch_news_payload_market(mock_ticker):
     assert df["symbol"][0] == "__MARKET__"
 
 
-def test_yfinance_fetch_news_payload_filters_time(mock_ticker):
+def test_yfinance_fetch_news_payload_filters_time(mock_ticker: Any) -> None:
     source = YFinanceSource()
     dummy = mock_ticker("MSFT")
     early_ts = int(dt.datetime(2025, 11, 5, 0, 0, tzinfo=dt.UTC).timestamp())

@@ -7,7 +7,7 @@ duck typing compatibility.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 # Type alias for database values that can be returned from queries
 DatabaseValue = str | int | float | bool | None
 # Type alias for parameters that can be sent to database (includes lists for UNNEST/ANY operators)
-ParameterValue = str | int | float | bool | None | datetime | list[str | int | float | bool | None]
+ParameterValue = str | int | float | bool | None | date | datetime | list[str | int | float | bool | None]
 
 
 class DatabaseConnection(Protocol):

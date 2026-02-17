@@ -402,7 +402,7 @@ class TestCalculateAllMetrics:
 
         call_count = [0]
 
-        def side_effect_execute(*args, **kwargs):
+        def side_effect_execute(*args: object, **kwargs: object) -> MagicMock:
             result = MagicMock()
             idx = call_count[0]
             call_count[0] += 1

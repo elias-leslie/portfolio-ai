@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -22,7 +23,7 @@ class TestGetScoreHistoryEndpoint:
         return MagicMock()
 
     @pytest.fixture
-    def sample_item_data(self) -> dict:
+    def sample_item_data(self) -> dict[str, Any]:
         """Sample watchlist item data."""
         return {
             "id": "item-123",
@@ -33,7 +34,7 @@ class TestGetScoreHistoryEndpoint:
         }
 
     @pytest.fixture
-    def sample_snapshots_data(self) -> list[dict]:
+    def sample_snapshots_data(self) -> list[dict[str, Any]]:
         """Sample snapshot data from database."""
         now = datetime.now(UTC)
         return [
@@ -67,7 +68,7 @@ class TestGetScoreHistoryEndpoint:
 
     @pytest.mark.asyncio
     async def test_returns_score_history_for_valid_item(
-        self, mock_repo: MagicMock, sample_item_data: dict, sample_snapshots_data: list[dict]
+        self, mock_repo: MagicMock, sample_item_data: dict[str, Any], sample_snapshots_data: list[dict[str, Any]]
     ) -> None:
         """Test that score history is returned for valid watchlist item."""
         # Mock item query
@@ -107,7 +108,7 @@ class TestGetScoreHistoryEndpoint:
 
     @pytest.mark.asyncio
     async def test_returns_empty_history_when_no_snapshots(
-        self, mock_repo: MagicMock, sample_item_data: dict
+        self, mock_repo: MagicMock, sample_item_data: dict[str, Any]
     ) -> None:
         """Test that empty history is returned when no snapshots exist."""
         # Mock item query - item exists
@@ -130,7 +131,7 @@ class TestGetScoreHistoryEndpoint:
 
     @pytest.mark.asyncio
     async def test_respects_days_parameter(
-        self, mock_repo: MagicMock, sample_snapshots_data: list[dict]
+        self, mock_repo: MagicMock, sample_snapshots_data: list[dict[str, Any]]
     ) -> None:
         """Test that the days parameter is respected when fetching history."""
         item_df = MagicMock()
@@ -158,7 +159,7 @@ class TestGetScoreHistoryEndpoint:
 
     @pytest.mark.asyncio
     async def test_parses_json_raw_metrics(
-        self, mock_repo: MagicMock, sample_snapshots_data: list[dict]
+        self, mock_repo: MagicMock, sample_snapshots_data: list[dict[str, Any]]
     ) -> None:
         """Test that JSON raw_metrics are correctly parsed."""
         item_df = MagicMock()
@@ -229,7 +230,7 @@ class TestGetScoreHistoryEndpoint:
 
     @pytest.mark.asyncio
     async def test_converts_timeline_to_response_format(
-        self, mock_repo: MagicMock, sample_snapshots_data: list[dict]
+        self, mock_repo: MagicMock, sample_snapshots_data: list[dict[str, Any]]
     ) -> None:
         """Test that timeline points are converted to API response format."""
         item_df = MagicMock()
@@ -282,7 +283,7 @@ class TestGetScoreHistoryEndpoint:
 
     @pytest.mark.asyncio
     async def test_handles_none_price_and_technical_scores(
-        self, mock_repo: MagicMock, sample_snapshots_data: list[dict]
+        self, mock_repo: MagicMock, sample_snapshots_data: list[dict[str, Any]]
     ) -> None:
         """Test that None price/technical scores default to 0.0 in response."""
         item_df = MagicMock()

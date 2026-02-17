@@ -11,6 +11,8 @@ Tests cover:
 
 from __future__ import annotations
 
+from collections.abc import Generator
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -38,7 +40,7 @@ def mock_storage() -> MagicMock:
 
 
 @pytest.fixture
-def mock_orchestrator() -> MagicMock:
+def mock_orchestrator() -> Generator[MagicMock]:
     """Create mock WorkflowOrchestrator."""
     with patch("app.tasks.workflow_tasks.WorkflowOrchestrator") as mock_cls:
         mock_orch = MagicMock()
@@ -51,7 +53,7 @@ def mock_orchestrator() -> MagicMock:
 
 
 @pytest.fixture
-def mock_dual_client() -> MagicMock:
+def mock_dual_client() -> Generator[MagicMock]:
     """Create mock DualProviderClient for LLM generation."""
     with patch("app.tasks.workflow_tasks.DualProviderClient") as mock_cls:
         mock_client = MagicMock()
@@ -63,7 +65,7 @@ def mock_dual_client() -> MagicMock:
 
 
 @pytest.fixture
-def mock_git_automation() -> MagicMock:
+def mock_git_automation() -> Generator[MagicMock]:
     """Mock commit_workflow_results function."""
     with patch("app.tasks.workflow_tasks.commit_workflow_results") as mock_commit:
         mock_commit.return_value = True
@@ -172,7 +174,7 @@ class TestDailyGapAnalysisWorkflow:
 
         # Workflow should complete with Claude's output
         assert result["status"] == "completed"
-        assert "claude_only" in result["result"]
+        assert "claude_only" in str(result["result"])
 
         # Verify workflow completed (not failed)
         mock_orchestrator.complete_workflow.assert_called_once()
@@ -249,7 +251,7 @@ class TestPaperTradeValidationWorkflow:
     """Tests for paper_trade_validation_workflow task."""
 
     @pytest.fixture
-    def mock_backtest_result(self) -> dict:
+    def mock_backtest_result(self) -> dict[str, Any]:
         """Mock successful backtest result."""
         return {
             "status": "completed",
@@ -262,7 +264,7 @@ class TestPaperTradeValidationWorkflow:
         }
 
     @pytest.fixture
-    def mock_agent_tools(self, mock_backtest_result: dict) -> MagicMock:
+    def mock_agent_tools(self, mock_backtest_result: dict[str, Any]) -> Generator[MagicMock]:
         """Mock AgentTools for backtest and paper trade execution."""
         with patch("app.tasks.workflow_tasks.AgentTools") as mock_cls:
             mock_tools = MagicMock()
@@ -400,7 +402,7 @@ class TestPaperTradeValidationWorkflow:
         assert result["approved"] is False
         assert result["gating_failed"] is True
         assert "gating_reason" in result
-        assert "Sharpe ratio" in result["gating_reason"]
+        assert "Sharpe ratio" in str(result["gating_reason"])
 
         # Workflow completes (not failed), but trade not created
         assert result["status"] == "completed"
@@ -436,7 +438,7 @@ class TestPaperTradeValidationWorkflow:
             )
 
         assert result["status"] == "failed"
-        assert "Backtest execution failed" in result["error"]
+        assert "Backtest execution failed" in str(result["error"])
 
         # Verify workflow marked as failed
         mock_orchestrator.update_workflow_status.assert_called_with(
@@ -471,7 +473,7 @@ class TestPaperTradeValidationWorkflow:
             )
 
         assert result["status"] == "pending_data"
-        assert "historical data fetch" in result["message"]
+        assert "historical data fetch" in str(result["message"])
 
         # Verify data ingestion triggered
         mock_ingest.delay.assert_called_once_with(["AAPL"], days=1300)

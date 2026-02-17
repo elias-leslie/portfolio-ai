@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 from unittest.mock import mock_open, patch
 
 import pytest
@@ -21,7 +22,7 @@ class TestLoadCapabilitiesConfig:
     """Test load_capabilities_config() function."""
 
     @pytest.fixture
-    def mock_config_data(self) -> dict:
+    def mock_config_data(self) -> dict[str, Any]:
         """Create mock config data."""
         return {
             "scan_config": {
@@ -45,7 +46,7 @@ class TestLoadCapabilitiesConfig:
             },
         }
 
-    def test_load_config_success(self, mock_config_data: dict) -> None:
+    def test_load_config_success(self, mock_config_data: dict[str, Any]) -> None:
         """Test loading valid config file."""
         mock_yaml_content = yaml.dump(mock_config_data)
 
@@ -82,7 +83,7 @@ class TestLoadCapabilitiesConfig:
 
     def test_load_config_missing_required_keys(self) -> None:
         """Test error when required keys are missing."""
-        invalid_config = {"scan_config": {}}  # Missing categorization
+        invalid_config: dict[str, Any] = {"scan_config": {}}  # Missing categorization
 
         mock_yaml_content = yaml.dump(invalid_config)
 
@@ -103,7 +104,7 @@ class TestLoadCapabilitiesConfig:
 
             assert "missing required config keys" in str(exc_info.value).lower()
 
-    def test_load_config_uses_cache(self, mock_config_data: dict) -> None:
+    def test_load_config_uses_cache(self, mock_config_data: dict[str, Any]) -> None:
         """Test that config is cached and reused."""
         mock_yaml_content = yaml.dump(mock_config_data)
         mock_file = mock_open(read_data=mock_yaml_content)
@@ -128,7 +129,7 @@ class TestLoadCapabilitiesConfig:
             # File should only be opened once (cached on second call)
             assert mock_file.call_count == 1
 
-    def test_load_config_reloads_on_file_change(self, mock_config_data: dict) -> None:
+    def test_load_config_reloads_on_file_change(self, mock_config_data: dict[str, Any]) -> None:
         """Test that config reloads when file timestamp changes."""
         mock_yaml_content = yaml.dump(mock_config_data)
         mock_file = mock_open(read_data=mock_yaml_content)
@@ -182,7 +183,7 @@ class TestGetExpectedFreshness:
 
     def test_get_expected_freshness_default(self) -> None:
         """Test getting freshness for a table not in config (defaults to daily)."""
-        mock_config = {
+        mock_config: dict[str, Any] = {
             "scan_config": {"targets": {"database": {"expected_freshness": {}}}},
             "categorization": {},
         }

@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import UTC, datetime
 
 import pytest
 
-from app.storage import get_storage
+from app.storage import PortfolioStorage, get_storage
 from app.watchlist.data_loaders import load_stale_ttl_minutes
 
 
 @pytest.fixture
-def setup_preferences():
+def setup_preferences() -> Iterator[PortfolioStorage]:
     """Set up user preferences with new refresh interval columns."""
     storage = get_storage()
 
@@ -53,7 +54,7 @@ def setup_preferences():
         conn.commit()
 
 
-def test_staleness_ttl_uses_new_column_not_old(setup_preferences):
+def test_staleness_ttl_uses_new_column_not_old(setup_preferences: PortfolioStorage) -> None:
     """
     Test that staleness TTL is calculated from new default_refresh_minutes column,
     not the old watchlist_refresh_minutes column.
@@ -79,7 +80,7 @@ def test_staleness_ttl_uses_new_column_not_old(setup_preferences):
     )
 
 
-def test_staleness_ttl_respects_override(setup_preferences):
+def test_staleness_ttl_respects_override(setup_preferences: PortfolioStorage) -> None:
     """
     Test that staleness TTL uses watchlist_refresh_override when set,
     falling back to default_refresh_minutes when override is NULL.

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -26,7 +27,7 @@ class TestReviewStrategySignalDualMode:
         return MagicMock()
 
     @pytest.fixture
-    def sample_watchlist_item(self) -> list[dict]:
+    def sample_watchlist_item(self) -> list[dict[str, Any]]:
         """Sample watchlist item data."""
         return [
             {
@@ -38,7 +39,7 @@ class TestReviewStrategySignalDualMode:
         ]
 
     @pytest.fixture
-    def sample_snapshot(self) -> list[dict]:
+    def sample_snapshot(self) -> list[dict[str, Any]]:
         """Sample watchlist snapshot data."""
         return [
             {
@@ -91,8 +92,8 @@ class TestReviewStrategySignalDualMode:
     async def test_returns_dual_review_result(
         self,
         mock_storage: MagicMock,
-        sample_watchlist_item: list[dict],
-        sample_snapshot: list[dict],
+        sample_watchlist_item: list[dict[str, Any]],
+        sample_snapshot: list[dict[str, Any]],
         sample_dual_review_result: DualReviewResult,
     ) -> None:
         """Test that dual review returns structured result from both providers."""
@@ -135,8 +136,8 @@ class TestReviewStrategySignalDualMode:
     async def test_stores_both_reviews_in_database(
         self,
         mock_storage: MagicMock,
-        sample_watchlist_item: list[dict],
-        sample_snapshot: list[dict],
+        sample_watchlist_item: list[dict[str, Any]],
+        sample_snapshot: list[dict[str, Any]],
         sample_dual_review_result: DualReviewResult,
     ) -> None:
         """Test that both provider reviews are stored in strategy_reviews table."""
@@ -166,17 +167,16 @@ class TestReviewStrategySignalDualMode:
         ):
             await review_strategy_signal(item_id="item-123", dual=True)
 
-            # Verify that execute was called twice (once for each review)
-            assert mock_conn.execute.call_count == 2
+            # Verify store_strategy_review was called twice (once for each review)
+            assert mock_repo.store_strategy_review.call_count == 2
 
-            # Verify both calls were to strategy_reviews table
-            for call in mock_conn.execute.call_args_list:
-                sql = call[0][0]
-                assert "INSERT INTO strategy_reviews" in sql
-                assert "review_pair_id" in sql
-                assert "disagreement_severity" in sql
-                assert "provider_disagreement" in sql
-                assert "agreement_score" in sql
+            # Verify both calls included dual review metadata
+            for call in mock_repo.store_strategy_review.call_args_list:
+                kwargs = call.kwargs
+                assert "pair_id" in kwargs
+                assert "severity" in kwargs
+                assert "provider_disagreement" in kwargs
+                assert "agreement" in kwargs
 
     @pytest.mark.asyncio
     async def test_raises_404_when_item_not_found(self, mock_storage: MagicMock) -> None:
@@ -198,7 +198,7 @@ class TestReviewStrategySignalDualMode:
 
     @pytest.mark.asyncio
     async def test_raises_404_when_no_snapshot(
-        self, mock_storage: MagicMock, sample_watchlist_item: list[dict]
+        self, mock_storage: MagicMock, sample_watchlist_item: list[dict[str, Any]]
     ) -> None:
         """Test that 404 is raised when no snapshot exists for item."""
         item_df = MagicMock()
@@ -225,8 +225,8 @@ class TestReviewStrategySignalDualMode:
     async def test_handles_disagreement_between_providers(
         self,
         mock_storage: MagicMock,
-        sample_watchlist_item: list[dict],
-        sample_snapshot: list[dict],
+        sample_watchlist_item: list[dict[str, Any]],
+        sample_snapshot: list[dict[str, Any]],
     ) -> None:
         """Test that provider disagreement is correctly reported."""
         item_df = MagicMock()
@@ -278,14 +278,14 @@ class TestReviewStrategySignalDualMode:
             assert result["disagreement_severity"] == "major"
             assert result["provider_disagreement"] is True
             assert result["agreement_score"] == 0.3
-            assert "ALERT" in result["consensus_summary"]
+            assert "ALERT" in str(result["consensus_summary"])
 
     @pytest.mark.asyncio
     async def test_handles_provider_errors_gracefully(
         self,
         mock_storage: MagicMock,
-        sample_watchlist_item: list[dict],
-        sample_snapshot: list[dict],
+        sample_watchlist_item: list[dict[str, Any]],
+        sample_snapshot: list[dict[str, Any]],
     ) -> None:
         """Test that provider errors are handled gracefully in dual mode."""
         item_df = MagicMock()
@@ -336,14 +336,16 @@ class TestReviewStrategySignalDualMode:
             result = await review_strategy_signal(item_id="item-123", dual=True)
 
             assert result["gemini_review"] is not None
-            assert result["claude_review"]["error"] == "Provider timeout"
+            claude_review = result["claude_review"]
+            assert isinstance(claude_review, dict)
+            assert claude_review["error"] == "Provider timeout"
 
     @pytest.mark.asyncio
     async def test_dual_mode_default_behavior(
         self,
         mock_storage: MagicMock,
-        sample_watchlist_item: list[dict],
-        sample_snapshot: list[dict],
+        sample_watchlist_item: list[dict[str, Any]],
+        sample_snapshot: list[dict[str, Any]],
         sample_dual_review_result: DualReviewResult,
     ) -> None:
         """Test that dual mode is the default (dual=True by default)."""
@@ -379,8 +381,8 @@ class TestReviewStrategySignalDualMode:
     async def test_review_data_includes_all_signal_fields(
         self,
         mock_storage: MagicMock,
-        sample_watchlist_item: list[dict],
-        sample_snapshot: list[dict],
+        sample_watchlist_item: list[dict[str, Any]],
+        sample_snapshot: list[dict[str, Any]],
         sample_dual_review_result: DualReviewResult,
     ) -> None:
         """Test that review receives all necessary signal data fields."""
@@ -423,8 +425,8 @@ class TestReviewStrategySignalDualMode:
     async def test_raises_500_on_review_failure(
         self,
         mock_storage: MagicMock,
-        sample_watchlist_item: list[dict],
-        sample_snapshot: list[dict],
+        sample_watchlist_item: list[dict[str, Any]],
+        sample_snapshot: list[dict[str, Any]],
     ) -> None:
         """Test that 500 error is raised when review fails."""
         item_df = MagicMock()

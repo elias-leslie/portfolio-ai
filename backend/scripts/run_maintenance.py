@@ -33,8 +33,9 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 # Add backend to path for imports
 backend_dir = Path(__file__).parent.parent
@@ -57,8 +58,15 @@ from app.tasks.maintenance_tasks import (  # noqa: E402
 
 logger = get_logger(__name__)
 
+
+class TaskConfig(TypedDict):
+    function: Callable[..., dict[str, Any]]
+    args: list[int]
+    description: str
+
+
 # Task registry: Maps task names to functions and their default args
-TASK_REGISTRY = {
+TASK_REGISTRY: dict[str, TaskConfig] = {
     "vacuum_database": {
         "function": vacuum_database_task,
         "args": [],
@@ -185,11 +193,11 @@ def _dry_run_preview(task_name: str, args: list[Any], verbose: bool) -> dict[str
         cutoff_date = dt.datetime.now(dt.UTC) - dt.timedelta(days=days)
 
         with storage.connection() as conn:
-            result = conn.execute(
+            count_row = conn.execute(
                 "SELECT COUNT(*) FROM news_cache WHERE fetched_at < %s",
                 [cutoff_date],
             ).fetchone()
-            count = result[0] if result else 0
+            count = int(count_row[0]) if count_row and count_row[0] is not None else 0
 
             if verbose:
                 # Show sample of articles that would be deleted
@@ -207,8 +215,10 @@ def _dry_run_preview(task_name: str, args: list[Any], verbose: bool) -> dict[str
                 print(f"\nWould delete {count} news articles older than {cutoff_date.date()}")
                 if sample:
                     print("\nSample (first 5):")
-                    for symbol, headline, fetched_at in sample:
-                        print(f"  - {symbol}: {headline[:60]}... ({fetched_at.date()})")
+                    for row in sample:
+                        symbol, headline, fetched_at = str(row[0]), str(row[1]), row[2]
+                        fetched_date = fetched_at.date() if isinstance(fetched_at, dt.datetime) else fetched_at
+                        print(f"  - {symbol}: {headline[:60]}... ({fetched_date})")
 
         return {
             "task": task_name,
@@ -223,11 +233,11 @@ def _dry_run_preview(task_name: str, args: list[Any], verbose: bool) -> dict[str
         cutoff_date = dt.datetime.now(dt.UTC) - dt.timedelta(days=days)
 
         with storage.connection() as conn:
-            result = conn.execute(
+            count_row = conn.execute(
                 "SELECT COUNT(*) FROM agent_runs WHERE created_at < %s",
                 [cutoff_date],
             ).fetchone()
-            count = result[0] if result else 0
+            count = int(count_row[0]) if count_row and count_row[0] is not None else 0
 
             if verbose:
                 # Show sample of runs that would be deleted
@@ -245,8 +255,10 @@ def _dry_run_preview(task_name: str, args: list[Any], verbose: bool) -> dict[str
                 print(f"\nWould delete {count} agent runs older than {cutoff_date.date()}")
                 if sample:
                     print("\nSample (first 5):")
-                    for agent_name, status, created_at in sample:
-                        print(f"  - {agent_name} ({status}): {created_at.date()}")
+                    for row in sample:
+                        agent_name, status, created_at = str(row[0]), str(row[1]), row[2]
+                        created_date = created_at.date() if isinstance(created_at, dt.datetime) else created_at
+                        print(f"  - {agent_name} ({status}): {created_date}")
 
         return {
             "task": task_name,
@@ -259,7 +271,7 @@ def _dry_run_preview(task_name: str, args: list[Any], verbose: bool) -> dict[str
     if task_name == "vacuum_database":
         with storage.connection() as conn:
             # Get table stats
-            result = conn.execute(
+            vacuum_rows = conn.execute(
                 """
                 SELECT
                     schemaname,
@@ -279,16 +291,23 @@ def _dry_run_preview(task_name: str, args: list[Any], verbose: bool) -> dict[str
                 print("\nTop 10 tables by dead tuples (candidates for VACUUM):")
                 print(f"{'Table':<30} {'Dead':>10} {'Live':>10} {'Last Vacuum':<20}")
                 print("-" * 72)
-                for _schema, table, dead, live, vac, autovac in result:
-                    last_vac = vac or autovac or "Never"
-                    if isinstance(last_vac, dt.datetime):
-                        last_vac = last_vac.strftime("%Y-%m-%d %H:%M")
-                    print(f"{table:<30} {dead:>10,} {live:>10,} {last_vac!s:<20}")
+                for row in vacuum_rows:
+                    table = str(row[1])
+                    dead = int(row[2]) if row[2] is not None else 0
+                    live = int(row[3]) if row[3] is not None else 0
+                    vac_raw = row[4] or row[5]
+                    if isinstance(vac_raw, dt.datetime):
+                        last_vac_str = vac_raw.strftime("%Y-%m-%d %H:%M")
+                    elif vac_raw is not None:
+                        last_vac_str = str(vac_raw)
+                    else:
+                        last_vac_str = "Never"
+                    print(f"{table:<30} {dead:>10,} {live:>10,} {last_vac_str:<20}")
 
         return {
             "task": task_name,
             "dry_run": True,
-            "tables_to_vacuum": len(result),
+            "tables_to_vacuum": len(vacuum_rows),
             "note": "VACUUM will reclaim space and update statistics",
         }
 

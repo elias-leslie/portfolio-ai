@@ -8,6 +8,7 @@ Tests cover:
 
 from __future__ import annotations
 
+from app.watchlist.models import SignalInputsDict
 from app.watchlist.signal_classifier import classify_signal
 from app.watchlist.signal_scoring import calculate_options_flow_score
 
@@ -19,7 +20,6 @@ class TestCalculateOptionsFlowScore:
         """Missing options data contributes 0 points."""
         score, reasons = calculate_options_flow_score(
             options_call_pct=None,
-            options_near_term_pct=None,
             symbol_in_active_sector=None,
         )
         assert score == 0
@@ -29,7 +29,6 @@ class TestCalculateOptionsFlowScore:
         """58%+ calls gives maximum 3 points."""
         score, reasons = calculate_options_flow_score(
             options_call_pct=0.60,
-            options_near_term_pct=0.50,
             symbol_in_active_sector=False,
         )
         assert score == 3
@@ -41,7 +40,6 @@ class TestCalculateOptionsFlowScore:
         """55-58% calls gives 2 points."""
         score, reasons = calculate_options_flow_score(
             options_call_pct=0.56,
-            options_near_term_pct=0.50,
             symbol_in_active_sector=False,
         )
         assert score == 2
@@ -51,7 +49,6 @@ class TestCalculateOptionsFlowScore:
         """52-55% calls gives 1 point."""
         score, reasons = calculate_options_flow_score(
             options_call_pct=0.53,
-            options_near_term_pct=0.50,
             symbol_in_active_sector=False,
         )
         assert score == 1
@@ -61,7 +58,6 @@ class TestCalculateOptionsFlowScore:
         """45-52% calls is neutral (0 points)."""
         score, reasons = calculate_options_flow_score(
             options_call_pct=0.50,
-            options_near_term_pct=0.50,
             symbol_in_active_sector=False,
         )
         assert score == 0
@@ -71,7 +67,6 @@ class TestCalculateOptionsFlowScore:
         """<45% calls is bearish (0 points but noted)."""
         score, reasons = calculate_options_flow_score(
             options_call_pct=0.40,
-            options_near_term_pct=0.50,
             symbol_in_active_sector=False,
         )
         assert score == 0  # No positive points
@@ -82,7 +77,6 @@ class TestCalculateOptionsFlowScore:
         """Ticker in active sector adds 1 point."""
         score, reasons = calculate_options_flow_score(
             options_call_pct=0.58,
-            options_near_term_pct=0.50,
             symbol_in_active_sector=True,
         )
         assert score == 4  # 3 (bullish) + 1 (sector)
@@ -92,7 +86,6 @@ class TestCalculateOptionsFlowScore:
         """Maximum score is 4 (3 call + 1 sector)."""
         score, reasons = calculate_options_flow_score(
             options_call_pct=0.65,
-            options_near_term_pct=0.80,
             symbol_in_active_sector=True,
         )
         assert score == 4
@@ -105,7 +98,7 @@ class TestOptionsFlowIntegration:
     def test_options_flow_boosts_signal_strength(self) -> None:
         """Bullish options flow should increase confirmations."""
         # Base inputs without options
-        base_inputs = {
+        base_inputs: SignalInputsDict = {
             "price": 150.0,
             "ema_20": 145.0,  # Above EMA = bullish
             "sma_5": 148.0,
@@ -122,7 +115,7 @@ class TestOptionsFlowIntegration:
         result_without = classify_signal(base_inputs)
 
         # With bullish options
-        inputs_with_options = {
+        inputs_with_options: SignalInputsDict = {
             **base_inputs,
             "options_call_pct": 0.60,
             "options_near_term_pct": 0.50,
@@ -135,7 +128,7 @@ class TestOptionsFlowIntegration:
 
     def test_options_flow_adds_reason(self) -> None:
         """Bullish options flow should add reason to classification."""
-        inputs = {
+        inputs: SignalInputsDict = {
             "price": 150.0,
             "ema_20": 145.0,
             "sma_5": 148.0,
@@ -159,7 +152,7 @@ class TestOptionsFlowIntegration:
 
     def test_bearish_options_does_not_add_points(self) -> None:
         """Bearish options flow should not add positive points."""
-        inputs = {
+        inputs: SignalInputsDict = {
             "price": 150.0,
             "ema_20": 145.0,
             "sma_5": 148.0,

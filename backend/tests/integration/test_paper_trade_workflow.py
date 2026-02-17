@@ -1,8 +1,11 @@
 """Integration tests for paper trade validation workflow with backtest integration."""
 
+from __future__ import annotations
+
 import uuid
 from datetime import date, timedelta
 from decimal import Decimal
+from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
@@ -14,12 +17,12 @@ from app.tasks.workflow_tasks import paper_trade_validation_workflow
 
 
 @pytest.fixture
-def storage():
+def storage() -> PortfolioStorage:
     """Create PortfolioStorage instance."""
     return PortfolioStorage()
 
 
-def test_backtest_tool_executor_integration(storage):
+def test_backtest_tool_executor_integration(storage: PortfolioStorage) -> None:
     """Test run_backtest tool executor with real database."""
     trading_tools = TradingTools(storage=storage)
     agent_run_id = str(uuid.uuid4())
@@ -52,8 +55,10 @@ def test_backtest_tool_executor_integration(storage):
             update_backtest_status(storage, actual_run_id, "running")
 
             # Simulate backtest completion with metrics
+            from app.storage.connection import ConnectionManager as _CM
+            _cm = _CM()
             update_backtest_result(
-                storage=storage,
+                storage=_cm,
                 run_id=actual_run_id,
                 final_equity=Decimal("110000.00"),
                 total_return_pct=Decimal("10.0"),
@@ -90,7 +95,7 @@ def test_backtest_tool_executor_integration(storage):
     assert result["num_trades"] == 5
 
 
-def test_paper_trade_validation_workflow_approval(storage):
+def test_paper_trade_validation_workflow_approval(storage: PortfolioStorage) -> None:
     """Test paper trade validation workflow with good backtest metrics (should approve)."""
     strategy_id = str(uuid.uuid4())
     symbol = "NVDA"
@@ -139,11 +144,12 @@ def test_paper_trade_validation_workflow_approval(storage):
     assert result["strategy_approved"] is True
     assert result["risk_approved"] is True
     assert result["trade_id"] == trade_id
-    assert result["backtest_metrics"]["sharpe_ratio"] == 1.5
-    assert result["backtest_metrics"]["win_rate"] == 60.0
+    backtest_metrics: Any = result["backtest_metrics"]
+    assert backtest_metrics["sharpe_ratio"] == 1.5
+    assert backtest_metrics["win_rate"] == 60.0
 
 
-def test_paper_trade_validation_workflow_rejection(storage):
+def test_paper_trade_validation_workflow_rejection(storage: PortfolioStorage) -> None:
     """Test paper trade validation workflow with bad backtest metrics (should reject)."""
     strategy_id = str(uuid.uuid4())
     symbol = "BADSTOCK"
@@ -179,7 +185,7 @@ def test_paper_trade_validation_workflow_rejection(storage):
     assert result["trade_id"] is None
 
 
-def test_paper_trade_validation_workflow_split_decision(storage):
+def test_paper_trade_validation_workflow_split_decision(storage: PortfolioStorage) -> None:
     """Test workflow when strategy approves but risk rejects (should reject overall)."""
     strategy_id = str(uuid.uuid4())
     symbol = "RISKY"
@@ -214,7 +220,7 @@ def test_paper_trade_validation_workflow_split_decision(storage):
     assert result["trade_id"] is None
 
 
-def test_paper_trade_validation_workflow_agent_failure(storage):
+def test_paper_trade_validation_workflow_agent_failure(storage: PortfolioStorage) -> None:
     """Test workflow when agent fails (should fail workflow)."""
     strategy_id = str(uuid.uuid4())
     symbol = "AAPL"
@@ -237,4 +243,6 @@ def test_paper_trade_validation_workflow_agent_failure(storage):
 
     # Verify workflow failed
     assert result["status"] == "failed"
-    assert "One or both agents failed" in result["error"]
+    error_msg = result["error"]
+    assert isinstance(error_msg, str)
+    assert "One or both agents failed" in error_msg

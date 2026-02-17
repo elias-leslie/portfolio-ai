@@ -12,6 +12,7 @@ Tests cover:
 
 from __future__ import annotations
 
+from collections.abc import Callable, Generator
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -28,7 +29,7 @@ client = TestClient(app)
 
 
 @pytest.fixture
-def mock_hatchet_task_factory() -> callable:
+def mock_hatchet_task_factory() -> Callable[[], MagicMock]:
     """Create factory for mock Hatchet workflow run results with unique IDs."""
     counter = {"value": 0}
 
@@ -42,7 +43,9 @@ def mock_hatchet_task_factory() -> callable:
 
 
 @pytest.fixture
-def mock_hatchet_app(mock_hatchet_task_factory: callable) -> MagicMock:
+def mock_hatchet_app(
+    mock_hatchet_task_factory: Callable[[], MagicMock],
+) -> Generator[MagicMock]:
     """Mock Hatchet admin client run_workflow method."""
     mock_admin = MagicMock()
     # Return new unique run each time run_workflow is called
@@ -61,7 +64,9 @@ def mock_connection() -> MagicMock:
 
 
 @pytest.fixture
-def mock_connection_manager(mock_connection: MagicMock) -> MagicMock:
+def mock_connection_manager(
+    mock_connection: MagicMock,
+) -> Generator[MagicMock]:
     """Mock connection manager."""
     with patch("app.api.automation.get_connection_manager") as mock_mgr:
         mock_cm = MagicMock()

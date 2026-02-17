@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import json
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -16,7 +18,7 @@ class TestStatusEventStream:
     @patch("app.api.status_stream.gather_comprehensive_status")
     async def test_status_event_stream_yields_sse_format(
         self,
-        mock_gather_status,
+        mock_gather_status: AsyncMock,
     ) -> None:
         """Test that status_event_stream yields data in SSE format."""
         print("Starting test_status_event_stream_yields_sse_format")
@@ -58,7 +60,7 @@ class TestStatusEventStream:
     @patch("app.api.status_stream.gather_comprehensive_status")
     async def test_status_event_stream_handles_cancellation(
         self,
-        mock_gather_status,
+        mock_gather_status: AsyncMock,
     ) -> None:
         """Test that status_event_stream handles asyncio.CancelledError gracefully."""
         print("Starting test_status_event_stream_handles_cancellation")

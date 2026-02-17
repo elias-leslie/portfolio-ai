@@ -1,5 +1,7 @@
 """Test extended WatchlistSnapshot model with narrative intelligence fields."""
 
+from __future__ import annotations
+
 from datetime import UTC, datetime
 
 from app.watchlist.models import WatchlistSnapshot
@@ -8,7 +10,7 @@ from app.watchlist.models import WatchlistSnapshot
 class TestExtendedWatchlistSnapshot:
     """Test extended WatchlistSnapshot model with all narrative fields."""
 
-    def test_snapshot_with_narrative_fields(self):
+    def test_snapshot_with_narrative_fields(self) -> None:
         """Verify WatchlistSnapshot accepts all narrative intelligence fields."""
         now = datetime.now(UTC)
 
@@ -20,8 +22,8 @@ class TestExtendedWatchlistSnapshot:
             signal_type="BUY",
             signal_strength=9,
             narrative_headline="STRONG BUY - Quality Company + Good Setup",
-            narrative_why_bullets={"technical": ["Uptrend", "Good volume"]},
-            narrative_company_health={"rating": "EXCELLENT", "bullets": []},
+            narrative_why_bullets={"bullets": ["Uptrend", "Good volume"]},
+            narrative_company_health={"bullets": []},
             narrative_technical={"bullets": ["Strong momentum"]},
             narrative_action_plan="BUY around $200",
             narrative_position_sizing="71 shares = $14,377",
@@ -90,7 +92,7 @@ class TestExtendedWatchlistSnapshot:
         assert snapshot.earnings_days_away == 18
         assert snapshot.news_sentiment_score == 0.35
 
-    def test_snapshot_to_upsert_params_includes_narrative_fields(self):
+    def test_snapshot_to_upsert_params_includes_narrative_fields(self) -> None:
         """Verify to_upsert_params() serializes all narrative fields."""
         now = datetime.now(UTC)
 
@@ -100,7 +102,7 @@ class TestExtendedWatchlistSnapshot:
             signal_type="HOLD",
             signal_strength=5,
             narrative_headline="HOLD - Wait for better setup",
-            narrative_why_bullets={"reasons": ["Overbought"]},
+            narrative_why_bullets={"bullets": ["Overbought"]},
             entry_price=150.0,
             recommended_style="Value",
         )
@@ -110,11 +112,11 @@ class TestExtendedWatchlistSnapshot:
         assert params["signal_type"] == "HOLD"
         assert params["signal_strength"] == 5
         assert params["narrative_headline"] == "HOLD - Wait for better setup"
-        assert params["narrative_why_bullets"] == {"reasons": ["Overbought"]}
+        assert params["narrative_why_bullets"] == {"bullets": ["Overbought"]}
         assert params["entry_price"] == 150.0
         assert params["recommended_style"] == "Value"
 
-    def test_snapshot_with_none_narrative_fields(self):
+    def test_snapshot_with_none_narrative_fields(self) -> None:
         """Verify WatchlistSnapshot handles None for optional narrative fields."""
         now = datetime.now(UTC)
 

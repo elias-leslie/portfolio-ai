@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import polars as pl
 import pytest
 
@@ -108,7 +110,7 @@ class TestMapResponseToSchema:
 
     def test_empty_data_returns_none(self) -> None:
         """Test that empty data after extraction returns None."""
-        response = {"results": []}
+        response: dict[str, Any] = {"results": []}
         config = {
             "field_mapping": {"t": "ts_utc"},
             "data_path": "results",

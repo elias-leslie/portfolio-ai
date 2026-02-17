@@ -22,7 +22,7 @@ from pathlib import Path
 
 from app.logging_config import get_logger
 from app.services.news_processing import FinBertUnavailableError
-from app.services.news_service import FinBertSentimentAnalyzer
+from app.services.news_sentiment import FinBertSentimentAnalyzer
 
 logger = get_logger(__name__)
 

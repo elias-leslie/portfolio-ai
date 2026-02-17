@@ -4,6 +4,8 @@ Tests the full workflow from research aggregation through to strategy storage.
 Uses real database and components (not fully mocked).
 """
 
+from __future__ import annotations
+
 import uuid
 from datetime import date
 
@@ -21,7 +23,7 @@ class TestStrategyGenerationPipeline:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_complete_pipeline_success(self):
+    async def test_complete_pipeline_success(self) -> None:
         """Test complete pipeline: research → generation → optimization → storage.
 
         This is an end-to-end test of the full workflow.
@@ -122,12 +124,12 @@ class TestStrategyGenerationPipeline:
             # Retrieve and verify
             retrieved = storage.get_strategy_by_id(strategy_id)
             assert retrieved is not None
-            assert retrieved["symbol"] == symbol
-            assert retrieved["strategy_type"] == strategy_result.strategy_type
+            assert retrieved.symbol == symbol
+            assert retrieved.strategy_type == strategy_result.strategy_type
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_research_aggregation_with_real_data(self):
+    async def test_research_aggregation_with_real_data(self) -> None:
         """Test research aggregation with real database data.
 
         Requires: Database with market data for test ticker.
@@ -187,7 +189,7 @@ class TestStrategyGenerationPipeline:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_error_handling_missing_symbol(self):
+    async def test_error_handling_missing_symbol(self) -> None:
         """Test error handling when symbol doesn't exist in database."""
         symbol = "INVALID_SYMBOL_XYZ"
         aggregator = ResearchAggregationService()
@@ -198,7 +200,7 @@ class TestStrategyGenerationPipeline:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_strategy_storage_retrieval(self):
+    async def test_strategy_storage_retrieval(self) -> None:
         """Test strategy storage and retrieval operations."""
         storage = StrategyStorage()
         symbol = "TEST"
@@ -231,23 +233,19 @@ class TestStrategyGenerationPipeline:
         # Test retrieval by ID
         strategy = storage.get_strategy_by_id(strategy_id)
         assert strategy is not None
-        assert strategy["id"] == strategy_id
-        assert strategy["symbol"] == symbol
-        assert strategy["strategy_type"] == "momentum"
-        assert strategy["status"] == "testing"
+        assert strategy.id == strategy_id
+        assert strategy.symbol == symbol
+        assert strategy.strategy_type == "momentum"
+        assert strategy.status == "testing"
 
         # Test retrieval by symbol
-        strategies = storage.list_strategies_for_symbol(symbol)
+        strategies = storage.list_strategies(symbol=symbol)
         assert len(strategies) >= 1
-        assert any(s["id"] == strategy_id for s in strategies)
+        assert any(s.id == strategy_id for s in strategies)
 
-        # Test status update
-        storage.update_strategy_status(strategy_id, "active")
-        updated = storage.get_strategy_by_id(strategy_id)
-        assert updated["status"] == "active"
-
-        # Test archive
+        # Test archive (sets status to archived)
         storage.archive_strategy(strategy_id, "Integration test cleanup")
         archived = storage.get_strategy_by_id(strategy_id)
-        assert archived["status"] == "archived"
-        assert archived["archive_reason"] == "Integration test cleanup"
+        assert archived is not None
+        assert archived.status == "archived"
+        assert archived.archive_reason == "Integration test cleanup"

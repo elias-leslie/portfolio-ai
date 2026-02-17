@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
+from typing import cast
 from unittest.mock import Mock, patch
 
 import pytest
@@ -18,7 +20,7 @@ from app.storage import PortfolioStorage
 
 
 @pytest.fixture
-def storage() -> PortfolioStorage:
+def storage() -> Generator[PortfolioStorage]:
     """Create a PortfolioStorage instance with a temporary database."""
     temp_dir = tempfile.mkdtemp()
     db_path = Path(temp_dir) / "test.db"
@@ -247,13 +249,15 @@ def test_discovery_agent_execute_tool_get_news(
     """Test executing get_news tool."""
     agent = DiscoveryAgent(storage=storage, tools=agent_tools)
 
-    result = agent.execute_tool("get_news", {"query": "technology", "max_results": 5})
+    result = cast(dict[str, object], agent.execute_tool("get_news", {"query": "technology", "max_results": 5}))
 
     assert "articles" in result
     assert "count" in result
     assert "symbol" in result
     assert result["count"] == 2
-    assert len(result["articles"]) == 2
+    articles = result["articles"]
+    assert isinstance(articles, list)
+    assert len(articles) == 2
     mock_news_service.get_custom_news.assert_called_once_with("technology", max_articles=5)
 
 
@@ -265,7 +269,7 @@ def test_discovery_agent_execute_tool_get_economic_data(
     """Test executing get_economic_data tool."""
     agent = DiscoveryAgent(storage=storage, tools=agent_tools)
 
-    result = agent.execute_tool("get_economic_data", {"indicators": ["VIX", "FEDFUNDS"]})
+    result = cast(dict[str, object], agent.execute_tool("get_economic_data", {"indicators": ["VIX", "FEDFUNDS"]}))
 
     assert "indicators" in result
     assert "count" in result
@@ -287,7 +291,7 @@ def test_discovery_agent_execute_tool_store_idea(
         {
             "id": "test-run-id",
             "agent_type": "DiscoveryAgent",
-            "started_at": datetime.now(UTC),
+            "started_at": datetime.now(UTC).isoformat(),
             "completed_at": None,
             "status": "running",
             "num_ideas": 0,
@@ -298,16 +302,19 @@ def test_discovery_agent_execute_tool_store_idea(
         },
     )
 
-    result = agent.execute_tool(
-        "store_idea",
-        {
-            "title": "Buy tech stocks",
-            "thesis": "Technology sector is undervalued",
-            "action": "Buy AAPL calls",
-            "idea_type": "option",
-            "confidence_score": 75,
-            "risk_level": "medium",
-        },
+    result = cast(
+        dict[str, object],
+        agent.execute_tool(
+            "store_idea",
+            {
+                "title": "Buy tech stocks",
+                "thesis": "Technology sector is undervalued",
+                "action": "Buy AAPL calls",
+                "idea_type": "option",
+                "confidence_score": 75,
+                "risk_level": "medium",
+            },
+        ),
     )
 
     assert result["status"] == "stored"

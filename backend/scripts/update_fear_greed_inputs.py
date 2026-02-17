@@ -23,6 +23,7 @@ backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir))
 
 from app.storage import get_storage  # noqa: E402
+from app.storage.facade import PortfolioStorage  # noqa: E402
 
 
 def calculate_rsi(prices: list[float], period: int = 14) -> float | None:
@@ -73,7 +74,7 @@ def calculate_sma(prices: list[float], period: int) -> float | None:
     return sum(prices[-period:]) / period
 
 
-def fetch_spy_data(storage, start_date: dt.date, end_date: dt.date) -> list[tuple]:
+def fetch_spy_data(storage: PortfolioStorage, start_date: dt.date, end_date: dt.date) -> list[tuple[dt.date, float]]:
     """Fetch SPY OHLCV data from day_bars table.
 
     Args:
@@ -93,12 +94,17 @@ def fetch_spy_data(storage, start_date: dt.date, end_date: dt.date) -> list[tupl
             AND date BETWEEN %s AND %s
             ORDER BY date ASC
             """,
-            (start_date, end_date),
+            (start_date.isoformat(), end_date.isoformat()),
         )
-        return result.fetchall()
+        raw_rows = result.fetchall()
+        rows: list[tuple[dt.date, float]] = []
+        for r in raw_rows:
+            if isinstance(r[0], dt.date) and isinstance(r[1], (int, float)):
+                rows.append((r[0], float(r[1])))
+        return rows
 
 
-def get_latest_inputs(storage) -> tuple[dt.date | None, float | None, float | None]:
+def get_latest_inputs(storage: PortfolioStorage) -> tuple[dt.date | None, float | None, float | None]:
     """Get the latest fear_greed_inputs data for reference.
 
     Args:
@@ -117,13 +123,16 @@ def get_latest_inputs(storage) -> tuple[dt.date | None, float | None, float | No
             """
         )
         row = result.fetchone()
-        if row:
-            return row[0], row[1], row[2]
+        if row is not None:
+            as_of_date = row[0] if isinstance(row[0], dt.date) else None
+            vix = float(row[1]) if row[1] is not None else None
+            hy = float(row[2]) if row[2] is not None else None
+            return as_of_date, vix, hy
         return None, None, None
 
 
 def upsert_fear_greed_inputs(
-    storage,
+    storage: PortfolioStorage,
     as_of_date: dt.date,
     spy_close: float,
     spy_sma_200: float,
@@ -157,7 +166,7 @@ def upsert_fear_greed_inputs(
                 source_map = EXCLUDED.source_map
             """,
             (
-                as_of_date,
+                as_of_date.isoformat(),
                 vix_close,
                 spy_close,
                 spy_sma_200,
@@ -197,11 +206,15 @@ def main() -> None:
     # Get earliest available date from day_bars
     with storage.connection() as conn:
         result = conn.execute("SELECT MIN(date) FROM day_bars WHERE symbol = 'SPY'")
-        earliest_available = result.fetchone()[0]
+        row = result.fetchone()
+        earliest_available_raw = row[0] if row is not None else None
+        earliest_available: dt.date | None = (
+            earliest_available_raw if isinstance(earliest_available_raw, dt.date) else None
+        )
 
     # Use earliest available date or calculated start date, whichever is earlier
     calculated_start = end_date - dt.timedelta(days=250)
-    start_date = earliest_available if earliest_available else calculated_start
+    start_date: dt.date = earliest_available if earliest_available is not None else calculated_start
 
     # Fetch SPY data
     print(f"📈 Fetching SPY data from {start_date} to {end_date}...")

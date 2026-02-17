@@ -51,7 +51,10 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
         if _belongs_to_slow_suite(item_path):
             item.add_marker(pytest.mark.slow)
             # Auto-apply clean_database fixture to integration/watchlist tests
-            item.fixturenames.append("clean_database")
+            # pytest.Item subclasses (Function) have fixturenames attribute
+            raw_fixturenames = getattr(item, "fixturenames", None)
+            if isinstance(raw_fixturenames, list):
+                raw_fixturenames.append("clean_database")
 
         if not runslow and "slow" in item.keywords:
             item.add_marker(skip_slow)

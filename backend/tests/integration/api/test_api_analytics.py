@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import polars as pl
 import pytest
@@ -18,7 +18,7 @@ def client() -> TestClient:
 
 
 @patch("app.api.analytics.calculate_rvol")
-def test_get_rvol_success(mock_calculate_rvol, client: TestClient) -> None:
+def test_get_rvol_success(mock_calculate_rvol: Mock, client: TestClient) -> None:
     """Test successful RVOL retrieval."""
     # Mock the calculate_rvol function
     mock_calculate_rvol.return_value = 1.8
@@ -36,7 +36,7 @@ def test_get_rvol_success(mock_calculate_rvol, client: TestClient) -> None:
 
 
 @patch("app.api.analytics.calculate_rvol")
-def test_get_rvol_not_found(mock_calculate_rvol, client: TestClient) -> None:
+def test_get_rvol_not_found(mock_calculate_rvol: Mock, client: TestClient) -> None:
     """Test RVOL retrieval when ticker not found."""
     # Mock the calculate_rvol function to return None
     mock_calculate_rvol.return_value = None
@@ -50,7 +50,7 @@ def test_get_rvol_not_found(mock_calculate_rvol, client: TestClient) -> None:
 
 
 @patch("app.api.analytics.calculate_rvol")
-def test_get_rvol_invalid_date(mock_calculate_rvol, client: TestClient) -> None:
+def test_get_rvol_invalid_date(mock_calculate_rvol: Mock, client: TestClient) -> None:
     """Test RVOL retrieval with invalid date format."""
     # Make request with invalid date
     response = client.get("/api/analytics/rvol/AAPL?date=invalid-date")
@@ -61,7 +61,7 @@ def test_get_rvol_invalid_date(mock_calculate_rvol, client: TestClient) -> None:
 
 
 @patch("app.api.analytics.get_sector_rotation")
-def test_get_sectors_rotation_success(mock_get_sector_rotation, client: TestClient) -> None:
+def test_get_sectors_rotation_success(mock_get_sector_rotation: Mock, client: TestClient) -> None:
     """Test successful sector rotation retrieval."""
     # Mock the get_sector_rotation function
     mock_df = pl.DataFrame(
@@ -89,7 +89,7 @@ def test_get_sectors_rotation_success(mock_get_sector_rotation, client: TestClie
 
 
 @patch("app.api.analytics.get_sector_rotation")
-def test_get_sectors_rotation_not_found(mock_get_sector_rotation, client: TestClient) -> None:
+def test_get_sectors_rotation_not_found(mock_get_sector_rotation: Mock, client: TestClient) -> None:
     """Test sector rotation when no data available."""
     # Mock the get_sector_rotation function to return None
     mock_get_sector_rotation.return_value = None
@@ -103,7 +103,7 @@ def test_get_sectors_rotation_not_found(mock_get_sector_rotation, client: TestCl
 
 
 @patch("app.api.analytics.get_peer_comparison")
-def test_get_peer_comparison_success(mock_get_peer_comparison, client: TestClient) -> None:
+def test_get_peer_comparison_success(mock_get_peer_comparison: Mock, client: TestClient) -> None:
     """Test successful peer comparison retrieval."""
     # Mock the get_peer_comparison function
     mock_df = pl.DataFrame(
@@ -138,7 +138,7 @@ def test_get_peer_comparison_success(mock_get_peer_comparison, client: TestClien
 
 
 @patch("app.api.analytics.get_peer_comparison")
-def test_get_peer_comparison_not_found(mock_get_peer_comparison, client: TestClient) -> None:
+def test_get_peer_comparison_not_found(mock_get_peer_comparison: Mock, client: TestClient) -> None:
     """Test peer comparison when ticker not found."""
     # Mock the get_peer_comparison function to return None
     mock_get_peer_comparison.return_value = None
@@ -152,7 +152,7 @@ def test_get_peer_comparison_not_found(mock_get_peer_comparison, client: TestCli
 
 
 @patch("app.api.analytics.get_peer_comparison")
-def test_get_peer_comparison_invalid_group_by(mock_get_peer_comparison, client: TestClient) -> None:
+def test_get_peer_comparison_invalid_group_by(mock_get_peer_comparison: Mock, client: TestClient) -> None:
     """Test peer comparison with invalid group_by parameter."""
     # Make request with invalid group_by
     response = client.get("/api/analytics/peers/AAPL?date=2025-01-15&group_by=invalid")
@@ -163,7 +163,7 @@ def test_get_peer_comparison_invalid_group_by(mock_get_peer_comparison, client: 
 
 
 @patch("app.api.analytics.get_peer_group_detail")
-def test_get_peer_group_detail_success(mock_get_peer_group_detail, client: TestClient) -> None:
+def test_get_peer_group_detail_success(mock_get_peer_group_detail: Mock, client: TestClient) -> None:
     """Test successful peer group detail retrieval."""
     # Mock the get_peer_group_detail function
     mock_df = pl.DataFrame(
@@ -195,7 +195,7 @@ def test_get_peer_group_detail_success(mock_get_peer_group_detail, client: TestC
 
 
 @patch("app.api.analytics.get_peer_group_detail")
-def test_get_peer_group_detail_not_found(mock_get_peer_group_detail, client: TestClient) -> None:
+def test_get_peer_group_detail_not_found(mock_get_peer_group_detail: Mock, client: TestClient) -> None:
     """Test peer group detail when ticker not found."""
     # Mock the get_peer_group_detail function to return None
     mock_get_peer_group_detail.return_value = None

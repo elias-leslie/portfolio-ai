@@ -6,22 +6,22 @@ Tests verify that agent_workflows and agent_messages tables are populated correc
 from __future__ import annotations
 
 import uuid
+from collections.abc import Generator
 
 import pytest
 
 from app.agents.workflow_orchestrator import WorkflowOrchestrator
+from app.storage.facade import PortfolioStorage
 
 
 @pytest.fixture
-def storage():
+def storage() -> PortfolioStorage:
     """Provide database storage connection."""
-    from app.storage.facade import PortfolioStorage
-
     return PortfolioStorage()
 
 
 @pytest.fixture(autouse=True)
-def clean_workflow_tables(storage):
+def clean_workflow_tables(storage: PortfolioStorage) -> Generator[None]:
     """Clean workflow tables before each test."""
     with storage.connection() as conn:
         conn.execute("TRUNCATE agent_messages, agent_workflows CASCADE")
@@ -31,7 +31,7 @@ def clean_workflow_tables(storage):
         conn.execute("TRUNCATE agent_messages, agent_workflows CASCADE")
 
 
-def test_workflow_creation_with_multiple_agents(storage):
+def test_workflow_creation_with_multiple_agents(storage: PortfolioStorage) -> None:
     """Test that workflow creation correctly stores agents_involved as PostgreSQL array.
 
     This test verifies the fix for the database bug where agents_involved was
@@ -47,7 +47,7 @@ def test_workflow_creation_with_multiple_agents(storage):
         triggered_by="test",
     )
 
-    workflow_id = result["workflow_id"]
+    workflow_id: str = str(result["workflow_id"])
 
     # Verify workflow was created
     with storage.connection() as conn:
@@ -75,7 +75,7 @@ def test_workflow_creation_with_multiple_agents(storage):
     assert "claude" in db_agents_involved, f"Should contain 'claude', got {db_agents_involved}"
 
 
-def test_workflow_creation_with_single_agent(storage):
+def test_workflow_creation_with_single_agent(storage: PortfolioStorage) -> None:
     """Test that workflow creation works with a single agent."""
     orchestrator = WorkflowOrchestrator(storage)
 
@@ -85,20 +85,21 @@ def test_workflow_creation_with_single_agent(storage):
         triggered_by="test",
     )
 
-    workflow_id = result["workflow_id"]
+    workflow_id: str = str(result["workflow_id"])
 
     with storage.connection() as conn:
         db_result = conn.execute(
             "SELECT agents_involved FROM agent_workflows WHERE id = $1", [workflow_id]
         ).fetchone()
 
+    assert db_result is not None
     (agents_involved,) = db_result  # Unpack single-column result
     assert isinstance(agents_involved, list)
     assert len(agents_involved) == 1
     assert agents_involved[0] == "gemini"
 
 
-def test_workflow_creation_with_no_agents(storage):
+def test_workflow_creation_with_no_agents(storage: PortfolioStorage) -> None:
     """Test that workflow creation handles empty agent list."""
     orchestrator = WorkflowOrchestrator(storage)
 
@@ -108,23 +109,24 @@ def test_workflow_creation_with_no_agents(storage):
         triggered_by="test",
     )
 
-    workflow_id = result["workflow_id"]
+    workflow_id: str = str(result["workflow_id"])
 
     with storage.connection() as conn:
         db_result = conn.execute(
             "SELECT agents_involved FROM agent_workflows WHERE id = $1", [workflow_id]
         ).fetchone()
 
+    assert db_result is not None
     (agents_involved,) = db_result
     assert isinstance(agents_involved, list)
     assert len(agents_involved) == 0
 
 
-def test_workflow_shared_context_storage(storage):
+def test_workflow_shared_context_storage(storage: PortfolioStorage) -> None:
     """Test that shared_context is stored as valid JSONB."""
     orchestrator = WorkflowOrchestrator(storage)
 
-    config = {"test_param": "value", "metadata": {"test": True}}
+    config: dict[str, object] = {"test_param": "value", "metadata": {"test": True}}
 
     result = orchestrator.start_workflow(
         workflow_type="test_context",
@@ -133,13 +135,14 @@ def test_workflow_shared_context_storage(storage):
         triggered_by="test",
     )
 
-    workflow_id = result["workflow_id"]
+    workflow_id: str = str(result["workflow_id"])
 
     with storage.connection() as conn:
         db_result = conn.execute(
             "SELECT shared_context FROM agent_workflows WHERE id = $1", [workflow_id]
         ).fetchone()
 
+    assert db_result is not None
     (stored_context,) = db_result
     assert isinstance(stored_context, dict)
     # Check that config was embedded in shared_context
@@ -147,7 +150,7 @@ def test_workflow_shared_context_storage(storage):
     assert stored_context["config"] == config
 
 
-def test_workflow_update_status(storage):
+def test_workflow_update_status(storage: PortfolioStorage) -> None:
     """Test that workflow status updates work correctly."""
     orchestrator = WorkflowOrchestrator(storage)
 
@@ -158,6 +161,7 @@ def test_workflow_update_status(storage):
     )
 
     workflow_id = result["workflow_id"]
+    assert isinstance(workflow_id, str)
 
     # Update status
     orchestrator.update_workflow_status(
@@ -169,12 +173,13 @@ def test_workflow_update_status(storage):
             "SELECT status, current_step FROM agent_workflows WHERE id = $1", [workflow_id]
         ).fetchone()
 
+    assert db_result is not None
     db_status, db_current_step = db_result
     assert db_status == "running"
     assert db_current_step == "executing"
 
 
-def test_agent_message_storage(storage):
+def test_agent_message_storage(storage: PortfolioStorage) -> None:
     """Test that agent messages are stored correctly in agent_messages table."""
     from app.agents.tool_executors_collaboration import CollaborationTools
 
@@ -192,7 +197,7 @@ def test_agent_message_storage(storage):
     )
 
     assert result["status"] == "sent"
-    message_id = result["message_id"]
+    message_id: str = str(result["message_id"])
 
     # Verify message was stored
     with storage.connection() as conn:

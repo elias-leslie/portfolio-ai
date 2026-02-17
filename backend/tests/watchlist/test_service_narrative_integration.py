@@ -1,6 +1,9 @@
 """Test narrative generation integration in watchlist refresh flow."""
 
+from __future__ import annotations
+
 import tempfile
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -13,7 +16,7 @@ from app.watchlist.service import refresh_watchlist_scores
 
 
 @pytest.fixture
-def storage() -> PortfolioStorage:
+def storage() -> Iterator[PortfolioStorage]:
     """Create a PortfolioStorage instance for testing."""
     temp_dir = tempfile.mkdtemp()
     db_path = Path(temp_dir) / "watchlist.db"

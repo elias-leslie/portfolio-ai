@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 from app.storage.connection import ConnectionManager
+from app.storage.types import DatabaseConnection
 from app.watchlist.earnings import (
     fetch_earnings_date,
     fetch_earnings_date_cached,
@@ -190,8 +192,9 @@ class TestEarningsCaching:
 
         cm = ConnectionManager()
         with cm.connection() as conn:
+            db_conn = cast(DatabaseConnection, conn)
             # First call should fetch from API and cache
-            result = fetch_earnings_date_cached(conn, "NVDA")
+            result = fetch_earnings_date_cached(db_conn, "NVDA")
 
             assert result is not None
             assert result == earnings_date
@@ -204,6 +207,7 @@ class TestEarningsCaching:
 
             assert cached_row is not None
             cached_data = cached_row[0]
+            assert isinstance(cached_data, dict)
             assert "earnings_date" in cached_data
             # Should be stored as ISO string
             assert cached_data["earnings_date"] == earnings_date.isoformat()
@@ -216,14 +220,15 @@ class TestEarningsCaching:
 
         cm = ConnectionManager()
         with cm.connection() as conn:
+            db_conn = cast(DatabaseConnection, conn)
             # First call - fetches from API
-            result1 = fetch_earnings_date_cached(conn, "META")
+            result1 = fetch_earnings_date_cached(db_conn, "META")
             assert result1 is not None
             assert result1 == earnings_date
             assert mock_fetch.call_count == 1
 
             # Second call within TTL - should use cache, not call API again
-            result2 = fetch_earnings_date_cached(conn, "META")
+            result2 = fetch_earnings_date_cached(db_conn, "META")
             assert result2 is not None
             assert result2 == earnings_date
             assert mock_fetch.call_count == 1  # Still only 1 call
@@ -237,8 +242,9 @@ class TestEarningsCaching:
 
         cm = ConnectionManager()
         with cm.connection() as conn:
+            db_conn = cast(DatabaseConnection, conn)
             # First call - caches data
-            result1 = fetch_earnings_date_cached(conn, "NVDA")
+            result1 = fetch_earnings_date_cached(db_conn, "NVDA")
             assert result1 is not None
             assert result1 == old_earnings
             assert mock_fetch.call_count == 1
@@ -247,7 +253,7 @@ class TestEarningsCaching:
             expired_date = date.today() - timedelta(days=31)
             conn.execute(
                 "UPDATE reference_cache SET as_of_date = %s WHERE symbol = %s AND source = %s",
-                [expired_date, "NVDA", "earnings"],
+                [expired_date.isoformat(), "NVDA", "earnings"],
             )
             conn.commit()
 
@@ -256,7 +262,7 @@ class TestEarningsCaching:
             mock_fetch.return_value = new_earnings
 
             # Second call - should detect stale cache and re-fetch
-            result2 = fetch_earnings_date_cached(conn, "NVDA")
+            result2 = fetch_earnings_date_cached(db_conn, "NVDA")
             assert result2 is not None
             assert result2 == new_earnings  # New data
             assert mock_fetch.call_count == 2  # Called again
@@ -268,7 +274,8 @@ class TestEarningsCaching:
 
         cm = ConnectionManager()
         with cm.connection() as conn:
-            result = fetch_earnings_date_cached(conn, "UNKNOWN")
+            db_conn = cast(DatabaseConnection, conn)
+            result = fetch_earnings_date_cached(db_conn, "UNKNOWN")
 
             assert result is None
             # Should have cached the None result
@@ -278,4 +285,5 @@ class TestEarningsCaching:
             ).fetchone()
             assert cached_row is not None
             cached_data = cached_row[0]
+            assert isinstance(cached_data, dict)
             assert cached_data["earnings_date"] is None

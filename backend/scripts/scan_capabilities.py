@@ -14,6 +14,8 @@ Usage:
     python backend/scripts/scan_capabilities.py --diff  # Show only changes since last scan
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import re
@@ -57,7 +59,10 @@ def scan_database_tables() -> list[dict[str, Any]]:
                                 f"SELECT MIN({col}), MAX({col}) FROM {table_name} WHERE {col} IS NOT NULL"
                             )
                         )
-                        min_date, max_date = result.first()
+                        row = result.first()
+                        if row is None:
+                            continue
+                        min_date, max_date = row
                         if min_date and max_date:
                             date_range = f"{min_date.date()} to {max_date.date()}"
                             break
@@ -169,10 +174,10 @@ def _categorize_api_endpoint(path: str) -> str:
     return "infrastructure"
 
 
-def detect_changes(current: list[dict], previous: list[dict]) -> dict[str, list[dict]]:
+def detect_changes(current: list[dict[str, Any]], previous: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
     """Detect what's new, changed, or removed since last scan."""
 
-    def make_key(item: dict) -> str:
+    def make_key(item: dict[str, Any]) -> str:
         return f"{item['source_type']}:{item['source_location']}"
 
     current_map = {make_key(item): item for item in current}
@@ -203,17 +208,18 @@ def detect_changes(current: list[dict], previous: list[dict]) -> dict[str, list[
     }
 
 
-def load_previous_scan() -> list[dict] | None:
+def load_previous_scan() -> list[dict[str, Any]] | None:
     """Load previous scan results from file."""
     scan_file = Path(__file__).parent / ".capabilities_scan.json"
     if scan_file.exists():
         with scan_file.open() as f:
             data = json.load(f)
-            return data.get("capabilities", [])
+            result: list[dict[str, Any]] = data.get("capabilities", [])
+            return result
     return None
 
 
-def save_scan(capabilities: list[dict]) -> None:
+def save_scan(capabilities: list[dict[str, Any]]) -> None:
     """Save scan results to file for next comparison."""
     scan_file = Path(__file__).parent / ".capabilities_scan.json"
     with scan_file.open("w") as f:
@@ -227,7 +233,7 @@ def save_scan(capabilities: list[dict]) -> None:
         )
 
 
-def format_text_output(capabilities: list[dict], changes: dict | None = None) -> str:
+def format_text_output(capabilities: list[dict[str, Any]], changes: dict[str, list[dict[str, Any]]] | None = None) -> str:
     """Format capabilities as human-readable text."""
     output = []
 
@@ -239,7 +245,7 @@ def format_text_output(capabilities: list[dict], changes: dict | None = None) ->
     output.append("")
 
     # Group by category
-    by_category: dict[str, list[dict]] = {}
+    by_category: dict[str, list[dict[str, Any]]] = {}
     for cap in capabilities:
         category = cap["category"]
         if category not in by_category:

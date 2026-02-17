@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import pytest
 
@@ -18,7 +19,7 @@ from app.watchlist.scoring import (
 )
 
 
-def make_price_data(**overrides) -> PriceData:
+def make_price_data(**overrides: Any) -> PriceData:
     defaults = {
         "symbol": "AAPL",
         "price": 182.45,

@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import tempfile
+from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
@@ -18,7 +19,7 @@ from app.storage import PortfolioStorage
 
 
 @pytest.fixture
-def storage() -> PortfolioStorage:
+def storage() -> Generator[PortfolioStorage]:
     """Create a PortfolioStorage instance with a temporary database."""
     temp_dir = tempfile.mkdtemp()
     db_path = Path(temp_dir) / "test.db"

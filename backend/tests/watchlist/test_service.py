@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import tempfile
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -23,7 +24,7 @@ class StubPriceFetcher:
 
 
 @pytest.fixture
-def storage() -> PortfolioStorage:
+def storage() -> Iterator[PortfolioStorage]:
     temp_dir = tempfile.mkdtemp()
     db_path = Path(temp_dir) / "watchlist.db"
 

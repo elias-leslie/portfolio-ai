@@ -20,7 +20,7 @@ sys.path.insert(0, str(backend_dir))
 # ruff: noqa: E402 - Imports must come after path manipulation
 from app.logging_config import get_logger
 from app.storage import get_storage
-from app.tasks.agent_tasks import (
+from app.tasks import (
     ingest_historical_ohlcv,
     refresh_watchlist_scores_task,
     update_technical_indicators,
@@ -40,7 +40,7 @@ def main() -> None:
     logger.info("fetching_watchlist_symbols")
     with storage.connection() as conn:
         result = conn.execute("SELECT DISTINCT symbol FROM watchlist_items").fetchall()
-        symbols = [row[0] for row in result]
+        symbols = [str(row[0]) for row in result]
 
     if not symbols:
         logger.warning("no_watchlist_symbols_found")

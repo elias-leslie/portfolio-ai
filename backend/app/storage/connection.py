@@ -11,7 +11,7 @@ import os
 import re
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import date, datetime
 from typing import TYPE_CHECKING, Any, Literal
 
 import pandas as pd
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 # This is necessarily broad since PostgreSQL returns various types
 DatabaseValue = str | int | float | bool | None
 # Type alias for parameters that can be sent to database (includes lists for UNNEST/ANY operators)
-ParameterValue = str | int | float | bool | None | datetime | list[str | int | float | bool | None]
+ParameterValue = str | int | float | bool | None | date | datetime | list[str | int | float | bool | None]
 
 logger = get_logger(__name__)
 

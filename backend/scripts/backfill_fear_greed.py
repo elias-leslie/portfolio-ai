@@ -169,7 +169,7 @@ def backfill_scores() -> int:
     return scores_calculated
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Backfill Fear & Greed historical data")
     parser.add_argument(
         "--days",

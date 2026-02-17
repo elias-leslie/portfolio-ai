@@ -16,6 +16,11 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
+from app.agents.strategy_evolution.llm_prompts import propose_mutations
+from app.agents.strategy_evolution.performance import (
+    analyze_strategy_performance,
+    calculate_buy_hold_sharpe,
+)
 from app.agents.strategy_evolution_agent import (
     BacktestMetrics,
     StrategyAnalysis,
@@ -115,7 +120,7 @@ def sample_strategy() -> StrategyDefinition:
         research_summary={},
         generation_reasoning="Initial strategy",
         backtest_metrics=[],
-        expected_sharpe=1.5,
+        expected_sharpe=Decimal("1.5"),
         expected_win_rate=Decimal("0.6"),
         expected_max_drawdown=Decimal("0.15"),
         created_by="test",
@@ -178,7 +183,7 @@ class TestStrategyMutationLogic:
     """Tests for strategy mutation logic."""
 
     @pytest.mark.asyncio
-    @patch("app.agents.strategy_evolution_agent.AgentHubAPIClient")
+    @patch("app.agents.strategy_evolution.llm_prompts.AgentHubAPIClient")
     async def test_propose_mutations_returns_valid_mutations(
         self,
         mock_client: Mock,
@@ -217,7 +222,7 @@ class TestStrategyMutationLogic:
         mock_client.return_value = mock_llm_instance
 
         # Execute
-        mutations = await agent.propose_mutations(sample_strategy, sample_analysis)
+        mutations = await propose_mutations(sample_strategy, sample_analysis)
 
         # Verify
         assert len(mutations) == 2
@@ -227,7 +232,7 @@ class TestStrategyMutationLogic:
         assert mutations[1].mutation_type == "weight_adjustment"
 
     @pytest.mark.asyncio
-    @patch("app.agents.strategy_evolution_agent.AgentHubAPIClient")
+    @patch("app.agents.strategy_evolution.llm_prompts.AgentHubAPIClient")
     async def test_propose_mutations_limits_to_five(
         self,
         mock_client: Mock,
@@ -261,13 +266,13 @@ class TestStrategyMutationLogic:
         mock_client.return_value = mock_llm_instance
 
         # Execute
-        mutations = await agent.propose_mutations(sample_strategy, sample_analysis)
+        mutations = await propose_mutations(sample_strategy, sample_analysis)
 
         # Verify - should be limited to 5
         assert len(mutations) == 5
 
     @pytest.mark.asyncio
-    @patch("app.agents.strategy_evolution_agent.AgentHubAPIClient")
+    @patch("app.agents.strategy_evolution.llm_prompts.AgentHubAPIClient")
     async def test_propose_mutations_handles_invalid_json(
         self,
         mock_client: Mock,
@@ -288,7 +293,7 @@ class TestStrategyMutationLogic:
         mock_client.return_value = mock_llm_instance
 
         # Execute
-        mutations = await agent.propose_mutations(sample_strategy, sample_analysis)
+        mutations = await propose_mutations(sample_strategy, sample_analysis)
 
         # Verify - should return empty list on error
         assert mutations == []
@@ -298,7 +303,7 @@ class TestPerformanceComparison:
     """Tests for performance comparison and analysis."""
 
     @pytest.mark.asyncio
-    @patch("app.agents.strategy_evolution_agent.get_connection_manager")
+    @patch("app.agents.strategy_evolution.performance.get_connection_manager")
     async def test_analyze_strategy_performance_calculates_metrics(
         self,
         mock_conn_manager: Mock,
@@ -308,14 +313,6 @@ class TestPerformanceComparison:
         sample_strategy: StrategyDefinition,
     ) -> None:
         """Test analyze_strategy_performance calculates all metrics."""
-        # Setup
-        agent = StrategyEvolutionAgent()
-        agent.strategy_storage = mock_storage
-        agent.optimizer = mock_optimizer
-        agent.research_aggregator = mock_research_aggregator
-
-        mock_storage.get_strategy_by_id.return_value = sample_strategy
-
         # Mock database query results
         mock_conn = Mock()
         mock_conn.execute = Mock(
@@ -335,17 +332,16 @@ class TestPerformanceComparison:
         mock_conn.__exit__ = Mock(return_value=None)
         mock_conn_manager.return_value.connection.return_value = mock_conn
 
-        # Mock _calculate_buy_hold_sharpe and LLM diagnosis
+        # Mock calculate_buy_hold_sharpe and LLM diagnosis
         with (
-            patch.object(agent, "_calculate_buy_hold_sharpe", return_value=0.7),
-            patch.object(
-                agent,
-                "_llm_diagnose_performance",
+            patch("app.agents.strategy_evolution.performance.calculate_buy_hold_sharpe", return_value=0.7),
+            patch(
+                "app.agents.strategy_evolution.performance.llm_diagnose_performance",
                 return_value="Strategy enters too early",
             ),
         ):
-            # Execute
-            analysis = await agent.analyze_strategy_performance("strategy-123", days=30)
+            # Execute - call module-level function with strategy definition
+            analysis = await analyze_strategy_performance(sample_strategy, days=30)
 
         # Verify
         assert analysis.strategy_id == "strategy-123"
@@ -363,7 +359,7 @@ class TestPerformanceComparison:
         assert analysis.beats_benchmark is True
 
     @pytest.mark.asyncio
-    @patch("app.agents.strategy_evolution_agent.get_connection_manager")
+    @patch("app.agents.strategy_evolution.performance.get_connection_manager")
     async def test_analyze_strategy_performance_raises_on_no_data(
         self,
         mock_conn_manager: Mock,
@@ -389,12 +385,12 @@ class TestPerformanceComparison:
         mock_conn.__exit__ = Mock(return_value=None)
         mock_conn_manager.return_value.connection.return_value = mock_conn
 
-        # Execute & verify
+        # Execute & verify — call module-level function with strategy definition
         with pytest.raises(ValueError, match="No performance data"):
-            await agent.analyze_strategy_performance("strategy-123", days=30)
+            await analyze_strategy_performance(sample_strategy, days=30)
 
     @pytest.mark.asyncio
-    @patch("app.agents.strategy_evolution_agent.get_connection_manager")
+    @patch("app.agents.strategy_evolution.performance.get_connection_manager")
     async def test_calculate_buy_hold_sharpe(
         self,
         mock_conn_manager: Mock,
@@ -414,8 +410,8 @@ class TestPerformanceComparison:
         mock_conn.__exit__ = Mock(return_value=None)
         mock_conn_manager.return_value.connection.return_value = mock_conn
 
-        # Execute
-        sharpe = await agent._calculate_buy_hold_sharpe("AAPL", 30)
+        # Execute — call module-level function directly
+        sharpe = await calculate_buy_hold_sharpe("AAPL", 30)
 
         # Verify - should be positive for uptrend
         assert sharpe > 0
@@ -425,8 +421,8 @@ class TestEvolutionSelection:
     """Tests for evolution selection and MAS (Minimum Acceptable Score) criteria."""
 
     @pytest.mark.asyncio
-    @patch("app.agents.strategy_evolution_agent.run_walk_forward_validation")
-    @patch("app.agents.strategy_evolution_agent.get_connection_manager")
+    @patch("app.agents.strategy_evolution.agent.run_walk_forward_validation")
+    @patch("app.agents.strategy_evolution.performance.get_connection_manager")
     async def test_evolve_strategy_selects_best_mutation(
         self,
         mock_conn_manager: Mock,
@@ -479,9 +475,9 @@ class TestEvolutionSelection:
 
         # Mock methods
         with (
-            patch.object(agent, "_calculate_buy_hold_sharpe", return_value=0.7),
-            patch.object(agent, "_llm_diagnose_performance", return_value="Underperforming"),
-            patch.object(agent, "propose_mutations", return_value=sample_mutations),
+            patch("app.agents.strategy_evolution.performance.calculate_buy_hold_sharpe", return_value=0.7),
+            patch("app.agents.strategy_evolution.llm_prompts.llm_diagnose_performance", return_value="Underperforming"),
+            patch("app.agents.strategy_evolution.agent.propose_mutations", return_value=sample_mutations),
             patch.object(agent, "_save_lineage"),
         ):
             # Execute
@@ -494,8 +490,8 @@ class TestEvolutionSelection:
         assert result.mutations_tested == 3
 
     @pytest.mark.asyncio
-    @patch("app.agents.strategy_evolution_agent.run_walk_forward_validation")
-    @patch("app.agents.strategy_evolution_agent.get_connection_manager")
+    @patch("app.agents.strategy_evolution.agent.run_walk_forward_validation")
+    @patch("app.agents.strategy_evolution.performance.get_connection_manager")
     async def test_evolve_strategy_rejects_below_mas_threshold(
         self,
         mock_conn_manager: Mock,
@@ -548,9 +544,9 @@ class TestEvolutionSelection:
         ]
 
         with (
-            patch.object(agent, "_calculate_buy_hold_sharpe", return_value=0.7),
-            patch.object(agent, "_llm_diagnose_performance", return_value="Underperforming"),
-            patch.object(agent, "propose_mutations", return_value=sample_mutations),
+            patch("app.agents.strategy_evolution.performance.calculate_buy_hold_sharpe", return_value=0.7),
+            patch("app.agents.strategy_evolution.llm_prompts.llm_diagnose_performance", return_value="Underperforming"),
+            patch("app.agents.strategy_evolution.agent.propose_mutations", return_value=sample_mutations),
         ):
             # Execute
             result = await agent.evolve_strategy("strategy-123")
@@ -561,7 +557,7 @@ class TestEvolutionSelection:
         assert "below MAS threshold" in result.message
 
     @pytest.mark.asyncio
-    @patch("app.agents.strategy_evolution_agent.get_connection_manager")
+    @patch("app.agents.strategy_evolution.performance.get_connection_manager")
     async def test_evolve_strategy_skips_non_underperforming(
         self,
         mock_conn_manager: Mock,
@@ -598,8 +594,8 @@ class TestEvolutionSelection:
         mock_conn_manager.return_value.connection.return_value = mock_conn
 
         with (
-            patch.object(agent, "_calculate_buy_hold_sharpe", return_value=0.7),
-            patch.object(agent, "_llm_diagnose_performance", return_value="Performing well"),
+            patch("app.agents.strategy_evolution.performance.calculate_buy_hold_sharpe", return_value=0.7),
+            patch("app.agents.strategy_evolution.llm_prompts.llm_diagnose_performance", return_value="Performing well"),
         ):
             # Execute
             result = await agent.evolve_strategy("strategy-123")
@@ -613,7 +609,7 @@ class TestEvolutionSelection:
 class TestLineageTracking:
     """Tests for strategy lineage tracking."""
 
-    @patch("app.agents.strategy_evolution_agent.get_connection_manager")
+    @patch("app.agents.strategy_evolution.performance.get_connection_manager")
     def test_save_lineage_records_parent_child_relationship(
         self,
         mock_conn_manager: Mock,
@@ -660,8 +656,8 @@ class TestLineageTracking:
         mock_conn.commit.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch("app.agents.strategy_evolution_agent.run_walk_forward_validation")
-    @patch("app.agents.strategy_evolution_agent.get_connection_manager")
+    @patch("app.agents.strategy_evolution.agent.run_walk_forward_validation")
+    @patch("app.agents.strategy_evolution.performance.get_connection_manager")
     async def test_evolve_strategy_saves_lineage_on_success(
         self,
         mock_conn_manager: Mock,
@@ -695,9 +691,9 @@ class TestLineageTracking:
         )
 
         with (
-            patch.object(agent, "_calculate_buy_hold_sharpe", return_value=0.7),
-            patch.object(agent, "_llm_diagnose_performance", return_value="Underperforming"),
-            patch.object(agent, "propose_mutations", return_value=[sample_mutations[0]]),
+            patch("app.agents.strategy_evolution.performance.calculate_buy_hold_sharpe", return_value=0.7),
+            patch("app.agents.strategy_evolution.llm_prompts.llm_diagnose_performance", return_value="Underperforming"),
+            patch("app.agents.strategy_evolution.agent.propose_mutations", return_value=[sample_mutations[0]]),
             patch.object(agent, "_save_lineage") as mock_save_lineage,
         ):
             # Execute
@@ -715,8 +711,8 @@ class TestLineageTracking:
         assert call_args["metrics_after"]["sharpe"] == 1.5
 
     @pytest.mark.asyncio
-    @patch("app.agents.strategy_evolution_agent.run_walk_forward_validation")
-    @patch("app.agents.strategy_evolution_agent.get_connection_manager")
+    @patch("app.agents.strategy_evolution.agent.run_walk_forward_validation")
+    @patch("app.agents.strategy_evolution.performance.get_connection_manager")
     async def test_evolve_strategy_archives_parent_on_success(
         self,
         mock_conn_manager: Mock,
@@ -750,9 +746,9 @@ class TestLineageTracking:
         )
 
         with (
-            patch.object(agent, "_calculate_buy_hold_sharpe", return_value=0.7),
-            patch.object(agent, "_llm_diagnose_performance", return_value="Underperforming"),
-            patch.object(agent, "propose_mutations", return_value=[sample_mutations[0]]),
+            patch("app.agents.strategy_evolution.performance.calculate_buy_hold_sharpe", return_value=0.7),
+            patch("app.agents.strategy_evolution.llm_prompts.llm_diagnose_performance", return_value="Underperforming"),
+            patch("app.agents.strategy_evolution.agent.propose_mutations", return_value=[sample_mutations[0]]),
             patch.object(agent, "_save_lineage"),
         ):
             # Execute

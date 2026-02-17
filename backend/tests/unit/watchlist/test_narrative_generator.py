@@ -191,7 +191,7 @@ class TestGenerateCompanyHealthBullets:
 
     def test_missing_data_fallback(self) -> None:
         """Test fallback when no fundamental data available."""
-        fundamentals = {}
+        fundamentals: dict[str, float] = {}
         bullets = generate_company_health_bullets(fundamentals)
         assert len(bullets) == 1
         assert "limited fundamental data" in bullets[0].lower()

@@ -20,7 +20,7 @@ def test_get_logger() -> None:
     assert hasattr(logger, "debug")
 
 
-def test_configure_logging_stdout_only(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+def test_configure_logging_stdout_only(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """Test logging configuration with stdout output."""
     # Configure logging
     log_dir = tmp_path / "logs"

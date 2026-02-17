@@ -9,20 +9,14 @@ from __future__ import annotations
 
 from contextlib import AbstractContextManager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import polars as pl
 
 from app.storage.types import DatabaseConnection, DatabaseValue, ParameterValue
 
 from ..logging_config import get_logger
-
-# Type hint only - actual connection is PostgreSQL via PostgreSQLConnectionWrapper
-# See connection.py for wrapper implementation
-if TYPE_CHECKING:
-    pass  # Type hints for database connections
-
-from .connection import get_connection_manager
+from .connection import PostgreSQLConnectionWrapper, get_connection_manager
 from .ingestion import IngestionManager
 from .metadata import MetadataManager
 from .queries import QueryManager
@@ -64,7 +58,7 @@ class PortfolioStorage:
         logger.info("PortfolioStorage initialized with modular managers")
 
     # Expose connection manager's connection method
-    def connection(self) -> AbstractContextManager[DatabaseConnection]:
+    def connection(self) -> AbstractContextManager[PostgreSQLConnectionWrapper]:
         """Context manager for PostgreSQL connections.
 
         Yields:

@@ -1,6 +1,6 @@
 """Unit tests for watchlist refresh endpoint (FEAT-033).
 
-Tests POST /api/watchlist/refresh endpoint:
+Tests refresh_watchlist_scores endpoint function directly:
 - Successful refresh with all items
 - Successful refresh with no items in watchlist
 - Partial success with some failures (207 Multi-Status)
@@ -13,12 +13,10 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import pytest
-from fastapi.testclient import TestClient
+from fastapi import HTTPException
 
-from app.main import app
-
-client = TestClient(app)
-
+from app.api.watchlist.refresh_router import refresh_watchlist_scores
+from app.watchlist.response_builders import RefreshRequest, RefreshResponse
 
 # =============================================================================
 # Fixtures
@@ -65,12 +63,13 @@ def mock_schedule_tasks() -> MagicMock:
 class TestWatchlistRefreshSuccess:
     """Tests for successful watchlist refresh scenarios."""
 
-    def test_refresh_empty_watchlist(self, mock_repo: MagicMock) -> None:
+    @pytest.mark.asyncio
+    async def test_refresh_empty_watchlist(self, mock_repo: MagicMock) -> None:
         """Test refresh when watchlist has no items."""
         with (
-            patch("app.api.watchlist.watchlist_repo", mock_repo),
-            patch("app.api.watchlist.schedule_refresh_tasks") as mock_schedule,
-            patch("app.api.watchlist.refresh_watchlist_scores_service") as mock_refresh,
+            patch("app.api.watchlist.refresh_router.watchlist_repo", mock_repo),
+            patch("app.api.watchlist.refresh_router.schedule_refresh_tasks") as mock_schedule,
+            patch("app.api.watchlist.refresh_router.refresh_watchlist_scores_service") as mock_refresh,
         ):
             # Empty watchlist
             mock_df = MagicMock()
@@ -78,28 +77,28 @@ class TestWatchlistRefreshSuccess:
             mock_df.to_dicts.return_value = []
             mock_repo.get_all_symbols.return_value = mock_df
 
-            response = client.post("/api/watchlist/refresh", json={})
+            result = await refresh_watchlist_scores(data=RefreshRequest())
 
-            assert response.status_code == 200
-            data = response.json()
-            assert data["status"] == "success"
-            assert data["message"] == "No items in watchlist"
-            assert data["refreshed_count"] == 0
-            assert data["failed_count"] == 0
-            assert data["failed"] == []
+            assert isinstance(result, RefreshResponse)
+            assert result.status == "success"
+            assert result.message == "No items in watchlist"
+            assert result.refreshed_count == 0
+            assert result.failed_count == 0
+            assert result.failed == []
 
             # Should not trigger background tasks or refresh for empty watchlist
             mock_schedule.assert_not_called()
             mock_refresh.assert_not_called()
 
-    def test_refresh_all_items_success(
+    @pytest.mark.asyncio
+    async def test_refresh_all_items_success(
         self, mock_repo: MagicMock, mock_refresh_service: MagicMock
     ) -> None:
         """Test successful refresh of all watchlist items."""
         with (
-            patch("app.api.watchlist.watchlist_repo", mock_repo),
-            patch("app.api.watchlist.schedule_refresh_tasks") as mock_schedule,
-            patch("app.api.watchlist.refresh_watchlist_scores_service", mock_refresh_service),
+            patch("app.api.watchlist.refresh_router.watchlist_repo", mock_repo),
+            patch("app.api.watchlist.refresh_router.schedule_refresh_tasks") as mock_schedule,
+            patch("app.api.watchlist.refresh_router.refresh_watchlist_scores_service", mock_refresh_service),
         ):
             # Mock watchlist with 3 items
             mock_df = MagicMock()
@@ -118,15 +117,14 @@ class TestWatchlistRefreshSuccess:
                 "failed": [],
             }
 
-            response = client.post("/api/watchlist/refresh", json={})
+            result = await refresh_watchlist_scores(data=RefreshRequest())
 
-            assert response.status_code == 200
-            data = response.json()
-            assert data["status"] == "success"
-            assert "Refreshed all 3 items successfully" in data["message"]
-            assert data["refreshed_count"] == 3
-            assert data["failed_count"] == 0
-            assert data["failed"] == []
+            assert isinstance(result, RefreshResponse)
+            assert result.status == "success"
+            assert "Refreshed all 3 items successfully" in result.message
+            assert result.refreshed_count == 3
+            assert result.failed_count == 0
+            assert result.failed == []
 
             # Verify background tasks scheduled
             mock_schedule.assert_called_once_with(["AAPL", "GOOGL", "MSFT"])
@@ -140,14 +138,17 @@ class TestWatchlistRefreshSuccess:
 class TestWatchlistRefreshPartialSuccess:
     """Tests for partial success scenarios (some items fail)."""
 
-    def test_refresh_partial_success(
+    @pytest.mark.asyncio
+    async def test_refresh_partial_success(
         self, mock_repo: MagicMock, mock_refresh_service: MagicMock
     ) -> None:
         """Test refresh with some failures returns 207 Multi-Status."""
+        from fastapi.responses import JSONResponse
+
         with (
-            patch("app.api.watchlist.watchlist_repo", mock_repo),
-            patch("app.api.watchlist.schedule_refresh_tasks") as mock_schedule,
-            patch("app.api.watchlist.refresh_watchlist_scores_service", mock_refresh_service),
+            patch("app.api.watchlist.refresh_router.watchlist_repo", mock_repo),
+            patch("app.api.watchlist.refresh_router.schedule_refresh_tasks") as mock_schedule,
+            patch("app.api.watchlist.refresh_router.refresh_watchlist_scores_service", mock_refresh_service),
         ):
             # Mock watchlist with 3 items
             mock_df = MagicMock()
@@ -168,10 +169,14 @@ class TestWatchlistRefreshPartialSuccess:
                 ],
             }
 
-            response = client.post("/api/watchlist/refresh", json={})
+            result = await refresh_watchlist_scores(data=RefreshRequest())
 
-            assert response.status_code == 207  # Multi-Status
-            data = response.json()
+            # 207 Multi-Status returned as JSONResponse
+            assert isinstance(result, JSONResponse)
+            assert result.status_code == 207
+
+            import json as json_mod
+            data = json_mod.loads(result.body if isinstance(result.body, (str, bytes, bytearray)) else bytes(result.body))
             assert data["status"] == "partial_success"
             assert "Refreshed 2 of 3 items" in data["message"]
             assert data["refreshed_count"] == 2
@@ -192,14 +197,15 @@ class TestWatchlistRefreshPartialSuccess:
 class TestWatchlistRefreshFailure:
     """Tests for complete failure scenarios."""
 
-    def test_refresh_all_items_fail(
+    @pytest.mark.asyncio
+    async def test_refresh_all_items_fail(
         self, mock_repo: MagicMock, mock_refresh_service: MagicMock
     ) -> None:
-        """Test refresh when all items fail returns 500."""
+        """Test refresh when all items fail raises HTTPException with 500."""
         with (
-            patch("app.api.watchlist.watchlist_repo", mock_repo),
-            patch("app.api.watchlist.schedule_refresh_tasks") as mock_schedule,
-            patch("app.api.watchlist.refresh_watchlist_scores_service", mock_refresh_service),
+            patch("app.api.watchlist.refresh_router.watchlist_repo", mock_repo),
+            patch("app.api.watchlist.refresh_router.schedule_refresh_tasks") as mock_schedule,
+            patch("app.api.watchlist.refresh_router.refresh_watchlist_scores_service", mock_refresh_service),
         ):
             # Mock watchlist with 2 items
             mock_df = MagicMock()
@@ -220,18 +226,20 @@ class TestWatchlistRefreshFailure:
                 ],
             }
 
-            response = client.post("/api/watchlist/refresh", json={})
+            with pytest.raises(HTTPException) as exc_info:
+                await refresh_watchlist_scores(data=RefreshRequest())
 
-            assert response.status_code == 500
-            assert "Failed to refresh any items" in response.json()["detail"]
+            assert exc_info.value.status_code == 500
+            assert "Failed to refresh any items" in exc_info.value.detail
 
-    def test_refresh_service_exception(self, mock_repo: MagicMock) -> None:
-        """Test handling of unexpected exceptions during refresh."""
+    @pytest.mark.asyncio
+    async def test_refresh_service_exception(self, mock_repo: MagicMock) -> None:
+        """Test handling of unexpected exceptions during refresh raises HTTPException."""
         with (
-            patch("app.api.watchlist.watchlist_repo", mock_repo),
-            patch("app.api.watchlist.schedule_refresh_tasks"),
+            patch("app.api.watchlist.refresh_router.watchlist_repo", mock_repo),
+            patch("app.api.watchlist.refresh_router.schedule_refresh_tasks"),
             patch(
-                "app.api.watchlist.refresh_watchlist_scores_service",
+                "app.api.watchlist.refresh_router.refresh_watchlist_scores_service",
                 side_effect=Exception("Database connection failed"),
             ),
         ):
@@ -243,10 +251,11 @@ class TestWatchlistRefreshFailure:
             ]
             mock_repo.get_all_symbols.return_value = mock_df
 
-            response = client.post("/api/watchlist/refresh", json={})
+            with pytest.raises(HTTPException) as exc_info:
+                await refresh_watchlist_scores(data=RefreshRequest())
 
-            assert response.status_code == 500
-            assert "Failed to refresh" in response.json()["detail"]
+            assert exc_info.value.status_code == 500
+            assert "Failed to refresh" in exc_info.value.detail
 
 
 # =============================================================================
@@ -257,14 +266,15 @@ class TestWatchlistRefreshFailure:
 class TestWatchlistRefreshBackgroundTasks:
     """Tests for background task scheduling during refresh."""
 
-    def test_background_tasks_scheduled_for_all_symbols(
+    @pytest.mark.asyncio
+    async def test_background_tasks_scheduled_for_all_symbols(
         self, mock_repo: MagicMock, mock_refresh_service: MagicMock
     ) -> None:
         """Test that background data refresh tasks are scheduled for all symbols."""
         with (
-            patch("app.api.watchlist.watchlist_repo", mock_repo),
-            patch("app.api.watchlist.schedule_refresh_tasks") as mock_schedule,
-            patch("app.api.watchlist.refresh_watchlist_scores_service", mock_refresh_service),
+            patch("app.api.watchlist.refresh_router.watchlist_repo", mock_repo),
+            patch("app.api.watchlist.refresh_router.schedule_refresh_tasks") as mock_schedule,
+            patch("app.api.watchlist.refresh_router.refresh_watchlist_scores_service", mock_refresh_service),
         ):
             # Mock watchlist
             mock_df = MagicMock()
@@ -282,9 +292,9 @@ class TestWatchlistRefreshBackgroundTasks:
                 "failed": [],
             }
 
-            response = client.post("/api/watchlist/refresh", json={})
+            result = await refresh_watchlist_scores(data=RefreshRequest())
 
-            assert response.status_code == 200
+            assert isinstance(result, RefreshResponse)
 
             # Verify background tasks called with correct symbols
             mock_schedule.assert_called_once()

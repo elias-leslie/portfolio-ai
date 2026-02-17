@@ -8,7 +8,10 @@ After fixing to use UUID-based IDs, this test should pass with 0 collisions.
 IMPORTANT: Uses pytest fixtures to ensure cleanup happens even on test failure.
 """
 
+from __future__ import annotations
+
 import concurrent.futures
+from collections.abc import Generator
 
 import pytest
 from fastapi.testclient import TestClient
@@ -22,14 +25,14 @@ NUM_CONCURRENT_REQUESTS = 10  # Reduced from 100 - enough to test concurrency
 
 
 @pytest.fixture
-def cleanup_test_symbols():
+def cleanup_test_symbols() -> Generator[None]:
     """Fixture that cleans up test symbols BEFORE and AFTER the test.
 
     Uses try/finally to ensure cleanup happens even if test fails.
     """
     storage = get_storage()
 
-    def do_cleanup():
+    def do_cleanup() -> None:
         with storage.connection() as conn:
             conn.execute(
                 "DELETE FROM watchlist_items WHERE symbol LIKE %s",
@@ -46,7 +49,7 @@ def cleanup_test_symbols():
     do_cleanup()
 
 
-def test_concurrent_watchlist_creation_no_collisions(cleanup_test_symbols) -> None:
+def test_concurrent_watchlist_creation_no_collisions(cleanup_test_symbols: None) -> None:
     """Test that concurrent watchlist item creations don't cause ID collisions.
 
     Uses UUID-based IDs to prevent UNIQUE constraint violations when
@@ -106,7 +109,9 @@ def test_concurrent_watchlist_creation_no_collisions(cleanup_test_symbols) -> No
             "SELECT COUNT(*) FROM watchlist_items WHERE symbol LIKE %s",
             (f"{TEST_SYMBOL_PREFIX}%",),
         )
-        actual_count = cursor.fetchone()[0]
+        count_row = cursor.fetchone()
+        assert count_row is not None
+        actual_count = count_row[0]
 
     assert actual_count == NUM_CONCURRENT_REQUESTS, (
         f"Expected {NUM_CONCURRENT_REQUESTS} items in database, but found {actual_count}."
@@ -114,12 +119,12 @@ def test_concurrent_watchlist_creation_no_collisions(cleanup_test_symbols) -> No
 
 
 @pytest.fixture
-def cleanup_uuid_test_symbol():
+def cleanup_uuid_test_symbol() -> Generator[str]:
     """Fixture that cleans up the ZZTESTUUID symbol before and after test."""
     storage = get_storage()
     test_symbol = "ZZTESTUUID"
 
-    def do_cleanup():
+    def do_cleanup() -> None:
         with storage.connection() as conn:
             conn.execute("DELETE FROM watchlist_items WHERE symbol = %s", (test_symbol,))
             conn.commit()
@@ -129,7 +134,7 @@ def cleanup_uuid_test_symbol():
     do_cleanup()
 
 
-def test_uuid_format_validation(cleanup_uuid_test_symbol) -> None:
+def test_uuid_format_validation(cleanup_uuid_test_symbol: str) -> None:
     """Test that watchlist item IDs follow UUID format.
 
     This test verifies that IDs are in UUID format (lowercase hex with dashes),

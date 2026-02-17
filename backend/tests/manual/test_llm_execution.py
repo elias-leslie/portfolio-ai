@@ -4,6 +4,8 @@ This script tests real LLM execution through Agent Hub API.
 Requires Agent Hub service running at localhost:8003.
 """
 
+from __future__ import annotations
+
 import sys
 from pathlib import Path
 
@@ -151,7 +153,7 @@ if __name__ == "__main__":
     print("LLM Execution Verification Test (via Agent Hub)")
     print("=" * 60)
 
-    results = []
+    results: list[dict[str, object]] = []
 
     # Test Agent Hub with Claude
     claude_result = test_agent_hub_availability()

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -23,7 +24,7 @@ class TestDatabaseScanner:
         return MagicMock()
 
     @pytest.fixture
-    def mock_config(self) -> dict:
+    def mock_config(self) -> dict[str, Any]:
         """Create mock config dict."""
         return {
             "scan_config": {
@@ -42,7 +43,7 @@ class TestDatabaseScanner:
             },
         }
 
-    def test_init(self, mock_conn_mgr: MagicMock, mock_config: dict) -> None:
+    def test_init(self, mock_conn_mgr: MagicMock, mock_config: dict[str, Any]) -> None:
         """Test scanner initialization."""
         scanner = DatabaseScanner(mock_conn_mgr, config=mock_config)
 
@@ -57,7 +58,7 @@ class TestDatabaseScanner:
         mock_inspect: MagicMock,
         mock_create_engine: MagicMock,
         mock_conn_mgr: MagicMock,
-        mock_config: dict,
+        mock_config: dict[str, Any],
     ) -> None:
         """Test scan returns empty list when disabled."""
         # Disable scanning
@@ -81,7 +82,7 @@ class TestDatabaseScanner:
         mock_inspect: MagicMock,
         mock_create_engine: MagicMock,
         mock_conn_mgr: MagicMock,
-        mock_config: dict,
+        mock_config: dict[str, Any],
     ) -> None:
         """Test scanning a single table."""
         # Setup mocks
@@ -126,7 +127,7 @@ class TestDatabaseScanner:
         assert result[0]["expected_freshness"] == "daily"
 
     def test_calculate_freshness_status_current(
-        self, mock_conn_mgr: MagicMock, mock_config: dict
+        self, mock_conn_mgr: MagicMock, mock_config: dict[str, Any]
     ) -> None:
         """Test freshness status calculation - current."""
         # Mock thresholds
@@ -142,7 +143,7 @@ class TestDatabaseScanner:
             assert status == "current"
 
     def test_calculate_freshness_status_stale(
-        self, mock_conn_mgr: MagicMock, mock_config: dict
+        self, mock_conn_mgr: MagicMock, mock_config: dict[str, Any]
     ) -> None:
         """Test freshness status calculation - stale."""
         with patch("app.services.config_loader.get_freshness_thresholds") as mock_thresholds:
@@ -157,7 +158,7 @@ class TestDatabaseScanner:
             assert status == "stale"
 
     def test_calculate_freshness_status_critical(
-        self, mock_conn_mgr: MagicMock, mock_config: dict
+        self, mock_conn_mgr: MagicMock, mock_config: dict[str, Any]
     ) -> None:
         """Test freshness status calculation - critical."""
         with patch("app.services.config_loader.get_freshness_thresholds") as mock_thresholds:
@@ -171,7 +172,7 @@ class TestDatabaseScanner:
             status = calculate_freshness_status("daily", 10)
             assert status == "critical"
 
-    def test_save_capabilities_upsert(self, mock_conn_mgr: MagicMock, mock_config: dict) -> None:
+    def test_save_capabilities_upsert(self, mock_conn_mgr: MagicMock, mock_config: dict[str, Any]) -> None:
         """Test saving capabilities with UPSERT logic."""
         mock_conn = MagicMock()
         mock_conn_mgr.connection.return_value.__enter__.return_value = mock_conn
@@ -211,7 +212,7 @@ class TestDatabaseScanner:
         assert mock_conn.commit.call_count == 2
 
     def test_save_capabilities_empty_list(
-        self, mock_conn_mgr: MagicMock, mock_config: dict
+        self, mock_conn_mgr: MagicMock, mock_config: dict[str, Any]
     ) -> None:
         """Test saving empty capabilities list."""
         scanner = DatabaseScanner(mock_conn_mgr, config=mock_config)
@@ -230,7 +231,7 @@ class TestAPIScanner:
         return MagicMock()
 
     @pytest.fixture
-    def mock_config(self) -> dict:
+    def mock_config(self) -> dict[str, Any]:
         """Create mock config dict."""
         return {
             "scan_config": {
@@ -248,7 +249,7 @@ class TestAPIScanner:
             },
         }
 
-    def test_init(self, mock_conn_mgr: MagicMock, mock_config: dict) -> None:
+    def test_init(self, mock_conn_mgr: MagicMock, mock_config: dict[str, Any]) -> None:
         """Test scanner initialization."""
         scanner = APIScanner(mock_conn_mgr, config=mock_config)
 
@@ -256,7 +257,7 @@ class TestAPIScanner:
         assert scanner.config == mock_config
         assert scanner.api_config == mock_config["scan_config"]["targets"]["api"]
 
-    def test_scan_disabled(self, mock_conn_mgr: MagicMock, mock_config: dict) -> None:
+    def test_scan_disabled(self, mock_conn_mgr: MagicMock, mock_config: dict[str, Any]) -> None:
         """Test scan returns empty list when disabled."""
         mock_config["scan_config"]["targets"]["api"]["enabled"] = False
 
@@ -270,7 +271,7 @@ class TestAPIScanner:
         self,
         mock_categorize: MagicMock,
         mock_conn_mgr: MagicMock,
-        mock_config: dict,
+        mock_config: dict[str, Any],
     ) -> None:
         """Test scanning a route file for endpoints."""
         mock_categorize.return_value = "portfolio"
@@ -303,7 +304,7 @@ async def create_account():
         assert endpoints[1]["endpoint_path"] == "/api/portfolio/account"
         assert endpoints[1]["http_method"] == "POST"
 
-    def test_extract_function_name(self, mock_conn_mgr: MagicMock, mock_config: dict) -> None:
+    def test_extract_function_name(self, mock_conn_mgr: MagicMock, mock_config: dict[str, Any]) -> None:
         """Test extracting function name from route decorator."""
         scanner = APIScanner(mock_conn_mgr, config=mock_config)
 
@@ -316,7 +317,7 @@ async def test_endpoint():
         func_name = scanner._extract_function_name(content, "get", "/api/test")
         assert func_name == "test_endpoint"
 
-    def test_detect_table_dependencies(self, mock_conn_mgr: MagicMock, mock_config: dict) -> None:
+    def test_detect_table_dependencies(self, mock_conn_mgr: MagicMock, mock_config: dict[str, Any]) -> None:
         """Test detecting table dependencies from SQL queries."""
         scanner = APIScanner(mock_conn_mgr, config=mock_config)
 

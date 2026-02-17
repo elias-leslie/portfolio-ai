@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+from typing import cast
 
 from app.storage.connection import ConnectionManager
+from app.storage.types import DatabaseConnection
 from app.watchlist.calculator import (
     calculate_entry_price,
     calculate_position_size,
@@ -62,7 +64,7 @@ def test_get_swing_low_returns_lowest_close_in_10_days() -> None:
             )
 
         # Execute
-        result = get_swing_low(conn, symbol, days=10)
+        result = get_swing_low(cast(DatabaseConnection, conn), symbol, days=10)
 
         # Verify: Should return 192.0 (lowest close in last 10 days)
         assert result == 192.0
@@ -88,7 +90,7 @@ def test_get_swing_low_returns_none_for_insufficient_data() -> None:
             )
 
         # Execute
-        result = get_swing_low(conn, symbol, days=10)
+        result = get_swing_low(cast(DatabaseConnection, conn), symbol, days=10)
 
         # Verify: Should return None (insufficient data)
         assert result is None
@@ -133,7 +135,7 @@ def test_get_swing_high_returns_highest_close_in_30_days() -> None:
             )
 
         # Execute
-        result = get_swing_high(conn, symbol, days=30)
+        result = get_swing_high(cast(DatabaseConnection, conn), symbol, days=30)
 
         # Verify: Should return 250.0 (highest close in last 30 days)
         assert result == 250.0
@@ -159,7 +161,7 @@ def test_get_swing_high_returns_none_for_insufficient_data() -> None:
             )
 
         # Execute
-        result = get_swing_high(conn, symbol, days=30)
+        result = get_swing_high(cast(DatabaseConnection, conn), symbol, days=30)
 
         # Verify: Should return None (insufficient data)
         assert result is None
@@ -171,7 +173,7 @@ def test_get_swing_low_with_no_data_returns_none() -> None:
 
     with cm.connection() as conn:
         # Execute with symbol that has no data
-        result = get_swing_low(conn, "NONEXISTENT", days=10)
+        result = get_swing_low(cast(DatabaseConnection, conn), "NONEXISTENT", days=10)
 
         # Verify
         assert result is None
@@ -183,7 +185,7 @@ def test_get_swing_high_with_no_data_returns_none() -> None:
 
     with cm.connection() as conn:
         # Execute with symbol that has no data
-        result = get_swing_high(conn, "NONEXISTENT", days=30)
+        result = get_swing_high(cast(DatabaseConnection, conn), "NONEXISTENT", days=30)
 
         # Verify
         assert result is None
@@ -231,7 +233,7 @@ class TestCalculateStopLoss:
             )
 
             # Entry $202, ATR $7 → Stop should be $202 - (2 x $7) = $188
-            stop = calculate_stop_loss(conn, symbol, entry_price=202.0)
+            stop = calculate_stop_loss(cast(DatabaseConnection, conn), symbol, entry_price=202.0)
             assert stop == 188.0
 
     def test_stop_loss_uses_tighter_of_atr_or_swing_low(self) -> None:
@@ -274,7 +276,7 @@ class TestCalculateStopLoss:
                 )
 
             # Should use swing low (146) as it's tighter
-            stop = calculate_stop_loss(conn, symbol, entry_price=150.0)
+            stop = calculate_stop_loss(cast(DatabaseConnection, conn), symbol, entry_price=150.0)
             assert stop == 146.0
 
 
@@ -299,7 +301,7 @@ class TestCalculateProfitTarget:
             )
 
             # Entry $300, ATR $8 → Target should be $300 + (2 x $8) = $316
-            target = calculate_profit_target(conn, symbol, entry_price=300.0)
+            target = calculate_profit_target(cast(DatabaseConnection, conn), symbol, entry_price=300.0)
             assert target == 316.0
 
     def test_profit_target_uses_higher_of_atr_or_swing_high(self) -> None:
@@ -342,7 +344,7 @@ class TestCalculateProfitTarget:
                 )
 
             # Should use swing high (170) as it's higher
-            target = calculate_profit_target(conn, symbol, entry_price=160.0)
+            target = calculate_profit_target(cast(DatabaseConnection, conn), symbol, entry_price=160.0)
             assert target == 170.0
 
 

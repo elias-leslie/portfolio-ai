@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import tempfile
+from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -37,7 +38,7 @@ def get_table_columns(conn: Any, table_name: str) -> dict[str, str]:
 
 
 @pytest.fixture
-def temp_db_path() -> Path:
+def temp_db_path() -> Generator[Path]:
     """Create a temporary database path for testing."""
     # Create temp directory and path (don't create the file)
     temp_dir = tempfile.mkdtemp()
@@ -84,7 +85,7 @@ def test_ensure_schema_creates_all_tables(schema_mgr: SchemaManager) -> None:
             FROM information_schema.tables
             WHERE table_schema = 'public'
         """).fetchall()
-        table_names = {t[0] for t in tables}
+        table_names = {str(t[0]) for t in tables}
 
         expected_tables = {
             "source_registry",
@@ -181,6 +182,7 @@ def test_user_preferences_defaults(schema_mgr: SchemaManager) -> None:
             ["user-1"],
         ).fetchone()
 
+    assert row is not None
     assert row[0] == 5
     assert row[1] is False
     assert pytest.approx(row[2], rel=1e-6) == 50.0
@@ -242,6 +244,8 @@ def test_table_registry_populated(schema_mgr: SchemaManager) -> None:
 
     with schema_mgr.connection_mgr.connection() as conn:
         result = conn.execute("SELECT COUNT(*) FROM table_registry").fetchone()
+        assert result is not None
+        assert isinstance(result[0], int)
         assert result[0] >= 19, "table_registry should have at least 19 entries"
 
 
@@ -257,7 +261,7 @@ def test_schema_idempotent(schema_mgr: SchemaManager) -> None:
             FROM information_schema.tables
             WHERE table_schema = 'public'
         """).fetchall()
-        table_names = {t[0] for t in tables}
+        table_names = {str(t[0]) for t in tables}
 
         # Should still have all tables
         assert "portfolio_accounts" in table_names
@@ -278,6 +282,7 @@ def test_insert_into_portfolio_accounts(schema_mgr: SchemaManager) -> None:
         )
 
         result = conn.execute("SELECT COUNT(*) FROM portfolio_accounts").fetchone()
+        assert result is not None
         assert result[0] == 1
 
 

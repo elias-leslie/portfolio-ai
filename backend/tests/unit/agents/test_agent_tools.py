@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 from unittest.mock import Mock
 
 import pytest
@@ -82,7 +83,7 @@ def agent_tools(
 
 def test_get_news_tool_definition() -> None:
     """Test news tool definition structure."""
-    tool_def = get_news_tool_definition()
+    tool_def: dict[str, Any] = get_news_tool_definition()
 
     assert tool_def["name"] == "get_news"
     assert "description" in tool_def
@@ -95,7 +96,7 @@ def test_get_news_tool_definition() -> None:
 
 def test_get_economic_data_tool_definition() -> None:
     """Test economic data tool definition structure."""
-    tool_def = get_economic_data_tool_definition()
+    tool_def: dict[str, Any] = get_economic_data_tool_definition()
 
     assert tool_def["name"] == "get_economic_data"
     assert "description" in tool_def
@@ -106,7 +107,7 @@ def test_get_economic_data_tool_definition() -> None:
 
 def test_get_portfolio_data_tool_definition() -> None:
     """Test portfolio data tool definition structure."""
-    tool_def = get_portfolio_data_tool_definition()
+    tool_def: dict[str, Any] = get_portfolio_data_tool_definition()
 
     assert tool_def["name"] == "get_portfolio_data"
     assert "description" in tool_def
@@ -116,7 +117,7 @@ def test_get_portfolio_data_tool_definition() -> None:
 
 def test_get_price_data_tool_definition() -> None:
     """Test price data tool definition structure."""
-    tool_def = get_price_data_tool_definition()
+    tool_def: dict[str, Any] = get_price_data_tool_definition()
 
     assert tool_def["name"] == "get_price_data"
     assert "description" in tool_def
@@ -127,7 +128,7 @@ def test_get_price_data_tool_definition() -> None:
 
 def test_get_store_idea_tool_definition() -> None:
     """Test store idea tool definition structure."""
-    tool_def = get_store_idea_tool_definition()
+    tool_def: dict[str, Any] = get_store_idea_tool_definition()
 
     assert tool_def["name"] == "store_idea"
     assert "description" in tool_def
@@ -204,7 +205,7 @@ def test_execute_get_news(agent_tools: AgentTools, mock_news_service: Mock) -> N
     mock_news_service.get_news_intelligence.return_value = mock_bundle
 
     # Execute
-    result = agent_tools.execute_get_news("stock market", max_results=10)
+    result: dict[str, Any] = agent_tools.execute_get_news("stock market", max_results=10)
 
     # Verify
     assert result["query"] == "stock market"
@@ -258,7 +259,7 @@ def test_execute_get_economic_data(agent_tools: AgentTools, mock_fred_source: Mo
     mock_fred_source.fetch_multiple.return_value = mock_data
 
     # Execute
-    result = agent_tools.execute_get_economic_data(["VIX", "TNX"])
+    result: dict[str, Any] = agent_tools.execute_get_economic_data(["VIX", "TNX"])
 
     # Verify
     assert result["indicators"] == mock_data
@@ -274,7 +275,7 @@ def test_execute_get_portfolio_data_empty(
     mock_portfolio_mgr.get_positions.return_value = []
 
     # Execute
-    result = agent_tools.execute_get_portfolio_data()
+    result: dict[str, Any] = agent_tools.execute_get_portfolio_data()
 
     # Verify
     assert result["positions"] == []
@@ -354,7 +355,7 @@ def test_execute_get_portfolio_data_with_positions(
     mock_analytics.calculate_full_analytics.return_value = mock_portfolio_analytics
 
     # Execute
-    result = agent_tools.execute_get_portfolio_data()
+    result: dict[str, Any] = agent_tools.execute_get_portfolio_data()
 
     # Verify
     assert len(result["positions"]) == 2
@@ -394,7 +395,7 @@ def test_execute_get_price_data(agent_tools: AgentTools, mock_price_fetcher: Moc
     mock_price_fetcher.fetch_price_data.return_value = price_data
 
     # Execute
-    result = agent_tools.execute_get_price_data(["AAPL", "MSFT"])
+    result: dict[str, Any] = agent_tools.execute_get_price_data(["AAPL", "MSFT"])
 
     # Verify
     assert result["count"] == 2
@@ -422,7 +423,7 @@ def test_execute_store_idea(agent_tools: AgentTools, mock_storage: Mock) -> None
     }
 
     # Execute
-    result = agent_tools.execute_store_idea(run_id, **idea_data)
+    result: dict[str, Any] = agent_tools.execute_store_idea(run_id, **idea_data)
 
     # Verify
     assert "idea_id" in result
@@ -461,7 +462,7 @@ def test_execute_store_idea_minimal_fields(agent_tools: AgentTools, mock_storage
     }
 
     # Execute
-    result = agent_tools.execute_store_idea(run_id, **idea_data)
+    result: dict[str, Any] = agent_tools.execute_store_idea(run_id, **idea_data)
 
     # Verify
     assert result["status"] == "stored"

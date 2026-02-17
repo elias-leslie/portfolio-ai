@@ -7,6 +7,7 @@ when using Gemini CLI and Claude CLI instead of direct Anthropic API calls.
 from __future__ import annotations
 
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -25,7 +26,7 @@ from app.storage import PortfolioStorage
 
 
 @pytest.fixture
-def storage() -> PortfolioStorage:
+def storage() -> Generator[PortfolioStorage]:
     """Create a PortfolioStorage instance with a temporary database."""
     temp_dir = tempfile.mkdtemp()
     db_path = Path(temp_dir) / "test.db"

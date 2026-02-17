@@ -51,48 +51,17 @@ def clean_before_test() -> Iterator[None]:
 
     # Now set up test data
     storage = get_storage()
-    with storage.connection() as conn:
-        # Insert test data for multiple symbols
-        test_data = [
-            {
-                "symbol": "NVDA",
-                "source": "fundamentals",
-                "as_of_date": date.today(),
-                "pe_trailing": 53.24,
-                "pe_forward": 45.35,
-                "ps_ratio": 27.54,
-                "pb_ratio": 45.43,
-                "peg_ratio": 2.15,
-                "dividend_yield": 0.02,
-                "payout_ratio": 0.0114,
-            },
-            {
-                "symbol": "AAPL",
-                "source": "fundamentals",
-                "as_of_date": date.today(),
-                "pe_trailing": 29.5,
-                "pe_forward": 26.3,
-                "ps_ratio": 7.2,
-                "pb_ratio": 48.5,
-                "peg_ratio": 2.8,
-                "dividend_yield": 0.004,
-                "payout_ratio": 0.16,
-            },
-            {
-                "symbol": "MSFT",
-                "source": "fundamentals",
-                "as_of_date": date.today(),
-                "pe_trailing": 35.2,
-                "pe_forward": 31.5,
-                "ps_ratio": 9.1,
-                "pb_ratio": 55.2,
-                "peg_ratio": 3.1,
-                "dividend_yield": 0.0085,
-                "payout_ratio": 0.25,
-            },
-        ]
 
-        for data in test_data:
+    # Typed rows: (symbol, source, as_of_date, pe_trailing, pe_forward, ps_ratio, pb_ratio, peg_ratio, dividend_yield, payout_ratio)
+    ValuationRow = tuple[str, str, date, float, float, float, float, float, float, float]
+    test_data: list[ValuationRow] = [
+        ("NVDA", "fundamentals", date.today(), 53.24, 45.35, 27.54, 45.43, 2.15, 0.02, 0.0114),
+        ("AAPL", "fundamentals", date.today(), 29.5, 26.3, 7.2, 48.5, 2.8, 0.004, 0.16),
+        ("MSFT", "fundamentals", date.today(), 35.2, 31.5, 9.1, 55.2, 3.1, 0.0085, 0.25),
+    ]
+
+    with storage.connection() as conn:
+        for (symbol, source, as_of_date, pe_trailing, pe_forward, ps_ratio, pb_ratio, peg_ratio, dividend_yield, payout_ratio) in test_data:
             conn.execute(
                 """
                 INSERT INTO reference_cache
@@ -102,17 +71,17 @@ def clean_before_test() -> Iterator[None]:
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 [
-                    data["symbol"],
-                    data["source"],
-                    data["as_of_date"],
-                    json.dumps({"symbol": data["symbol"]}),
-                    data["pe_trailing"],
-                    data["pe_forward"],
-                    data["ps_ratio"],
-                    data["pb_ratio"],
-                    data["peg_ratio"],
-                    data["dividend_yield"],
-                    data["payout_ratio"],
+                    symbol,
+                    source,
+                    as_of_date.isoformat(),
+                    json.dumps({"symbol": symbol}),
+                    pe_trailing,
+                    pe_forward,
+                    ps_ratio,
+                    pb_ratio,
+                    peg_ratio,
+                    dividend_yield,
+                    payout_ratio,
                 ],
             )
         conn.commit()

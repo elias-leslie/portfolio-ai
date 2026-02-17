@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
 from unittest.mock import patch
 
@@ -14,7 +15,7 @@ from app.storage import PortfolioStorage
 
 
 @pytest.fixture
-def test_storage() -> PortfolioStorage:
+def test_storage() -> Generator[PortfolioStorage]:
     """Create a PortfolioStorage instance with a temporary database."""
     temp_dir = tempfile.mkdtemp()
     db_path = Path(temp_dir) / "test_api_preferences.db"
@@ -45,7 +46,7 @@ def test_storage() -> PortfolioStorage:
 
 
 @pytest.fixture
-def client(test_storage: PortfolioStorage) -> TestClient:
+def client(test_storage: PortfolioStorage) -> Generator[TestClient]:
     """Create a test client with patched storage."""
     # Patch storage at multiple import points
     with (
@@ -62,6 +63,7 @@ def test_get_preferences_creates_defaults(
     # Verify no preferences exist
     with test_storage.connection() as conn:
         result = conn.execute("SELECT COUNT(*) FROM user_preferences").fetchone()
+        assert result is not None
         assert result[0] == 0
 
     response = client.get("/api/preferences")
@@ -83,6 +85,7 @@ def test_get_preferences_creates_defaults(
     # Verify defaults were saved to database
     with test_storage.connection() as conn:
         result = conn.execute("SELECT COUNT(*) FROM user_preferences").fetchone()
+        assert result is not None
         assert result[0] == 1
 
 
@@ -175,6 +178,7 @@ def test_update_preferences_all_fields(client: TestClient, test_storage: Portfol
         result = conn.execute(
             "SELECT risk_tolerance, max_position_size_pct, news_lookback_hours FROM user_preferences"
         ).fetchone()
+        assert result is not None
         assert result[0] == 7
         assert result[1] == 15.0
         assert result[2] == 12
@@ -378,6 +382,7 @@ def test_update_preferences_timezone(client: TestClient, test_storage: Portfolio
     # Verify persisted to database
     with test_storage.connection() as conn:
         result = conn.execute("SELECT display_timezone FROM user_preferences").fetchone()
+        assert result is not None
         assert result[0] == "America/Los_Angeles"
 
 

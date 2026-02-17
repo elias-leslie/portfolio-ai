@@ -224,6 +224,7 @@ async def get_valuation_metrics_batch(
                 | int
                 | float
                 | bool
+                | dt.date
                 | dt.datetime
                 | list[str | int | float | bool | None]
                 | None

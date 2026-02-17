@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import tempfile
+from collections.abc import Generator
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
 from unittest.mock import Mock, patch
 
 import pytest
@@ -22,7 +24,7 @@ from app.storage import PortfolioStorage
 
 
 @pytest.fixture
-def storage() -> PortfolioStorage:
+def storage() -> Generator[PortfolioStorage]:
     """Create a PortfolioStorage instance with a temporary database."""
     temp_dir = tempfile.mkdtemp()
     db_path = Path(temp_dir) / "test.db"
@@ -314,12 +316,16 @@ def test_portfolio_analyzer_execute_tool_get_portfolio_data(
     """Test executing get_portfolio_data tool."""
     agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools)
 
-    result = agent.execute_tool("get_portfolio_data", {})
+    result = cast(dict[str, object], agent.execute_tool("get_portfolio_data", {}))
 
     assert "positions" in result
     assert "analytics" in result
-    assert len(result["positions"]) == 2
-    assert result["positions"][0]["symbol"] == "AAPL"
+    positions = result["positions"]
+    assert isinstance(positions, list)
+    assert len(positions) == 2
+    first_pos = positions[0]
+    assert isinstance(first_pos, dict)
+    assert first_pos["symbol"] == "AAPL"
     mock_price_fetcher.fetch_price_data.assert_called_once()
 
 
@@ -331,7 +337,7 @@ def test_portfolio_analyzer_execute_tool_get_price_data(
     """Test executing get_price_data tool."""
     agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools)
 
-    result = agent.execute_tool("get_price_data", {"symbols": ["AAPL", "MSFT"]})
+    result = cast(dict[str, object], agent.execute_tool("get_price_data", {"symbols": ["AAPL", "MSFT"]}))
 
     assert "prices" in result
     assert "count" in result
@@ -351,7 +357,7 @@ def test_portfolio_analyzer_execute_tool_store_idea(
         {
             "id": "test-run-id",
             "agent_type": "PortfolioAnalyzerAgent",
-            "started_at": datetime.now(UTC),
+            "started_at": datetime.now(UTC).isoformat(),
             "completed_at": None,
             "status": "running",
             "num_ideas": 0,
@@ -362,16 +368,19 @@ def test_portfolio_analyzer_execute_tool_store_idea(
         },
     )
 
-    result = agent.execute_tool(
-        "store_idea",
-        {
-            "title": "Diversify into bonds",
-            "thesis": "Portfolio is 100% tech, bonds reduce volatility",
-            "action": "Buy BND ETF",
-            "idea_type": "long",
-            "confidence_score": 70,
-            "risk_level": "low",
-        },
+    result = cast(
+        dict[str, object],
+        agent.execute_tool(
+            "store_idea",
+            {
+                "title": "Diversify into bonds",
+                "thesis": "Portfolio is 100% tech, bonds reduce volatility",
+                "action": "Buy BND ETF",
+                "idea_type": "long",
+                "confidence_score": 70,
+                "risk_level": "low",
+            },
+        ),
     )
 
     assert result["status"] == "stored"
@@ -447,7 +456,9 @@ def test_portfolio_analyzer_run_full_execution(
         for i, idea in enumerate(ideas):
             assert idea[3] == f"Portfolio Idea {i + 1}"  # title
             # Verify ideas reference portfolio
-            assert "tech" in idea[4].lower() or "portfolio" in idea[4].lower()  # thesis
+            thesis = idea[4]
+            assert isinstance(thesis, str)
+            assert "tech" in thesis.lower() or "portfolio" in thesis.lower()  # thesis
 
 
 def test_portfolio_analyzer_run_with_empty_portfolio(
@@ -473,7 +484,7 @@ def test_portfolio_analyzer_run_with_empty_portfolio(
     agent = PortfolioAnalyzerAgent(storage=storage, tools=tools)
 
     # Execute get_portfolio_data
-    result = agent.execute_tool("get_portfolio_data", {})
+    result = cast(dict[str, object], agent.execute_tool("get_portfolio_data", {}))
 
     assert result["positions"] == []
     assert result["analytics"] is None

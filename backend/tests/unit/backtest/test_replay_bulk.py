@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import date
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
@@ -9,12 +11,12 @@ from app.backtest.replay import BacktestState, replay_backtest
 
 
 @pytest.fixture
-def mock_storage():
+def mock_storage() -> MagicMock:
     return MagicMock()
 
 
 @pytest.fixture
-def mock_strategy():
+def mock_strategy() -> MagicMock:
     strategy = MagicMock()
     strategy.should_enter.return_value = False
     strategy.should_exit.return_value = (False, None)
@@ -25,8 +27,8 @@ def mock_strategy():
 @patch("app.backtest.replay._fetch_ohlcv_data")
 @patch("app.backtest.replay.calculate_indicators_from_df")
 def test_replay_backtest_bulk_fetch(
-    mock_calc_indicators, mock_fetch_data, mock_get_data_range, mock_storage, mock_strategy
-):
+    mock_calc_indicators: MagicMock, mock_fetch_data: MagicMock, mock_get_data_range: MagicMock, mock_storage: MagicMock, mock_strategy: MagicMock
+) -> None:
     # Setup mock data - use 250 trading days to satisfy the 200-day minimum
     start_date = date(2023, 1, 1)
     end_date = date(2023, 12, 31)

@@ -67,9 +67,12 @@ def extract_with_path(data: dict[str, Any], path: str | None) -> Any:
     return current
 
 
-def _extract_data_from_response(response: dict[str, Any], data_path: str | None) -> Any:
+def _extract_data_from_response(response: dict[str, Any] | list[dict[str, Any]], data_path: str | None) -> Any:
     """Extract data from response using optional data_path."""
     if not data_path:
+        return response
+
+    if isinstance(response, list):
         return response
 
     extracted = extract_with_path(response, data_path)
@@ -130,7 +133,7 @@ def _validate_and_build_rename_map(
 
 
 def map_response_to_schema(
-    response: dict[str, Any],
+    response: dict[str, Any] | list[dict[str, Any]],
     mapping_config: dict[str, Any],
 ) -> pl.DataFrame | None:
     """Map API response to portfolio-ai schema using field mapping (see helper functions)."""

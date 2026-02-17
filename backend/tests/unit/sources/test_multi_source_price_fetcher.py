@@ -6,10 +6,17 @@ Tests source initialization, API key detection, and failover behavior.
 from __future__ import annotations
 
 import os
+from collections.abc import Generator
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+import app.sources as sources_module
+import app.sources.alphavantage_source as alphavantage_module
+import app.sources.finnhub_source as finnhub_module
+import app.sources.fmp_source as fmp_module
+import app.sources.polygon_client as polygon_client_module
+import app.sources.twelvedata_source as twelvedata_module
 from app.portfolio.price_fetcher import PriceDataFetcher
 from app.sources.alphavantage_source import AlphaVantageSource
 from app.sources.finnhub_source import FinnhubSource
@@ -18,6 +25,32 @@ from app.sources.polygon_source import PolygonSource
 from app.sources.twelvedata_source import TwelveDataSource
 from app.sources.yfinance_source import YFinanceSource
 from app.storage import PortfolioStorage
+
+
+@pytest.fixture(autouse=True)
+def reset_sources_cache() -> Generator[None, None, None]:
+    """Reset the module-level sources cache and source client singletons before each test.
+
+    initialize_data_sources() caches results globally, and each source module
+    has a singleton client that persists between tests. Both must be cleared
+    so each test exercises fresh initialization with its own env vars.
+    """
+    # Reset global sources cache
+    sources_module._cached_sources = None
+    # Reset per-source client singletons to prevent API key bleed between tests
+    fmp_module._ClientState.client = None
+    finnhub_module._ClientState.client = None
+    twelvedata_module._ClientState.client = None
+    polygon_client_module._ClientState.client = None
+    alphavantage_module._ClientState.client = None
+    yield
+    # Cleanup after test
+    sources_module._cached_sources = None
+    fmp_module._ClientState.client = None
+    finnhub_module._ClientState.client = None
+    twelvedata_module._ClientState.client = None
+    polygon_client_module._ClientState.client = None
+    alphavantage_module._ClientState.client = None
 
 
 @pytest.fixture

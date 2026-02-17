@@ -1,5 +1,7 @@
 """Tests for DatabaseConnection Protocol definition."""
 
+from __future__ import annotations
+
 from typing import Any
 
 from app.storage.types import DatabaseConnection
@@ -28,7 +30,7 @@ def test_protocol_can_be_imported() -> None:
 
 def test_mock_implements_protocol() -> None:
     """Test that mock object implements the Protocol correctly."""
-    mock_conn: DatabaseConnection = MockDatabaseConnection()
+    mock_conn = MockDatabaseConnection()
 
     # Test execute method
     result = mock_conn.execute("SELECT * FROM test", ["param1"])

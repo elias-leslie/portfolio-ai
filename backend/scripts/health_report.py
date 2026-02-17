@@ -92,8 +92,8 @@ def generate_health_report() -> dict[str, Any]:
             """
             result = conn.execute(db_query)
             for row in result.fetchall():
-                health_status_val: str = row[0]
-                count_val: int = row[1]
+                health_status_val = str(row[0])
+                count_val = int(row[1]) if row[1] is not None else 0
                 summary["by_type"]["database"][health_status_val] = count_val  # type: ignore[index]
                 summary["by_status"][health_status_val] += count_val  # type: ignore[index]
                 summary["total_capabilities"] += count_val  # type: ignore[operator]
@@ -107,11 +107,11 @@ def generate_health_report() -> dict[str, Any]:
             """
             result = conn.execute(db_detail_query)
             for row in result.fetchall():
-                table_name_val: str = row[0]
-                health_status_val = row[1]
-                row_count_val: int = row[2]
-                days_since_val: int | None = row[3]
-                freshness_val: str = row[4]
+                table_name_val = str(row[0])
+                health_status_val = str(row[1])
+                row_count_val = int(row[2]) if row[2] is not None else 0
+                days_since_val = int(row[3]) if row[3] is not None else None
+                freshness_val = str(row[4])
                 detail = {
                     "type": "database",
                     "name": table_name_val,
@@ -130,8 +130,8 @@ def generate_health_report() -> dict[str, Any]:
             """
             result = conn.execute(celery_query)
             for row in result.fetchall():
-                health_status_val = row[0]
-                count_val = row[1]
+                health_status_val = str(row[0])
+                count_val = int(row[1]) if row[1] is not None else 0
                 summary["by_type"]["celery"][health_status_val] = count_val  # type: ignore[index]
                 summary["by_status"][health_status_val] += count_val  # type: ignore[index]
                 summary["total_capabilities"] += count_val  # type: ignore[operator]
@@ -145,17 +145,20 @@ def generate_health_report() -> dict[str, Any]:
             """
             result = conn.execute(celery_detail_query)
             for row in result.fetchall():
-                task_name_val = row[0]
-                health_status_val = row[1]
+                task_name_val = str(row[0])
+                health_status_val = str(row[1])
                 schedule_val = row[2]
                 success_rate_val = row[3]
-                last_run_val = row[4]
+                last_run_raw = row[4]
+                last_run_iso: str | None = None
+                if last_run_raw is not None and hasattr(last_run_raw, "isoformat"):
+                    last_run_iso = last_run_raw.isoformat()
                 detail = {
                     "type": "celery",
                     "name": task_name_val,
                     "schedule": schedule_val,
                     "success_rate_pct": success_rate_val,
-                    "last_run_at": last_run_val.isoformat() if last_run_val else None,
+                    "last_run_at": last_run_iso,
                 }
                 summary[health_status_val].append(detail)  # type: ignore[attr-defined]
 
@@ -168,8 +171,8 @@ def generate_health_report() -> dict[str, Any]:
             """
             result = conn.execute(api_query)
             for row in result.fetchall():
-                health_status_val = row[0]
-                count_val = row[1]
+                health_status_val = str(row[0])
+                count_val = int(row[1]) if row[1] is not None else 0
                 summary["by_type"]["api"][health_status_val] = count_val  # type: ignore[index]
                 summary["by_status"][health_status_val] += count_val  # type: ignore[index]
                 summary["total_capabilities"] += count_val  # type: ignore[operator]
@@ -183,10 +186,10 @@ def generate_health_report() -> dict[str, Any]:
             """
             result = conn.execute(api_detail_query)
             for row in result.fetchall():
-                endpoint_val = row[0]
-                method_val = row[1]
-                health_status_val = row[2]
-                function_val = row[3]
+                endpoint_val = str(row[0])
+                method_val = str(row[1])
+                health_status_val = str(row[2])
+                function_val = str(row[3])
                 detail = {
                     "type": "api",
                     "name": f"{method_val} {endpoint_val}",

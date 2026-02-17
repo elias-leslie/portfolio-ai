@@ -15,7 +15,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.analytics.sector_strength import (
-    SECTOR_ETFS,
     TOP_SECTORS,
     SectorStrength,
     _calculate_returns,
@@ -24,6 +23,7 @@ from app.analytics.sector_strength import (
     calculate_sector_strength_score,
     get_symbol_sector_etf,
 )
+from app.constants import SECTOR_ETFS
 
 
 class TestSectorETFConstants:

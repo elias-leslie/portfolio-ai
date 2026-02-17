@@ -79,7 +79,7 @@ def test_refresh_returns_detailed_results_all_success(
             price=150.0,
             beta=1.2,
             volatility=0.25,
-            fetched_at=datetime.now(UTC),
+            cached_at=datetime.now(UTC),
             source="yfinance",
         ),
         "GOOGL": PriceData(
@@ -87,7 +87,7 @@ def test_refresh_returns_detailed_results_all_success(
             price=2800.0,
             beta=1.1,
             volatility=0.22,
-            fetched_at=datetime.now(UTC),
+            cached_at=datetime.now(UTC),
             source="yfinance",
         ),
     }
@@ -152,7 +152,7 @@ def test_refresh_returns_detailed_results_partial_failure(
             price=150.0,
             beta=1.2,
             volatility=0.25,
-            fetched_at=datetime.now(UTC),
+            cached_at=datetime.now(UTC),
             source="yfinance",
         ),
         "INVALID": PriceData(
@@ -160,7 +160,7 @@ def test_refresh_returns_detailed_results_partial_failure(
             price=0.0,  # Invalid price
             beta=None,
             volatility=None,
-            fetched_at=datetime.now(UTC),
+            cached_at=datetime.now(UTC),
             source="yfinance",
         ),
         "GOOGL": PriceData(
@@ -168,7 +168,7 @@ def test_refresh_returns_detailed_results_partial_failure(
             price=2800.0,
             beta=1.1,
             volatility=0.22,
-            fetched_at=datetime.now(UTC),
+            cached_at=datetime.now(UTC),
             source="yfinance",
         ),
     }
@@ -236,7 +236,7 @@ def test_refresh_continues_after_individual_failures(
             price=0.0,  # Invalid
             beta=None,
             volatility=None,
-            fetched_at=datetime.now(UTC),
+            cached_at=datetime.now(UTC),
             source="yfinance",
         ),
         "GOOGL": PriceData(
@@ -244,7 +244,7 @@ def test_refresh_continues_after_individual_failures(
             price=2800.0,
             beta=1.1,
             volatility=0.22,
-            fetched_at=datetime.now(UTC),
+            cached_at=datetime.now(UTC),
             source="yfinance",
         ),
     }

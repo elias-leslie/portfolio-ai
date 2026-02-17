@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 from app.storage.connection import ConnectionManager
+from app.storage.types import DatabaseConnection
 from app.watchlist.fundamentals import (
     FinnhubSource,
     FMPSource,
@@ -379,8 +381,9 @@ class TestFundamentalsCaching:
 
         cm = ConnectionManager()
         with cm.connection() as conn:
+            db_conn = cast(DatabaseConnection, conn)
             # First call should fetch from API and cache
-            result = fetch_fundamentals_cached(conn, "NVDA")
+            result = fetch_fundamentals_cached(db_conn, "NVDA")
 
             assert result is not None
             assert result.symbol == "NVDA"
@@ -393,7 +396,7 @@ class TestFundamentalsCaching:
             ).fetchone()
 
             assert cached_row is not None
-            cached_data = cached_row[0]
+            cached_data = cast(dict[str, Any], cached_row[0])
             assert cached_data["symbol"] == "NVDA"
             assert cached_data["profit_margin"] == 0.53
 
@@ -409,13 +412,14 @@ class TestFundamentalsCaching:
 
         cm = ConnectionManager()
         with cm.connection() as conn:
+            db_conn = cast(DatabaseConnection, conn)
             # First call - fetches from API
-            result1 = fetch_fundamentals_cached(conn, "META")
+            result1 = fetch_fundamentals_cached(db_conn, "META")
             assert result1 is not None
             assert mock_fetch.call_count == 1
 
             # Second call within TTL - should use cache, not call API again
-            result2 = fetch_fundamentals_cached(conn, "META")
+            result2 = fetch_fundamentals_cached(db_conn, "META")
             assert result2 is not None
             assert result2.profit_margin == 0.35
             assert mock_fetch.call_count == 1  # Still only 1 call
@@ -433,8 +437,9 @@ class TestFundamentalsCaching:
 
         cm = ConnectionManager()
         with cm.connection() as conn:
+            db_conn = cast(DatabaseConnection, conn)
             # First call - caches data
-            result1 = fetch_fundamentals_cached(conn, "NVDA")
+            result1 = fetch_fundamentals_cached(db_conn, "NVDA")
             assert result1 is not None
             assert mock_fetch.call_count == 1
 
@@ -455,7 +460,7 @@ class TestFundamentalsCaching:
             )
 
             # Second call - should detect stale cache and re-fetch
-            result2 = fetch_fundamentals_cached(conn, "NVDA")
+            result2 = fetch_fundamentals_cached(db_conn, "NVDA")
             assert result2 is not None
             assert result2.profit_margin == 0.55  # New data
             assert mock_fetch.call_count == 2  # Called again
@@ -467,7 +472,8 @@ class TestFundamentalsCaching:
 
         cm = ConnectionManager()
         with cm.connection() as conn:
-            result = fetch_fundamentals_cached(conn, "INVALID")
+            db_conn = cast(DatabaseConnection, conn)
+            result = fetch_fundamentals_cached(db_conn, "INVALID")
 
             assert result is None
             # Should not have cached anything

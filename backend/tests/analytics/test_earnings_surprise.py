@@ -241,7 +241,7 @@ class TestCalculateEarningsSurpriseScore:
 
     def test_recent_beat_2_points(self) -> None:
         """Test recent beat (most recent quarter) = 2 points."""
-        surprises = [
+        surprises: list[dict[str, Any]] = [
             {"symbol": "NVDA", "surprise_direction": "beat", "surprise_pct": 5.0},
             {"symbol": "NVDA", "surprise_direction": "miss"},
             {"symbol": "NVDA", "surprise_direction": "miss"},

@@ -58,7 +58,7 @@ class TestStoreStrategySeed:
         )
 
         assert result["status"] == "error"
-        assert "Symbol is required" in result["error"]
+        assert "Symbol is required" in str(result["error"])
 
     def test_store_seed_normalizes_confidence_from_100_scale(self) -> None:
         """Test confidence is normalized from 0-100 to 1-10 scale."""

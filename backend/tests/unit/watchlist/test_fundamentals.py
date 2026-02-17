@@ -6,6 +6,7 @@ and 4-pillar scoring system (valuation, growth, health, sentiment).
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -299,7 +300,7 @@ class TestCalculateFundamentalScore:
 class TestYFinanceSource:
     """Tests for YFinanceSource fundamental data fetching."""
 
-    @patch("app.watchlist.fundamentals.yf")
+    @patch("app.watchlist.fundamentals_sources.yf")
     def test_successful_fetch(self, mock_yf: MagicMock) -> None:
         """Test successful data fetch from YFinance."""
         mock_ticker = MagicMock()
@@ -325,7 +326,7 @@ class TestYFinanceSource:
         assert data.recommendation_mean == 2.0
         assert data.target_mean_price == 180.0
 
-    @patch("app.watchlist.fundamentals.yf")
+    @patch("app.watchlist.fundamentals_sources.yf")
     def test_missing_fields(self, mock_yf: MagicMock) -> None:
         """Test handling of missing fields in YFinance response."""
         mock_ticker = MagicMock()
@@ -343,7 +344,7 @@ class TestYFinanceSource:
         assert data.revenue_growth is None
         assert data.debt_to_equity is None
 
-    @patch("app.watchlist.fundamentals.yf")
+    @patch("app.watchlist.fundamentals_sources.yf")
     def test_fetch_error(self, mock_yf: MagicMock) -> None:
         """Test error handling when YFinance fetch fails."""
         mock_yf.Ticker.side_effect = Exception("Network error")
@@ -353,7 +354,7 @@ class TestYFinanceSource:
 
         assert data is None
 
-    @patch("app.watchlist.fundamentals.YFINANCE_AVAILABLE", False)
+    @patch("app.watchlist.fundamentals_sources.YFINANCE_AVAILABLE", False)
     def test_yfinance_not_available(self) -> None:
         """Test graceful handling when yfinance package not installed."""
         source = YFinanceSource()
@@ -406,7 +407,7 @@ class TestFundamentalDataModel:
 
     def test_model_deserialization(self) -> None:
         """Test model can be created from dict."""
-        data_dict = {
+        data_dict: dict[str, Any] = {
             "symbol": "AAPL",
             "profit_margin": 0.25,
             "fundamental_score": 85.0,

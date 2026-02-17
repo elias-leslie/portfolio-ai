@@ -112,7 +112,7 @@ def fetch_sector_data_with_changes(
     with storage.connection() as conn:
         # Cast list[str] to expected parameter type for ANY operator compatibility
         params: list[
-            str | int | float | bool | datetime | list[str | int | float | bool | None] | None
+            str | int | float | bool | date | datetime | list[str | int | float | bool | None] | None
         ] = [cast(list[str | int | float | bool | None], sector_symbols)]
 
         result = conn.execute(

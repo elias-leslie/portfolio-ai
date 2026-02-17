@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from unittest.mock import patch
 
 import pytest
@@ -19,7 +20,7 @@ def client() -> TestClient:
 
 
 @pytest.fixture(autouse=True)
-def cleanup_database():
+def cleanup_database() -> Generator[None]:
     """Clean up database before and after each test."""
     storage = get_storage()
 
@@ -39,13 +40,13 @@ def cleanup_database():
 
 
 @pytest.fixture(autouse=True)
-def clear_response_cache():
+def clear_response_cache() -> None:
     """Ensure cached analytics responses don't leak between tests."""
     clear_cache()
 
 
 @pytest.fixture(autouse=True)
-def mock_price_data():
+def mock_price_data() -> Generator[None]:
     """Mock price fetcher to return valid price data for test symbols."""
     from app.portfolio.models import PriceData
     from app.portfolio.price_fetcher import PriceDataFetcher
@@ -72,7 +73,7 @@ def mock_price_data():
         yield
 
 
-def test_portfolio_crud_integration_flow(client: TestClient):
+def test_portfolio_crud_integration_flow(client: TestClient) -> None:
     """Test complete portfolio CRUD flow: add account → add position → fetch analytics → delete position."""
 
     # Step 1: Create an account
@@ -176,7 +177,7 @@ def test_portfolio_crud_integration_flow(client: TestClient):
     assert portfolio["total_cost_basis"] == 0
 
 
-def test_portfolio_multiple_accounts_flow(client: TestClient):
+def test_portfolio_multiple_accounts_flow(client: TestClient) -> None:
     """Test portfolio with multiple accounts."""
 
     # Create two accounts
@@ -227,7 +228,7 @@ def test_portfolio_multiple_accounts_flow(client: TestClient):
     assert analytics["num_symbols"] == 2
 
 
-def test_portfolio_error_handling(client: TestClient):
+def test_portfolio_error_handling(client: TestClient) -> None:
     """Test error handling in portfolio CRUD operations."""
 
     # Try to add position with non-existent account

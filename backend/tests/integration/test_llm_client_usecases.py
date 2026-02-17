@@ -12,6 +12,7 @@ All tests use mocked responses to prevent real API calls.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from unittest.mock import patch
 
 import pytest
@@ -20,7 +21,7 @@ from app.agents.llm_client import AgentHubAPIClient, DualProviderClient, LLMResp
 
 
 @pytest.fixture
-def mock_llm_response():
+def mock_llm_response() -> Callable[..., LLMResponse]:
     """Factory fixture for creating mock LLM responses."""
 
     def _create_response(content: str, model: str = "claude-sonnet-4-5-20250514") -> LLMResponse:
@@ -37,7 +38,7 @@ def mock_llm_response():
 class TestGapAnalysisUseCase:
     """Test Agent Hub clients with gap analysis data patterns."""
 
-    def test_agent_hub_gap_analysis_small(self, mock_llm_response) -> None:
+    def test_agent_hub_gap_analysis_small(self, mock_llm_response: Callable[..., LLMResponse]) -> None:
         """Test Agent Hub with small gap analysis dataset."""
         gap_data = {
             "symbol": "AAPL",
@@ -72,7 +73,7 @@ Reply with just the number."""
             assert 1 <= int(response.content.strip()) <= 10
             mock_generate.assert_called_once()
 
-    def test_gemini_gap_analysis_small(self, mock_llm_response) -> None:
+    def test_gemini_gap_analysis_small(self, mock_llm_response: Callable[..., LLMResponse]) -> None:
         """Test Gemini via Agent Hub with small gap analysis dataset."""
         gap_data = {
             "symbol": "TSLA",
@@ -94,7 +95,7 @@ Reply with just the severity level."""
             assert response.content.strip().upper() in ["LOW", "MEDIUM", "HIGH"]
             mock_generate.assert_called_once()
 
-    def test_dual_provider_gap_analysis(self, mock_llm_response) -> None:
+    def test_dual_provider_gap_analysis(self, mock_llm_response: Callable[..., LLMResponse]) -> None:
         """Test DualProviderClient (Agent Hub wrapper) with gap analysis."""
         gaps = {
             "symbols": ["AAPL", "GOOGL", "MSFT"],
@@ -123,7 +124,7 @@ Reply with just the number."""
 class TestPaperTradingUseCase:
     """Test Agent Hub with paper trading decision data."""
 
-    def test_trading_signal_analysis(self, mock_llm_response) -> None:
+    def test_trading_signal_analysis(self, mock_llm_response: Callable[..., LLMResponse]) -> None:
         """Test Agent Hub with trading signal analysis."""
         signal_data = {
             "symbol": "NVDA",
@@ -152,7 +153,7 @@ class TestPaperTradingUseCase:
 class TestBacktestUseCase:
     """Test Agent Hub with backtesting analysis data."""
 
-    def test_backtest_analysis(self, mock_llm_response) -> None:
+    def test_backtest_analysis(self, mock_llm_response: Callable[..., LLMResponse]) -> None:
         """Test Agent Hub with backtest results analysis."""
         backtest_results = {
             "strategy": "momentum",
@@ -179,7 +180,7 @@ Reply with just the rating."""
 class TestSentimentUseCase:
     """Test Agent Hub with news sentiment analysis."""
 
-    def test_sentiment_analysis(self, mock_llm_response) -> None:
+    def test_sentiment_analysis(self, mock_llm_response: Callable[..., LLMResponse]) -> None:
         """Test Agent Hub with news sentiment extraction."""
         news = {
             "headline": "Tech stocks rally on AI optimism",

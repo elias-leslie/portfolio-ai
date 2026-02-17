@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter
+from collections.abc import Generator
 from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import patch
@@ -95,11 +96,11 @@ class QueryCounter:
         """
         return [q for q in self.queries if table_name.lower() in q["sql"].lower()]
 
-    def count_duplicate_queries(self) -> tuple[int, list[tuple[str, int]]]:
+    def count_duplicate_queries(self) -> tuple[int, list[tuple[tuple[str, str], int]]]:
         """Count duplicate queries (same SQL + params).
 
         Returns:
-            Tuple of (total_duplicates, list of (query_key, count) for duplicates)
+            Tuple of (total_duplicates, list of ((sql, params_str), count) for duplicates)
         """
         query_keys = [
             (q["sql"], str(q["params"]))  # Use string repr of params for hashability
@@ -269,7 +270,7 @@ class APICallTracker:
 
 
 @pytest.fixture
-def query_counter() -> QueryCounter:
+def query_counter() -> Generator[QueryCounter]:
     """Fixture providing a QueryCounter for tests.
 
     Automatically starts/stops listening to SQLAlchemy events.
@@ -849,7 +850,7 @@ class TestIssue3UserPreferencesQueries:
         total_queries = query_counter.get_query_count()
 
         # Group queries by SQL to find duplicates
-        query_sql_counts = {}
+        query_sql_counts: dict[str, int] = {}
         for q in pref_queries:
             sql_key = q["sql"]
             query_sql_counts[sql_key] = query_sql_counts.get(sql_key, 0) + 1

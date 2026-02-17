@@ -1,5 +1,7 @@
 """Unit tests for run_backtest tool executor."""
 
+from __future__ import annotations
+
 import uuid
 from decimal import Decimal
 from unittest.mock import Mock, patch
@@ -10,18 +12,18 @@ from app.agents.tool_executors_trading import TradingTools
 
 
 @pytest.fixture
-def mock_storage():
+def mock_storage() -> Mock:
     """Create mock storage."""
     return Mock()
 
 
 @pytest.fixture
-def trading_tools(mock_storage):
+def trading_tools(mock_storage: Mock) -> TradingTools:
     """Create TradingTools instance with mocked storage."""
     return TradingTools(storage=mock_storage)
 
 
-def test_execute_run_backtest_success(trading_tools, mock_storage):
+def test_execute_run_backtest_success(trading_tools: TradingTools, mock_storage: Mock) -> None:
     """Test successful backtest execution."""
     agent_run_id = str(uuid.uuid4())
     symbol = "AAPL"
@@ -66,10 +68,10 @@ def test_execute_run_backtest_success(trading_tools, mock_storage):
     assert result["max_drawdown_pct"] == 15.0
     assert result["total_return_pct"] == 25.5
     assert result["num_trades"] == 10
-    assert "Backtest complete" in result["message"]
+    assert "Backtest complete" in str(result["message"])
 
 
-def test_execute_run_backtest_invalid_dates(trading_tools):
+def test_execute_run_backtest_invalid_dates(trading_tools: TradingTools) -> None:
     """Test backtest with invalid date format."""
     agent_run_id = str(uuid.uuid4())
 
@@ -81,10 +83,10 @@ def test_execute_run_backtest_invalid_dates(trading_tools):
     )
 
     assert result["status"] == "error"
-    assert "Invalid date format" in result["error"]
+    assert "Invalid date format" in str(result["error"])
 
 
-def test_execute_run_backtest_end_before_start(trading_tools):
+def test_execute_run_backtest_end_before_start(trading_tools: TradingTools) -> None:
     """Test backtest with end_date before start_date."""
     agent_run_id = str(uuid.uuid4())
 
@@ -96,11 +98,11 @@ def test_execute_run_backtest_end_before_start(trading_tools):
     )
 
     assert result["status"] == "error"
-    assert "end_date" in result["error"]
-    assert "must be >=" in result["error"]
+    assert "end_date" in str(result["error"])
+    assert "must be >=" in str(result["error"])
 
 
-def test_execute_run_backtest_failed(trading_tools, mock_storage):
+def test_execute_run_backtest_failed(trading_tools: TradingTools, mock_storage: Mock) -> None:
     """Test backtest execution that fails."""
     agent_run_id = str(uuid.uuid4())
     symbol = "INVALID"
@@ -134,10 +136,10 @@ def test_execute_run_backtest_failed(trading_tools, mock_storage):
     assert result["status"] == "error"
     assert result["backtest_run_id"] == run_id
     assert result["symbol"] == symbol
-    assert "Symbol not found" in result["error"]
+    assert "Symbol not found" in str(result["error"])
 
 
-def test_execute_run_backtest_timeout(trading_tools, mock_storage):
+def test_execute_run_backtest_timeout(trading_tools: TradingTools, mock_storage: Mock) -> None:
     """Test backtest execution that times out."""
     agent_run_id = str(uuid.uuid4())
     symbol = "AAPL"
@@ -170,10 +172,10 @@ def test_execute_run_backtest_timeout(trading_tools, mock_storage):
 
     assert result["status"] == "timeout"
     assert result["backtest_run_id"] == run_id
-    assert "timed out" in result["error"]
+    assert "timed out" in str(result["error"])
 
 
-def test_execute_run_backtest_with_custom_params(trading_tools, mock_storage):
+def test_execute_run_backtest_with_custom_params(trading_tools: TradingTools, mock_storage: Mock) -> None:
     """Test backtest with custom strategy parameters."""
     agent_run_id = str(uuid.uuid4())
     symbol = "NVDA"

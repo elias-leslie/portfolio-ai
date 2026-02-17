@@ -11,6 +11,7 @@ Tests the complete workflow:
 
 from __future__ import annotations
 
+from typing import cast
 from unittest.mock import Mock, patch
 
 import pytest
@@ -147,12 +148,12 @@ class TestDiscoveryAgentWithCLI:
         assert mock_llm_client.generate.call_count == 4
 
         # Verify tools were called in correct order
-        assert mock_tools.execute_get_news.called
-        assert mock_tools.execute_get_economic_data.called
-        assert mock_tools.execute_store_idea.called
+        assert cast(Mock, mock_tools.execute_get_news).called
+        assert cast(Mock, mock_tools.execute_get_economic_data).called
+        assert cast(Mock, mock_tools.execute_store_idea).called
 
         # Verify store_idea was called with correct parameters
-        store_call = mock_tools.execute_store_idea.call_args
+        store_call = cast(Mock, mock_tools.execute_store_idea).call_args
         assert store_call is not None
         assert store_call[1]["symbol"] == "AAPL"
         assert store_call[1]["idea_type"] == "long"
@@ -206,7 +207,7 @@ class TestDiscoveryAgentWithCLI:
 
         # Should complete (no tools called, but no crash)
         assert result["status"] in ["completed", "max_iterations_reached"]
-        assert mock_tools.execute_get_news.call_count == 0
+        assert cast(Mock, mock_tools.execute_get_news).call_count == 0
 
     def test_discovery_agent_max_iterations_limit(
         self,
@@ -224,7 +225,7 @@ class TestDiscoveryAgentWithCLI:
         )
         client.is_available.return_value = True
 
-        mock_tools.execute_get_news.return_value = {"articles": []}
+        cast(Mock, mock_tools.execute_get_news).return_value = {"articles": []}
 
         agent = DiscoveryAgent(storage=mock_storage, tools=mock_tools, llm_client=client)
 

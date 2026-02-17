@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -25,7 +26,7 @@ class TestMultiReviewer:
             return MultiReviewer(mock_storage)
 
     @pytest.fixture
-    def sample_signal_data(self) -> dict:
+    def sample_signal_data(self) -> dict[str, Any]:
         """Sample signal data for testing."""
         return {
             "symbol": "AAPL",

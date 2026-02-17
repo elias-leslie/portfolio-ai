@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
+from typing import cast
 
 import pytest
 
@@ -11,7 +13,7 @@ from app.storage import get_storage
 
 
 @pytest.fixture
-def setup_test_data():
+def setup_test_data() -> Iterator[dict[str, object]]:
     """Create test data with stale price cache but fresh snapshot."""
     storage = get_storage()
 
@@ -113,7 +115,7 @@ def setup_test_data():
         conn.commit()
 
 
-def test_api_returns_snapshot_timestamp_not_cache_timestamp(setup_test_data):
+def test_api_returns_snapshot_timestamp_not_cache_timestamp(setup_test_data: dict[str, object]) -> None:
     """
     Test that API endpoint returns snapshot's fetched_at timestamp,
     not the stale cached_at timestamp from price_cache.
@@ -143,8 +145,8 @@ def test_api_returns_snapshot_timestamp_not_cache_timestamp(setup_test_data):
     returned_timestamp = datetime.fromisoformat(
         price_component["updated_at"].replace("Z", "+00:00")
     )
-    fresh_time = test_data["fresh_time"]
-    stale_time = test_data["stale_time"]
+    fresh_time = cast(datetime, test_data["fresh_time"])
+    stale_time = cast(datetime, test_data["stale_time"])
 
     # CRITICAL: API should return snapshot fetched_at (fresh), not price cached_at (stale)
     time_diff = abs((returned_timestamp - fresh_time).total_seconds())

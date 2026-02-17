@@ -100,6 +100,12 @@ class TestDrawdownMetrics:
 
     def test_metrics_halt_at_twenty_five_percent(self, mock_storage: MagicMock) -> None:
         """Trading should halt at 25% drawdown."""
+
+        def _peak_column(col: str) -> list[float | date]:
+            if "equity" in col:
+                return [10000.0]
+            return [date.today() - timedelta(days=5)]
+
         # Current equity $7,500, peak $10,000 = 25% drawdown
         mock_storage.query.side_effect = [
             # Cash balance
@@ -109,9 +115,7 @@ class TestDrawdownMetrics:
             # Peak equity from snapshots
             MagicMock(
                 is_empty=lambda: False,
-                get_column=lambda col: (
-                    [10000.0] if "equity" in col else [date.today() - timedelta(days=5)]
-                ),
+                get_column=_peak_column,
             ),
             # Underwater days - no peak at current
             MagicMock(is_empty=lambda: True),

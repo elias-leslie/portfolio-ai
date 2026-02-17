@@ -96,7 +96,7 @@ def fetch_peer_returns(
     """
     # Cast list[str] to expected parameter type for UNNEST compatibility
     params: list[
-        str | int | float | bool | dt.datetime | list[str | int | float | bool | None] | None
+        str | int | float | bool | dt.date | dt.datetime | list[str | int | float | bool | None] | None
     ] = [
         target_date.isoformat(),
         cast(list[str | int | float | bool | None], peer_symbols),

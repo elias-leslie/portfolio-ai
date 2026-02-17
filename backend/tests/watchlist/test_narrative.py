@@ -1,9 +1,11 @@
 """Tests for narrative generation and signal classification."""
 
+from __future__ import annotations
+
 import pytest
 from pydantic import ValidationError
 
-from app.watchlist.models import SignalClassification, SignalStrength, SignalType
+from app.watchlist.models import SignalClassification, SignalInputsDict, SignalStrength, SignalType
 
 
 class TestSignalType:
@@ -65,17 +67,17 @@ class TestSignalClassification:
         # Test missing signal_type
         with pytest.raises(ValidationError):
             SignalClassification(
-                signal_type=None,  # type: ignore
+                signal_type=None,  # type: ignore[arg-type]  # intentional: testing validation rejects None
                 strength=SignalStrength(value=5),
                 reasons=[],
             )
 
-        # Test missing strength
+        # Test missing strength — deliberately pass None to verify validation
         with pytest.raises(ValidationError):
             SignalClassification(
                 signal_type=SignalType.HOLD,
-                strength=None,
-                reasons=[],  # type: ignore
+                strength=None,  # type: ignore[arg-type]  # intentional: testing validation rejects None
+                reasons=[],
             )
 
 
@@ -91,7 +93,7 @@ class TestClassifySignal:
         from app.watchlist.narrative import classify_signal
 
         # NVDA-style inputs: All indicators positive
-        inputs = {
+        inputs: SignalInputsDict = {
             "price": 202.0,
             "ema_20": 195.0,  # Price > EMA (uptrend)
             "rsi_14": 55.0,  # RSI between 30-70 (healthy)
@@ -120,7 +122,7 @@ class TestClassifySignal:
         from app.watchlist.narrative import classify_signal
 
         # META-style inputs: Multiple negative indicators
-        inputs = {
+        inputs: SignalInputsDict = {
             "price": 180.0,
             "ema_20": 195.0,  # Price < EMA (downtrend)
             "sma_5": 185.0,  # 5-day SMA
@@ -154,7 +156,7 @@ class TestClassifySignal:
         from app.watchlist.narrative import classify_signal
 
         # Mixed conditions: Price in uptrend but RSI overbought
-        inputs = {
+        inputs: SignalInputsDict = {
             "price": 210.0,
             "ema_20": 200.0,  # Price > EMA (uptrend)
             "rsi_14": 75.0,  # RSI > 70 (overbought)

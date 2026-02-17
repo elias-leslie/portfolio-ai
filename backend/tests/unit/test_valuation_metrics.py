@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 from datetime import date
+from typing import Any
 
 import pytest
 
@@ -59,7 +60,7 @@ class TestExtractValuationMetrics:
 
     def test_extract_empty_payload(self) -> None:
         """Test extraction with empty payload."""
-        payload: dict = {}
+        payload: dict[str, Any] = {}
 
         metrics = _extract_valuation_metrics(payload)
 
@@ -154,7 +155,7 @@ class TestUpdateValuationMetrics:
                 [
                     "NVDA",
                     "fundamentals",
-                    date.today(),
+                    date.today().isoformat(),
                     json.dumps({"symbol": "NVDA"}),
                     None,
                 ],
@@ -245,7 +246,7 @@ class TestUpdateValuationMetrics:
 
     def test_update_metrics_empty_payload(self, clean_database: None) -> None:
         """Test update with empty payload (no metrics to extract)."""
-        payload: dict = {}
+        payload: dict[str, Any] = {}
 
         _update_valuation_metrics("NVDA", "fundamentals", payload)
 

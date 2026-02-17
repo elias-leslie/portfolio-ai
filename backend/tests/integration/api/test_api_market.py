@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -22,7 +23,7 @@ def clear_response_cache() -> None:
 
 
 @pytest.fixture
-def test_storage() -> PortfolioStorage:
+def test_storage() -> Generator[PortfolioStorage]:
     """Create a PortfolioStorage instance with a temporary database."""
     temp_dir = tempfile.mkdtemp()
     db_path = Path(temp_dir) / "test_api_market.db"
@@ -53,7 +54,7 @@ def test_storage() -> PortfolioStorage:
 
 
 @pytest.fixture
-def client(test_storage: PortfolioStorage) -> TestClient:
+def client(test_storage: PortfolioStorage) -> Generator[TestClient]:
     """Create a test client with patched storage."""
     # Patch storage at multiple import points
     with (

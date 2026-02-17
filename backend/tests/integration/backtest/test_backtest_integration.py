@@ -6,6 +6,7 @@ Requires test database with day_bars data.
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -21,15 +22,15 @@ from app.storage.connection import ConnectionManager
 
 
 @pytest.fixture
-def storage():
+def storage() -> ConnectionManager:
     """Get storage connection for tests."""
-    return ConnectionManager.get_instance()
+    return ConnectionManager()
 
 
 @pytest.fixture
-def cleanup_backtest(storage):
+def cleanup_backtest(storage: ConnectionManager) -> Generator[list[str]]:
     """Cleanup backtest runs after test."""
-    run_ids = []
+    run_ids: list[str] = []
     yield run_ids
     # Cleanup: Delete created backtest runs
     with storage.connection() as conn:
@@ -43,7 +44,7 @@ def cleanup_backtest(storage):
 class TestBacktestStorage:
     """Test backtest storage operations."""
 
-    def test_create_backtest_run(self, storage, cleanup_backtest):
+    def test_create_backtest_run(self, storage: ConnectionManager, cleanup_backtest: list[str]) -> None:
         """Test creating a backtest run record."""
         run_id = create_backtest_run(
             storage=storage,
@@ -62,7 +63,7 @@ class TestBacktestStorage:
         assert run.status == "pending"
         assert run.initial_capital == Decimal("10000")
 
-    def test_update_backtest_status(self, storage, cleanup_backtest):
+    def test_update_backtest_status(self, storage: ConnectionManager, cleanup_backtest: list[str]) -> None:
         """Test updating backtest status."""
         run_id = create_backtest_run(
             storage=storage,
@@ -77,15 +78,17 @@ class TestBacktestStorage:
         # Update to running
         update_backtest_status(storage, run_id, "running")
         run = get_backtest_run(storage, run_id)
+        assert run is not None
         assert run.status == "running"
 
         # Update to completed
         update_backtest_status(storage, run_id, "completed")
         run = get_backtest_run(storage, run_id)
+        assert run is not None
         assert run.status == "completed"
         assert run.completed_at is not None
 
-    def test_update_backtest_result(self, storage, cleanup_backtest):
+    def test_update_backtest_result(self, storage: ConnectionManager, cleanup_backtest: list[str]) -> None:
         """Test updating backtest result metrics."""
         run_id = create_backtest_run(
             storage=storage,
@@ -101,20 +104,22 @@ class TestBacktestStorage:
         update_backtest_result(
             storage=storage,
             run_id=run_id,
-            total_return_pct=5.5,
-            sharpe_ratio=1.2,
-            max_drawdown_pct=8.5,
-            win_rate=55.0,
+            total_return_pct=Decimal("5.5"),
+            sharpe_ratio=Decimal("1.2"),
+            max_drawdown_pct=Decimal("8.5"),
+            win_rate=Decimal("55.0"),
             num_trades=10,
             final_equity=Decimal("10550"),
+            profit_factor=Decimal("1.5"),
         )
 
         # Verify metrics were saved
         run = get_backtest_run(storage, run_id)
-        assert run.total_return_pct == pytest.approx(5.5, rel=0.01)
-        assert run.sharpe_ratio == pytest.approx(1.2, rel=0.01)
-        assert run.max_drawdown_pct == pytest.approx(8.5, rel=0.01)
-        assert run.win_rate == pytest.approx(55.0, rel=0.01)
+        assert run is not None
+        assert run.total_return_pct == pytest.approx(Decimal("5.5"), rel=Decimal("0.01"))
+        assert run.sharpe_ratio == pytest.approx(Decimal("1.2"), rel=Decimal("0.01"))
+        assert run.max_drawdown_pct == pytest.approx(Decimal("8.5"), rel=Decimal("0.01"))
+        assert run.win_rate == pytest.approx(Decimal("55.0"), rel=Decimal("0.01"))
         assert run.num_trades == 10
 
 
@@ -122,7 +127,7 @@ class TestBacktestExecution:
     """Test backtest execution flow."""
 
     @pytest.mark.skipif(True, reason="Requires Hatchet worker running")
-    def test_full_backtest_flow(self, storage, cleanup_backtest):
+    def test_full_backtest_flow(self, storage: ConnectionManager, cleanup_backtest: list[str]) -> None:
         """Test complete backtest from submission to completion.
 
         This test requires:
@@ -132,8 +137,9 @@ class TestBacktestExecution:
         Skip for CI/CD environments.
         """
         from app.agents.tool_executors_trading import TradingTools
+        from app.storage import get_storage
 
-        tools = TradingTools(storage)
+        tools = TradingTools(get_storage())
 
         # Run a 30-day backtest
         end = date.today() - timedelta(days=1)
@@ -158,5 +164,6 @@ class TestBacktestExecution:
             assert "num_trades" in result
 
             # Add run_id to cleanup
-            if result.get("run_id"):
-                cleanup_backtest.append(result["run_id"])
+            run_id = result.get("run_id")
+            if isinstance(run_id, str):
+                cleanup_backtest.append(run_id)

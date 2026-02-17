@@ -179,8 +179,9 @@ class TestOrderExecutorSlippage:
 
     @patch("app.analytics.slippage_calculator.calculate_adv")
     @patch("app.analytics.order_execution_helpers.check_portfolio_drawdown_halt")
+    @patch("app.analytics.order_execution_helpers.validate_position_limits", return_value=(True, None))
     def test_buy_order_applies_slippage(
-        self, mock_drawdown: MagicMock, mock_adv: MagicMock
+        self, mock_validate: MagicMock, mock_drawdown: MagicMock, mock_adv: MagicMock
     ) -> None:
         """Buy orders apply slippage (pay more than expected price)."""
         from app.analytics.order_executor import OrderExecutor
@@ -208,9 +209,6 @@ class TestOrderExecutorSlippage:
         executor.price_fetcher.fetch_price_data.return_value = {"AAPL": mock_price_data}
 
         executor.transaction_logger = MagicMock()
-
-        # Mock validate_position_limits to return valid
-        executor.validate_position_limits = MagicMock(return_value=(True, None))
 
         result = executor.execute_market_order(
             symbol="AAPL",
@@ -263,9 +261,10 @@ class TestOrderExecutorSlippage:
         assert result["slippage_model"] == "FIXED_PCT"
         assert result["adv"] is None
 
-    @patch("app.analytics.order_executor.calculate_adv")
-    @patch("app.analytics.order_executor.check_portfolio_drawdown_halt")
-    def test_no_slippage_when_disabled(self, mock_drawdown: MagicMock, mock_adv: MagicMock) -> None:
+    @patch("app.analytics.slippage_calculator.calculate_adv")
+    @patch("app.analytics.order_execution_helpers.check_portfolio_drawdown_halt")
+    @patch("app.analytics.order_execution_helpers.validate_position_limits", return_value=(True, None))
+    def test_no_slippage_when_disabled(self, mock_validate: MagicMock, mock_drawdown: MagicMock, mock_adv: MagicMock) -> None:
         """When apply_slippage=False, no slippage is applied."""
         from app.analytics.order_executor import OrderExecutor
 
@@ -286,7 +285,6 @@ class TestOrderExecutorSlippage:
         executor.price_fetcher.fetch_price_data.return_value = {"AAPL": mock_price_data}
 
         executor.transaction_logger = MagicMock()
-        executor.validate_position_limits = MagicMock(return_value=(True, None))
 
         result = executor.execute_market_order(
             symbol="AAPL",

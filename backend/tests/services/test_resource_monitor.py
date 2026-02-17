@@ -1,5 +1,11 @@
 """Tests for resource monitoring service."""
 
+from __future__ import annotations
+
+from typing import cast
+
+from sqlalchemy.engine import Connection
+
 from app.services.resource_monitor import (
     get_cpu_usage,
     get_db_pool_stats,
@@ -53,14 +59,15 @@ def test_get_cpu_usage() -> None:
 
     assert 0 <= result["percent_used"] <= 100
     assert result["status"] in ["ok", "warning", "critical"]
+    assert isinstance(result["cores"], int)
     assert result["cores"] > 0
 
 
-def test_get_db_pool_stats(clean_database) -> None:
+def test_get_db_pool_stats(clean_database: object) -> None:
     """Test database pool stats returns valid data."""
     mgr = get_connection_manager()
     with mgr.connection() as conn:
-        result = get_db_pool_stats(conn)
+        result = get_db_pool_stats(cast(Connection, conn))
 
         assert "pool_size" in result
         assert "checked_out" in result
