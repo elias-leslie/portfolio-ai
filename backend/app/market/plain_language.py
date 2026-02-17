@@ -175,20 +175,3 @@ def get_sector_label(symbol: str) -> SectorLabel:
         },
     )
 
-
-def get_all_indicators() -> dict[str, IndicatorLabel]:
-    """Get all indicator labels.
-
-    Returns:
-        Dictionary mapping indicator symbol to label info
-    """
-    return INDICATOR_LABELS.copy()
-
-
-def get_all_sectors() -> dict[str, SectorLabel]:
-    """Get all sector labels.
-
-    Returns:
-        Dictionary mapping sector symbol to label info
-    """
-    return SECTOR_LABELS.copy()
