@@ -19,10 +19,15 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from .capabilities_router import get_capabilities
 from .capabilities_router import router as capabilities_router
+from .models import CapabilitiesListResponse
 from .notes_router import router as notes_router
 
 # Combine all routers into a single router
 router = APIRouter(prefix="/api/capabilities", tags=["capabilities"])
 router.include_router(notes_router)
 router.include_router(capabilities_router)  # Has catch-all /{type}/{id} route
+
+# Root list endpoint at /api/capabilities (no trailing slash) for Next.js proxy compat
+router.add_api_route("", get_capabilities, methods=["GET"], response_model=CapabilitiesListResponse)

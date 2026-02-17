@@ -80,7 +80,7 @@ def _row_to_seed_item(row: tuple[object, ...]) -> StrategySeedItem:
 # ============================================================================
 
 
-@router.get("/", response_model=StrategySeedList)
+@router.get("", response_model=StrategySeedList)
 async def list_strategy_seeds(
     status: str | None = Query(default=None, description="Filter by status"),
     symbol: str | None = Query(default=None, description="Filter by symbol"),
