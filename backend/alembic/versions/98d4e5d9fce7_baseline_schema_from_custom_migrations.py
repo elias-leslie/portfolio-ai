@@ -1,7 +1,7 @@
 """baseline schema from custom migrations
 
 Revision ID: 98d4e5d9fce7
-Revises: 
+Revises:
 Create Date: 2026-02-08 11:46:32.293538
 
 """

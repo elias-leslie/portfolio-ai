@@ -43,12 +43,12 @@ def mock_hatchet_task_factory() -> callable:
 
 @pytest.fixture
 def mock_hatchet_app(mock_hatchet_task_factory: callable) -> MagicMock:
-    """Mock Hatchet admin.run_workflow method."""
-    mock_app = MagicMock()
+    """Mock Hatchet admin client run_workflow method."""
+    mock_admin = MagicMock()
     # Return new unique run each time run_workflow is called
-    mock_app.admin.run_workflow.side_effect = lambda *_args, **_kwargs: mock_hatchet_task_factory()
-    with patch("app.api.automation.get_hatchet", return_value=mock_app):
-        yield mock_app
+    mock_admin.run_workflow.side_effect = lambda *_args, **_kwargs: mock_hatchet_task_factory()
+    with patch("app.api.automation.get_admin_client", return_value=mock_admin):
+        yield mock_admin
 
 
 @pytest.fixture
@@ -91,8 +91,8 @@ class TestStrategyResearchEndpoint:
         assert "top 5 watchlist symbols" in data["message"]
 
         # Verify correct Hatchet workflow called
-        mock_hatchet_app.admin.run_workflow.assert_called_once()
-        call_args = mock_hatchet_app.admin.run_workflow.call_args
+        mock_hatchet_app.run_workflow.assert_called_once()
+        call_args = mock_hatchet_app.run_workflow.call_args
         assert call_args[0][0] == "portfolio-daily-strategy"
         assert call_args[0][1] == {}
 
@@ -109,8 +109,8 @@ class TestStrategyResearchEndpoint:
         assert "AAPL" in data["message"]
 
         # Verify correct Hatchet workflow called
-        mock_hatchet_app.admin.run_workflow.assert_called_once()
-        call_args = mock_hatchet_app.admin.run_workflow.call_args
+        mock_hatchet_app.run_workflow.assert_called_once()
+        call_args = mock_hatchet_app.run_workflow.call_args
         assert call_args[0][0] == "portfolio-strategy-research-symbol"
         assert call_args[0][1]["symbol"] == "AAPL"
         assert call_args[0][1]["force"] is False
@@ -126,15 +126,15 @@ class TestStrategyResearchEndpoint:
         assert data["task_id"].startswith("test-task-id-")
 
         # Verify force=True passed to workflow
-        call_args = mock_hatchet_app.admin.run_workflow.call_args
+        call_args = mock_hatchet_app.run_workflow.call_args
         assert call_args[0][1]["symbol"] == "TSLA"
         assert call_args[0][1]["force"] is True
 
     def test_strategy_research_error_handling(self) -> None:
         """Test error handling when Hatchet workflow fails to start."""
-        mock_app = MagicMock()
-        mock_app.admin.run_workflow.side_effect = Exception("Hatchet unavailable")
-        with patch("app.api.automation.get_hatchet", return_value=mock_app):
+        mock_admin = MagicMock()
+        mock_admin.run_workflow.side_effect = Exception("Hatchet unavailable")
+        with patch("app.api.automation.get_admin_client", return_value=mock_admin):
             response = client.post("/api/automation/run/strategy-research")
 
             assert response.status_code == 500
@@ -181,15 +181,15 @@ class TestSignalGenerationEndpoint:
         assert "all active strategies" in data["message"]
 
         # Verify correct Hatchet workflow called
-        mock_hatchet_app.admin.run_workflow.assert_called_once()
-        call_args = mock_hatchet_app.admin.run_workflow.call_args
+        mock_hatchet_app.run_workflow.assert_called_once()
+        call_args = mock_hatchet_app.run_workflow.call_args
         assert call_args[0][0] == "portfolio-daily-signals"
 
     def test_signal_generation_error_handling(self) -> None:
         """Test error handling when signal generation workflow fails."""
-        mock_app = MagicMock()
-        mock_app.admin.run_workflow.side_effect = RuntimeError("Workflow queue full")
-        with patch("app.api.automation.get_hatchet", return_value=mock_app):
+        mock_admin = MagicMock()
+        mock_admin.run_workflow.side_effect = RuntimeError("Workflow queue full")
+        with patch("app.api.automation.get_admin_client", return_value=mock_admin):
             response = client.post("/api/automation/run/signal-generation")
 
             assert response.status_code == 500
@@ -229,8 +229,8 @@ class TestAutoPaperTradeEndpoint:
         assert "min strength: 5" in data["message"]
 
         # Verify correct Hatchet workflow called with default strength
-        mock_hatchet_app.admin.run_workflow.assert_called_once()
-        call_args = mock_hatchet_app.admin.run_workflow.call_args
+        mock_hatchet_app.run_workflow.assert_called_once()
+        call_args = mock_hatchet_app.run_workflow.call_args
         assert call_args[0][0] == "portfolio-auto-paper-trade"
         assert call_args[0][1]["min_signal_strength"] == 5
 
@@ -245,7 +245,7 @@ class TestAutoPaperTradeEndpoint:
         assert "min strength: 8" in data["message"]
 
         # Verify custom strength passed to workflow
-        call_args = mock_hatchet_app.admin.run_workflow.call_args
+        call_args = mock_hatchet_app.run_workflow.call_args
         assert call_args[0][1]["min_signal_strength"] == 8
 
     def test_auto_paper_trade_strength_validation_min(self) -> None:
@@ -272,9 +272,9 @@ class TestAutoPaperTradeEndpoint:
 
     def test_auto_paper_trade_error_handling(self) -> None:
         """Test error handling when auto paper trade workflow fails."""
-        mock_app = MagicMock()
-        mock_app.admin.run_workflow.side_effect = ConnectionError("Hatchet connection failed")
-        with patch("app.api.automation.get_hatchet", return_value=mock_app):
+        mock_admin = MagicMock()
+        mock_admin.run_workflow.side_effect = ConnectionError("Hatchet connection failed")
+        with patch("app.api.automation.get_admin_client", return_value=mock_admin):
             response = client.post("/api/automation/run/auto-paper-trade")
 
             assert response.status_code == 500
@@ -312,7 +312,7 @@ class TestFullPipelineEndpoint:
             assert stage_data["status"] == "started"
 
         # Verify 3 Hatchet workflows called
-        assert mock_hatchet_app.admin.run_workflow.call_count == 3
+        assert mock_hatchet_app.run_workflow.call_count == 3
 
     def test_trigger_full_pipeline_skip_research(self, mock_hatchet_app: MagicMock) -> None:
         """Test triggering full pipeline with skip_research=true."""
@@ -331,7 +331,7 @@ class TestFullPipelineEndpoint:
         assert "auto_paper_trade" in stages
 
         # Verify only 2 Hatchet workflows called
-        assert mock_hatchet_app.admin.run_workflow.call_count == 2
+        assert mock_hatchet_app.run_workflow.call_count == 2
 
     def test_full_pipeline_task_order(self, mock_hatchet_app: MagicMock) -> None:
         """Test full pipeline workflows called in correct order."""
@@ -340,7 +340,7 @@ class TestFullPipelineEndpoint:
         assert response.status_code == 200
 
         # Verify workflow call order
-        calls = mock_hatchet_app.admin.run_workflow.call_args_list
+        calls = mock_hatchet_app.run_workflow.call_args_list
         assert len(calls) == 3
 
         # Order: strategy_research, signal_generation, auto_paper_trade
@@ -350,13 +350,13 @@ class TestFullPipelineEndpoint:
 
     def test_full_pipeline_error_handling(self) -> None:
         """Test error handling when pipeline workflow fails to start."""
-        mock_app = MagicMock()
+        mock_admin = MagicMock()
         # First workflow succeeds, second fails
-        mock_app.admin.run_workflow.side_effect = [
+        mock_admin.run_workflow.side_effect = [
             MagicMock(workflow_run_id="task-1"),
             ValueError("Invalid workflow config"),
         ]
-        with patch("app.api.automation.get_hatchet", return_value=mock_app):
+        with patch("app.api.automation.get_admin_client", return_value=mock_admin):
             response = client.post("/api/automation/run/full-pipeline")
 
             assert response.status_code == 500
@@ -564,7 +564,7 @@ class TestAutomationPipelineIntegration:
         assert response3.status_code == 200
 
         # Verify correct number of Hatchet workflows dispatched
-        assert mock_hatchet_app.admin.run_workflow.call_count == 3
+        assert mock_hatchet_app.run_workflow.call_count == 3
 
         # Verify each returned workflow run IDs (should be unique due to factory)
         task_ids = [

@@ -177,8 +177,8 @@ class TestTransactionLoggerSlippage:
 class TestOrderExecutorSlippage:
     """Test order executor applies and tracks slippage."""
 
-    @patch("app.analytics.order_executor.calculate_adv")
-    @patch("app.analytics.order_executor.check_portfolio_drawdown_halt")
+    @patch("app.analytics.slippage_calculator.calculate_adv")
+    @patch("app.analytics.order_execution_helpers.check_portfolio_drawdown_halt")
     def test_buy_order_applies_slippage(
         self, mock_drawdown: MagicMock, mock_adv: MagicMock
     ) -> None:
@@ -228,7 +228,7 @@ class TestOrderExecutorSlippage:
         assert result["slippage_model"] == "DYNAMIC"
         assert result["adv"] == 1_000_000
 
-    @patch("app.analytics.order_executor.calculate_adv")
+    @patch("app.analytics.slippage_calculator.calculate_adv")
     def test_sell_order_applies_slippage(self, mock_adv: MagicMock) -> None:
         """Sell orders apply slippage (receive less than expected price)."""
         from app.analytics.order_executor import OrderExecutor

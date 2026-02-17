@@ -15,9 +15,9 @@ from app.utils.market_hours import NY_TZ
 
 @contextmanager
 def mock_market_time(mock_time: datetime) -> Generator[None]:
-    """Mock datetime in both api.market and utils.market_hours modules."""
+    """Mock datetime in both api.market.core_router and utils.market_hours modules."""
     with (
-        patch("app.api.market.datetime") as mock_datetime_api,
+        patch("app.api.market.core_router.datetime") as mock_datetime_api,
         patch("app.utils.market_hours.datetime") as mock_datetime_utils,
         patch("app.middleware.cache.CACHE_ENABLED", False),  # Disable cache for tests
     ):

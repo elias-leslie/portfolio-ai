@@ -98,12 +98,12 @@ class TestDrawdownMetrics:
         assert metrics.is_halted is False
         assert metrics.halt_reason is None
 
-    def test_metrics_halt_at_ten_percent(self, mock_storage: MagicMock) -> None:
-        """Trading should halt at 10% drawdown."""
-        # Current equity $9,000, peak $10,000 = 10% drawdown
+    def test_metrics_halt_at_twenty_five_percent(self, mock_storage: MagicMock) -> None:
+        """Trading should halt at 25% drawdown."""
+        # Current equity $7,500, peak $10,000 = 25% drawdown
         mock_storage.query.side_effect = [
             # Cash balance
-            MagicMock(is_empty=lambda: False, get_column=lambda _: [9000.0]),
+            MagicMock(is_empty=lambda: False, get_column=lambda _: [7500.0]),
             # Position value
             MagicMock(is_empty=lambda: False, get_column=lambda _: [0]),
             # Peak equity from snapshots
@@ -120,14 +120,14 @@ class TestDrawdownMetrics:
                 is_empty=lambda: False, get_column=lambda _: [date.today() - timedelta(days=10)]
             ),
             # Max drawdown
-            MagicMock(is_empty=lambda: False, get_column=lambda _: [8.0]),
+            MagicMock(is_empty=lambda: False, get_column=lambda _: [20.0]),
         ]
 
         metrics = calculate_drawdown_metrics(mock_storage, "test-account")
 
-        assert metrics.current_drawdown_pct == pytest.approx(10.0, rel=0.01)
+        assert metrics.current_drawdown_pct == pytest.approx(25.0, rel=0.01)
         assert metrics.is_halted is True
-        assert "10%" in (metrics.halt_reason or "")
+        assert "25%" in (metrics.halt_reason or "")
 
 
 class TestCheckPortfolioDrawdownHalt:
@@ -281,12 +281,12 @@ class TestConstants:
     """Tests for drawdown threshold constants."""
 
     def test_halt_threshold(self) -> None:
-        """Verify halt threshold is 10%."""
-        assert PORTFOLIO_DRAWDOWN_HALT_PCT == 10.0
+        """Verify halt threshold is 25%."""
+        assert PORTFOLIO_DRAWDOWN_HALT_PCT == 25.0
 
     def test_warning_levels(self) -> None:
         """Verify warning levels are reasonable."""
-        assert DRAWDOWN_WARNING_LEVEL_1 == 5.0
-        assert DRAWDOWN_WARNING_LEVEL_2 == 7.5
+        assert DRAWDOWN_WARNING_LEVEL_1 == 10.0
+        assert DRAWDOWN_WARNING_LEVEL_2 == 15.0
         assert DRAWDOWN_WARNING_LEVEL_1 < DRAWDOWN_WARNING_LEVEL_2
         assert DRAWDOWN_WARNING_LEVEL_2 < PORTFOLIO_DRAWDOWN_HALT_PCT

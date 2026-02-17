@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi import HTTPException
 
-from app.api.watchlist import get_score_history
+from app.api.watchlist.crud_router import get_score_history
 from app.watchlist.history import ScoreTimelinePoint
 
 
@@ -82,7 +82,7 @@ class TestGetScoreHistoryEndpoint:
         snapshots_df.to_dicts.return_value = sample_snapshots_data
         mock_repo.get_snapshots_with_metrics.return_value = snapshots_df
 
-        with patch("app.api.watchlist.watchlist_repo", mock_repo):
+        with patch("app.api.watchlist.crud_router.watchlist_repo", mock_repo):
             response = await get_score_history(item_id="item-123", days=10)
 
             assert response.item_id == "item-123"
@@ -97,7 +97,7 @@ class TestGetScoreHistoryEndpoint:
         mock_repo.get_symbol_by_item_id.return_value = item_df
 
         with (
-            patch("app.api.watchlist.watchlist_repo", mock_repo),
+            patch("app.api.watchlist.crud_router.watchlist_repo", mock_repo),
             pytest.raises(HTTPException) as exc_info,
         ):
             await get_score_history(item_id="nonexistent-id")
@@ -121,7 +121,7 @@ class TestGetScoreHistoryEndpoint:
         snapshots_df.is_empty.return_value = True
         mock_repo.get_snapshots_with_metrics.return_value = snapshots_df
 
-        with patch("app.api.watchlist.watchlist_repo", mock_repo):
+        with patch("app.api.watchlist.crud_router.watchlist_repo", mock_repo):
             response = await get_score_history(item_id="item-123")
 
             assert response.item_id == "item-123"
@@ -144,8 +144,8 @@ class TestGetScoreHistoryEndpoint:
         mock_repo.get_snapshots_with_metrics.return_value = snapshots_df
 
         with (
-            patch("app.api.watchlist.watchlist_repo", mock_repo),
-            patch("app.api.watchlist.build_score_timeline") as mock_timeline,
+            patch("app.api.watchlist.crud_router.watchlist_repo", mock_repo),
+            patch("app.api.watchlist.crud_router.build_score_timeline") as mock_timeline,
         ):
             mock_timeline.return_value = []
 
@@ -172,8 +172,8 @@ class TestGetScoreHistoryEndpoint:
         mock_repo.get_snapshots_with_metrics.return_value = snapshots_df
 
         with (
-            patch("app.api.watchlist.watchlist_repo", mock_repo),
-            patch("app.api.watchlist.build_score_timeline") as mock_timeline,
+            patch("app.api.watchlist.crud_router.watchlist_repo", mock_repo),
+            patch("app.api.watchlist.crud_router.build_score_timeline") as mock_timeline,
         ):
             mock_timeline.return_value = []
 
@@ -214,8 +214,8 @@ class TestGetScoreHistoryEndpoint:
         mock_repo.get_snapshots_with_metrics.return_value = snapshots_df
 
         with (
-            patch("app.api.watchlist.watchlist_repo", mock_repo),
-            patch("app.api.watchlist.build_score_timeline") as mock_timeline,
+            patch("app.api.watchlist.crud_router.watchlist_repo", mock_repo),
+            patch("app.api.watchlist.crud_router.build_score_timeline") as mock_timeline,
         ):
             mock_timeline.return_value = []
 
@@ -259,8 +259,8 @@ class TestGetScoreHistoryEndpoint:
         ]
 
         with (
-            patch("app.api.watchlist.watchlist_repo", mock_repo),
-            patch("app.api.watchlist.build_score_timeline") as mock_timeline,
+            patch("app.api.watchlist.crud_router.watchlist_repo", mock_repo),
+            patch("app.api.watchlist.crud_router.build_score_timeline") as mock_timeline,
         ):
             mock_timeline.return_value = mock_timeline_points
 
@@ -306,8 +306,8 @@ class TestGetScoreHistoryEndpoint:
         ]
 
         with (
-            patch("app.api.watchlist.watchlist_repo", mock_repo),
-            patch("app.api.watchlist.build_score_timeline") as mock_timeline,
+            patch("app.api.watchlist.crud_router.watchlist_repo", mock_repo),
+            patch("app.api.watchlist.crud_router.build_score_timeline") as mock_timeline,
         ):
             mock_timeline.return_value = mock_timeline_points
 
@@ -323,7 +323,7 @@ class TestGetScoreHistoryEndpoint:
         mock_repo.get_symbol_by_item_id.side_effect = Exception("Database connection failed")
 
         with (
-            patch("app.api.watchlist.watchlist_repo", mock_repo),
+            patch("app.api.watchlist.crud_router.watchlist_repo", mock_repo),
             pytest.raises(HTTPException) as exc_info,
         ):
             await get_score_history(item_id="item-123")
@@ -343,7 +343,7 @@ class TestGetScoreHistoryEndpoint:
         snapshots_df.is_empty.return_value = True
         mock_repo.get_snapshots_with_metrics.return_value = snapshots_df
 
-        with patch("app.api.watchlist.watchlist_repo", mock_repo):
+        with patch("app.api.watchlist.crud_router.watchlist_repo", mock_repo):
             await get_score_history(item_id="item-123")
 
             # Verify repository methods were called

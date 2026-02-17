@@ -7,7 +7,7 @@ from decimal import Decimal
 
 import pytest
 
-from app.strategies.optimizer import StrategyOptimizer
+from app.strategies.optimizer_metrics import calculate_metrics_from_state
 
 
 @dataclass
@@ -41,10 +41,9 @@ class TestCalculateMetricsFromState:
 
     def test_no_trades_returns_zero_metrics(self) -> None:
         """Test empty trades list returns zero metrics."""
-        optimizer = StrategyOptimizer()
-        state = MockBacktestState(trades=[], equity_curve=[])
+        state =MockBacktestState(trades=[], equity_curve=[])
 
-        metrics = optimizer._calculate_metrics_from_state(state)  # type: ignore[arg-type]
+        metrics = calculate_metrics_from_state(state)  # type: ignore[arg-type]
 
         assert metrics.num_trades == 0
         assert metrics.win_rate == 0.0
@@ -55,15 +54,14 @@ class TestCalculateMetricsFromState:
 
     def test_all_winning_trades(self) -> None:
         """Test win rate calculation with all winning trades."""
-        optimizer = StrategyOptimizer()
-        trades = [
+        trades =[
             MockTrade(pnl=Decimal("100")),
             MockTrade(pnl=Decimal("200")),
             MockTrade(pnl=Decimal("150")),
         ]
         state = MockBacktestState(trades=trades, equity_curve=[])
 
-        metrics = optimizer._calculate_metrics_from_state(state)  # type: ignore[arg-type]
+        metrics = calculate_metrics_from_state(state)  # type: ignore[arg-type]
 
         assert metrics.num_trades == 3
         assert metrics.win_rate == 1.0
@@ -72,8 +70,7 @@ class TestCalculateMetricsFromState:
 
     def test_mixed_wins_and_losses(self) -> None:
         """Test win rate and profit factor with mixed results."""
-        optimizer = StrategyOptimizer()
-        trades = [
+        trades =[
             MockTrade(pnl=Decimal("200")),  # Win
             MockTrade(pnl=Decimal("-100")),  # Loss
             MockTrade(pnl=Decimal("150")),  # Win
@@ -81,7 +78,7 @@ class TestCalculateMetricsFromState:
         ]
         state = MockBacktestState(trades=trades, equity_curve=[])
 
-        metrics = optimizer._calculate_metrics_from_state(state)  # type: ignore[arg-type]
+        metrics = calculate_metrics_from_state(state)  # type: ignore[arg-type]
 
         assert metrics.num_trades == 4
         assert metrics.win_rate == 0.5  # 2/4
@@ -90,8 +87,7 @@ class TestCalculateMetricsFromState:
 
     def test_equity_curve_total_return(self) -> None:
         """Test total return calculation from equity curve."""
-        optimizer = StrategyOptimizer()
-        equity_curve = [
+        equity_curve =[
             MockEquity(equity=Decimal("10000")),
             MockEquity(equity=Decimal("10500")),
             MockEquity(equity=Decimal("11000")),
@@ -101,15 +97,14 @@ class TestCalculateMetricsFromState:
             equity_curve=equity_curve,
         )
 
-        metrics = optimizer._calculate_metrics_from_state(state)  # type: ignore[arg-type]
+        metrics = calculate_metrics_from_state(state)  # type: ignore[arg-type]
 
         # Total return = (11000 - 10000) / 10000 = 0.10
         assert metrics.total_return == pytest.approx(0.10, rel=0.01)
 
     def test_equity_curve_max_drawdown(self) -> None:
         """Test max drawdown from equity curve."""
-        optimizer = StrategyOptimizer()
-        equity_curve = [
+        equity_curve =[
             MockEquity(equity=Decimal("10000"), drawdown_pct=Decimal("0")),
             MockEquity(equity=Decimal("11000"), drawdown_pct=Decimal("0")),
             MockEquity(equity=Decimal("9500"), drawdown_pct=Decimal("13.64")),  # -13.64%
@@ -120,14 +115,13 @@ class TestCalculateMetricsFromState:
             equity_curve=equity_curve,
         )
 
-        metrics = optimizer._calculate_metrics_from_state(state)  # type: ignore[arg-type]
+        metrics = calculate_metrics_from_state(state)  # type: ignore[arg-type]
 
         # Max drawdown = 13.64 (from the curve)
         assert metrics.max_drawdown == pytest.approx(13.64, rel=0.01)
 
     def test_sharpe_ratio_calculation(self) -> None:
         """Test Sharpe ratio from equity curve returns."""
-        optimizer = StrategyOptimizer()
         # Create a simple uptrend for predictable returns
         equity_curve = [
             MockEquity(equity=Decimal("10000")),
@@ -141,22 +135,21 @@ class TestCalculateMetricsFromState:
             equity_curve=equity_curve,
         )
 
-        metrics = optimizer._calculate_metrics_from_state(state)  # type: ignore[arg-type]
+        metrics = calculate_metrics_from_state(state)  # type: ignore[arg-type]
 
         # Should have a positive Sharpe ratio for consistent gains
         assert metrics.sharpe_ratio > 0
 
     def test_none_pnl_excluded_from_calculation(self) -> None:
         """Test trades with None PnL are excluded from win/loss calc."""
-        optimizer = StrategyOptimizer()
-        trades = [
+        trades =[
             MockTrade(pnl=Decimal("100")),  # Win
             MockTrade(pnl=None),  # Excluded
             MockTrade(pnl=Decimal("-50")),  # Loss
         ]
         state = MockBacktestState(trades=trades, equity_curve=[])
 
-        metrics = optimizer._calculate_metrics_from_state(state)  # type: ignore[arg-type]
+        metrics = calculate_metrics_from_state(state)  # type: ignore[arg-type]
 
         assert metrics.num_trades == 3  # All trades counted
         # Win rate only considers trades with pnl
@@ -165,14 +158,13 @@ class TestCalculateMetricsFromState:
 
     def test_single_equity_point(self) -> None:
         """Test with only one equity point (can't calculate Sharpe)."""
-        optimizer = StrategyOptimizer()
-        equity_curve = [MockEquity(equity=Decimal("10000"))]
+        equity_curve =[MockEquity(equity=Decimal("10000"))]
         state = MockBacktestState(
             trades=[MockTrade(pnl=Decimal("100"))],
             equity_curve=equity_curve,
         )
 
-        metrics = optimizer._calculate_metrics_from_state(state)  # type: ignore[arg-type]
+        metrics = calculate_metrics_from_state(state)  # type: ignore[arg-type]
 
         # Can't calculate Sharpe with 1 point
         assert metrics.sharpe_ratio == 0.0
