@@ -1,5 +1,5 @@
 project: portfolio-ai
-generated_at: 2026-02-17 17:34 UTC
+generated_at: 2026-02-17 22:10 UTC
 environment:
   python_version: '>=3.13'
   venv_path: backend/.venv
@@ -222,6 +222,6 @@ folders:
   certs: 3 files
   config: 10 files - api
   frontend: 411 files - api, components, services, tests
-  reports: 52 files
+  reports: 54 files
   scripts: 102 files - api, services, tests
   services: 30 files - api, services, tests
