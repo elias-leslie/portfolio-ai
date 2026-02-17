@@ -160,6 +160,7 @@ app.add_middleware(
         "https://127.0.0.1:3000",
         f"https://{_NETWORK_HOST}:3000",  # HTTPS network access
         f"https://{_NETWORK_HOST}",  # HTTPS port 443
+        "https://port.summitflow.dev",  # Production (CF Access)
     ],
     allow_credentials=True,
     allow_methods=["*"],

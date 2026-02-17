@@ -3,11 +3,12 @@
  *
  * Provides consistent URL resolution for:
  * - Development (localhost:8000)
- * - Production (portapi.summitflow.dev)
+ * - Production (same-origin via Next.js rewrites)
  *
- * NOTE: Portfolio-AI primarily uses Next.js rewrites for API proxying.
- * These functions are provided for direct API calls (e.g., WebSocket connections)
- * that bypass the Next.js proxy layer.
+ * REST API calls use same-origin routing in production to avoid CF Access CORS
+ * issues. Next.js rewrites proxy /api/* to the backend on localhost.
+ * Direct cross-origin URLs are only used for WebSocket connections and
+ * external services (voice via Agent Hub).
  */
 
 const PORTS = { frontend: 3000, backend: 8000 }
@@ -17,7 +18,10 @@ const PROD_API_DOMAIN = 'portapi.summitflow.dev'
 /**
  * Get the base URL for Portfolio-AI backend API calls.
  *
- * @returns Full URL (e.g., http://localhost:8000 or https://portapi.summitflow.dev)
+ * In production, returns empty string (same-origin) so requests go through
+ * Next.js rewrites, avoiding CF Access CORS issues.
+ *
+ * @returns Base URL (e.g., http://localhost:8000 for dev, empty string for prod)
  */
 export function getApiBaseUrl(): string {
   // Server-side: always use localhost
@@ -32,9 +36,9 @@ export function getApiBaseUrl(): string {
     return `http://localhost:${PORTS.backend}`
   }
 
-  // Production: port.summitflow.dev -> portapi.summitflow.dev
+  // Production: same-origin routing via Next.js rewrites
   if (host === PROD_DOMAIN) {
-    return `https://${PROD_API_DOMAIN}`
+    return ''
   }
 
   // Fallback: use localhost (shouldn't happen in normal use)
@@ -62,9 +66,9 @@ export function getWsUrl(path: string): string {
     return `ws://localhost:${PORTS.backend}${path}`
   }
 
-  // Production
+  // Production: same-origin WebSocket via Next.js rewrites
   if (host === PROD_DOMAIN) {
-    return `${protocol}//${PROD_API_DOMAIN}${path}`
+    return `${protocol}//${window.location.host}${path}`
   }
 
   // Fallback
