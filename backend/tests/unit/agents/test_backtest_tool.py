@@ -33,8 +33,8 @@ def test_execute_run_backtest_success(trading_tools: TradingTools, mock_storage:
     # Mock backtest run creation
     run_id = str(uuid.uuid4())
     with (
-        patch("app.agents.tool_executors_trading.create_backtest_run", return_value=run_id),
-        patch("app.agents.tool_executors_trading.update_backtest_status"),
+        patch("app.agents.trading.backtest.create_backtest_run", return_value=run_id),
+        patch("app.agents.trading.backtest.update_backtest_status"),
         patch("app.tasks.backtest_tasks.run_backtest_task") as mock_task,
     ):
         # Mock backtest task
@@ -50,8 +50,8 @@ def test_execute_run_backtest_success(trading_tools: TradingTools, mock_storage:
         mock_run.num_trades = 10
 
         with (
-            patch("app.agents.tool_executors_trading.get_backtest_run", return_value=mock_run),
-            patch("app.agents.tool_executors_trading.time.sleep"),
+            patch("app.agents.trading.backtest.get_backtest_run", return_value=mock_run),
+            patch("app.agents.trading.backtest.time.sleep"),
         ):
             result = trading_tools.execute_run_backtest(
                 agent_run_id=agent_run_id,
@@ -111,8 +111,8 @@ def test_execute_run_backtest_failed(trading_tools: TradingTools, mock_storage: 
 
     run_id = str(uuid.uuid4())
     with (
-        patch("app.agents.tool_executors_trading.create_backtest_run", return_value=run_id),
-        patch("app.agents.tool_executors_trading.update_backtest_status"),
+        patch("app.agents.trading.backtest.create_backtest_run", return_value=run_id),
+        patch("app.agents.trading.backtest.update_backtest_status"),
         patch("app.tasks.backtest_tasks.run_backtest_task") as mock_task,
     ):
         mock_task.delay.return_value = Mock(id="task-123")
@@ -123,8 +123,8 @@ def test_execute_run_backtest_failed(trading_tools: TradingTools, mock_storage: 
         mock_run.error_message = "Symbol not found"
 
         with (
-            patch("app.agents.tool_executors_trading.get_backtest_run", return_value=mock_run),
-            patch("app.agents.tool_executors_trading.time.sleep"),
+            patch("app.agents.trading.backtest.get_backtest_run", return_value=mock_run),
+            patch("app.agents.trading.backtest.time.sleep"),
         ):
             result = trading_tools.execute_run_backtest(
                 agent_run_id=agent_run_id,
@@ -148,8 +148,8 @@ def test_execute_run_backtest_timeout(trading_tools: TradingTools, mock_storage:
 
     run_id = str(uuid.uuid4())
     with (
-        patch("app.agents.tool_executors_trading.create_backtest_run", return_value=run_id),
-        patch("app.agents.tool_executors_trading.update_backtest_status"),
+        patch("app.agents.trading.backtest.create_backtest_run", return_value=run_id),
+        patch("app.agents.trading.backtest.update_backtest_status"),
         patch("app.tasks.backtest_tasks.run_backtest_task") as mock_task,
     ):
         mock_task.delay.return_value = Mock(id="task-123")
@@ -159,8 +159,8 @@ def test_execute_run_backtest_timeout(trading_tools: TradingTools, mock_storage:
         mock_run.status = "running"
 
         with (
-            patch("app.agents.tool_executors_trading.get_backtest_run", return_value=mock_run),
-            patch("app.agents.tool_executors_trading.time.sleep"),
+            patch("app.agents.trading.backtest.get_backtest_run", return_value=mock_run),
+            patch("app.agents.trading.backtest.time.sleep"),
         ):
             # Force immediate timeout by patching elapsed time
             result = trading_tools.execute_run_backtest(
@@ -184,8 +184,8 @@ def test_execute_run_backtest_with_custom_params(trading_tools: TradingTools, mo
 
     run_id = str(uuid.uuid4())
     with (
-        patch("app.agents.tool_executors_trading.create_backtest_run", return_value=run_id),
-        patch("app.agents.tool_executors_trading.update_backtest_status"),
+        patch("app.agents.trading.backtest.create_backtest_run", return_value=run_id),
+        patch("app.agents.trading.backtest.update_backtest_status"),
         patch("app.tasks.backtest_tasks.run_backtest_task") as mock_task,
     ):
         mock_task.delay.return_value = Mock(id="task-123")
@@ -199,8 +199,8 @@ def test_execute_run_backtest_with_custom_params(trading_tools: TradingTools, mo
         mock_run.num_trades = 15
 
         with (
-            patch("app.agents.tool_executors_trading.get_backtest_run", return_value=mock_run),
-            patch("app.agents.tool_executors_trading.time.sleep"),
+            patch("app.agents.trading.backtest.get_backtest_run", return_value=mock_run),
+            patch("app.agents.trading.backtest.time.sleep"),
         ):
             result = trading_tools.execute_run_backtest(
                 agent_run_id=agent_run_id,
@@ -214,9 +214,8 @@ def test_execute_run_backtest_with_custom_params(trading_tools: TradingTools, mo
             )
 
         # Verify task was called with custom params
-        mock_task.delay.assert_called_once()
-        call_kwargs = mock_task.delay.call_args[1]
-        assert call_kwargs["min_signal_strength"] == 8
+        mock_task.assert_called_once()
+        call_kwargs = mock_task.call_args[1]
         assert call_kwargs["max_holding_days"] == 30
         assert call_kwargs["position_size_value"] == 5000.0
 

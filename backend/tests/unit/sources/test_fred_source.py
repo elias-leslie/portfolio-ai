@@ -71,10 +71,12 @@ class TestFREDSource:
         assert result is None
         mock_get.assert_not_called()
 
-    @patch("httpx.get")
-    def test_fetch_latest_http_error(self, mock_get: MagicMock) -> None:
+    @patch("app.sources.fred.get_fred_client")
+    def test_fetch_latest_http_error(self, mock_get_client: MagicMock) -> None:
         """Test fetch_latest handles HTTP errors gracefully."""
-        mock_get.side_effect = httpx.HTTPError("API unavailable")
+        mock_client = MagicMock()
+        mock_client.get.side_effect = httpx.HTTPError("API unavailable")
+        mock_get_client.return_value = mock_client
 
         source = FREDSource(api_key="test_key")
         result = source.fetch_latest("VIX")
@@ -156,10 +158,12 @@ class TestFREDSource:
         assert result == []
         mock_get.assert_not_called()
 
-    @patch("httpx.get")
-    def test_fetch_series_http_error(self, mock_get: MagicMock) -> None:
+    @patch("app.sources.fred.get_fred_client")
+    def test_fetch_series_http_error(self, mock_get_client: MagicMock) -> None:
         """Test fetch_series handles HTTP errors gracefully."""
-        mock_get.side_effect = httpx.HTTPError("API unavailable")
+        mock_client = MagicMock()
+        mock_client.get.side_effect = httpx.HTTPError("API unavailable")
+        mock_get_client.return_value = mock_client
 
         source = FREDSource(api_key="test_key")
         result = source.fetch_series("HY_SPREAD")
@@ -180,13 +184,12 @@ class TestFREDSource:
         assert result[0] == date(2024, 11, 14)
         assert result[1] == 4.25
 
-    @patch("httpx.get")
-    def test_get_latest_value_no_data(self, mock_get: MagicMock) -> None:
+    @patch("app.sources.fred.get_fred_client")
+    def test_get_latest_value_no_data(self, mock_get_client: MagicMock) -> None:
         """Test get_latest_value returns None when no data available."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = {"observations": []}
-        mock_response.raise_for_status = MagicMock()
-        mock_get.return_value = mock_response
+        mock_client = MagicMock()
+        mock_client.get.return_value = {"observations": []}
+        mock_get_client.return_value = mock_client
 
         source = FREDSource(api_key="test_key")
         result = source.get_latest_value("HY_SPREAD")

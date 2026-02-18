@@ -178,22 +178,17 @@ class TestOrderExecutorSlippage:
     """Test order executor applies and tracks slippage."""
 
     @patch("app.analytics.slippage_calculator.calculate_adv")
-    @patch("app.analytics.order_execution_helpers.check_portfolio_drawdown_halt")
-    @patch("app.analytics.order_execution_helpers.validate_position_limits", return_value=(True, None))
+    @patch("app.analytics.order_executor.execute_buy_order", return_value=(True, None))
     def test_buy_order_applies_slippage(
-        self, mock_validate: MagicMock, mock_drawdown: MagicMock, mock_adv: MagicMock
+        self, mock_buy: MagicMock, mock_adv: MagicMock
     ) -> None:
         """Buy orders apply slippage (pay more than expected price)."""
         from app.analytics.order_executor import OrderExecutor
 
         # Setup mocks
-        mock_drawdown.return_value = (True, None)  # No halt
         mock_adv.return_value = 1_000_000  # ADV for DYNAMIC model
 
         mock_storage = MagicMock()
-        mock_conn = MagicMock()
-        mock_storage.connection.return_value.__enter__ = MagicMock(return_value=mock_conn)
-        mock_storage.connection.return_value.__exit__ = MagicMock(return_value=False)
 
         # Mock price fetcher
         mock_price_data = MagicMock()
@@ -202,8 +197,6 @@ class TestOrderExecutorSlippage:
         executor = OrderExecutor(mock_storage)
         executor.cash_manager = MagicMock()
         executor.cash_manager.get_cash_balance.return_value = 100000.0
-        executor.cash_manager.check_sufficient_cash.return_value = True
-        executor.cash_manager.deduct_cash.return_value = True
 
         executor.price_fetcher = MagicMock()
         executor.price_fetcher.fetch_price_data.return_value = {"AAPL": mock_price_data}
@@ -227,7 +220,8 @@ class TestOrderExecutorSlippage:
         assert result["adv"] == 1_000_000
 
     @patch("app.analytics.slippage_calculator.calculate_adv")
-    def test_sell_order_applies_slippage(self, mock_adv: MagicMock) -> None:
+    @patch("app.analytics.order_executor.execute_sell_order", return_value=(True, None))
+    def test_sell_order_applies_slippage(self, mock_sell: MagicMock, mock_adv: MagicMock) -> None:
         """Sell orders apply slippage (receive less than expected price)."""
         from app.analytics.order_executor import OrderExecutor
 
@@ -238,7 +232,6 @@ class TestOrderExecutorSlippage:
         executor = OrderExecutor(mock_storage)
         executor.cash_manager = MagicMock()
         executor.cash_manager.get_cash_balance.return_value = 0.0
-        executor.cash_manager.add_cash.return_value = True
 
         mock_price_data = MagicMock()
         mock_price_data.price = 100.0
@@ -262,13 +255,11 @@ class TestOrderExecutorSlippage:
         assert result["adv"] is None
 
     @patch("app.analytics.slippage_calculator.calculate_adv")
-    @patch("app.analytics.order_execution_helpers.check_portfolio_drawdown_halt")
-    @patch("app.analytics.order_execution_helpers.validate_position_limits", return_value=(True, None))
-    def test_no_slippage_when_disabled(self, mock_validate: MagicMock, mock_drawdown: MagicMock, mock_adv: MagicMock) -> None:
+    @patch("app.analytics.order_executor.execute_buy_order", return_value=(True, None))
+    def test_no_slippage_when_disabled(self, mock_buy: MagicMock, mock_adv: MagicMock) -> None:
         """When apply_slippage=False, no slippage is applied."""
         from app.analytics.order_executor import OrderExecutor
 
-        mock_drawdown.return_value = (True, None)
         mock_adv.return_value = 1_000_000
 
         mock_storage = MagicMock()
@@ -276,8 +267,6 @@ class TestOrderExecutorSlippage:
         executor = OrderExecutor(mock_storage)
         executor.cash_manager = MagicMock()
         executor.cash_manager.get_cash_balance.return_value = 100000.0
-        executor.cash_manager.check_sufficient_cash.return_value = True
-        executor.cash_manager.deduct_cash.return_value = True
 
         mock_price_data = MagicMock()
         mock_price_data.price = 100.0

@@ -38,8 +38,8 @@ def is_api_key_configured(
         )
         if not cred_df.is_empty():
             db_value = cred_df.to_dicts()[0]["value"]
-            if db_value and db_value not in ("your_key_here", "PLACEHOLDER"):
-                return True
+            # Database has a row: return True only if value is valid (non-empty, non-placeholder)
+            return bool(db_value and db_value not in ("your_key_here", "PLACEHOLDER"))
     except Exception:
         pass  # Database check failed, fall through to env var check
 

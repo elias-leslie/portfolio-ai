@@ -476,7 +476,7 @@ class TestEvolutionSelection:
         # Mock methods
         with (
             patch("app.agents.strategy_evolution.performance.calculate_buy_hold_sharpe", return_value=0.7),
-            patch("app.agents.strategy_evolution.llm_prompts.llm_diagnose_performance", return_value="Underperforming"),
+            patch("app.agents.strategy_evolution.performance.llm_diagnose_performance", return_value="Underperforming"),
             patch("app.agents.strategy_evolution.agent.propose_mutations", return_value=sample_mutations),
             patch.object(agent, "_save_lineage"),
         ):
@@ -545,7 +545,7 @@ class TestEvolutionSelection:
 
         with (
             patch("app.agents.strategy_evolution.performance.calculate_buy_hold_sharpe", return_value=0.7),
-            patch("app.agents.strategy_evolution.llm_prompts.llm_diagnose_performance", return_value="Underperforming"),
+            patch("app.agents.strategy_evolution.performance.llm_diagnose_performance", return_value="Underperforming"),
             patch("app.agents.strategy_evolution.agent.propose_mutations", return_value=sample_mutations),
         ):
             # Execute
@@ -595,7 +595,7 @@ class TestEvolutionSelection:
 
         with (
             patch("app.agents.strategy_evolution.performance.calculate_buy_hold_sharpe", return_value=0.7),
-            patch("app.agents.strategy_evolution.llm_prompts.llm_diagnose_performance", return_value="Performing well"),
+            patch("app.agents.strategy_evolution.performance.llm_diagnose_performance", return_value="Performing well"),
         ):
             # Execute
             result = await agent.evolve_strategy("strategy-123")
@@ -609,7 +609,7 @@ class TestEvolutionSelection:
 class TestLineageTracking:
     """Tests for strategy lineage tracking."""
 
-    @patch("app.agents.strategy_evolution.performance.get_connection_manager")
+    @patch("app.agents.strategy_evolution.agent.get_connection_manager")
     def test_save_lineage_records_parent_child_relationship(
         self,
         mock_conn_manager: Mock,
@@ -621,6 +621,9 @@ class TestLineageTracking:
         agent = StrategyEvolutionAgent()
         agent.strategy_storage = mock_storage
 
+        child_id = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        parent_id = "f0e1d2c3-b4a5-6789-0fed-cba987654321"
+
         mock_conn = Mock()
         mock_conn.execute = Mock()
         mock_conn.commit = Mock()
@@ -630,8 +633,8 @@ class TestLineageTracking:
 
         # Execute
         agent._save_lineage(
-            child_strategy_id="child-123",
-            parent_strategy_id="parent-456",
+            child_strategy_id=child_id,
+            parent_strategy_id=parent_id,
             changes_description="Increased confirmation threshold",
             evolution_reason="underperforming",
             metrics_before={"sharpe": 0.8, "win_rate": 0.5},
@@ -642,8 +645,8 @@ class TestLineageTracking:
         mock_conn.execute.assert_called_once()
         call_args = mock_conn.execute.call_args
         assert "INSERT INTO strategy_lineage" in call_args[0][0]
-        assert call_args[0][1][0] == "child-123"
-        assert call_args[0][1][1] == "parent-456"
+        assert call_args[0][1][0] == child_id
+        assert call_args[0][1][1] == parent_id
         assert call_args[0][1][2] == "Increased confirmation threshold"
         assert call_args[0][1][3] == "underperforming"
 
@@ -692,7 +695,7 @@ class TestLineageTracking:
 
         with (
             patch("app.agents.strategy_evolution.performance.calculate_buy_hold_sharpe", return_value=0.7),
-            patch("app.agents.strategy_evolution.llm_prompts.llm_diagnose_performance", return_value="Underperforming"),
+            patch("app.agents.strategy_evolution.performance.llm_diagnose_performance", return_value="Underperforming"),
             patch("app.agents.strategy_evolution.agent.propose_mutations", return_value=[sample_mutations[0]]),
             patch.object(agent, "_save_lineage") as mock_save_lineage,
         ):
@@ -747,7 +750,7 @@ class TestLineageTracking:
 
         with (
             patch("app.agents.strategy_evolution.performance.calculate_buy_hold_sharpe", return_value=0.7),
-            patch("app.agents.strategy_evolution.llm_prompts.llm_diagnose_performance", return_value="Underperforming"),
+            patch("app.agents.strategy_evolution.performance.llm_diagnose_performance", return_value="Underperforming"),
             patch("app.agents.strategy_evolution.agent.propose_mutations", return_value=[sample_mutations[0]]),
             patch.object(agent, "_save_lineage"),
         ):

@@ -53,8 +53,8 @@ def clean_before_test() -> Iterator[None]:
     storage = get_storage()
 
     # Typed rows: (symbol, source, as_of_date, pe_trailing, pe_forward, ps_ratio, pb_ratio, peg_ratio, dividend_yield, payout_ratio)
-    ValuationRow = tuple[str, str, date, float, float, float, float, float, float, float]
-    test_data: list[ValuationRow] = [
+    valuation_row = tuple[str, str, date, float, float, float, float, float, float, float]
+    test_data: list[valuation_row] = [
         ("NVDA", "fundamentals", date.today(), 53.24, 45.35, 27.54, 45.43, 2.15, 0.02, 0.0114),
         ("AAPL", "fundamentals", date.today(), 29.5, 26.3, 7.2, 48.5, 2.8, 0.004, 0.16),
         ("MSFT", "fundamentals", date.today(), 35.2, 31.5, 9.1, 55.2, 3.1, 0.0085, 0.25),

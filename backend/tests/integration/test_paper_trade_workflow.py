@@ -55,8 +55,8 @@ def test_backtest_tool_executor_integration(storage: PortfolioStorage) -> None:
             update_backtest_status(storage, actual_run_id, "running")
 
             # Simulate backtest completion with metrics
-            from app.storage.connection import ConnectionManager as _CM
-            _cm = _CM()
+            from app.storage.connection import ConnectionManager as _ConnectionManager
+            _cm = _ConnectionManager()
             update_backtest_result(
                 storage=_cm,
                 run_id=actual_run_id,

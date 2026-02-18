@@ -13,7 +13,7 @@
 
 const PORTS = { frontend: 3000, backend: 8000 }
 const PROD_DOMAIN = 'port.summitflow.dev'
-const PROD_API_DOMAIN = 'portapi.summitflow.dev'
+const _PROD_API_DOMAIN = 'portapi.summitflow.dev'
 
 /**
  * Get the base URL for Portfolio-AI backend API calls.
