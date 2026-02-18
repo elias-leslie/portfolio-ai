@@ -28,11 +28,11 @@ fi
 
 # Get installed versions from venv
 VENV_RUFF=$(ruff --version | awk '{print $2}')
-VENV_MYPY=$(mypy --version | awk '{print $2}')
+VENV_TY=$(ty --version | awk '{print $2}')
 
 echo "Installed versions (venv):"
 echo "  ruff: $VENV_RUFF"
-echo "  mypy: $VENV_MYPY"
+echo "  ty: $VENV_TY"
 echo ""
 
 # Get versions from .pre-commit-config.yaml
@@ -46,12 +46,12 @@ fi
 # Extract ruff version
 PRECOMMIT_RUFF=$(grep -A 2 "ruff-pre-commit" "$PRECOMMIT_CONFIG" | grep "rev:" | sed 's/.*v\([0-9.]*\).*/\1/')
 
-# Extract mypy version
-PRECOMMIT_MYPY=$(grep -A 2 "mirrors-mypy" "$PRECOMMIT_CONFIG" | grep "rev:" | sed 's/.*v\([0-9.]*\).*/\1/')
+# Extract ty version
+PRECOMMIT_TY=$(grep -A 2 "mirrors-ty" "$PRECOMMIT_CONFIG" | grep "rev:" | sed 's/.*v\([0-9.]*\).*/\1/')
 
 echo "Pre-commit hook versions:"
 echo "  ruff: $PRECOMMIT_RUFF"
-echo "  mypy: $PRECOMMIT_MYPY"
+echo "  ty: $PRECOMMIT_TY"
 echo ""
 
 # Compare versions
@@ -66,11 +66,11 @@ if [ "$VENV_RUFF" != "$PRECOMMIT_RUFF" ]; then
     MISMATCH=1
 fi
 
-if [ "$VENV_MYPY" != "$PRECOMMIT_MYPY" ]; then
-    echo -e "${YELLOW}WARNING: mypy version mismatch${NC}"
-    echo "  venv: $VENV_MYPY"
-    echo "  pre-commit: $PRECOMMIT_MYPY"
-    echo "  Fix: Update rev in .pre-commit-config.yaml to v$VENV_MYPY"
+if [ "$VENV_TY" != "$PRECOMMIT_TY" ]; then
+    echo -e "${YELLOW}WARNING: ty version mismatch${NC}"
+    echo "  venv: $VENV_TY"
+    echo "  pre-commit: $PRECOMMIT_TY"
+    echo "  Fix: Update rev in .pre-commit-config.yaml to v$VENV_TY"
     echo ""
     MISMATCH=1
 fi

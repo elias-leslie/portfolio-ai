@@ -367,6 +367,7 @@ class TestPaperTradeValidationWorkflow:
         self,
         mock_storage: MagicMock,
         mock_orchestrator: MagicMock,
+        mock_dual_client: MagicMock,
         mock_agent_tools: MagicMock,
     ) -> None:
         """Test trade rejected when backtest metrics fail gating thresholds."""
@@ -412,6 +413,7 @@ class TestPaperTradeValidationWorkflow:
         self,
         mock_storage: MagicMock,
         mock_orchestrator: MagicMock,
+        mock_dual_client: MagicMock,
         mock_agent_tools: MagicMock,
     ) -> None:
         """Test workflow fails when backtest execution fails."""
@@ -452,6 +454,7 @@ class TestPaperTradeValidationWorkflow:
         self,
         mock_storage: MagicMock,
         mock_orchestrator: MagicMock,
+        mock_dual_client: MagicMock,
     ) -> None:
         """Test workflow triggers data backfill when no historical data exists."""
         # Mock empty data range

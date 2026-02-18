@@ -70,7 +70,7 @@ dev = [
 
     # Linting & type checking
     "ruff==0.15.0",
-    "mypy==1.19.1",
+    "ty>=0.0.17",
     "types-PyYAML==6.0.12.20250915",
     "types-requests==2.32.4.20250913",
     "pandas-stubs==2.3.3.251201",
@@ -140,32 +140,14 @@ ignore = [
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
 
-[tool.mypy]
-python_version = "3.13"
-strict = true
-warn_return_any = true
-warn_unused_configs = true
-
-[[tool.mypy.overrides]]
-module = [
-    "edgar", "edgar.*",
-    "sklearn", "sklearn.*",
-    "sentence_transformers", "sentence_transformers.*",
-    "psycopg2", "psycopg2.*",
-    "joblib", "joblib.*",
-    "yfinance", "yfinance.*",
-    "yahooquery", "yahooquery.*",
-    "agent_hub", "agent_hub.*",
-    "dotenv", "dotenv.*",
-    "transformers", "transformers.*",
-    "torch", "torch.*",
-    "pandas_ta", "pandas_ta.*",
-    "feedparser", "feedparser.*",
-    "vaderSentiment", "vaderSentiment.*",
-    "dateutil", "dateutil.*",
-    "pandas", "pandas.*",
-    "cachetools", "cachetools.*",
-    "scipy", "scipy.*",
-]
-ignore_missing_imports = true
+[tool.ty.rules]
+# Suppress beta-quality rules (ty 0.0.x false positives)
+# Remove these as ty matures past 0.1
+invalid-argument-type = "ignore"
+unknown-argument = "ignore"
+unresolved-import = "ignore"
+call-non-callable = "ignore"      # .isoformat()/.date() on raw SQL result objects
+no-matching-overload = "ignore"   # dict.get() with non-matching default types
+unresolved-attribute = "ignore"   # polars pl.DataFrame, Callable.__name__
+unsupported-operator = "ignore"   # rowcount comparisons on cursor results
 

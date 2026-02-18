@@ -51,6 +51,13 @@ def handle_api_errors(operation_name: str) -> Callable[[F], F]:
                     status_code=500, detail=f"Failed to {operation_name}: {e}"
                 ) from e
 
+        # Copy __globals__ so FastAPI can resolve forward-ref annotations
+        # (e.g. 'WatchlistItemCreate') from the original module's namespace.
+        # functools.wraps does NOT copy __globals__, causing body params to be
+        # misclassified as query params when `from __future__ import annotations`
+        # turns type hints into strings.
+        wrapper.__globals__.update(func.__globals__)
+
         return wrapper  # type: ignore[return-value]
 
     return decorator

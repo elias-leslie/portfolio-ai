@@ -29,12 +29,12 @@ else
   echo "⚠ ruff not found; skipping lint"
 fi
 
-if command -v mypy >/dev/null 2>&1; then
-  echo "\n[mypy] Type checking..."
-  (cd "$ROOT_DIR" && mypy "$TARGET_PATH") || true
+if command -v ty >/dev/null 2>&1; then
+  echo "\n[ty] Type checking..."
+  (cd "$ROOT_DIR" && ty check "$TARGET_PATH") || true
 else
-  missing_tools+=("mypy")
-  echo "⚠ mypy not found; skipping type checks"
+  missing_tools+=("ty")
+  echo "⚠ ty not found; skipping type checks"
 fi
 
 if command -v pytest >/dev/null 2>&1; then

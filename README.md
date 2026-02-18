@@ -137,7 +137,7 @@ cd backend
 pytest tests/ -v --cov=app
 
 # Type checking
-mypy app/ --strict
+ty check app/
 
 # Frontend
 cd frontend

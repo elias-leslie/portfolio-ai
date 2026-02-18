@@ -25,7 +25,7 @@ fi
 
 PYTHON_CMD="python3"
 RUFF_CMD="ruff"
-MYPY_CMD="mypy"
+TY_CMD="ty"
 
 # Get script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -60,9 +60,9 @@ else
 fi
 echo ""
 
-echo "3. Running mypy type checker..."
+echo "3. Running ty type checker..."
 echo "---"
-if $MYPY_CMD $TARGET_DIRS --strict; then
+if $TY_CMD check $TARGET_DIRS; then
     echo -e "${GREEN}✓ Type checking passed${NC}"
 else
     echo -e "${RED}✗ Type checking found issues${NC}"

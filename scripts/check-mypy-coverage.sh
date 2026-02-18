@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Check mypy type coverage meets minimum threshold
+# Check ty type coverage meets minimum threshold
 #
-# Purpose: Enforce mypy type coverage across the codebase
+# Purpose: Enforce type coverage across the codebase using ty
 # Usage: ./scripts/check-mypy-coverage.sh
 # Threshold: 98% (max 2% of files can have type errors)
 #
 # Exit codes:
 #   0 - Coverage meets threshold
-#   1 - Coverage below threshold or mypy failed
+#   1 - Coverage below threshold or ty failed
 
 set -euo pipefail
 
@@ -16,7 +16,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 BACKEND_DIR="$PROJECT_ROOT/backend"
 THRESHOLD=98
 
-echo "=== Mypy Type Coverage Check ==="
+echo "=== Type Coverage Check ==="
 echo "Threshold: ${THRESHOLD}% (max 2% error rate)"
 echo ""
 
@@ -29,26 +29,26 @@ else
     exit 1
 fi
 
-# Run mypy and capture output
+# Run ty and capture output
 cd "$BACKEND_DIR"
-echo "Running: mypy app/ --strict"
-MYPY_OUTPUT=$(mypy app/ --strict 2>&1) || MYPY_EXIT=$?
+echo "Running: ty check app/"
+TY_OUTPUT=$(ty check app/ 2>&1) || TY_EXIT=$?
 
 # Display output
-echo "$MYPY_OUTPUT"
+echo "$TY_OUTPUT"
 echo ""
 
-# Check if mypy succeeded
-if [ "${MYPY_EXIT:-0}" -eq 0 ]; then
-    echo "✅ SUCCESS: No mypy errors found (100% coverage)"
+# Check if ty succeeded
+if [ "${TY_EXIT:-0}" -eq 0 ]; then
+    echo "SUCCESS: No type errors found (100% coverage)"
     exit 0
 fi
 
 # Count total Python files
 TOTAL_FILES=$(find app/ -name "*.py" | wc -l)
 
-# Count files with errors (extract from mypy output)
-ERROR_FILES=$(echo "$MYPY_OUTPUT" | grep -oP '^[^:]+\.py' | sort -u | wc -l)
+# Count files with errors (extract from ty output)
+ERROR_FILES=$(echo "$TY_OUTPUT" | grep -oP '^[^:]+\.py' | sort -u | wc -l)
 
 # Calculate error percentage
 ERROR_PCT=$((ERROR_FILES * 100 / TOTAL_FILES))
@@ -61,9 +61,9 @@ echo ""
 
 # Check threshold
 if [ "$COVERAGE_PCT" -ge "$THRESHOLD" ]; then
-    echo "✅ PASS: Coverage ${COVERAGE_PCT}% meets threshold ${THRESHOLD}%"
+    echo "PASS: Coverage ${COVERAGE_PCT}% meets threshold ${THRESHOLD}%"
     exit 0
 else
-    echo "❌ FAIL: Coverage ${COVERAGE_PCT}% below threshold ${THRESHOLD}%"
+    echo "FAIL: Coverage ${COVERAGE_PCT}% below threshold ${THRESHOLD}%"
     exit 1
 fi
