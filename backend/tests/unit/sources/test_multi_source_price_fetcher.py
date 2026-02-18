@@ -28,7 +28,7 @@ from app.storage import PortfolioStorage
 
 
 @pytest.fixture(autouse=True)
-def reset_sources_cache() -> Generator[None, None, None]:
+def reset_sources_cache() -> Generator[None]:
     """Reset the module-level sources cache and source client singletons before each test.
 
     initialize_data_sources() caches results globally, and each source module
