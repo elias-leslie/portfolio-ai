@@ -48,59 +48,44 @@ class SitemapDiscoveryService:
         """Get the frontend port (dynamically discovered or fallback)."""
         return get_port_for_service("frontend") or 3000
 
+    async def _probe_openapi_port(
+        self, client: httpx.AsyncClient, port_info: Any
+    ) -> list[dict[str, Any]]:
+        """Fetch OpenAPI spec from one port. Returns endpoint list or empty."""
+        port = port_info.port
+        try:
+            response = await client.get(f"http://{BACKEND_HOST}:{port}/openapi.json")
+            if response.status_code != 200:
+                return []
+            endpoints = extract_openapi_endpoints(response.json(), port, port_info.service_name)
+            logger.info(
+                "sitemap_openapi_port_complete",
+                port=port,
+                service=port_info.service_name,
+                count=len(endpoints),
+            )
+            return endpoints
+        except Exception as e:
+            logger.debug("sitemap_openapi_port_failed", port=port, error=str(e))
+            return []
+
     async def discover_all_openapi_endpoints(self) -> list[dict[str, Any]]:
-        """Discover API endpoints from ALL ports that have OpenAPI specs.
-
-        Iterates through all discovered ports (from systemd) and checks each
-        for an OpenAPI spec, extracting endpoints from any that have one.
-
-        Returns:
-            List of discovered endpoint dicts from all ports
-        """
+        """Discover API endpoints from ALL ports that have OpenAPI specs."""
         logger.info("sitemap_discover_all_openapi_start")
-        all_discovered: list[dict[str, Any]] = []
-
         ports = self._port_discovery.get_all_ports()
-        openapi_candidates = [
+        candidates = [
             p for p in ports.values() if p.service_type in ("backend", "websocket", "unknown")
         ]
-
-        logger.info(
-            "sitemap_openapi_candidates",
-            count=len(openapi_candidates),
-            ports=[p.port for p in openapi_candidates],
-        )
-
+        logger.info("sitemap_openapi_candidates", count=len(candidates), ports=[p.port for p in candidates])
+        all_discovered: list[dict[str, Any]] = []
         async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
-            for port_info in openapi_candidates:
-                port = port_info.port
-                try:
-                    response = await client.get(f"http://{BACKEND_HOST}:{port}/openapi.json")
-                    if response.status_code != 200:
-                        continue
-
-                    port_endpoints = extract_openapi_endpoints(
-                        response.json(), port, port_info.service_name
-                    )
-                    all_discovered.extend(port_endpoints)
-                    logger.info(
-                        "sitemap_openapi_port_complete",
-                        port=port,
-                        service=port_info.service_name,
-                        count=len(port_endpoints),
-                    )
-                except Exception as e:
-                    logger.debug("sitemap_openapi_port_failed", port=port, error=str(e))
-
+            for port_info in candidates:
+                all_discovered.extend(await self._probe_openapi_port(client, port_info))
         logger.info("sitemap_discover_all_openapi_complete", total=len(all_discovered))
         return all_discovered
 
     async def _probe_ws_path(
-        self,
-        client: httpx.AsyncClient,
-        port: int,
-        service_name: str,
-        ws_path: str,
+        self, client: httpx.AsyncClient, port: int, service_name: str, ws_path: str
     ) -> dict[str, Any] | None:
         """Probe a single WebSocket path. Returns entry dict or None."""
         try:
@@ -113,51 +98,71 @@ class SitemapDiscoveryService:
                 return None
             logger.info("sitemap_websocket_found", port=port, path=ws_path, service=service_name)
             return {
-                "port": port,
-                "path": ws_path,
-                "method": "WS",
-                "entry_type": "websocket",
-                "source": "probe",
-                "title": f"WebSocket - {service_name}",
-                "service_name": service_name,
+                "port": port, "path": ws_path, "method": "WS",
+                "entry_type": "websocket", "source": "probe",
+                "title": f"WebSocket - {service_name}", "service_name": service_name,
             }
         except Exception as e:
             logger.debug("sitemap_websocket_probe_failed", port=port, path=ws_path, error=str(e))
             return None
 
+    async def _probe_port_ws_paths(
+        self, client: httpx.AsyncClient, port_info: Any
+    ) -> list[dict[str, Any]]:
+        """Probe all WebSocket paths for one port. Returns found entries."""
+        results: list[dict[str, Any]] = []
+        for ws_path in WEBSOCKET_PROBE_PATHS:
+            entry = await self._probe_ws_path(client, port_info.port, port_info.service_name, ws_path)
+            if entry:
+                results.append(entry)
+        return results
+
     async def discover_websocket_endpoints(self) -> list[dict[str, Any]]:
         """Discover WebSocket endpoints by probing known paths on candidate ports."""
         logger.info("sitemap_discover_websocket_start")
-        discovered: list[dict[str, Any]] = []
         ports = self._port_discovery.get_all_ports()
         ws_candidates = [
             p for p in ports.values() if p.service_type in ("websocket", "backend", "unknown")
         ]
+        discovered: list[dict[str, Any]] = []
         async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
             for port_info in ws_candidates:
-                for ws_path in WEBSOCKET_PROBE_PATHS:
-                    entry = await self._probe_ws_path(
-                        client, port_info.port, port_info.service_name, ws_path
-                    )
-                    if entry:
-                        discovered.append(entry)
+                discovered.extend(await self._probe_port_ws_paths(client, port_info))
         logger.info("sitemap_discover_websocket_complete", count=len(discovered))
         return discovered
 
+    async def _fetch_page_entry(
+        self,
+        client: httpx.AsyncClient,
+        path: str,
+        depth: int,
+        max_depth: int,
+        visited: set[str],
+        to_visit: list[tuple[str, int]],
+        frontend_port: int,
+    ) -> dict[str, Any] | None:
+        """Fetch one crawl page, queue links, return entry or None on failure."""
+        try:
+            response = await client.get(f"http://{FRONTEND_HOST}:{frontend_port}{path}")
+            if response.status_code != 200:
+                return None
+            metadata = extract_page_metadata(response.text)
+            queue_internal_links(response.text, depth, max_depth, visited, to_visit)
+            return {
+                "port": frontend_port, "path": path,
+                "method": "GET", "entry_type": "frontend_page",
+                "source": "crawler", "title": metadata["title"],
+            }
+        except Exception as e:
+            logger.debug("sitemap_crawl_page_failed", path=path, error=str(e))
+            return None
+
     async def discover_frontend_pages(self, max_depth: int = 3) -> list[dict[str, Any]]:
-        """Crawl frontend to discover pages by following links.
-
-        Args:
-            max_depth: Maximum crawl depth
-
-        Returns:
-            List of discovered page dicts
-        """
+        """Crawl frontend to discover pages by following links."""
         logger.info("sitemap_discover_frontend_start")
         discovered: list[dict[str, Any]] = []
         visited: set[str] = set()
         to_visit: list[tuple[str, int]] = [("/", 0)]
-
         frontend_port = self.frontend_port
         async with httpx.AsyncClient(timeout=HTTP_TIMEOUT, follow_redirects=True) as client:
             while to_visit:
@@ -165,27 +170,11 @@ class SitemapDiscoveryService:
                 if path in visited or depth > max_depth:
                     continue
                 visited.add(path)
-                try:
-                    response = await client.get(
-                        f"http://{FRONTEND_HOST}:{frontend_port}{path}"
-                    )
-                    if response.status_code != 200:
-                        continue
-                    metadata = extract_page_metadata(response.text)
-                    discovered.append(
-                        {
-                            "port": frontend_port,
-                            "path": path,
-                            "method": "GET",
-                            "entry_type": "frontend_page",
-                            "source": "crawler",
-                            "title": metadata["title"],
-                        }
-                    )
-                    queue_internal_links(response.text, depth, max_depth, visited, to_visit)
-                except Exception as e:
-                    logger.debug("sitemap_crawl_page_failed", path=path, error=str(e))
-
+                entry = await self._fetch_page_entry(
+                    client, path, depth, max_depth, visited, to_visit, frontend_port
+                )
+                if entry:
+                    discovered.append(entry)
         logger.info("sitemap_discover_frontend_complete", count=len(discovered))
         return discovered
 
@@ -200,23 +189,16 @@ class SitemapDiscoveryService:
         tab_values = extract_tab_values(page_file)
         entries: list[dict[str, Any]] = [
             {
-                "port": frontend_port,
-                "path": route,
-                "method": "GET",
-                "entry_type": "frontend_page",
-                "source": "nextjs_app",
-                "title": title,
-                "has_dynamic_segment": "{" in route,
+                "port": frontend_port, "path": route, "method": "GET",
+                "entry_type": "frontend_page", "source": "nextjs_app",
+                "title": title, "has_dynamic_segment": "{" in route,
             }
         ]
         for tab in tab_values:
             entries.append(
                 {
-                    "port": frontend_port,
-                    "path": f"{route}?tab={tab}",
-                    "method": "GET",
-                    "entry_type": "frontend_page",
-                    "source": "nextjs_app",
+                    "port": frontend_port, "path": f"{route}?tab={tab}", "method": "GET",
+                    "entry_type": "frontend_page", "source": "nextjs_app",
                     "title": f"{title} - {tab.title()}" if title else tab.title(),
                     "parent_path": route,
                 }
