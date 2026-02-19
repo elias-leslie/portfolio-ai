@@ -95,60 +95,52 @@ class SitemapDiscoveryService:
         logger.info("sitemap_discover_all_openapi_complete", total=len(all_discovered))
         return all_discovered
 
+    async def _probe_ws_path(
+        self,
+        client: httpx.AsyncClient,
+        port: int,
+        service_name: str,
+        ws_path: str,
+    ) -> dict[str, Any] | None:
+        """Probe a single WebSocket path. Returns entry dict or None."""
+        try:
+            test_path = substitute_path_params(ws_path, "test")
+            response = await client.get(
+                f"http://{BACKEND_HOST}:{port}{test_path}",
+                headers={"Upgrade": "websocket", "Connection": "Upgrade"},
+            )
+            if response.status_code not in WS_ENDPOINT_STATUS_CODES:
+                return None
+            logger.info("sitemap_websocket_found", port=port, path=ws_path, service=service_name)
+            return {
+                "port": port,
+                "path": ws_path,
+                "method": "WS",
+                "entry_type": "websocket",
+                "source": "probe",
+                "title": f"WebSocket - {service_name}",
+                "service_name": service_name,
+            }
+        except Exception as e:
+            logger.debug("sitemap_websocket_probe_failed", port=port, path=ws_path, error=str(e))
+            return None
+
     async def discover_websocket_endpoints(self) -> list[dict[str, Any]]:
-        """Discover WebSocket endpoints from services.
-
-        Checks known WebSocket paths (/ws, /ws/{id}) on ports that
-        might have WebSocket support.
-
-        Returns:
-            List of discovered WebSocket endpoint dicts
-        """
+        """Discover WebSocket endpoints by probing known paths on candidate ports."""
         logger.info("sitemap_discover_websocket_start")
         discovered: list[dict[str, Any]] = []
-
         ports = self._port_discovery.get_all_ports()
         ws_candidates = [
             p for p in ports.values() if p.service_type in ("websocket", "backend", "unknown")
         ]
-
         async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
             for port_info in ws_candidates:
-                port = port_info.port
                 for ws_path in WEBSOCKET_PROBE_PATHS:
-                    try:
-                        test_path = substitute_path_params(ws_path, "test")
-                        response = await client.get(
-                            f"http://{BACKEND_HOST}:{port}{test_path}",
-                            headers={"Upgrade": "websocket", "Connection": "Upgrade"},
-                        )
-                        if response.status_code not in WS_ENDPOINT_STATUS_CODES:
-                            continue
-                        discovered.append(
-                            {
-                                "port": port,
-                                "path": ws_path,
-                                "method": "WS",
-                                "entry_type": "websocket",
-                                "source": "probe",
-                                "title": f"WebSocket - {port_info.service_name}",
-                                "service_name": port_info.service_name,
-                            }
-                        )
-                        logger.info(
-                            "sitemap_websocket_found",
-                            port=port,
-                            path=ws_path,
-                            service=port_info.service_name,
-                        )
-                    except Exception as e:
-                        logger.debug(
-                            "sitemap_websocket_probe_failed",
-                            port=port,
-                            path=ws_path,
-                            error=str(e),
-                        )
-
+                    entry = await self._probe_ws_path(
+                        client, port_info.port, port_info.service_name, ws_path
+                    )
+                    if entry:
+                        discovered.append(entry)
         logger.info("sitemap_discover_websocket_complete", count=len(discovered))
         return discovered
 
@@ -197,68 +189,57 @@ class SitemapDiscoveryService:
         logger.info("sitemap_discover_frontend_complete", count=len(discovered))
         return discovered
 
+    def _build_page_entries(
+        self, page_file: Path, app_dir: Path, frontend_port: int
+    ) -> list[dict[str, Any]]:
+        """Build route entry dicts for a single Next.js page file."""
+        relative_path = page_file.relative_to(app_dir)
+        route_parts = list(relative_path.parts[:-1])
+        route = build_route_from_parts(route_parts)
+        title = extract_page_title(page_file)
+        tab_values = extract_tab_values(page_file)
+        entries: list[dict[str, Any]] = [
+            {
+                "port": frontend_port,
+                "path": route,
+                "method": "GET",
+                "entry_type": "frontend_page",
+                "source": "nextjs_app",
+                "title": title,
+                "has_dynamic_segment": "{" in route,
+            }
+        ]
+        for tab in tab_values:
+            entries.append(
+                {
+                    "port": frontend_port,
+                    "path": f"{route}?tab={tab}",
+                    "method": "GET",
+                    "entry_type": "frontend_page",
+                    "source": "nextjs_app",
+                    "title": f"{title} - {tab.title()}" if title else tab.title(),
+                    "parent_path": route,
+                }
+            )
+        return entries
+
     def discover_nextjs_routes(self, frontend_dir: str | None = None) -> list[dict[str, Any]]:
-        """Parse Next.js app directory to discover all routes.
-
-        This provides complete route discovery including:
-        - Static routes (/watchlist, /portfolio)
-        - Dynamic routes (/ideas/[id] -> /ideas/{id})
-        - Tab variations detected from useSearchParams
-
-        Args:
-            frontend_dir: Path to frontend directory, defaults to ~/portfolio-ai/frontend
-
-        Returns:
-            List of discovered route dicts
-        """
+        """Parse Next.js app directory to discover all routes."""
         logger.info("sitemap_discover_nextjs_start")
         discovered: list[dict[str, Any]] = []
-
         if frontend_dir is None:
             frontend_dir = str(Path.home() / "portfolio-ai" / "frontend")
-
         app_dir = Path(frontend_dir) / "app"
         if not app_dir.exists():
             logger.warning("sitemap_nextjs_app_dir_not_found", path=str(app_dir))
             return discovered
-
         page_files = list(app_dir.glob("**/page.tsx"))
         logger.info("sitemap_nextjs_pages_found", count=len(page_files))
-
+        frontend_port = self.frontend_port
         for page_file in page_files:
             try:
-                relative_path = page_file.relative_to(app_dir)
-                route_parts = list(relative_path.parts[:-1])
-                route = build_route_from_parts(route_parts)
-                title = extract_page_title(page_file)
-                tab_values = extract_tab_values(page_file)
-
-                discovered.append(
-                    {
-                        "port": self.frontend_port,
-                        "path": route,
-                        "method": "GET",
-                        "entry_type": "frontend_page",
-                        "source": "nextjs_app",
-                        "title": title,
-                        "has_dynamic_segment": "{" in route,
-                    }
-                )
-
-                for tab in tab_values:
-                    discovered.append(
-                        {
-                            "port": self.frontend_port,
-                            "path": f"{route}?tab={tab}",
-                            "method": "GET",
-                            "entry_type": "frontend_page",
-                            "source": "nextjs_app",
-                            "title": f"{title} - {tab.title()}" if title else tab.title(),
-                            "parent_path": route,
-                        }
-                    )
+                discovered.extend(self._build_page_entries(page_file, app_dir, frontend_port))
             except Exception as e:
                 logger.debug("sitemap_nextjs_parse_failed", file=str(page_file), error=str(e))
-
         logger.info("sitemap_discover_nextjs_complete", count=len(discovered))
         return discovered
