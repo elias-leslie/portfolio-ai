@@ -53,6 +53,56 @@ __all__ = [
 logger = get_logger(__name__)
 
 
+def _make_disabled_result(
+    generator_output: str, context_type: str, context_symbol: str | None, metadata: dict[str, Any] | None
+) -> ValidationResult:
+    return ValidationResult(
+        generator_output=generator_output,
+        validator_review="Cross-validation disabled",
+        validator_approved=True,
+        status=ValidationStatus.AUTO_APPLIED,
+        final_output=generator_output,
+        context_type=context_type,
+        context_symbol=context_symbol,
+        metadata=metadata or {},
+    )
+
+
+def _make_failed_result(
+    generator_output: str, context_type: str, context_symbol: str | None, metadata: dict[str, Any] | None, error: Exception
+) -> ValidationResult:
+    return ValidationResult(
+        generator_output=generator_output,
+        validator_review=f"Validation failed: {error}",
+        validator_approved=False,
+        has_disagreement=True,
+        status=ValidationStatus.PENDING,
+        context_type=context_type,
+        context_symbol=context_symbol,
+        metadata=metadata or {},
+    )
+
+
+def _parse_review_response(content: str) -> dict[str, Any]:
+    """Parse JSON review response from validator."""
+    try:
+        if "```json" in content:
+            json_str = content.split("```json")[1].split("```")[0].strip()
+        elif "```" in content:
+            json_str = content.split("```")[1].split("```")[0].strip()
+        elif "{" in content:
+            start = content.index("{")
+            end = content.rindex("}") + 1
+            json_str = content[start:end]
+        else:
+            return {"approved": False, "review_summary": content}
+        parsed: dict[str, Any] = json.loads(json_str)
+        return parsed
+    except (json.JSONDecodeError, ValueError, IndexError):
+        logger.warning("review_parse_failed", content_preview=content[:200])
+        return {"approved": False, "review_summary": content}
+
+
 class CrossValidationService:
     """Service for cross-validating AI outputs between providers."""
 
@@ -104,31 +154,14 @@ class CrossValidationService:
     ) -> ValidationResult:
         """Validate generator output using Claude."""
         if not self.settings["enabled"]:
-            return ValidationResult(
-                generator_output=generator_output,
-                validator_review="Cross-validation disabled",
-                validator_approved=True,
-                status=ValidationStatus.AUTO_APPLIED,
-                final_output=generator_output,
-                context_type=context_type,
-                context_symbol=context_symbol,
-                metadata=metadata or {},
-            )
-
+            return _make_disabled_result(generator_output, context_type, context_symbol, metadata)
         validator = self._ensure_validator()
         prompt = CLAUDE_VALIDATION_PROMPT.format(
             generator_output=generator_output,
             context_type=context_type,
             context_symbol=context_symbol or "N/A",
         )
-
-        logger.info(
-            "cross_validation_started",
-            context_type=context_type,
-            context_symbol=context_symbol,
-            output_length=len(generator_output),
-        )
-
+        logger.info("cross_validation_started", context_type=context_type, context_symbol=context_symbol, output_length=len(generator_output))
         try:
             response = validator.generate(
                 prompt=prompt,
@@ -137,26 +170,13 @@ class CrossValidationService:
                 purpose="cross_validation",
             )
             return self._build_result(
-                response=response,
-                validator=validator,
-                generator_output=generator_output,
-                generator_confidence=generator_confidence,
-                context_type=context_type,
-                context_symbol=context_symbol,
-                metadata=metadata,
+                response=response, validator=validator, generator_output=generator_output,
+                generator_confidence=generator_confidence, context_type=context_type,
+                context_symbol=context_symbol, metadata=metadata,
             )
         except Exception as e:
             logger.error("cross_validation_failed", error=str(e))
-            return ValidationResult(
-                generator_output=generator_output,
-                validator_review=f"Validation failed: {e}",
-                validator_approved=False,
-                has_disagreement=True,
-                status=ValidationStatus.PENDING,
-                context_type=context_type,
-                context_symbol=context_symbol,
-                metadata=metadata or {},
-            )
+            return _make_failed_result(generator_output, context_type, context_symbol, metadata, e)
 
     def _build_result(
         self,
@@ -169,7 +189,7 @@ class CrossValidationService:
         metadata: dict[str, Any] | None,
     ) -> ValidationResult:
         """Build and persist a ValidationResult from a validator response."""
-        review_data = self._parse_review_response(response.content)
+        review_data = _parse_review_response(response.content)
         result = ValidationResult(
             generator_provider="gemini",
             generator_model=self._generator.get_model_name() if self._generator else "",
@@ -228,25 +248,6 @@ class CrossValidationService:
             metadata=metadata,
         )
         return response, result
-
-    def _parse_review_response(self, content: str) -> dict[str, Any]:
-        """Parse JSON review response from validator."""
-        try:
-            if "```json" in content:
-                json_str = content.split("```json")[1].split("```")[0].strip()
-            elif "```" in content:
-                json_str = content.split("```")[1].split("```")[0].strip()
-            elif "{" in content:
-                start = content.index("{")
-                end = content.rindex("}") + 1
-                json_str = content[start:end]
-            else:
-                return {"approved": False, "review_summary": content}
-            parsed: dict[str, Any] = json.loads(json_str)
-            return parsed
-        except (json.JSONDecodeError, ValueError, IndexError):
-            logger.warning("review_parse_failed", content_preview=content[:200])
-            return {"approved": False, "review_summary": content}
 
     def _determine_status(self, result: ValidationResult) -> ValidationStatus:
         """Determine validation status based on settings."""
