@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import dataclass
 from datetime import datetime
 
 from app.agents.llm_client import DualProviderClient
@@ -18,6 +19,21 @@ from app.storage.facade import PortfolioStorage
 from app.utils.git_automation import commit_workflow_results
 
 logger = get_logger(__name__)
+
+
+@dataclass
+class ConsensusResult:
+    """Holds consensus data from both agents in paper trade validation."""
+
+    strategy_approved: bool
+    strategy_confidence: int
+    strategy_reasoning: str
+    risk_approved: bool
+    risk_confidence: int
+    risk_reasoning: str
+    approved: bool
+    agents_disagree: bool
+    weighted_score: float
 
 
 def _setup_agent_tools(storage: PortfolioStorage) -> AgentTools:
