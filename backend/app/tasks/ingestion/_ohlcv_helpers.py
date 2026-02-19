@@ -1,0 +1,323 @@
+"""Private helper functions for OHLCV price data ingestion.
+
+This module contains internal helpers used by price_ingestion.py.
+Not part of the public API — import from price_ingestion instead.
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+from typing import Any
+
+from app.logging_config import get_logger
+from app.sources import initialize_data_sources
+from app.sources.base import DatasetRequest
+from app.sources.multi_source_fetcher import MultiSourceFetcher
+from app.storage import PortfolioStorage, get_storage
+from app.storage.credential_loader import load_credentials_from_database
+
+# Used by callers that import the watchlist helpers
+__all__ = [
+    "build_fetcher",
+    "build_ingestion_result",
+    "calculate_date_range",
+    "empty_result",
+    "ensure_symbols_exist",
+    "fetch_ohlcv_data",
+    "initialize_sources_with_credentials",
+    "insert_ohlcv_data",
+    "load_watchlist_symbols",
+    "prepare_dataframe",
+    "upsert_watchlist_data",
+]
+
+logger = get_logger(__name__)
+
+# Column order expected by the day_bars table schema
+_DAY_BARS_COLUMNS = [
+    "symbol",
+    "date",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "vwap",
+    "source",
+    "ingest_run_id",
+]
+
+_REQUIRED_COLUMNS = ["symbol", "date", "open", "high", "low", "close", "volume", "source"]
+
+
+def initialize_sources_with_credentials() -> list[Any]:
+    """Load credentials from database then initialize data sources.
+
+    Returns:
+        List of configured data source instances in priority order.
+    """
+    load_credentials_from_database()
+    return initialize_data_sources()
+
+
+def calculate_date_range(days: int) -> tuple[dt.date, dt.date]:
+    """Calculate start and end dates for a historical data fetch.
+
+    Args:
+        days: Number of trading days to backfill.
+
+    Returns:
+        Tuple of (start_date, end_date).
+    """
+    end_date = dt.date.today()
+    # Extra buffer to account for weekends/holidays
+    calendar_days = int(days * 1.5)
+    start_date = end_date - dt.timedelta(days=calendar_days)
+    return start_date, end_date
+
+
+def prepare_dataframe(result_df: Any, ingest_run_id: str) -> tuple[Any, list[str]]:
+    """Validate and prepare a DataFrame for insertion into day_bars.
+
+    Args:
+        result_df: Raw DataFrame from data sources.
+        ingest_run_id: Unique ID for this ingestion run.
+
+    Returns:
+        Tuple of (prepared_df, unique_symbols).
+
+    Raises:
+        ValueError: If required columns are missing.
+    """
+    missing_cols = [c for c in _REQUIRED_COLUMNS if c not in result_df.columns]
+    if missing_cols:
+        logger.error(
+            "ingest_missing_columns",
+            ingest_run_id=ingest_run_id,
+            missing_cols=missing_cols,
+        )
+        raise ValueError(f"Result DataFrame missing required columns: {missing_cols}")
+
+    if "vwap" not in result_df.columns:
+        result_df = result_df.with_columns(vwap=None)
+
+    if "ingest_run_id" not in result_df.columns:
+        result_df = result_df.with_columns(ingest_run_id=ingest_run_id)
+
+    result_df = result_df.select(_DAY_BARS_COLUMNS)
+    unique_symbols: list[str] = result_df["symbol"].unique().to_list()
+    return result_df, unique_symbols
+
+
+def fetch_ohlcv_data(
+    fetcher: MultiSourceFetcher,
+    request: DatasetRequest,
+    ingest_run_id: str,
+) -> tuple[Any, int, dict[str, Any]]:
+    """Fetch OHLCV data using the multi-source fetcher.
+
+    Args:
+        fetcher: Multi-source fetcher instance.
+        request: Dataset request with symbols and date range.
+        ingest_run_id: Unique ID for this ingestion run.
+
+    Returns:
+        Tuple of (result_df, error_count, errors_dict).
+    """
+    logger.info(
+        "ingest_fetching_data",
+        ingest_run_id=ingest_run_id,
+        start_date=str(request.start),
+        end_date=str(request.end),
+    )
+    result_df, errors = fetcher.fetch_with_fallback(request, verbose=True)
+    error_count = len([e for e in errors.values() if e])
+    return result_df, error_count, errors
+
+
+def ensure_symbols_exist(storage: PortfolioStorage, symbols: list[str]) -> None:
+    """Insert symbols into the symbols table if they do not already exist.
+
+    Args:
+        storage: Storage instance for database operations.
+        symbols: Symbols to ensure exist (FK constraint for day_bars).
+    """
+    with storage.connection() as conn:
+        for symbol in symbols:
+            conn.execute(
+                """
+                INSERT INTO symbols (symbol, security_type, created_at)
+                VALUES (%s, 'equity', NOW())
+                ON CONFLICT (symbol) DO NOTHING
+                """,
+                [symbol],
+            )
+        conn.commit()
+
+
+def insert_ohlcv_data(storage: PortfolioStorage, result_df: Any, ingest_run_id: str) -> int:
+    """Insert OHLCV data into day_bars using UPSERT.
+
+    Uses UPSERT (ON CONFLICT DO UPDATE) to prevent deadlocks and preserve
+    existing historical data while updating only changed rows.
+
+    Args:
+        storage: Storage instance for database operations.
+        result_df: Raw DataFrame to insert.
+        ingest_run_id: Unique ID for this ingestion run.
+
+    Returns:
+        Number of rows upserted.
+    """
+    result_df, unique_symbols = prepare_dataframe(result_df, ingest_run_id)
+
+    logger.info(
+        "ingest_upserting_data",
+        ingest_run_id=ingest_run_id,
+        rows=len(result_df),
+        symbols=unique_symbols,
+    )
+
+    ensure_symbols_exist(storage, unique_symbols)
+    storage.insert_dataframe("day_bars", result_df, mode="upsert")
+    rows_upserted = len(result_df)
+
+    logger.info(
+        "ingest_data_upserted",
+        ingest_run_id=ingest_run_id,
+        rows_upserted=rows_upserted,
+    )
+    return rows_upserted
+
+
+def build_ingestion_result(
+    task_id: str,
+    ingest_run_id: str,
+    symbols: list[str],
+    rows_inserted: int,
+    error_count: int,
+    start_time: dt.datetime,
+    log_event: str = "ingest_historical_ohlcv_completed",
+) -> dict[str, int | str | float]:
+    """Build a standardised result dictionary for an ingestion task.
+
+    Args:
+        task_id: Task ID.
+        ingest_run_id: Unique ID for this ingestion run.
+        symbols: List of symbols processed.
+        rows_inserted: Number of rows inserted.
+        error_count: Number of errors encountered.
+        start_time: Task start time.
+        log_event: Structured-log event name to emit.
+
+    Returns:
+        Dict with task results.
+    """
+    duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+    result: dict[str, int | str | float] = {
+        "task_id": task_id,
+        "ingest_run_id": ingest_run_id,
+        "symbols_count": len(symbols),
+        "rows_inserted": rows_inserted,
+        "duration_seconds": duration,
+        "errors": error_count,
+    }
+    logger.info(log_event, **result)
+    return result
+
+
+def build_fetcher(symbols: list[str]) -> tuple[MultiSourceFetcher, PortfolioStorage]:
+    """Initialise storage and a multi-source fetcher ready for use.
+
+    Args:
+        symbols: Symbols that will be fetched (unused here, kept for context).
+
+    Returns:
+        Tuple of (fetcher, storage).
+    """
+    storage = get_storage()
+    sources = initialize_sources_with_credentials()
+    fetcher = MultiSourceFetcher(sources, storage)
+    return fetcher, storage
+
+
+# ---------------------------------------------------------------------------
+# Watchlist-specific helpers
+# ---------------------------------------------------------------------------
+
+
+def load_watchlist_symbols(storage: PortfolioStorage, task_id: str) -> list[str]:
+    """Query watchlist_items and return distinct symbols.
+
+    Args:
+        storage: PortfolioStorage instance.
+        task_id: Task ID used for logging when no symbols are found.
+
+    Returns:
+        Sorted list of symbol strings (may be empty).
+    """
+    with storage.connection() as conn:
+        rows = conn.execute(
+            "SELECT DISTINCT symbol FROM watchlist_items ORDER BY symbol"
+        ).fetchall()
+    symbols = [str(row[0]) for row in rows if row[0] is not None]
+
+    if not symbols:
+        logger.info("refresh_watchlist_ohlcv_no_symbols", task_id=task_id)
+
+    return symbols
+
+
+def empty_result(task_id: str, ingest_run_id: str) -> dict[str, int | str | float]:
+    """Return a zero-count result dict when there are no symbols to process."""
+    return {
+        "task_id": task_id,
+        "ingest_run_id": ingest_run_id,
+        "symbols_count": 0,
+        "rows_inserted": 0,
+        "errors": 0,
+    }
+
+
+def upsert_watchlist_data(
+    storage: PortfolioStorage,
+    result_df: Any,
+    ingest_run_id: str,
+    errors: dict[str, Any],
+) -> int:
+    """UPSERT watchlist OHLCV rows into day_bars and return the row count.
+
+    Args:
+        storage: PortfolioStorage instance.
+        result_df: DataFrame returned by the fetcher (may be None).
+        ingest_run_id: Unique ID for this ingestion run.
+        errors: Error dict from the fetcher (used only for warning logging).
+
+    Returns:
+        Number of rows upserted (0 if no data).
+    """
+    if result_df is None or len(result_df) == 0:
+        logger.warning(
+            "refresh_watchlist_ohlcv_no_data_fetched",
+            ingest_run_id=ingest_run_id,
+            errors=errors,
+        )
+        return 0
+
+    result_df, _ = prepare_dataframe(result_df, ingest_run_id)
+
+    logger.info(
+        "refresh_watchlist_ohlcv_upserting",
+        ingest_run_id=ingest_run_id,
+        rows=len(result_df),
+    )
+
+    storage.insert_dataframe("day_bars", result_df, mode="upsert")
+    rows_inserted: int = len(result_df)
+
+    logger.info(
+        "refresh_watchlist_ohlcv_data_upserted",
+        ingest_run_id=ingest_run_id,
+        rows_upserted=rows_inserted,
+    )
+    return rows_inserted
