@@ -42,41 +42,12 @@ router = APIRouter(prefix="/api/indicators", tags=["indicators"])
 storage = get_storage()
 
 
-@router.get("/{symbol}", response_model=IndicatorsResponse)
-def get_indicators_for_symbol(
-    symbol: Annotated[str, Path(description="Stock symbol (e.g., AAPL)")],
-    date: Annotated[
-        str | None,
-        Query(
-            description="Date for indicators (YYYY-MM-DD). Defaults to latest available.",
-            pattern=r"^\d{4}-\d{2}-\d{2}$",
-        ),
-    ] = None,
-    indicators: Annotated[
-        str | None,
-        Query(
-            description="Comma-separated list of indicators to calculate. If omitted, calculates all. "
-            "Supported: rsi, macd, bbands, sma_20, sma_50, sma_200, ema_20, ema_50, ema_200, atr, stoch"
-        ),
-    ] = None,
+def _calculate_indicator_response(
+    symbol: str,
+    date: str | None,
+    indicators: str | None,
 ) -> IndicatorsResponse:
-    """Get technical indicators for a symbol.
-
-    Calculates requested technical indicators using OHLCV data from the day_bars table.
-    If no date is specified, returns indicators for the latest available date.
-
-    Args:
-        symbol: Stock symbol (e.g., "AAPL")
-        date: Optional date for indicator calculation (YYYY-MM-DD)
-        indicators: Optional comma-separated list of specific indicators to calculate
-
-    Returns:
-        IndicatorsResponse with indicator values and interpretations
-
-    Raises:
-        HTTPException 404: If symbol has insufficient data
-        HTTPException 400: If invalid date format or indicator name
-    """
+    """Calculate indicators and return a response, raising HTTPException on error."""
     try:
         indicator_list: list[str] | None = None
         if indicators:
@@ -84,7 +55,7 @@ def get_indicators_for_symbol(
 
         result = calculate_indicators(
             storage=storage,
-            symbol=symbol.upper(),
+            symbol=symbol,
             indicators=indicator_list,
             as_of_date=date,
         )
@@ -103,6 +74,28 @@ def get_indicators_for_symbol(
         raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error calculating indicators: {e!s}") from e
+
+
+@router.get("/{symbol}", response_model=IndicatorsResponse)
+def get_indicators_for_symbol(
+    symbol: Annotated[str, Path(description="Stock symbol (e.g., AAPL)")],
+    date: Annotated[
+        str | None,
+        Query(
+            description="Date for indicators (YYYY-MM-DD). Defaults to latest available.",
+            pattern=r"^\d{4}-\d{2}-\d{2}$",
+        ),
+    ] = None,
+    indicators: Annotated[
+        str | None,
+        Query(
+            description="Comma-separated list of indicators to calculate. If omitted, calculates all. "
+            "Supported: rsi, macd, bbands, sma_20, sma_50, sma_200, ema_20, ema_50, ema_200, atr, stoch"
+        ),
+    ] = None,
+) -> IndicatorsResponse:
+    """Get technical indicators for a symbol."""
+    return _calculate_indicator_response(symbol.upper(), date, indicators)
 
 
 @router.get("/{symbol}/history", response_model=list[IndicatorsResponse])
