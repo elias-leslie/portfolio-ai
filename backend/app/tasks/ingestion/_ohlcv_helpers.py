@@ -28,6 +28,8 @@ __all__ = [
     "insert_ohlcv_data",
     "load_watchlist_symbols",
     "prepare_dataframe",
+    "run_ingestion_pipeline",
+    "run_watchlist_pipeline",
     "upsert_watchlist_data",
 ]
 
@@ -321,3 +323,77 @@ def upsert_watchlist_data(
         rows_upserted=rows_inserted,
     )
     return rows_inserted
+
+
+def run_ingestion_pipeline(
+    symbols: list[str],
+    days: int,
+    task_id: str | None,
+    ingest_run_id: str,
+    start_time: dt.datetime,
+) -> dict[str, int | str | float]:
+    """Core OHLCV ingestion pipeline: fetch, insert, and return results."""
+    fetcher, storage = build_fetcher(symbols)
+    start_date, end_date = calculate_date_range(days)
+    request = DatasetRequest(
+        dataset="day",
+        profile=None,
+        symbols=symbols,
+        start=start_date,
+        end=end_date,
+        timezone="UTC",
+        ingest_run_id=ingest_run_id,
+    )
+    result_df, error_count, errors = fetch_ohlcv_data(fetcher, request, ingest_run_id)
+    rows_inserted = 0
+    if result_df is not None and len(result_df) > 0:
+        rows_inserted = insert_ohlcv_data(storage, result_df, ingest_run_id)
+    else:
+        logger.warning("ingest_no_data_fetched", ingest_run_id=ingest_run_id, errors=errors)
+    return build_ingestion_result(
+        task_id=task_id or "direct",
+        ingest_run_id=ingest_run_id,
+        symbols=symbols,
+        rows_inserted=rows_inserted,
+        error_count=error_count,
+        start_time=start_time,
+    )
+
+
+def run_watchlist_pipeline(
+    storage: PortfolioStorage,
+    symbols: list[str],
+    task_id: str,
+    ingest_run_id: str,
+    start_time: dt.datetime,
+) -> dict[str, int | str | float]:
+    """Core watchlist OHLCV pipeline: fetch, upsert, and return results."""
+    logger.info(
+        "refresh_watchlist_ohlcv_started",
+        task_id=task_id,
+        ingest_run_id=ingest_run_id,
+        symbols=symbols,
+        symbols_count=len(symbols),
+    )
+    fetcher, _ = build_fetcher(symbols)
+    start_date, end_date = calculate_date_range(days=5)
+    request = DatasetRequest(
+        dataset="day",
+        profile=None,
+        symbols=symbols,
+        start=start_date,
+        end=end_date,
+        timezone="UTC",
+        ingest_run_id=ingest_run_id,
+    )
+    result_df, error_count, errors = fetch_ohlcv_data(fetcher, request, ingest_run_id)
+    rows_inserted = upsert_watchlist_data(storage, result_df, ingest_run_id, errors)
+    return build_ingestion_result(
+        task_id=task_id,
+        ingest_run_id=ingest_run_id,
+        symbols=symbols,
+        rows_inserted=rows_inserted,
+        error_count=error_count,
+        start_time=start_time,
+        log_event="refresh_watchlist_ohlcv_completed",
+    )
