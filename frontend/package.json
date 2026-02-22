@@ -18,6 +18,7 @@
     "test:e2e:debug": "playwright test --debug"
   },
   "dependencies": {
+    "@agent-hub/chat-ui": "workspace:*",
     "@agent-hub/passport-client": "workspace:*",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-checkbox": "^1.3.3",
