@@ -11,10 +11,21 @@ Tasks:
 
 from __future__ import annotations
 
+import re
+import shutil
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
 from ..logging_config import get_logger
 from .maintenance_logging import log_maintenance_complete, log_maintenance_start
 
 logger = get_logger(__name__)
+
+# Constants
+_SUMMITFLOW_SKIP_REASON = "Evidence now managed by SummitFlow"
+_TASK_NAME = "cleanup_debug_captures"
+_ARTIFACTS_DIR = Path("/home/kasadis/portfolio-ai/data/artifacts")
+_DBG_PATTERN = re.compile(r"^DBG-(\d{4})-(\d{4,6})$")
 
 
 def refresh_expired_artifacts() -> dict[str, int | str]:
@@ -27,10 +38,7 @@ def refresh_expired_artifacts() -> dict[str, int | str]:
         "refresh_expired_artifacts_skipped",
         reason="Migrated to SummitFlow - awaiting task integration",
     )
-    return {
-        "status": "skipped",
-        "reason": "Evidence now managed by SummitFlow",
-    }
+    return {"status": "skipped", "reason": _SUMMITFLOW_SKIP_REASON}
 
 
 def cleanup_old_versions(
@@ -45,17 +53,48 @@ def cleanup_old_versions(
         "cleanup_old_versions_skipped",
         reason="Migrated to SummitFlow - awaiting task integration",
     )
-    return {
-        "status": "skipped",
-        "reason": "Evidence now managed by SummitFlow",
-        "dry_run": dry_run,
-    }
+    return {"status": "skipped", "reason": _SUMMITFLOW_SKIP_REASON, "dry_run": dry_run}
+
+
+def _parse_dbg_capture_date(entry: Path) -> datetime | None:
+    """Parse the capture date from a DBG-MMDD-HHMMSS directory name."""
+    match = _DBG_PATTERN.match(entry.name)
+    if not match:
+        return None
+    mmdd = match.group(1)
+    year = datetime.now(UTC).year
+    month = int(mmdd[:2])
+    day = int(mmdd[2:4])
+    capture_date = datetime(year, month, day, tzinfo=UTC)
+    if capture_date > datetime.now(UTC):
+        capture_date = datetime(year - 1, month, day, tzinfo=UTC)
+    return capture_date
+
+
+def _process_debug_entry(
+    entry: Path,
+    cutoff_date: datetime,
+    dry_run: bool,
+) -> tuple[int, int] | None:
+    """Process one DBG directory; return (count, size) if acted on, else None."""
+    if not entry.is_dir():
+        return None
+    capture_date = _parse_dbg_capture_date(entry)
+    if capture_date is None or capture_date >= cutoff_date:
+        return None
+    dir_size = sum(f.stat().st_size for f in entry.rglob("*") if f.is_file())
+    if dry_run:
+        logger.info("would_delete_debug_capture", path=str(entry),
+                    size_bytes=dir_size, capture_date=capture_date.isoformat())
+    else:
+        shutil.rmtree(entry)
+        logger.info("deleted_debug_capture", path=str(entry),
+                    size_bytes=dir_size, capture_date=capture_date.isoformat())
+    return (1, dir_size)
 
 
 def cleanup_debug_captures(max_age_days: int = 7, dry_run: bool = False) -> dict[str, object]:
     """Delete old debug capture directories (DBG-* pattern).
-
-    These are ad-hoc screenshot captures that don't need long retention.
 
     Args:
         max_age_days: Delete captures older than N days (default: 7)
@@ -64,101 +103,36 @@ def cleanup_debug_captures(max_age_days: int = 7, dry_run: bool = False) -> dict
     Returns:
         Summary dict with deleted count and size
     """
-    import re
-    import shutil
-    from datetime import UTC, datetime, timedelta
-    from pathlib import Path
-
-    log_id = log_maintenance_start("cleanup_debug_captures", dry_run)
-
-    logger.info(
-        "cleanup_debug_captures_started",
-        max_age_days=max_age_days,
-        dry_run=dry_run,
-    )
+    log_id = log_maintenance_start(_TASK_NAME, dry_run)
+    logger.info("cleanup_debug_captures_started", max_age_days=max_age_days, dry_run=dry_run)
 
     try:
-        artifacts_dir = Path("/home/kasadis/portfolio-ai/data/artifacts")
         cutoff_date = datetime.now(UTC) - timedelta(days=max_age_days)
-
         deleted_count = 0
         deleted_size = 0
-        errors = []
+        errors: list[dict[str, str]] = []
 
-        # Match directory names like DBG-1213-222150 (MMDD-HHMMSS format)
-        dbg_pattern = re.compile(r"^DBG-(\d{4})-(\d{4,6})$")
-
-        for entry in artifacts_dir.iterdir():
-            if not entry.is_dir():
-                continue
-
-            match = dbg_pattern.match(entry.name)
-            if not match:
-                continue
-
-            # Parse date from directory name (format: DBG-MMDD-HHMMSS)
-            mmdd = match.group(1)
+        for entry in _ARTIFACTS_DIR.iterdir():
             try:
-                # Assume current year
-                year = datetime.now(UTC).year
-                month = int(mmdd[:2])
-                day = int(mmdd[2:4])
-                capture_date = datetime(year, month, day, tzinfo=UTC)
-
-                # Handle year boundary (December captures in January)
-                if capture_date > datetime.now(UTC):
-                    capture_date = datetime(year - 1, month, day, tzinfo=UTC)
-
-                if capture_date < cutoff_date:
-                    # Calculate size
-                    dir_size = sum(f.stat().st_size for f in entry.rglob("*") if f.is_file())
-
-                    if dry_run:
-                        logger.info(
-                            "would_delete_debug_capture",
-                            path=str(entry),
-                            size_bytes=dir_size,
-                            capture_date=capture_date.isoformat(),
-                        )
-                    else:
-                        shutil.rmtree(entry)
-                        logger.info(
-                            "deleted_debug_capture",
-                            path=str(entry),
-                            size_bytes=dir_size,
-                            capture_date=capture_date.isoformat(),
-                        )
-
-                    deleted_count += 1
-                    deleted_size += dir_size
-
+                result = _process_debug_entry(entry, cutoff_date, dry_run)
+                if result is not None:
+                    deleted_count += result[0]
+                    deleted_size += result[1]
             except (ValueError, OSError) as e:
                 errors.append({"path": str(entry), "error": str(e)})
                 logger.error("cleanup_debug_capture_error", path=str(entry), error=str(e))
 
-        logger.info(
-            "cleanup_debug_captures_completed",
-            deleted_count=deleted_count,
-            deleted_size_bytes=deleted_size,
-            dry_run=dry_run,
-            error_count=len(errors),
-        )
-
-        result = {
-            "deleted_count": deleted_count,
-            "deleted_size_bytes": deleted_size,
-            "dry_run": dry_run,
-            "errors": errors,
+        logger.info("cleanup_debug_captures_completed", deleted_count=deleted_count,
+                    deleted_size_bytes=deleted_size, dry_run=dry_run, error_count=len(errors))
+        result_dict: dict[str, object] = {
+            "deleted_count": deleted_count, "deleted_size_bytes": deleted_size,
+            "dry_run": dry_run, "errors": errors,
         }
-        log_maintenance_complete(log_id, "cleanup_debug_captures", True, result)
-        return result
+        log_maintenance_complete(log_id, _TASK_NAME, True, result_dict)
+        return result_dict
 
     except Exception as e:
-        logger.error(
-            "cleanup_debug_captures_failed",
-            error=str(e),
-            error_type=type(e).__name__,
-        )
-        error_result = {"error": str(e), "success": False, "dry_run": dry_run}
-        log_maintenance_complete(log_id, "cleanup_debug_captures", False, error_result, str(e))
+        logger.error("cleanup_debug_captures_failed", error=str(e), error_type=type(e).__name__)
+        error_result: dict[str, object] = {"error": str(e), "success": False, "dry_run": dry_run}
+        log_maintenance_complete(log_id, _TASK_NAME, False, error_result, str(e))
         return error_result
