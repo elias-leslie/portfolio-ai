@@ -89,6 +89,23 @@ class ClaudeSession(PermissionMixin):
         except Exception as e:
             yield self._error_message_for(e)
 
+    async def _iter_sdk_messages(
+        self, client: ClaudeSDKClient, message: str
+    ) -> AsyncIterator[StreamMessage]:
+        """Convert and filter SDK messages for a query."""
+        await client.query(message)
+        async for msg in client.receive_response():
+            logger.info(f"[{self.session_id}] Received: {type(msg).__name__}")
+            self._capture_sdk_session_id(msg)
+            stream_msg = convert_sdk_message(msg)
+            if stream_msg:
+                yield stream_msg
+            else:
+                logger.debug(
+                    f"[{self.session_id}] Skipped"
+                    f" {type(msg).__name__}: {str(msg)[:200]}"
+                )
+
     async def _run_query(self, message: str) -> AsyncIterator[StreamMessage]:
         """Execute the SDK query and yield converted messages."""
         options = ClaudeAgentOptions(
@@ -105,18 +122,8 @@ class ClaudeSession(PermissionMixin):
         self._active_client = client
         try:
             async with client:
-                await client.query(message)
-                async for msg in client.receive_response():
-                    logger.info(f"[{self.session_id}] Received: {type(msg).__name__}")
-                    self._capture_sdk_session_id(msg)
-                    stream_msg = convert_sdk_message(msg)
-                    if stream_msg:
-                        yield stream_msg
-                    else:
-                        logger.debug(
-                            f"[{self.session_id}] Skipped"
-                            f" {type(msg).__name__}: {str(msg)[:200]}"
-                        )
+                async for stream_msg in self._iter_sdk_messages(client, message):
+                    yield stream_msg
         finally:
             self._active_client = None
 
