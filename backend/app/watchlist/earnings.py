@@ -1,22 +1,14 @@
-"""Earnings calendar fetching and warning system.
-
-This module fetches upcoming earnings dates from multiple sources (YFinance, Finnhub)
-and generates warnings based on proximity to earnings events.
-"""
+"""Earnings calendar fetching and warning system (YFinance + Finnhub multi-source)."""
 
 from __future__ import annotations
 
 import json
 import os
 from datetime import UTC, date, datetime, timedelta
-from typing import TYPE_CHECKING
 
 import requests
 
 from app.storage.types import DatabaseConnection
-
-if TYPE_CHECKING:
-    pass
 
 try:
     import yfinance as yf
@@ -25,183 +17,120 @@ try:
 except ImportError:
     YFINANCE_AVAILABLE = False
 
+_CACHE_MISS = object()  # sentinel for "no cache row found"
 
-def fetch_earnings_date(symbol: str) -> datetime | None:
-    """Fetch next earnings date with multi-source failover.
 
-    Sources (in priority order):
-    1. YFinance (free)
-    2. Finnhub (if API key available)
-
-    Args:
-        symbol: Stock symbol
-
-    Returns:
-        datetime object for next earnings date, or None if not found
-    """
-    # Try YFinance first
-    if YFINANCE_AVAILABLE:
-        try:
-            yf_obj = yf.Ticker(symbol)
-            calendar = yf_obj.calendar
-
-            if calendar and "Earnings Date" in calendar:
-                earnings_dates = calendar["Earnings Date"]
-                if earnings_dates and len(earnings_dates) > 0:
-                    # YFinance returns date as string or datetime
-                    earnings_str = earnings_dates[0]
-                    if isinstance(earnings_str, str):
-                        # Parse string date (format: YYYY-MM-DD)
-                        return datetime.strptime(earnings_str, "%Y-%m-%d")
-                    if isinstance(earnings_str, datetime):
-                        return earnings_str
-        except Exception:
-            pass  # Try next source
-
-    # Try Finnhub if API key available
-    finnhub_key = os.environ.get("FINNHUB_API_KEY")
-    if finnhub_key:
-        try:
-            url = "https://finnhub.io/api/v1/calendar/earnings"
-            params = {
-                "symbol": symbol,
-                "token": finnhub_key,
-            }
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-
-            data = response.json()
-            earnings_calendar = data.get("earningsCalendar", [])
-
-            if earnings_calendar and len(earnings_calendar) > 0:
-                # Take first (most recent) earnings date
-                date_str = earnings_calendar[0].get("date")
-                if date_str:
-                    return datetime.strptime(date_str, "%Y-%m-%d")
-        except Exception:
-            pass  # All sources failed
-
+def _fetch_from_yfinance(symbol: str) -> datetime | None:
+    """Fetch earnings date from YFinance."""
+    if not YFINANCE_AVAILABLE:
+        return None
+    try:
+        calendar = yf.Ticker(symbol).calendar
+        if not calendar or "Earnings Date" not in calendar:
+            return None
+        earnings_dates = calendar["Earnings Date"]
+        if not earnings_dates:
+            return None
+        earnings_str = earnings_dates[0]
+        if isinstance(earnings_str, str):
+            return datetime.strptime(earnings_str, "%Y-%m-%d")
+        if isinstance(earnings_str, datetime):
+            return earnings_str
+    except Exception:
+        pass
     return None
 
 
-def generate_earnings_warning(earnings_date: datetime | None) -> str | None:  # noqa: PLR0911
-    """Generate earnings warning based on proximity.
+def _fetch_from_finnhub(symbol: str) -> datetime | None:
+    """Fetch earnings date from Finnhub API."""
+    finnhub_key = os.environ.get("FINNHUB_API_KEY")
+    if not finnhub_key:
+        return None
+    try:
+        response = requests.get(
+            "https://finnhub.io/api/v1/calendar/earnings",
+            params={"symbol": symbol, "token": finnhub_key},
+            timeout=10,
+        )
+        response.raise_for_status()
+        entries = response.json().get("earningsCalendar", [])
+        if not entries:
+            return None
+        date_str = entries[0].get("date")
+        if date_str:
+            return datetime.strptime(date_str, "%Y-%m-%d")
+    except Exception:
+        pass
+    return None
 
-    Warning levels:
-    - 🔴 (0-5 days): High volatility expected
-    - ⚠ (6-14 days): Caution - earnings approaching
-    - 💡 (15-30 days): FYI - earnings in 2-4 weeks
-    - None (>30 days or past): No warning
 
-    Args:
-        earnings_date: Next earnings date
+def fetch_earnings_date(symbol: str) -> datetime | None:
+    """Fetch next earnings date with multi-source failover (YFinance then Finnhub)."""
+    return _fetch_from_yfinance(symbol) or _fetch_from_finnhub(symbol)
 
-    Returns:
-        Warning string or None if no warning needed
-    """
+
+def generate_earnings_warning(earnings_date: datetime | None) -> str | None:
+    """Generate earnings warning based on proximity (0-5d red, 6-14d caution, 15-30d info)."""
     if earnings_date is None:
         return None
-
-    # Calculate days away (compare dates only, not datetime to avoid time precision issues)
     now = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
-    earnings_date_normalized = earnings_date.replace(hour=0, minute=0, second=0, microsecond=0)
-    days_away = (earnings_date_normalized - now).days
-
-    # No warning for past earnings
-    if days_away < 0:
+    normalized = earnings_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    days_away = (normalized - now).days
+    if days_away < 0 or days_away > 30:
         return None
-
-    # No warning for earnings >30 days away
-    if days_away > 30:
-        return None
-
-    # Generate appropriate warning
     if days_away <= 5:
         if days_away == 0:
             return "🔴 EARNINGS TODAY - High volatility expected"
         return f"🔴 EARNINGS IN {days_away} DAYS - High volatility expected"
     if days_away <= 14:
         return f"⚠ Earnings in {days_away} days - approach with caution"
-    # 15-30 days
     weeks = days_away // 7
     return f"💡 Earnings in {days_away} days ({weeks} weeks) - plan ahead"
+
+
+def _read_cache_row(conn: DatabaseConnection, symbol: str, cache_cutoff: date) -> object:
+    """Return cached payload dict, None (cached null), or _CACHE_MISS sentinel."""
+    row = conn.execute(
+        "SELECT payload FROM reference_cache"
+        " WHERE symbol = %s AND source = %s AND as_of_date >= %s"
+        " ORDER BY as_of_date DESC LIMIT 1",
+        [symbol, "earnings", cache_cutoff.isoformat()],
+    ).fetchone()
+    if row is None:
+        return _CACHE_MISS
+    payload = row[0]
+    return payload if isinstance(payload, dict) else None
+
+
+def _write_cache_row(
+    conn: DatabaseConnection, symbol: str, fresh_data: datetime | None
+) -> None:
+    """Write earnings date to cache (stores None to avoid repeated failed lookups)."""
+    payload_data = {"earnings_date": fresh_data.isoformat() if fresh_data else None}
+    conn.execute(
+        "INSERT INTO reference_cache (symbol, as_of_date, payload, source)"
+        " VALUES (%s, %s, %s, %s)"
+        " ON CONFLICT (symbol, as_of_date, source) DO UPDATE SET payload = EXCLUDED.payload",
+        [symbol, date.today().isoformat(), json.dumps(payload_data), "earnings"],
+    )
+    conn.commit()
 
 
 def fetch_earnings_date_cached(
     conn: DatabaseConnection, symbol: str, ttl_days: int = 30
 ) -> datetime | None:
-    """Fetch earnings date with caching support (default TTL: 30 days).
+    """Fetch earnings date with caching (default TTL: 30 days).
 
-    This function checks the reference_cache table first. If valid cached data
-    exists (within TTL), it returns the cached data without calling external APIs.
-    If cache is stale or missing, it fetches fresh data and caches it.
-
-    Earnings dates change infrequently, so TTL is longer than news (30 days vs 6 hours).
-
-    Args:
-        conn: Database connection
-        symbol: Stock symbol
-        ttl_days: Cache TTL in days (default: 30 days)
-
-    Returns:
-        datetime object for next earnings date, or None if not found
-
-    Example:
-        >>> from app.storage.connection import ConnectionManager
-        >>> cm = ConnectionManager()
-        >>> with cm.connection() as conn:
-        ...     earnings_date = fetch_earnings_date_cached(conn, "NVDA")
-        >>> # First call fetches from API and caches
-        >>> # Second call within 30 days uses cache
+    Checks reference_cache first; fetches and caches fresh data on miss or expiry.
     """
-    # Check cache first
     cache_cutoff = date.today() - timedelta(days=ttl_days)
-
-    cached_row = conn.execute(
-        """
-        SELECT payload
-        FROM reference_cache
-        WHERE symbol = %s
-          AND source = %s
-          AND as_of_date >= %s
-        ORDER BY as_of_date DESC
-        LIMIT 1
-        """,
-        [symbol, "earnings", cache_cutoff.isoformat()],
-    ).fetchone()
-
-    # Cache hit - return cached data
-    if cached_row is not None:
-        payload = cached_row[0]
-        # Payload is a dict with earnings_date as ISO string
-        if isinstance(payload, dict):
-            earnings_date_str = payload.get("earnings_date")
+    cached = _read_cache_row(conn, symbol, cache_cutoff)
+    if cached is not _CACHE_MISS:
+        if isinstance(cached, dict):
+            earnings_date_str = cached.get("earnings_date")
             if earnings_date_str:
                 return datetime.fromisoformat(earnings_date_str)
         return None
-
-    # Cache miss or stale - fetch fresh data
     fresh_data = fetch_earnings_date(symbol)
-
-    # Cache the fresh data (even if None, to avoid repeated failed lookups)
-    payload_data = {
-        "earnings_date": fresh_data.isoformat() if fresh_data else None,
-    }
-
-    conn.execute(
-        """
-        INSERT INTO reference_cache (symbol, as_of_date, payload, source)
-        VALUES (%s, %s, %s, %s)
-        ON CONFLICT (symbol, as_of_date, source)
-        DO UPDATE SET payload = EXCLUDED.payload
-        """,
-        [
-            symbol,
-            date.today().isoformat(),
-            json.dumps(payload_data),
-            "earnings",
-        ],
-    )
-    conn.commit()
-
+    _write_cache_row(conn, symbol, fresh_data)
     return fresh_data
