@@ -19,12 +19,12 @@ from app.agents.rules_validator_agent import (
 from app.logging_config import get_logger
 from app.storage.connection import get_connection_manager
 from app.tasks._rules_validation_helpers import (
-    PerformanceData,
     _SQL_INSERT_ALERT,
     _SQL_INSERT_REPORT,
     _SQL_SIGNAL_STATS,
     _SQL_TRADE_STATS,
     _SQL_UPDATE_RECS,
+    PerformanceData,
 )
 
 logger = get_logger(__name__)
