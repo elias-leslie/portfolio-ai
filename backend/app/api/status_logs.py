@@ -27,6 +27,7 @@ from .status_logs_core.models import (
     SetLogLevelRequest,
     SetLogLevelResponse,
     TestLoggingResponse,
+    UnifiedLogEntry,
     UnifiedLogsResponse,
 )
 from .status_logs_core.validators import normalize_log_level, validate_log_params
@@ -49,13 +50,11 @@ def _categorize_units(
         Tuple of (system_units, user_units) lists
     """
     if service:
-        # Single service filter
         unit = service_units.get(service, "")
         if service in USER_MODE_SERVICES:
             return [], [unit]
         return [unit], []
 
-    # All services
     system_units = []
     user_units = []
     for svc, unit in service_units.items():
@@ -82,6 +81,93 @@ def _get_sorted_levels(reverse: bool = False) -> list[str]:
     )
 
 
+def _fetch_all_logs(
+    service: str | None, since: str
+) -> list[UnifiedLogEntry]:
+    """Fetch and combine logs from both system and user journald units.
+
+    Args:
+        service: Optional service filter
+        since: Time range string
+
+    Returns:
+        Combined list of log entries from system and user units
+    """
+    system_units, user_units = _categorize_units(SERVICE_UNIT_MAPPING, service)
+    fetch_limit = JOURNAL_FETCH_LIMIT
+
+    logs: list[UnifiedLogEntry] = []
+    logs.extend(
+        fetch_journal_logs(
+            system_units,
+            is_user_mode=False,
+            fetch_limit=fetch_limit,
+            since=since,
+            service_units=SERVICE_UNIT_MAPPING,
+        )
+    )
+    logs.extend(
+        fetch_journal_logs(
+            user_units,
+            is_user_mode=True,
+            fetch_limit=fetch_limit,
+            since=since,
+            service_units=SERVICE_UNIT_MAPPING,
+        )
+    )
+    return logs
+
+
+def _process_logs(
+    logs: list[UnifiedLogEntry],
+    level: str | None,
+    lines: int,
+) -> tuple[list[UnifiedLogEntry], dict[str, int]]:
+    """Sort, count, filter, merge, and limit log entries.
+
+    Args:
+        logs: Raw log entries to process
+        level: Optional level filter
+        lines: Maximum number of entries to return
+
+    Returns:
+        Tuple of (processed_logs, level_counts)
+    """
+    logs.sort(key=lambda x: x.timestamp)
+    level_counts = count_log_levels(logs)
+
+    filtered = [log for log in logs if log.level == level] if level else logs
+    merged = merge_consecutive_logs(filtered)
+    limited = merged[-lines:] if len(merged) > lines else merged
+    return limited, level_counts
+
+
+def _run_set_log_level_script(level: str) -> None:
+    """Execute the set-log-level.sh script with the given level.
+
+    Args:
+        level: Validated log level string
+
+    Raises:
+        HTTPException: 500 if the script fails, 504 if it times out
+    """
+    script_path = Path(__file__).parent.parent.parent / "scripts" / "set-log-level.sh"
+    result = subprocess.run(
+        ["bash", str(script_path), level],
+        capture_output=True,
+        text=True,
+        timeout=SCRIPT_EXECUTION_TIMEOUT_SECONDS,
+        check=False,
+    )
+
+    if result.returncode != 0:
+        logger.error("set_log_level_failed", stderr=result.stderr, returncode=result.returncode)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to set log level: {result.stderr or 'Unknown error'}",
+        )
+
+
 @router.get("/unified-logs", response_model=UnifiedLogsResponse)
 async def get_unified_logs(
     lines: int = 500,
@@ -106,50 +192,11 @@ async def get_unified_logs(
     Raises:
         HTTPException: 400 if parameters invalid, 500 if journalctl fails
     """
-    # Validate parameters
     validate_log_params(lines, service, level)
 
     try:
-        # Categorize units
-        system_units, user_units = _categorize_units(SERVICE_UNIT_MAPPING, service)
-        fetch_limit = JOURNAL_FETCH_LIMIT
-
-        # Fetch logs from both system and user units
-        logs = []
-        logs.extend(
-            fetch_journal_logs(
-                system_units,
-                is_user_mode=False,
-                fetch_limit=fetch_limit,
-                since=since,
-                service_units=SERVICE_UNIT_MAPPING,
-            )
-        )
-        logs.extend(
-            fetch_journal_logs(
-                user_units,
-                is_user_mode=True,
-                fetch_limit=fetch_limit,
-                since=since,
-                service_units=SERVICE_UNIT_MAPPING,
-            )
-        )
-
-        # Sort by timestamp (chronological order)
-        logs.sort(key=lambda x: x.timestamp)
-
-        # Calculate level counts from ALL logs (before filtering)
-        level_counts = count_log_levels(logs)
-
-        # Apply level filter if specified (exact match)
-        filtered_logs = [log for log in logs if log.level == level] if level else logs
-
-        # Merge consecutive entries
-        merged_logs = merge_consecutive_logs(filtered_logs)
-
-        # Limit to requested number of entries (take most recent)
-        limited_logs = merged_logs[-lines:] if len(merged_logs) > lines else merged_logs
-
+        logs = _fetch_all_logs(service, since)
+        limited_logs, level_counts = _process_logs(logs, level, lines)
         return UnifiedLogsResponse(
             logs=limited_logs,
             total_entries=len(limited_logs),
@@ -181,8 +228,6 @@ def get_log_level_config() -> LogLevelConfigResponse:
         LogLevelConfigResponse: Current log level and configuration info
     """
     current_level = os.getenv("LOG_LEVEL", "INFO")
-
-    # Derive available levels from VALID_LEVELS, excluding WARNING alias
     available_levels = _get_sorted_levels(reverse=True)
     return LogLevelConfigResponse(
         current_level=current_level,
@@ -209,38 +254,17 @@ async def set_log_level(request: SetLogLevelRequest) -> SetLogLevelResponse:
     """
     level = request.level.upper()
 
-    # Validate level
     if level not in VALID_LEVELS:
         raise HTTPException(
             status_code=400,
             detail="Invalid log level. Must be one of: DEBUG, INFO, WARN, ERROR, CRITICAL",
         )
 
-    # Normalize WARNING to WARN
     level = normalize_log_level(level)
 
     try:
-        # Run script to update systemd configs
-        # Script uses sudo internally for tee and systemctl
-        # Requires sudoers rule for passwordless execution
-        script_path = Path(__file__).parent.parent.parent / "scripts" / "set-log-level.sh"
-        result = subprocess.run(
-            ["bash", str(script_path), level],
-            capture_output=True,
-            text=True,
-            timeout=SCRIPT_EXECUTION_TIMEOUT_SECONDS,
-            check=False,
-        )
-
-        if result.returncode != 0:
-            logger.error("set_log_level_failed", stderr=result.stderr, returncode=result.returncode)
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to set log level: {result.stderr or 'Unknown error'}",
-            )
-
+        _run_set_log_level_script(level)
         logger.info("log_level_changed", level=level)
-
         return SetLogLevelResponse(
             success=True,
             level=level,
@@ -267,24 +291,20 @@ def test_logging() -> TestLoggingResponse:
     Returns:
         TestLoggingResponse: Confirmation that test logs were generated
     """
-    # Get both structured and standard Python logger
     test_logger = logging.getLogger("app.api.status.test_logging")
 
-    # Test all log levels
     test_logger.debug("DEBUG test log from backend")
     test_logger.info("INFO test log from backend")
     test_logger.warning("WARNING test log from backend")
     test_logger.error("ERROR test log from backend")
     test_logger.critical("CRITICAL test log from backend")
 
-    # Also test with structured logger
     logger.debug("test_debug_log", component="backend", test_type="structured")
     logger.info("test_info_log", component="backend", test_type="structured")
     logger.warning("test_warning_log", component="backend", test_type="structured")
     logger.error("test_error_log", component="backend", test_type="structured")
     # Note: structlog doesn't have critical(), it maps to error()
 
-    # Derive levels list from VALID_LEVELS, excluding WARNING alias
     levels_list = _get_sorted_levels()
     return TestLoggingResponse(
         success=True,
