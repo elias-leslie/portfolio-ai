@@ -1,12 +1,4 @@
-"""API endpoints for strategy management.
-
-Provides REST API for:
-- Listing strategies with filtering
-- Getting strategy details
-- Triggering strategy generation
-- Updating strategy status (activate/archive)
-- Viewing performance comparison
-"""
+"""API endpoints for strategy management."""
 
 from __future__ import annotations
 
@@ -15,12 +7,13 @@ from typing import Any, Literal
 from fastapi import APIRouter, HTTPException, Query
 
 from app.logging_config import get_logger
-from app.strategies.performance_utils import calculate_performance_status
 from app.strategies.storage import get_strategy_storage
-from app.utils.formatters import format_db_date, parse_float
 
 from .strategies_generation import handle_generate_batch, handle_generate_strategy
 from .strategies_handlers import (
+    build_list_item,
+    compute_summary_flags,
+    get_strategy_or_404,
     handle_get_strategy,
     handle_get_strategy_performance,
     handle_update_strategy_status,
@@ -29,7 +22,6 @@ from .strategies_models import (
     GenerateBatchRequest,
     GenerateStrategyRequest,
     StrategyDetail,
-    StrategyListItem,
     StrategySummary,
     UpdateStrategyStatusRequest,
 )
@@ -42,65 +34,6 @@ from .strategies_signals import (
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/strategies", tags=["strategies"])
-
-# Re-export models so existing importers continue to work
-__all__ = [
-    "GenerateBatchRequest",
-    "GenerateStrategyRequest",
-    "StrategyDetail",
-    "StrategyListItem",
-    "StrategySummary",
-    "UpdateStrategyStatusRequest",
-    "router",
-]
-
-
-def _get_strategy_or_404(strategy_id: str):
-    """Get strategy by ID or raise 404 if not found."""
-    storage = get_strategy_storage()
-    strategy = storage.get_strategy_by_id(strategy_id)
-    if not strategy:
-        raise HTTPException(status_code=404, detail=f"Strategy {strategy_id} not found")
-    return strategy
-
-
-def _build_list_item(s: Any) -> dict[str, Any]:
-    """Build a strategy list item dict from a storage object."""
-    expected = parse_float(s.expected_sharpe)
-    live = parse_float(s.live_sharpe_ratio)
-    variance, flag = calculate_performance_status(expected, live, s.live_trades_count)
-    return StrategyListItem(
-        id=s.id,
-        name=s.name,
-        symbol=s.symbol,
-        strategy_type=s.strategy_type,
-        status=s.status,
-        version=s.version,
-        expected_sharpe=expected,
-        live_sharpe_ratio=live,
-        live_win_rate=parse_float(s.live_win_rate),
-        trades_count=s.live_trades_count,
-        created_at=format_db_date(s.created_at) or "",
-        activation_date=format_db_date(s.activation_date),
-        performance_variance=variance,
-        performance_flag=flag,
-    ).model_dump()
-
-
-def _compute_summary_flags(strategies: list[Any]) -> tuple[int, int, int]:
-    """Return (exceeding, meeting, underperforming) counts."""
-    exceeding = meeting = underperforming = 0
-    for s in strategies:
-        _, flag = calculate_performance_status(
-            parse_float(s.expected_sharpe), parse_float(s.live_sharpe_ratio), s.live_trades_count
-        )
-        if flag == "exceeding":
-            exceeding += 1
-        elif flag == "meeting":
-            meeting += 1
-        elif flag == "underperforming":
-            underperforming += 1
-    return exceeding, meeting, underperforming
 
 
 @router.get("", response_model=dict[str, Any])
@@ -118,7 +51,7 @@ async def list_strategies(
         strategies = storage.list_strategies(
             symbol=symbol, status=status, strategy_type=strategy_type, limit=limit
         )
-        items = [_build_list_item(s) for s in strategies]
+        items = [build_list_item(s) for s in strategies]
         return {"strategies": items, "total": len(items)}
     except Exception as e:
         logger.exception("Failed to list strategies", error=str(e))
@@ -135,7 +68,7 @@ async def get_strategy_summary() -> StrategySummary:
         live_sharpes = [float(s.live_sharpe_ratio) for s in strategies if s.live_sharpe_ratio]
         avg_expected = sum(expected_sharpes) / len(expected_sharpes) if expected_sharpes else None
         avg_live = sum(live_sharpes) / len(live_sharpes) if live_sharpes else None
-        exceeding, meeting, underperforming = _compute_summary_flags(strategies)
+        exceeding, meeting, underperforming = compute_summary_flags(strategies)
         return StrategySummary(
             total=len(strategies),
             active=sum(1 for s in strategies if s.status == "active"),
@@ -156,7 +89,7 @@ async def get_strategy_summary() -> StrategySummary:
 @router.get("/{strategy_id}", response_model=StrategyDetail)
 async def get_strategy(strategy_id: str) -> StrategyDetail:
     """Get strategy details with full configuration."""
-    strategy = _get_strategy_or_404(strategy_id)
+    strategy = get_strategy_or_404(strategy_id)
     return await handle_get_strategy(strategy_id, strategy)
 
 
@@ -177,7 +110,7 @@ async def update_strategy_status(
     strategy_id: str, request: UpdateStrategyStatusRequest
 ) -> dict[str, Any]:
     """Update strategy status (activate or archive)."""
-    strategy = _get_strategy_or_404(strategy_id)
+    strategy = get_strategy_or_404(strategy_id)
     return await handle_update_strategy_status(
         strategy_id, strategy, request.status, request.archive_reason
     )
@@ -186,21 +119,21 @@ async def update_strategy_status(
 @router.get("/{strategy_id}/performance", response_model=dict[str, Any])
 async def get_strategy_performance(strategy_id: str) -> dict[str, Any]:
     """Get performance comparison (backtest vs live)."""
-    strategy = _get_strategy_or_404(strategy_id)
+    strategy = get_strategy_or_404(strategy_id)
     return handle_get_strategy_performance(strategy_id, strategy)
 
 
 @router.get("/{strategy_id}/signal", response_model=dict[str, Any])
 async def get_strategy_signal(strategy_id: str) -> dict[str, Any]:
     """Get current trading signal for a strategy."""
-    strategy = _get_strategy_or_404(strategy_id)
+    strategy = get_strategy_or_404(strategy_id)
     return await handle_get_strategy_signal(strategy_id, strategy)
 
 
 @router.post("/{strategy_id}/signal/generate", response_model=dict[str, Any])
 async def generate_strategy_signal(strategy_id: str) -> dict[str, Any]:
     """Force generate a new signal for a strategy (ignores stored signals)."""
-    strategy = _get_strategy_or_404(strategy_id)
+    strategy = get_strategy_or_404(strategy_id)
     return await handle_generate_strategy_signal(strategy_id, strategy)
 
 
@@ -210,5 +143,5 @@ async def get_strategy_evolution(strategy_id: str) -> dict[str, Any]:
 
     Shows: Seed -> Backtest -> Strategy -> Signals -> Trades -> Performance
     """
-    strategy = _get_strategy_or_404(strategy_id)
+    strategy = get_strategy_or_404(strategy_id)
     return await handle_get_strategy_evolution(strategy_id, strategy)
