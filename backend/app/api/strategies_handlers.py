@@ -15,9 +15,57 @@ from app.strategies.performance_utils import (
 from app.strategies.storage import get_strategy_storage
 from app.utils.formatters import format_db_date, parse_float
 
-from .strategies_models import StrategyDetail
+from .strategies_models import StrategyDetail, StrategyListItem
 
 logger = get_logger(__name__)
+
+
+def get_strategy_or_404(strategy_id: str) -> StrategyDefinition:
+    """Get strategy by ID or raise 404 if not found."""
+    storage = get_strategy_storage()
+    strategy = storage.get_strategy_by_id(strategy_id)
+    if not strategy:
+        raise HTTPException(status_code=404, detail=f"Strategy {strategy_id} not found")
+    return strategy
+
+
+def build_list_item(s: StrategyDefinition) -> dict[str, Any]:
+    """Build a strategy list item dict from a storage object."""
+    expected = parse_float(s.expected_sharpe)
+    live = parse_float(s.live_sharpe_ratio)
+    variance, flag = calculate_performance_status(expected, live, s.live_trades_count)
+    return StrategyListItem(
+        id=s.id,
+        name=s.name,
+        symbol=s.symbol,
+        strategy_type=s.strategy_type,
+        status=s.status,
+        version=s.version,
+        expected_sharpe=expected,
+        live_sharpe_ratio=live,
+        live_win_rate=parse_float(s.live_win_rate),
+        trades_count=s.live_trades_count,
+        created_at=format_db_date(s.created_at) or "",
+        activation_date=format_db_date(s.activation_date),
+        performance_variance=variance,
+        performance_flag=flag,
+    ).model_dump()
+
+
+def compute_summary_flags(strategies: list[StrategyDefinition]) -> tuple[int, int, int]:
+    """Return (exceeding, meeting, underperforming) counts."""
+    exceeding = meeting = underperforming = 0
+    for s in strategies:
+        _, flag = calculate_performance_status(
+            parse_float(s.expected_sharpe), parse_float(s.live_sharpe_ratio), s.live_trades_count
+        )
+        if flag == "exceeding":
+            exceeding += 1
+        elif flag == "meeting":
+            meeting += 1
+        elif flag == "underperforming":
+            underperforming += 1
+    return exceeding, meeting, underperforming
 
 
 def _format_performance_history(perf_data: list[dict[str, Any]]) -> list[dict[str, Any]]:
