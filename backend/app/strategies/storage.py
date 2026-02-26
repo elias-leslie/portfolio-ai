@@ -49,6 +49,43 @@ class StrategyStorage(StrategyStorageDelegator):
         super().__init__()
         self.conn = get_connection_manager()
 
+    def _insert_strategy_row(
+        self,
+        conn: Any,
+        strategy_id: str,
+        name: str,
+        symbol: str,
+        strategy_type: str,
+        parameters_json: str,
+        research_summary_json: str,
+        generation_reasoning: str,
+        backtest_metrics_json: str,
+        expected_sharpe: float,
+        expected_win_rate: float,
+        expected_max_drawdown: float,
+        created_by: str,
+        version: int,
+        status: str,
+    ) -> None:
+        """Execute the INSERT for a new strategy row."""
+        conn.execute(
+            """
+            INSERT INTO strategy_definitions (
+                id, name, symbol, strategy_type,
+                parameters, research_summary, generation_reasoning,
+                backtest_metrics, expected_sharpe, expected_win_rate, expected_max_drawdown,
+                created_by, version, status
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                strategy_id, name, symbol, strategy_type,
+                parameters_json, research_summary_json, generation_reasoning,
+                backtest_metrics_json, expected_sharpe, expected_win_rate,
+                expected_max_drawdown, created_by, version, status,
+            ),
+        )
+
     def store_strategy(
         self,
         symbol: str,
@@ -67,45 +104,19 @@ class StrategyStorage(StrategyStorageDelegator):
         strategy_id = generate_strategy_id()
         name = generate_strategy_name(symbol, strategy_type)
         version = get_next_version(self.conn, symbol, name)
-
-        # Serialize JSONB fields
         parameters_json, research_summary_json, backtest_metrics_json = serialize_strategy_fields(
             parameters, research_summary, backtest_metrics
         )
-
         with self.conn.connection() as conn:
             ensure_symbol_exists(conn, symbol)
-            conn.execute(
-                """
-                INSERT INTO strategy_definitions (
-                    id, name, symbol, strategy_type,
-                    parameters, research_summary, generation_reasoning,
-                    backtest_metrics, expected_sharpe, expected_win_rate, expected_max_drawdown,
-                    created_by, version, status
-                )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """,
-                (
-                    strategy_id,
-                    name,
-                    symbol,
-                    strategy_type,
-                    parameters_json,
-                    research_summary_json,
-                    generation_reasoning,
-                    backtest_metrics_json,
-                    expected_sharpe,
-                    expected_win_rate,
-                    expected_max_drawdown,
-                    created_by,
-                    version,
-                    status,
-                ),
+            self._insert_strategy_row(
+                conn, strategy_id, name, symbol, strategy_type,
+                parameters_json, research_summary_json, generation_reasoning,
+                backtest_metrics_json, expected_sharpe, expected_win_rate,
+                expected_max_drawdown, created_by, version, status,
             )
             conn.commit()
-
         logger.info(f"Strategy stored: {symbol} {strategy_type} v{version} (id={strategy_id})")
-
         return strategy_id
 
     def get_strategy_by_id(self, strategy_id: str) -> StrategyDefinition | None:
