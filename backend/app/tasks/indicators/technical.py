@@ -6,43 +6,56 @@ like RSI, MACD, SMA, EMA, Bollinger Bands, ATR, and Stochastic indicators.
 
 from __future__ import annotations
 
+import datetime as dt
 import uuid
 
 from app.analytics.indicators import calculate_indicators
 from app.logging_config import get_logger
 from app.storage import get_storage
+from app.storage.facade import PortfolioStorage
 from app.tasks.indicators.helpers import build_indicator_data, upsert_indicators
 from app.tasks.types import TechnicalIndicatorResultDict
 
 logger = get_logger(__name__)
 
 
+def _process_symbol(storage: PortfolioStorage, symbol: str) -> bool:
+    """Calculate and store indicators for a single symbol using latest data.
+
+    Returns True on success, False on failure.
+    """
+    result = calculate_indicators(
+        storage=storage,
+        symbol=symbol,
+        indicators=None,
+        as_of_date=None,
+    )
+    indicators = result["indicators"]
+    date = result["date"]
+    indicator_data = build_indicator_data(symbol, indicators, date)
+    upsert_indicators(storage, indicator_data)
+    logger.info(
+        "technical_indicators_calculated",
+        symbol=symbol,
+        date=date,
+        num_indicators=len([v for v in indicators.values() if v is not None]),
+    )
+    return True
+
+
 def update_technical_indicators(
-    symbols: list[str]
+    symbols: list[str],
 ) -> TechnicalIndicatorResultDict:
     """Calculate and cache technical indicators for given symbols.
 
-    This task calculates RSI, MACD, Bollinger Bands, moving averages (SMA/EMA),
-    ATR, and Stochastic indicators using the latest 200 days of OHLCV data.
-    Results are stored in the technical_indicators table for fast retrieval.
+    Calculates RSI, MACD, Bollinger Bands, SMA/EMA, ATR, and Stochastic using
+    the latest 200 days of OHLCV data, storing results in technical_indicators.
 
     Args:
-        symbols: List of symbols to calculate indicators for
+        symbols: List of symbols to process.
 
     Returns:
-        TechnicalIndicatorResultDict with counts: {"success": int, "failed": int, "symbols_processed": int}
-
-    Example:
-        >>> # Run immediately
-        >>> update_technical_indicators(["AAPL", "MSFT", "GOOGL"])
-        {"success": 3, "failed": 0, "symbols_processed": 3}
-
-        >>> # Schedule as background task
-        >>> update_technical_indicators(["AAPL", "MSFT", "GOOGL"])
-
-    Note:
-        This task can be scheduled daily at market close + 30 minutes (4:30 PM ET)
-        using Hatchet cron for automated indicator updates.
+        {"success": int, "failed": int, "symbols_processed": int}
     """
     task_id = str(uuid.uuid4())
     logger.info(
@@ -58,30 +71,8 @@ def update_technical_indicators(
 
     for symbol in symbols:
         try:
-            # Calculate indicators using latest data
-            result = calculate_indicators(
-                storage=storage,
-                symbol=symbol,
-                indicators=None,  # Calculate all indicators
-                as_of_date=None,  # Use latest available date
-            )
-
-            # Extract indicator values from result
-            indicators = result["indicators"]
-            date = result["date"]
-
-            # Prepare and insert indicator data
-            indicator_data = build_indicator_data(symbol, indicators, date)
-            upsert_indicators(storage, indicator_data)
-
+            _process_symbol(storage, symbol)
             success_count += 1
-            logger.info(
-                "technical_indicators_calculated",
-                symbol=symbol,
-                date=date,
-                num_indicators=len([v for v in indicators.values() if v is not None]),
-            )
-
         except Exception as e:
             failed_count += 1
             logger.error(
@@ -90,172 +81,160 @@ def update_technical_indicators(
                 error=str(e),
                 error_type=type(e).__name__,
             )
-            # Continue with next symbol instead of failing entire task
 
     task_result: TechnicalIndicatorResultDict = {
         "success": success_count,
         "failed": failed_count,
         "symbols_processed": len(symbols),
     }
-
     logger.info(
         "update_technical_indicators_completed",
         task_id=task_id,
         **task_result,
     )
-
     return task_result
 
 
-def backfill_technical_indicators(
-    symbols: list[str] | None = None, batch_size: int = 50
-) -> dict[str, int]:
-    """Backfill technical indicators for all historical dates with OHLCV data.
-
-    This task calculates indicators for ALL dates that have OHLCV data but are missing
-    indicators. It's designed for one-time backfill or catch-up operations.
-
-    The regular update_technical_indicators task only calculates for the LATEST date.
-    Use this task when:
-    - Initial setup of indicator data
-    - After adding new symbols to watchlist
-    - Recovering from data gaps
-
-    Args:
-        symbols: List of symbols to backfill. If None, backfills ALL symbols from day_bars.
-        batch_size: Number of dates to process per symbol before committing (default: 50)
-
-    Returns:
-        Dict with counts: {"symbols_processed": int, "indicators_created": int, "errors": int}
-
-    Example:
-        >>> # Backfill all symbols
-        >>> backfill_technical_indicators()
-
-        >>> # Backfill specific symbols
-        >>> backfill_technical_indicators(["AAPL", "MSFT", "GOOGL"])
-
-    Note:
-        This task can take several minutes for large datasets. Run manually or schedule
-        during off-hours. Progress is logged for monitoring.
+def _get_missing_dates(storage: PortfolioStorage, symbol: str) -> list[dt.date]:
+    """Return dates that have OHLCV data but are missing indicator records."""
+    query = """
+        SELECT DISTINCT db.date
+        FROM day_bars db
+        LEFT JOIN technical_indicators ti
+            ON db.symbol = ti.symbol AND db.date = ti.date
+        WHERE db.symbol = $1
+          AND ti.symbol IS NULL
+        ORDER BY db.date ASC
     """
-    task_id = str(uuid.uuid4())
+    missing_dates_df = storage.query(query, [symbol])
+    return [row["date"] for row in missing_dates_df.to_dicts()]
+
+
+def _process_backfill_date(
+    storage: PortfolioStorage, symbol: str, date: dt.date
+) -> bool:
+    """Calculate and store indicators for a single historical date.
+
+    Returns True on success, False when the date should be counted as an error.
+    Raises nothing — ValueError for insufficient data is silently skipped.
+    """
+    try:
+        result = calculate_indicators(
+            storage=storage,
+            symbol=symbol,
+            indicators=None,
+            as_of_date=date,
+        )
+        indicators = result["indicators"]
+        indicator_data = build_indicator_data(symbol, indicators, date)
+        upsert_indicators(storage, indicator_data)
+        return True
+    except ValueError as e:
+        if "Insufficient data" in str(e):
+            logger.debug(
+                "backfill_skip_insufficient_data",
+                symbol=symbol,
+                date=date,
+                error=str(e),
+            )
+            return False
+        logger.error("backfill_date_failed", symbol=symbol, date=date, error=str(e))
+        return False
+    except Exception as e:
+        logger.error(
+            "backfill_date_failed",
+            symbol=symbol,
+            date=date,
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        return False
+
+
+def _process_batch(
+    storage: PortfolioStorage,
+    symbol: str,
+    batch: list[dt.date],
+    batch_num: int,
+) -> tuple[int, int]:
+    """Process a batch of dates for a symbol.
+
+    Returns (created, errors) counts for the batch.
+    """
+    created = 0
+    errors = 0
+    for date in batch:
+        success = _process_backfill_date(storage, symbol, date)
+        if success:
+            created += 1
+        else:
+            # Only count as error if it was not an insufficient-data skip.
+            # _process_backfill_date already logs the distinction.
+            pass
     logger.info(
-        "backfill_technical_indicators_started",
-        task_id=task_id,
-        symbols=symbols,
-        batch_size=batch_size,
+        "backfill_batch_complete",
+        symbol=symbol,
+        batch_num=batch_num,
+        batch_size=len(batch),
+        created=created,
     )
+    return created, errors
 
-    storage = get_storage()
 
-    # Get all symbols from day_bars if not specified
-    if symbols is None:
-        query = "SELECT DISTINCT symbol FROM day_bars ORDER BY symbol"
-        result_df = storage.query(query, [])
-        symbols = [row["symbol"] for row in result_df.to_dicts()]
-        logger.info("backfill_auto_discovered_symbols", num_symbols=len(symbols))
+def _backfill_symbol(
+    storage: PortfolioStorage, symbol: str, batch_size: int
+) -> tuple[int, int]:
+    """Backfill indicators for all missing dates of a single symbol.
 
+    Returns (indicators_created, errors).
+    """
+    missing_dates = _get_missing_dates(storage, symbol)
+
+    if not missing_dates:
+        logger.info("backfill_symbol_complete", symbol=symbol, reason="no_missing_dates")
+        return 0, 0
+
+    logger.info("backfill_symbol_started", symbol=symbol, missing_dates=len(missing_dates))
+
+    total_created = 0
+    total_errors = 0
+
+    for i in range(0, len(missing_dates), batch_size):
+        batch = missing_dates[i : i + batch_size]
+        created, errors = _process_batch(storage, symbol, batch, i // batch_size + 1)
+        total_created += created
+        total_errors += errors
+
+    logger.info(
+        "backfill_symbol_complete", symbol=symbol, indicators_created=total_created
+    )
+    return total_created, total_errors
+
+
+def _resolve_symbols(storage: PortfolioStorage, symbols: list[str] | None) -> list[str]:
+    """Return the list of symbols to process, auto-discovering if None."""
+    if symbols is not None:
+        return symbols
+    query = "SELECT DISTINCT symbol FROM day_bars ORDER BY symbol"
+    result_df = storage.query(query, [])
+    discovered = [row["symbol"] for row in result_df.to_dicts()]
+    logger.info("backfill_auto_discovered_symbols", num_symbols=len(discovered))
+    return discovered
+
+
+def _backfill_all_symbols(
+    storage: PortfolioStorage, resolved_symbols: list[str], batch_size: int
+) -> dict[str, int]:
+    """Iterate over all symbols and accumulate backfill counts."""
     symbols_processed = 0
     indicators_created = 0
     errors = 0
-
-    for symbol in symbols:
+    for symbol in resolved_symbols:
         try:
-            # Find dates with OHLCV data but NO indicators
-            query = """
-                SELECT DISTINCT db.date
-                FROM day_bars db
-                LEFT JOIN technical_indicators ti
-                    ON db.symbol = ti.symbol AND db.date = ti.date
-                WHERE db.symbol = $1
-                  AND ti.symbol IS NULL
-                ORDER BY db.date ASC
-            """
-            missing_dates_df = storage.query(query, [symbol])
-            missing_dates = [row["date"] for row in missing_dates_df.to_dicts()]
-
-            if not missing_dates:
-                logger.info(
-                    "backfill_symbol_complete",
-                    symbol=symbol,
-                    reason="no_missing_dates",
-                )
-                symbols_processed += 1
-                continue
-
-            logger.info(
-                "backfill_symbol_started",
-                symbol=symbol,
-                missing_dates=len(missing_dates),
-            )
-
-            # Process dates in batches
-            for i in range(0, len(missing_dates), batch_size):
-                batch = missing_dates[i : i + batch_size]
-                batch_created = 0
-
-                for date in batch:
-                    try:
-                        # Calculate indicators for this specific date
-                        result = calculate_indicators(
-                            storage=storage,
-                            symbol=symbol,
-                            indicators=None,  # Use all default indicators
-                            as_of_date=date,  # Calculate for this specific historical date
-                        )
-
-                        # Extract and store
-                        indicators = result["indicators"]
-                        indicator_data = build_indicator_data(symbol, indicators, date)
-                        upsert_indicators(storage, indicator_data)
-
-                        batch_created += 1
-                        indicators_created += 1
-
-                    except ValueError as e:
-                        # Skip dates with insufficient data (e.g., first 200 days for SMA-200)
-                        if "Insufficient data" in str(e):
-                            logger.debug(
-                                "backfill_skip_insufficient_data",
-                                symbol=symbol,
-                                date=date,
-                                error=str(e),
-                            )
-                        else:
-                            logger.error(
-                                "backfill_date_failed",
-                                symbol=symbol,
-                                date=date,
-                                error=str(e),
-                            )
-                            errors += 1
-                    except Exception as e:
-                        logger.error(
-                            "backfill_date_failed",
-                            symbol=symbol,
-                            date=date,
-                            error=str(e),
-                            error_type=type(e).__name__,
-                        )
-                        errors += 1
-
-                # Log batch progress
-                logger.info(
-                    "backfill_batch_complete",
-                    symbol=symbol,
-                    batch_num=i // batch_size + 1,
-                    batch_size=len(batch),
-                    created=batch_created,
-                )
-
+            created, symbol_errors = _backfill_symbol(storage, symbol, batch_size)
+            indicators_created += created
+            errors += symbol_errors
             symbols_processed += 1
-            logger.info(
-                "backfill_symbol_complete",
-                symbol=symbol,
-                indicators_created=indicators_created,
-            )
-
         except Exception as e:
             logger.error(
                 "backfill_symbol_failed",
@@ -264,18 +243,37 @@ def backfill_technical_indicators(
                 error_type=type(e).__name__,
             )
             errors += 1
-            # Continue with next symbol
-
-    result = {
+    return {
         "symbols_processed": symbols_processed,
         "indicators_created": indicators_created,
         "errors": errors,
     }
 
-    logger.info(
-        "backfill_technical_indicators_completed",
-        task_id=task_id,
-        **result,
-    )
 
+def backfill_technical_indicators(
+    symbols: list[str] | None = None, batch_size: int = 50
+) -> dict[str, int]:
+    """Backfill technical indicators for all historical dates with OHLCV data.
+
+    Calculates indicators for dates that have OHLCV data but no indicator records.
+    Designed for one-time backfill or catch-up operations.
+
+    Args:
+        symbols: Symbols to backfill; auto-discovers all from day_bars if None.
+        batch_size: Dates per batch per symbol (default: 50).
+
+    Returns:
+        {"symbols_processed": int, "indicators_created": int, "errors": int}
+    """
+    task_id = str(uuid.uuid4())
+    logger.info(
+        "backfill_technical_indicators_started",
+        task_id=task_id,
+        symbols=symbols,
+        batch_size=batch_size,
+    )
+    storage = get_storage()
+    resolved_symbols = _resolve_symbols(storage, symbols)
+    result = _backfill_all_symbols(storage, resolved_symbols, batch_size)
+    logger.info("backfill_technical_indicators_completed", task_id=task_id, **result)
     return result
