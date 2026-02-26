@@ -2,9 +2,28 @@
 
 from __future__ import annotations
 
-from typing import cast
+from typing import Literal
 
 from app.models.paper_trades import PaperTradeResponse
+
+_VALID_IDEA_TYPES: frozenset[str] = frozenset({"buy", "sell"})
+
+
+def _opt_float(val: object) -> float | None:
+    return float(val) if val is not None else None  # type: ignore[arg-type]
+
+
+def _opt_int(val: object) -> int | None:
+    return int(val) if val is not None else None  # type: ignore[arg-type]
+
+
+def _opt_str(val: object) -> str | None:
+    return str(val) if val else None
+
+
+def _idea_type(val: object) -> Literal["buy", "sell"]:
+    s = str(val) if val else ""
+    return s if s in _VALID_IDEA_TYPES else "buy"  # type: ignore[return-value]
 
 
 def row_to_paper_trade_response(row: tuple[object, ...]) -> PaperTradeResponse:
@@ -18,36 +37,30 @@ def row_to_paper_trade_response(row: tuple[object, ...]) -> PaperTradeResponse:
         16=realized_return_pct, 17=holding_days, 18=max_favorable_pct,
         19=max_adverse_pct, 20=thesis, 21=confidence_score, 22=risk_level,
         23=strategy_id
-
-    Args:
-        row: Tuple from database query
-
-    Returns:
-        PaperTradeResponse model instance
     """
     return PaperTradeResponse(
         idea_id=str(row[0]) if row[0] else "",
         agent_run_id=str(row[1]) if row[1] else "",
         symbol=str(row[2]) if row[2] else "",
-        idea_type=str(row[3]) if row[3] in ["buy", "sell"] else "buy",  # type: ignore[arg-type]
-        shares=int(cast(int, row[4])) if row[4] is not None else None,
-        entry_price=float(cast(float, row[5])) if row[5] is not None else None,
-        entry_amount=float(cast(float, row[6])) if row[6] is not None else None,
-        entry_date=str(row[7]) if row[7] else None,
-        target_price=float(cast(float, row[8])) if row[8] is not None else None,
-        stop_loss_price=float(cast(float, row[9])) if row[9] is not None else None,
-        current_price=float(cast(float, row[10])) if row[10] is not None else None,
-        current_return_pct=float(cast(float, row[11])) if row[11] is not None else None,
+        idea_type=_idea_type(row[3]),
+        shares=_opt_int(row[4]),
+        entry_price=_opt_float(row[5]),
+        entry_amount=_opt_float(row[6]),
+        entry_date=_opt_str(row[7]),
+        target_price=_opt_float(row[8]),
+        stop_loss_price=_opt_float(row[9]),
+        current_price=_opt_float(row[10]),
+        current_return_pct=_opt_float(row[11]),
         status=str(row[12]) if row[12] else "",
-        exit_price=float(cast(float, row[13])) if row[13] is not None else None,
-        exit_date=str(row[14]) if row[14] else None,
-        exit_reason=str(row[15]) if row[15] else None,
-        realized_return_pct=float(cast(float, row[16])) if row[16] is not None else None,
-        holding_days=int(cast(int, row[17])) if row[17] is not None else None,
-        max_favorable_pct=float(cast(float, row[18])) if row[18] is not None else None,
-        max_adverse_pct=float(cast(float, row[19])) if row[19] is not None else None,
-        thesis=str(row[20]) if row[20] else None,
-        confidence_score=float(cast(float, row[21])) if row[21] is not None else None,
-        risk_level=str(row[22]) if row[22] else None,
-        strategy_id=str(row[23]) if row[23] else None,
+        exit_price=_opt_float(row[13]),
+        exit_date=_opt_str(row[14]),
+        exit_reason=_opt_str(row[15]),
+        realized_return_pct=_opt_float(row[16]),
+        holding_days=_opt_int(row[17]),
+        max_favorable_pct=_opt_float(row[18]),
+        max_adverse_pct=_opt_float(row[19]),
+        thesis=_opt_str(row[20]),
+        confidence_score=_opt_float(row[21]),
+        risk_level=_opt_str(row[22]),
+        strategy_id=_opt_str(row[23]),
     )
