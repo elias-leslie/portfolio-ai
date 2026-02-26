@@ -11,3 +11,6 @@ export type {
   UseWebSocketConnectionReturn,
 } from './useWebSocketConnection'
 export { useWebSocketConnection } from './useWebSocketConnection'
+export type { UseAgentPanelStateReturn } from './useAgentPanelState'
+export { useAgentPanelState } from './useAgentPanelState'
+export { useAgentPanelActions } from './useAgentPanelActions'

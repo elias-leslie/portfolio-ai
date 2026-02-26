@@ -1,45 +1,35 @@
 'use client'
 
-import { Diamond, MessageSquare, Star } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
-// Note: We use a custom side panel instead of Sheet to allow non-overlay behavior (FEAT-220)
-import { Button } from '@/components/ui/button'
-import { getServerUrl, getWsUrl } from '@/lib/server-url'
+import { MessageSquare } from 'lucide-react'
+import { useCallback, useEffect } from 'react'
 import { cn } from '@/lib/utils'
+import { AgentMessageList } from './AgentMessageList'
 import { AgentPanelHeader } from './AgentPanelHeader'
-import type { AgentProvider, RoundtableOrder } from './AgentSelector'
 import { ChatInput } from './ChatInput'
-import { SUMMITFLOW_API } from './constants'
+import { ConnectionErrorBanner } from './ConnectionErrorBanner'
 import { EvidenceCaptureModal } from './EvidenceCaptureModal'
-import { EvidenceMessageBubble } from './EvidenceMessageBubble'
 import {
+  useAgentPanelActions,
+  useAgentPanelState,
   useAgentPanelUI,
   useSessionManagement,
   useWebSocketConnection,
 } from './hooks'
-import { ContentBlockView, MessageBubble } from './MessageBubble'
-import type { AgentMode } from './ModeSelector'
 import { PermissionRequestPanel } from './PermissionRequestPanel'
 import { SessionsPanel } from './SessionsPanel'
 import { SettingsModal } from './SettingsModal'
 import { StatusModal } from './StatusModal'
 import { TokenSummaryCards } from './TokenSummaryCards'
-import type {
-  ChatMessage,
-  ContentBlock,
-  EvidenceData,
-  PermissionRequest,
-} from './wsHandlers'
 
-// AgentRole is now handled by ModeSelector
+// Layout class constants
+const PANEL_FIXED =
+  'fixed top-16 right-0 z-40 h-[calc(100vh-4rem)] w-[500px] flex flex-col bg-bg text-text border-l border-border shadow-2xl transition-transform duration-300 ease-in-out'
+const PANEL_STANDALONE = 'h-full w-full flex flex-col bg-bg text-text'
 
 interface AgentPanelProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  pageContext?: {
-    path: string
-    data?: Record<string, unknown>
-  }
+  pageContext?: { path: string; data?: Record<string, unknown> }
   /** When true, renders as full-page content without fixed positioning (for popup window) */
   standalone?: boolean
 }
@@ -53,211 +43,55 @@ export function AgentPanel({
   // Note: _onOpenChange is received from callers but not used internally yet
   void _onOpenChange
 
-  // Server/connection state
-  const [serverUrl] = useState<string | null>(() => getServerUrl())
-  const [wsUrl] = useState<string | null>(() => {
-    const url = getServerUrl()
-    return url ? getWsUrl(url) : null
-  })
-  const [isConnected, setIsConnected] = useState(false)
-  const [connectionError, setConnectionError] = useState<string | null>(null)
-
-  // Chat state
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [input, setInput] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
-  const [currentResponse, setCurrentResponse] = useState<ContentBlock[]>([])
-  const [pendingPermission, setPendingPermission] =
-    useState<PermissionRequest | null>(null)
-
-  // FEAT-223: Agent and mode selectors
-  const [agentProvider, setAgentProvider] = useState<AgentProvider>('claude')
-  const [agentMode, setAgentMode] = useState<AgentMode>('dev')
-  const [roundtableOrder, setRoundtableOrder] =
-    useState<RoundtableOrder>('claude-first')
-  const [maxTurns, setMaxTurns] = useState<number>(10)
-  const [currentRespondingAgent, setCurrentRespondingAgent] = useState<
-    'claude' | 'gemini' | null
-  >(null)
-
-  // UI state - extracted to hook for reusability
   const {
-    showSessions,
-    showSettings,
-    showStatus,
-    showTokenSummary,
-    showEvidenceCapture,
-    setShowSessions,
-    setShowSettings,
-    setShowStatus,
-    setShowTokenSummary,
-    setShowEvidenceCapture,
+    serverUrl, wsUrl,
+    isConnected, setIsConnected,
+    connectionError, setConnectionError,
+    messages, setMessages,
+    input, setInput,
+    isLoading, setIsLoading,
+    currentResponse, setCurrentResponse,
+    pendingPermission, setPendingPermission,
+    agentProvider, setAgentProvider,
+    agentMode, setAgentMode,
+    roundtableOrder, setRoundtableOrder,
+    maxTurns, setMaxTurns,
+    currentRespondingAgent, setCurrentRespondingAgent,
+    messagesEndRef, currentResponseRef,
+  } = useAgentPanelState()
+
+  const {
+    showSessions, showSettings, showStatus, showTokenSummary, showEvidenceCapture,
+    setShowSessions, setShowSettings, setShowStatus, setShowTokenSummary, setShowEvidenceCapture,
     toggleSessions,
   } = useAgentPanelUI()
 
-  // Refs
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const currentResponseRef = useRef<ContentBlock[]>([])
-
-  // Keep ref in sync with state
-  useEffect(() => {
-    currentResponseRef.current = currentResponse
-  }, [currentResponse])
-
-  // Session management hook
   const {
-    sessions,
-    currentSessionId,
-    setCurrentSessionId,
-    currentSession,
-    isLoadingSessions,
-    createSession: createSessionBase,
-    deleteSession,
-    saveEvidenceToServer,
-  } = useSessionManagement({
-    serverUrl,
-    open,
-    setMessages,
-    setCurrentResponse,
-    setIsLoading,
-  })
+    sessions, currentSessionId, setCurrentSessionId, currentSession,
+    isLoadingSessions, createSession: createSessionBase, deleteSession, saveEvidenceToServer,
+  } = useSessionManagement({ serverUrl, open, setMessages, setCurrentResponse, setIsLoading })
 
-  // Wrap createSession to also close the sessions panel
   const createSession = useCallback(async () => {
     await createSessionBase()
     setShowSessions(false)
   }, [createSessionBase, setShowSessions])
 
-  // Scroll to bottom
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [])
-
-  // WebSocket connection hook
   const { wsRef, connect } = useWebSocketConnection({
-    wsUrl,
-    currentSessionId,
-    open,
-    agentProvider,
-    roundtableOrder,
-    maxTurns,
-    currentRespondingAgent,
-    currentResponseRef,
-    setCurrentResponse,
-    setCurrentRespondingAgent,
-    setMessages,
-    setIsLoading,
-    setPendingPermission,
-    setIsConnected,
-    setConnectionError,
+    wsUrl, currentSessionId, open, agentProvider, roundtableOrder, maxTurns,
+    currentRespondingAgent, currentResponseRef, setCurrentResponse, setCurrentRespondingAgent,
+    setMessages, setIsLoading, setPendingPermission, setIsConnected, setConnectionError,
   })
 
-  // Build evidence context from recent captures (last 5)
-  const buildEvidenceContext = useCallback(() => {
-    const evidenceMessages = messages
-      .filter(
-        (msg): msg is ChatMessage & { evidence: EvidenceData } =>
-          msg.role === 'evidence' && !!msg.evidence,
-      )
-      .slice(-5) // Last 5 evidence captures
+  useEffect(() => { currentResponseRef.current = currentResponse }, [currentResponse, currentResponseRef])
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messagesEndRef])
 
-    if (evidenceMessages.length === 0) return ''
-
-    const evidenceLines = evidenceMessages.map((msg) => {
-      const e = msg.evidence
-      const screenshotUrl = `${SUMMITFLOW_API}/evidence/${e.featureId}/${e.criterionId}/screenshot`
-      return `[Evidence: ${e.featureId}/${e.criterionId} v${e.version} - ${e.consoleErrors} console errors, ${e.networkFailures} network failures - screenshot: ${screenshotUrl}]`
+  const { sendMessage, stopResponse, handlePermissionResponse, handleKeyPress, handleEvidenceCaptured } =
+    useAgentPanelActions({
+      input, setInput, messages, setMessages, isLoading, isConnected,
+      agentMode, agentProvider, pendingPermission, setPendingPermission,
+      setIsLoading, wsRef, pageContext, currentSessionId, saveEvidenceToServer,
     })
 
-    return `\n--- Available Evidence ---\n${evidenceLines.join('\n')}\n---\n\n`
-  }, [messages])
-
-  // Send message
-  const sendMessage = () => {
-    console.log('sendMessage called:', {
-      hasInput: !!input.trim(),
-      hasWs: !!wsRef.current,
-      wsState: wsRef.current?.readyState,
-      isLoading,
-      isConnected,
-      agentProvider,
-    })
-    if (!input.trim() || !wsRef.current || isLoading) return
-
-    const message = input.trim()
-
-    // Inject page context if in financial mode
-    let contextPrefix = ''
-    if (agentMode === 'financial' && pageContext) {
-      contextPrefix = `[Page: ${pageContext.path}]\n`
-      if (pageContext.data) {
-        contextPrefix += `[Context: ${JSON.stringify(pageContext.data)}]\n\n`
-      }
-    }
-
-    // Inject evidence context if any captures exist in the conversation
-    const evidenceContext = buildEvidenceContext()
-
-    setInput('')
-    setIsLoading(true)
-
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: 'user',
-        content: message,
-        timestamp: new Date(),
-      },
-    ])
-
-    wsRef.current.send(
-      JSON.stringify({
-        type: 'message',
-        content: contextPrefix + evidenceContext + message,
-      }),
-    )
-  }
-
-  // Stop response
-  const stopResponse = () => {
-    if (!wsRef.current || !isLoading) return
-    wsRef.current.send(JSON.stringify({ type: 'interrupt' }))
-    setIsLoading(false)
-    setPendingPermission(null)
-  }
-
-  // Handle permission
-  const handlePermissionResponse = (allowed: boolean) => {
-    if (!wsRef.current || !pendingPermission) return
-
-    wsRef.current.send(
-      JSON.stringify({
-        type: 'permission_response',
-        allowed,
-      }),
-    )
-
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: 'system',
-        content: `Permission ${allowed ? 'ALLOWED' : 'DENIED'} for: ${pendingPermission.toolName}`,
-        timestamp: new Date(),
-      },
-    ])
-
-    setPendingPermission(null)
-  }
-
-  // Key press handler
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      sendMessage()
-    }
-  }
-
-  // Don't render anything if closed (unless standalone mode - always render)
   if (!open && !standalone)
     return (
       <>
@@ -266,21 +100,13 @@ export function AgentPanel({
       </>
     )
 
-  // Standalone mode: full-page content for popup window
-  // Panel mode: fixed side panel attached to right
   const wrapperClasses = standalone
-    ? 'h-full w-full flex flex-col bg-bg text-text'
-    : cn(
-        'fixed top-16 right-0 z-40 h-[calc(100vh-4rem)] w-[500px] flex flex-col bg-bg text-text border-l border-border shadow-2xl',
-        'transition-transform duration-300 ease-in-out',
-        open ? 'translate-x-0' : 'translate-x-full',
-      )
+    ? PANEL_STANDALONE
+    : cn(PANEL_FIXED, open ? 'translate-x-0' : 'translate-x-full')
 
   return (
     <>
-      {/* Side Panel or Standalone Content (FEAT-220) */}
       <div className={wrapperClasses}>
-        {/* Header - FEAT-223 */}
         <AgentPanelHeader
           isConnected={isConnected}
           pageContext={pageContext}
@@ -293,168 +119,54 @@ export function AgentPanel({
           onShowSettings={() => setShowSettings(true)}
           onToggleSessions={toggleSessions}
         />
-
-        {/* Token Summary Cards - Toggleable */}
         {showTokenSummary && <TokenSummaryCards serverUrl={serverUrl || ''} />}
-
-        {/* Sessions Panel (unified: create/delete + history) */}
         {showSessions && (
           <SessionsPanel
             sessions={sessions}
             currentSessionId={currentSessionId}
             isLoadingSessions={isLoadingSessions}
             showTokenSummary={showTokenSummary}
-            onSessionSelect={(sessionId) => {
-              setCurrentSessionId(sessionId)
-              setShowSessions(false)
-            }}
+            onSessionSelect={(sessionId) => { setCurrentSessionId(sessionId); setShowSessions(false) }}
             onCreateSession={createSession}
             onDeleteSession={deleteSession}
             onToggleTokenSummary={() => setShowTokenSummary(!showTokenSummary)}
           />
         )}
-
-        {/* Connection Error */}
         {connectionError && !isConnected && (
-          <div className="p-3 bg-loss/30 border-b border-loss text-loss text-sm">
-            {connectionError}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setConnectionError(null)
-                connect()
-              }}
-              className="ml-2 h-6 text-xs"
-            >
-              Retry
-            </Button>
-          </div>
-        )}
-
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 font-mono text-sm">
-          {messages.map((msg, i) =>
-            msg.role === 'evidence' && msg.evidence ? (
-              <EvidenceMessageBubble
-                key={i}
-                message={msg}
-                onViewEvidence={() => {
-                  // Open SummitFlow evidence viewer
-                  const host =
-                    typeof window !== 'undefined'
-                      ? window.location.hostname
-                      : 'localhost'
-                  const isLocal = host === 'localhost' || host === '127.0.0.1'
-                  const baseUrl =
-                    process.env.NEXT_PUBLIC_SUMMITFLOW_URL ||
-                    (isLocal
-                      ? 'http://localhost:3001'
-                      : 'https://dev.summitflow.dev')
-                  window.open(
-                    `${baseUrl}/projects/portfolio-ai?tab=evidence`,
-                    '_blank',
-                  )
-                }}
-              />
-            ) : (
-              <MessageBubble key={i} message={msg} />
-            ),
-          )}
-
-          {currentResponse.length > 0 && (
-            <div className="text-text">
-              {/* Show which agent is currently responding in roundtable mode */}
-              {currentRespondingAgent && (
-                <span
-                  className="inline-block mb-1 mr-1"
-                  title={
-                    currentRespondingAgent === 'claude' ? 'Claude' : 'Gemini'
-                  }
-                >
-                  {currentRespondingAgent === 'claude' ? (
-                    <Diamond className="h-4 w-4 text-primary inline" />
-                  ) : (
-                    <Star className="h-4 w-4 text-gain inline" />
-                  )}
-                </span>
-              )}
-              {currentResponse.map((block, i) => (
-                <ContentBlockView key={i} block={block} />
-              ))}
-            </div>
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Permission Request */}
-        {pendingPermission && (
-          <PermissionRequestPanel
-            permission={pendingPermission}
-            onRespond={handlePermissionResponse}
+          <ConnectionErrorBanner
+            error={connectionError}
+            onRetry={() => { setConnectionError(null); connect() }}
           />
         )}
-
-        {/* Input */}
+        <AgentMessageList
+          messages={messages}
+          currentResponse={currentResponse}
+          currentRespondingAgent={currentRespondingAgent}
+          messagesEndRef={messagesEndRef}
+        />
+        {pendingPermission && (
+          <PermissionRequestPanel permission={pendingPermission} onRespond={handlePermissionResponse} />
+        )}
         <ChatInput
-          input={input}
-          onInputChange={setInput}
-          onSend={sendMessage}
-          onStop={stopResponse}
-          onKeyPress={handleKeyPress}
-          isConnected={isConnected}
-          isLoading={isLoading}
-          hasPendingPermission={!!pendingPermission}
-          hasSession={!!currentSessionId}
-          agentMode={agentMode}
-          agentProvider={agentProvider}
-          roundtableOrder={roundtableOrder}
-          maxTurns={maxTurns}
-          onAgentProviderChange={setAgentProvider}
-          onAgentModeChange={setAgentMode}
-          onRoundtableOrderChange={setRoundtableOrder}
-          onMaxTurnsChange={setMaxTurns}
+          input={input} onInputChange={setInput}
+          onSend={sendMessage} onStop={stopResponse} onKeyPress={handleKeyPress}
+          isConnected={isConnected} isLoading={isLoading}
+          hasPendingPermission={!!pendingPermission} hasSession={!!currentSessionId}
+          agentMode={agentMode} agentProvider={agentProvider}
+          roundtableOrder={roundtableOrder} maxTurns={maxTurns}
+          onAgentProviderChange={setAgentProvider} onAgentModeChange={setAgentMode}
+          onRoundtableOrderChange={setRoundtableOrder} onMaxTurnsChange={setMaxTurns}
         />
       </div>
-
-      {/* Settings Modal */}
       <SettingsModal open={showSettings} onOpenChange={setShowSettings} />
-
-      {/* Status Modal */}
       <StatusModal open={showStatus} onOpenChange={setShowStatus} />
-
-      {/* Evidence Capture Modal */}
       <EvidenceCaptureModal
         open={showEvidenceCapture}
         onClose={() => setShowEvidenceCapture(false)}
-        pageUrl={
-          pageContext?.path
-            ? `${typeof window !== 'undefined' ? window.location.origin : ''}${pageContext.path}`
-            : ''
-        }
-        onCaptured={(result) => {
-          // Create evidence message
-          const evidenceMsg: ChatMessage = {
-            role: 'evidence',
-            content: `Evidence captured for ${result.featureId}`,
-            timestamp: new Date(),
-            evidence: {
-              featureId: result.featureId,
-              criterionId: result.criterionId,
-              version: result.version,
-              consoleErrors: result.evidence?.console?.errorCount ?? 0,
-              networkFailures: result.evidence?.network?.failedRequests ?? 0,
-              url: result.evidence?.metadata?.url ?? '',
-            },
-          }
-
-          // Add to chat and persist to server
-          setMessages((prev) => [...prev, evidenceMsg])
-          if (currentSessionId) {
-            saveEvidenceToServer(currentSessionId, evidenceMsg)
-          }
-        }}
+        pageUrl={pageContext?.path
+          ? `${typeof window !== 'undefined' ? window.location.origin : ''}${pageContext.path}`
+          : ''}
+        onCaptured={handleEvidenceCaptured}
       />
     </>
   )
