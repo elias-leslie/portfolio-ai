@@ -75,13 +75,13 @@ def _process_debug_entry(
     entry: Path,
     cutoff_date: datetime,
     dry_run: bool,
-) -> tuple[int, int] | None:
-    """Process one DBG directory; return (count, size) if acted on, else None."""
+) -> tuple[int, int]:
+    """Process one DBG directory; return (count, size) acted on (0,0 if skipped)."""
     if not entry.is_dir():
-        return None
+        return (0, 0)
     capture_date = _parse_dbg_capture_date(entry)
     if capture_date is None or capture_date >= cutoff_date:
-        return None
+        return (0, 0)
     dir_size = sum(f.stat().st_size for f in entry.rglob("*") if f.is_file())
     if dry_run:
         logger.info("would_delete_debug_capture", path=str(entry),
@@ -114,10 +114,9 @@ def cleanup_debug_captures(max_age_days: int = 7, dry_run: bool = False) -> dict
 
         for entry in _ARTIFACTS_DIR.iterdir():
             try:
-                result = _process_debug_entry(entry, cutoff_date, dry_run)
-                if result is not None:
-                    deleted_count += result[0]
-                    deleted_size += result[1]
+                cnt, sz = _process_debug_entry(entry, cutoff_date, dry_run)
+                deleted_count += cnt
+                deleted_size += sz
             except (ValueError, OSError) as e:
                 errors.append({"path": str(entry), "error": str(e)})
                 logger.error("cleanup_debug_capture_error", path=str(entry), error=str(e))
