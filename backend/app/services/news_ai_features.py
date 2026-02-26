@@ -28,6 +28,48 @@ from .news_models import NewsArticle
 logger = get_logger(__name__)
 
 
+def _build_clusterer_articles(articles: list[NewsArticle]) -> list[Any]:
+    """Convert Pydantic NewsArticle list to story_clusterer dataclass list."""
+    result = []
+    for article in articles:
+        result.append(
+            ClustererArticle(
+                id=article.content_hash,
+                symbol=article.symbol,
+                headline=article.headline,
+                summary=article.summary,
+                vendor=article.vendor or "unknown",
+                published_at=article.published_at or article.fetched_at,
+                sentiment_score=article.sentiment.score,
+                is_material_event=article.is_material_event,
+                filing_type=article.filing_type,
+            )
+        )
+    return result
+
+
+def _apply_article_insights(
+    article: NewsArticle, watchlist_symbols: list[str] | None
+) -> None:
+    """Generate and set impact_summary and actionable_insight on a single article."""
+    event_category = classify_event_category(
+        headline=article.headline,
+        summary=article.summary,
+        filing_type=article.filing_type,
+    )
+    article.impact_summary = generate_impact_summary(
+        category=event_category,
+        sentiment_score=article.sentiment.score,
+    )
+    in_watchlist = article.symbol in watchlist_symbols if watchlist_symbols else False
+    article.actionable_insight = generate_actionable_insight(
+        category=event_category,
+        sentiment_score=article.sentiment.score,
+        symbol=article.symbol,
+        in_watchlist=in_watchlist,
+    )
+
+
 class NewsAIFeatures:
     """Manages AI-powered news features."""
 
@@ -44,31 +86,11 @@ class NewsAIFeatures:
             return articles
 
         try:
-            # Convert NewsArticle (Pydantic) to story_clusterer.NewsArticle (dataclass)
-            clusterer_articles = []
-            for article in articles:
-                # Generate unique ID for clustering (use content_hash)
-                clusterer_article = ClustererArticle(
-                    id=article.content_hash,
-                    symbol=article.symbol,
-                    headline=article.headline,
-                    summary=article.summary,
-                    vendor=article.vendor or "unknown",
-                    published_at=article.published_at or article.fetched_at,
-                    sentiment_score=article.sentiment.score,
-                    is_material_event=article.is_material_event,
-                    filing_type=article.filing_type,
-                )
-                clusterer_articles.append(clusterer_article)
-
-            # Run clustering
+            clusterer_articles = _build_clusterer_articles(articles)
             clusterer = StoryClusterer()
             stories = clusterer.cluster_articles(clusterer_articles, min_coverage_for_story=1)
-
-            # Get clustering metadata
             metadata = clusterer.update_article_clustering_metadata(stories)
 
-            # Apply metadata to original articles
             for article in articles:
                 article_metadata = metadata.get(article.content_hash)
                 if article_metadata:
@@ -86,7 +108,6 @@ class NewsAIFeatures:
             )
 
         except Exception as exc:
-            # Non-fatal: clustering is enhancement, not critical
             logger.warning("story_clustering_failed", error=str(exc), error_type=type(exc).__name__)
 
         return articles
@@ -97,7 +118,7 @@ class NewsAIFeatures:
         """Apply rule-based insight generation to articles.
 
         Generates impact_summary and actionable_insight based on event category
-        and sentiment score. No LLM calls - pure rule-based logic.
+        and sentiment score (pure rule-based, no LLM calls).
 
         Args:
             articles: List of scored NewsArticle objects
@@ -106,37 +127,13 @@ class NewsAIFeatures:
         Returns:
             List of NewsArticle objects with impact_summary and actionable_insight set
         """
-        if (
-            not articles
-            or classify_event_category is None
-            or generate_actionable_insight is None
-            or generate_impact_summary is None
-        ):
+        _missing = classify_event_category is None or generate_actionable_insight is None or generate_impact_summary is None
+        if not articles or _missing:
             return articles
 
         try:
             for article in articles:
-                # Classify event category
-                event_category = classify_event_category(
-                    headline=article.headline,
-                    summary=article.summary,
-                    filing_type=article.filing_type,
-                )
-
-                # Generate impact summary
-                article.impact_summary = generate_impact_summary(
-                    category=event_category,
-                    sentiment_score=article.sentiment.score,
-                )
-
-                # Generate actionable insight
-                in_watchlist = article.symbol in watchlist_symbols if watchlist_symbols else False
-                article.actionable_insight = generate_actionable_insight(
-                    category=event_category,
-                    sentiment_score=article.sentiment.score,
-                    symbol=article.symbol,
-                    in_watchlist=in_watchlist,
-                )
+                _apply_article_insights(article, watchlist_symbols)
 
             logger.info(
                 "insight_generation_applied",
@@ -145,7 +142,6 @@ class NewsAIFeatures:
             )
 
         except Exception as exc:
-            # Non-fatal: insight generation is enhancement, not critical
             logger.warning(
                 "insight_generation_failed", error=str(exc), error_type=type(exc).__name__
             )
