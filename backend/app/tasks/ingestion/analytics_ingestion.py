@@ -7,15 +7,40 @@ covariance matrices and earnings surprises.
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    pass
 
 from app.logging_config import get_logger
 from app.storage import get_storage
 
 logger = get_logger(__name__)
+
+
+def _get_watchlist_and_portfolio_symbols() -> list[str]:
+    """Return deduplicated symbols from watchlist_items and portfolio_positions."""
+    storage = get_storage()
+
+    watchlist_result = storage.query("SELECT DISTINCT symbol FROM watchlist_items")
+    watchlist_symbols: list[str] = (
+        watchlist_result.get_column("symbol").to_list()
+        if not watchlist_result.is_empty()
+        else []
+    )
+
+    portfolio_result = storage.query("SELECT DISTINCT symbol FROM portfolio_positions")
+    portfolio_symbols: list[str] = (
+        portfolio_result.get_column("symbol").to_list()
+        if not portfolio_result.is_empty()
+        else []
+    )
+
+    return list(set(watchlist_symbols + portfolio_symbols))
+
+
+def _resolve_covariance_symbols(symbols: list[str] | None) -> list[str]:
+    """Return symbol list for covariance update, defaulting to ['SPY'] if empty."""
+    if symbols is not None:
+        return symbols
+    discovered = _get_watchlist_and_portfolio_symbols()
+    return discovered if discovered else ["SPY"]
 
 
 def update_portfolio_covariance(
@@ -24,27 +49,18 @@ def update_portfolio_covariance(
 ) -> dict[str, int | str]:
     """Update portfolio covariance matrix for proper risk calculation (GAP-020).
 
-    Calculates pairwise covariance matrix from historical returns in day_bars.
-    Uses the formula: sigma_portfolio = sqrt(w' * Cov * w)
-
     Args:
         symbols: Optional list of symbols. If None, uses all watchlist + portfolio symbols.
-        lookback_days: Number of trading days for calculation (default: 252 = 1 year)
+        lookback_days: Number of trading days for calculation (default: 252 = 1 year).
 
     Returns:
-        Dict with task results:
-        - task_id: Task ID
-        - symbols_count: Number of unique symbols processed
-        - pairs_updated: Number of covariance pairs calculated
-        - status: 'success' or 'error'
-
-    Example:
-        >>> update_portfolio_covariance()  # Updates all watchlist/portfolio symbols
-        >>> update_portfolio_covariance(["AAPL", "MSFT", "GOOGL"])  # Custom list
+        Dict with task_id, symbols_count, pairs_updated, and status keys.
     """
     from app.analytics.covariance import update_covariance_matrix
 
     task_id = str(uuid.uuid4())
+    resolved = _resolve_covariance_symbols(symbols)
+
     logger.info(
         "update_portfolio_covariance_started",
         task_id=task_id,
@@ -54,42 +70,18 @@ def update_portfolio_covariance(
 
     try:
         storage = get_storage()
-
-        # If no symbols specified, get all watchlist + portfolio symbols
-        if symbols is None:
-            # Get watchlist symbols
-            watchlist_result = storage.query("SELECT DISTINCT symbol FROM watchlist_items")
-            watchlist_symbols = (
-                watchlist_result.get_column("symbol").to_list()
-                if not watchlist_result.is_empty()
-                else []
-            )
-
-            # Get portfolio symbols
-            portfolio_result = storage.query("SELECT DISTINCT symbol FROM portfolio_positions")
-            portfolio_symbols = (
-                portfolio_result.get_column("symbol").to_list()
-                if not portfolio_result.is_empty()
-                else []
-            )
-
-            # Combine and deduplicate
-            all_symbols = list(set(watchlist_symbols + portfolio_symbols))
-            symbols = all_symbols if all_symbols else ["SPY"]
-
-        # Update covariance matrix
-        pairs_updated = update_covariance_matrix(storage, symbols, lookback_days)
+        pairs_updated = update_covariance_matrix(storage, resolved, lookback_days)
 
         logger.info(
             "update_portfolio_covariance_completed",
             task_id=task_id,
-            symbols_count=len(symbols),
+            symbols_count=len(resolved),
             pairs_updated=pairs_updated,
         )
 
         return {
-            "task_id": str(task_id),
-            "symbols_count": len(symbols),
+            "task_id": task_id,
+            "symbols_count": len(resolved),
             "pairs_updated": pairs_updated,
             "status": "success",
         }
@@ -104,13 +96,34 @@ def update_portfolio_covariance(
         raise
 
 
+def _fetch_earnings_for_symbols(symbols: list[str]) -> int:
+    """Fetch and store earnings surprises for each symbol; return total records saved."""
+    from app.analytics.earnings_surprise import fetch_and_store_earnings_surprises
+
+    storage = get_storage()
+    total_records = 0
+    for symbol in symbols:
+        try:
+            records = fetch_and_store_earnings_surprises(storage, symbol)
+            total_records += records
+        except Exception as e:
+            logger.warning(
+                "earnings_surprise_symbol_failed",
+                symbol=symbol,
+                error=str(e),
+            )
+    return total_records
+
+
+def _resolve_earnings_symbols(symbols: list[str] | None) -> list[str]:
+    """Return resolved symbol list for earnings surprises update."""
+    return list(symbols) if symbols else _get_watchlist_and_portfolio_symbols()
+
+
 def update_earnings_surprises(
     symbols: list[str] | None = None,
-) -> dict[str, Any]:
+) -> dict[str, int | str]:
     """Update earnings surprise data for watchlist/portfolio symbols (GAP-003).
-
-    Fetches historical earnings surprise data (EPS estimate vs actual)
-    from Finnhub API and stores in earnings_surprises table.
 
     Scheduled to run weekly (earnings are quarterly events).
 
@@ -118,16 +131,9 @@ def update_earnings_surprises(
         symbols: Optional list of symbols. If None, uses watchlist + portfolio symbols.
 
     Returns:
-        Dict with:
-        - task_id: Task ID
-        - symbols_count: Number of symbols processed
-        - records_saved: Number of earnings records saved
-        - status: success or error
+        Dict with task_id, symbols_count, records_saved, and status keys.
     """
-    from app.analytics.earnings_surprise import fetch_and_store_earnings_surprises
-
     task_id = str(uuid.uuid4())
-
     logger.info(
         "update_earnings_surprises_started",
         task_id=task_id,
@@ -135,61 +141,22 @@ def update_earnings_surprises(
     )
 
     try:
-        storage = get_storage()
+        resolved = _resolve_earnings_symbols(symbols)
 
-        # Auto-discover symbols if not provided
-        if not symbols:
-            # Get watchlist symbols
-            watchlist_result = storage.query("SELECT DISTINCT symbol FROM watchlist_items")
-            watchlist_symbols = (
-                watchlist_result.get_column("symbol").to_list()
-                if not watchlist_result.is_empty()
-                else []
-            )
-
-            # Get portfolio symbols
-            portfolio_result = storage.query("SELECT DISTINCT symbol FROM portfolio_positions")
-            portfolio_symbols = (
-                portfolio_result.get_column("symbol").to_list()
-                if not portfolio_result.is_empty()
-                else []
-            )
-
-            # Combine and deduplicate
-            all_symbols = list(set(watchlist_symbols + portfolio_symbols))
-            symbols = all_symbols if all_symbols else []
-
-        if not symbols:
+        if not resolved:
             logger.info("update_earnings_surprises_no_symbols", task_id=task_id)
-            return {
-                "task_id": str(task_id),
-                "symbols_count": 0,
-                "records_saved": 0,
-                "status": "success",
-            }
+            return {"task_id": task_id, "symbols_count": 0, "records_saved": 0, "status": "success"}
 
-        total_records = 0
-        for symbol in symbols:
-            try:
-                records = fetch_and_store_earnings_surprises(storage, symbol)
-                total_records += records
-            except Exception as e:
-                logger.warning(
-                    "earnings_surprise_symbol_failed",
-                    symbol=symbol,
-                    error=str(e),
-                )
-
+        total_records = _fetch_earnings_for_symbols(resolved)
         logger.info(
             "update_earnings_surprises_completed",
             task_id=task_id,
-            symbols_count=len(symbols),
+            symbols_count=len(resolved),
             records_saved=total_records,
         )
-
         return {
-            "task_id": str(task_id),
-            "symbols_count": len(symbols),
+            "task_id": task_id,
+            "symbols_count": len(resolved),
             "records_saved": total_records,
             "status": "success",
         }
