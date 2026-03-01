@@ -5,29 +5,22 @@ from __future__ import annotations
 import logging
 import os
 import subprocess
-from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 
-from ..constants.services import SERVICE_UNIT_MAPPING, USER_MODE_SERVICES
 from ..logging_config import get_logger
-from .status_logs_core.constants import (
-    JOURNAL_FETCH_LIMIT,
-    LOG_LEVEL_PRIORITY,
-    SCRIPT_EXECUTION_TIMEOUT_SECONDS,
-    VALID_LEVELS,
-)
-from .status_logs_core.journal_parser import (
-    count_log_levels,
-    fetch_journal_logs,
-    merge_consecutive_logs,
+from .status_logs_core.constants import VALID_LEVELS
+from .status_logs_core.log_helpers import (
+    fetch_all_logs,
+    get_sorted_levels,
+    process_logs,
+    run_set_log_level_script,
 )
 from .status_logs_core.models import (
     LogLevelConfigResponse,
     SetLogLevelRequest,
     SetLogLevelResponse,
     TestLoggingResponse,
-    UnifiedLogEntry,
     UnifiedLogsResponse,
 )
 from .status_logs_core.validators import normalize_log_level, validate_log_params
@@ -35,137 +28,6 @@ from .status_logs_core.validators import normalize_log_level, validate_log_param
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/status", tags=["status", "logs"])
-
-
-def _categorize_units(
-    service_units: dict[str, str], service: str | None
-) -> tuple[list[str], list[str]]:
-    """Categorize service units into system and user units.
-
-    Args:
-        service_units: Mapping of service names to unit names
-        service: Optional service filter
-
-    Returns:
-        Tuple of (system_units, user_units) lists
-    """
-    if service:
-        unit = service_units.get(service, "")
-        if service in USER_MODE_SERVICES:
-            return [], [unit]
-        return [unit], []
-
-    system_units = []
-    user_units = []
-    for svc, unit in service_units.items():
-        if svc in USER_MODE_SERVICES:
-            user_units.append(unit)
-        else:
-            system_units.append(unit)
-    return system_units, user_units
-
-
-def _get_sorted_levels(reverse: bool = False) -> list[str]:
-    """Get sorted list of valid log levels (excluding WARNING alias).
-
-    Args:
-        reverse: If True, sort from highest to lowest priority (default: False)
-
-    Returns:
-        List of valid log levels sorted by priority
-    """
-    return sorted(
-        (level for level in VALID_LEVELS if level != "WARNING"),
-        key=lambda lvl: LOG_LEVEL_PRIORITY.get(lvl, 0),
-        reverse=reverse,
-    )
-
-
-def _fetch_all_logs(
-    service: str | None, since: str
-) -> list[UnifiedLogEntry]:
-    """Fetch and combine logs from both system and user journald units.
-
-    Args:
-        service: Optional service filter
-        since: Time range string
-
-    Returns:
-        Combined list of log entries from system and user units
-    """
-    system_units, user_units = _categorize_units(SERVICE_UNIT_MAPPING, service)
-    fetch_limit = JOURNAL_FETCH_LIMIT
-
-    logs: list[UnifiedLogEntry] = []
-    logs.extend(
-        fetch_journal_logs(
-            system_units,
-            is_user_mode=False,
-            fetch_limit=fetch_limit,
-            since=since,
-            service_units=SERVICE_UNIT_MAPPING,
-        )
-    )
-    logs.extend(
-        fetch_journal_logs(
-            user_units,
-            is_user_mode=True,
-            fetch_limit=fetch_limit,
-            since=since,
-            service_units=SERVICE_UNIT_MAPPING,
-        )
-    )
-    return logs
-
-
-def _process_logs(
-    logs: list[UnifiedLogEntry],
-    level: str | None,
-    lines: int,
-) -> tuple[list[UnifiedLogEntry], dict[str, int]]:
-    """Sort, count, filter, merge, and limit log entries.
-
-    Args:
-        logs: Raw log entries to process
-        level: Optional level filter
-        lines: Maximum number of entries to return
-
-    Returns:
-        Tuple of (processed_logs, level_counts)
-    """
-    logs.sort(key=lambda x: x.timestamp)
-    level_counts = count_log_levels(logs)
-
-    filtered = [log for log in logs if log.level == level] if level else logs
-    merged = merge_consecutive_logs(filtered)
-    limited = merged[-lines:] if len(merged) > lines else merged
-    return limited, level_counts
-
-
-def _run_set_log_level_script(level: str) -> None:
-    """Execute the set-log-level.sh script with the given level.
-
-    Args:
-        level: Validated log level string
-
-    Raises:
-        HTTPException: 500 if the script fails, 504 if it times out
-    """
-    script_path = Path(__file__).parent.parent.parent / "scripts" / "set-log-level.sh"
-    result = subprocess.run(
-        ["bash", str(script_path), level],
-        capture_output=True,
-        text=True,
-        timeout=SCRIPT_EXECUTION_TIMEOUT_SECONDS,
-        check=False,
-    )
-
-    if result.returncode != 0:
-        logger.error("set_log_level_failed", stderr=result.stderr, returncode=result.returncode)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to set log level: {result.stderr or 'Unknown error'}",
-        )
 
 
 @router.get("/unified-logs", response_model=UnifiedLogsResponse)
@@ -195,8 +57,8 @@ async def get_unified_logs(
     validate_log_params(lines, service, level)
 
     try:
-        logs = _fetch_all_logs(service, since)
-        limited_logs, level_counts = _process_logs(logs, level, lines)
+        logs = fetch_all_logs(service, since)
+        limited_logs, level_counts = process_logs(logs, level, lines)
         return UnifiedLogsResponse(
             logs=limited_logs,
             total_entries=len(limited_logs),
@@ -228,7 +90,7 @@ def get_log_level_config() -> LogLevelConfigResponse:
         LogLevelConfigResponse: Current log level and configuration info
     """
     current_level = os.getenv("LOG_LEVEL", "INFO")
-    available_levels = _get_sorted_levels(reverse=True)
+    available_levels = get_sorted_levels(reverse=True)
     return LogLevelConfigResponse(
         current_level=current_level,
         available_levels=available_levels,
@@ -263,7 +125,7 @@ async def set_log_level(request: SetLogLevelRequest) -> SetLogLevelResponse:
     level = normalize_log_level(level)
 
     try:
-        _run_set_log_level_script(level)
+        run_set_log_level_script(level)
         logger.info("log_level_changed", level=level)
         return SetLogLevelResponse(
             success=True,
@@ -305,7 +167,7 @@ def test_logging() -> TestLoggingResponse:
     logger.error("test_error_log", component="backend", test_type="structured")
     # Note: structlog doesn't have critical(), it maps to error()
 
-    levels_list = _get_sorted_levels()
+    levels_list = get_sorted_levels()
     return TestLoggingResponse(
         success=True,
         message=f"Generated test logs at all levels ({', '.join(levels_list)})",
