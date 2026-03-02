@@ -10,36 +10,21 @@ See tasks/tasks-tech-debt-to-feature-subtasks-migration.md
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
-from typing import Any, cast
+from typing import Any
 
-# Import from scoring.py (file, not scoring/ package)
-from app.watchlist.scoring import calculate_watchlist_scores
-
-from ...constants import DEFAULT_BACKFILL_DAYS
 from ...logging_config import get_logger
 from ...portfolio.price_fetcher import PriceDataFetcher
 from ...storage import PortfolioStorage
 from ...utils.preferences_loader import UserPreferences
-from ..data_loaders import (
-    load_default_weights,
-    load_latest_technical,
-    load_stale_ttl_minutes,
-)
-
-# Import data quality function
-from ..data_quality import calculate_data_quality
-from ..models import (
-    TechnicalSnapshot,
-    WatchlistItemDict,
-    WatchlistScoreInputs,
-    WatchlistSnapshot,
-)
-from ..priority import calculate_priority_indicators
 from ..watchlist_repository import WatchlistRepository
 from .builders import build_base_item_data, build_snapshot_data
 from .helpers import _calculate_price_change
-from .intelligence import build_news_intelligence
+from .item_enrichment import (
+    enrich_data_quality,
+    enrich_news_intelligence,
+    enrich_priority_indicators,
+)
+from .score_refresh import backfill_historical, build_score_snapshot
 
 logger = get_logger(__name__)
 
@@ -69,61 +54,16 @@ class WatchlistService:
         for row in items_df.iter_rows(named=True):
             item_data = build_base_item_data(row)
 
-            # Add snapshot data if available
             if row.get("overall_score") is not None:
                 build_snapshot_data(self.storage, item_data, row, stale_ttl_minutes)
 
-            # Build news intelligence
-            try:
-                news_intel = build_news_intelligence(self.repo, row["symbol"])
-                item_data["news_intelligence"] = (
-                    news_intel.model_dump(mode="json") if news_intel else None
-                )
-            except Exception as e:
-                logger.warning(
-                    "watchlist_news_intelligence_failed",
-                    symbol=row["symbol"],
-                    error=str(e),
-                )
-                item_data["news_intelligence"] = None
-
-            # Calculate data quality
-            try:
-                symbol = row["symbol"]
-                quality_map = calculate_data_quality(self.storage, [symbol])
-                dq = quality_map.get(symbol)
-                if dq:
-                    item_data["data_quality"] = {
-                        "overall_pct": dq.overall_pct,
-                        "pillars": {
-                            name: {
-                                "status": pq.status,
-                                "score": pq.score,
-                                "details": pq.details,
-                            }
-                            for name, pq in dq.pillars.items()
-                        },
-                    }
-                else:
-                    item_data["data_quality"] = None
-            except Exception as e:
-                logger.warning(
-                    "watchlist_data_quality_failed",
-                    symbol=row["symbol"],
-                    error=str(e),
-                )
-                item_data["data_quality"] = None
+            symbol = row["symbol"]
+            enrich_news_intelligence(self.repo, symbol, item_data)
+            enrich_data_quality(self.storage, symbol, item_data)
 
             results.append(item_data)
 
-        # Calculate priority indicators
-        for item in results:
-            # Cast to WatchlistItemDict - structure matches from builders
-            indicators = calculate_priority_indicators(
-                cast(list[WatchlistItemDict], results), cast(WatchlistItemDict, item)
-            )
-            item["priority_indicators"] = [ind.model_dump() for ind in indicators]
-
+        enrich_priority_indicators(results)
         return results
 
     def get_item_with_score_by_id(self, item_id: str) -> dict[str, Any] | None:
@@ -140,58 +80,16 @@ class WatchlistService:
 
         if not snapshot_df.is_empty():
             snap_row = snapshot_df.to_dicts()[0]
-
-            # Load preferences once
             prefs = UserPreferences.load_all(self.storage)
             stale_ttl_minutes = prefs.get_stale_ttl_minutes()
-
-            # Use helper to build snapshot data
             build_snapshot_data(self.storage, item_data, snap_row, stale_ttl_minutes)
 
-        # Build news intelligence summary
-        try:
-            news_intel = build_news_intelligence(self.repo, row["symbol"])
-            item_data["news_intelligence"] = (
-                news_intel.model_dump(mode="json") if news_intel else None
-            )
-        except Exception as e:
-            logger.warning(
-                "watchlist_news_intelligence_failed",
-                symbol=row["symbol"],
-                error=str(e),
-            )
-            item_data["news_intelligence"] = None
-
-        # Calculate data quality
-        try:
-            symbol = row["symbol"]
-            quality_map = calculate_data_quality(self.storage, [symbol])
-            dq = quality_map.get(symbol)
-            if dq:
-                item_data["data_quality"] = {
-                    "overall_pct": dq.overall_pct,
-                    "pillars": {
-                        name: {
-                            "status": pq.status,
-                            "score": pq.score,
-                            "details": pq.details,
-                        }
-                        for name, pq in dq.pillars.items()
-                    },
-                }
-            else:
-                item_data["data_quality"] = None
-        except Exception as e:
-            logger.warning(
-                "watchlist_data_quality_failed",
-                symbol=row["symbol"],
-                error=str(e),
-            )
-            item_data["data_quality"] = None
+        symbol = row["symbol"]
+        enrich_news_intelligence(self.repo, symbol, item_data)
+        enrich_data_quality(self.storage, symbol, item_data)
 
         # Gap analysis removed - migrated to [DEBT] subtasks on features
-        # Set default values for readiness fields (always high confidence now)
-        item_data["readiness_score"] = 100.0  # All data is available
+        item_data["readiness_score"] = 100.0
         item_data["confidence_level"] = "HIGH"
         item_data["gap_warning"] = None
 
@@ -208,54 +106,12 @@ class WatchlistService:
         )
 
         if not has_historical_data:
-            try:
-                from ...tasks.ingestion import ingest_historical_ohlcv  # noqa: PLC0415
-
-                ingest_historical_ohlcv([symbol], days=DEFAULT_BACKFILL_DAYS)
-                logger.info(
-                    "watchlist_refresh_scores_queued_backfill",
-                    symbol=symbol,
-                    item_id=item_id,
-                )
-            except Exception as e:
-                logger.warning(
-                    "watchlist_refresh_scores_backfill_failed", symbol=symbol, error=str(e)
-                )
+            backfill_historical(self.storage, symbol, item_id)
 
         if change_pct is None:
             raise ValueError(f"Insufficient historical data for {symbol} - need at least 2 days")
 
-        technical_map = load_latest_technical(self.storage, [symbol])
-        technical_snapshot = technical_map.get(symbol, TechnicalSnapshot())
-        technical_snapshot.price = price_data.price
-
-        default_weights = load_default_weights(self.storage)
-        stale_ttl_minutes = load_stale_ttl_minutes(self.storage)
-        now = datetime.now(UTC)
-
-        breakdown = calculate_watchlist_scores(
-            WatchlistScoreInputs(
-                price=price_data,
-                price_change_pct=change_pct,
-                technical=technical_snapshot,
-                weights=default_weights,
-                now=now,
-                stale_ttl_minutes=stale_ttl_minutes,
-            )
-        )
-
-        snapshot = WatchlistSnapshot(
-            item_id=item_id,
-            fetched_at=now,
-            price=price_data.price,
-            change_pct=change_pct,
-            beta=price_data.beta,
-            volatility=price_data.volatility,
-            overall_score=breakdown.overall,
-            technical_score=breakdown.technical.score,
-            raw_metrics=breakdown.to_snapshot_payload(),
-        )
-
+        snapshot = build_score_snapshot(self.storage, item_id, symbol, price_data, change_pct)
         self.repo.upsert_snapshot(snapshot.to_upsert_params())
         logger.info("Watchlist item scores refreshed", item_id=item_id, symbol=symbol)
 
