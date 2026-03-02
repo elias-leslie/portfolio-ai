@@ -1,5 +1,5 @@
 project: portfolio-ai
-generated_at: 2026-02-26 12:44 UTC
+generated_at: 2026-03-02 00:02 UTC
 environment:
   python_version: '>=3.13'
   venv_path: backend/.venv
@@ -214,14 +214,14 @@ tasks:
 - refresh_financial_health_scores (crontab(hour=5, minute=15, day_of_week=0))
 - weekly_strategy_generation (crontab(hour=5, minute=0, day_of_week=0))
 folders:
-  (root): 20 files - services, tests
+  (root): 21 files - services, tests
   .claude: 3 files
-  .dev-tools: 21 files - tests
+  .dev-tools: 23 files - tests
   .st: 8 files
-  backend: 960 files - api, components, services, tests
+  backend: 984 files - api, components, services, tests
   certs: 3 files
   config: 10 files - api
-  frontend: 382 files - api, components, services, tests
+  frontend: 415 files - api, components, services, tests
   reports: 56 files
   scripts: 101 files - api, services, tests
-  services: 33 files - api, services, tests
+  services: 35 files - api, services, tests
