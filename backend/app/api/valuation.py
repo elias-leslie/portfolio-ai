@@ -6,24 +6,33 @@ extracted from reference cache data.
 
 from __future__ import annotations
 
-import datetime as dt
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Path, Query
 from pydantic import BaseModel, Field
 
+from app.api._valuation_helpers import (
+    VALUATION_SINGLE_QUERY,
+    build_valuation_batch_query,
+    normalize_as_of_date,
+    parse_symbols_param,
+    to_float_or_none,
+    validate_single_row_fields,
+)
 from app.logging_config import get_logger
 from app.storage import get_storage
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/valuation", tags=["valuation"])
-
-# Initialize storage
 storage = get_storage()
 
 
+# ---------------------------------------------------------------------------
 # Response models
+# ---------------------------------------------------------------------------
+
+
 class ValuationMetrics(BaseModel):
     """Valuation metrics for a single symbol."""
 
@@ -45,7 +54,29 @@ class ValuationMetricsListResponse(BaseModel):
     count: int = Field(..., description="Number of symbols returned")
 
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _row_to_metrics(row: tuple[object, ...]) -> ValuationMetrics:
+    """Convert a DB result row to a ValuationMetrics instance."""
+    return ValuationMetrics(
+        symbol=str(row[0]),
+        pe_ratio_trailing=to_float_or_none(row[1]),
+        pe_ratio_forward=to_float_or_none(row[2]),
+        ps_ratio=to_float_or_none(row[3]),
+        pb_ratio=to_float_or_none(row[4]),
+        peg_ratio=to_float_or_none(row[5]),
+        dividend_yield=to_float_or_none(row[6]),
+        payout_ratio=to_float_or_none(row[7]),
+        as_of_date=normalize_as_of_date(row[8], context=str(row[0])),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Endpoints
+# ---------------------------------------------------------------------------
 
 
 @router.get("/{symbol}", response_model=ValuationMetrics)
@@ -54,101 +85,24 @@ async def get_valuation_metrics(
 ) -> ValuationMetrics:
     """Get valuation metrics for a single symbol.
 
-    Retrieves the most recent cached valuation metrics including:
-    - Trailing and forward P/E ratios
-    - Price-to-Book and Price-to-Sales ratios
-    - PEG ratio, dividend yield, and payout ratio
-
-    Args:
-        symbol: Stock symbol (e.g., AAPL, NVDA, TSLA)
-
-    Returns:
-        ValuationMetrics with all available metrics
+    Retrieves the most recent cached valuation metrics including trailing and
+    forward P/E, P/B, P/S, PEG, dividend yield, and payout ratio.
 
     Raises:
-        HTTPException: 404 if symbol not found in cache
+        HTTPException: 404 if symbol not found in cache, 500 on data errors.
     """
     try:
         with storage.connection() as conn:
-            result = conn.execute(
-                """
-                SELECT
-                    symbol,
-                    pe_ratio_trailing,
-                    pe_ratio_forward,
-                    ps_ratio,
-                    pb_ratio,
-                    peg_ratio,
-                    dividend_yield,
-                    payout_ratio,
-                    as_of_date
-                FROM reference_cache
-                WHERE symbol = %s
-                ORDER BY as_of_date DESC
-                LIMIT 1
-                """,
-                [symbol.upper()],
-            ).fetchone()
+            result = conn.execute(VALUATION_SINGLE_QUERY, [symbol.upper()]).fetchone()
 
-            if result is None:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"No valuation metrics found for symbol {symbol}",
-                )
-
-            # Type narrowing for database result tuple
-            symbol_val = result[0]
-            pe_trailing = result[1]
-            pe_forward = result[2]
-            ps = result[3]
-            pb = result[4]
-            peg = result[5]
-            div_yield = result[6]
-            payout = result[7]
-            as_of = result[8]
-
-            # Validate symbol is a string
-            if not isinstance(symbol_val, str):
-                raise HTTPException(
-                    status_code=500,
-                    detail="Invalid symbol data type from database",
-                )
-
-            # Validate and convert float fields (allowing None for optional fields)
-            if pe_trailing is not None and not isinstance(pe_trailing, (int, float)):
-                raise HTTPException(status_code=500, detail="Invalid pe_ratio_trailing")
-            if pe_forward is not None and not isinstance(pe_forward, (int, float)):
-                raise HTTPException(status_code=500, detail="Invalid pe_ratio_forward")
-            if ps is not None and not isinstance(ps, (int, float)):
-                raise HTTPException(status_code=500, detail="Invalid ps_ratio")
-            if pb is not None and not isinstance(pb, (int, float)):
-                raise HTTPException(status_code=500, detail="Invalid pb_ratio")
-            if peg is not None and not isinstance(peg, (int, float)):
-                raise HTTPException(status_code=500, detail="Invalid peg_ratio")
-            if div_yield is not None and not isinstance(div_yield, (int, float)):
-                raise HTTPException(status_code=500, detail="Invalid dividend_yield")
-            if payout is not None and not isinstance(payout, (int, float)):
-                raise HTTPException(status_code=500, detail="Invalid payout_ratio")
-
-            # Convert as_of_date to string if it's a date/datetime object
-            if isinstance(as_of, (dt.date, dt.datetime)):
-                as_of_str = as_of.isoformat() if hasattr(as_of, "isoformat") else str(as_of)
-            elif isinstance(as_of, str):
-                as_of_str = as_of
-            else:
-                raise HTTPException(status_code=500, detail="Invalid as_of_date type")
-
-            return ValuationMetrics(
-                symbol=symbol_val,
-                pe_ratio_trailing=pe_trailing if isinstance(pe_trailing, (int, float)) else None,
-                pe_ratio_forward=pe_forward if isinstance(pe_forward, (int, float)) else None,
-                ps_ratio=ps if isinstance(ps, (int, float)) else None,
-                pb_ratio=pb if isinstance(pb, (int, float)) else None,
-                peg_ratio=peg if isinstance(peg, (int, float)) else None,
-                dividend_yield=div_yield if isinstance(div_yield, (int, float)) else None,
-                payout_ratio=payout if isinstance(payout, (int, float)) else None,
-                as_of_date=as_of_str,
+        if result is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No valuation metrics found for symbol {symbol}",
             )
+
+        validate_single_row_fields(result)
+        return _row_to_metrics(result)
 
     except HTTPException:
         raise
@@ -164,137 +118,47 @@ async def get_valuation_metrics(
 async def get_valuation_metrics_batch(
     symbols: Annotated[
         str,
-        Query(
-            description="Comma-separated list of symbols (e.g., AAPL,NVDA,TSLA)",
-        ),
+        Query(description="Comma-separated list of symbols (e.g., AAPL,NVDA,TSLA)"),
     ] = "",
 ) -> ValuationMetricsListResponse:
     """Get valuation metrics for multiple symbols.
 
     Retrieves the most recent cached valuation metrics for a list of symbols.
 
-    Args:
-        symbols: Comma-separated list of symbols
-
-    Returns:
-        List of ValuationMetrics for requested symbols
-
     Raises:
-        HTTPException: 400 if no symbols provided or 500 on database error
+        HTTPException: 400 if no symbols provided, 404 if none found, 500 on DB error.
     """
     try:
-        if not symbols.strip():
-            raise HTTPException(
-                status_code=400,
-                detail="No symbols provided. Use ?symbols=AAPL,NVDA,TSLA",
-            )
-
-        # Parse and normalize symbols
-        symbol_list = [t.strip().upper() for t in symbols.split(",") if t.strip()]
-
-        if not symbol_list:
-            raise HTTPException(
-                status_code=400,
-                detail="No valid symbols provided",
-            )
+        symbol_list = parse_symbols_param(symbols)
 
         with storage.connection() as conn:
-            # Build IN clause for multiple symbols
-            placeholders = ",".join(["%s"] * len(symbol_list))
-            query = f"""
-                SELECT
-                    symbol,
-                    pe_ratio_trailing,
-                    pe_ratio_forward,
-                    ps_ratio,
-                    pb_ratio,
-                    peg_ratio,
-                    dividend_yield,
-                    payout_ratio,
-                    as_of_date
-                FROM reference_cache
-                WHERE symbol IN ({placeholders})
-                ORDER BY symbol, as_of_date DESC
-            """
+            query = build_valuation_batch_query(len(symbol_list))
+            rows = conn.execute(query, list(symbol_list)).fetchall()
 
-            # Cast list[str] to expected parameter type for type checking
-            # This is safe since str is a valid ParameterValue
-            params: list[
-                str
-                | int
-                | float
-                | bool
-                | dt.date
-                | dt.datetime
-                | list[str | int | float | bool | None]
-                | None
-            ] = list(symbol_list)
-
-            results = conn.execute(query, params).fetchall()
-
-            if not results:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"No valuation metrics found for symbols: {symbols}",
-                )
-
-            # Build response, taking only the most recent per symbol
-            metrics_by_symbol: dict[str, ValuationMetrics] = {}
-
-            for result in results:
-                symbol_symbol = result[0]
-
-                # Type narrowing for symbol_symbol
-                if not isinstance(symbol_symbol, str):
-                    logger.warning(
-                        "Skipping result with non-string symbol",
-                        symbol_type=type(symbol_symbol),
-                    )
-                    continue
-
-                # Skip if we already have a (more recent) entry for this symbol
-                if symbol_symbol in metrics_by_symbol:
-                    continue
-
-                # Type narrowing and validation for result fields
-                pe_trailing = result[1]
-                pe_forward = result[2]
-                ps = result[3]
-                pb = result[4]
-                peg = result[5]
-                div_yield = result[6]
-                payout = result[7]
-                as_of = result[8]
-
-                # Validate as_of_date
-                if not isinstance(as_of, str):
-                    logger.warning(
-                        "Skipping result with non-string as_of_date",
-                        symbol=symbol_symbol,
-                        as_of_type=type(as_of),
-                    )
-                    continue
-
-                # Helper to convert numeric values to float or None
-                def to_float_or_none(val: object) -> float | None:
-                    return val if isinstance(val, (int, float)) else None
-
-                metrics_by_symbol[symbol_symbol] = ValuationMetrics(
-                    symbol=symbol_symbol,
-                    pe_ratio_trailing=to_float_or_none(pe_trailing),
-                    pe_ratio_forward=to_float_or_none(pe_forward),
-                    ps_ratio=to_float_or_none(ps),
-                    pb_ratio=to_float_or_none(pb),
-                    peg_ratio=to_float_or_none(peg),
-                    dividend_yield=to_float_or_none(div_yield),
-                    payout_ratio=to_float_or_none(payout),
-                    as_of_date=as_of,
-                )
-
-            return ValuationMetricsListResponse(
-                symbols=list(metrics_by_symbol.values()),
-                count=len(metrics_by_symbol),
+        if not rows:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No valuation metrics found for symbols: {symbols}",
             )
+
+        metrics_by_symbol: dict[str, ValuationMetrics] = {}
+        for row in rows:
+            sym = row[0]
+            if not isinstance(sym, str):
+                logger.warning("Skipping result with non-string symbol", symbol_type=type(sym))
+                continue
+            if sym in metrics_by_symbol:
+                continue  # already have the most recent entry
+            as_of = row[8]
+            if not isinstance(as_of, str):
+                logger.warning("Skipping result with non-string as_of_date", symbol=sym, as_of_type=type(as_of))
+                continue
+            metrics_by_symbol[sym] = _row_to_metrics(row)
+
+        return ValuationMetricsListResponse(
+            symbols=list(metrics_by_symbol.values()),
+            count=len(metrics_by_symbol),
+        )
 
     except HTTPException:
         raise
