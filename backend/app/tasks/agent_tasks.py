@@ -12,78 +12,13 @@ For other background tasks, see:
 
 from __future__ import annotations
 
-import uuid
-from typing import TYPE_CHECKING
+from app.tasks.agent_helpers import run_agent_task, run_paper_trades_update
 
-from app.agents.discovery import DiscoveryAgent
-from app.agents.llm_client import DualProviderClient
-from app.agents.portfolio_analyzer import PortfolioAnalyzerAgent
-from app.agents.tools import AgentTools
-from app.analytics.paper_trading import update_paper_trades
-from app.logging_config import get_logger
-from app.portfolio.analytics import PortfolioAnalytics
-from app.portfolio.manager import PortfolioManager
-from app.portfolio.price_fetcher import PriceDataFetcher
-from app.rules.loader import get_rules
-from app.services import NewsService
-from app.sources.fred import FREDSource
-from app.storage import get_storage
-from app.storage.credential_loader import load_credentials_from_database
-from app.tasks.triggers import emit_event
-from app.utils.task_lifecycle import task_cleanup
-
-if TYPE_CHECKING:
-    from app.storage import PortfolioStorage
-
-logger = get_logger(__name__)
-
-
-def _setup_agent_tools(storage: PortfolioStorage) -> AgentTools:
-    """Initialize agent tools with all required dependencies.
-
-    Args:
-        storage: StorageFacade instance for database access
-
-    Returns:
-        Configured AgentTools instance with all sources and managers
-    """
-    load_credentials_from_database()
-    news_service = NewsService(storage)
-    news_service.refresh_ttl_from_preferences()
-    news_service.refresh_max_articles_from_preferences()
-    fred_source = FREDSource()
-    price_fetcher = PriceDataFetcher(storage)
-    portfolio_mgr = PortfolioManager(storage)
-    analytics = PortfolioAnalytics()
-
-    return AgentTools(
-        storage=storage,
-        news_service=news_service,
-        fred_source=fred_source,
-        price_fetcher=price_fetcher,
-        portfolio_mgr=portfolio_mgr,
-        analytics=analytics,
-    )
-
-
-def _update_celery_task_id(storage: PortfolioStorage, task_id: str, run_id: str) -> None:
-    """Update agent_runs table with task ID.
-
-    Args:
-        storage: StorageFacade instance for database access
-        task_id: Task ID
-        run_id: Agent run ID
-    """
-    with storage.connection() as conn:
-        conn.execute(
-            """
-            UPDATE agent_runs
-            SET celery_task_id = ?
-            WHERE id = ?
-            """,
-            [task_id, run_id],
-        )
-        conn.commit()
+__all__ = [
+    "run_discovery_agent",
+    "run_portfolio_analyzer",
+    "update_paper_trades_task",
+]
 
 
 def run_discovery_agent() -> str:
@@ -92,65 +27,14 @@ def run_discovery_agent() -> str:
     Returns:
         Run ID of the agent execution
     """
-    # Check if agentic features are enabled
-    rules = get_rules()
-    if not rules.thesis_management.thesis_generation_enabled:
-        logger.info("discovery_agent_skipped", reason="thesis_generation_disabled")
-        return "skipped:thesis_generation_disabled"
+    from app.agents.discovery import DiscoveryAgent
 
-    task_id = str(uuid.uuid4())
-    logger.info(
-        "discovery_agent_task_started",
-        task_id=task_id,
+    return run_agent_task(
+        agent_class=DiscoveryAgent,
+        task_name="discovery_agent",
+        context_type="discovery_analysis",
+        confidence=0.8,
     )
-
-    llm_client: DualProviderClient | None = None
-    try:
-        storage = get_storage()
-
-        # Initialize agent tools
-        agent_tools = _setup_agent_tools(storage)
-
-        # Initialize LLM client (Gemini primary, Claude fallback)
-        llm_client = DualProviderClient(primary="gemini")
-
-        agent = DiscoveryAgent(storage=storage, tools=agent_tools, llm_client=llm_client)
-        result = agent.run()
-        run_id = result["run_id"]
-
-        # Update agent_runs with celery_task_id
-        _update_celery_task_id(storage, task_id, run_id)
-
-        # Emit insight_generated event for cross-validation (FEAT-219)
-        agent_response = result.get("response", "")
-        if agent_response and len(agent_response) > 50:  # Skip trivial outputs
-            emit_event(
-                "insight_generated",
-                {
-                    "output": agent_response,
-                    "context_type": "discovery_analysis",
-                    "confidence": 0.8,  # Discovery agent default confidence
-                },
-            )
-
-        logger.info(
-            "discovery_agent_task_completed",
-            task_id=task_id,
-            run_id=run_id,
-        )
-        return run_id
-
-    except Exception as e:
-        logger.error(
-            "discovery_agent_task_failed",
-            task_id=task_id,
-            error=str(e),
-        )
-        raise
-    finally:
-        if llm_client is not None:
-            llm_client.close()
-        task_cleanup("run_discovery_agent")
 
 
 def run_portfolio_analyzer() -> str:
@@ -159,74 +43,19 @@ def run_portfolio_analyzer() -> str:
     Returns:
         Run ID of the agent execution
     """
-    # Check if agentic features are enabled
-    rules = get_rules()
-    if not rules.thesis_management.thesis_generation_enabled:
-        logger.info("portfolio_analyzer_skipped", reason="thesis_generation_disabled")
-        return "skipped:thesis_generation_disabled"
+    from app.agents.portfolio_analyzer import PortfolioAnalyzerAgent
 
-    task_id = str(uuid.uuid4())
-    logger.info(
-        "portfolio_analyzer_task_started",
-        task_id=task_id,
+    return run_agent_task(
+        agent_class=PortfolioAnalyzerAgent,
+        task_name="portfolio_analyzer",
+        context_type="portfolio_analysis",
+        confidence=0.85,
     )
 
-    llm_client: DualProviderClient | None = None
-    try:
-        storage = get_storage()
 
-        # Initialize agent tools
-        agent_tools = _setup_agent_tools(storage)
-
-        # Initialize LLM client (Gemini primary, Claude fallback)
-        llm_client = DualProviderClient(primary="gemini")
-
-        agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools, llm_client=llm_client)
-        result = agent.run()
-        run_id = result["run_id"]
-
-        # Update agent_runs with celery_task_id
-        _update_celery_task_id(storage, task_id, run_id)
-
-        # Emit insight_generated event for cross-validation (FEAT-219)
-        agent_response = result.get("response", "")
-        if agent_response and len(agent_response) > 50:  # Skip trivial outputs
-            emit_event(
-                "insight_generated",
-                {
-                    "output": agent_response,
-                    "context_type": "portfolio_analysis",
-                    "confidence": 0.85,  # Portfolio analyzer default confidence
-                },
-            )
-
-        logger.info(
-            "portfolio_analyzer_task_completed",
-            task_id=task_id,
-            run_id=run_id,
-        )
-        return run_id
-
-    except Exception as e:
-        logger.error(
-            "portfolio_analyzer_task_failed",
-            task_id=task_id,
-            error=str(e),
-        )
-        raise
-    finally:
-        if llm_client is not None:
-            llm_client.close()
-        task_cleanup("run_portfolio_analyzer")
-
-
-def update_paper_trades_task(  # type: ignore[no-untyped-def]
-    max_holding_days: int = 60,
-):
+def update_paper_trades_task(max_holding_days: int = 60):  # type: ignore[no-untyped-def]
     """Update all open paper trades with current prices and check for exits.
 
-    This task fetches current prices for all open paper trades, updates returns,
-    and automatically closes trades that hit target/stop or exceed max holding period.
     Should be scheduled daily at market close + 30 minutes (4:30 PM ET).
 
     Args:
@@ -239,47 +68,5 @@ def update_paper_trades_task(  # type: ignore[no-untyped-def]
         - target_hits: Number of target price hits
         - stop_hits: Number of stop loss hits
         - expired: Number of trades closed due to time limit
-
-    Example:
-        >>> # Run immediately
-        >>> update_paper_trades_task(max_holding_days=60)
-        {"trades_updated": 10, "trades_closed": 2, "target_hits": 1, "stop_hits": 0, "expired": 1}
-
-        >>> # Schedule as background task (daily at 4:30 PM ET)
-        >>> update_paper_trades_task()
-
-    Note:
-        This task should be configured in the workflow scheduler to run daily:
-        ```python
-        # Scheduled via Hatchet workflow with cron: "30 16 * * *"  # 4:30 PM ET
-        ```
     """
-    task_id = str(uuid.uuid4())
-    logger.info(
-        "update_paper_trades_task_started",
-        task_id=task_id,
-        max_holding_days=max_holding_days,
-    )
-
-    try:
-        storage = get_storage()
-
-        # Update all open paper trades
-        stats = update_paper_trades(storage, max_holding_days=max_holding_days)
-
-        logger.info(
-            "update_paper_trades_task_completed",
-            task_id=task_id,
-            **stats,
-        )
-
-        return stats
-
-    except Exception as e:
-        logger.error(
-            "update_paper_trades_task_failed",
-            task_id=task_id,
-            error=str(e),
-            error_type=type(e).__name__,
-        )
-        raise
+    return run_paper_trades_update(max_holding_days=max_holding_days)
