@@ -8,9 +8,9 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from ...hatchet_app import get_admin_client
 from ...logging_config import get_logger
 from ..maintenance_types import TaskStatusResponseDict, TaskTriggerResponseDict
+from .tasks_helpers import TASK_TO_WORKFLOW, get_status, run_trigger
 
 logger = get_logger(__name__)
 
@@ -41,82 +41,14 @@ async def trigger_maintenance_task(
     Raises:
         HTTPException: If task name is invalid or trigger fails
     """
-    task_to_workflow = {
-        "vacuum_database_task": "portfolio-vacuum-db",
-        "cleanup_old_news_task": "portfolio-cleanup-old-news",
-        "cleanup_old_agent_runs_task": "portfolio-cleanup-agent-runs",
-        "cleanup_orphaned_data_task": "portfolio-cleanup-orphaned-data",
-        "cleanup_old_logs_task": "portfolio-cleanup-logs",
-        "cleanup_temp_files_task": "portfolio-cleanup-temp",
-        "cleanup_old_backups_task": "portfolio-cleanup-backups",
-        "cleanup_old_models_task": "portfolio-cleanup-models",
-        "cleanup_solution_state_task": "portfolio-cleanup-solution-state",
-        "cleanup_cache_directories_task": "portfolio-cleanup-caches",
-        "cleanup_old_versions": "portfolio-cleanup-versions",
-        "cleanup_debug_captures": "portfolio-cleanup-debug-captures",
-        "check_disk_space_task": "portfolio-check-disk",
-        "get_database_size_task": "portfolio-db-size",
-        "rotate_logs_task": "portfolio-rotate-logs",
-    }
-
-    valid_tasks = set(task_to_workflow.keys())
-
-    if task_name not in valid_tasks:
+    if task_name not in TASK_TO_WORKFLOW:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid task name. Valid tasks: {', '.join(valid_tasks)}",
+            detail=f"Invalid task name. Valid tasks: {', '.join(TASK_TO_WORKFLOW)}",
         )
-
-    # All tasks now support dry_run parameter
-    tasks_with_dry_run = {
-        # File cleanup tasks
-        "cleanup_old_logs_task",
-        "cleanup_temp_files_task",
-        "cleanup_old_backups_task",
-        "cleanup_old_models_task",
-        "cleanup_solution_state_task",
-        "cleanup_cache_directories_task",
-        "rotate_logs_task",
-        # Database cleanup tasks
-        "cleanup_old_news_task",
-        "cleanup_old_agent_runs_task",
-        "cleanup_orphaned_data_task",
-        "vacuum_database_task",
-        # Artifact cleanup tasks
-        "cleanup_old_versions",
-        "cleanup_debug_captures",
-    }
 
     try:
-        admin = get_admin_client()
-        workflow_name = task_to_workflow[task_name]
-
-        input_data = {}
-        if task_name in tasks_with_dry_run:
-            input_data["dry_run"] = dry_run
-
-        workflow_run = admin.run_workflow(workflow_name, input_data)
-
-        logger.info(
-            "maintenance_task_triggered",
-            task_name=task_name,
-            task_id=workflow_run.workflow_run_id,
-            dry_run=dry_run,
-        )
-
-        response: TaskTriggerResponseDict = {
-            "task_id": workflow_run.workflow_run_id,
-            "task_name": task_name,
-            "status": "triggered",
-            "message": f"Task {task_name} has been triggered{' (dry run)' if dry_run else ''}",
-        }
-
-        if wait_for_result:
-            response["status"] = "running"
-            response["message"] = f"Task {task_name} running (polling not yet implemented)"
-
-        return response
-
+        return run_trigger(task_name, dry_run, wait_for_result)
     except Exception as e:
         logger.error(
             "trigger_maintenance_task_failed",
@@ -144,17 +76,7 @@ async def get_task_status(task_id: str) -> TaskStatusResponseDict:
         HTTPException: If status check fails
     """
     try:
-        admin = get_admin_client()
-        details = admin.get_details(task_id)
-
-        return {
-            "task_id": task_id,
-            "state": details.status.value if details else "UNKNOWN",
-            "ready": details.status.value in ("COMPLETED", "FAILED") if details else False,
-            "successful": details.status.value == "COMPLETED" if details else None,
-            "result": None,
-        }
-
+        return get_status(task_id)
     except Exception as e:
         logger.error(
             "get_task_status_failed",
