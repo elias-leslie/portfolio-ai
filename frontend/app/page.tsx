@@ -7,6 +7,8 @@ import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { UnifiedNewsIntelligenceCard } from '@/components/shared/UnifiedNewsIntelligenceCard'
 import { useNewsIntelligence } from '@/lib/hooks/useNews'
+import { PortfolioOverview } from '@/components/portfolio/PortfolioOverview'
+import { SectionCard } from '@/components/shared/SectionCard'
 
 function SectionContentSkeleton({ rows = 3 }: { rows?: number }) {
   return (
@@ -145,14 +147,15 @@ export default function Dashboard() {
 
       <MarketNewsSection />
 
-      {/* Portfolio Overview re-enabled once analytics.concentration issue is resolved */}
-      {/* <SectionCard
-          variant="surface"
-          title="Portfolio Overview"
-          description="Snapshot of current allocation, risk profile, and performance."
-        >
+      <SectionCard
+        variant="surface"
+        title="Portfolio Overview"
+        description="Snapshot of current allocation, risk profile, and performance."
+      >
+        <Suspense fallback={<SectionLoadingState label="Loading portfolio overview" rows={4} />}>
           <PortfolioOverview />
-        </SectionCard> */}
+        </Suspense>
+      </SectionCard>
     </PageContainer>
   )
 }

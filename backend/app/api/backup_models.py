@@ -31,7 +31,7 @@ class BackupEntry(BaseModel):
     timestamp: str
     size_bytes: int
     db_size_bytes: int
-    status: Literal["ok", "failed", "in_progress"]
+    status: Literal["ok", "failed", "in_progress", "pending"]
     verification: BackupVerification | None = None
 
 
