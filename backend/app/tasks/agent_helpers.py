@@ -97,11 +97,11 @@ def run_agent_task(
 
     rules = get_rules()
     if not rules.thesis_management.thesis_generation_enabled:
-        logger.info(f"{task_name}_skipped", reason="thesis_generation_disabled")
+        logger.info("agent_task_skipped", task_name=task_name, reason="thesis_generation_disabled")
         return "skipped:thesis_generation_disabled"
 
     task_id = str(uuid.uuid4())
-    logger.info(f"{task_name}_task_started", task_id=task_id)
+    logger.info("agent_task_started", task_name=task_name, task_id=task_id)
 
     llm_client: DualProviderClient | None = None
     try:
@@ -116,11 +116,11 @@ def run_agent_task(
         update_celery_task_id(storage, task_id, run_id)
         emit_insight_if_meaningful(result.get("response", ""), context_type, confidence)
 
-        logger.info(f"{task_name}_task_completed", task_id=task_id, run_id=run_id)
+        logger.info("agent_task_completed", task_name=task_name, task_id=task_id, run_id=run_id)
         return run_id
 
     except Exception as e:
-        logger.error(f"{task_name}_task_failed", task_id=task_id, error=str(e))
+        logger.error("agent_task_failed", task_name=task_name, task_id=task_id, error=str(e))
         raise
     finally:
         if llm_client is not None:
