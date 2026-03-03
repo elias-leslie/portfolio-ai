@@ -20,6 +20,8 @@ from ..watchlist_repository import WatchlistRepository
 from .builders import build_base_item_data, build_snapshot_data
 from .helpers import _calculate_price_change
 from .item_enrichment import (
+    build_data_quality_map,
+    build_news_intelligence_map,
     enrich_data_quality,
     enrich_news_intelligence,
     enrich_priority_indicators,
@@ -49,6 +51,11 @@ class WatchlistService:
         prefs = UserPreferences.load_all(self.storage)
         stale_ttl_minutes = prefs.get_stale_ttl_minutes()
 
+        # Pre-fetch enrichment data for all symbols in batch (avoids N+1 queries)
+        symbols = [row["symbol"] for row in items_df.iter_rows(named=True)]
+        news_intel_map = build_news_intelligence_map(self.repo, symbols)
+        data_quality_map = build_data_quality_map(self.storage, symbols)
+
         results: list[dict[str, Any]] = []
 
         for row in items_df.iter_rows(named=True):
@@ -58,8 +65,8 @@ class WatchlistService:
                 build_snapshot_data(self.storage, item_data, row, stale_ttl_minutes)
 
             symbol = row["symbol"]
-            enrich_news_intelligence(self.repo, symbol, item_data)
-            enrich_data_quality(self.storage, symbol, item_data)
+            item_data["news_intelligence"] = news_intel_map.get(symbol)
+            item_data["data_quality"] = data_quality_map.get(symbol)
 
             results.append(item_data)
 
@@ -106,7 +113,7 @@ class WatchlistService:
         )
 
         if not has_historical_data:
-            backfill_historical(self.storage, symbol, item_id)
+            backfill_historical(symbol, item_id)
 
         if change_pct is None:
             raise ValueError(f"Insufficient historical data for {symbol} - need at least 2 days")

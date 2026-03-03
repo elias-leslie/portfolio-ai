@@ -78,6 +78,11 @@ def run_trigger(
     }
 
     if wait_for_result:
+        logger.warning(
+            "wait_for_result_not_implemented",
+            task_name=task_name,
+            message="wait_for_result=True has no effect; polling is not implemented",
+        )
         response["status"] = "running"
         response["message"] = f"Task {task_name} running (polling not yet implemented)"
 
@@ -89,10 +94,21 @@ def get_status(task_id: str) -> TaskStatusResponseDict:
     admin = get_admin_client()
     details = admin.get_details(task_id)
 
+    if not details:
+        return {
+            "task_id": task_id,
+            "state": "UNKNOWN",
+            "ready": False,
+            "successful": None,
+            "result": None,
+        }
+
+    state = details.status.value
+    is_terminal = state in ("COMPLETED", "FAILED")
     return {
         "task_id": task_id,
-        "state": details.status.value if details else "UNKNOWN",
-        "ready": details.status.value in ("COMPLETED", "FAILED") if details else False,
-        "successful": details.status.value == "COMPLETED" if details else None,
+        "state": state,
+        "ready": is_terminal,
+        "successful": state == "COMPLETED" if is_terminal else None,
         "result": None,
     }

@@ -2,6 +2,7 @@
  * Shared helpers and icons for ApiSourcesOverview sub-components
  */
 
+import type { ReactElement } from 'react'
 import {
   BarChart3,
   CheckCircle2,
@@ -15,7 +16,7 @@ export interface ExpandedProviders {
   [key: string]: boolean
 }
 
-export const getCapabilityIcon = (cap: string) => {
+export const getCapabilityIcon = (cap: string): ReactElement => {
   switch (cap) {
     case 'ohlcv':
       return <BarChart3 className="h-3 w-3" />

@@ -67,7 +67,8 @@ async def run_portfolio_analyzer_wf(input: EmptyInput, ctx: Context) -> dict[str
 async def update_paper_trades_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
     from ..tasks.agent_tasks import update_paper_trades_task
 
-    return await asyncio.to_thread(update_paper_trades_task)
+    result = await asyncio.to_thread(update_paper_trades_task)
+    return {"result": result}
 
 
 @hatchet.task(

@@ -100,7 +100,7 @@ export function TradingSummaryCards({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-text-muted">Best / Worst Trade</p>
-              <p className="text-3xl font-bold text-gain">
+              <p className={`text-3xl font-bold ${getPnlColor(summary?.bestTradePct)}`}>
                 {summaryLoading ? '-' : formatPct(summary?.bestTradePct)}
               </p>
               {!summaryLoading && summary?.worstTradePct !== undefined && (

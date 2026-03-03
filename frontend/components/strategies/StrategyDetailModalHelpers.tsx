@@ -16,10 +16,10 @@ export const statusColors: Record<string, string> = {
 }
 
 export const pillarColors: Record<string, string> = {
-  EXCELLENT: 'text-status-success',
-  GOOD: 'text-status-success',
-  FAIR: 'text-status-warning',
-  POOR: 'text-status-error',
+  excellent: 'text-status-success',
+  good: 'text-status-success',
+  fair: 'text-status-warning',
+  poor: 'text-status-error',
   bullish: 'text-status-success',
   neutral: 'text-text-muted',
   bearish: 'text-status-error',
@@ -75,7 +75,11 @@ export function BacktestMetricRow({ metric }: { metric: BacktestMetric }) {
           Sharpe:{' '}
           <span
             className={
-              (metric.sharpe ?? 0) > 1 ? 'text-status-success' : 'text-status-warning'
+              metric.sharpe != null
+                ? metric.sharpe > 1
+                  ? 'text-status-success'
+                  : 'text-status-warning'
+                : ''
             }
           >
             {metric.sharpe?.toFixed(2) ?? '-'}
@@ -120,7 +124,7 @@ export function ResearchGrid({ summary }: { summary: ResearchSummary }) {
       <ResearchItem label="Sector Momentum" value={summary.sectorMomentum} />
       <ResearchItem
         label="Confidence"
-        value={`${((summary.overallConfidence || 0) * 100).toFixed(0)}%`}
+        value={`${((summary.overallConfidence ?? 0) * 100).toFixed(0)}%`}
       />
     </div>
   )

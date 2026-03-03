@@ -7,7 +7,7 @@ Scheduled via Hatchet cron: Daily 09:00 UTC
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -29,16 +29,16 @@ _SQL_REMOVED = """
 """
 _SQL_SCORE_CHANGES = """
     WITH prev AS (
-        SELECT item_id, overall_score as old_score
+        SELECT DISTINCT ON (item_id) item_id, overall_score as old_score
         FROM watchlist_snapshots_core
         WHERE fetched_at >= $1 - INTERVAL '1 day' AND fetched_at < $1
-        ORDER BY fetched_at DESC
+        ORDER BY item_id, fetched_at DESC
     ),
     curr AS (
-        SELECT item_id, overall_score as new_score
+        SELECT DISTINCT ON (item_id) item_id, overall_score as new_score
         FROM watchlist_snapshots_core
         WHERE fetched_at >= $1
-        ORDER BY fetched_at DESC
+        ORDER BY item_id, fetched_at DESC
     )
     SELECT DISTINCT ON (wi.symbol)
         wi.symbol, p.old_score, c.new_score,
@@ -51,6 +51,10 @@ _SQL_SCORE_CHANGES = """
       AND ABS(c.new_score - p.old_score) >= 10
     ORDER BY wi.symbol, change_abs DESC
 """
+# %s placeholders are required here because this query is executed via
+# storage.connection() / raw_connection.cursor().execute(), which uses DB-API
+# paramstyle. The other queries above use $1 (PostgreSQL positional) because
+# they are executed via storage.query().
 _SQL_UPSERT = """
     INSERT INTO watchlist_daily_reports
         (id, report_date, symbols_added, symbols_removed, score_changes, generated_at)
@@ -99,17 +103,18 @@ def _fetch_score_changes(storage: PortfolioStorage, since: datetime) -> list[dic
 
 def _persist_report(
     storage: PortfolioStorage,
-    report_date: Any,
+    report_date: date,
     symbols_added: list[dict[str, Any]],
     symbols_removed: list[dict[str, Any]],
     score_changes: list[dict[str, Any]],
     now: datetime,
 ) -> None:
     with storage.connection() as conn:
-        conn.raw_connection.cursor().execute(
-            _SQL_UPSERT,
-            (str(uuid4()), report_date, json.dumps(symbols_added), json.dumps(symbols_removed), json.dumps(score_changes), now),
-        )
+        with conn.raw_connection.cursor() as cur:
+            cur.execute(
+                _SQL_UPSERT,
+                (str(uuid4()), report_date, json.dumps(symbols_added), json.dumps(symbols_removed), json.dumps(score_changes), now),
+            )
         conn.commit()
 
 

@@ -23,7 +23,7 @@ export function SourcesSummaryCards({ providers }: SourcesSummaryCardsProps) {
       </div>
       <div className="rounded-lg border border-border bg-surface p-4">
         <div className="text-2xl font-bold text-status-info">
-          {new Set(providers.flatMap((p) => p.gapCoverage)).size}
+          {new Set(providers.flatMap((p) => p.gapCoverage ?? [])).size}
         </div>
         <div className="text-sm text-muted-foreground">GAPs Covered</div>
       </div>

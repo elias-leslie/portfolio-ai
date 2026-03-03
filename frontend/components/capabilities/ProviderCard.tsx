@@ -40,6 +40,8 @@ export function ProviderCard({
       <button
         onClick={() => onToggle(provider.name)}
         className="w-full flex items-center justify-between p-4 hover:bg-surface-hover transition-colors text-left"
+        aria-expanded={isExpanded}
+        aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${provider.displayName} details`}
       >
         <div className="flex items-center gap-4">
           {isExpanded ? (

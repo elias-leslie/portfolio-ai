@@ -70,7 +70,9 @@ class PriceDataFetcher:
         if missing_symbols:
             fresh_data = self._fetch_fresh_prices(missing_symbols)
             result.update(fresh_data)
-            cache_prices(fresh_data, self.storage)
+            valid_data = {k: v for k, v in fresh_data.items() if v.price > 0 and not v.error}
+            if valid_data:
+                cache_prices(valid_data, self.storage)
 
         return result
 
@@ -100,8 +102,10 @@ class PriceDataFetcher:
             for row in df.iter_rows(named=True):
                 parsed = parse_payload_row(row)
                 result[parsed.symbol] = parsed
-        else:
-            for symbol in symbols:
+
+        # Handle symbols not in results (partial or complete failure)
+        for symbol in symbols:
+            if symbol not in result:
                 result[symbol] = build_all_sources_failed_entry(symbol, errors_by_source)
 
         # Augment missing beta/volatility from local historical data

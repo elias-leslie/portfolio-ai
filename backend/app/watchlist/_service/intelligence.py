@@ -184,8 +184,62 @@ def build_news_intelligence(repo: WatchlistRepository, symbol: str) -> NewsIntel
     )
 
 
+def build_news_intelligence_batch(
+    repo: WatchlistRepository,
+    symbols: list[str],
+) -> dict[str, NewsIntelligence | None]:
+    """Build news intelligence summaries for multiple symbols in one DB round-trip.
+
+    Args:
+        repo: Watchlist repository instance
+        symbols: List of ticker symbols
+
+    Returns:
+        Dict mapping symbol -> NewsIntelligence (or None if no recent news)
+    """
+    rows_by_symbol = repo.get_recent_news_batch(symbols, hours=24, limit_per_symbol=20)
+    result: dict[str, NewsIntelligence | None] = {}
+    for symbol in symbols:
+        rows = rows_by_symbol.get(symbol, [])
+        if not rows:
+            result[symbol] = None
+            continue
+
+        articles: list[NewsArticleDict] = []
+        sentiment_scores: list[float] = []
+        key_events: list[KeyEvent] = []
+
+        for row in rows:
+            article, sentiment = parse_news_article(row, key_events)
+            articles.append(article)
+            if sentiment is not None:
+                sentiment_scores.append(sentiment)
+
+        avg_sentiment = sum(sentiment_scores) / len(sentiment_scores) if sentiment_scores else 0.0
+
+        if avg_sentiment > 0.15:
+            sentiment_label = "Positive"
+        elif avg_sentiment < -0.15:
+            sentiment_label = "Negative"
+        else:
+            sentiment_label = "Neutral"
+
+        headline = generate_news_headline(key_events, avg_sentiment, len(articles))
+
+        result[symbol] = NewsIntelligence(
+            headline=headline[:100],
+            sentiment_score=round(avg_sentiment, 2),
+            sentiment_label=sentiment_label,
+            article_count_24h=len(articles),
+            key_events=key_events,
+            recent_articles=articles[:5],
+        )
+    return result
+
+
 __all__ = [
     "build_news_intelligence",
+    "build_news_intelligence_batch",
     "generate_news_headline",
     "parse_news_article",
 ]

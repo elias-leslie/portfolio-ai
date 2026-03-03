@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 from app.agents.llm_client import DualProviderClient
 from app.agents.tools import AgentTools
 from app.analytics.paper_trading import update_paper_trades
+from app.analytics.types import PaperTradeStatsDict
 from app.logging_config import get_logger
 from app.portfolio.analytics import PortfolioAnalytics
 from app.portfolio.manager import PortfolioManager
@@ -26,6 +27,8 @@ if TYPE_CHECKING:
     from app.storage import PortfolioStorage
 
 logger = get_logger(__name__)
+
+MIN_MEANINGFUL_RESPONSE_LENGTH = 50
 
 
 def setup_agent_tools(storage: PortfolioStorage) -> AgentTools:
@@ -52,7 +55,7 @@ def setup_agent_tools(storage: PortfolioStorage) -> AgentTools:
 def update_celery_task_id(storage: PortfolioStorage, task_id: str, run_id: str) -> None:
     """Update agent_runs table with task ID."""
     with storage.connection() as conn:
-        conn.execute(
+        cursor = conn.execute(
             """
             UPDATE agent_runs
             SET celery_task_id = ?
@@ -60,12 +63,14 @@ def update_celery_task_id(storage: PortfolioStorage, task_id: str, run_id: str) 
             """,
             [task_id, run_id],
         )
+        if cursor.rowcount == 0:
+            logger.warning("update_celery_task_id_no_match", run_id=run_id, task_id=task_id)
         conn.commit()
 
 
 def emit_insight_if_meaningful(agent_response: str, context_type: str, confidence: float) -> None:
     """Emit insight_generated event if the agent response is non-trivial."""
-    if agent_response and len(agent_response) > 50:
+    if agent_response and len(agent_response) > MIN_MEANINGFUL_RESPONSE_LENGTH:
         emit_event(
             "insight_generated",
             {
@@ -111,7 +116,9 @@ def run_agent_task(
 
         agent = agent_class(storage=storage, tools=agent_tools, llm_client=llm_client)
         result = agent.run()
-        run_id = result["run_id"]
+        run_id = result.get("run_id")
+        if not run_id:
+            raise ValueError(f"Agent {task_name} returned result without run_id: {result.keys()}")
 
         update_celery_task_id(storage, task_id, run_id)
         emit_insight_if_meaningful(result.get("response", ""), context_type, confidence)
@@ -120,7 +127,7 @@ def run_agent_task(
         return run_id
 
     except Exception as e:
-        logger.error("agent_task_failed", task_name=task_name, task_id=task_id, error=str(e))
+        logger.error("agent_task_failed", task_name=task_name, task_id=task_id, error=str(e), error_type=type(e).__name__)
         raise
     finally:
         if llm_client is not None:
@@ -128,7 +135,7 @@ def run_agent_task(
         task_cleanup(f"run_{task_name}")
 
 
-def run_paper_trades_update(max_holding_days: int = 60):  # type: ignore[no-untyped-def]
+def run_paper_trades_update(max_holding_days: int = 60) -> PaperTradeStatsDict:
     """Update all open paper trades with current prices and check for exits.
 
     Args:

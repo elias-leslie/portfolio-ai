@@ -33,7 +33,14 @@ VALUATION_SINGLE_QUERY = f"""
 
 
 def build_valuation_batch_query(symbol_count: int) -> str:
-    """Build a parameterized batch query for the given number of symbols."""
+    """Build a parameterized batch query for the given number of symbols.
+
+    Raises:
+        ValueError: If symbol_count is less than or equal to zero, because
+            ``WHERE symbol IN ()`` is syntactically invalid in most SQL dialects.
+    """
+    if symbol_count <= 0:
+        raise ValueError(f"symbol_count must be a positive integer, got {symbol_count}")
     placeholders = ",".join(["%s"] * symbol_count)
     return f"""
         SELECT {VALUATION_SELECT_FIELDS}
@@ -45,7 +52,9 @@ def build_valuation_batch_query(symbol_count: int) -> str:
 
 def to_float_or_none(val: object) -> float | None:
     """Convert a value to float if numeric, otherwise return None."""
-    return val if isinstance(val, (int, float)) else None  # type: ignore[return-value]
+    if isinstance(val, (int, float)):
+        return float(val)
+    return None
 
 
 def normalize_as_of_date(as_of: object, context: str = "") -> str:
@@ -73,11 +82,26 @@ def validate_single_row_fields(row: tuple[object, ...]) -> None:
 
     Raises HTTPException 500 if any field has an unexpected type.
     This is called for the single-symbol endpoint where strict validation is warranted.
+
+    NOTE: The field_names list and the positional indices below (start=1 through 7)
+    are tightly coupled to the column order defined in VALUATION_SELECT_FIELDS.
+    If that constant changes, this function must be updated to match.
+    Expected column order from VALUATION_SELECT_FIELDS:
+      index 0: symbol
+      index 1: pe_ratio_trailing
+      index 2: pe_ratio_forward
+      index 3: ps_ratio
+      index 4: pb_ratio
+      index 5: peg_ratio
+      index 6: dividend_yield
+      index 7: payout_ratio
+      index 8: as_of_date
     """
     symbol_val = row[0]
     if not isinstance(symbol_val, str):
         raise HTTPException(status_code=500, detail="Invalid symbol data type from database")
 
+    # Indices 1-7 correspond to the numeric fields in VALUATION_SELECT_FIELDS (see above).
     field_names = [
         "pe_ratio_trailing",
         "pe_ratio_forward",

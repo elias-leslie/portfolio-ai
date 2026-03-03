@@ -87,7 +87,7 @@ export function ApiSourcesOverview() {
             detail={
               selectedProvider === provider.name ? providerDetail : null
             }
-            detailLoading={detailLoading}
+            detailLoading={selectedProvider === provider.name && detailLoading}
             onToggle={toggleProvider}
           />
         ))}

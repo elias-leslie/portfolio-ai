@@ -9,6 +9,30 @@ from .models import PriceData
 
 logger = get_logger(__name__)
 
+_NULL_STRINGS = {"null", "n/a", "none", ""}
+
+
+def _safe_float(val: object) -> float | None:
+    if val is None:
+        return None
+    if isinstance(val, str) and val.strip().lower() in _NULL_STRINGS:
+        return None
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return None
+
+
+def _safe_int(val: object) -> int | None:
+    if val is None:
+        return None
+    if isinstance(val, str) and val.strip().lower() in _NULL_STRINGS:
+        return None
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return None
+
 
 def parse_payload_row(row: dict) -> PriceData:
     """Convert a single DataFrame row from MultiSourceFetcher into a PriceData.
@@ -22,12 +46,19 @@ def parse_payload_row(row: dict) -> PriceData:
     Returns:
         PriceData instance (may have error set if price is invalid)
     """
-    symbol: str = row["symbol"]
+    symbol = row.get("symbol")
+    if not symbol:
+        raise ValueError(f"Missing required field 'symbol' in row: {row}")
     source: str = row.get("source", "unknown")
     payload = row.get("payload", {})
 
     if isinstance(payload, str):
-        payload = json.loads(payload)
+        try:
+            payload = json.loads(payload)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"Invalid JSON payload for symbol '{symbol}': {exc}"
+            ) from exc
 
     price = payload.get("price", 0.0)
     sector = payload.get("sector")
@@ -51,13 +82,13 @@ def parse_payload_row(row: dict) -> PriceData:
         return PriceData(
             symbol=symbol,
             price=float(price),
-            beta=float(beta) if beta else None,
-            volatility=float(volatility) if volatility else None,
+            beta=_safe_float(beta),
+            volatility=_safe_float(volatility),
             sector=sector,
-            bid=float(bid) if bid else None,
-            ask=float(ask) if ask else None,
-            bid_size=int(bid_size) if bid_size else None,
-            ask_size=int(ask_size) if ask_size else None,
+            bid=_safe_float(bid),
+            ask=_safe_float(ask),
+            bid_size=_safe_int(bid_size),
+            ask_size=_safe_int(ask_size),
             source=source,
         )
 

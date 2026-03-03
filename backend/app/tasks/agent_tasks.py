@@ -12,6 +12,7 @@ For other background tasks, see:
 
 from __future__ import annotations
 
+from app.analytics.types import PaperTradeStatsDict
 from app.tasks.agent_helpers import run_agent_task, run_paper_trades_update
 
 __all__ = [
@@ -53,7 +54,7 @@ def run_portfolio_analyzer() -> str:
     )
 
 
-def update_paper_trades_task(max_holding_days: int = 60):  # type: ignore[no-untyped-def]
+def update_paper_trades_task(max_holding_days: int = 60) -> PaperTradeStatsDict:
     """Update all open paper trades with current prices and check for exits.
 
     Should be scheduled daily at market close + 30 minutes (4:30 PM ET).

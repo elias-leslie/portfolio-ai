@@ -8,12 +8,12 @@ This module provides:
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
 
 from app.watchlist.scoring import calculate_watchlist_scores
 
 from ...constants import DEFAULT_BACKFILL_DAYS
 from ...logging_config import get_logger
+from ...portfolio.models import PriceData
 from ...storage import PortfolioStorage
 from ..data_loaders import load_default_weights, load_latest_technical, load_stale_ttl_minutes
 from ..models import TechnicalSnapshot, WatchlistScoreInputs, WatchlistSnapshot
@@ -21,7 +21,7 @@ from ..models import TechnicalSnapshot, WatchlistScoreInputs, WatchlistSnapshot
 logger = get_logger(__name__)
 
 
-def backfill_historical(storage: PortfolioStorage, symbol: str, item_id: str) -> None:
+def backfill_historical(symbol: str, item_id: str) -> None:
     """Attempt to backfill historical OHLCV data for symbol."""
     try:
         from ...tasks.ingestion import ingest_historical_ohlcv  # noqa: PLC0415
@@ -42,10 +42,12 @@ def build_score_snapshot(
     storage: PortfolioStorage,
     item_id: str,
     symbol: str,
-    price_data: Any,
+    price_data: PriceData,
     change_pct: float,
 ) -> WatchlistSnapshot:
     """Build a WatchlistSnapshot from current price and technical data."""
+    if price_data is None:
+        raise ValueError(f"price_data is required to build score snapshot for {symbol}")
     technical_map = load_latest_technical(storage, [symbol])
     technical_snapshot = technical_map.get(symbol, TechnicalSnapshot())
     technical_snapshot.price = price_data.price

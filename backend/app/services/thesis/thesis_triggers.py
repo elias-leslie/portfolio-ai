@@ -20,6 +20,8 @@ SIGNAL_AVOID = "AVOID"
 def is_thesis_recent(thesis: Thesis) -> bool:
     """Return True if thesis was created less than THESIS_RECENCY_HOURS ago."""
     created = datetime.fromisoformat(thesis.created_at)
+    if created.tzinfo is None:
+        created = created.replace(tzinfo=UTC)
     age_hours = (datetime.now(UTC) - created).total_seconds() / 3600
     return age_hours < THESIS_RECENCY_HOURS
 
@@ -57,6 +59,6 @@ def check_sentiment_triggers(thesis_action: str, sentiment_score: float | None) 
 def check_cross_val_trigger(thesis: Thesis) -> list[str]:
     """Return trigger reason if cross-validation score is below threshold."""
     score = thesis.cross_validation_score
-    if score and score < CROSS_VAL_SCORE_THRESHOLD:
+    if score is not None and score < CROSS_VAL_SCORE_THRESHOLD:
         return [f"Low cross-validation score: {score:.2f}"]
     return []

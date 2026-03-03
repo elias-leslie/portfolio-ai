@@ -22,12 +22,12 @@ import { Button } from '@/components/ui/button'
 import type { NewsHealthResponse } from '@/lib/api/news'
 import type { DetailedHealthResponse, HealthResponse } from '@/lib/api/status'
 import type { SystemResources } from '@/lib/api/resources'
-import type { ConnectionBannerConfig } from '@/lib/utils/connectionBadge'
+import type { ConnectionBannerConfig, ConnectionState } from '@/lib/utils/connectionBadge'
 import type { ActionDialogConfig } from '@/components/status/hooks/useStatusPage'
 
 interface StatusContentProps {
   health: HealthResponse
-  connectionState: string
+  connectionState: ConnectionState
   connectionBanner: ConnectionBannerConfig | null
   retryConnection: () => void
   resources: SystemResources | null

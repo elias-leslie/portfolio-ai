@@ -100,8 +100,8 @@ class MultiReviewer:
         logger.info("starting_dual_review", symbol=symbol, review_pair_id=review_pair_id)
 
         results = await asyncio.gather(
-            asyncio.create_task(self._generate_review("gemini", prompt, rationale)),
-            asyncio.create_task(self._generate_review("claude", prompt, rationale)),
+            self._generate_review("gemini", prompt, rationale),
+            self._generate_review("claude", prompt, rationale),
             return_exceptions=True,
         )
 
@@ -165,8 +165,9 @@ class MultiReviewer:
             is_valid, reason = validate_review(response.content)
             if not is_valid:
                 logger.warning(
-                    f"Review failed validation from {provider}: {reason}",
-                    extra={"provider": provider},
+                    "review_validation_failed",
+                    provider=provider,
+                    reason=reason,
                 )
             return ProviderReview(
                 provider=provider,
@@ -177,8 +178,9 @@ class MultiReviewer:
             )
         except Exception as e:
             logger.error(
-                f"Provider {provider} failed: {e}",
-                extra={"provider": provider},
+                "provider_review_failed",
+                provider=provider,
+                error=str(e),
                 exc_info=True,
             )
             return _make_failed_review(provider, str(e))

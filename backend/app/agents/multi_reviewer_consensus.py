@@ -5,10 +5,12 @@ Handles sentiment analysis and disagreement detection between providers.
 
 from __future__ import annotations
 
+import re
+
 from .multi_reviewer_models import DisagreementSeverity, ProviderReview
 
 # Keywords indicating bullish sentiment
-BULLISH_KEYWORDS: list[str] = [
+BULLISH_KEYWORDS: frozenset[str] = frozenset([
     "upside",
     "positive",
     "strength",
@@ -17,10 +19,10 @@ BULLISH_KEYWORDS: list[str] = [
     "opportunity",
     "favorable",
     "bullish",
-]
+])
 
 # Keywords indicating bearish sentiment
-BEARISH_KEYWORDS: list[str] = [
+BEARISH_KEYWORDS: frozenset[str] = frozenset([
     "downside",
     "negative",
     "weakness",
@@ -31,10 +33,10 @@ BEARISH_KEYWORDS: list[str] = [
     "bearish",
     "caution",
     "warning",
-]
+])
 
 # Keywords indicating concerns in a review
-CONCERN_KEYWORDS: list[str] = [
+CONCERN_KEYWORDS: frozenset[str] = frozenset([
     "risk",
     "concern",
     "caution",
@@ -44,7 +46,22 @@ CONCERN_KEYWORDS: list[str] = [
     "however",
     "but",
     "warning",
-]
+])
+
+
+def _count_keyword_matches(text: str, keywords: frozenset[str]) -> int:
+    """Count whole-word keyword matches in text using regex word boundaries.
+
+    Args:
+        text: Input text to search (case-insensitive)
+        keywords: Set of keywords to match
+
+    Returns:
+        Number of keywords found as whole words
+    """
+    return sum(
+        1 for kw in keywords if re.search(rf"\b{re.escape(kw)}\b", text, flags=re.IGNORECASE)
+    )
 
 
 def analyze_sentiment(review_text: str) -> float:
@@ -56,9 +73,8 @@ def analyze_sentiment(review_text: str) -> float:
     Returns:
         Sentiment score from -1.0 (bearish) to +1.0 (bullish)
     """
-    text_lower = review_text.lower()
-    bullish_count = sum(1 for kw in BULLISH_KEYWORDS if kw in text_lower)
-    bearish_count = sum(1 for kw in BEARISH_KEYWORDS if kw in text_lower)
+    bullish_count = _count_keyword_matches(review_text, BULLISH_KEYWORDS)
+    bearish_count = _count_keyword_matches(review_text, BEARISH_KEYWORDS)
     total = bullish_count + bearish_count
     if total == 0:
         return 0.0  # Neutral
@@ -84,7 +100,7 @@ def detect_rules_disagreement(review_text: str, rationale: str) -> bool:
 
 def compute_consensus(
     gemini: ProviderReview, claude: ProviderReview
-) -> tuple[float, DisagreementSeverity, bool]:
+) -> tuple[float | None, DisagreementSeverity, bool]:
     """Compute consensus between two provider reviews.
 
     Args:
@@ -93,12 +109,13 @@ def compute_consensus(
 
     Returns:
         (agreement_score, disagreement_severity, provider_disagreement)
+        agreement_score is None when only one provider succeeded (no comparison possible)
     """
     if gemini.error or claude.error:
         if gemini.error and not claude.error:
-            return 1.0, DisagreementSeverity.NONE, False
+            return None, DisagreementSeverity.NONE, False
         if claude.error and not gemini.error:
-            return 1.0, DisagreementSeverity.NONE, False
+            return None, DisagreementSeverity.NONE, False
         # Both failed
         return 0.0, DisagreementSeverity.NONE, False
 
@@ -140,9 +157,13 @@ def generate_consensus_summary(
     if gemini.error and claude.error:
         return "Both reviewers unavailable"
     if gemini.error:
-        return f"Only Claude review available: {claude.review_text[:100]}..."
+        preview = claude.review_text[:100]
+        ellipsis = "..." if len(claude.review_text) > 100 else ""
+        return f"Only Claude review available: {preview}{ellipsis}"
     if claude.error:
-        return f"Only Gemini review available: {gemini.review_text[:100]}..."
+        preview = gemini.review_text[:100]
+        ellipsis = "..." if len(gemini.review_text) > 100 else ""
+        return f"Only Gemini review available: {preview}{ellipsis}"
     if not provider_disagreement:
         return "Both reviewers agree on the assessment"
     if severity == DisagreementSeverity.MINOR:

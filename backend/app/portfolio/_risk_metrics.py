@@ -17,6 +17,25 @@ _DEFAULT_MARKET_BENCHMARK = "SPY"
 _DEFAULT_LOOKBACK_DAYS = 90
 
 
+def _build_return_series(df: pl.DataFrame, symbol_value: str, return_col_name: str) -> pl.DataFrame:
+    """Filter, sort, and compute percent-change returns for a single symbol.
+
+    Args:
+        df: Raw DataFrame containing symbol, date, and close columns
+        symbol_value: Ticker symbol to filter on
+        return_col_name: Name to assign to the percent-change column
+
+    Returns:
+        DataFrame with date and the named return column, nulls dropped
+    """
+    return (
+        df.filter(pl.col("symbol") == symbol_value)
+        .sort("date")
+        .with_columns(pl.col("close").pct_change().alias(return_col_name))
+        .drop_nulls([return_col_name])
+    )
+
+
 def compute_local_risk_metrics(
     symbol: str,
     storage: PortfolioStorage,
@@ -47,29 +66,29 @@ def compute_local_risk_metrics(
     )
 
     if df.is_empty():
+        logger.warning("No day_bars data found for symbol=%s benchmark=%s", symbol, market_benchmark)
         return (None, None)
 
     try:
-        symbol_df = (
-            df.filter(pl.col("symbol") == symbol)
-            .sort("date")
-            .with_columns(pl.col("close").pct_change().alias("symbol_return"))
-            .drop_nulls(["symbol_return"])
-        )
-        market_df = (
-            df.filter(pl.col("symbol") == market_benchmark)
-            .sort("date")
-            .with_columns(pl.col("close").pct_change().alias("market_return"))
-            .drop_nulls(["market_return"])
-        )
+        symbol_df = _build_return_series(df, symbol, "symbol_return")
+        market_df = _build_return_series(df, market_benchmark, "market_return")
     except pl.exceptions.ComputeError:
+        logger.warning("ComputeError building return series for symbol=%s", symbol)
         return (None, None)
 
     if symbol_df.is_empty() or market_df.is_empty():
+        logger.warning(
+            "Empty return series after pct_change: symbol_empty=%s market_empty=%s",
+            symbol_df.is_empty(),
+            market_df.is_empty(),
+        )
         return (None, None)
 
     joined = symbol_df.join(market_df, on="date", how="inner")
     if joined.height < 5:
+        logger.warning(
+            "Insufficient overlapping rows (%d < 5) for symbol=%s", joined.height, symbol
+        )
         return (None, None)
 
     symbol_returns = joined["symbol_return"].to_numpy()
@@ -81,17 +100,22 @@ def compute_local_risk_metrics(
     market_returns = market_returns[mask]
 
     if symbol_returns.size < 5 or market_returns.size < 5:
+        logger.warning(
+            "Insufficient finite return values (%d) for symbol=%s", symbol_returns.size, symbol
+        )
         return (None, None)
 
     # Volatility: annualized standard deviation of daily returns
     symbol_std = np.std(symbol_returns, ddof=1)
     volatility = float(symbol_std * sqrt(252))
+    if not np.isfinite(volatility):
+        volatility = None
 
     market_variance = float(np.var(market_returns, ddof=1))
-    if market_variance == 0 or np.isnan(market_variance):
+    if market_variance <= 1e-10 or np.isnan(market_variance):  # use tolerance instead of == 0
         beta = None
     else:
-        covariance = float(np.cov(symbol_returns, market_returns, ddof=1)[0, 1])
+        covariance = float(np.cov(symbol_returns, market_returns)[0][1])
         beta = covariance / market_variance
 
     return (beta, volatility)

@@ -1,5 +1,5 @@
 export function getPnlColor(value: number | undefined): string {
-  if (!value) return 'text-text'
+  if (value === undefined || value === null) return 'text-text'
   return value >= 0 ? 'text-gain' : 'text-loss'
 }
 

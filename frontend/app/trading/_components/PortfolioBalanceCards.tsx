@@ -14,6 +14,12 @@ interface PortfolioBalanceCardsProps {
   onResetClick: () => void
 }
 
+const formatChangeFromStart = (current: number, start: number | undefined): string => {
+  if (!start || start === 0) return '0.00% from start'
+  const pct = ((current - start) / start) * 100
+  return `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}% from start`
+}
+
 export function PortfolioBalanceCards({
   summary,
   summaryLoading,
@@ -65,13 +71,7 @@ export function PortfolioBalanceCards({
                 <p
                   className={`text-sm ${(summary?.totalPortfolioValue || 0) >= summary.startingBalance ? 'text-gain' : 'text-loss'}`}
                 >
-                  {(summary?.totalPortfolioValue || 0) >= summary.startingBalance ? '+' : ''}
-                  {(
-                    (((summary?.totalPortfolioValue || 0) - summary.startingBalance) /
-                      summary.startingBalance) *
-                    100
-                  ).toFixed(2)}
-                  % from start
+                  {formatChangeFromStart(summary?.totalPortfolioValue || 0, summary.startingBalance)}
                 </p>
               )}
             </div>

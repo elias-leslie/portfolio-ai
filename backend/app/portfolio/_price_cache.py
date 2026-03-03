@@ -49,8 +49,8 @@ def get_cached_prices(
     if df.is_empty():
         return {}
 
-    # Get most recent entry per symbol
-    df = df.group_by("symbol").agg(pl.all().first())
+    # Get most recent entry per symbol (sort ensures correct order before dedup)
+    df = df.sort("cached_at", descending=True).unique(subset=["symbol"], keep="first")
 
     result = {}
     for row in df.iter_rows(named=True):
@@ -80,6 +80,12 @@ def cache_prices(
 
     rows = [data.model_dump() for data in price_data.values()]
     df = pl.DataFrame(rows)
+
+    # Delete existing rows for these symbols before inserting to prevent unbounded growth
+    symbols = list(price_data.keys())
+    placeholders = ",".join(["?" for _ in symbols])
+    storage.execute(f"DELETE FROM price_cache WHERE symbol IN ({placeholders})", symbols)
+
     storage.insert_dataframe("price_cache", df, mode="append")
 
     logger.info(

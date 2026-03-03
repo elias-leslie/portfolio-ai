@@ -128,7 +128,7 @@ export function ProviderExpandedDetail({
         </div>
       ) : (
         <div className="text-sm text-muted-foreground">
-          Click to load details...
+          No details available
         </div>
       )}
     </div>

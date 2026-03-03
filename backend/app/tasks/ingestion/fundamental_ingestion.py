@@ -33,6 +33,11 @@ from ._macro_helpers import fetch_and_store_indicators, fetch_and_store_yield_cu
 
 logger = get_logger(__name__)
 
+INDICATOR_CONFIGS = [
+    ("fetch_inflation_data", "inflation_updated"),
+    ("fetch_fed_funds_data", "fed_funds_updated"),
+]
+
 
 def ingest_fundamental_data(
     symbols: list[str] | None = None,
@@ -147,8 +152,8 @@ def ingest_macro_indicators() -> dict[str, Any]:
     today = date.today()
 
     fetch_and_store_yield_curve(storage, fred, today, stats)
-    fetch_and_store_indicators(storage, fred, today, stats, "fetch_inflation_data", "inflation_updated")
-    fetch_and_store_indicators(storage, fred, today, stats, "fetch_fed_funds_data", "fed_funds_updated")
+    for fetch_fn, stat_key in INDICATOR_CONFIGS:
+        fetch_and_store_indicators(storage, fred, today, stats, fetch_fn, stat_key)
 
     logger.info(
         "macro_ingestion_complete",

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import asdict
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+import psycopg2
 
 from app.logging_config import get_logger
 from app.strategies.optimizer import get_strategy_optimizer
@@ -12,6 +15,17 @@ from app.strategies.research_aggregator import get_research_aggregator
 from app.strategies.storage import get_strategy_storage
 from app.strategies.strategy_generator import get_strategy_generator
 from app.utils.git_automation import commit_workflow_results
+
+if TYPE_CHECKING:
+    from app.strategies.models import StrategyDefinition
+
+MIN_RESEARCH_CONFIDENCE = 0.5
+
+
+class StorageProtocol:
+    """Minimal interface required by check_existing_strategy."""
+
+    def get_active_strategy(self, symbol: str) -> StrategyDefinition | None: ...
 
 logger = get_logger(__name__)
 
@@ -56,18 +70,22 @@ async def run_workflow_steps(
     )
 
     # Steps 5 & 5b: Store strategy and persist backtest
-    strategy_id, _ = store_strategy_and_backtest(
-        storage, optimizer, symbol, workflow_id, agent_result, optimized, research
+    strategy_id, _ = await asyncio.to_thread(
+        lambda: store_strategy_and_backtest(
+            storage, optimizer, symbol, workflow_id, agent_result, optimized, research
+        )
     )
 
     # Step 6: Commit to git and return result
-    return commit_and_build_result(
-        workflow_id, symbol, strategy_id, agent_result, optimized, research
+    return await asyncio.to_thread(
+        lambda: commit_and_build_result(
+            workflow_id, symbol, strategy_id, agent_result, optimized, research
+        )
     )
 
 
 def check_existing_strategy(
-    storage: Any,
+    storage: StorageProtocol,
     symbol: str,
     workflow_id: str,
     force_regenerate: bool,
@@ -99,7 +117,7 @@ async def aggregate_and_validate_research(
     """Aggregate market research; return (research, block_result_or_None)."""
     logger.info("Aggregating market research", workflow_id=workflow_id, symbol=symbol)
     research = await aggregator.aggregate_research(symbol, lookback_days=30)
-    if research.overall_confidence < 0.5:
+    if research.overall_confidence < MIN_RESEARCH_CONFIDENCE:
         logger.warning(
             "Insufficient research quality",
             workflow_id=workflow_id,
@@ -178,8 +196,13 @@ def store_strategy_and_backtest(
             strategy_id=strategy_id,
         )
         logger.info("Backtest persisted", workflow_id=workflow_id, backtest_run_id=backtest_run_id)
-    except Exception as e:
-        logger.warning("Failed to persist backtest run", workflow_id=workflow_id, error=str(e))
+    except (psycopg2.IntegrityError, psycopg2.OperationalError, TimeoutError) as e:
+        logger.warning(
+            "Failed to persist backtest run",
+            workflow_id=workflow_id,
+            error=str(e),
+            exc_info=True,
+        )
         backtest_run_id = None
 
     return strategy_id, backtest_run_id
@@ -212,13 +235,14 @@ def commit_and_build_result(
         f"Generated {agent_result.strategy_type} strategy for {symbol} "
         f"(confidence={optimized.confidence:.2f}, Sharpe={optimized.avg_sharpe:.2f})"
     )
-    commit_result = commit_workflow_results(
+    commit_workflow_results(
         workflow_type="strategy_research",
         date=datetime.now(UTC),
         result_summary=result_summary,
         snapshot_data=snapshot,
     )
-    commit_sha = commit_result.get("commit_sha", "") if isinstance(commit_result, dict) else ""
+    # commit_workflow_results returns bool (True = success, False = failure); no commit SHA is provided.
+    commit_sha = ""
     logger.info(
         "Strategy research workflow complete",
         workflow_id=workflow_id,

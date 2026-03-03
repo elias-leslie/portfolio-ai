@@ -34,7 +34,9 @@ def categorize_units(
         Tuple of (system_units, user_units) lists
     """
     if service:
-        unit = service_units.get(service, "")
+        unit = service_units.get(service)
+        if not unit:
+            return [], []
         if service in USER_MODE_SERVICES:
             return [], [unit]
         return [unit], []
@@ -117,7 +119,7 @@ def process_logs(
     Returns:
         Tuple of (processed_logs, level_counts)
     """
-    logs.sort(key=lambda x: x.timestamp)
+    logs = sorted(logs, key=lambda x: x.timestamp)
     level_counts = count_log_levels(logs)
 
     filtered = [log for log in logs if log.level == level] if level else logs
@@ -135,14 +137,23 @@ def run_set_log_level_script(level: str) -> None:
     Raises:
         HTTPException: 500 if the script fails, 504 if it times out
     """
-    script_path = Path(__file__).parent.parent.parent.parent / "scripts" / "set-log-level.sh"
-    result = subprocess.run(
-        ["bash", str(script_path), level],
-        capture_output=True,
-        text=True,
-        timeout=SCRIPT_EXECUTION_TIMEOUT_SECONDS,
-        check=False,
-    )
+    # parents[3] traverses: status_logs_core -> api -> app -> backend root
+    project_root = Path(__file__).parents[3]
+    script_path = project_root / "scripts" / "set-log-level.sh"
+    try:
+        result = subprocess.run(
+            ["bash", str(script_path), level],
+            capture_output=True,
+            text=True,
+            timeout=SCRIPT_EXECUTION_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as err:
+        logger.error("set_log_level_timeout", timeout=SCRIPT_EXECUTION_TIMEOUT_SECONDS)
+        raise HTTPException(
+            status_code=504,
+            detail=f"set-log-level.sh timed out after {SCRIPT_EXECUTION_TIMEOUT_SECONDS}s",
+        ) from err
 
     if result.returncode != 0:
         logger.error("set_log_level_failed", stderr=result.stderr, returncode=result.returncode)

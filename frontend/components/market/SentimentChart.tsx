@@ -1,5 +1,6 @@
 'use client'
 
+import { useId } from 'react'
 import {
   Area,
   ComposedChart,
@@ -18,7 +19,7 @@ export interface SentimentChartDataPoint {
   score: number
   label: string
   newsSentiment: number | null
-  newsRaw: number | undefined
+  newsRaw: number | null | undefined
   pcRatioScaled: number | null
   pcRatioRaw: number | null | undefined
 }
@@ -34,6 +35,8 @@ export function SentimentChart({
   formatXAxis,
   tickInterval,
 }: SentimentChartProps) {
+  const id = useId()
+  const gradientId = `${id}-sentimentGradient`
   return (
     <ResponsiveContainer width="100%" height={160}>
       <ComposedChart
@@ -68,7 +71,7 @@ export function SentimentChart({
         />
         <Tooltip content={<SentimentTooltip />} />
         <defs>
-          <linearGradient id="sentimentGradient" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.3} />
             <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0} />
           </linearGradient>
@@ -78,7 +81,7 @@ export function SentimentChart({
           dataKey="score"
           stroke="#8B5CF6"
           strokeWidth={2}
-          fill="url(#sentimentGradient)"
+          fill={`url(#${gradientId})`}
           name="Fear & Greed"
         />
         <Line

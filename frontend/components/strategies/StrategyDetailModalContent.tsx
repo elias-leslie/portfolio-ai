@@ -2,6 +2,7 @@
 
 import { Archive, CheckCircle } from 'lucide-react'
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -10,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import { useUpdateStrategyStatus } from '@/lib/hooks/useStrategies'
 import type { StrategyDetail } from '@/lib/api/strategies'
 import { SeedEvolution } from './SeedEvolution'
@@ -33,19 +35,41 @@ export function StrategyDetailModalContent({
   const [researchOpen, setResearchOpen] = useState(false)
   const [parametersOpen, setParametersOpen] = useState(false)
   const [backtestOpen, setBacktestOpen] = useState(false)
+  const [archivePending, setArchivePending] = useState(false)
+  const [archiveReason, setArchiveReason] = useState('')
 
   const handleActivate = () => {
-    updateStatus.mutate({ strategyId: strategy.id, request: { status: 'active' } })
+    updateStatus.mutate(
+      { strategyId: strategy.id, request: { status: 'active' } },
+      {
+        onError: (error) => {
+          toast.error(`Failed to activate strategy: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        },
+      }
+    )
   }
 
-  const handleArchive = () => {
-    const reason = prompt('Enter archive reason:')
-    if (reason) {
-      updateStatus.mutate({
+  const handleArchiveConfirm = () => {
+    updateStatus.mutate(
+      {
         strategyId: strategy.id,
-        request: { status: 'archived', archiveReason: reason },
-      })
-    }
+        request: { status: 'archived', archiveReason },
+      },
+      {
+        onError: (error) => {
+          toast.error(`Failed to archive strategy: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        },
+        onSuccess: () => {
+          setArchivePending(false)
+          setArchiveReason('')
+        },
+      }
+    )
+  }
+
+  const handleArchiveCancel = () => {
+    setArchivePending(false)
+    setArchiveReason('')
   }
 
   return (
@@ -110,11 +134,38 @@ export function StrategyDetailModalContent({
         onOpenChange={setBacktestOpen}
       >
         <div className="space-y-2">
-          {strategy.backtestMetrics.map((metric, i) => (
-            <BacktestMetricRow key={i} metric={metric} />
+          {strategy.backtestMetrics.map((metric) => (
+            <BacktestMetricRow key={`${metric.windowStart}-${metric.windowEnd}`} metric={metric} />
           ))}
         </div>
       </CollapsibleSection>
+
+      {archivePending && (
+        <div className="flex items-center gap-2 rounded-md border p-3">
+          <Input
+            placeholder="Enter archive reason"
+            value={archiveReason}
+            onChange={(e) => setArchiveReason(e.target.value)}
+            className="flex-1"
+            autoFocus
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleArchiveCancel}
+            disabled={updateStatus.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            onClick={handleArchiveConfirm}
+            disabled={!archiveReason.trim() || updateStatus.isPending}
+          >
+            Confirm
+          </Button>
+        </div>
+      )}
 
       <div className="flex justify-end gap-2">
         {strategy.status === 'testing' && (
@@ -123,8 +174,8 @@ export function StrategyDetailModalContent({
             Activate
           </Button>
         )}
-        {strategy.status !== 'archived' && (
-          <Button variant="outline" onClick={handleArchive} disabled={updateStatus.isPending}>
+        {strategy.status !== 'archived' && !archivePending && (
+          <Button variant="outline" onClick={() => setArchivePending(true)} disabled={updateStatus.isPending}>
             <Archive className="mr-2 h-4 w-4" />
             Archive
           </Button>

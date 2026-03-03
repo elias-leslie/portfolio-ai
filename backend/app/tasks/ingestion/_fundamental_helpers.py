@@ -22,8 +22,10 @@ def to_python(value: Any) -> Any:
         return int(value)
     if isinstance(value, np.floating):
         return None if np.isnan(value) else float(value)
-    if isinstance(value, (np.bool_, np.ndarray)):
-        return bool(value) if isinstance(value, np.bool_) else value.tolist()
+    if isinstance(value, np.bool_):
+        return bool(value)
+    if isinstance(value, np.ndarray):
+        return value.tolist()
     return value
 
 
@@ -56,7 +58,10 @@ def _coerce_date(value: Any) -> datetime | None:
 
 def insert_cash_flow(storage: PortfolioStorage, data: dict[str, Any], as_of_date: date) -> None:
     """Insert cash flow metrics."""
-    ensure_symbol_exists(storage, data["symbol"])
+    symbol = data.get("symbol")
+    if not symbol:
+        raise ValueError("insert_cash_flow: 'symbol' is required in data")
+    ensure_symbol_exists(storage, symbol)
     query = """
         INSERT INTO cash_flow_metrics (
             symbol, as_of_date, operating_cash_flow, free_cash_flow,
@@ -92,7 +97,10 @@ def insert_cash_flow(storage: PortfolioStorage, data: dict[str, Any], as_of_date
 
 def insert_insider_transaction(storage: PortfolioStorage, data: dict[str, Any]) -> None:
     """Insert insider transaction."""
-    ensure_symbol_exists(storage, data["symbol"])
+    symbol = data.get("symbol")
+    if not symbol:
+        raise ValueError("insert_insider_transaction: 'symbol' is required in data")
+    ensure_symbol_exists(storage, symbol)
     query = """
         INSERT INTO insider_transactions (
             symbol, insider_name, insider_title, transaction_type,
@@ -118,7 +126,10 @@ def insert_insider_transaction(storage: PortfolioStorage, data: dict[str, Any]) 
 
 def insert_institutional_holding(storage: PortfolioStorage, data: dict[str, Any]) -> None:
     """Insert institutional holding."""
-    ensure_symbol_exists(storage, data["symbol"])
+    symbol = data.get("symbol")
+    if not symbol:
+        raise ValueError("insert_institutional_holding: 'symbol' is required in data")
+    ensure_symbol_exists(storage, symbol)
     query = """
         INSERT INTO institutional_holdings (
             symbol, holder_name, shares, value, pct_held, report_date, source, updated_at
@@ -147,7 +158,10 @@ def insert_institutional_summary(
     storage: PortfolioStorage, data: dict[str, Any], as_of_date: date
 ) -> None:
     """Insert institutional ownership summary."""
-    ensure_symbol_exists(storage, data["symbol"])
+    symbol = data.get("symbol")
+    if not symbol:
+        raise ValueError("insert_institutional_summary: 'symbol' is required in data")
+    ensure_symbol_exists(storage, symbol)
     query = """
         INSERT INTO institutional_ownership_summary (
             symbol, as_of_date, total_institutions, pct_held_institutions,
@@ -176,7 +190,10 @@ def insert_short_interest(
     storage: PortfolioStorage, data: dict[str, Any], as_of_date: date
 ) -> None:
     """Insert short interest data and dual-write to summary table."""
-    ensure_symbol_exists(storage, data["symbol"])
+    symbol = data.get("symbol")
+    if not symbol:
+        raise ValueError("insert_short_interest: 'symbol' is required in data")
+    ensure_symbol_exists(storage, symbol)
     as_of_datetime = datetime.combine(as_of_date, datetime.min.time())
 
     storage.execute(

@@ -179,6 +179,74 @@ class WatchlistRepository:
             ).fetchall()
             return rows
 
+    def get_recent_news_batch(
+        self,
+        symbols: list[str],
+        hours: int = 24,
+        limit_per_symbol: int = 20,
+    ) -> dict[str, list[tuple[Any, ...]]]:
+        """Query news cache for recent articles for multiple symbols in one query.
+
+        Args:
+            symbols: List of ticker symbols
+            hours: Number of hours to lookback
+            limit_per_symbol: Maximum number of articles per symbol
+
+        Returns:
+            Dict mapping symbol -> list of row tuples from news_cache
+        """
+        if not symbols:
+            return {}
+
+        now = datetime.now(UTC)
+        start_time = now - timedelta(hours=hours)
+
+        placeholders = ", ".join(["%s"] * len(symbols))
+        with self.storage.connection() as conn:
+            rows: list[tuple[Any, ...]] = conn.execute(
+                f"""
+                SELECT
+                    symbol,
+                    headline,
+                    url,
+                    summary,
+                    news_source_name,
+                    author,
+                    image_url,
+                    published_at,
+                    sentiment_score,
+                    sentiment_label,
+                    sentiment_confidence,
+                    sentiment_model,
+                    raw_payload,
+                    content_hash,
+                    fetched_at,
+                    filing_type,
+                    is_material_event,
+                    story_id,
+                    is_primary_article,
+                    coverage_count,
+                    impact_summary,
+                    actionable_insight
+                FROM news_cache
+                WHERE symbol IN ({placeholders})
+                  AND published_at >= %s
+                  AND (is_primary_article = true OR is_primary_article IS NULL)
+                ORDER BY symbol, published_at DESC, is_material_event DESC
+                """,
+                [*symbols, start_time],
+            ).fetchall()
+
+        # Group by symbol and cap at limit_per_symbol
+        result: dict[str, list[tuple[Any, ...]]] = {}
+        for row in rows:
+            sym: str = str(row[0])
+            if sym not in result:
+                result[sym] = []
+            if len(result[sym]) < limit_per_symbol:
+                result[sym].append(row)
+        return result
+
     def upsert_snapshot(self, snapshot_params: dict[str, Any]) -> None:
         """Insert or update watchlist snapshot.
 

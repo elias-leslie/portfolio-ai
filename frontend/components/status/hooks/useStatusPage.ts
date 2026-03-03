@@ -67,10 +67,11 @@ export function useStatusPage() {
   const [detailedHealth, setDetailedHealth] = useState<DetailedHealthResponse | null>(null)
 
   useEffect(() => {
+    let cancelled = false
     const fetchDetailed = async () => {
       try {
         const data = await fetchDetailedHealth()
-        setDetailedHealth(data)
+        if (!cancelled) setDetailedHealth(data)
       } catch (err) {
         console.error('Failed to fetch detailed health:', err)
       }
@@ -78,7 +79,10 @@ export function useStatusPage() {
 
     fetchDetailed()
     const interval = setInterval(fetchDetailed, 30000)
-    return () => clearInterval(interval)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
   }, [])
 
   const [actionDialogOpen, setActionDialogOpen] = useState(false)
@@ -123,7 +127,9 @@ export function useStatusPage() {
       })
       setActionDialogOpen(true)
     } else {
-      handleRestartService(serviceName)
+      handleRestartService(serviceName).catch(() => {
+        // Error already handled via toast in handleRestartService
+      })
     }
   }
 

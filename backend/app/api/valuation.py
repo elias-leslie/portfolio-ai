@@ -6,6 +6,7 @@ extracted from reference cache data.
 
 from __future__ import annotations
 
+import datetime as dt
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Path, Query
@@ -150,7 +151,7 @@ async def get_valuation_metrics_batch(
             if sym in metrics_by_symbol:
                 continue  # already have the most recent entry
             as_of = row[8]
-            if not isinstance(as_of, str):
+            if not isinstance(as_of, (str, dt.date, dt.datetime)):
                 logger.warning("Skipping result with non-string as_of_date", symbol=sym, as_of_type=type(as_of))
                 continue
             metrics_by_symbol[sym] = _row_to_metrics(row)

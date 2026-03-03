@@ -18,6 +18,9 @@ export function SentimentLegendSummary({
   latestDate,
   expectedDataDate,
 }: SentimentSummaryData) {
+  const dataDate = latestDate?.split('T')[0]
+  const freshness = dataDate ? checkDataFreshness(dataDate, expectedDataDate) : null
+
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between text-xs text-text-muted">
@@ -44,7 +47,7 @@ export function SentimentLegendSummary({
             )}
           {latestPcRatio !== null && latestPcRatio !== undefined && (
             <span className="flex items-center gap-1">
-              <span className="w-3 h-0.5 bg-chart-orange rounded border-dashed"></span>
+              <span className="w-3 border-t-2 border-dashed border-chart-orange"></span>
               <span>
                 P/C:{' '}
                 <span className="font-semibold text-text">
@@ -54,15 +57,11 @@ export function SentimentLegendSummary({
             </span>
           )}
         </div>
-        {latestDate && (() => {
-          const dataDate = latestDate.split('T')[0]
-          const freshness = checkDataFreshness(dataDate, expectedDataDate)
-          return (
-            <span className="text-[10px]" title={freshness.tooltip}>
-              Data as of {formatDate(dataDate, false)} {freshness.indicator}
-            </span>
-          )
-        })()}
+        {dataDate && freshness && (
+          <span className="text-[10px]" title={freshness.tooltip}>
+            Data as of {formatDate(dataDate, false)} {freshness.indicator}
+          </span>
+        )}
       </div>
       {/* Event legend */}
       <EventLegend />

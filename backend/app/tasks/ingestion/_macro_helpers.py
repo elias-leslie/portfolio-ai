@@ -17,6 +17,8 @@ from ._fundamental_helpers import to_python
 
 logger = get_logger(__name__)
 
+YIELD_CURVE_FIELD_COUNT = 5  # yield_3m, yield_2y, yield_5y, yield_10y, yield_30y
+
 
 def insert_yield_curve(
     storage: PortfolioStorage, data: dict[str, Any], as_of_date: date
@@ -86,7 +88,7 @@ def fetch_and_store_yield_curve(
         if yield_data:
             insert_yield_curve(storage, yield_data, today)
             stats["yield_curve_updated"] = True
-            stats["indicators_inserted"] += 5
+            stats["indicators_inserted"] += YIELD_CURVE_FIELD_COUNT
     except Exception as e:
         stats["errors"].append({"indicator": "yield_curve", "error": str(e)})
         logger.error(f"Failed to fetch yield curve: {e}")
@@ -102,7 +104,9 @@ def fetch_and_store_indicators(
 ) -> None:
     """Fetch a named FRED indicator set and persist each value; update stats in place."""
     try:
-        fetch_fn = getattr(fred, fetch_fn_name)
+        fetch_fn = getattr(fred, fetch_fn_name, None)
+        if fetch_fn is None:
+            raise AttributeError(f"FREDSource has no method '{fetch_fn_name}'")
         data = fetch_fn()
         if data:
             for indicator, value in data.items():
