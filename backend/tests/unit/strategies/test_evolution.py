@@ -16,16 +16,16 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
-from app.agents.strategy_evolution.llm_prompts import propose_mutations
-from app.agents.strategy_evolution.performance import (
-    analyze_strategy_performance,
-    calculate_buy_hold_sharpe,
-)
 from app.agents.strategy_evolution import (
     BacktestMetrics,
     StrategyAnalysis,
     StrategyEvolutionAgent,
     StrategyMutation,
+)
+from app.agents.strategy_evolution.llm_prompts import propose_mutations
+from app.agents.strategy_evolution.performance import (
+    analyze_strategy_performance,
+    calculate_buy_hold_sharpe,
 )
 from app.strategies.models import StrategyDefinition
 
