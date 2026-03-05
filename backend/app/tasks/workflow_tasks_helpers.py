@@ -177,9 +177,9 @@ def _check_backtest_gating(
     Returns:
         List of failure reasons (empty if all pass)
     """
-    sharpe_val = backtest_metrics["sharpe_ratio"]
-    win_rate_val = backtest_metrics["win_rate"]
-    max_dd_val = backtest_metrics["max_drawdown_pct"]
+    sharpe_val = backtest_metrics.get("sharpe_ratio")
+    win_rate_val = backtest_metrics.get("win_rate")
+    max_dd_val = backtest_metrics.get("max_drawdown_pct")
     sharpe = float(str(sharpe_val)) if sharpe_val is not None else 0.0
     win_rate = float(str(win_rate_val)) if win_rate_val is not None else 0.0
     max_dd = float(str(max_dd_val)) if max_dd_val is not None else 0.0
