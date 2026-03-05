@@ -21,7 +21,7 @@ _SQL_UPDATE_RECS = (
 )
 _SQL_TRADE_STATS = (
     "SELECT COUNT(*) as total_trades, "
-    "SUM(CASE WHEN profit_loss > 0 THEN 1 ELSE 0 END)::float / COUNT(*) as win_rate, "
+    "SUM(CASE WHEN profit_loss > 0 THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*), 0) as win_rate, "
     "AVG(profit_loss) as avg_pnl, STDDEV(profit_loss) as std_pnl, "
     "MAX(drawdown_from_peak) as max_drawdown FROM paper_trade_transactions "
     "WHERE created_at >= NOW() - INTERVAL '30 days' AND status = 'closed'"
