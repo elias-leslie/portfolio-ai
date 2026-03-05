@@ -2,6 +2,8 @@
 
 import asyncio
 import logging
+import os
+import shutil
 from pathlib import Path
 from typing import AsyncIterator
 
@@ -14,8 +16,11 @@ from .stream_parser import StreamMessage, ContentBlock, MessageType, ContentType
 
 logger = logging.getLogger(__name__)
 
-# Path to the system Claude CLI binary.
-_CLAUDE_CLI_PATH = "/home/kasadis/.local/bin/claude"
+# Path to the Claude CLI binary. Resolved from:
+# 1. CLAUDE_CLI_PATH env var (explicit override)
+# 2. shutil.which('claude') (system PATH lookup)
+# 3. '/usr/local/bin/claude' (fallback default)
+_CLAUDE_CLI_PATH = os.environ.get("CLAUDE_CLI_PATH") or shutil.which("claude") or "/usr/local/bin/claude"
 
 
 class ClaudeProcessError(Exception):
