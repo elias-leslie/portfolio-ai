@@ -44,7 +44,7 @@ def weekly_strategy_evolution() -> dict[str, Any]:
     """
     logger.info("Starting weekly strategy evolution")
 
-    from app.agents.strategy_evolution_agent import get_strategy_evolution_agent
+    from app.agents.strategy_evolution import get_strategy_evolution_agent
 
     try:
         evolution_agent = get_strategy_evolution_agent()

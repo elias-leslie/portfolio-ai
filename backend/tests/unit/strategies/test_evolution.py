@@ -21,7 +21,7 @@ from app.agents.strategy_evolution.performance import (
     analyze_strategy_performance,
     calculate_buy_hold_sharpe,
 )
-from app.agents.strategy_evolution_agent import (
+from app.agents.strategy_evolution import (
     BacktestMetrics,
     StrategyAnalysis,
     StrategyEvolutionAgent,
