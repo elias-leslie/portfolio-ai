@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     portfolio_client_secret: str = ""
     portfolio_request_source: str = "portfolio-ai"
 
+    # Filesystem paths
+    artifacts_dir: Path = Path(__file__).resolve().parents[3] / "data" / "artifacts"
+
 
 @lru_cache
 def get_settings() -> Settings:

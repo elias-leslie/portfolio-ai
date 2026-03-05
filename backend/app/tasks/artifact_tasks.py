@@ -16,6 +16,7 @@ import shutil
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from ..config import settings
 from ..logging_config import get_logger
 from .maintenance_logging import log_maintenance_complete, log_maintenance_start
 
@@ -24,7 +25,7 @@ logger = get_logger(__name__)
 # Constants
 _SUMMITFLOW_SKIP_REASON = "Evidence now managed by SummitFlow"
 _TASK_NAME = "cleanup_debug_captures"
-_ARTIFACTS_DIR = Path("/home/kasadis/portfolio-ai/data/artifacts")
+_ARTIFACTS_DIR = settings.artifacts_dir
 _DBG_PATTERN = re.compile(r"^DBG-(\d{4})-(\d{4,6})$")
 
 
