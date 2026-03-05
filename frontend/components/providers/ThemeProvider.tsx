@@ -31,13 +31,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       return
     }
 
-    // Ensure dark mode is always set
-    const root = document.documentElement
-    root.classList.add('dark')
-    root.classList.remove('light')
-    root.dataset.theme = 'dark'
-    root.style.setProperty('color-scheme', 'dark')
-
     // Handle reduced motion preference
     const motionMedia = window.matchMedia(PREFERS_REDUCED_MOTION_QUERY)
     const handleMotion = (event?: MediaQueryListEvent) => {
