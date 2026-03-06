@@ -57,17 +57,6 @@ def get_database_size() -> dict[str, Any]:
             for row in tables_result
         ]
 
-    # Store metric in maintenance_stats
-    with storage.connection() as conn:
-        conn.execute(
-            """
-            INSERT INTO maintenance_stats (metric_name, metric_value, metric_unit)
-            VALUES (%s, %s, %s)
-            """,
-            ["database_size_bytes", float(database_size), "bytes"],
-        )
-        conn.commit()
-
     return {
         "database_size_bytes": database_size,
         "database_size_mb": round(database_size / (1024 * 1024), 2),

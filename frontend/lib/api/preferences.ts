@@ -2,7 +2,7 @@
  * User preferences API client functions
  */
 
-import { apiRequest } from './client'
+import { get, post } from './client'
 
 // Weight configuration types (migration 019)
 export interface ScoreWeights {
@@ -93,7 +93,7 @@ export interface PreferencesUpdate {
  * Get user's risk tolerance and trade preferences
  */
 export async function fetchPreferences(): Promise<PreferencesResponse> {
-  return apiRequest<PreferencesResponse>('/api/preferences/')
+  return get<PreferencesResponse>('/api/preferences')
 }
 
 /**
@@ -102,8 +102,5 @@ export async function fetchPreferences(): Promise<PreferencesResponse> {
 export async function updatePreferences(
   data: PreferencesUpdate,
 ): Promise<PreferencesResponse> {
-  return apiRequest<PreferencesResponse>('/api/preferences/', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  })
+  return post<PreferencesResponse>('/api/preferences', data)
 }

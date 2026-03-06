@@ -373,6 +373,9 @@ class InsufficientDataError(Exception):
         super().__init__(msg)
 
 
+INDICATOR_LOOKBACK_DAYS = 365
+
+
 def _get_data_range(storage: PortfolioStorage, symbol: str) -> tuple[date | None, date | None]:
     """Get available date range for a symbol from day_bars.
 
@@ -460,10 +463,9 @@ def replay_backtest(
     if actual_start >= actual_end:
         raise InsufficientDataError(symbol, start_date, end_date, data_min, data_max)
 
-    # If we had to adjust significantly (more than 30 days before requested start),
-    # and we don't have at least 200 days of data, raise error to trigger backfill
-    days_available = (actual_end - actual_start).days
-    if days_available < 200:
+    # Backtests need pre-start history for indicators such as SMA-200.
+    required_lookback_start = actual_start - timedelta(days=INDICATOR_LOOKBACK_DAYS)
+    if data_min > required_lookback_start:
         raise InsufficientDataError(symbol, start_date, end_date, data_min, data_max)
 
     logger.info(
@@ -486,7 +488,7 @@ def replay_backtest(
     # 1. Fetch ALL data at once (optimization)
     # We need data from (start_date - lookback) to end_date
     # 365 days lookback ensures we have enough for 200-day MA even with weekends/holidays
-    lookback_days = 365
+    lookback_days = INDICATOR_LOOKBACK_DAYS
     data_start_date = start_date - timedelta(days=lookback_days)
 
     logger.info(f"Fetching bulk OHLCV data for {symbol} from {data_start_date} to {end_date}")

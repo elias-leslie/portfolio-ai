@@ -25,7 +25,7 @@ SERVICE_UNIT_MAPPING: dict[str, str] = {
 SERVICE_PROCESS_PATTERNS: dict[str, str] = {
     "portfolio-backend": r"uvicorn.*main:app",
     "portfolio-hatchet-worker": r"python.*app\.worker",
-    "portfolio-frontend": r"next.*dev",
+    "portfolio-frontend": r"(next.*dev|next.*start|next-server)",
     "portfolio-redis": r"redis-server",
     "portfolio-dev-companion": r"dev-companion",
 }

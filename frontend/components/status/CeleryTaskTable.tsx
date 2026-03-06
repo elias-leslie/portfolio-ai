@@ -22,6 +22,43 @@ import {
 import type { TaskInfo } from '@/lib/api/celery'
 import { useCeleryTasks } from '@/lib/hooks/useCeleryTasks'
 
+function normalizeStatus(status: string) {
+  switch (status.toUpperCase()) {
+    case 'RUNNING':
+    case 'ACTIVE':
+      return { label: 'Running', badgeClass: 'bg-status-info text-text-inverted animate-pulse' }
+    case 'PENDING':
+    case 'QUEUED':
+      return { label: status.toUpperCase() === 'QUEUED' ? 'Queued' : 'Pending', badgeClass: 'bg-status-warning text-text-inverted', variant: 'secondary' as const }
+    case 'SUCCEEDED':
+    case 'SUCCESS':
+    case 'COMPLETED':
+      return { label: 'Completed', badgeClass: 'bg-status-success text-text-inverted', variant: 'default' as const }
+    case 'FAILED':
+    case 'FAILURE':
+      return { label: 'Failed', variant: 'destructive' as const }
+    default:
+      return { label: status, variant: 'outline' as const }
+  }
+}
+
+function formatWorkflowName(taskName: string): string {
+  const compactName = taskName
+    .split('.')
+    .pop()
+    ?.replace(/_wf$/, '')
+    .replace(/^portfolio-/, '')
+    .replace(/^portfolio_/, '')
+    .replace(/[-_]+/g, ' ')
+    .trim()
+
+  if (!compactName) {
+    return taskName
+  }
+
+  return compactName.replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
 export function CeleryTaskTable() {
   const [filter, setFilter] = useState<
     'all' | 'active' | 'pending' | 'completed' | 'failed'
@@ -41,36 +78,12 @@ export function CeleryTaskTable() {
   }
 
   const getStatusBadge = (status: string) => {
-    switch (status.toUpperCase()) {
-      case 'ACTIVE':
-        return (
-          <Badge className="bg-status-info text-text-inverted animate-pulse">
-            Active
-          </Badge>
-        )
-      case 'PENDING':
-        return (
-          <Badge
-            variant="secondary"
-            className="bg-status-warning text-text-inverted"
-          >
-            Pending
-          </Badge>
-        )
-      case 'SUCCESS':
-        return (
-          <Badge
-            variant="default"
-            className="bg-status-success text-text-inverted"
-          >
-            Completed
-          </Badge>
-        )
-      case 'FAILURE':
-        return <Badge variant="destructive">Failed</Badge>
-      default:
-        return <Badge variant="outline">{status}</Badge>
-    }
+    const normalized = normalizeStatus(status)
+    return (
+      <Badge variant={normalized.variant} className={normalized.badgeClass}>
+        {normalized.label}
+      </Badge>
+    )
   }
 
   const formatDuration = (seconds: number | null) => {
@@ -128,15 +141,21 @@ export function CeleryTaskTable() {
       update_paper_trades_task: 'Update Paper Trades',
     }
 
-    return taskDescriptions[taskName] || taskName.split('.').pop() || taskName
+    return taskDescriptions[taskName] || formatWorkflowName(taskName)
   }
 
   return (
     <div className="space-y-4">
       {/* Header with filter and refresh */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <h3 className="text-lg font-semibold">Celery Tasks</h3>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+          <div>
+            <h3 className="text-lg font-semibold">Workflow Runs</h3>
+            <p className="text-sm text-muted-foreground">
+              On-demand view of recent worker activity. Use Refresh when you need
+              the latest queue and run state.
+            </p>
+          </div>
           {data && (
             <div className="text-sm text-muted-foreground">
               {data.total} total ({data.activeCount} active, {data.pendingCount}{' '}
@@ -177,7 +196,7 @@ export function CeleryTaskTable() {
       {/* Task table */}
       {!data && !isLoading ? (
         <div className="text-center py-8 text-muted-foreground">
-          Click Refresh to load Celery tasks
+          Click Refresh to load workflow runs
         </div>
       ) : isLoading ? (
         <div className="text-center py-8 text-muted-foreground">

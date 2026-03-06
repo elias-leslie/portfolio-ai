@@ -34,7 +34,12 @@ import {
 } from './utils'
 
 export const useSettingsState = () => {
-  const { data: preferences, isLoading } = usePreferences()
+  const {
+    data: preferences,
+    isLoading,
+    error: loadError,
+    refetch: retryLoad,
+  } = usePreferences()
   const updatePreferences = useUpdatePreferences()
 
   // Trading & Risk state
@@ -316,5 +321,7 @@ export const useSettingsState = () => {
     preferences,
     isLoading,
     isPending: updatePreferences.isPending,
+    loadError,
+    retryLoad,
   }
 }

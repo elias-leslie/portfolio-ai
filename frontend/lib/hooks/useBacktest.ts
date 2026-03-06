@@ -98,12 +98,12 @@ export function useStartBacktest() {
       // Show loading toast
       toast.loading('Starting backtest...')
     },
-    onSuccess: (data: StartBacktestResponse) => {
+    onSuccess: (_data: StartBacktestResponse, variables: StartBacktestRequest) => {
       // Dismiss loading toast
       toast.dismiss()
 
       // Show success toast
-      toast.success(`Backtest started for ${data.symbol}`)
+      toast.success(`Backtest started for ${variables.symbol}`)
 
       // Invalidate backtest runs list to force refetch
       queryClient.invalidateQueries({

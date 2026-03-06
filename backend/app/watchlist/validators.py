@@ -19,8 +19,13 @@ def validate_symbol(symbol: str | None) -> str:
     """
     if not symbol or not symbol.strip():
         raise HTTPException(status_code=400, detail="Symbol cannot be empty")
-
-    return symbol.strip().upper()
+    normalized = symbol.strip().upper()
+    if normalized.startswith("ZZTEST"):
+        raise HTTPException(
+            status_code=400,
+            detail="Test symbols are blocked from the live watchlist",
+        )
+    return normalized
 
 
 def validate_account_id(account_id: str | None) -> str:

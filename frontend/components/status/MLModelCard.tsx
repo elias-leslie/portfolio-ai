@@ -6,10 +6,11 @@ import {
   Database,
   Loader2,
   Play,
+  TriangleAlert,
   TrendingDown,
   TrendingUp,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ExpandableCard } from '@/components/status/ExpandableCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -53,14 +54,14 @@ interface TrainingProgress {
   completedAt: string | null
 }
 
-export function MLModelCard() {
+export function MLModelCard({ readOnly = false }: { readOnly?: boolean }) {
   const [status, setStatus] = useState<MLModelStatus | null>(null)
   const [loading, setLoading] = useState(false)
   const [training, setTraining] = useState(false)
   const [trainingProgress, setTrainingProgress] =
     useState<TrainingProgress | null>(null)
 
-  const fetchStatus = async () => {
+  const fetchStatus = useCallback(async () => {
     try {
       setLoading(true)
       const data = await apiRequest<MLModelStatus>(
@@ -72,7 +73,7 @@ export function MLModelCard() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     fetchStatus()
@@ -103,6 +104,14 @@ export function MLModelCard() {
     return () => clearInterval(poll)
   }, [training, trainingProgress, fetchStatus])
 
+  const currentModel = status?.currentModel ?? null
+  const previousModel = status?.previousModel ?? null
+  const nextTraining = status?.nextTraining ?? null
+  const trainingAgeHours = currentModel
+    ? getAgeHours(currentModel.trainedAt)
+    : null
+  const freshness = getModelFreshness(trainingAgeHours)
+
   const triggerTraining = async () => {
     try {
       setTraining(true)
@@ -128,17 +137,23 @@ export function MLModelCard() {
   }
 
   const summary = (() => {
-    if (!status?.currentModel) {
+    if (!currentModel) {
       if (!status) return 'No trained model yet'
       return `${status.modelsTrained ?? 0} models trained • ${(status.totalTrainingSamples ?? 0).toLocaleString()} samples`
     }
-    return [
-      `v${status.currentModel.modelVersion}`,
-      `${formatPercent(status.currentModel.accuracy)} accuracy`,
-      status.nextTraining
-        ? `Next ${new Date(status.nextTraining).toLocaleDateString()}`
-        : 'Next training TBD',
-    ].join(' • ')
+
+    const parts = [
+      `v${currentModel.modelVersion}`,
+      `${formatPercent(currentModel.accuracy)} accuracy`,
+    ]
+
+    if (freshness.label === 'Critical') {
+      parts.push(`Last trained ${formatRelativeAge(trainingAgeHours)}`)
+    } else if (nextTraining) {
+      parts.push(`Next ${new Date(nextTraining).toLocaleDateString()}`)
+    }
+
+    return parts.join(' • ')
   })()
 
   return (
@@ -152,7 +167,7 @@ export function MLModelCard() {
       description="Monitor classifier health and trigger retraining."
       summary={summary}
       defaultCollapsed
-      actions={
+      actions={!readOnly ? (
         <Button
           variant="default"
           size="sm"
@@ -172,7 +187,7 @@ export function MLModelCard() {
             </>
           )}
         </Button>
-      }
+      ) : undefined}
       contentClassName="space-y-6"
     >
       <div className="flex items-center gap-2">
@@ -187,6 +202,9 @@ export function MLModelCard() {
         <Badge variant="outline">
           {status?.modelsTrained ?? 0} models trained
         </Badge>
+        {currentModel && (
+          <Badge className={freshness.className}>{freshness.label}</Badge>
+        )}
       </div>
 
       {training && trainingProgress && (
@@ -217,18 +235,28 @@ export function MLModelCard() {
         </div>
       )}
 
-      {status?.currentModel ? (
+      {currentModel ? (
         <div className="space-y-4">
+          {freshness.label !== 'Fresh' && (
+            <div className="flex items-start gap-2 rounded-lg border border-status-warning/40 bg-status-warning/10 p-3 text-sm text-text">
+              <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-status-warning" />
+              <div>
+                Model telemetry is stale. Last successful training was{' '}
+                {formatDate(currentModel.trainedAt)}.
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">Current Model</span>
-            <Badge variant="outline">{status.currentModel.modelVersion}</Badge>
+            <Badge variant="outline">{currentModel.modelVersion}</Badge>
           </div>
 
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
               <Calendar className="h-3 w-3" /> Trained
             </span>
-            <span>{formatDate(status.currentModel.trainedAt)}</span>
+            <span>{formatDate(currentModel.trainedAt)}</span>
           </div>
 
           <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -236,8 +264,7 @@ export function MLModelCard() {
               <Database className="h-3 w-3" /> Training Samples
             </span>
             <span>
-              {status.currentModel.trainingSamples +
-                status.currentModel.testSamples}
+              {currentModel.trainingSamples + currentModel.testSamples}
             </span>
           </div>
 
@@ -245,24 +272,24 @@ export function MLModelCard() {
             <div className="text-sm font-medium">Performance Metrics</div>
             {renderMetricRow(
               'Accuracy',
-              status.currentModel.accuracy,
-              status.previousModel?.accuracy,
+              currentModel.accuracy,
+              previousModel?.accuracy,
               getAccuracyBadge,
             )}
             {renderMetricRow(
               'Precision',
-              status.currentModel.precisionScore,
-              status.previousModel?.precisionScore,
+              currentModel.precisionScore,
+              previousModel?.precisionScore,
             )}
             {renderMetricRow(
               'Recall',
-              status.currentModel.recallScore,
-              status.previousModel?.recallScore,
+              currentModel.recallScore,
+              previousModel?.recallScore,
             )}
             {renderMetricRow(
               'F1 Score',
-              status.currentModel.f1Score,
-              status.previousModel?.f1Score,
+              currentModel.f1Score,
+              previousModel?.f1Score,
             )}
           </div>
 
@@ -271,24 +298,22 @@ export function MLModelCard() {
             <div className="flex items-center justify-between text-xs">
               <span>Useful Articles</span>
               <span className="font-mono">
-                {status.currentModel.usefulCount} (
-                {formatPercent(
-                  status.currentModel.usefulCount /
-                    (status.currentModel.usefulCount +
-                      status.currentModel.notUsefulCount),
-                )}
+                {currentModel.usefulCount} (
+                {formatPercent(safeRatio(
+                  currentModel.usefulCount,
+                  currentModel.usefulCount + currentModel.notUsefulCount,
+                ))}
                 )
               </span>
             </div>
             <div className="flex items-center justify-between text-xs">
               <span>Not Useful Articles</span>
               <span className="font-mono">
-                {status.currentModel.notUsefulCount} (
-                {formatPercent(
-                  status.currentModel.notUsefulCount /
-                    (status.currentModel.usefulCount +
-                      status.currentModel.notUsefulCount),
-                )}
+                {currentModel.notUsefulCount} (
+                {formatPercent(safeRatio(
+                  currentModel.notUsefulCount,
+                  currentModel.usefulCount + currentModel.notUsefulCount,
+                ))}
                 )
               </span>
             </div>
@@ -309,7 +334,11 @@ export function MLModelCard() {
           </div>
           <div className="flex items-center justify-between">
             <span>Next Scheduled Training</span>
-            <span>{formatDate(status.nextTraining)}</span>
+            <span>
+              {freshness.label === 'Critical'
+                ? `Expected ${formatDate(status.nextTraining)}`
+                : formatDate(status.nextTraining)}
+            </span>
           </div>
         </div>
       )}
@@ -357,6 +386,52 @@ function formatDate(iso: string) {
   } catch {
     return 'Unknown'
   }
+}
+
+function getAgeHours(iso: string) {
+  const timestamp = Date.parse(iso)
+  if (!Number.isFinite(timestamp)) return null
+  return (Date.now() - timestamp) / 3600000
+}
+
+function formatRelativeAge(ageHours: number | null) {
+  if (ageHours === null) return 'at an unknown time'
+  if (ageHours < 1) return `${Math.round(ageHours * 60)}m ago`
+  if (ageHours < 24) return `${Math.round(ageHours)}h ago`
+  return `${Math.round(ageHours / 24)}d ago`
+}
+
+function getModelFreshness(ageHours: number | null) {
+  if (ageHours === null) {
+    return {
+      label: 'Unknown',
+      className: 'bg-surface-muted text-text',
+    }
+  }
+
+  if (ageHours > 48) {
+    return {
+      label: 'Critical',
+      className: 'bg-status-error text-text-inverted',
+    }
+  }
+
+  if (ageHours > 24) {
+    return {
+      label: 'Stale',
+      className: 'bg-status-warning text-text-inverted',
+    }
+  }
+
+  return {
+    label: 'Fresh',
+    className: 'bg-status-success text-text-inverted',
+  }
+}
+
+function safeRatio(numerator: number, denominator: number) {
+  if (denominator <= 0) return 0
+  return numerator / denominator
 }
 
 function getMetricTrend(current: number, previous?: number) {

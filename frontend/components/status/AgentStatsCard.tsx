@@ -2,16 +2,13 @@
 
 import {
   Activity,
-  ArrowRight,
   CheckCircle2,
   Clock,
   Cpu,
   DollarSign,
   XCircle,
 } from 'lucide-react'
-import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { AgentStats } from '@/lib/api/status'
 import { useTelemetrySummary } from '@/lib/hooks/useAgentTelemetry'
@@ -174,14 +171,9 @@ export function AgentStatsCard({ stats }: AgentStatsCardProps) {
           )}
         </div>
 
-        {/* Link to Agent Hub */}
-        <div className="mt-4 pt-4 border-t">
-          <Link href="/agent-hub">
-            <Button variant="outline" size="sm" className="w-full">
-              Open Agent Hub
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          </Link>
+        <div className="mt-4 border-t pt-4 text-sm text-muted-foreground">
+          Agent activity is summarized here for observability. Interactive
+          agent tooling is not exposed in the Portfolio AI UI.
         </div>
       </CardContent>
     </Card>

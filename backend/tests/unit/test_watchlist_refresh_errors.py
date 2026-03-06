@@ -10,6 +10,7 @@ import pytest
 
 from app.portfolio.models import PriceData
 from app.watchlist.service import refresh_watchlist_scores
+from tests.test_support.news import build_empty_news_service
 
 
 @pytest.fixture
@@ -34,8 +35,14 @@ def mock_price_fetcher() -> MagicMock:
     return MagicMock()
 
 
+@pytest.fixture
+def mock_news_service() -> MagicMock:
+    """Create a deterministic NewsService stub for unit tests."""
+    return build_empty_news_service()
+
+
 def test_refresh_returns_detailed_results_all_success(
-    mock_storage: MagicMock, mock_price_fetcher: MagicMock
+    mock_storage: MagicMock, mock_price_fetcher: MagicMock, mock_news_service: MagicMock
 ) -> None:
     """Test that refresh returns detailed success/failed lists when all succeed."""
     # Mock watchlist items
@@ -94,7 +101,10 @@ def test_refresh_returns_detailed_results_all_success(
 
     # Call refresh
     result = refresh_watchlist_scores(
-        mock_storage, account_id="acc-1", price_fetcher=mock_price_fetcher
+        mock_storage,
+        account_id="acc-1",
+        price_fetcher=mock_price_fetcher,
+        news_service=mock_news_service,
     )
 
     # Verify detailed results
@@ -108,7 +118,7 @@ def test_refresh_returns_detailed_results_all_success(
 
 
 def test_refresh_returns_detailed_results_partial_failure(
-    mock_storage: MagicMock, mock_price_fetcher: MagicMock
+    mock_storage: MagicMock, mock_price_fetcher: MagicMock, mock_news_service: MagicMock
 ) -> None:
     """Test that refresh tracks individual failures and continues processing."""
     # Mock watchlist items
@@ -175,7 +185,10 @@ def test_refresh_returns_detailed_results_partial_failure(
 
     # Call refresh
     result = refresh_watchlist_scores(
-        mock_storage, account_id="acc-1", price_fetcher=mock_price_fetcher
+        mock_storage,
+        account_id="acc-1",
+        price_fetcher=mock_price_fetcher,
+        news_service=mock_news_service,
     )
 
     # Verify partial success tracking
@@ -191,7 +204,7 @@ def test_refresh_returns_detailed_results_partial_failure(
 
 
 def test_refresh_continues_after_individual_failures(
-    mock_storage: MagicMock, mock_price_fetcher: MagicMock
+    mock_storage: MagicMock, mock_price_fetcher: MagicMock, mock_news_service: MagicMock
 ) -> None:
     """Test that refresh continues processing even if one ticker fails."""
     # Mock watchlist items
@@ -250,7 +263,10 @@ def test_refresh_continues_after_individual_failures(
     }
 
     result = refresh_watchlist_scores(
-        mock_storage, account_id="acc-1", price_fetcher=mock_price_fetcher
+        mock_storage,
+        account_id="acc-1",
+        price_fetcher=mock_price_fetcher,
+        news_service=mock_news_service,
     )
 
     # Verify GOOGL was still processed after AAPL failed

@@ -18,11 +18,8 @@ from app.api import (
     # artifacts removed - migrated to SummitFlow (portfolio-ai-5rz)
     automation,
     backtest,
-    backup,
     capabilities,
     # claude_progress removed - Beads handles session tracking
-    cross_validation,
-    db_inspect,
     # disagreements removed - feature disabled (no data, unused)
     # files removed - use SummitFlow for file browsing
     # gaps removed - migrated to [DEBT] subtasks on features
@@ -42,7 +39,6 @@ from app.api import (
     recommendations,
     rules,
     settings_profiles,
-    sitemap,
     # solution_map removed - Vision tab replaces Dashboard
     sources,
     status,
@@ -51,7 +47,6 @@ from app.api import (
     strategy_seeds,
     symbols,
     task_endpoints,
-    test_feature,
     thesis,
     valuation,
     watchlist,
@@ -184,7 +179,6 @@ app.include_router(news.router)
 app.include_router(news_profiling.router)
 app.include_router(preferences.router)
 app.include_router(settings_profiles.router)
-app.include_router(sitemap.router)
 app.include_router(analytics.router)
 app.include_router(indicators.router)
 app.include_router(valuation.router)
@@ -208,10 +202,6 @@ app.include_router(rules.router)  # Trading rules viewer
 # vision_goals_router, vision_content_router removed - migrated to SummitFlow (portfolio-ai-5rz)
 app.include_router(workflow_graph.router)  # Workflow visualization graph API
 # solution_map, qa, claude_progress routers removed
-app.include_router(test_feature.router)  # FEAT-123: E2E test feature endpoint
-app.include_router(backup.router)  # Backup management API
-app.include_router(cross_validation.router)  # FEAT-219: Multi-agent cross-validation
-app.include_router(db_inspect.router)  # Database schema inspection for development
 app.include_router(symbols.router)  # Symbol intelligence API for agents
 # files.router removed - use SummitFlow for file browsing
 app.include_router(thesis.router)  # Investment thesis generation and management

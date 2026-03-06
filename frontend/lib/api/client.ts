@@ -19,11 +19,6 @@ function getApiBaseUrl(): string {
 }
 
 /**
- * Export the API base URL (for debugging/logging purposes)
- */
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || ''
-
-/**
  * Custom API error class with status code
  */
 export class ApiError extends Error {
@@ -42,6 +37,20 @@ export class ApiError extends Error {
  */
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function hasJsonBody(response: Response): boolean {
+  if (response.status === 204 || response.status === 205) {
+    return false
+  }
+
+  const contentLength = response.headers.get('content-length')
+  if (contentLength === '0') {
+    return false
+  }
+
+  const contentType = response.headers.get('content-type')
+  return contentType?.includes('application/json') ?? false
 }
 
 /**
@@ -95,6 +104,10 @@ export async function apiRequest<T>(
         }
 
         throw new ApiError(errorMessage, response.status, response)
+      }
+
+      if (!hasJsonBody(response)) {
+        return undefined as T
       }
 
       // Parse and transform response (snake_case → camelCase)
@@ -165,6 +178,22 @@ export async function patch<T>(
   return apiRequest<T>(url, {
     ...options,
     method: 'PATCH',
+    body: transformedData ? JSON.stringify(transformedData) : undefined,
+  })
+}
+
+/**
+ * Convenience method for PUT requests
+ */
+export async function put<T>(
+  url: string,
+  data?: unknown,
+  options: RequestInit = {},
+): Promise<T> {
+  const transformedData = data ? toSnakeCaseKeys(data) : undefined
+  return apiRequest<T>(url, {
+    ...options,
+    method: 'PUT',
     body: transformedData ? JSON.stringify(transformedData) : undefined,
   })
 }

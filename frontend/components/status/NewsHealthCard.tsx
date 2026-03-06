@@ -1,7 +1,6 @@
 'use client'
 
 import { Newspaper, RefreshCw } from 'lucide-react'
-import { useMemo } from 'react'
 import { ExpandableCard } from '@/components/status/ExpandableCard'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -29,17 +28,6 @@ export function NewsHealthCard({
   // Format date helper
   const formatDateTime = (value?: string | null) =>
     value ? new Date(value).toLocaleString() : '—'
-
-  // Calculate derived values - memoized to avoid impure render
-  const lookbackHours = useMemo(() => {
-    if (!newsHealth) return 24
-    // eslint-disable-next-line react-hooks/purity -- Date.now() is intentionally used for display-only age calculation
-    const now = Date.now()
-    return Math.round(
-      (now - new Date(newsHealth.marketLastRefreshedAt || 0).getTime()) /
-        3600000,
-    )
-  }, [newsHealth])
 
   const fallbackRatePercent =
     newsHealth && newsHealth.headlines24H > 0
@@ -130,7 +118,7 @@ export function NewsHealthCard({
               {newsHealth?.headlines24H ?? 0}
             </p>
             <p className="text-xs text-muted-foreground">
-              Lookback window: {lookbackHours} hrs
+              Lookback window: {newsHealth?.lookbackWindowHours ?? 24} hrs
             </p>
           </div>
           <div>

@@ -45,6 +45,19 @@ export interface VendorHealth {
   reason: string | null
 }
 
+export interface SourceMetrics {
+  vendor: string
+  duplicateRate: number
+  diversityScore: number
+  confidenceAvg: number
+  freshnessScore: number
+  userUsefulRate: number | null
+  qualityScore: number
+  articleCount: number
+  samplePeriodStart: string
+  calculatedAt: string
+}
+
 type QueryParams = Record<string, string | number | boolean | undefined>
 
 function buildQuery(params: QueryParams): string {
@@ -101,4 +114,18 @@ export async function searchNews(
 
 export async function fetchNewsHealth(): Promise<NewsHealthResponse> {
   return apiRequest<NewsHealthResponse>('/api/news/health')
+}
+
+export async function fetchSourceMetrics(): Promise<SourceMetrics[]> {
+  return apiRequest<SourceMetrics[]>('/api/news/source-stats')
+}
+
+export async function triggerNewsSourceProfiling(): Promise<{
+  taskId?: string
+  status?: string
+  message?: string
+}> {
+  return apiRequest('/api/news/profile-sources', {
+    method: 'POST',
+  })
 }

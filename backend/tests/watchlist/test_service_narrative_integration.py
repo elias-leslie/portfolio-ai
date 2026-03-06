@@ -13,6 +13,7 @@ import pytest
 from app.portfolio.models import PriceData
 from app.storage import PortfolioStorage
 from app.watchlist.service import refresh_watchlist_scores
+from tests.test_support.news import build_empty_news_service
 
 
 @pytest.fixture
@@ -71,6 +72,7 @@ class TestNarrativeGenerationIntegration:
 
         mock_fetcher = MagicMock()
         mock_fetcher.fetch_price_data.return_value = {"NVDA": nvda_price}
+        mock_news_service = build_empty_news_service()
 
         # Insert technical indicators for BUY signal
         with storage.connection() as conn:
@@ -115,6 +117,7 @@ class TestNarrativeGenerationIntegration:
         result = refresh_watchlist_scores(
             storage,
             price_fetcher=mock_fetcher,
+            news_service=mock_news_service,
         )
 
         assert result["processed"] == 1
@@ -183,11 +186,13 @@ class TestNarrativeGenerationIntegration:
 
         mock_fetcher = MagicMock()
         mock_fetcher.fetch_price_data.return_value = {"UNKNOWN": unknown_price}
+        mock_news_service = build_empty_news_service()
 
         # Execute refresh (no technical indicators or fundamentals)
         result = refresh_watchlist_scores(
             storage,
             price_fetcher=mock_fetcher,
+            news_service=mock_news_service,
         )
 
         # Should still process, but with limited narrative data

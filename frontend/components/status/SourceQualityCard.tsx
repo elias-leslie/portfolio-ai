@@ -1,60 +1,43 @@
 'use client'
 
 import { AlertTriangle, Award, RefreshCw } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ExpandableCard } from '@/components/status/ExpandableCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { buildApiUrl } from '@/lib/api-config'
+import {
+  fetchSourceMetrics,
+  triggerNewsSourceProfiling,
+  type SourceMetrics,
+} from '@/lib/api/news'
 
-interface SourceMetrics {
-  vendor: string
-  duplicateRate: number
-  diversityScore: number
-  confidenceAvg: number
-  freshnessScore: number
-  userUsefulRate: number | null
-  qualityScore: number
-  articleCount: number
-  samplePeriodStart: string
-  calculatedAt: string
-}
-
-export function SourceQualityCard() {
+export function SourceQualityCard({ readOnly = false }: { readOnly?: boolean }) {
   const [metrics, setMetrics] = useState<SourceMetrics[]>([])
   const [loading, setLoading] = useState(false)
   const [lastUpdate, setLastUpdate] = useState<string | null>(null)
   const [profiling, setProfiling] = useState(false)
 
-  const fetchMetrics = async () => {
+  const fetchMetrics = useCallback(async () => {
     try {
       setLoading(true)
-      const response = await fetch(buildApiUrl('/api/news/source-stats'))
-      if (response.ok) {
-        const data = await response.json()
-        setMetrics(data)
-        setLastUpdate(new Date().toISOString())
-      }
+      const data = await fetchSourceMetrics()
+      setMetrics(data)
+      setLastUpdate(getLatestCalculatedAt(data))
     } catch (error) {
       console.error('Failed to fetch source metrics:', error)
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   const triggerProfiling = async () => {
     try {
       setProfiling(true)
-      const response = await fetch(buildApiUrl('/api/news/profile-sources'), {
-        method: 'POST',
-      })
-      if (response.ok) {
-        // Wait 5 seconds then refresh
-        setTimeout(() => {
-          fetchMetrics()
-          setProfiling(false)
-        }, 5000)
-      }
+      await triggerNewsSourceProfiling()
+      window.setTimeout(() => {
+        void fetchMetrics()
+        setProfiling(false)
+      }, 5000)
     } catch (error) {
       console.error('Failed to trigger profiling:', error)
       setProfiling(false)
@@ -103,7 +86,9 @@ export function SourceQualityCard() {
 
   const summary = lastUpdate
     ? `${metrics.filter((m) => m.articleCount > 0).length} active sources • Updated ${formatTimestamp(lastUpdate)}`
-    : 'No profiling data captured yet'
+    : profiling
+      ? 'Profiling in progress'
+      : 'No profiling data captured yet'
 
   return (
     <ExpandableCard
@@ -126,14 +111,16 @@ export function SourceQualityCard() {
           >
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={triggerProfiling}
-            disabled={profiling}
-          >
-            {profiling ? 'Profiling...' : 'Run Profiling'}
-          </Button>
+          {!readOnly && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={triggerProfiling}
+              disabled={profiling}
+            >
+              {profiling ? 'Profiling...' : 'Run Profiling'}
+            </Button>
+          )}
         </div>
       }
     >
@@ -146,7 +133,9 @@ export function SourceQualityCard() {
           <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
           <p>No profiling data available</p>
           <p className="text-sm">
-            Click &quot;Run Profiling&quot; to generate quality metrics
+            {readOnly
+              ? 'Quality metrics populate after the scheduled profiling job runs.'
+              : 'Click "Run Profiling" to generate quality metrics.'}
           </p>
         </div>
       ) : (
@@ -214,4 +203,16 @@ export function SourceQualityCard() {
       )}
     </ExpandableCard>
   )
+}
+
+function getLatestCalculatedAt(metrics: SourceMetrics[]) {
+  const timestamps = metrics
+    .map((metric) => Date.parse(metric.calculatedAt))
+    .filter((value) => Number.isFinite(value))
+
+  if (timestamps.length === 0) {
+    return null
+  }
+
+  return new Date(Math.max(...timestamps)).toISOString()
 }

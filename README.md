@@ -17,7 +17,7 @@ Portfolio AI is a full-stack application for managing investment portfolios, tra
 | Workflows | Hatchet (background tasks, scheduling) |
 | AI | Anthropic Claude (via Agent Hub completion API) |
 | Data | yfinance, Finnhub, Polygon.io, FMP, TwelveData, AlphaVantage, FRED, RSS feeds |
-| Quality | Ruff, Mypy (strict), pytest, Vitest, Playwright, Biome |
+| Quality | Ruff, Mypy (strict), pytest, Vitest, agent-browser verification, Biome |
 
 ## Architecture
 
@@ -142,7 +142,9 @@ ty check app/
 # Frontend
 cd frontend
 npm run test        # Unit tests (Vitest)
-npm run test:e2e    # E2E tests (Playwright)
+
+# Browser verification
+AGENT_BROWSER_SESSION=portfolio-ai ~/.local/bin/agent-browser open http://localhost:3000
 ```
 
 ## API

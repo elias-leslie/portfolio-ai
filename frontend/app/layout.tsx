@@ -5,7 +5,6 @@ import './globals.css'
 import './globals-watchlist.css'
 import { Toaster } from 'sonner'
 import { Navigation } from '@/components/Navigation'
-import { VoiceOverlayWrapper } from '@/components/VoiceOverlayWrapper'
 import { cn } from '@/lib/utils'
 import { Providers } from './providers'
 
@@ -61,7 +60,6 @@ export default function RootLayout({
           <Navigation />
           <main className="flex-1 overflow-auto">{children}</main>
           <Toaster position="top-right" richColors />
-          <VoiceOverlayWrapper />
         </Providers>
         <Script
           id="sw-register"

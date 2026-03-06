@@ -2,7 +2,7 @@
  * Backtesting API client functions
  */
 
-import { apiRequest } from './client'
+import { apiRequest, del, post } from './client'
 
 // ============================================================================
 // Types (matching backend Pydantic models)
@@ -86,9 +86,8 @@ export interface StartBacktestRequest {
 
 export interface StartBacktestResponse {
   runId: string
-  symbol: string
-  strategy: string
-  status: 'pending' | 'running'
+  taskId: string
+  status: 'running'
   message: string
 }
 
@@ -125,10 +124,7 @@ export async function fetchBacktestEquity(
 export async function startBacktest(
   request: StartBacktestRequest,
 ): Promise<StartBacktestResponse> {
-  return apiRequest<StartBacktestResponse>('/api/backtest/runs', {
-    method: 'POST',
-    body: JSON.stringify(request),
-  })
+  return post<StartBacktestResponse>('/api/backtest/run', request)
 }
 
 /**
@@ -137,7 +133,5 @@ export async function startBacktest(
 export async function deleteBacktestRun(
   runId: string,
 ): Promise<{ message: string }> {
-  return apiRequest<{ message: string }>(`/api/backtest/runs/${runId}`, {
-    method: 'DELETE',
-  })
+  return del<{ message: string }>(`/api/backtest/runs/${runId}`)
 }

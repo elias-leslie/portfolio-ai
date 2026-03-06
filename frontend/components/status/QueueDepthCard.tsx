@@ -46,7 +46,7 @@ export function QueueDepthCard() {
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <div>
           <CardTitle className="text-lg">Queue Depth</CardTitle>
-          <CardDescription>Celery task queue status</CardDescription>
+          <CardDescription>Pending workflow queue status</CardDescription>
         </div>
         <Button
           variant="ghost"

@@ -18,6 +18,7 @@ interface BackupCheckResult {
 }
 
 interface MaintenanceTableToolbarProps {
+  readOnly?: boolean
   dryRun: boolean
   setDryRun: (value: boolean) => void
   isCheckingBackup: boolean
@@ -31,6 +32,7 @@ interface MaintenanceTableToolbarProps {
 }
 
 export function MaintenanceTableToolbar({
+  readOnly = false,
   dryRun,
   setDryRun,
   isCheckingBackup,
@@ -47,20 +49,20 @@ export function MaintenanceTableToolbar({
 
   return (
     <div className="flex flex-wrap items-center gap-3">
-      {/* Dry Run Toggle */}
-      <div className="flex items-center gap-2">
-        <Switch
-          id="dry-run-table"
-          checked={dryRun}
-          onCheckedChange={setDryRun}
-        />
-        <Label htmlFor="dry-run-table" className="cursor-pointer text-sm">
-          Dry Run
-        </Label>
-      </div>
+      {!readOnly && (
+        <div className="flex items-center gap-2">
+          <Switch
+            id="dry-run-table"
+            checked={dryRun}
+            onCheckedChange={setDryRun}
+          />
+          <Label htmlFor="dry-run-table" className="cursor-pointer text-sm">
+            Dry Run
+          </Label>
+        </div>
+      )}
 
-      {/* Backup Status (when live mode) */}
-      {!dryRun && (
+      {!readOnly && !dryRun && (
         <div className="flex items-center gap-1.5">
           {isCheckingBackup ? (
             <Badge variant="secondary" className="flex items-center gap-1">
@@ -84,26 +86,34 @@ export function MaintenanceTableToolbar({
         </div>
       )}
 
-      {/* Run All Button */}
-      <Button
-        size="sm"
-        variant="default"
-        onClick={onRunAll}
-        disabled={isRunningAll || liveBlocked}
-        title={dryRun ? 'Preview all tasks (dry run)' : 'Execute all tasks'}
-      >
-        {isRunningAll ? (
-          <>
-            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-            Running {currentTaskIndex + 1}/{filteredTaskCount}...
-          </>
-        ) : (
-          <>
-            <PlayCircle className="h-4 w-4 mr-1" />
-            {dryRun ? 'Run All (Preview)' : 'Run All'}
-          </>
-        )}
-      </Button>
+      {!readOnly && (
+        <Button
+          size="sm"
+          variant="default"
+          onClick={onRunAll}
+          disabled={isRunningAll || liveBlocked}
+          title={dryRun ? 'Preview all tasks (dry run)' : 'Execute all tasks'}
+        >
+          {isRunningAll ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              Running {currentTaskIndex + 1}/{filteredTaskCount}...
+            </>
+          ) : (
+            <>
+              <PlayCircle className="h-4 w-4 mr-1" />
+              {dryRun ? 'Run All (Preview)' : 'Run All'}
+            </>
+          )}
+        </Button>
+      )}
+
+      {readOnly && (
+        <Badge variant="outline" className="gap-1">
+          <ShieldCheck className="h-3.5 w-3.5" />
+          Automated schedule only
+        </Badge>
+      )}
 
       {/* Refresh Button */}
       <Button

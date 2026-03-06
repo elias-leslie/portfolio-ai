@@ -149,7 +149,7 @@ export const features = [
     icon: Clock,
     title: 'Scheduled Refresh',
     description:
-      'Automated data updates via Celery workers keep your insights fresh.',
+      'Automated refresh jobs keep core datasets moving, while the Status page makes stale pipelines explicit when they fall behind.',
   },
   {
     icon: Zap,

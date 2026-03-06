@@ -78,3 +78,43 @@ def test_replay_backtest_bulk_fetch(
     # Verify state
     assert isinstance(state, BacktestState)
     assert len(state.equity_curve) == trading_days_2023
+
+
+@patch("app.backtest.replay._get_data_range")
+@patch("app.backtest.replay._fetch_ohlcv_data")
+@patch("app.backtest.replay.calculate_indicators_from_df")
+def test_replay_backtest_allows_short_requested_window_with_sufficient_lookback(
+    mock_calc_indicators: MagicMock,
+    mock_fetch_data: MagicMock,
+    mock_get_data_range: MagicMock,
+    mock_storage: MagicMock,
+    mock_strategy: MagicMock,
+) -> None:
+    start_date = date(2025, 12, 1)
+    end_date = date(2026, 3, 5)
+
+    mock_get_data_range.return_value = (date(2020, 8, 31), date(2026, 3, 6))
+
+    dates = pd.date_range(start="2024-12-01", end="2026-03-06", freq="B")
+    data = {
+        "open": [100.0] * len(dates),
+        "high": [105.0] * len(dates),
+        "low": [95.0] * len(dates),
+        "close": [102.0] * len(dates),
+        "volume": [1000] * len(dates),
+    }
+    mock_fetch_data.return_value = pd.DataFrame(data, index=dates)
+    mock_calc_indicators.return_value = {"indicators": {"sma_20": 100.0}, "interpretations": {}}
+
+    state = replay_backtest(
+        storage=mock_storage,
+        run_id="short_window_run",
+        symbol="AAPL",
+        start_date=start_date,
+        end_date=end_date,
+        initial_capital=Decimal("10000"),
+        strategy=mock_strategy,
+    )
+
+    assert isinstance(state, BacktestState)
+    assert len(state.equity_curve) > 0

@@ -20,7 +20,7 @@ export function BeatScheduleCard() {
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <div>
           <CardTitle className="text-lg">Beat Schedule</CardTitle>
-          <CardDescription>Celery periodic tasks</CardDescription>
+          <CardDescription>Scheduled workflow cadence</CardDescription>
         </div>
         <Button
           variant="ghost"

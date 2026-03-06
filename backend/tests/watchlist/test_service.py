@@ -13,6 +13,7 @@ from app.portfolio.models import PriceData
 from app.storage import PortfolioStorage
 from app.watchlist.service import refresh_watchlist_scores
 from app.watchlist.watchlist_service import _normalize_recent_news_payload
+from tests.test_support.news import build_empty_news_service
 
 
 class StubPriceFetcher:
@@ -180,8 +181,9 @@ def test_refresh_watchlist_scores_persists_snapshots(storage: PortfolioStorage) 
 
     price_data = PriceData(symbol="AAPL", price=162.0, source="test")
     fetcher = StubPriceFetcher({"AAPL": price_data})
+    news_service = build_empty_news_service()
 
-    result = refresh_watchlist_scores(storage, price_fetcher=fetcher)
+    result = refresh_watchlist_scores(storage, price_fetcher=fetcher, news_service=news_service)
 
     assert result["processed"] == 1
     assert result["symbols"] == ["AAPL"]

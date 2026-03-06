@@ -9,10 +9,14 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 # Add backend to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from app.agents.llm_client import AgentHubAPIClient, DualProviderClient
+
+pytestmark = [pytest.mark.manual, pytest.mark.slow]
 
 
 def test_agent_hub_availability() -> dict[str, str]:

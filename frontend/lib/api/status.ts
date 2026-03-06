@@ -2,7 +2,6 @@
  * API client for system status and service monitoring
  */
 
-import { buildApiUrl } from '../api-config'
 import { get } from './client'
 
 /**
@@ -164,17 +163,6 @@ export interface DetailedHealthResponse extends HealthResponse {
 }
 
 /**
- * Log response
- */
-export interface LogResponse {
-  service: string
-  logFile: string
-  lines: string[]
-  totalLines: number
-  timestamp: string
-}
-
-/**
  * Fetch system status including all services
  */
 export async function fetchSystemStatus(): Promise<HealthResponse> {
@@ -186,16 +174,6 @@ export async function fetchSystemStatus(): Promise<HealthResponse> {
  */
 export async function fetchDetailedHealth(): Promise<DetailedHealthResponse> {
   return get<DetailedHealthResponse>('/health/detailed')
-}
-
-/**
- * Fetch logs for a specific service
- */
-export async function fetchServiceLogs(
-  service: string,
-  lines: number = 100,
-): Promise<LogResponse> {
-  return get<LogResponse>(`/api/status/logs/${service}?lines=${lines}`)
 }
 
 /**
@@ -265,14 +243,6 @@ export interface UnifiedLogsResponse {
 }
 
 /**
- * Log level configuration
- */
-export interface LogLevelConfig {
-  currentLevel: string
-  availableLevels: string[]
-}
-
-/**
  * Fetch unified logs from all services
  */
 export async function fetchUnifiedLogs(params: {
@@ -287,39 +257,4 @@ export async function fetchUnifiedLogs(params: {
   if (params.level) searchParams.append('level', params.level)
   if (params.service) searchParams.append('service', params.service)
   return get<UnifiedLogsResponse>(`/api/status/unified-logs?${searchParams}`)
-}
-
-/**
- * Fetch current log level configuration
- */
-export async function fetchLogLevelConfig(): Promise<LogLevelConfig> {
-  return get<LogLevelConfig>('/api/status/log-level')
-}
-
-/**
- * Set log level for all services
- */
-export async function setLogLevel(level: string): Promise<void> {
-  const response = await fetch(buildApiUrl('/api/status/log-level'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ level }),
-  })
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    throw new Error(error.detail || 'Failed to change log level')
-  }
-}
-
-/**
- * Restart all services
- */
-export async function restartAllServices(): Promise<void> {
-  const response = await fetch(buildApiUrl('/api/status/restart-services'), {
-    method: 'POST',
-  })
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    throw new Error(error.detail || 'Failed to restart services')
-  }
 }

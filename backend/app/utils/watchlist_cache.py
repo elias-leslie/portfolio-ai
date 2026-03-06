@@ -146,6 +146,7 @@ def _fetch_symbols_from_db(
         """
         SELECT DISTINCT symbol
         FROM watchlist_items
+        WHERE symbol NOT LIKE 'ZZTEST%%'
         ORDER BY symbol
         """
     )

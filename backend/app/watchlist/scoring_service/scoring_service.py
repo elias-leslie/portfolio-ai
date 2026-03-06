@@ -14,6 +14,7 @@ from typing import Any
 
 from ...logging_config import get_logger
 from ...portfolio.price_fetcher import PriceDataFetcher
+from ...services import NewsService
 from ...storage import PortfolioStorage
 from ...utils.watchlist_cache import get_watchlist_symbols_cached
 from .aggregator import aggregate_results, process_all_symbols
@@ -28,6 +29,7 @@ def refresh_watchlist_scores(
     *,
     account_id: str | None = None,
     price_fetcher: PriceDataFetcher | None = None,
+    news_service: NewsService | None = None,
     batch_size: int = 20,
     batch_delay_seconds: float = 2.0,
     symbols_filter: list[str] | None = None,
@@ -87,7 +89,7 @@ def refresh_watchlist_scores(
         redis_key,
         _,  # fetcher not needed after initialization
         prefs,
-        news_service,
+        resolved_news_service,
         technical_map,
         default_weights,
         stale_ttl_minutes,
@@ -96,7 +98,13 @@ def refresh_watchlist_scores(
         total_batches,
         news_bundles,
     ) = initialize_scoring_context(
-        storage, symbols, account_id, price_fetcher, batch_size, batch_delay_seconds
+        storage,
+        symbols,
+        account_id,
+        price_fetcher,
+        news_service,
+        batch_size,
+        batch_delay_seconds,
     )
 
     # Process all symbols
@@ -109,7 +117,7 @@ def refresh_watchlist_scores(
         default_weights=default_weights,
         stale_ttl_minutes=stale_ttl_minutes,
         risk_budget=risk_budget,
-        news_service=news_service,
+        news_service=resolved_news_service,
         news_max_articles=prefs.news_max_articles,
         news_bundles=news_bundles,
     )

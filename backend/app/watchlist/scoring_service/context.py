@@ -41,6 +41,7 @@ def initialize_scoring_context(
     symbols: list[str],
     account_id: str | None,
     price_fetcher: PriceDataFetcher | None,
+    news_service: NewsService | None,
     batch_size: int,
     batch_delay_seconds: float,
 ) -> tuple[
@@ -103,8 +104,8 @@ def initialize_scoring_context(
     prefs = UserPreferences.load_all(storage)
 
     # Setup news service with preferences
-    news_service = NewsService(storage)
-    news_service.lookback_hours = prefs.news_lookback_hours
+    resolved_news_service = news_service or NewsService(storage)
+    resolved_news_service.lookback_hours = prefs.news_lookback_hours
     news_max_articles = prefs.news_max_articles
 
     # Load technical indicators and extract preferences
@@ -119,7 +120,7 @@ def initialize_scoring_context(
     # Batch-fetch price data and news BEFORE processing loop
     price_map = fetch_prices_in_batches(fetcher, symbols, batch_size, batch_delay_seconds)
     total_batches = len([symbols[i : i + batch_size] for i in range(0, len(symbols), batch_size)])
-    news_bundles = fetch_news_batch(news_service, symbols, news_max_articles)
+    news_bundles = fetch_news_batch(resolved_news_service, symbols, news_max_articles)
 
     return (
         items_df,
@@ -127,7 +128,7 @@ def initialize_scoring_context(
         redis_key,
         fetcher,
         prefs,
-        news_service,
+        resolved_news_service,
         technical_map,
         default_weights,
         stale_ttl_minutes,

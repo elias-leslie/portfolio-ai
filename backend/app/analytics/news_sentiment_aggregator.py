@@ -9,7 +9,7 @@ Based on Tetlock (2007): Positive news clusters predict outperformance.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from app.logging_config import get_logger
@@ -119,17 +119,20 @@ def get_symbol_sentiment(
     """
     if as_of_date is None:
         as_of_date = date.today()
+    as_of_dt = datetime.combine(as_of_date, datetime.max.time(), tzinfo=UTC)
+    window_7d = as_of_dt - timedelta(days=7)
+    window_30d = as_of_dt - timedelta(days=30)
 
     # Query sentiment data for different windows
     query = """
         SELECT
             -- 7-day window (most recent)
-            COUNT(CASE WHEN published_at >= %s - INTERVAL '7 days' THEN 1 END) as count_7d,
-            AVG(CASE WHEN published_at >= %s - INTERVAL '7 days' THEN sentiment_score END) as avg_7d,
+            COUNT(CASE WHEN published_at >= %s THEN 1 END) as count_7d,
+            AVG(CASE WHEN published_at >= %s THEN sentiment_score END) as avg_7d,
 
             -- 30-day window
-            COUNT(CASE WHEN published_at >= %s - INTERVAL '30 days' THEN 1 END) as count_30d,
-            AVG(CASE WHEN published_at >= %s - INTERVAL '30 days' THEN sentiment_score END) as avg_30d
+            COUNT(CASE WHEN published_at >= %s THEN 1 END) as count_30d,
+            AVG(CASE WHEN published_at >= %s THEN sentiment_score END) as avg_30d
 
         FROM news_cache
         WHERE symbol = %s
@@ -141,12 +144,12 @@ def get_symbol_sentiment(
         result = storage.query(
             query,
             [
-                as_of_date.isoformat(),
-                as_of_date.isoformat(),
-                as_of_date.isoformat(),
-                as_of_date.isoformat(),
+                window_7d,
+                window_7d,
+                window_30d,
+                window_30d,
                 symbol,
-                as_of_date.isoformat(),
+                as_of_dt,
             ],
         )
 
@@ -228,16 +231,19 @@ def get_batch_sentiment(
 
     if as_of_date is None:
         as_of_date = date.today()
+    as_of_dt = datetime.combine(as_of_date, datetime.max.time(), tzinfo=UTC)
+    window_7d = as_of_dt - timedelta(days=7)
+    window_30d = as_of_dt - timedelta(days=30)
 
     # Batch query for efficiency
     placeholders = ", ".join(["%s"] * len(symbols))
     query = f"""
         SELECT
             symbol,
-            COUNT(CASE WHEN published_at >= %s - INTERVAL '7 days' THEN 1 END) as count_7d,
-            AVG(CASE WHEN published_at >= %s - INTERVAL '7 days' THEN sentiment_score END) as avg_7d,
-            COUNT(CASE WHEN published_at >= %s - INTERVAL '30 days' THEN 1 END) as count_30d,
-            AVG(CASE WHEN published_at >= %s - INTERVAL '30 days' THEN sentiment_score END) as avg_30d
+            COUNT(CASE WHEN published_at >= %s THEN 1 END) as count_7d,
+            AVG(CASE WHEN published_at >= %s THEN sentiment_score END) as avg_7d,
+            COUNT(CASE WHEN published_at >= %s THEN 1 END) as count_30d,
+            AVG(CASE WHEN published_at >= %s THEN sentiment_score END) as avg_30d
         FROM news_cache
         WHERE symbol IN ({placeholders})
           AND sentiment_score IS NOT NULL
@@ -246,12 +252,12 @@ def get_batch_sentiment(
     """
 
     params: list[ParameterValue] = [
-        as_of_date.isoformat(),
-        as_of_date.isoformat(),
-        as_of_date.isoformat(),
-        as_of_date.isoformat(),
+        window_7d,
+        window_7d,
+        window_30d,
+        window_30d,
         *symbols,
-        as_of_date.isoformat(),
+        as_of_dt,
     ]
 
     try:

@@ -7,6 +7,7 @@ from typing import Any
 
 from redis import Redis
 
+from app.services import NewsService
 from app.storage import PortfolioStorage
 from app.watchlist.models import WatchlistItem
 
@@ -74,6 +75,7 @@ def refresh_watchlist_scores(
     *,
     account_id: str | None = None,
     price_fetcher: Any = None,
+    news_service: NewsService | None = None,
     batch_size: int = 20,
     batch_delay_seconds: float = 2.0,
     symbols_filter: list[str] | None = None,

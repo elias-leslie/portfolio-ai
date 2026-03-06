@@ -22,7 +22,7 @@ export function WorkflowMetricsCard({ metrics }: WorkflowMetricsCardProps) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <History className="h-5 w-5" />
-            Workflow Metrics (7 Days)
+            Recent Workflow Activity
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -80,7 +80,7 @@ export function WorkflowMetricsCard({ metrics }: WorkflowMetricsCardProps) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <History className="h-5 w-5" />
-          Workflow Metrics (7 Days)
+          Recent Workflow Activity
           <Badge variant="outline" className="ml-auto">
             {metrics.totalWorkflows7D} total
           </Badge>

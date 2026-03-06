@@ -2,7 +2,7 @@
  * Portfolio API client functions
  */
 
-import { apiRequest } from './client'
+import { del, get, post, put } from './client'
 
 // Types matching backend Pydantic models
 export interface Account {
@@ -102,14 +102,14 @@ export interface AddPositionRequest {
  * Fetch all portfolio positions with current values
  */
 export async function fetchPortfolio(): Promise<PortfolioResponse> {
-  return apiRequest<PortfolioResponse>('/api/portfolio/')
+  return get<PortfolioResponse>('/api/portfolio')
 }
 
 /**
  * Fetch all accounts
  */
 export async function fetchAccounts(): Promise<Account[]> {
-  return apiRequest<Account[]>('/api/portfolio/accounts')
+  return get<Account[]>('/api/portfolio/accounts')
 }
 
 /**
@@ -118,29 +118,21 @@ export async function fetchAccounts(): Promise<Account[]> {
 export async function createAccount(
   data: CreateAccountRequest,
 ): Promise<Account> {
-  return apiRequest<Account>('/api/portfolio/account', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  })
+  return post<Account>('/api/portfolio/account', data)
 }
 
 /**
  * Delete an account by ID
  */
 export async function deleteAccount(accountId: string): Promise<void> {
-  await apiRequest<void>(`/api/portfolio/account/${accountId}`, {
-    method: 'DELETE',
-  })
+  await del<void>(`/api/portfolio/account/${accountId}`)
 }
 
 /**
  * Add or update a position
  */
 export async function addPosition(data: AddPositionRequest): Promise<Position> {
-  return apiRequest<Position>('/api/portfolio/position', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  })
+  return post<Position>('/api/portfolio/position', data)
 }
 
 /**
@@ -150,24 +142,19 @@ export async function updatePosition(
   positionId: string,
   data: AddPositionRequest,
 ): Promise<Position> {
-  return apiRequest<Position>(`/api/portfolio/position/${positionId}`, {
-    method: 'PUT',
-    body: JSON.stringify(data),
-  })
+  return put<Position>(`/api/portfolio/position/${positionId}`, data)
 }
 
 /**
  * Delete a position by ID
  */
 export async function deletePosition(positionId: string): Promise<void> {
-  await apiRequest<void>(`/api/portfolio/position/${positionId}`, {
-    method: 'DELETE',
-  })
+  await del<void>(`/api/portfolio/position/${positionId}`)
 }
 
 /**
  * Fetch portfolio analytics (beta, volatility, concentration, sector exposure)
  */
 export async function fetchAnalytics(): Promise<PortfolioAnalytics> {
-  return apiRequest<PortfolioAnalytics>('/api/portfolio/analytics')
+  return get<PortfolioAnalytics>('/api/portfolio/analytics')
 }

@@ -1,7 +1,7 @@
 export const SERVICE_DISPLAY_NAMES: Record<string, string> = {
   backend: 'Backend',
-  celeryWorker: 'Celery Worker',
-  celeryBeat: 'Celery Beat',
+  celeryWorker: 'Hatchet Worker',
+  celeryBeat: 'Scheduler',
   frontend: 'Frontend',
   redis: 'Redis',
   postgresql: 'PostgreSQL',

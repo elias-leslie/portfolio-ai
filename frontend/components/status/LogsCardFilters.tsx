@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowUpDown, Check, Copy, RefreshCw } from 'lucide-react'
+import { ArrowUpDown, Check, Copy } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -16,7 +16,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import type { LogLevelConfig } from '@/lib/api/status'
 import { SERVICE_DISPLAY_NAMES } from './LogsCard.types'
 
 interface LogsCardFiltersProps {
@@ -26,8 +25,6 @@ interface LogsCardFiltersProps {
   refreshInterval: number
   sortOrder: 'asc' | 'desc'
   copied: boolean
-  logLevelConfig: LogLevelConfig | undefined
-  logLevelPending: boolean
   totalUnfilteredCount: number
   logCounts: Record<string, number>
   serviceCounts: Record<string, number>
@@ -38,7 +35,6 @@ interface LogsCardFiltersProps {
   onRefreshIntervalChange: (val: number) => void
   onToggleSortOrder: () => void
   onCopy: () => void
-  onLogLevelChange: (level: string) => void
 }
 
 export function LogsCardFilters({
@@ -48,8 +44,6 @@ export function LogsCardFilters({
   refreshInterval,
   sortOrder,
   copied,
-  logLevelConfig,
-  logLevelPending,
   totalUnfilteredCount,
   logCounts,
   serviceCounts,
@@ -60,7 +54,6 @@ export function LogsCardFilters({
   onRefreshIntervalChange,
   onToggleSortOrder,
   onCopy,
-  onLogLevelChange,
 }: LogsCardFiltersProps) {
   return (
     <TooltipProvider>
@@ -91,7 +84,7 @@ export function LogsCardFilters({
             </div>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Filter logs by specific service (e.g., Backend, Celery)</p>
+            <p>Filter logs by specific service (for example Backend or Hatchet Worker)</p>
           </TooltipContent>
         </Tooltip>
 
@@ -156,36 +149,6 @@ export function LogsCardFilters({
             <p>Select the time window for fetching logs</p>
           </TooltipContent>
         </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="inline-block">
-              <Select
-                value={logLevelConfig?.currentLevel || 'INFO'}
-                onValueChange={onLogLevelChange}
-                disabled={logLevelPending}
-              >
-                <SelectTrigger className="h-8 min-w-[120px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="DEBUG">DEBUG</SelectItem>
-                  <SelectItem value="INFO">INFO</SelectItem>
-                  <SelectItem value="WARN">WARN</SelectItem>
-                  <SelectItem value="ERROR">ERROR</SelectItem>
-                  <SelectItem value="CRITICAL">CRITICAL</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Change the global log level for all services</p>
-          </TooltipContent>
-        </Tooltip>
-
-        {logLevelPending && (
-          <RefreshCw className="h-4 w-4 animate-spin shrink-0" />
-        )}
 
         <Tooltip>
           <TooltipTrigger asChild>

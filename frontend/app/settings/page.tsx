@@ -8,6 +8,8 @@ import { TradingRiskSettings } from '@/components/settings/sections/TradingRiskS
 import { WatchlistSettingsSection } from '@/components/settings/sections/WatchlistSettingsSection'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import { useSettingsState } from './useSettingsState'
 
 export default function SettingsPage() {
@@ -60,6 +62,8 @@ export default function SettingsPage() {
     preferences,
     isLoading,
     isPending,
+    loadError,
+    retryLoad,
   } = useSettingsState()
 
   if (isLoading) {
@@ -74,6 +78,27 @@ export default function SettingsPage() {
             ))}
           </div>
         </div>
+      </PageContainer>
+    )
+  }
+
+  if (loadError && !preferences) {
+    return (
+      <PageContainer className="max-w-6xl space-y-12 py-10" fullWidth>
+        <PageHeader
+          title="Settings"
+          description="Configure your preferences, risk tolerance, and system behavior."
+          size="md"
+        />
+        <Alert variant="destructive">
+          <AlertTitle>Error Loading Settings</AlertTitle>
+          <AlertDescription>
+            {loadError instanceof Error
+              ? loadError.message
+              : 'Failed to load preferences.'}
+          </AlertDescription>
+        </Alert>
+        <Button onClick={() => void retryLoad()}>Retry Loading</Button>
       </PageContainer>
     )
   }

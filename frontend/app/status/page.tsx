@@ -31,11 +31,6 @@ export default function StatusPage() {
     newsHealthError,
     refreshNewsHealth,
     detailedHealth,
-    actionDialogOpen,
-    setActionDialogOpen,
-    actionDialogConfig,
-    isActionLoading,
-    triggerRestartService,
   } = useStatusPage()
 
   const connectionBanner = getConnectionBanner(connectionState, realtimeEnabled, isDataStale)
@@ -96,11 +91,6 @@ export default function StatusPage() {
       newsHealthError={newsHealthError}
       refreshNewsHealth={refreshNewsHealth}
       detailedHealth={detailedHealth}
-      actionDialogOpen={actionDialogOpen}
-      setActionDialogOpen={setActionDialogOpen}
-      actionDialogConfig={actionDialogConfig}
-      isActionLoading={isActionLoading}
-      triggerRestartService={triggerRestartService}
     />,
   )
 }

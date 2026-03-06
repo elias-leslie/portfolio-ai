@@ -2,7 +2,7 @@
  * Celery task monitoring API client
  */
 
-import { buildApiUrl } from '../api-config'
+import { get } from './client'
 
 // Type definitions
 export interface TaskInfo {
@@ -55,55 +55,19 @@ export async function fetchCeleryTasks(
     sort,
   })
 
-  const response = await fetch(
-    buildApiUrl(`/api/status/celery/tasks?${params}`),
-    {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    },
-  )
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch Celery tasks: ${response.statusText}`)
-  }
-
-  return response.json()
+  return get<TaskListResponse>(`/api/status/celery/tasks?${params}`)
 }
 
 /**
  * Fetch Celery queue depth and consumer count
  */
 export async function fetchQueueDepth(): Promise<QueueInfo> {
-  const response = await fetch(buildApiUrl('/api/status/celery/queue'), {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  })
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch queue depth: ${response.statusText}`)
-  }
-
-  return response.json()
+  return get<QueueInfo>('/api/status/celery/queue')
 }
 
 /**
  * Fetch Celery Beat schedule information
  */
 export async function fetchBeatSchedule(): Promise<ScheduleInfo[]> {
-  const response = await fetch(buildApiUrl('/api/status/celery/schedule'), {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  })
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch beat schedule: ${response.statusText}`)
-  }
-
-  return response.json()
+  return get<ScheduleInfo[]>('/api/status/celery/schedule')
 }

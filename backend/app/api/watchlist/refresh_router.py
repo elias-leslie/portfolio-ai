@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
 from app.api.utils import handle_api_errors
@@ -39,6 +39,11 @@ router = APIRouter()
 # Initialize services
 storage = get_storage()
 watchlist_repo = WatchlistRepository(storage)
+
+
+def _is_live_watchlist_symbol(symbol: object) -> bool:
+    """Exclude leaked test fixtures from live refresh operations."""
+    return not str(symbol).upper().startswith("ZZTEST")
 
 
 @router.get("/refresh-status", response_model=RefreshStatusResponse)
@@ -89,6 +94,15 @@ async def get_refresh_status() -> RefreshStatusResponse:
         return _build_not_refreshing_response()
 
 
+@router.get("/refresh")
+async def get_refresh_endpoint() -> None:
+    """Reject GET requests so /refresh does not fall through to /{item_id}."""
+    raise HTTPException(
+        status_code=405,
+        detail="Use POST /api/watchlist/refresh to trigger a refresh or GET /api/watchlist/refresh-status for progress",
+    )
+
+
 @router.post("/refresh", response_model=RefreshResponse)
 @handle_api_errors("refresh watchlist scores")
 async def refresh_watchlist_scores(data: RefreshRequest) -> RefreshResponse:
@@ -115,7 +129,17 @@ async def refresh_watchlist_scores(data: RefreshRequest) -> RefreshResponse:
             failed=[],
         )
 
-    items = items_df.to_dicts()
+    items = [item for item in items_df.to_dicts() if _is_live_watchlist_symbol(item.get("symbol"))]
+
+    if not items:
+        return RefreshResponse(
+            status="success",
+            message="No items in watchlist",
+            refreshed_count=0,
+            failed_count=0,
+            failed=[],
+        )
+
     symbols = [item["symbol"] for item in items]
     logger.info("Refreshing symbols", symbols=symbols, count=len(symbols))
 

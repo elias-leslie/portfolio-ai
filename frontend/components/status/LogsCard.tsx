@@ -1,16 +1,11 @@
 'use client'
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { FileText } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { toast } from 'sonner'
 import { ExpandableCard } from '@/components/status/ExpandableCard'
 import {
-  fetchLogLevelConfig,
   fetchUnifiedLogs,
-  type LogLevelConfig,
-  restartAllServices,
-  setLogLevel,
   type UnifiedLogsResponse,
 } from '@/lib/api/status'
 import { LogsCardAlerts } from './LogsCardAlerts'
@@ -18,13 +13,11 @@ import { LogsCardFilters } from './LogsCardFilters'
 import { LogsCardLogList } from './LogsCardLogList'
 import { formatTimestamp, SERVICE_DISPLAY_NAMES } from './LogsCard.types'
 
-export function LogsCard() {
-  const queryClient = useQueryClient()
+export function LogsCard({ readOnly = false }: { readOnly?: boolean }) {
   const [levelFilter, setLevelFilter] = useState<string | undefined>(undefined)
   const [serviceFilter, setServiceFilter] = useState<string | undefined>(undefined)
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const [copied, setCopied] = useState(false)
-  const [restartRequired, setRestartRequired] = useState(false)
   const [refreshInterval, setRefreshInterval] = useState<number>(30000)
   const [timeRange, setTimeRange] = useState<string>('5 minutes ago')
 
@@ -41,44 +34,6 @@ export function LogsCard() {
     refetchInterval: refreshInterval || false,
     refetchOnWindowFocus: false,
     staleTime: 0,
-  })
-
-  const { data: logLevelConfig } = useQuery<LogLevelConfig>({
-    queryKey: ['log-level-config'],
-    queryFn: fetchLogLevelConfig,
-    refetchInterval: false,
-    staleTime: 60000,
-  })
-
-  const logLevelMutation = useMutation({
-    mutationFn: setLogLevel,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['log-level-config'] })
-      setRestartRequired(true)
-    },
-    onError: (error) => {
-      toast.error(
-        `Failed to change log level: ${
-          error instanceof Error ? error.message : 'Unknown error'
-        }`,
-      )
-    },
-  })
-
-  const restartMutation = useMutation({
-    mutationFn: restartAllServices,
-    onSuccess: () => {
-      setRestartRequired(false)
-      queryClient.invalidateQueries({ queryKey: ['log-level-config'] })
-      toast.success('Services restarted successfully!')
-    },
-    onError: (error) => {
-      toast.error(
-        `Failed to restart services: ${
-          error instanceof Error ? error.message : 'Unknown error'
-        }`,
-      )
-    },
   })
 
   const logs = data?.logs
@@ -135,19 +90,9 @@ export function LogsCard() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const handleLogLevelChange = (newLevel: string) => {
-    if (logLevelMutation.isPending) return
-    logLevelMutation.mutate(newLevel)
-  }
-
-  const handleRestartServices = () => {
-    if (restartMutation.isPending) return
-    restartMutation.mutate()
-  }
-
   const summary = [
     `${sortedLogs.length} entries`,
-    `Level ${logLevelConfig?.currentLevel ?? 'INFO'}`,
+    readOnly ? 'Read only' : 'Live',
     serviceFilter ? SERVICE_DISPLAY_NAMES[serviceFilter] : 'All services',
   ]
     .filter(Boolean)
@@ -158,10 +103,10 @@ export function LogsCard() {
       title={
         <div className="flex items-center gap-2">
           <FileText className="h-5 w-5" />
-          <span>Unified Logging</span>
+          <span>Service Logs</span>
         </div>
       }
-      description="Live log stream with filtering, log-level control, and restart tooling."
+      description="Recent read-only logs with filtering for quick diagnosis."
       summary={summary}
       defaultCollapsed
     >
@@ -173,8 +118,6 @@ export function LogsCard() {
           refreshInterval={refreshInterval}
           sortOrder={sortOrder}
           copied={copied}
-          logLevelConfig={logLevelConfig}
-          logLevelPending={logLevelMutation.isPending}
           totalUnfilteredCount={totalUnfilteredCount}
           logCounts={logCounts}
           serviceCounts={serviceCounts}
@@ -187,14 +130,13 @@ export function LogsCard() {
             setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
           }
           onCopy={handleCopy}
-          onLogLevelChange={handleLogLevelChange}
         />
 
         <LogsCardAlerts
-          restartRequired={restartRequired}
-          restartPending={restartMutation.isPending}
+          restartRequired={false}
+          restartPending={false}
           error={error}
-          onRestartServices={handleRestartServices}
+          onRestartServices={() => {}}
         />
 
         <LogsCardLogList

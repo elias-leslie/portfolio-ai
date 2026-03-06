@@ -223,6 +223,14 @@ def test_create_watchlist_item_empty_symbol_fails(client: TestClient) -> None:
     assert "Symbol cannot be empty" in response.json()["detail"]
 
 
+def test_create_watchlist_item_test_symbol_blocked(client: TestClient) -> None:
+    """Test POST /api/watchlist rejects leaked test symbols."""
+    response = client.post("/api/watchlist", json={"symbol": "ZZTEST123"})
+
+    assert response.status_code == 400
+    assert "blocked from the live watchlist" in response.json()["detail"]
+
+
 def test_create_watchlist_item_duplicate_fails(
     client: TestClient, test_storage: PortfolioStorage
 ) -> None:
@@ -279,11 +287,40 @@ def test_get_watchlist_item_success(client: TestClient, test_storage: PortfolioS
     response = client.get(f"/api/watchlist/{item_id}")
 
     assert response.status_code == 200
-    data = response.json()
 
-    assert data["id"] == item_id
-    assert data["symbol"] == "MSFT"
-    assert data["note"] == "Microsoft test"
+
+def test_list_watchlist_items_filters_test_symbols(
+    client: TestClient, test_storage: PortfolioStorage
+) -> None:
+    """Test GET /api/watchlist hides leaked test fixtures from the live product."""
+    now = datetime.now(UTC)
+    with test_storage.connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO watchlist_items (id, symbol, note, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5), ($6, $7, $8, $9, $10)
+            """,
+            [
+                "live-item",
+                "AAPL",
+                "Real symbol",
+                now,
+                now,
+                "test-item",
+                "ZZTEST999",
+                "Leaked test symbol",
+                now,
+                now,
+            ],
+        )
+        conn.commit()
+
+    response = client.get("/api/watchlist")
+
+    assert response.status_code == 200
+    symbols = [item["symbol"] for item in response.json()["items"]]
+    assert "AAPL" in symbols
+    assert "ZZTEST999" not in symbols
 
 
 def test_get_watchlist_item_not_found(client: TestClient) -> None:

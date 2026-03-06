@@ -6,6 +6,8 @@ import json
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from app.utils.db_helpers import generate_uuid
+
 if TYPE_CHECKING:
     from .connection import ConnectionManager
 
@@ -165,14 +167,14 @@ def upsert_core_snapshot(
     is_stale: bool,
     signal_type: str | None,
     signal_strength: int | None,
-) -> int | None:
+) -> str | None:
     """Insert/update watchlist_snapshots_core; return snapshot_id or None."""
     core_sql = """
         INSERT INTO watchlist_snapshots_core (
-            item_id, fetched_at, price, change_pct,
+            id, item_id, fetched_at, price, change_pct,
             overall_score, technical_score, fundamental_score, news_score,
             ai_score, ai_confidence, is_stale, signal_type, signal_strength
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (item_id, fetched_at) DO UPDATE SET
             price = EXCLUDED.price,
             change_pct = EXCLUDED.change_pct,
@@ -187,10 +189,11 @@ def upsert_core_snapshot(
             signal_strength = EXCLUDED.signal_strength
         RETURNING id
     """
+    snapshot_id = generate_uuid()
     result = conn.execute(  # type: ignore[union-attr]
         core_sql,
         [
-            item_id, fetched_at, price, change_pct,
+            snapshot_id, item_id, fetched_at, price, change_pct,
             overall_score, technical_score, fundamental_score, news_score,
             ai_score, ai_confidence, is_stale, signal_type, signal_strength,
         ],
@@ -198,12 +201,12 @@ def upsert_core_snapshot(
     row = result.fetchone()
     if not row:
         return None
-    return int(row[0])
+    return str(row[0])
 
 
 def upsert_technical_metrics(
     conn: object,
-    snapshot_id: int,
+    snapshot_id: str,
     *,
     raw_metrics: str | None,
     beta: float | None,
@@ -237,7 +240,7 @@ def upsert_technical_metrics(
 
 def upsert_narrative(
     conn: object,
-    snapshot_id: int,
+    snapshot_id: str,
     *,
     narrative_headline: str | None,
     narrative_why_bullets: str | None,
@@ -294,7 +297,7 @@ def upsert_narrative(
 
 def upsert_news_summary(
     conn: object,
-    snapshot_id: int,
+    snapshot_id: str,
     *,
     news_sentiment_score: float | None,
     recent_news_headlines: str | None,

@@ -43,6 +43,7 @@ def load_watchlist_items(storage: PortfolioStorage, account_id: str | None = Non
         """
         SELECT id, symbol
         FROM watchlist_items
+        WHERE symbol NOT LIKE 'ZZTEST%%'
         """
     )
 

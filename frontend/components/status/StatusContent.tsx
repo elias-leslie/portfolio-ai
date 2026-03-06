@@ -11,7 +11,6 @@ import { MaintenanceTable } from '@/components/status/MaintenanceTable'
 import { MLModelCard } from '@/components/status/MLModelCard'
 import { NewsHealthCard } from '@/components/status/NewsHealthCard'
 import { QueueDepthCard } from '@/components/status/QueueDepthCard'
-import { ServiceActionDialog } from '@/components/status/ServiceActionDialog'
 import { ServiceStatusTable } from '@/components/status/ServiceStatusTable'
 import { SourceQualityCard } from '@/components/status/SourceQualityCard'
 import { SystemMetricsTable } from '@/components/status/SystemMetricsTable'
@@ -23,7 +22,6 @@ import type { NewsHealthResponse } from '@/lib/api/news'
 import type { DetailedHealthResponse, HealthResponse } from '@/lib/api/status'
 import type { SystemResources } from '@/lib/api/resources'
 import type { ConnectionBannerConfig, ConnectionState } from '@/lib/utils/connectionBadge'
-import type { ActionDialogConfig } from '@/components/status/hooks/useStatusPage'
 
 interface StatusContentProps {
   health: HealthResponse
@@ -37,11 +35,6 @@ interface StatusContentProps {
   newsHealthError: Error | null
   refreshNewsHealth: () => void
   detailedHealth: DetailedHealthResponse | null
-  actionDialogOpen: boolean
-  setActionDialogOpen: (open: boolean) => void
-  actionDialogConfig: ActionDialogConfig | null
-  isActionLoading: boolean
-  triggerRestartService: (serviceName: string) => void
 }
 
 export function StatusContent({
@@ -56,11 +49,6 @@ export function StatusContent({
   newsHealthError,
   refreshNewsHealth,
   detailedHealth,
-  actionDialogOpen,
-  setActionDialogOpen,
-  actionDialogConfig,
-  isActionLoading,
-  triggerRestartService,
 }: StatusContentProps) {
   const services = health.services || {}
 
@@ -102,11 +90,7 @@ export function StatusContent({
         description="Services and system resources at a glance."
       >
         <div className="space-y-6">
-          <ServiceStatusTable
-            services={services}
-            onRestart={triggerRestartService}
-            isRestartDisabled={isActionLoading}
-          />
+          <ServiceStatusTable services={services} />
           {resources && <SystemMetricsTable resources={resources} />}
           {resourcesLoading && !resources && (
             <div className="text-center py-4">
@@ -134,8 +118,8 @@ export function StatusContent({
 
       <SectionCard
         variant="surface"
-        title="Scheduled Tasks"
-        description="Worker health, queue depth, and beat schedules."
+        title="Worker Operations"
+        description="Queue health, scheduled runs, and recent worker activity."
       >
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -149,7 +133,7 @@ export function StatusContent({
       <SectionCard
         variant="surface"
         title="News Sources"
-        description="Sentiment, source quality, and article-quality models."
+        description="Sentiment, source quality, and model health."
       >
         <div className="space-y-4">
           <NewsHealthCard
@@ -159,15 +143,15 @@ export function StatusContent({
             finbertStatus={finbertStatus}
             onRefresh={refreshNewsHealth}
           />
-          <SourceQualityCard />
-          <MLModelCard />
+          <SourceQualityCard readOnly />
+          <MLModelCard readOnly />
         </div>
       </SectionCard>
 
       <SectionCard
         variant="surface"
-        title="Multi-Agent Workflows"
-        description="Autonomous trading workflows with AI agent collaboration and execution tracking."
+        title="Automation & Agents"
+        description="Autonomous workflows, agent execution health, and recent run trends."
       >
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <WorkflowHealthCard workflowHealth={detailedHealth?.workflowHealth} />
@@ -178,27 +162,15 @@ export function StatusContent({
         </div>
       </SectionCard>
 
-      <MaintenanceTable />
+      <MaintenanceTable readOnly />
 
       <SectionCard
         variant="surface"
-        title="Unified Logging"
-        description="Centralized logs with filtering and restart controls."
+        title="Recent Service Logs"
+        description="Read-only service logs for quick diagnosis."
       >
-        <LogsCard />
+        <LogsCard readOnly />
       </SectionCard>
-
-      {actionDialogConfig && (
-        <ServiceActionDialog
-          open={actionDialogOpen}
-          onOpenChange={setActionDialogOpen}
-          title={actionDialogConfig.title}
-          description={actionDialogConfig.description}
-          actionLabel={actionDialogConfig.actionLabel}
-          onConfirm={actionDialogConfig.onConfirm}
-          storageKey={actionDialogConfig.storageKey}
-        />
-      )}
     </>
   )
 }

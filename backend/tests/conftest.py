@@ -14,6 +14,7 @@ _TESTS_ROOT = Path(__file__).parent.resolve()
 _SLOW_FOLDERS = (
     (_TESTS_ROOT / "integration").resolve(),
     (_TESTS_ROOT / "watchlist").resolve(),
+    (_TESTS_ROOT / "manual").resolve(),
 )
 
 
@@ -44,7 +45,9 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     to ensure database isolation, while skipping it for unit tests (for speed).
     """
     runslow = config.getoption("--runslow")
-    skip_slow = pytest.mark.skip(reason="Skipped slow test. Use --runslow to include.")
+    skip_slow = pytest.mark.skip(
+        reason="Skipped slow/manual test. Use --runslow to include."
+    )
 
     for item in items:
         item_path = Path(str(getattr(item, "fspath", ""))).resolve()

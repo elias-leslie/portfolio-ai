@@ -27,6 +27,7 @@ import {
 import type { MaintenanceTask, SortKey } from './hooks/useMaintenanceTasks'
 
 interface MaintenanceTasksTableProps {
+  readOnly?: boolean
   tasks: MaintenanceTask[]
   filteredTasks: MaintenanceTask[]
   categoryFilter: TaskCategory | 'all'
@@ -66,6 +67,7 @@ function SortableHeader({
 }
 
 export function MaintenanceTasksTable({
+  readOnly = false,
   tasks,
   filteredTasks,
   categoryFilter,
@@ -120,7 +122,7 @@ export function MaintenanceTasksTable({
             <TableHead>Retention</TableHead>
             <SortableHeader label="Schedule" sortKey="schedule" onToggle={toggleSort} />
             <SortableHeader label="Last Run" sortKey="lastRun" onToggle={toggleSort} />
-            <TableHead className="w-12 text-center">Run</TableHead>
+            {!readOnly && <TableHead className="w-12 text-center">Run</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -153,25 +155,27 @@ export function MaintenanceTasksTable({
                   </span>
                 </div>
               </TableCell>
-              <TableCell className="text-center">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 w-7 p-0"
-                  onClick={() => onTriggerTask(task)}
-                  disabled={
-                    triggeringTask === task.taskName ||
-                    (liveBlocked && !!task.isDbTask)
-                  }
-                  title={`Run ${task.name}`}
-                >
-                  {triggeringTask === task.taskName ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <PlayCircle className="h-4 w-4" />
-                  )}
-                </Button>
-              </TableCell>
+              {!readOnly && (
+                <TableCell className="text-center">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 w-7 p-0"
+                    onClick={() => onTriggerTask(task)}
+                    disabled={
+                      triggeringTask === task.taskName ||
+                      (liveBlocked && !!task.isDbTask)
+                    }
+                    title={`Run ${task.name}`}
+                  >
+                    {triggeringTask === task.taskName ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <PlayCircle className="h-4 w-4" />
+                    )}
+                  </Button>
+                </TableCell>
+              )}
             </TableRow>
           ))}
         </TableBody>

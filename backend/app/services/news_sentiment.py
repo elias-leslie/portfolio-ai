@@ -21,22 +21,23 @@ from .news_processing import FinBertUnavailableError
 
 logger = get_logger(__name__)
 
-try:
-    torch = import_module("torch")
-except Exception:  # pragma: no cover - handled via availability checks
-    torch = cast(Any, None)
-
-try:
-    transformers = import_module("transformers")
-    AutoModelForSequenceClassification = transformers.AutoModelForSequenceClassification
-    AutoTokenizer = transformers.AutoTokenizer
-except Exception:  # pragma: no cover - handled via availability checks
-    AutoModelForSequenceClassification = cast(Any, None)
-    AutoTokenizer = cast(Any, None)
-
-
 _finbert_instance: FinBertSentimentAnalyzer | None = None
 _finbert_lock = threading.Lock()
+
+
+def _load_finbert_dependencies() -> tuple[Any | None, Any | None, Any | None]:
+    """Load FinBERT dependencies only when the model is actually needed."""
+    try:
+        torch = import_module("torch")
+        transformers = import_module("transformers")
+    except Exception:  # pragma: no cover - handled via availability checks
+        return None, None, None
+
+    return (
+        torch,
+        getattr(transformers, "AutoTokenizer", None),
+        getattr(transformers, "AutoModelForSequenceClassification", None),
+    )
 
 
 def get_finbert_analyzer() -> FinBertSentimentAnalyzer:
@@ -72,19 +73,20 @@ class FinBertSentimentAnalyzer:
         if self._model is not None and self._tokenizer is not None:
             return
 
-        if AutoTokenizer is None or AutoModelForSequenceClassification is None or torch is None:
-            raise FinBertUnavailableError("transformers/torch not available")
-
         with self._lock:
             if self._model is not None and self._tokenizer is not None:
                 return
+
+            torch, auto_tokenizer, auto_model = _load_finbert_dependencies()
+            if auto_tokenizer is None or auto_model is None or torch is None:
+                raise FinBertUnavailableError("transformers/torch not available")
 
             logger.info(
                 "Loading FinBERT sentiment model", model_name=self.model_name, device=self.device
             )
             try:
-                self._tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-                self._model = AutoModelForSequenceClassification.from_pretrained(self.model_name)
+                self._tokenizer = auto_tokenizer.from_pretrained(self.model_name)
+                self._model = auto_model.from_pretrained(self.model_name)
                 self._model.to(self.device)
                 self._model.eval()
             except Exception as exc:  # pragma: no cover - heavy dependency handling
@@ -103,6 +105,9 @@ class FinBertSentimentAnalyzer:
             return []
 
         self._ensure_model()
+        torch, _, _ = _load_finbert_dependencies()
+        if torch is None:
+            raise FinBertUnavailableError("transformers/torch not available")
         assert self._tokenizer is not None  # For mypy
         assert self._model is not None
 

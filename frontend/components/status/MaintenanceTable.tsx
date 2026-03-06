@@ -15,7 +15,7 @@ import { MaintenanceSummaryStats } from './MaintenanceSummaryStats'
 import { MaintenanceTableToolbar } from './MaintenanceTableToolbar'
 import { MaintenanceTasksTable } from './MaintenanceTasksTable'
 
-export function MaintenanceTable() {
+export function MaintenanceTable({ readOnly = false }: { readOnly?: boolean }) {
   const {
     fileCleanup,
     lastRunSummary,
@@ -109,6 +109,7 @@ export function MaintenanceTable() {
         defaultCollapsed
         actions={
           <MaintenanceTableToolbar
+            readOnly={readOnly}
             dryRun={dryRun}
             setDryRun={setDryRun}
             isCheckingBackup={isCheckingBackup}
@@ -137,6 +138,7 @@ export function MaintenanceTable() {
               }
             />
             <MaintenanceTasksTable
+              readOnly={readOnly}
               tasks={tasks}
               filteredTasks={filteredTasks}
               categoryFilter={categoryFilter}

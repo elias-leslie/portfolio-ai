@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services.service_monitor import get_service_status
+from app.services.service_monitor import check_frontend, get_service_status
 
 client = TestClient(app)
 
@@ -83,6 +83,32 @@ class TestServiceMonitor:
             pid = get_process_by_pattern("nonexistent-pattern")
             assert pid is None
 
+    def test_check_frontend_detects_production_next_process(self) -> None:
+        """Test frontend checks accept the production Next.js start process."""
+        with (
+            patch(
+                "app.services.service_monitor.get_service_status",
+                return_value=Mock(
+                    service_name="portfolio-frontend",
+                    status="running",
+                    pid=12345,
+                    uptime_seconds=120,
+                    memory_mb=256,
+                    message="",
+                ),
+            ) as mock_get_service_status,
+            patch("app.services.service_monitor.httpx.get") as mock_http_get,
+        ):
+            mock_http_get.return_value = Mock(status_code=200)
+
+            status = check_frontend()
+
+        mock_get_service_status.assert_called_once()
+        assert mock_get_service_status.call_args.args[0] == "portfolio-frontend"
+        assert "next" in mock_get_service_status.call_args.args[1]
+        assert "start" in mock_get_service_status.call_args.args[1]
+        assert status.status == "running"
+
 
 class TestStatusEndpoints:
     """Tests for status API endpoints."""
@@ -101,3 +127,13 @@ class TestStatusEndpoints:
         # This test will fail until we implement the services field
         assert "services" in data
         assert isinstance(data["services"], dict)
+
+    def test_restart_all_services_endpoint_not_exposed(self) -> None:
+        """Operator restart endpoint should not be exposed in the product API."""
+        response = client.post("/api/status/restart-services")
+        assert response.status_code == 404
+
+    def test_restart_single_service_endpoint_not_exposed(self) -> None:
+        """Per-service restart endpoint should not be exposed in the product API."""
+        response = client.post("/api/status/services/backend/restart")
+        assert response.status_code == 404

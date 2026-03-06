@@ -15,7 +15,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi import HTTPException
 
-from app.api.watchlist.refresh_router import refresh_watchlist_scores
+from app.api.watchlist.refresh_router import get_refresh_endpoint, refresh_watchlist_scores
 from app.watchlist.response_builders import RefreshRequest, RefreshResponse
 
 # =============================================================================
@@ -128,6 +128,45 @@ class TestWatchlistRefreshSuccess:
 
             # Verify background tasks scheduled
             mock_schedule.assert_called_once_with(["AAPL", "GOOGL", "MSFT"])
+
+    @pytest.mark.asyncio
+    async def test_refresh_filters_blocked_test_symbols_before_processing(
+        self, mock_repo: MagicMock, mock_refresh_service: MagicMock
+    ) -> None:
+        """Test refresh skips leaked ZZTEST symbols in the live refresh path."""
+        with (
+            patch("app.api.watchlist.refresh_router.watchlist_repo", mock_repo),
+            patch("app.api.watchlist.refresh_router.schedule_refresh_tasks") as mock_schedule,
+            patch("app.api.watchlist.refresh_router.refresh_watchlist_scores_service", mock_refresh_service),
+        ):
+            mock_df = MagicMock()
+            mock_df.is_empty.return_value = False
+            mock_df.to_dicts.return_value = [
+                {"id": "item-1", "symbol": "AAPL"},
+                {"id": "item-2", "symbol": "ZZTEST999"},
+                {"id": "item-3", "symbol": "MSFT"},
+            ]
+            mock_repo.get_all_symbols.return_value = mock_df
+
+            mock_refresh_service.return_value = {
+                "success_count": 2,
+                "failed_count": 0,
+                "failed": [],
+            }
+
+            result = await refresh_watchlist_scores(data=RefreshRequest())
+
+            assert isinstance(result, RefreshResponse)
+            mock_schedule.assert_called_once_with(["AAPL", "MSFT"])
+
+    @pytest.mark.asyncio
+    async def test_refresh_get_endpoint_returns_method_guidance(self) -> None:
+        """Test GET /refresh returns an explicit method error instead of item lookup."""
+        with pytest.raises(HTTPException) as exc_info:
+            await get_refresh_endpoint()
+
+        assert exc_info.value.status_code == 405
+        assert "POST /api/watchlist/refresh" in str(exc_info.value.detail)
 
 
 # =============================================================================

@@ -10,6 +10,8 @@ import httpx
 import psutil
 from pydantic import BaseModel, Field
 
+from app.constants.services import SERVICE_PROCESS_PATTERNS
+
 
 class ServiceStatus(BaseModel):
     """Status information for a service/process."""
@@ -144,16 +146,22 @@ def check_hatchet_worker() -> ServiceStatus:
     Returns:
         ServiceStatus for Hatchet worker
     """
-    return get_service_status("portfolio-hatchet-worker", r"python.*app\.worker")
+    return get_service_status(
+        "portfolio-hatchet-worker",
+        SERVICE_PROCESS_PATTERNS["portfolio-hatchet-worker"],
+    )
 
 
 def check_frontend() -> ServiceStatus:
-    """Check frontend Next.js dev server status.
+    """Check frontend Next.js status.
 
     Returns:
         ServiceStatus for frontend
     """
-    status = get_service_status("portfolio-frontend", r"next.*dev")
+    status = get_service_status(
+        "portfolio-frontend",
+        SERVICE_PROCESS_PATTERNS["portfolio-frontend"],
+    )
 
     if status.status == "running":
         # Additional check: try to connect to port 3000

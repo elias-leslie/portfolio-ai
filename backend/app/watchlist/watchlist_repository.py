@@ -52,6 +52,7 @@ class WatchlistRepository:
                 SELECT * FROM watchlist_snapshots_v WHERE item_id = wi.id
                 ORDER BY fetched_at DESC LIMIT 1
             ) ws ON TRUE
+            WHERE wi.symbol NOT LIKE 'ZZTEST%%'
             ORDER BY wi.created_at DESC
             """
         )

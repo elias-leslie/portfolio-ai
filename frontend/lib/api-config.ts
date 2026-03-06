@@ -7,13 +7,11 @@
  *
  * REST API calls use same-origin routing in production to avoid CF Access CORS
  * issues. Next.js rewrites proxy /api/* to the backend on localhost.
- * Direct cross-origin URLs are only used for WebSocket connections and
- * external services (voice via Agent Hub).
+ * Direct cross-origin URLs are only used for WebSocket connections.
  */
 
 const PORTS = { frontend: 3000, backend: 8000 }
 const PROD_DOMAIN = 'port.summitflow.dev'
-const _PROD_API_DOMAIN = 'portapi.summitflow.dev'
 
 /**
  * Get the base URL for Portfolio-AI backend API calls.
@@ -96,32 +94,4 @@ export function isDevelopment(): boolean {
   }
   const host = window.location.hostname
   return host === 'localhost' || host === '127.0.0.1'
-}
-
-/**
- * Get Agent Hub voice WebSocket URL (external service).
- * Returns null if not configured (feature disabled).
- *
- * Voice is provided by agent-hub, which may or may not be available.
- */
-export function getVoiceWsUrl(): string | null {
-  // Check if voice is configured via env var
-  const voiceUrl = process.env.NEXT_PUBLIC_VOICE_URL
-  if (voiceUrl) {
-    return voiceUrl
-  }
-
-  // In development, try to connect to local agent-hub
-  if (typeof window !== 'undefined') {
-    const host = window.location.hostname
-    if (host === 'localhost' || host === '127.0.0.1') {
-      return 'ws://localhost:8003/api/voice/ws?user_id=portfolio_user&app=portfolio'
-    }
-    // Production: use agent-hub production URL
-    if (host === PROD_DOMAIN) {
-      return 'wss://agentapi.summitflow.dev/api/voice/ws?user_id=portfolio_user&app=portfolio'
-    }
-  }
-
-  return null
 }
