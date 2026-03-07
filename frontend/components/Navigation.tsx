@@ -1,12 +1,9 @@
 'use client'
 
 import {
-  Activity,
   Briefcase,
   Eye,
-  Info,
   LayoutDashboard,
-  Settings,
 } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -19,19 +16,6 @@ const routeIcons = {
   '/portfolio': Briefcase,
   '/watchlist': Eye,
 }
-
-const utilityLinks = [
-  {
-    href: '/status',
-    label: 'Status',
-    icon: Activity,
-  },
-  {
-    href: '/settings',
-    label: 'Settings',
-    icon: Settings,
-  },
-]
 
 export function Navigation() {
   const pathname = usePathname()
@@ -95,48 +79,6 @@ function NavigationContent({ pathname }: { pathname: string }) {
 
           {/* Utility Items */}
           <div className="flex items-center gap-1 sm:gap-2">
-            <div className="flex items-center gap-0.5 rounded-full bg-surface-muted/50 border border-border/50 p-1 shadow-sm backdrop-blur-sm">
-              {/* About - first for discoverability */}
-              <Link
-                href="/about"
-                aria-label="About Portfolio AI"
-                title="About Portfolio AI"
-                className={cn(
-                  'group flex items-center justify-center rounded-full p-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
-                  pathname === '/about'
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-text-muted hover:bg-surface hover:text-text hover:shadow-sm',
-                )}
-              >
-                <Info className="size-4" aria-hidden suppressHydrationWarning />
-              </Link>
-              {utilityLinks.map((link) => {
-                const Icon = link.icon
-                const isActive = pathname === link.href
-
-                return (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    aria-current={isActive ? 'page' : undefined}
-                    aria-label={link.label}
-                    title={link.label}
-                    className={cn(
-                      'group flex items-center justify-center rounded-full p-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
-                      isActive
-                        ? 'bg-primary text-primary-foreground shadow-sm'
-                        : 'text-text-muted hover:bg-surface hover:text-text hover:shadow-sm',
-                    )}
-                  >
-                    <Icon
-                      className="size-4"
-                      aria-hidden
-                      suppressHydrationWarning
-                    />
-                  </Link>
-                )
-              })}
-            </div>
             <div className="hidden sm:block">
               <MarketStatusBadge />
             </div>
