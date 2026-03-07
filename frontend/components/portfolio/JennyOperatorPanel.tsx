@@ -30,6 +30,23 @@ function verdictLabel(verdict: string) {
   }
 }
 
+function managementLabel(action: string | null | undefined) {
+  switch (action) {
+    case 'trim':
+      return 'Trim now'
+    case 'de_risk':
+      return 'De-risk now'
+    case 'exit':
+      return 'Exit now'
+    case 'review':
+      return 'Recheck now'
+    case 'hold':
+      return 'Hold steady'
+    default:
+      return null
+  }
+}
+
 function severityTone(severity: string) {
   switch (severity) {
     case 'critical':
@@ -55,6 +72,15 @@ function formatTimestamp(value: string | null) {
 
 function topStrength(scorecard: JennyAgentScorecard) {
   return scorecard.strengths[0] ?? 'Still gathering enough history to judge.'
+}
+
+function scoreItems(scorecard: JennyAgentScorecard) {
+  return [
+    ['Entries', scorecard.entryQualityScore],
+    ['Risk', scorecard.riskJudgmentScore],
+    ['Exits', scorecard.exitTimingScore],
+    ['Noise', scorecard.alertDisciplineScore],
+  ].filter(([, value]) => value !== null) as Array<[string, number]>
 }
 
 function reviewSubtitle(review: JennySymbolReview) {
@@ -214,13 +240,25 @@ export function JennyOperatorPanel() {
                           {reviewSubtitle(review)}
                         </p>
                       </div>
-                      <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-text">
-                        {verdictLabel(review.finalVerdict)}
-                      </span>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-text">
+                          {verdictLabel(review.finalVerdict)}
+                        </span>
+                        {managementLabel(review.managementAction) ? (
+                          <span className="rounded-full bg-warning/10 px-2.5 py-1 text-[11px] font-medium text-text">
+                            {managementLabel(review.managementAction)}
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
                     {review.reasons[0] ? (
                       <p className="mt-3 text-sm text-text-muted">
                         {review.reasons[0]}
+                      </p>
+                    ) : null}
+                    {review.managementDetail ? (
+                      <p className="mt-2 text-sm text-text">
+                        {review.managementDetail}
                       </p>
                     ) : null}
                   </div>
@@ -255,6 +293,19 @@ export function JennyOperatorPanel() {
                     <p className="mt-2 text-sm text-text-muted">
                       {topStrength(scorecard)}
                     </p>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-text-muted">
+                      {scoreItems(scorecard).map(([label, value]) => (
+                        <div
+                          key={label}
+                          className="rounded-lg border border-surface-border bg-surface/40 px-2.5 py-2"
+                        >
+                          <div>{label}</div>
+                          <div className="mt-1 text-sm font-semibold text-text">
+                            {Math.round(value)}/100
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))
               )}

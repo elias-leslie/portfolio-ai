@@ -217,10 +217,22 @@ def calculate_top_performers(
     Returns:
         Tuple of (top_performers, bottom_performers)
     """
+    performances = calculate_position_performances(positions, price_data)
+
+    top_performers = performances[:top_n]
+    bottom_performers = performances[-top_n:][::-1]  # Reverse to show worst first
+
+    return top_performers, bottom_performers
+
+
+def calculate_position_performances(
+    positions: list[Position],
+    price_data: dict[str, PriceData],
+) -> list[PositionPerformance]:
+    """Return reusable performance metrics for every priced position."""
     performances: list[PositionPerformance] = []
     total_value = 0.0
 
-    # Calculate performance for each position
     for position in positions:
         price = price_data.get(position.symbol)
         if not price or price.error:
@@ -230,7 +242,6 @@ def calculate_top_performers(
         cost = position.shares * position.cost_basis
         gain_amount = current_value - cost
         gain_pct = (gain_amount / cost * 100) if cost != 0 else 0.0
-
         total_value += current_value
 
         performances.append(
@@ -239,19 +250,13 @@ def calculate_top_performers(
                 gain_pct=gain_pct,
                 gain_amount=gain_amount,
                 current_value=current_value,
-                weight_pct=0.0,  # Will be calculated after
+                weight_pct=0.0,
             )
         )
 
-    # Calculate weight percentages
     if total_value > 0:
-        for perf in performances:
-            perf.weight_pct = (perf.current_value / total_value) * 100
+        for performance in performances:
+            performance.weight_pct = (performance.current_value / total_value) * 100
 
-    # Sort by gain percentage
-    performances.sort(key=lambda x: x.gain_pct, reverse=True)
-
-    top_performers = performances[:top_n]
-    bottom_performers = performances[-top_n:][::-1]  # Reverse to show worst first
-
-    return top_performers, bottom_performers
+    performances.sort(key=lambda performance: performance.gain_pct, reverse=True)
+    return performances

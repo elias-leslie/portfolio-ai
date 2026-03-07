@@ -124,6 +124,10 @@ export interface JennySymbolReview {
   averageConfidence: number | null
   thesisStatus: string | null
   thesisAction: string | null
+  managementAction: string | null
+  managementDetail: string | null
+  positionGainPct: number | null
+  positionWeightPct: number | null
   reasons: string[]
   evaluations: JennyEvaluation[]
 }
@@ -170,6 +174,10 @@ export interface JennyAgentScorecard {
   avgReturnPct: number | null
   agreementRate: number | null
   calibrationScore: number | null
+  entryQualityScore: number | null
+  riskJudgmentScore: number | null
+  exitTimingScore: number | null
+  alertDisciplineScore: number | null
   strengths: string[]
   weaknesses: string[]
   lastEvaluationAt: string | null

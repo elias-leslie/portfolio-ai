@@ -27,6 +27,7 @@ from app.models.jenny import (
     JennyTradeReview,
 )
 from app.models.thesis import Thesis
+from app.portfolio.analytics_returns import calculate_position_performances
 from app.portfolio.manager import PortfolioManager
 from app.portfolio.price_fetcher import PriceDataFetcher
 from app.repositories.agent_repository import AgentRunRepository
@@ -582,9 +583,27 @@ class JennyOperatorService:
         evaluations_by_symbol: dict[str, list[dict[str, Any]]],
     ) -> int:
         count = 0
-        for symbol, evaluations in evaluations_by_symbol.items():
-            review = self._aggregate_symbol_review(symbol, evaluations, self.thesis_service.get_thesis(symbol))
-            if symbol in live_symbols and review.final_verdict in {"exit", "trim", "review"}:
+        review_map = {
+            symbol: self._aggregate_symbol_review(symbol, evaluations, self.thesis_service.get_thesis(symbol))
+            for symbol, evaluations in evaluations_by_symbol.items()
+        }
+        position_actions = self._build_position_action_map(
+            {symbol: review for symbol, review in review_map.items() if symbol in live_symbols}
+        )
+        for symbol, review in review_map.items():
+            position_action = position_actions.get(symbol)
+            if symbol in live_symbols and position_action and position_action["action"] != "hold":
+                self._upsert_notification(
+                    routine_id,
+                    symbol,
+                    category=f"position_{position_action['action']}",
+                    severity=position_action["severity"],
+                    title=position_action["title"],
+                    detail=position_action["detail"],
+                    recommendation=position_action["recommendation"],
+                )
+                count += 1
+            elif symbol in live_symbols and review.final_verdict in {"exit", "trim", "review"}:
                 self._upsert_notification(
                     routine_id,
                     symbol,
@@ -609,7 +628,9 @@ class JennyOperatorService:
 
             thesis = self.thesis_service.get_thesis(symbol)
             invalidation_triggers = self.thesis_service.check_invalidation_triggers(symbol) if thesis else []
-            if invalidation_triggers:
+            if invalidation_triggers and not (
+                position_action and position_action["action"] == "exit"
+            ):
                 self._upsert_notification(
                     routine_id,
                     symbol,
@@ -855,6 +876,15 @@ class JennyOperatorService:
             "final_verdict": latest_review.final_verdict,
             "average_confidence": latest_review.average_confidence,
             "agents": [evaluation.agent_name for evaluation in latest_review.evaluations],
+            "agent_verdicts": {
+                evaluation.agent_name: evaluation.verdict
+                for evaluation in latest_review.evaluations
+            },
+            "agent_confidences": {
+                evaluation.agent_name: evaluation.confidence
+                for evaluation in latest_review.evaluations
+                if evaluation.confidence is not None
+            },
         }
 
     def _build_scorecard(
@@ -865,12 +895,8 @@ class JennyOperatorService:
     ) -> JennyAgentScorecard:
         total_evaluations = len(evaluations)
         positive_verdicts = sum(1 for evaluation in evaluations if evaluation.verdict in POSITIVE_VERDICTS)
-        linked_reviews = [
-            review
-            for evaluation in evaluations
-            for review in reviews_by_symbol.get(evaluation.symbol, [])
-        ]
-        unique_reviews = {review.id: review for review in linked_reviews}.values()
+        linked_pairs = self._link_evaluations_to_reviews(evaluations, reviews_by_symbol)
+        unique_reviews = {review.id: review for _, review in linked_pairs}.values()
         completed_reviews = len(unique_reviews)
         positive_reviews = [review for review in unique_reviews if (review.return_pct or 0.0) > 0]
         avg_return = (
@@ -895,16 +921,32 @@ class JennyOperatorService:
             for evaluation in symbol_evaluations:
                 if evaluation.verdict == final_verdict:
                     agreement_hits += 1
-                symbol_reviews = reviews_by_symbol.get(evaluation.symbol, [])
-                if symbol_reviews and evaluation.confidence is not None:
-                    realized = 100.0 if any((review.return_pct or 0.0) > 0 for review in symbol_reviews) else 0.0
+                linked_review = next(
+                    (review for candidate, review in linked_pairs if candidate.id == evaluation.id),
+                    None,
+                )
+                if linked_review and evaluation.confidence is not None:
+                    realized = 100.0 if (linked_review.return_pct or 0.0) > 0 else 0.0
                     calibration_scores.append(max(0.0, 100.0 - abs(evaluation.confidence * 100.0 - realized)))
 
         agreement_rate = agreement_hits / total_evaluations if total_evaluations else None
         calibration_score = (
             sum(calibration_scores) / len(calibration_scores) if calibration_scores else None
         )
-        strengths, weaknesses = self._summarize_scorecard(win_rate, avg_return, agreement_rate, calibration_score)
+        entry_quality_score = self._score_entry_quality(linked_pairs)
+        risk_judgment_score = self._score_risk_judgment(linked_pairs)
+        exit_timing_score = self._score_exit_timing(agent_name, linked_pairs)
+        alert_discipline_score = self._score_alert_discipline(linked_pairs)
+        strengths, weaknesses = self._summarize_scorecard(
+            win_rate,
+            avg_return,
+            agreement_rate,
+            calibration_score,
+            entry_quality_score,
+            risk_judgment_score,
+            exit_timing_score,
+            alert_discipline_score,
+        )
 
         last_evaluation_at = max((evaluation.created_at for evaluation in evaluations), default=None)
         return JennyAgentScorecard(
@@ -916,6 +958,10 @@ class JennyOperatorService:
             avg_return_pct=avg_return,
             agreement_rate=agreement_rate,
             calibration_score=calibration_score,
+            entry_quality_score=entry_quality_score,
+            risk_judgment_score=risk_judgment_score,
+            exit_timing_score=exit_timing_score,
+            alert_discipline_score=alert_discipline_score,
             strengths=strengths,
             weaknesses=weaknesses,
             last_evaluation_at=last_evaluation_at,
@@ -928,6 +974,10 @@ class JennyOperatorService:
         avg_return: float | None,
         agreement_rate: float | None,
         calibration_score: float | None,
+        entry_quality_score: float | None,
+        risk_judgment_score: float | None,
+        exit_timing_score: float | None,
+        alert_discipline_score: float | None,
     ) -> tuple[list[str], list[str]]:
         strengths: list[str] = []
         weaknesses: list[str] = []
@@ -952,6 +1002,26 @@ class JennyOperatorService:
         elif calibration_score is not None:
             weaknesses.append("Its confidence has been poorly calibrated to outcomes.")
 
+        if entry_quality_score is not None and entry_quality_score >= 65:
+            strengths.append("Its entry calls have lined up well with later trade outcomes.")
+        elif entry_quality_score is not None and entry_quality_score < 45:
+            weaknesses.append("Its entry calls have been too noisy versus realized outcomes.")
+
+        if risk_judgment_score is not None and risk_judgment_score >= 70:
+            strengths.append("It has done a good job flagging when risk should matter more than conviction.")
+        elif risk_judgment_score is not None and risk_judgment_score < 50:
+            weaknesses.append("It has been late to respect downside risk when trades weaken.")
+
+        if exit_timing_score is not None and exit_timing_score >= 70:
+            strengths.append("Its exit and trim instincts have been timely enough to trust more.")
+        elif exit_timing_score is not None and exit_timing_score < 50:
+            weaknesses.append("Its exit timing still needs work before it should drive sells.")
+
+        if alert_discipline_score is not None and alert_discipline_score >= 65:
+            strengths.append("Its alerts have usually been selective instead of noisy.")
+        elif alert_discipline_score is not None and alert_discipline_score < 45:
+            weaknesses.append("It still throws too many confident alerts that do not age well.")
+
         if not strengths:
             strengths.append("Jenny is still gathering enough history to judge this agent fairly.")
         if not weaknesses:
@@ -966,9 +1036,10 @@ class JennyOperatorService:
                 INSERT INTO jenny_agent_scorecards (
                     agent_name, total_evaluations, completed_reviews, positive_verdicts,
                     win_rate, avg_return_pct, agreement_rate, calibration_score,
+                    entry_quality_score, risk_judgment_score, exit_timing_score, alert_discipline_score,
                     strengths, weaknesses, last_evaluation_at, updated_at
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s, %s
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s, %s
                 )
                 ON CONFLICT (agent_name) DO UPDATE SET
                     total_evaluations = EXCLUDED.total_evaluations,
@@ -978,6 +1049,10 @@ class JennyOperatorService:
                     avg_return_pct = EXCLUDED.avg_return_pct,
                     agreement_rate = EXCLUDED.agreement_rate,
                     calibration_score = EXCLUDED.calibration_score,
+                    entry_quality_score = EXCLUDED.entry_quality_score,
+                    risk_judgment_score = EXCLUDED.risk_judgment_score,
+                    exit_timing_score = EXCLUDED.exit_timing_score,
+                    alert_discipline_score = EXCLUDED.alert_discipline_score,
                     strengths = EXCLUDED.strengths,
                     weaknesses = EXCLUDED.weaknesses,
                     last_evaluation_at = EXCLUDED.last_evaluation_at,
@@ -992,6 +1067,10 @@ class JennyOperatorService:
                     scorecard.avg_return_pct,
                     scorecard.agreement_rate,
                     scorecard.calibration_score,
+                    scorecard.entry_quality_score,
+                    scorecard.risk_judgment_score,
+                    scorecard.exit_timing_score,
+                    scorecard.alert_discipline_score,
                     json.dumps(scorecard.strengths),
                     json.dumps(scorecard.weaknesses),
                     scorecard.last_evaluation_at,
@@ -1102,6 +1181,14 @@ class JennyOperatorService:
             self._aggregate_symbol_review(symbol, symbol_evaluations, self.thesis_service.get_thesis(symbol))
             for symbol, symbol_evaluations in grouped.items()
         ]
+        action_map = self._build_position_action_map({review.symbol: review for review in reviews})
+        for review in reviews:
+            action = action_map.get(review.symbol)
+            if action:
+                review.management_action = action["action"]
+                review.management_detail = action["detail"]
+                review.position_gain_pct = action.get("gain_pct")
+                review.position_weight_pct = action.get("weight_pct")
         return reviews[:limit]
 
     def _aggregate_symbol_review(
@@ -1151,6 +1238,10 @@ class JennyOperatorService:
             average_confidence=(sum(confidences) / len(confidences)) if confidences else None,
             thesis_status=thesis.status.value if thesis else None,
             thesis_action=thesis.action.value if thesis else None,
+            management_action=None,
+            management_detail=None,
+            position_gain_pct=None,
+            position_weight_pct=None,
             reasons=reasons,
             evaluations=normalized,
         )
@@ -1176,10 +1267,11 @@ class JennyOperatorService:
                 """
                 SELECT agent_name, total_evaluations, completed_reviews, positive_verdicts,
                        win_rate, avg_return_pct, agreement_rate, calibration_score,
+                       entry_quality_score, risk_judgment_score, exit_timing_score, alert_discipline_score,
                        strengths, weaknesses, last_evaluation_at, updated_at
                 FROM jenny_agent_scorecards
                 ORDER BY
-                    COALESCE(win_rate, 0) DESC,
+                    COALESCE(entry_quality_score, win_rate * 100, 0) DESC,
                     COALESCE(avg_return_pct, 0) DESC
                 """
             ).fetchall()
@@ -1278,11 +1370,223 @@ class JennyOperatorService:
             avg_return_pct=float(row[5]) if row[5] is not None else None,
             agreement_rate=float(row[6]) if row[6] is not None else None,
             calibration_score=float(row[7]) if row[7] is not None else None,
-            strengths=self._decode_json_value(row[8], []),
-            weaknesses=self._decode_json_value(row[9], []),
-            last_evaluation_at=self._iso(row[10]) if row[10] else None,
-            updated_at=self._iso(row[11]),
+            entry_quality_score=float(row[8]) if row[8] is not None else None,
+            risk_judgment_score=float(row[9]) if row[9] is not None else None,
+            exit_timing_score=float(row[10]) if row[10] is not None else None,
+            alert_discipline_score=float(row[11]) if row[11] is not None else None,
+            strengths=self._decode_json_value(row[12], []),
+            weaknesses=self._decode_json_value(row[13], []),
+            last_evaluation_at=self._iso(row[14]) if row[14] else None,
+            updated_at=self._iso(row[15]),
         )
+
+    def _build_position_action_map(
+        self,
+        review_map: dict[str, JennySymbolReview],
+    ) -> dict[str, dict[str, Any]]:
+        if not review_map or not hasattr(self, "portfolio_mgr") or not hasattr(self, "price_fetcher"):
+            return {}
+
+        positions = [
+            position
+            for position in self.portfolio_mgr.get_positions()
+            if position.position_type != "paper" and position.symbol in review_map
+        ]
+        if not positions:
+            return {}
+
+        price_data = self.price_fetcher.fetch_price_data([position.symbol for position in positions])
+        performances = {
+            performance.symbol: performance
+            for performance in calculate_position_performances(positions, price_data)
+        }
+        action_map: dict[str, dict[str, Any]] = {}
+        for position in positions:
+            performance = performances.get(position.symbol)
+            if performance is None:
+                continue
+            thesis = self.thesis_service.get_thesis(position.symbol)
+            invalidation_triggers = self.thesis_service.check_invalidation_triggers(position.symbol) if thesis else []
+            action_map[position.symbol] = self._get_position_action(
+                symbol=position.symbol,
+                gain_pct=performance.gain_pct,
+                weight_pct=performance.weight_pct,
+                thesis=thesis,
+                invalidation_triggers=invalidation_triggers,
+                aggregated_review=review_map[position.symbol],
+            )
+        return action_map
+
+    def _get_position_action(
+        self,
+        symbol: str,
+        gain_pct: float,
+        weight_pct: float,
+        thesis: Thesis | None,
+        invalidation_triggers: list[str],
+        aggregated_review: Any,
+    ) -> dict[str, Any]:
+        if invalidation_triggers:
+            return {
+                "action": "exit",
+                "severity": "critical",
+                "title": f"{symbol}: Exit this position",
+                "detail": " ".join(invalidation_triggers),
+                "recommendation": "Sell or reduce immediately unless you have a very specific reason to ignore the break.",
+                "gain_pct": gain_pct,
+                "weight_pct": weight_pct,
+            }
+        if aggregated_review.final_verdict == "exit":
+            return {
+                "action": "exit",
+                "severity": "critical",
+                "title": f"{symbol}: Exit this position",
+                "detail": " ".join(aggregated_review.reasons) or f"Jenny thinks {symbol} should come out of the portfolio.",
+                "recommendation": aggregated_review.evaluations[0].recommendation if aggregated_review.evaluations else "Review why the trade no longer belongs in the portfolio.",
+                "gain_pct": gain_pct,
+                "weight_pct": weight_pct,
+            }
+        if gain_pct >= 20 and weight_pct >= 15:
+            return {
+                "action": "trim",
+                "severity": "warning",
+                "title": f"{symbol}: Trim this position",
+                "detail": f"{symbol} is up {gain_pct:.1f}% and now makes up {weight_pct:.1f}% of the portfolio.",
+                "recommendation": "Take partial profits so one winner does not become oversized.",
+                "gain_pct": gain_pct,
+                "weight_pct": weight_pct,
+            }
+        if weight_pct >= 18:
+            return {
+                "action": "de_risk",
+                "severity": "warning",
+                "title": f"{symbol}: De-risk this position",
+                "detail": f"{symbol} now represents {weight_pct:.1f}% of the portfolio, which is more concentration than Jenny wants for one idea.",
+                "recommendation": "Scale it back to a size you can tolerate.",
+                "gain_pct": gain_pct,
+                "weight_pct": weight_pct,
+            }
+        if gain_pct <= -8 or aggregated_review.final_verdict == "review":
+            thesis_hint = "The thesis is missing." if thesis is None else "The thesis needs a fresh check."
+            return {
+                "action": "review",
+                "severity": "warning",
+                "title": f"{symbol}: Recheck this position",
+                "detail": f"{symbol} is down {abs(gain_pct):.1f}% from cost basis. {thesis_hint}",
+                "recommendation": "Review the thesis before adding or deciding to hold through more weakness.",
+                "gain_pct": gain_pct,
+                "weight_pct": weight_pct,
+            }
+        return {
+            "action": "hold",
+            "severity": "info",
+            "title": f"{symbol}: Hold steady",
+            "detail": "Nothing in the current position data or thesis says you need to act right now.",
+            "recommendation": "Do nothing unless new facts change the thesis.",
+            "gain_pct": gain_pct,
+            "weight_pct": weight_pct,
+        }
+
+    def _link_evaluations_to_reviews(
+        self,
+        evaluations: list[JennyAgentEvaluation],
+        reviews_by_symbol: dict[str, list[JennyTradeReview]],
+    ) -> list[tuple[JennyAgentEvaluation, JennyTradeReview]]:
+        linked: list[tuple[JennyAgentEvaluation, JennyTradeReview]] = []
+        for evaluation in evaluations:
+            reviews = reviews_by_symbol.get(evaluation.symbol, [])
+            if not reviews:
+                continue
+            evaluation_at = self._parse_timestamp(evaluation.created_at)
+            sorted_reviews = sorted(reviews, key=lambda review: self._parse_timestamp(review.created_at))
+            review = next(
+                (
+                    candidate
+                    for candidate in sorted_reviews
+                    if self._parse_timestamp(candidate.created_at) >= evaluation_at
+                ),
+                sorted_reviews[-1],
+            )
+            linked.append((evaluation, review))
+        return linked
+
+    def _score_entry_quality(
+        self,
+        linked_pairs: list[tuple[JennyAgentEvaluation, JennyTradeReview]],
+    ) -> float | None:
+        scores: list[float] = []
+        for evaluation, review in linked_pairs:
+            return_pct = review.return_pct
+            if return_pct is None:
+                continue
+            if return_pct == 0:
+                scores.append(50.0)
+                continue
+            directional_positive = return_pct > 0
+            verdict_positive = evaluation.verdict in POSITIVE_VERDICTS
+            scores.append(100.0 if directional_positive == verdict_positive else 0.0)
+        return sum(scores) / len(scores) if scores else None
+
+    def _score_risk_judgment(
+        self,
+        linked_pairs: list[tuple[JennyAgentEvaluation, JennyTradeReview]],
+    ) -> float | None:
+        risk_scores = {
+            "buy": {True: 100.0, False: 0.0},
+            "hold": {True: 85.0, False: 20.0},
+            "review": {True: 55.0, False: 80.0},
+            "trim": {True: 75.0, False: 90.0},
+            "exit": {True: 45.0, False: 100.0},
+            "avoid": {True: 20.0, False: 90.0},
+        }
+        scores = [
+            risk_scores.get(evaluation.verdict, {True: 50.0, False: 50.0})[(review.return_pct or 0.0) > 0]
+            for evaluation, review in linked_pairs
+            if review.return_pct is not None
+        ]
+        return sum(scores) / len(scores) if scores else None
+
+    def _score_exit_timing(
+        self,
+        agent_name: str,
+        linked_pairs: list[tuple[JennyAgentEvaluation, JennyTradeReview]],
+    ) -> float | None:
+        exit_scores = {
+            "buy": {True: 100.0, False: 0.0},
+            "hold": {True: 100.0, False: 20.0},
+            "review": {True: 70.0, False: 80.0},
+            "trim": {True: 95.0, False: 90.0},
+            "exit": {True: 90.0, False: 100.0},
+            "avoid": {True: 35.0, False: 85.0},
+        }
+        scores: list[float] = []
+        for evaluation, review in linked_pairs:
+            if review.return_pct is None:
+                continue
+            consensus_verdicts = review.agent_consensus.get("agent_verdicts", {})
+            verdict = str(consensus_verdicts.get(agent_name, evaluation.verdict))
+            scores.append(exit_scores.get(verdict, {True: 50.0, False: 50.0})[(review.return_pct or 0.0) > 0])
+        return sum(scores) / len(scores) if scores else None
+
+    def _score_alert_discipline(
+        self,
+        linked_pairs: list[tuple[JennyAgentEvaluation, JennyTradeReview]],
+    ) -> float | None:
+        scores: list[float] = []
+        for evaluation, review in linked_pairs:
+            if review.return_pct is None:
+                continue
+            confidence = evaluation.confidence if evaluation.confidence is not None else 0.5
+            directional_positive = (review.return_pct or 0.0) > 0
+            verdict_positive = evaluation.verdict in POSITIVE_VERDICTS
+            if directional_positive == verdict_positive:
+                scores.append(100.0)
+            else:
+                scores.append(max(0.0, 75.0 - confidence * 100.0))
+        return sum(scores) / len(scores) if scores else None
+
+    def _parse_timestamp(self, value: str) -> datetime:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
     def _decode_json_value(self, value: Any, default: Any) -> Any:
         if value is None:

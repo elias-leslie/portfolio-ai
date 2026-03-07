@@ -50,6 +50,10 @@ class JennySymbolReview(BaseModel):
     average_confidence: float | None = None
     thesis_status: str | None = None
     thesis_action: str | None = None
+    management_action: str | None = None
+    management_detail: str | None = None
+    position_gain_pct: float | None = None
+    position_weight_pct: float | None = None
     reasons: list[str] = Field(default_factory=list)
     evaluations: list[JennyAgentEvaluation] = Field(default_factory=list)
 
@@ -96,6 +100,10 @@ class JennyAgentScorecard(BaseModel):
     avg_return_pct: float | None = None
     agreement_rate: float | None = None
     calibration_score: float | None = None
+    entry_quality_score: float | None = None
+    risk_judgment_score: float | None = None
+    exit_timing_score: float | None = None
+    alert_discipline_score: float | None = None
     strengths: list[str] = Field(default_factory=list)
     weaknesses: list[str] = Field(default_factory=list)
     last_evaluation_at: str | None = None

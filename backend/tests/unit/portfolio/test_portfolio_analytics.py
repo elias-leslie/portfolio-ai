@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.portfolio.analytics import PortfolioAnalytics
+from app.portfolio.analytics_returns import calculate_position_performances
 from app.portfolio.models import Position, PriceData
 
 
@@ -513,3 +514,37 @@ def test_calculate_concentration_risk_with_price_errors() -> None:
     # Total: 143,000
     # Top holding: 125,000 / 143,000 = 87.41%
     assert abs(concentration.top_holding_pct - 87.41) < 0.01
+
+
+def test_calculate_position_performances_returns_gain_and_weight_for_each_position() -> None:
+    """Shared performance helper should return reusable gain and concentration metrics."""
+    positions = [
+        Position(
+            id="1",
+            account_id="acc1",
+            symbol="AAPL",
+            shares=100.0,
+            cost_basis=150.0,
+            position_type="long",
+        ),
+        Position(
+            id="2",
+            account_id="acc1",
+            symbol="MSFT",
+            shares=50.0,
+            cost_basis=300.0,
+            position_type="long",
+        ),
+    ]
+    price_data = {
+        "AAPL": PriceData(symbol="AAPL", price=180.0),
+        "MSFT": PriceData(symbol="MSFT", price=330.0),
+    }
+
+    performances = calculate_position_performances(positions, price_data)
+
+    assert [performance.symbol for performance in performances] == ["AAPL", "MSFT"]
+    assert performances[0].gain_pct == pytest.approx(20.0)
+    assert performances[0].weight_pct == pytest.approx(52.173913, rel=1e-4)
+    assert performances[1].gain_pct == pytest.approx(10.0)
+    assert performances[1].weight_pct == pytest.approx(47.826087, rel=1e-4)

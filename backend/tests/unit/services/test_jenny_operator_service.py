@@ -103,6 +103,10 @@ def test_build_scorecard_tracks_win_rate_and_strengths() -> None:
     assert scorecard.completed_reviews == 2
     assert scorecard.win_rate == 0.5
     assert scorecard.avg_return_pct == 4.5
+    assert scorecard.entry_quality_score == pytest.approx(50.0)
+    assert scorecard.risk_judgment_score == pytest.approx(60.0)
+    assert scorecard.exit_timing_score == pytest.approx(60.0)
+    assert scorecard.alert_discipline_score == pytest.approx(52.5)
     assert scorecard.strengths
     assert scorecard.weaknesses
 
@@ -240,6 +244,86 @@ def test_create_notifications_adds_invalidation_alerts() -> None:
         title="AAPL: thesis invalidation triggered",
         detail="Signal flipped from BUY to AVOID",
         recommendation="Review the thesis and current price action before holding or adding.",
+    )
+
+
+def test_get_position_action_flags_trim_when_winner_gets_too_large() -> None:
+    """Oversized winners should surface a trim action before they become portfolio bosses."""
+    service = _service()
+
+    action = service._get_position_action(
+        symbol="AAPL",
+        gain_pct=24.0,
+        weight_pct=16.5,
+        thesis=None,
+        invalidation_triggers=[],
+        aggregated_review=Mock(final_verdict="hold", reasons=["Trend intact."]),
+    )
+
+    assert action["action"] == "trim"
+    assert "up 24.0%" in action["detail"]
+    assert action["severity"] == "warning"
+
+
+def test_get_position_action_flags_exit_when_invalidation_triggers_fire() -> None:
+    """Broken theses should move straight to exit instead of softer portfolio prompts."""
+    service = _service()
+
+    action = service._get_position_action(
+        symbol="NVDA",
+        gain_pct=-6.0,
+        weight_pct=11.0,
+        thesis=Mock(),
+        invalidation_triggers=["Signal changed from BUY to AVOID"],
+        aggregated_review=Mock(final_verdict="hold", reasons=["AI lagged the break."]),
+    )
+
+    assert action["action"] == "exit"
+    assert action["severity"] == "critical"
+    assert "Signal changed from BUY to AVOID" in action["detail"]
+
+
+def test_create_notifications_uses_position_action_for_live_holdings() -> None:
+    """Live holdings should use Jenny's sell-discipline action, not only raw vote counts."""
+    service = _service()
+    service.thesis_service = Mock()
+    service.thesis_service.get_thesis.return_value = Mock()
+    service.thesis_service.check_invalidation_triggers.return_value = []
+    review = Mock(
+        final_verdict="hold",
+        average_confidence=0.72,
+        reasons=["Trend intact."],
+        evaluations=[Mock(recommendation="Scale out a little.")],
+    )
+    service._aggregate_symbol_review = Mock(return_value=review)
+    service._upsert_notification = Mock()
+    service._build_position_action_map = Mock(
+        return_value={
+            "AAPL": {
+                "action": "de_risk",
+                "severity": "warning",
+                "title": "AAPL: De-risk this position",
+                "detail": "AAPL has become too large for a single idea.",
+                "recommendation": "Scale it back to a size you can tolerate.",
+            }
+        }
+    )
+
+    created = service._create_notifications(
+        routine_id="routine-1",
+        live_symbols={"AAPL"},
+        evaluations_by_symbol={"AAPL": [{"verdict": "hold", "agent_name": "committee", "rationale": "Trend intact."}]},
+    )
+
+    assert created == 1
+    service._upsert_notification.assert_called_once_with(
+        "routine-1",
+        "AAPL",
+        category="position_de_risk",
+        severity="warning",
+        title="AAPL: De-risk this position",
+        detail="AAPL has become too large for a single idea.",
+        recommendation="Scale it back to a size you can tolerate.",
     )
 
 

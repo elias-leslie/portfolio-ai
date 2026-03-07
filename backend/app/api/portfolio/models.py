@@ -153,6 +153,10 @@ class JennySymbolReviewResponse(BaseModel):
     average_confidence: float | None
     thesis_status: str | None
     thesis_action: str | None
+    management_action: str | None = None
+    management_detail: str | None = None
+    position_gain_pct: float | None = None
+    position_weight_pct: float | None = None
     reasons: list[str]
     evaluations: list[JennyEvaluationResponse]
 
@@ -199,6 +203,10 @@ class JennyAgentScorecardResponse(BaseModel):
     avg_return_pct: float | None
     agreement_rate: float | None
     calibration_score: float | None
+    entry_quality_score: float | None = None
+    risk_judgment_score: float | None = None
+    exit_timing_score: float | None = None
+    alert_discipline_score: float | None = None
     strengths: list[str]
     weaknesses: list[str]
     last_evaluation_at: str | None
