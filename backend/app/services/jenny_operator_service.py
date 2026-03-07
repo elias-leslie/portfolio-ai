@@ -10,7 +10,7 @@ import json
 import uuid
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from app.agents.clients.agent_hub_client import AGENT_HUB_ENABLED, AgentHubAPIClient
@@ -52,6 +52,8 @@ POSITIVE_VERDICTS = {"buy", "hold"}
 JENNY_AGENT_TIMEOUT_SECONDS = 90.0
 MIN_AGENT_REVIEW_DATA_QUALITY_PCT = 55.0
 PASSIVE_FUND_SYMBOLS = frozenset(INDEX_ETFS) | frozenset(FUND_CATEGORY_LABELS)
+ACTIVE_ROUTINE_WINDOW = timedelta(minutes=15)
+ROUTINE_ACTIVITY_STALE_WINDOW = timedelta(minutes=2)
 
 
 @dataclass(frozen=True)
@@ -111,6 +113,7 @@ class JennyOperatorService:
 
     def get_dashboard(self) -> JennyDashboard:
         """Return Jenny dashboard data."""
+        self._fail_stale_routines()
         return JennyDashboard(
             routines=self._get_recent_routines(),
             notifications=self._get_open_notifications(),
@@ -136,6 +139,13 @@ class JennyOperatorService:
 
     def run_daily_operator(self, triggered_by: str = "manual") -> JennyRunResponse:
         """Run the daily Jenny operator routine."""
+        self._fail_stale_routines("daily_operator")
+        active_routine = self._get_active_routine("daily_operator")
+        if active_routine is not None:
+            return JennyRunResponse(
+                routine=active_routine,
+                dashboard=self.get_dashboard(),
+            )
         routine_id, workflow_id = self._create_routine("daily_operator", triggered_by)
         symbol_count = 0
         notification_count = 0
@@ -205,6 +215,13 @@ class JennyOperatorService:
 
     def run_weekly_learning(self, triggered_by: str = "system") -> JennyRunResponse:
         """Run Jenny's weekly trade review and scorecard update."""
+        self._fail_stale_routines("weekly_learning")
+        active_routine = self._get_active_routine("weekly_learning")
+        if active_routine is not None:
+            return JennyRunResponse(
+                routine=active_routine,
+                dashboard=self.get_dashboard(),
+            )
         routine_id, workflow_id = self._create_routine("weekly_learning", triggered_by)
 
         try:
@@ -281,6 +298,82 @@ class JennyOperatorService:
             )
             conn.commit()
         return routine_id, workflow_id
+
+    def _get_active_routine(self, routine_type: str) -> JennyRoutine | None:
+        active_after = datetime.now(UTC) - ACTIVE_ROUTINE_WINDOW
+        activity_after = datetime.now(UTC) - ROUTINE_ACTIVITY_STALE_WINDOW
+        with self.storage.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT jr.id, jr.routine_type, jr.status, jr.triggered_by, jr.summary, jr.agents_used,
+                       jr.symbols_scanned, jr.notifications_created, jr.started_at, jr.completed_at, jr.metadata
+                FROM jenny_routines jr
+                LEFT JOIN LATERAL (
+                    SELECT MAX(created_at) AS last_activity_at
+                    FROM jenny_agent_evaluations
+                    WHERE routine_id = jr.id
+                ) activity ON TRUE
+                WHERE jr.routine_type = %s
+                  AND jr.status = 'running'
+                  AND jr.started_at >= %s
+                  AND COALESCE(activity.last_activity_at, jr.started_at) >= %s
+                ORDER BY jr.started_at DESC
+                LIMIT 1
+                """,
+                [routine_type, active_after, activity_after],
+            ).fetchone()
+        return self._row_to_routine(row) if row else None
+
+    def _fail_stale_routines(self, routine_type: str | None = None) -> int:
+        activity_before = datetime.now(UTC) - ROUTINE_ACTIVITY_STALE_WINDOW
+        params: list[Any] = [activity_before]
+        type_filter = ""
+        if routine_type is not None:
+            type_filter = "AND jr.routine_type = %s"
+            params.append(routine_type)
+
+        with self.storage.connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT jr.id, jr.started_at, COALESCE(activity.last_activity_at, jr.started_at) AS last_activity_at
+                FROM jenny_routines jr
+                LEFT JOIN LATERAL (
+                    SELECT MAX(created_at) AS last_activity_at
+                    FROM jenny_agent_evaluations
+                    WHERE routine_id = jr.id
+                ) activity ON TRUE
+                WHERE jr.status = 'running'
+                  AND COALESCE(activity.last_activity_at, jr.started_at) < %s
+                  {type_filter}
+                ORDER BY jr.started_at ASC
+                """,
+                params,
+            ).fetchall()
+            cleared = 0
+            for routine_id, started_at, last_activity_at in rows:
+                started = started_at.isoformat() if hasattr(started_at, "isoformat") else str(started_at)
+                last_activity = (
+                    last_activity_at.isoformat() if hasattr(last_activity_at, "isoformat") else str(last_activity_at)
+                )
+                conn.execute(
+                    """
+                    UPDATE jenny_routines
+                    SET status = %s,
+                        summary = %s,
+                        completed_at = %s
+                    WHERE id = %s
+                    """,
+                    [
+                        "failed",
+                        f"Marked failed after stale running routine from {started} with no activity after {last_activity}.",
+                        datetime.now(UTC).isoformat(),
+                        str(routine_id),
+                    ],
+                )
+                cleared += 1
+            if cleared:
+                conn.commit()
+        return cleared
 
     def _complete_routine(
         self,

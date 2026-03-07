@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from app.models.jenny import JennyAgentEvaluation, JennyTradeReview
+from app.models.jenny import JennyAgentEvaluation, JennyDashboard, JennyRoutine, JennyTradeReview
 from app.services.jenny_operator_service import JennyOperatorService
 
 
@@ -155,6 +156,50 @@ def test_create_routine_starts_agent_workflow_and_records_metadata() -> None:
     service.workflow_orchestrator.start_workflow.assert_called_once()
     inserted_params = connection.execute.call_args.args[1]
     assert inserted_params[-1] == '{"workflow_id": "workflow-123"}'
+
+
+def test_fail_stale_routines_marks_old_running_entries_failed() -> None:
+    """Abandoned Jenny runs should not stay stuck in running forever."""
+    service = _service()
+    service.storage = MagicMock()
+    connection = service.storage.connection.return_value.__enter__.return_value
+    stale_started = datetime.now(UTC) - timedelta(minutes=45)
+    connection.execute.return_value.fetchall.return_value = [("routine-old", stale_started, stale_started)]
+
+    cleared = service._fail_stale_routines("daily_operator")
+
+    assert cleared == 1
+    update_params = connection.execute.call_args_list[1].args[1]
+    assert update_params[0] == "failed"
+    assert "stale" in update_params[1].lower()
+    assert update_params[-1] == "routine-old"
+
+
+def test_run_daily_operator_reuses_existing_active_routine() -> None:
+    """Manual reruns should not spawn duplicate daily operators while one is active."""
+    service = _service()
+    active_routine = JennyRoutine(
+        id="routine-active",
+        routine_type="daily_operator",
+        status="running",
+        triggered_by="manual",
+        summary=None,
+        agents_used=[],
+        symbols_scanned=0,
+        notifications_created=0,
+        started_at="2026-03-07T12:00:00+00:00",
+        completed_at=None,
+        metadata={},
+    )
+    service._fail_stale_routines = Mock(return_value=0)
+    service._get_active_routine = Mock(return_value=active_routine)
+    service.get_dashboard = Mock(return_value=JennyDashboard())
+    service._create_routine = Mock()
+
+    result = service.run_daily_operator(triggered_by="manual")
+
+    assert result.routine.id == "routine-active"
+    service._create_routine.assert_not_called()
 
 
 def test_run_agent_review_uses_bounded_timeout_for_jenny_calls(mocker: Mock) -> None:
