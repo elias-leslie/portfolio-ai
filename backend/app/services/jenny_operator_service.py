@@ -161,7 +161,10 @@ class JennyOperatorService:
             symbols = self._select_symbols(live_positions)
             symbol_count = len(symbols)
             price_data = self.price_fetcher.fetch_price_data(symbols) if symbols else {}
-            symbol_profiles = self._build_symbol_profiles(symbols)
+            symbol_profiles = self._build_symbol_profiles(
+                symbols,
+                live_symbols={position.symbol for position in live_positions},
+            )
             evaluations_by_symbol: dict[str, list[dict[str, Any]]] = defaultdict(list)
 
             for symbol in symbols:
@@ -424,6 +427,7 @@ class JennyOperatorService:
         return {
             "security_type": security_type,
             "is_passive_fund": security_type == "etf",
+            "is_live_position": False,
             "data_quality_pct": None,
         }
 
@@ -436,9 +440,14 @@ class JennyOperatorService:
             return normalized_type
         return "equity"
 
-    def _build_symbol_profiles(self, symbols: list[str]) -> dict[str, dict[str, Any]]:
+    def _build_symbol_profiles(
+        self,
+        symbols: list[str],
+        live_symbols: set[str] | None = None,
+    ) -> dict[str, dict[str, Any]]:
         if not symbols:
             return {}
+        live_symbols = live_symbols or set()
         quality_map = calculate_data_quality(self.storage, symbols)
         profiles: dict[str, dict[str, Any]] = {}
         for symbol in symbols:
@@ -447,6 +456,7 @@ class JennyOperatorService:
             profiles[symbol] = {
                 "security_type": security_type,
                 "is_passive_fund": security_type == "etf",
+                "is_live_position": symbol in live_symbols,
                 "data_quality_pct": quality.overall_pct if quality else None,
             }
         return profiles
@@ -512,6 +522,7 @@ class JennyOperatorService:
             "symbol": symbol,
             "current_price": price,
             "security_type": symbol_profile.get("security_type"),
+            "symbol_profile": symbol_profile,
             "review_mode": "allocation" if is_passive_fund else "thesis",
             "data_quality_pct": data_quality_pct,
             "evidence_status": (
@@ -596,6 +607,7 @@ class JennyOperatorService:
                 payload["symbol"],
                 None,
                 agent_name=spec.agent_slug,
+                symbol_profile=dict(payload.get("symbol_profile") or {}),
             )
         finally:
             client.close()
@@ -725,8 +737,21 @@ class JennyOperatorService:
             strengths = ["Jenny avoided pretending the evidence was stronger than it is."]
             weaknesses = ["Fresh data is too thin for a trustworthy review right now."]
         elif profile.get("is_passive_fund") and thesis is None:
-            rationale = "This is a passive fund holding, so Jenny is treating it as an allocation review instead of a missing company thesis."
-            recommendation = "Review concentration, portfolio role, and whether you still want more exposure here."
+            if profile.get("is_live_position"):
+                rationale = (
+                    "This passive fund is being treated as an allocation review instead of a missing company thesis."
+                )
+                recommendation = (
+                    "Use portfolio weight, overlap, and cash needs to decide whether to hold or trim. "
+                    "Avoid adding until the next review completes."
+                )
+            else:
+                rationale = (
+                    "This passive fund is being treated as an allocation review instead of a missing company thesis."
+                )
+                recommendation = (
+                    "Review whether you still need this broad exposure in the watchlist before adding it."
+                )
             strengths = ["Passive fund holdings do not require a single-company thesis to stay actionable."]
             weaknesses = ["Fund reviews rely more on allocation and concentration than company-specific catalysts."]
         if thesis and thesis.status.value == "active" and thesis.action.value == "BUY":

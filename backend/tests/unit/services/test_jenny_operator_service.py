@@ -338,6 +338,63 @@ def test_evaluate_symbol_uses_insufficient_evidence_fallback_for_thin_data() -> 
     assert "not enough fresh evidence" in evaluations[0]["rationale"].lower()
 
 
+def test_fallback_evaluation_uses_allocation_language_for_held_passive_fund() -> None:
+    """Held passive funds should degrade to allocation guidance, not generic manual-review text."""
+    service = _service()
+
+    fallback = service._fallback_evaluation(
+        "VTI",
+        thesis=None,
+        symbol_profile={
+            "security_type": "etf",
+            "is_passive_fund": True,
+            "is_live_position": True,
+            "data_quality_pct": 70.0,
+        },
+    )
+
+    assert "allocation review" in fallback["rationale"].lower()
+    assert "portfolio weight" in fallback["recommendation"].lower()
+
+
+def test_run_agent_review_preserves_symbol_profile_on_failure(mocker: Mock) -> None:
+    """Agent Hub failures should still return symbol-aware fallback language."""
+    service = _service()
+    service.agent_run_repo = Mock()
+    mock_client = Mock()
+    mock_client.get_model_name.return_value = "trade-manager"
+    mock_client.provider = "agent_hub"
+    mock_client.generate.side_effect = RuntimeError("network timeout")
+    mock_client.close = Mock()
+    mocker.patch(
+        "app.services.jenny_operator_service.AgentHubAPIClient",
+        return_value=mock_client,
+    )
+    service._build_agent_prompt = Mock(return_value="prompt")
+
+    parsed = service._run_agent_review(
+        Mock(agent_slug="trade-manager", prompt_mode="exit", system_prompt="system"),
+        {
+            "symbol": "VTI",
+            "workflow_id": "wf-1",
+            "security_type": "etf",
+            "review_mode": "allocation",
+            "data_quality_pct": 72.0,
+            "invalidation_triggers": [],
+            "symbol_profile": {
+                "security_type": "etf",
+                "is_passive_fund": True,
+                "is_live_position": True,
+                "data_quality_pct": 72.0,
+            },
+        },
+    )
+
+    assert parsed["agent_name"] == "trade-manager"
+    assert "allocation review" in parsed["rationale"].lower()
+    assert "portfolio weight" in str(parsed["recommendation"]).lower()
+
+
 def test_create_notifications_adds_invalidation_alerts() -> None:
     """Active invalidation triggers should surface as explicit Jenny alerts."""
     service = _service()
