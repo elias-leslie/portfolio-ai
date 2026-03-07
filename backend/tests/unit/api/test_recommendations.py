@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 from app.api.recommendations._row_parser import parse_row
+from app.portfolio.models import PriceData
 
 
 def _build_row(
@@ -51,7 +53,9 @@ def test_parse_row_skips_recommendation_without_atr_stop_loss() -> None:
     with patch("app.api.recommendations._row_parser.build_trade_setup", return_value=None):
         recommendation = parse_row(
             row,
-            current_prices={"AAPL": 102.0},
+            current_prices={
+                "AAPL": PriceData(symbol="AAPL", price=102.0, cached_at=datetime.now(UTC)),
+            },
             portfolio_size=100_000.0,
             position_pct=0.05,
             validation_filter=None,
@@ -78,7 +82,9 @@ def test_parse_row_uses_real_stop_and_thesis_target_instead_of_fixed_percentages
     ):
         recommendation = parse_row(
             row,
-            current_prices={"AAPL": 101.0},
+            current_prices={
+                "AAPL": PriceData(symbol="AAPL", price=101.0, cached_at=datetime.now(UTC)),
+            },
             portfolio_size=100_000.0,
             position_pct=0.05,
             validation_filter=None,
@@ -88,3 +94,42 @@ def test_parse_row_uses_real_stop_and_thesis_target_instead_of_fixed_percentages
     assert recommendation is not None
     assert recommendation.stop_loss == 94.5
     assert recommendation.target_price == 130.0
+
+
+def test_parse_row_skips_recommendation_when_current_price_is_missing() -> None:
+    """Recommendations should be hidden when no live price snapshot is available."""
+    row = _build_row()
+    mock_storage = MagicMock()
+
+    recommendation = parse_row(
+        row,
+        current_prices={},
+        portfolio_size=100_000.0,
+        position_pct=0.05,
+        validation_filter=None,
+        storage=mock_storage,
+    )
+
+    assert recommendation is None
+
+
+def test_parse_row_skips_recommendation_when_current_price_is_stale() -> None:
+    """Recommendations should be hidden when the current price snapshot is stale."""
+    row = _build_row()
+    mock_storage = MagicMock()
+    stale_snapshot = PriceData(
+        symbol="AAPL",
+        price=101.0,
+        cached_at=datetime.now(UTC) - timedelta(minutes=30),
+    )
+
+    recommendation = parse_row(
+        row,
+        current_prices={"AAPL": stale_snapshot},
+        portfolio_size=100_000.0,
+        position_pct=0.05,
+        validation_filter=None,
+        storage=mock_storage,
+    )
+
+    assert recommendation is None

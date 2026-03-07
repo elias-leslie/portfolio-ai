@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 
 from app.analytics.calculation_engine import build_trade_setup
 from app.logging_config import get_logger
+from app.portfolio.models import PriceData
+from app.rules import get_rules
 
 from .logic import calculate_signal_status
 from .models import TradeRecommendation
@@ -66,7 +68,7 @@ def _to_date_str(value: Any) -> str:
 
 def parse_row(
     row: Any,
-    current_prices: dict[str, float],
+    current_prices: dict[str, float | PriceData],
     portfolio_size: float,
     position_pct: float,
     validation_filter: Literal["thesis", "backtest", "both", "all"] | None,
@@ -101,7 +103,11 @@ def parse_row(
     if not _is_actionable_row(entry_price, validation_type, validation_filter):
         return None
 
-    current_price = current_prices.get(symbol, entry_price)
+    current_price = _get_fresh_current_price(current_prices, symbol)
+    if current_price is None:
+        logger.info(f"Skipping {symbol}: missing fresh live price")
+        return None
+
     price_change_pct, signal_status = calculate_signal_status(sig_type, entry_price, current_price)
     if signal_status == "invalidated":
         logger.info(
@@ -176,3 +182,30 @@ def _is_actionable_row(
 ) -> bool:
     """Return True when the row has enough data to continue parsing."""
     return entry_price > 0 and _passes_validation_filter(validation_type, validation_filter)
+
+
+def _get_fresh_current_price(
+    current_prices: dict[str, float | PriceData],
+    symbol: str,
+) -> float | None:
+    """Return a fresh current price, or None when the snapshot is missing or stale."""
+    snapshot = current_prices.get(symbol)
+    if snapshot is None:
+        return None
+
+    if isinstance(snapshot, (int, float)):
+        return float(snapshot) if snapshot > 0 else None
+
+    if snapshot.error or snapshot.price <= 0:
+        return None
+
+    cached_at = snapshot.cached_at
+    if cached_at.tzinfo is None:
+        cached_at = cached_at.replace(tzinfo=datetime.now().astimezone().tzinfo)
+
+    stale_minutes = get_rules().scoring.price_stale_ttl_minutes
+    age = datetime.now(cached_at.tzinfo) - cached_at
+    if age.total_seconds() > stale_minutes * 60:
+        return None
+
+    return snapshot.price

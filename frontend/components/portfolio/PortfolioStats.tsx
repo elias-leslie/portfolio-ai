@@ -56,22 +56,31 @@ export function PortfolioStats({ analytics }: PortfolioStatsProps) {
             {largestPosition.toFixed(1)}%
           </span>
         </div>
-        {analytics.sharpeRatio !== null && (
-          <div className="flex justify-between items-center border-t border-border pt-3">
-            <span className="text-sm text-text-muted">Sharpe Ratio</span>
-            <span
-              className={`text-sm font-medium ${
-                analytics.sharpeRatio >= 1
-                  ? 'text-gain'
-                  : analytics.sharpeRatio >= 0
-                    ? 'text-accent'
-                    : 'text-loss'
-              }`}
-            >
-              {analytics.sharpeRatio.toFixed(2)}
-            </span>
+        <div className="border-t border-border pt-3">
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-text-muted">Return Quality</span>
+            {analytics.sharpeRatio !== null ? (
+              <span
+                className={`text-sm font-medium ${
+                  analytics.sharpeRatio >= 1
+                    ? 'text-gain'
+                    : analytics.sharpeRatio >= 0
+                      ? 'text-accent'
+                      : 'text-loss'
+                }`}
+              >
+                {analytics.sharpeRatio.toFixed(2)}
+              </span>
+            ) : (
+              <span className="text-sm font-medium text-text-muted">Unavailable</span>
+            )}
           </div>
-        )}
+          <p className="mt-1 text-xs text-text-muted">
+            {analytics.sharpeRatio !== null
+              ? 'Higher means your returns have been steadier for the amount of risk taken.'
+              : 'This needs enough portfolio history to judge fairly, so the app is holding it back for now.'}
+          </p>
+        </div>
       </div>
     </Card>
   )
