@@ -40,6 +40,8 @@ def check_signal_triggers(thesis_action: str, current_signal: str | None) -> lis
     """Return trigger reasons if signal type changed significantly."""
     if current_signal == SIGNAL_AVOID and thesis_action == SIGNAL_BUY:
         return ["Signal changed from BUY to AVOID"]
+    if current_signal == SIGNAL_SELL and thesis_action == SIGNAL_BUY:
+        return ["Signal changed from BUY to SELL"]
     if current_signal == SIGNAL_BUY and thesis_action == SIGNAL_SELL:
         return ["Signal changed from SELL to BUY"]
     return []

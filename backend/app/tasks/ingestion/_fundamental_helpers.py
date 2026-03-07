@@ -129,8 +129,9 @@ def insert_insider_transaction(storage: PortfolioStorage, data: dict[str, Any]) 
 def insert_institutional_holding(storage: PortfolioStorage, data: dict[str, Any]) -> None:
     """Insert institutional holding."""
     symbol = data.get("symbol")
-    if not symbol:
+    if not symbol or not str(symbol).strip():
         raise ValueError("insert_institutional_holding: 'symbol' is required in data")
+    symbol = str(symbol).strip()
     ensure_symbol_exists(storage, symbol)
     query = """
         INSERT INTO institutional_holdings (
@@ -146,7 +147,7 @@ def insert_institutional_holding(storage: PortfolioStorage, data: dict[str, Any]
     storage.execute(
         query,
         [
-            data["symbol"],
+            symbol,
             data.get("holder_name"),
             to_python(data.get("shares")),
             to_python(data.get("value")),
@@ -161,8 +162,9 @@ def insert_institutional_summary(
 ) -> None:
     """Insert institutional ownership summary."""
     symbol = data.get("symbol")
-    if not symbol:
+    if not symbol or not str(symbol).strip():
         raise ValueError("insert_institutional_summary: 'symbol' is required in data")
+    symbol = str(symbol).strip()
     ensure_symbol_exists(storage, symbol)
     query = """
         INSERT INTO institutional_ownership_summary (
@@ -179,7 +181,7 @@ def insert_institutional_summary(
     storage.execute(
         query,
         [
-            data["symbol"],
+            symbol,
             datetime.combine(as_of_date, datetime.min.time()),
             to_python(data.get("total_institutions")),
             to_python(data.get("pct_held_institutions")),

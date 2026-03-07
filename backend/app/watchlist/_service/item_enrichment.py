@@ -24,6 +24,21 @@ from .intelligence import build_news_intelligence, build_news_intelligence_batch
 logger = get_logger(__name__)
 
 
+def _serialize_data_quality(dq: Any) -> dict[str, Any]:
+    """Serialize a DataQuality object into a JSON-compatible dict."""
+    return {
+        "overall_pct": dq.overall_pct,
+        "pillars": {
+            name: {
+                "status": pq.status,
+                "score": pq.score,
+                "details": pq.details,
+            }
+            for name, pq in dq.pillars.items()
+        },
+    }
+
+
 def enrich_news_intelligence(
     repo: WatchlistRepository, symbol: str, item_data: dict[str, Any]
 ) -> None:
