@@ -13,44 +13,24 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api import (
-    agents,
-    analytics,
     # artifacts removed - migrated to SummitFlow (portfolio-ai-5rz)
-    automation,
-    backtest,
-    capabilities,
     # claude_progress removed - Beads handles session tracking
     # disagreements removed - feature disabled (no data, unused)
     # files removed - use SummitFlow for file browsing
     # gaps removed - migrated to [DEBT] subtasks on features
     health,
     # ideas removed - deprecated in favor of strategy-seeds (FEAT-218)
-    indicators,
-    layouts,
-    maintenance,
-    ml,
     news,
     news_profiling,
-    paper_trades,
-    paper_trading,
     portfolio,
     preferences,
     # qa removed - issues disconnected from workflow
     recommendations,
     rules,
-    settings_profiles,
     # solution_map removed - Vision tab replaces Dashboard
-    sources,
-    status,
-    status_stream,
-    strategies,
-    strategy_seeds,
     symbols,
-    task_endpoints,
     thesis,
-    valuation,
     watchlist,
-    workflow_graph,
 )
 from app.api.market import router as market_router
 
@@ -167,40 +147,19 @@ app.add_middleware(RequestIDMiddleware)
 
 # Register routers
 app.include_router(health.router)
-app.include_router(status.router)
-app.include_router(status_stream.router)
-app.include_router(task_endpoints.router)
-app.include_router(task_endpoints.compat_router)
-app.include_router(maintenance.router)
 app.include_router(portfolio.router)
 # ideas.router removed - deprecated in favor of strategy-seeds (FEAT-218)
 app.include_router(market_router)
 app.include_router(news.router)
 app.include_router(news_profiling.router)
 app.include_router(preferences.router)
-app.include_router(settings_profiles.router)
-app.include_router(analytics.router)
-app.include_router(indicators.router)
-app.include_router(valuation.router)
 app.include_router(watchlist.router, prefix="/api/watchlist")
-app.include_router(ml.router)
-app.include_router(capabilities.router)
 # gaps.router removed - trading requirements migrated to Features
-app.include_router(backtest.router)
-app.include_router(paper_trades.router)
-app.include_router(paper_trading.router)
-app.include_router(strategies.router)  # Task 4.9: Strategy management API
-app.include_router(strategy_seeds.router)  # FEAT-218: Strategy seeds API
 app.include_router(recommendations.router)  # Task 0087: Trade recommendations
-app.include_router(layouts.router)  # Task 0042: Customizable dashboard layouts
-app.include_router(agents.router)  # Task 0077: Agent telemetry dashboard
-app.include_router(automation.router)  # Manual pipeline triggers
 # disagreements.router removed - feature disabled (no data, unused)
-app.include_router(sources.router)  # Task 0088: API sources registry for agents
 app.include_router(rules.router)  # Trading rules viewer
 # artifacts.router removed - migrated to SummitFlow (portfolio-ai-5rz)
 # vision_goals_router, vision_content_router removed - migrated to SummitFlow (portfolio-ai-5rz)
-app.include_router(workflow_graph.router)  # Workflow visualization graph API
 # solution_map, qa, claude_progress routers removed
 app.include_router(symbols.router)  # Symbol intelligence API for agents
 # files.router removed - use SummitFlow for file browsing

@@ -1,6 +1,6 @@
 /**
  * Connection badge and banner utilities for status page
- * Extracted from status/page.tsx for reusability
+ * Shared connection banner text helpers for realtime/polling UI.
  */
 
 import { Clock3, Radio, RefreshCw, Wifi, WifiOff } from 'lucide-react'

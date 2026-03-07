@@ -18,29 +18,29 @@ describe('api client helpers', () => {
       status: 200,
       headers: new Headers({ 'content-type': 'application/json' }),
       json: vi.fn().mockResolvedValue({
-        profile_data: { risk_tolerance: 5 },
-        is_active: true,
+        default_refresh_minutes: 15,
+        show_news: true,
       }),
     }) as unknown as typeof fetch
 
-    const result = await post('/api/settings/profiles', {
-      profileData: { riskTolerance: 5 },
-      isActive: true,
+    const result = await post('/api/preferences', {
+      defaultRefreshMinutes: 15,
+      showNews: true,
     })
 
     expect(global.fetch).toHaveBeenCalledWith(
-      'http://localhost:8000/api/settings/profiles',
+      'http://localhost:8000/api/preferences',
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({
-          profile_data: { risk_tolerance: 5 },
-          is_active: true,
+          default_refresh_minutes: 15,
+          show_news: true,
         }),
       }),
     )
     expect(result).toEqual({
-      profileData: { riskTolerance: 5 },
-      isActive: true,
+      defaultRefreshMinutes: 15,
+      showNews: true,
     })
   })
 
@@ -54,16 +54,16 @@ describe('api client helpers', () => {
       }),
     }) as unknown as typeof fetch
 
-    const result = await put('/api/settings/profiles/1', {
-      profileData: { displayTimezone: 'America/New_York' },
+    const result = await put('/api/preferences', {
+      displayTimezone: 'America/New_York',
     })
 
     expect(global.fetch).toHaveBeenCalledWith(
-      'http://localhost:8000/api/settings/profiles/1',
+      'http://localhost:8000/api/preferences',
       expect.objectContaining({
         method: 'PUT',
         body: JSON.stringify({
-          profile_data: { display_timezone: 'America/New_York' },
+          display_timezone: 'America/New_York',
         }),
       }),
     )
@@ -77,7 +77,7 @@ describe('api client helpers', () => {
       headers: new Headers(),
     }) as unknown as typeof fetch
 
-    const result = await del<void>('/api/settings/profiles/1')
+    const result = await del<void>('/api/preferences')
 
     expect(result).toBeUndefined()
   })

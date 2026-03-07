@@ -47,7 +47,5 @@ When adding new columns, reuse the same pattern so that change detection and sco
 
 ## Expandable Cards & Settings Sections
 
-- `frontend/components/status/ExpandableCard.tsx` is the single primitive for every collapsible card in the app (Status, Maintenance, Logs, etc.). Pass `title`, `summary`, and optional `actions`; the component takes care of the chevron toggle, accessibility wiring, and the shared card chrome.
-- Settings pages use `frontend/components/settings/SettingsSection.tsx`, which composes `ExpandableCard` with the higher-contrast surface style we use on interior screens. Each section must provide a concise `summary` string (e.g., `Refresh 15m • Lookback 24h • News visible`) so users can scan the collapsed view without expanding.
 - Default behavior collapses the content; set `defaultCollapsed={false}` only for very small blocks (e.g., Profiles) where showing controls inline is more usable.
 - When introducing a new status card or settings section, import these helpers instead of rolling your own collapse logic. This keeps interaction affordances (summary text, chevron button, focus handling) consistent and easier to maintain.
