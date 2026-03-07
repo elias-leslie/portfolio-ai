@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock, Mock
+
 import pytest
 
 from app.models.jenny import JennyAgentEvaluation, JennyTradeReview
@@ -130,3 +132,22 @@ def test_aggregate_symbol_review_prefers_higher_priority_verdict() -> None:
     assert review.final_verdict == "review"
     assert review.average_confidence == pytest.approx(0.65)
     assert review.reasons[0] == "Trend is fine."
+
+
+def test_create_routine_starts_agent_workflow_and_records_metadata() -> None:
+    """Jenny routines should create a real agent workflow for run tracking."""
+    service = _service()
+    service.storage = MagicMock()
+    connection = service.storage.connection.return_value.__enter__.return_value
+    service.workflow_orchestrator = Mock()
+    service.workflow_orchestrator.start_workflow.return_value = {
+        "workflow_id": "workflow-123",
+    }
+
+    routine_id, workflow_id = service._create_routine("daily_operator", "manual")
+
+    assert routine_id
+    assert workflow_id == "workflow-123"
+    service.workflow_orchestrator.start_workflow.assert_called_once()
+    inserted_params = connection.execute.call_args.args[1]
+    assert inserted_params[-1] == '{"workflow_id": "workflow-123"}'

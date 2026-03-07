@@ -54,9 +54,9 @@ class TestDualProviderClient:
     def test_initialization_passes_agent_slug(self) -> None:
         """Specialist workflows should be able to choose a routed Agent Hub agent."""
         with patch("app.agents.llm_client.AgentHubAPIClient") as mock_client:
-            DualProviderClient(primary="gemini", agent_slug="analyst")
+            DualProviderClient(primary="gemini", agent_slug="equity-analyst")
             call_kwargs = mock_client.call_args.kwargs
-            assert call_kwargs["agent_slug"] == "analyst"
+            assert call_kwargs["agent_slug"] == "equity-analyst"
 
     def test_is_available_delegates_to_client(self) -> None:
         """Test that is_available delegates to Agent Hub client."""

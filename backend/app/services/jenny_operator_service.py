@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.agents.clients.agent_hub_client import AGENT_HUB_ENABLED, AgentHubAPIClient
+from app.agents.workflow_orchestrator import WorkflowOrchestrator
 from app.logging_config import get_logger
 from app.models.jenny import (
     JennyAgentEvaluation,
@@ -55,7 +56,7 @@ class JennyAgentSpec:
 
 AGENT_SPECS: tuple[JennyAgentSpec, ...] = (
     JennyAgentSpec(
-        agent_slug="analyst",
+        agent_slug="equity-analyst",
         prompt_mode="thesis",
         system_prompt=(
             "You are Jenny's thesis guardian. Return strict JSON only. "
@@ -63,7 +64,7 @@ AGENT_SPECS: tuple[JennyAgentSpec, ...] = (
         ),
     ),
     JennyAgentSpec(
-        agent_slug="critic",
+        agent_slug="risk-manager",
         prompt_mode="risk",
         system_prompt=(
             "You are Jenny's risk manager. Return strict JSON only. "
@@ -71,7 +72,7 @@ AGENT_SPECS: tuple[JennyAgentSpec, ...] = (
         ),
     ),
     JennyAgentSpec(
-        agent_slug="persona",
+        agent_slug="trade-manager",
         prompt_mode="exit",
         system_prompt=(
             "You are Jenny. Return strict JSON only. "
@@ -79,7 +80,7 @@ AGENT_SPECS: tuple[JennyAgentSpec, ...] = (
         ),
     ),
     JennyAgentSpec(
-        agent_slug="reasoner",
+        agent_slug="investment-committee",
         prompt_mode="synthesis",
         system_prompt=(
             "You are Jenny's decision synthesizer. Return strict JSON only. "
@@ -99,6 +100,7 @@ class JennyOperatorService:
         self.watchlist_service = WatchlistService(self.storage)
         self.thesis_service = ThesisService()
         self.agent_run_repo = AgentRunRepository(self.storage)
+        self.workflow_orchestrator = WorkflowOrchestrator(self.storage)
 
     def get_dashboard(self) -> JennyDashboard:
         """Return Jenny dashboard data."""
@@ -127,11 +129,16 @@ class JennyOperatorService:
 
     def run_daily_operator(self, triggered_by: str = "manual") -> JennyRunResponse:
         """Run the daily Jenny operator routine."""
-        routine_id = self._create_routine("daily_operator", triggered_by)
+        routine_id, workflow_id = self._create_routine("daily_operator", triggered_by)
         symbol_count = 0
         notification_count = 0
 
         try:
+            self.workflow_orchestrator.update_workflow_status(
+                workflow_id,
+                status="running",
+                current_step="reviewing_symbols",
+            )
             positions = self.portfolio_mgr.get_positions()
             live_positions = [position for position in positions if position.position_type != "paper"]
             symbols = self._select_symbols(live_positions)
@@ -146,6 +153,7 @@ class JennyOperatorService:
                     thesis,
                     price_data.get(symbol),
                     routine_id=routine_id,
+                    workflow_id=workflow_id,
                 )
                 for evaluation in evaluations:
                     self._save_agent_evaluation(routine_id, symbol, thesis, evaluation)
@@ -159,6 +167,15 @@ class JennyOperatorService:
 
             summary = self._build_routine_summary(symbol_count, notification_count, evaluations_by_symbol)
             self._complete_routine(routine_id, "completed", summary, symbol_count, notification_count)
+            self.workflow_orchestrator.complete_workflow(
+                workflow_id,
+                {
+                    "routine_id": routine_id,
+                    "summary": summary,
+                    "symbols_scanned": symbol_count,
+                    "notifications_created": notification_count,
+                },
+            )
         except Exception as exc:
             logger.error("jenny_daily_operator_failed", error=str(exc))
             self._complete_routine(
@@ -168,6 +185,7 @@ class JennyOperatorService:
                 symbol_count,
                 notification_count,
             )
+            self.workflow_orchestrator.fail_workflow(workflow_id, str(exc), retry=False)
             raise
 
         return JennyRunResponse(
@@ -177,9 +195,14 @@ class JennyOperatorService:
 
     def run_weekly_learning(self, triggered_by: str = "system") -> JennyRunResponse:
         """Run Jenny's weekly trade review and scorecard update."""
-        routine_id = self._create_routine("weekly_learning", triggered_by)
+        routine_id, workflow_id = self._create_routine("weekly_learning", triggered_by)
 
         try:
+            self.workflow_orchestrator.update_workflow_status(
+                workflow_id,
+                status="running",
+                current_step="refreshing_learning",
+            )
             reviews_created = self._refresh_trade_reviews()
             scorecards_updated = self._refresh_scorecards()
             summary = (
@@ -193,6 +216,15 @@ class JennyOperatorService:
                 symbols_scanned=reviews_created,
                 notifications_created=0,
             )
+            self.workflow_orchestrator.complete_workflow(
+                workflow_id,
+                {
+                    "routine_id": routine_id,
+                    "summary": summary,
+                    "reviews_created": reviews_created,
+                    "scorecards_updated": scorecards_updated,
+                },
+            )
         except Exception as exc:
             logger.error("jenny_weekly_learning_failed", error=str(exc))
             self._complete_routine(
@@ -202,6 +234,7 @@ class JennyOperatorService:
                 symbols_scanned=0,
                 notifications_created=0,
             )
+            self.workflow_orchestrator.fail_workflow(workflow_id, str(exc), retry=False)
             raise
 
         return JennyRunResponse(
@@ -209,15 +242,22 @@ class JennyOperatorService:
             dashboard=self.get_dashboard(),
         )
 
-    def _create_routine(self, routine_type: str, triggered_by: str) -> str:
+    def _create_routine(self, routine_type: str, triggered_by: str) -> tuple[str, str]:
         routine_id = str(uuid.uuid4())
+        workflow = self.workflow_orchestrator.start_workflow(
+            workflow_type=f"jenny_{routine_type}",
+            config={"routine_type": routine_type, "routine_id": routine_id},
+            agents_involved=[spec.agent_slug for spec in AGENT_SPECS],
+            triggered_by=triggered_by,
+        )
+        workflow_id = str(workflow["workflow_id"])
         now = datetime.now(UTC).isoformat()
         with self.storage.connection() as conn:
             conn.execute(
                 """
                 INSERT INTO jenny_routines (
-                    id, routine_type, status, triggered_by, started_at, agents_used
-                ) VALUES (%s, %s, %s, %s, %s, %s::jsonb)
+                    id, routine_type, status, triggered_by, started_at, agents_used, metadata
+                ) VALUES (%s, %s, %s, %s, %s, %s::jsonb, %s::jsonb)
                 """,
                 [
                     routine_id,
@@ -226,10 +266,11 @@ class JennyOperatorService:
                     triggered_by,
                     now,
                     json.dumps([spec.agent_slug for spec in AGENT_SPECS]),
+                    json.dumps({"workflow_id": workflow_id}),
                 ],
             )
             conn.commit()
-        return routine_id
+        return routine_id, workflow_id
 
     def _complete_routine(
         self,
@@ -293,12 +334,14 @@ class JennyOperatorService:
         thesis: Thesis | None,
         price_data: Any,
         routine_id: str,
+        workflow_id: str,
     ) -> list[dict[str, Any]]:
         if not AGENT_HUB_ENABLED:
             return [self._fallback_evaluation(symbol, thesis)]
 
         payload = self._build_symbol_context(symbol, thesis, price_data)
         payload["routine_id"] = routine_id
+        payload["workflow_id"] = workflow_id
         evaluations = []
         for spec in AGENT_SPECS:
             evaluations.append(self._run_agent_review(spec, payload))
@@ -332,7 +375,7 @@ class JennyOperatorService:
             started_at=started_at,
             provider=client.provider,
             run_type="automated",
-            workflow_id=str(payload["routine_id"]),
+            workflow_id=str(payload["workflow_id"]),
         )
         self.agent_run_repo.store_message(run_id, "user", prompt)
 

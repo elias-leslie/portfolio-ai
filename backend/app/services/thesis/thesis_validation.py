@@ -36,7 +36,7 @@ class ThesisValidator:
         from ...agents.clients.agent_hub_client import AgentHubAPIClient  # noqa: PLC0415
 
         try:
-            claude = AgentHubAPIClient(agent_slug="critic", model=CLAUDE_SONNET)
+            claude = AgentHubAPIClient(agent_slug="risk-manager", model=CLAUDE_SONNET)
 
             # Build validation prompt
             intelligence_json = json.dumps(intelligence, indent=2)

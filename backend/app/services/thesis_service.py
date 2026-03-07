@@ -63,7 +63,7 @@ class ThesisService:
                 symbol, thesis_data, claude_validation, cross_val_score, version
             )
             self._storage.save_thesis(thesis)
-            self._storage.save_version(thesis, "Generated new thesis")
+            self._storage.save_version(thesis, "updated" if existing else "created")
 
             logger.info(
                 "thesis_generation_completed",
@@ -98,7 +98,7 @@ class ThesisService:
 
         apply_invalidation(thesis, reason)
         self._storage.save_thesis(thesis)
-        self._storage.save_version(thesis, f"Invalidated: {reason}")
+        self._storage.save_version(thesis, "invalidated")
         logger.info(
             "thesis_invalidated",
             thesis_id=thesis.id,

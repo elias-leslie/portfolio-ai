@@ -22,6 +22,7 @@ from ...models.thesis import (
 from ...storage.connection import get_connection_manager
 
 logger = get_logger(__name__)
+VALID_CHANGE_REASONS = {"created", "updated", "invalidated", "superseded"}
 
 
 class ThesisStorageManager:
@@ -124,6 +125,7 @@ class ThesisStorageManager:
             change_reason: Reason for version change
         """
         version_id = str(uuid.uuid4())
+        normalized_change_reason = self._normalize_change_reason(change_reason)
 
         with self._conn_mgr.connection() as conn:
             conn.execute(
@@ -137,7 +139,7 @@ class ThesisStorageManager:
                     thesis.id,
                     thesis.version,
                     json.dumps(thesis.model_dump()),
-                    change_reason,
+                    normalized_change_reason,
                     datetime.now(UTC).isoformat(),
                 ),
             )
@@ -148,7 +150,22 @@ class ThesisStorageManager:
             version_id=version_id,
             thesis_id=thesis.id,
             version=thesis.version,
+            change_reason=normalized_change_reason,
         )
+
+    def _normalize_change_reason(self, change_reason: str) -> str:
+        normalized = change_reason.strip().lower()
+        if normalized in VALID_CHANGE_REASONS:
+            return normalized
+        if normalized.startswith("invalidated"):
+            return "invalidated"
+        if normalized.startswith("generated") or normalized.startswith("created"):
+            return "created"
+        if normalized.startswith("updated"):
+            return "updated"
+        if normalized.startswith("superseded"):
+            return "superseded"
+        raise ValueError(f"Unsupported thesis version change reason: {change_reason}")
 
     def get_thesis(self, symbol: str) -> Thesis | None:
         """Retrieve current active thesis for symbol.
