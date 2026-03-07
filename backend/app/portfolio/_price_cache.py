@@ -9,6 +9,7 @@ import polars as pl
 from ..logging_config import get_logger
 from ..storage import PortfolioStorage
 from .models import PriceData
+from .sector_labels import resolve_sector_label
 
 logger = get_logger(__name__)
 
@@ -54,6 +55,7 @@ def get_cached_prices(
 
     result = {}
     for row in df.iter_rows(named=True):
+        row["sector"] = resolve_sector_label(str(row["symbol"]), row.get("sector"))
         result[row["symbol"]] = PriceData(**row)
 
     logger.info(
