@@ -133,7 +133,6 @@ class ThesisVersion(BaseModel):
 class ThesisGenerateRequest(BaseModel):
     """API request model for thesis generation."""
 
-    symbol: str = Field(..., description="Stock symbol to generate thesis for")
     force_regenerate: bool = Field(
         False, description="Force regeneration even if recent thesis exists"
     )
