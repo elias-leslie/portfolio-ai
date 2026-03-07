@@ -20,50 +20,6 @@ def client() -> TestClient:
 
 
 @pytest.fixture(autouse=True)
-def cleanup_database() -> Generator[None]:
-    """Clean up only rows created by this test, preserving live portfolio data."""
-    storage = get_storage()
-
-    with storage.connection() as conn:
-        existing_account_ids = {
-            str(row[0]) for row in conn.execute("SELECT id FROM portfolio_accounts").fetchall()
-        }
-        existing_position_ids = {
-            str(row[0]) for row in conn.execute("SELECT id FROM portfolio_positions").fetchall()
-        }
-        existing_price_cache_keys = {
-            (str(row[0]), row[1])
-            for row in conn.execute("SELECT symbol, cached_at FROM price_cache").fetchall()
-        }
-
-    yield
-
-    with storage.connection() as conn:
-        current_position_ids = {
-            str(row[0]) for row in conn.execute("SELECT id FROM portfolio_positions").fetchall()
-        }
-        for position_id in current_position_ids - existing_position_ids:
-            conn.execute("DELETE FROM portfolio_positions WHERE id = %s", (position_id,))
-
-        current_account_ids = {
-            str(row[0]) for row in conn.execute("SELECT id FROM portfolio_accounts").fetchall()
-        }
-        for account_id in current_account_ids - existing_account_ids:
-            conn.execute("DELETE FROM portfolio_accounts WHERE id = %s", (account_id,))
-
-        current_price_cache_keys = conn.execute(
-            "SELECT symbol, cached_at FROM price_cache"
-        ).fetchall()
-        for symbol, cached_at in current_price_cache_keys:
-            key = (str(symbol), cached_at)
-            if key not in existing_price_cache_keys:
-                conn.execute(
-                    "DELETE FROM price_cache WHERE symbol = %s AND cached_at = %s",
-                    (symbol, cached_at),
-                )
-
-
-@pytest.fixture(autouse=True)
 def clear_response_cache() -> None:
     """Ensure cached analytics responses don't leak between tests."""
     clear_cache()

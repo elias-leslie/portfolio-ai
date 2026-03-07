@@ -314,8 +314,10 @@ class ConnectionManager:
             >>> mgr = ConnectionManager("postgresql://user:pass@localhost:5432/db")
             >>> mgr = ConnectionManager()  # Uses DATABASE_URL env var
         """
-        # CONSTANTS_DATABASE_URL is guaranteed to be str (raises RuntimeError if not set)
-        url = database_url or CONSTANTS_DATABASE_URL
+        # Prefer an explicit URL, then the current environment override, then the
+        # import-time config snapshot. Tests rewrite PORTFOLIO_DB_URL at runtime.
+        runtime_database_url = os.getenv("PORTFOLIO_DB_URL")
+        url = database_url or runtime_database_url or CONSTANTS_DATABASE_URL
         if url is None:
             raise RuntimeError("DATABASE_URL must be set")
         self.database_url: str = url

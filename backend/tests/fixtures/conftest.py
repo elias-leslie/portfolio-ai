@@ -34,40 +34,29 @@ import pytest  # noqa: E402
 from app.hatchet_app import get_hatchet  # noqa: E402
 from app.logging_config import configure_logging  # noqa: E402
 from app.storage.connection import ConnectionManager  # noqa: E402
+from tests.fixtures.db_safety import (  # noqa: E402
+    TEST_DB_NAME,
+    assert_connected_to_test_database,
+    assert_test_database_writable,
+    derive_test_db_url,
+)
 
 # Configure test database
-# Tests use a separate database to avoid cleaning production data
-# Derive test DB URL from production DB URL (same user, different database)
-_prod_db_url = os.environ.get("PORTFOLIO_DB_URL")
-if not _prod_db_url:
-    raise RuntimeError(
-        "PORTFOLIO_DB_URL environment variable is required. "
-        "Create ~/.env.local with PORTFOLIO_DB_URL=postgresql://..."
-    )
+_prod_db_url = os.environ.get("PORTFOLIO_DB_URL", "")
+_explicit_test_db_url = os.environ.get("TEST_PORTFOLIO_DB_URL")
 
-# PRODUCTION GUARD - refuse to run if URL doesn't contain portfolio_ai
-if "/portfolio_ai" not in _prod_db_url:
+try:
+    TEST_DB_URL = derive_test_db_url(_prod_db_url, _explicit_test_db_url)
+except RuntimeError as exc:
     print("\n" + "=" * 70, file=sys.stderr)
-    print(
-        "FATAL: PORTFOLIO_DB_URL does not appear to be a valid portfolio database", file=sys.stderr
-    )
+    print("FATAL: TEST DATABASE CONFIGURATION INVALID", file=sys.stderr)
     print("=" * 70, file=sys.stderr)
-    print(f"\nPORTFOLIO_DB_URL: {_prod_db_url}", file=sys.stderr)
-    print("\nExpected format: postgresql://...@localhost:5432/portfolio_ai", file=sys.stderr)
+    print(f"\n{exc}", file=sys.stderr)
     print("=" * 70 + "\n", file=sys.stderr)
-    raise RuntimeError("Invalid PORTFOLIO_DB_URL configuration")
+    raise
 
-# Replace database name with test database
-TEST_DB_URL = _prod_db_url.replace("/portfolio_ai", "/portfolio_ai_test")
-
-# Final safety check - refuse if somehow still pointing at production
-if "/portfolio_ai_test" not in TEST_DB_URL:
-    print("\n" + "=" * 70, file=sys.stderr)
-    print("FATAL: TEST_DB_URL derivation failed - would still hit production!", file=sys.stderr)
-    print("=" * 70, file=sys.stderr)
-    print(f"\nDerived TEST_DB_URL: {TEST_DB_URL}", file=sys.stderr)
-    print("=" * 70 + "\n", file=sys.stderr)
-    raise RuntimeError("Test database URL derivation failed")
+if f"/{TEST_DB_NAME}" not in TEST_DB_URL:
+    raise RuntimeError(f"Expected test database URL to point to {TEST_DB_NAME}, got {TEST_DB_URL}")
 
 os.environ["PORTFOLIO_DB_URL"] = TEST_DB_URL
 
@@ -147,23 +136,45 @@ def clean_database() -> None:
           endpoint_catalog, and table_registry (these are configuration data)
     """
     # Create connection manager and clean tables
-    cm = ConnectionManager()
+    cm = ConnectionManager(TEST_DB_URL)
 
     with cm.connection() as conn:
+        current_database_row = conn.execute("SELECT current_database()").fetchone()
+        current_database = str(current_database_row[0]) if current_database_row else ""
+        assert_connected_to_test_database(current_database)
+        privilege_row = conn.execute(
+            """
+            SELECT
+                current_user,
+                has_table_privilege(current_user, 'public.symbols', 'INSERT,UPDATE,DELETE'),
+                has_table_privilege(
+                    current_user,
+                    'public.reference_cache',
+                    'INSERT,UPDATE,DELETE'
+                )
+            """
+        ).fetchone()
+        current_user = str(privilege_row[0]) if privilege_row else ""
+        symbols_writable = bool(privilege_row[1]) if privilege_row else False
+        reference_cache_writable = bool(privilege_row[2]) if privilege_row else False
+        assert_test_database_writable(
+            current_user=current_user,
+            symbols_writable=symbols_writable,
+            reference_cache_writable=reference_cache_writable,
+        )
+
         existing_tables = [table for table in TABLES_TO_CLEAN if table in _get_existing_tables(conn)]
         if not existing_tables:
             return
 
-        # Build single TRUNCATE statement with CASCADE for efficiency
-        table_list = ", ".join(existing_tables)
         try:
-            conn.execute(f"TRUNCATE TABLE {table_list} CASCADE")
+            for table in existing_tables:
+                conn.execute(f"DELETE FROM {table}")
             conn.commit()
             logger.debug(f"Cleaned {len(existing_tables)} tables for test isolation")
-        except Exception as e:
-            # Log but don't fail if tables don't exist yet
-            logger.warning(f"Database cleanup failed (may be expected on first run): {e}")
+        except Exception:
             conn.rollback()
+            raise
 
 
 @pytest.fixture(autouse=True)
