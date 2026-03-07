@@ -10,6 +10,8 @@ The implementation is split across focused modules:
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from .analytics_returns import (
     calculate_portfolio_beta,
     calculate_portfolio_value,
@@ -35,6 +37,9 @@ from .models import (
 from .models import (
     PortfolioAnalytics as PortfolioAnalyticsModel,
 )
+
+if TYPE_CHECKING:
+    from ..storage import PortfolioStorage
 
 
 class PortfolioAnalytics:
@@ -65,9 +70,10 @@ class PortfolioAnalytics:
         self,
         positions: list[Position],
         price_data: dict[str, PriceData],
+        storage: PortfolioStorage | None = None,
     ) -> float | None:
-        """Calculate portfolio volatility (weighted average)."""
-        return calculate_portfolio_volatility(positions, price_data)
+        """Calculate portfolio volatility."""
+        return calculate_portfolio_volatility(positions, price_data, storage)
 
     def calculate_sector_exposure(
         self,
@@ -90,9 +96,17 @@ class PortfolioAnalytics:
         portfolio_value: PortfolioValue,
         portfolio_volatility: float | None,
         risk_free_rate: float = 0.045,
+        storage: PortfolioStorage | None = None,
+        account_ids: list[str] | None = None,
     ) -> float | None:
-        """Calculate Sharpe ratio (simplified version)."""
-        return calculate_sharpe_ratio(portfolio_value, portfolio_volatility, risk_free_rate)
+        """Calculate Sharpe ratio from actual portfolio return history when available."""
+        return calculate_sharpe_ratio(
+            portfolio_value,
+            portfolio_volatility,
+            risk_free_rate,
+            storage=storage,
+            account_ids=account_ids,
+        )
 
     def calculate_risk_profile(
         self,
@@ -125,24 +139,33 @@ class PortfolioAnalytics:
         self,
         positions: list[Position],
         price_data: dict[str, PriceData],
+        storage: PortfolioStorage | None = None,
+        account_ids: list[str] | None = None,
     ) -> PortfolioAnalyticsModel:
         """Calculate complete portfolio analytics.
 
         Args:
             positions: List of portfolio positions
             price_data: Dictionary mapping symbol to PriceData
+            storage: Optional storage used for covariance and historical returns
+            account_ids: Optional list of account IDs for historical portfolio return calculation
 
         Returns:
             PortfolioAnalyticsModel with all analytics
         """
         portfolio_value = calculate_portfolio_value(positions, price_data)
         portfolio_beta = calculate_portfolio_beta(positions, price_data)
-        portfolio_volatility = calculate_portfolio_volatility(positions, price_data)
+        portfolio_volatility = calculate_portfolio_volatility(positions, price_data, storage)
         sector_exposure = calculate_sector_exposure(positions, price_data)
         concentration_metrics = calculate_concentration_risk(positions, price_data)
 
         # Calculate new metrics
-        sharpe_ratio = calculate_sharpe_ratio(portfolio_value, portfolio_volatility)
+        sharpe_ratio = calculate_sharpe_ratio(
+            portfolio_value,
+            portfolio_volatility,
+            storage=storage,
+            account_ids=account_ids,
+        )
         risk_profile = calculate_risk_profile(
             portfolio_beta, portfolio_volatility, concentration_metrics
         )

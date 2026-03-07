@@ -1,10 +1,4 @@
-"""Repository layer for watchlist database operations.
-
-Handles all database queries for watchlist items, snapshots, and news.
-Extracted from watchlist_service.py to reduce file size and improve separation of concerns.
-
-Pattern: Repository handles data access, Service handles business logic.
-"""
+"""Repository layer for watchlist database operations."""
 
 from __future__ import annotations
 
@@ -16,25 +10,13 @@ import polars as pl
 from ..storage import PortfolioStorage
 
 
-class WatchlistRepository:
-    """Database access layer for watchlist operations."""
+class _WatchlistCoreReadRepository:
+    """Core read-oriented watchlist queries."""
 
     def __init__(self, storage: PortfolioStorage):
-        """Initialize repository with storage instance.
-
-        Args:
-            storage: PortfolioStorage instance for database access
-        """
         self.storage = storage
 
     def get_all_items_with_snapshots(self) -> pl.DataFrame:
-        """Get all watchlist items with their latest snapshots.
-
-        Uses LATERAL JOIN to efficiently fetch latest snapshot per item (eliminates N+1).
-
-        Returns:
-            DataFrame with watchlist items and their latest snapshot data
-        """
         return self.storage.query(
             """
             SELECT wi.id, wi.symbol, wi.note, wi.source, wi.created_at, wi.updated_at,
@@ -58,18 +40,9 @@ class WatchlistRepository:
         )
 
     def get_item_by_id(self, item_id: str) -> pl.DataFrame:
-        """Get watchlist item by ID.
-
-        Args:
-            item_id: Watchlist item ID
-
-        Returns:
-            DataFrame with single item (or empty if not found)
-        """
         return self.storage.query(
             """
-            SELECT wi.id, wi.symbol, wi.note,
-                   wi.created_at, wi.updated_at
+            SELECT wi.id, wi.symbol, wi.note, wi.created_at, wi.updated_at
             FROM watchlist_items wi
             WHERE wi.id = ?
             """,
@@ -77,14 +50,6 @@ class WatchlistRepository:
         )
 
     def get_latest_snapshot(self, item_id: str) -> pl.DataFrame:
-        """Get latest snapshot for watchlist item.
-
-        Args:
-            item_id: Watchlist item ID
-
-        Returns:
-            DataFrame with latest snapshot (or empty if none exists)
-        """
         return self.storage.query(
             """
             SELECT overall_score, technical_score, fetched_at, raw_metrics,
@@ -104,15 +69,6 @@ class WatchlistRepository:
         )
 
     def get_score_history(self, item_id: str, limit: int = 30) -> pl.DataFrame:
-        """Get score history for watchlist item.
-
-        Args:
-            item_id: Watchlist item ID
-            limit: Maximum number of historical scores to return
-
-        Returns:
-            DataFrame with historical scores ordered by time (newest first)
-        """
         return self.storage.query(
             """
             SELECT overall_score
@@ -124,51 +80,79 @@ class WatchlistRepository:
             [item_id, limit],
         )
 
+    def get_latest_daily_report(self) -> pl.DataFrame:
+        return self.storage.query(
+            """
+            SELECT id, report_date, symbols_added, symbols_removed, score_changes, generated_at
+            FROM watchlist_daily_reports
+            ORDER BY report_date DESC
+            LIMIT 1
+            """
+        )
+
+    def get_all_symbols(self) -> pl.DataFrame:
+        return self.storage.query("SELECT id, symbol FROM watchlist_items")
+
+    def get_symbol_by_item_id(self, item_id: str) -> pl.DataFrame:
+        return self.storage.query("SELECT symbol FROM watchlist_items WHERE id = ?", [item_id])
+
+
+class _WatchlistReviewReadRepository:
+    """Review and historical read queries."""
+
+    def __init__(self, storage: PortfolioStorage):
+        self.storage = storage
+
+    def get_item_with_snapshots(self, item_id: str) -> pl.DataFrame:
+        return self.storage.query("SELECT * FROM watchlist_items WHERE id = ?", [item_id])
+
+    def get_latest_snapshot_for_review(self, item_id: str) -> pl.DataFrame:
+        return self.storage.query(
+            """
+            SELECT * FROM watchlist_snapshots_v
+            WHERE item_id = ?
+            ORDER BY fetched_at DESC
+            LIMIT 1
+            """,
+            [item_id],
+        )
+
+    def get_snapshots_with_metrics(self, item_id: str, days: int = 60) -> pl.DataFrame:
+        cutoff = datetime.now(UTC) - timedelta(days=days)
+        return self.storage.query(
+            """
+            SELECT item_id, fetched_at, price, technical_score, overall_score, raw_metrics
+            FROM watchlist_snapshots_v
+            WHERE item_id = ?
+              AND fetched_at >= ?
+            ORDER BY fetched_at DESC
+            """,
+            [item_id, cutoff],
+        )
+
+
+class _WatchlistNewsRepository:
+    """News cache queries for watchlist symbols."""
+
+    def __init__(self, storage: PortfolioStorage):
+        self.storage = storage
+
     def get_recent_news(
         self,
         symbol: str,
         hours: int = 24,
         limit: int = 20,
     ) -> list[tuple[Any, ...]]:
-        """Query news cache for recent articles.
-
-        Args:
-            symbol: Ticker symbol
-            hours: Number of hours to lookback
-            limit: Maximum number of articles to return
-
-        Returns:
-            List of row tuples from news_cache
-        """
-        now = datetime.now(UTC)
-        start_time = now - timedelta(hours=hours)
-
+        start_time = datetime.now(UTC) - timedelta(hours=hours)
         with self.storage.connection() as conn:
             rows: list[tuple[Any, ...]] = conn.execute(
                 """
                 SELECT
-                    symbol,
-                    headline,
-                    url,
-                    summary,
-                    news_source_name,
-                    author,
-                    image_url,
-                    published_at,
-                    sentiment_score,
-                    sentiment_label,
-                    sentiment_confidence,
-                    sentiment_model,
-                    raw_payload,
-                    content_hash,
-                    fetched_at,
-                    filing_type,
-                    is_material_event,
-                    story_id,
-                    is_primary_article,
-                    coverage_count,
-                    impact_summary,
-                    actionable_insight
+                    symbol, headline, url, summary, news_source_name, author, image_url,
+                    published_at, sentiment_score, sentiment_label, sentiment_confidence,
+                    sentiment_model, raw_payload, content_hash, fetched_at, filing_type,
+                    is_material_event, story_id, is_primary_article, coverage_count,
+                    impact_summary, actionable_insight
                 FROM news_cache
                 WHERE symbol = %s
                   AND published_at >= %s
@@ -178,7 +162,7 @@ class WatchlistRepository:
                 """,
                 [symbol, start_time, limit],
             ).fetchall()
-            return rows
+        return rows
 
     def get_recent_news_batch(
         self,
@@ -186,49 +170,20 @@ class WatchlistRepository:
         hours: int = 24,
         limit_per_symbol: int = 20,
     ) -> dict[str, list[tuple[Any, ...]]]:
-        """Query news cache for recent articles for multiple symbols in one query.
-
-        Args:
-            symbols: List of ticker symbols
-            hours: Number of hours to lookback
-            limit_per_symbol: Maximum number of articles per symbol
-
-        Returns:
-            Dict mapping symbol -> list of row tuples from news_cache
-        """
         if not symbols:
             return {}
 
-        now = datetime.now(UTC)
-        start_time = now - timedelta(hours=hours)
-
+        start_time = datetime.now(UTC) - timedelta(hours=hours)
         placeholders = ", ".join(["%s"] * len(symbols))
         with self.storage.connection() as conn:
             rows: list[tuple[Any, ...]] = conn.execute(
                 f"""
                 SELECT
-                    symbol,
-                    headline,
-                    url,
-                    summary,
-                    news_source_name,
-                    author,
-                    image_url,
-                    published_at,
-                    sentiment_score,
-                    sentiment_label,
-                    sentiment_confidence,
-                    sentiment_model,
-                    raw_payload,
-                    content_hash,
-                    fetched_at,
-                    filing_type,
-                    is_material_event,
-                    story_id,
-                    is_primary_article,
-                    coverage_count,
-                    impact_summary,
-                    actionable_insight
+                    symbol, headline, url, summary, news_source_name, author, image_url,
+                    published_at, sentiment_score, sentiment_label, sentiment_confidence,
+                    sentiment_model, raw_payload, content_hash, fetched_at, filing_type,
+                    is_material_event, story_id, is_primary_article, coverage_count,
+                    impact_summary, actionable_insight
                 FROM news_cache
                 WHERE symbol IN ({placeholders})
                   AND published_at >= %s
@@ -238,59 +193,31 @@ class WatchlistRepository:
                 [*symbols, start_time],
             ).fetchall()
 
-        # Group by symbol and cap at limit_per_symbol
         result: dict[str, list[tuple[Any, ...]]] = {}
         for row in rows:
-            sym: str = str(row[0])
+            sym = str(row[0])
             if sym not in result:
                 result[sym] = []
             if len(result[sym]) < limit_per_symbol:
                 result[sym].append(row)
         return result
 
-    def upsert_snapshot(self, snapshot_params: dict[str, Any]) -> None:
-        """Insert or update watchlist snapshot.
 
-        Args:
-            snapshot_params: Snapshot parameters for upsert operation
-        """
+class _WatchlistWriteRepository:
+    """Write-oriented watchlist persistence operations."""
+
+    def __init__(self, storage: PortfolioStorage):
+        self.storage = storage
+
+    def upsert_snapshot(self, snapshot_params: dict[str, Any]) -> None:
         self.storage.query_mgr.upsert_watchlist_snapshot(**snapshot_params)
 
     def check_item_exists(self, symbol: str) -> bool:
-        """Check if a watchlist item exists for the given symbol.
-
-        Args:
-            symbol: Stock symbol
-
-        Returns:
-            True if item exists, False otherwise
-        """
-        df = self.storage.query(
-            """
-            SELECT id FROM watchlist_items
-            WHERE symbol = ?
-            """,
-            [symbol],
-        )
+        df = self.storage.query("SELECT id FROM watchlist_items WHERE symbol = ?", [symbol])
         return not df.is_empty()
 
-    def create_item(
-        self,
-        item_id: str,
-        symbol: str,
-        note: str | None,
-        now: str,
-    ) -> None:
-        """Create a new watchlist item.
-
-        Args:
-            item_id: UUID for the new item
-            symbol: Stock symbol
-            note: Optional note
-            now: ISO timestamp for created_at/updated_at
-        """
+    def create_item(self, item_id: str, symbol: str, note: str | None, now: str) -> None:
         with self.storage.connection() as conn:
-            # Ensure symbol exists in symbols table (FK constraint)
             conn.execute(
                 """
                 INSERT INTO symbols (symbol, security_type, created_at)
@@ -309,13 +236,6 @@ class WatchlistRepository:
             conn.commit()
 
     def update_item_note(self, item_id: str, note: str | None, now: str) -> None:
-        """Update a watchlist item's note.
-
-        Args:
-            item_id: Watchlist item ID
-            note: New note value
-            now: ISO timestamp for updated_at
-        """
         with self.storage.connection() as conn:
             conn.execute(
                 """
@@ -328,25 +248,9 @@ class WatchlistRepository:
             conn.commit()
 
     def delete_item(self, item_id: str) -> None:
-        """Delete a watchlist item and its snapshots.
-
-        Args:
-            item_id: Watchlist item ID
-        """
         with self.storage.connection() as conn:
-            # Delete snapshots first (foreign key)
-            conn.execute(
-                """
-                DELETE FROM watchlist_snapshots WHERE item_id = ?
-                """,
-                [item_id],
-            )
-            conn.execute(
-                """
-                DELETE FROM watchlist_items WHERE id = ?
-                """,
-                [item_id],
-            )
+            conn.execute("DELETE FROM watchlist_snapshots WHERE item_id = ?", [item_id])
+            conn.execute("DELETE FROM watchlist_items WHERE id = ?", [item_id])
             conn.commit()
 
     def store_strategy_review(
@@ -366,24 +270,6 @@ class WatchlistRepository:
         agreement: float | None = None,
         provider_disagreement: bool | None = None,
     ) -> None:
-        """Store a strategy review in the database.
-
-        Args:
-            review_id: UUID for the review
-            item_id: Watchlist item ID
-            snapshot_id: Snapshot ID (optional)
-            symbol: Stock symbol
-            review_text: LLM review text
-            provider: LLM provider name
-            is_valid: Whether the signal is valid
-            disagreement: Whether LLM disagrees with signal
-            token_usage_json: JSON string of token usage
-            created_at: ISO format creation timestamp (from utc_now_iso())
-            pair_id: Review pair ID for dual reviews
-            severity: Disagreement severity
-            agreement: Agreement score
-            provider_disagreement: Provider disagreement flag
-        """
         with self.storage.connection() as conn:
             conn.execute(
                 """
@@ -412,102 +298,17 @@ class WatchlistRepository:
             )
             conn.commit()
 
-    def get_latest_daily_report(self) -> pl.DataFrame:
-        """Get the latest daily watchlist report.
 
-        Returns:
-            DataFrame with latest report (or empty if none exists)
-        """
-        return self.storage.query(
-            """
-            SELECT id, report_date, symbols_added, symbols_removed, score_changes, generated_at
-            FROM watchlist_daily_reports
-            ORDER BY report_date DESC
-            LIMIT 1
-            """
-        )
+class WatchlistRepository(
+    _WatchlistCoreReadRepository,
+    _WatchlistReviewReadRepository,
+    _WatchlistNewsRepository,
+    _WatchlistWriteRepository,
+):
+    """Composite repository preserving the existing public API."""
 
-    def get_all_symbols(self) -> pl.DataFrame:
-        """Get all watchlist item IDs and symbols.
+    def __init__(self, storage: PortfolioStorage):
+        self.storage = storage
 
-        Returns:
-            DataFrame with id and symbol columns
-        """
-        return self.storage.query(
-            """
-            SELECT id, symbol FROM watchlist_items
-            """
-        )
 
-    def get_symbol_by_item_id(self, item_id: str) -> pl.DataFrame:
-        """Get symbol for a watchlist item.
-
-        Args:
-            item_id: Watchlist item ID
-
-        Returns:
-            DataFrame with symbol column (or empty if not found)
-        """
-        return self.storage.query(
-            """
-            SELECT symbol FROM watchlist_items WHERE id = ?
-            """,
-            [item_id],
-        )
-
-    def get_item_with_snapshots(self, item_id: str) -> pl.DataFrame:
-        """Get watchlist item with full details for review.
-
-        Args:
-            item_id: Watchlist item ID
-
-        Returns:
-            DataFrame with item details (or empty if not found)
-        """
-        return self.storage.query(
-            """
-            SELECT * FROM watchlist_items WHERE id = ?
-            """,
-            [item_id],
-        )
-
-    def get_latest_snapshot_for_review(self, item_id: str) -> pl.DataFrame:
-        """Get latest snapshot for a watchlist item (full row for review).
-
-        Args:
-            item_id: Watchlist item ID
-
-        Returns:
-            DataFrame with latest snapshot (or empty if none exists)
-        """
-        return self.storage.query(
-            """
-            SELECT * FROM watchlist_snapshots_v
-            WHERE item_id = ?
-            ORDER BY fetched_at DESC
-            LIMIT 1
-            """,
-            [item_id],
-        )
-
-    def get_snapshots_with_metrics(self, item_id: str, days: int = 60) -> pl.DataFrame:
-        """Get recent snapshots for history with raw_metrics.
-
-        Args:
-            item_id: Watchlist item ID
-            days: Number of days of history to return (default: 60)
-
-        Returns:
-            DataFrame with snapshots including raw_metrics
-        """
-        cutoff = datetime.now(UTC) - timedelta(days=days)
-        return self.storage.query(
-            """
-            SELECT item_id, fetched_at, price, technical_score, overall_score, raw_metrics
-            FROM watchlist_snapshots_v
-            WHERE item_id = ?
-              AND fetched_at >= ?
-            ORDER BY fetched_at DESC
-            """,
-            [item_id, cutoff],
-        )
+__all__ = ["WatchlistRepository"]

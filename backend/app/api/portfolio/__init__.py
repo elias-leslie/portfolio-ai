@@ -68,7 +68,13 @@ async def get_portfolio(request: Request, include_paper: bool = False) -> Portfo
 
     # Calculate analytics
     analytics_calculator = PortfolioAnalytics()
-    analytics = analytics_calculator.calculate_full_analytics(positions, price_data)
+    account_ids = list({p.account_id for p in positions})
+    analytics = analytics_calculator.calculate_full_analytics(
+        positions,
+        price_data,
+        storage=storage,
+        account_ids=account_ids,
+    )
 
     # Build position responses with current values
     position_responses = []

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
+from app.storage import get_storage
 from app.storage.connection import get_connection_manager
 
 from ._price_fetch import fetch_current_prices
@@ -28,7 +29,8 @@ def _build_recommendations_query(signal_type: Literal["BUY", "SELL", "all"]) -> 
             ss.created_at,
             sd.expected_sharpe,
             wt.status as thesis_status,
-            wt.cross_validation_score
+            wt.cross_validation_score,
+            wt.expected_return_pct
         FROM strategy_signals ss
         JOIN strategy_definitions sd ON ss.strategy_id = sd.id
         LEFT JOIN watchlist_thesis wt ON ss.symbol = wt.symbol
@@ -89,13 +91,21 @@ def fetch_recommendations(
         List of TradeRecommendation objects
     """
     rows = _fetch_rows(signal_type, min_strength, limit)
+    storage = get_storage()
 
     symbols = list({row[0] for row in rows if isinstance(row[0], str)})
     current_prices = fetch_current_prices(symbols)
 
     recommendations: list[TradeRecommendation] = []
     for row in rows:
-        rec = parse_row(row, current_prices, portfolio_size, position_pct, validation_filter)
+        rec = parse_row(
+            row,
+            current_prices,
+            portfolio_size,
+            position_pct,
+            validation_filter,
+            storage,
+        )
         if rec is not None:
             recommendations.append(rec)
 

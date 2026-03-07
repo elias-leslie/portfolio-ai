@@ -13,13 +13,6 @@ DEFAULT_PORTFOLIO_SIZE = 100_000.0
 # Default position size as percentage of portfolio
 DEFAULT_POSITION_PCT = 0.05  # 5%
 
-# Default stop loss percentage
-DEFAULT_STOP_LOSS_PCT = 0.08  # 8%
-
-# Default target gain percentage
-DEFAULT_TARGET_GAIN_PCT = 0.15  # 15%
-
-
 def calculate_position_size(
     entry_price: float,
     portfolio_size: float = DEFAULT_PORTFOLIO_SIZE,
@@ -38,18 +31,6 @@ def calculate_position_size(
     dollars = portfolio_size * position_pct
     shares = int(dollars / entry_price) if entry_price > 0 else 0
     return dollars, shares
-
-
-def calculate_stop_loss(entry_price: float, pct: float = DEFAULT_STOP_LOSS_PCT) -> float:
-    """Calculate stop loss price."""
-    return round(entry_price * (1 - pct), 2)
-
-
-def calculate_target(entry_price: float, pct: float = DEFAULT_TARGET_GAIN_PCT) -> float:
-    """Calculate target price."""
-    return round(entry_price * (1 + pct), 2)
-
-
 def calculate_risk_reward(entry: float, stop: float, target: float) -> float:
     """Calculate risk/reward ratio."""
     risk = entry - stop

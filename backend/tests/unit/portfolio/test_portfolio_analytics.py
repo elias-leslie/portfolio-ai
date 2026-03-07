@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 
 from app.portfolio.analytics import PortfolioAnalytics
@@ -272,6 +274,91 @@ def test_calculate_full_analytics() -> None:
     assert full_analytics.num_positions == 2
     assert full_analytics.num_symbols == 2
     assert "Technology" in full_analytics.sector_exposure
+
+
+def test_calculate_full_analytics_passes_storage_to_covariance_path() -> None:
+    """Full analytics should pass storage into covariance-backed volatility calculation."""
+    analytics = PortfolioAnalytics()
+    mock_storage = MagicMock()
+
+    positions = [
+        Position(
+            id="1",
+            account_id="acc1",
+            symbol="AAPL",
+            shares=100.0,
+            cost_basis=150.0,
+            position_type="long",
+        ),
+        Position(
+            id="2",
+            account_id="acc2",
+            symbol="MSFT",
+            shares=50.0,
+            cost_basis=300.0,
+            position_type="long",
+        ),
+    ]
+
+    price_data = {
+        "AAPL": PriceData(symbol="AAPL", price=180.0, beta=1.2, volatility=0.24),
+        "MSFT": PriceData(symbol="MSFT", price=350.0, beta=1.0, volatility=0.20),
+    }
+
+    with (
+        patch(
+            "app.portfolio.analytics.calculate_portfolio_volatility",
+            return_value=0.18,
+        ) as mock_volatility,
+        patch(
+            "app.portfolio.analytics.calculate_sharpe_ratio",
+            return_value=1.1,
+        ) as mock_sharpe,
+    ):
+        analytics.calculate_full_analytics(
+            positions,
+            price_data,
+            storage=mock_storage,
+            account_ids=["acc1", "acc2"],
+        )
+
+    mock_volatility.assert_called_once_with(positions, price_data, mock_storage)
+    mock_sharpe.assert_called_once()
+    assert mock_sharpe.call_args.kwargs["storage"] is mock_storage
+    assert mock_sharpe.call_args.kwargs["account_ids"] == ["acc1", "acc2"]
+
+
+def test_calculate_full_analytics_returns_no_sharpe_without_return_history() -> None:
+    """Sharpe should be unavailable when we only have unrealized P&L, not a return series."""
+    analytics = PortfolioAnalytics()
+
+    positions = [
+        Position(
+            id="1",
+            account_id="acc1",
+            symbol="AAPL",
+            shares=100.0,
+            cost_basis=150.0,
+            position_type="long",
+        ),
+        Position(
+            id="2",
+            account_id="acc1",
+            symbol="GOOGL",
+            shares=50.0,
+            cost_basis=2000.0,
+            position_type="long",
+        ),
+    ]
+
+    price_data = {
+        "AAPL": PriceData(symbol="AAPL", price=180.0, beta=1.2, volatility=0.25),
+        "GOOGL": PriceData(symbol="GOOGL", price=2500.0, beta=0.9, volatility=0.20),
+    }
+
+    full_analytics = analytics.calculate_full_analytics(positions, price_data)
+
+    assert full_analytics.sharpe_ratio is None
 
 
 def test_calculate_portfolio_value_with_price_errors() -> None:

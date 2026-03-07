@@ -54,9 +54,15 @@ async def get_analytics(request: Request, include_paper: bool = False) -> Analyt
     # Get price data
     symbols = list({p.symbol for p in positions})
     price_data = price_fetcher.fetch_price_data(symbols)
+    account_ids = list({p.account_id for p in positions})
 
     # Calculate analytics
-    analytics = analytics_calculator.calculate_full_analytics(positions, price_data)
+    analytics = analytics_calculator.calculate_full_analytics(
+        positions,
+        price_data,
+        storage=storage,
+        account_ids=account_ids,
+    )
 
     # Convert risk profile to response model
     risk_profile_response = None
