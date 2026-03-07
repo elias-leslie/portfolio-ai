@@ -14,6 +14,7 @@ import polars as pl
 from ..logging_config import get_logger
 from ..storage import PortfolioStorage
 from .models import Account, Position
+from .watchlist_sync import ensure_symbols_in_watchlist
 
 logger = get_logger(__name__)
 
@@ -246,49 +247,6 @@ class PortfolioManager:
             - Safe to call multiple times with the same symbols
             - Does not modify existing watchlist items
         """
-        if not symbols:
-            return
-
-        # Get unique symbols (uppercase)
-        unique_symbols = list({symbol.upper() for symbol in symbols})
-
-        # Get existing watchlist symbols to avoid duplicates
-        df = self.storage.query("SELECT symbol FROM watchlist_items")
-        existing_symbols = set()
-        if not df.is_empty():
-            existing_symbols = {row["symbol"] for row in df.iter_rows(named=True)}
-
-        # Find symbols that need to be added
-        symbols_to_add = [t for t in unique_symbols if t not in existing_symbols]
-
+        symbols_to_add = ensure_symbols_in_watchlist(self.storage, symbols, source="portfolio")
         if not symbols_to_add:
             logger.debug("All portfolio symbols already in watchlist")
-            return
-
-        # Insert new symbols with source='portfolio'
-        now = datetime.now(UTC)
-        with self.storage.connection() as conn:
-            for symbol in symbols_to_add:
-                # Ensure symbol exists in symbols table (FK constraint)
-                conn.execute(
-                    """
-                    INSERT INTO symbols (symbol, security_type, created_at)
-                    VALUES (%s, 'equity', %s)
-                    ON CONFLICT (symbol) DO NOTHING
-                    """,
-                    [symbol, now],
-                )
-                item_id = str(uuid.uuid4())
-                conn.execute(
-                    """
-                    INSERT INTO watchlist_items (id, symbol, source, created_at, updated_at)
-                    VALUES (%s, %s, 'portfolio', %s, %s)
-                    ON CONFLICT (symbol) DO NOTHING
-                    """,
-                    [item_id, symbol, now, now],
-                )
-            conn.commit()
-
-        logger.info(
-            f"Synced {len(symbols_to_add)} portfolio symbols to watchlist: {symbols_to_add}"
-        )

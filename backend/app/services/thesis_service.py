@@ -5,6 +5,8 @@ from __future__ import annotations
 from ..agents.llm_client import DualProviderClient
 from ..logging_config import get_logger
 from ..models.thesis import Thesis, ThesisStatus, ThesisVersion
+from ..portfolio.watchlist_sync import ensure_symbols_in_watchlist
+from ..storage import get_storage
 from .thesis.intelligence_fetcher import IntelligenceFetcher
 from .thesis.thesis_builder import ThesisBuilder
 from .thesis.thesis_generation import ThesisGenerator
@@ -29,6 +31,7 @@ class ThesisService:
         llm_client: DualProviderClient | None = None,
         api_base_url: str = "http://localhost:8000",
     ) -> None:
+        self._app_storage = get_storage()
         self._fetcher = IntelligenceFetcher(api_base_url)
         self._generator = ThesisGenerator(llm_client)
         self._validator = ThesisValidator()
@@ -62,6 +65,7 @@ class ThesisService:
             thesis = ThesisBuilder.build(
                 symbol, thesis_data, claude_validation, cross_val_score, version
             )
+            ensure_symbols_in_watchlist(self._app_storage, [symbol], source="thesis")
             self._storage.save_thesis(thesis)
             self._storage.save_version(thesis, "updated" if existing else "created")
 
