@@ -63,8 +63,11 @@ class TestDiscoveryAgentWithCLI:
             "FEAR_GREED": 62,
         }
 
-        # Mock store_idea to confirm storage
-        tools.execute_store_idea.return_value = {"success": True, "idea_id": "test-idea-1"}
+        # Mock store_strategy_seed to confirm storage
+        tools.execute_store_strategy_seed.return_value = {
+            "success": True,
+            "seed_id": "test-seed-1",
+        }
 
         return tools
 
@@ -92,18 +95,15 @@ class TestDiscoveryAgentWithCLI:
                 model=GEMINI_PRO,
                 usage={"total_tokens": 150},
             ),
-            # Turn 3: Call store_idea tool (first idea)
+            # Turn 3: Call store_strategy_seed tool (first seed)
             LLMResponse(
                 content="""{
                     "tool_calls": [{
-                        "name": "store_idea",
+                        "name": "store_strategy_seed",
                         "parameters": {
                             "symbol": "AAPL",
-                            "idea_type": "long",
                             "thesis": "Strong earnings momentum",
-                            "action": "Buy on pullback to $150",
-                            "confidence": 75,
-                            "risk_level": "medium"
+                            "confidence": 7.5
                         }
                     }]
                 }""",
@@ -150,14 +150,13 @@ class TestDiscoveryAgentWithCLI:
         # Verify tools were called in correct order
         assert cast(Mock, mock_tools.execute_get_news).called
         assert cast(Mock, mock_tools.execute_get_economic_data).called
-        assert cast(Mock, mock_tools.execute_store_idea).called
+        assert cast(Mock, mock_tools.execute_store_strategy_seed).called
 
-        # Verify store_idea was called with correct parameters
-        store_call = cast(Mock, mock_tools.execute_store_idea).call_args
+        # Verify store_strategy_seed was called with correct parameters
+        store_call = cast(Mock, mock_tools.execute_store_strategy_seed).call_args
         assert store_call is not None
         assert store_call[1]["symbol"] == "AAPL"
-        assert store_call[1]["idea_type"] == "long"
-        assert store_call[1]["confidence"] == 75
+        assert store_call[1]["confidence"] == 7.5
 
     def test_discovery_agent_tool_formatting_in_system_prompt(
         self,

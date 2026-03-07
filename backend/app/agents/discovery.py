@@ -44,7 +44,7 @@ class DiscoveryAgent(Agent):
             tools: AgentTools instance
             **kwargs: Additional arguments for base Agent
         """
-        super().__init__(storage, **kwargs)  # type: ignore[arg-type]
+        super().__init__(storage, **kwargs)
         self.tools = tools
         self.current_run_id: str | None = None
 
@@ -137,12 +137,6 @@ Generate exactly 5 strategy seeds with specific symbols, then stop."""
                 confidence=confidence_val,
             )
 
-        # Legacy support for store_idea (deprecated)
-        if tool_name == "store_idea":
-            if not self.current_run_id:
-                raise ValueError("No active run_id for storing ideas")
-            return self.tools.execute_store_idea(self.current_run_id, **tool_input)
-
         raise ValueError(f"Unknown tool: {tool_name}")
 
     def run(self, user_prompt: str = "", max_iterations: int = 10) -> AgentRunResult:
@@ -156,7 +150,7 @@ Generate exactly 5 strategy seeds with specific symbols, then stop."""
             dict containing status, response, and metadata
         """
         if not user_prompt:
-            user_prompt = "Analyze current market conditions and generate 5 investment ideas."
+            user_prompt = "Analyze current market conditions and generate 5 strategy seeds."
 
         # Set run_id for this execution
         self.current_run_id = str(uuid.uuid4())

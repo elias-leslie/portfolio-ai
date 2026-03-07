@@ -1,6 +1,6 @@
 """Portfolio Analyzer Agent implementation.
 
-Analyzes user's portfolio to generate personalized investment ideas.
+Analyzes user's portfolio to generate personalized strategy seeds.
 
 Section 1.1/1.3: Performance feedback and fee awareness added to prompts.
 """
@@ -25,16 +25,16 @@ from .tools import (
     get_news_tool_definition,
     get_portfolio_data_tool_definition,
     get_price_data_tool_definition,
-    get_store_idea_tool_definition,
+    get_store_strategy_seed_tool_definition,
 )
 
 logger = get_logger(__name__)
 
 
 class PortfolioAnalyzerAgent(Agent):
-    """Portfolio Analyzer Agent - generates personalized investment ideas.
+    """Portfolio Analyzer Agent - generates personalized strategy seeds.
 
-    This agent analyzes the user's portfolio and generates ideas
+    This agent analyzes the user's portfolio and generates seeds
     tailored to their holdings, risk profile, and market conditions.
     """
 
@@ -46,7 +46,7 @@ class PortfolioAnalyzerAgent(Agent):
             tools: AgentTools instance
             **kwargs: Additional arguments for base Agent
         """
-        super().__init__(storage, **kwargs)  # type: ignore[arg-type]
+        super().__init__(storage, **kwargs)
         self.tools = tools
         self.current_run_id: str | None = None
 
@@ -72,16 +72,17 @@ Rebalancing has costs. Only recommend changes with significant expected value.
 
         return f"""You are a Portfolio Analyzer Agent for an investment intelligence platform.
 
-Your role is to analyze the user's current portfolio and generate 5 personalized investment ideas.
+Your role is to analyze the user's current portfolio and generate 5 personalized strategy seeds.
 {perf_context}
 {fee_warning}
 Guidelines:
 - First, fetch and analyze the user's portfolio using get_portfolio_data
 - Consider their current positions, sector exposure, and concentration risk
 - Check market conditions with get_news and get_economic_data
-- Generate ideas that complement or hedge their portfolio
-- Each idea should reference how it relates to their current holdings
-- Assess confidence (0-100) and risk level (low/medium/high)
+- Generate seeds that complement or hedge their portfolio
+- Each seed MUST have a specific stock symbol
+- Each seed should reference how it relates to their current holdings
+- Assess confidence on a 1-10 scale
 - Consider their portfolio's beta and volatility in recommendations
 
 Process:
@@ -89,9 +90,14 @@ Process:
 2. Use get_news to check relevant market headlines
 3. Use get_economic_data to check key indicators
 4. Analyze portfolio gaps, risks, and opportunities
-5. Generate 5 personalized ideas using store_idea
+5. Generate 5 personalized strategy seeds using store_strategy_seed
 
-Generate exactly 5 ideas that are specifically tailored to this portfolio, then stop."""
+For each seed, include:
+- symbol: the stock ticker
+- thesis: why it fits this portfolio now
+- confidence: 1-10
+
+Generate exactly 5 strategy seeds that are specifically tailored to this portfolio, then stop."""
 
     def get_tools(self) -> list[dict[str, object]]:
         """Get tool definitions for Portfolio Analyzer Agent."""
@@ -100,7 +106,7 @@ Generate exactly 5 ideas that are specifically tailored to this portfolio, then 
             get_news_tool_definition(),
             get_economic_data_tool_definition(),
             get_price_data_tool_definition(),
-            get_store_idea_tool_definition(),
+            get_store_strategy_seed_tool_definition(),
         ]
 
     def execute_tool(self, tool_name: str, tool_input: dict[str, object]) -> object:  # type: ignore[override]
@@ -134,10 +140,19 @@ Generate exactly 5 ideas that are specifically tailored to this portfolio, then 
             symbols = [str(s) for s in symbols_raw] if isinstance(symbols_raw, list) else []
             return self.tools.execute_get_price_data(symbols)
 
-        if tool_name == "store_idea":
+        if tool_name == "store_strategy_seed":
             if not self.current_run_id:
-                raise ValueError("No active run_id for storing ideas")
-            return self.tools.execute_store_idea(self.current_run_id, **tool_input)
+                raise ValueError("No active run_id for storing seeds")
+            confidence_raw = tool_input.get("confidence", 5)
+            confidence_val = (
+                float(confidence_raw) if isinstance(confidence_raw, (int, float, str)) else 5.0
+            )
+            return self.tools.execute_store_strategy_seed(
+                agent_run_id=self.current_run_id,
+                symbol=str(tool_input.get("symbol", "")),
+                thesis=str(tool_input.get("thesis", "")),
+                confidence=confidence_val,
+            )
 
         raise ValueError(f"Unknown tool: {tool_name}")
 
@@ -152,7 +167,7 @@ Generate exactly 5 ideas that are specifically tailored to this portfolio, then 
             dict containing status, response, and metadata
         """
         if not user_prompt:
-            user_prompt = "Analyze my portfolio and generate 5 personalized investment ideas."
+            user_prompt = "Analyze my portfolio and generate 5 personalized strategy seeds."
 
         # Set run_id for this execution
         self.current_run_id = str(uuid.uuid4())

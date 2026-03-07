@@ -85,60 +85,6 @@ def get_price_data_tool_definition() -> dict[str, object]:
     }
 
 
-def get_store_idea_tool_definition() -> dict[str, object]:
-    """Get store idea tool definition (DEPRECATED - use store_strategy_seed)."""
-    return {
-        "name": "store_idea",
-        "description": "[DEPRECATED] Store an investment idea. Use store_strategy_seed instead for better tracking.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "title": {"type": "string", "description": "Brief title for the idea"},
-                "thesis": {
-                    "type": "string",
-                    "description": "Detailed investment thesis explaining the opportunity",
-                },
-                "action": {
-                    "type": "string",
-                    "description": "Specific action to take (e.g., 'Buy AAPL calls', 'Short SPY')",
-                },
-                "idea_type": {
-                    "type": "string",
-                    "description": "Type of idea: 'long', 'short', 'option', 'macro'",
-                },
-                "confidence_score": {
-                    "type": "number",
-                    "description": "Confidence score 0-100",
-                },
-                "risk_level": {
-                    "type": "string",
-                    "description": "Risk level: 'low', 'medium', 'high'",
-                },
-                "reward_estimate": {
-                    "type": "string",
-                    "description": "Expected reward/return estimate",
-                },
-                "portfolio_impact": {
-                    "type": "string",
-                    "description": "How this would impact the portfolio",
-                },
-                "risks": {
-                    "type": "string",
-                    "description": "Key risks to consider",
-                },
-            },
-            "required": [
-                "title",
-                "thesis",
-                "action",
-                "idea_type",
-                "confidence_score",
-                "risk_level",
-            ],
-        },
-    }
-
-
 def get_store_strategy_seed_tool_definition() -> dict[str, object]:
     """Get store_strategy_seed tool definition for AI-generated investment ideas."""
     return {
@@ -218,43 +164,6 @@ def get_remove_symbol_tool_definition() -> dict[str, object]:
                 },
             },
             "required": ["symbol", "reason"],
-        },
-    }
-
-
-def get_create_paper_trade_tool_definition() -> dict[str, object]:
-    """Get create_paper_trade tool definition for autonomous paper trading."""
-    return {
-        "name": "create_paper_trade",
-        "description": "Create a paper trade to test your investment thesis. Trade will be tracked with "
-        "automatic exits based on target price, stop loss, or time limit. Cash management is automatic. "
-        "Position sizing is confidence-based: very_low=1.25%, low=2.5%, medium=5%, high=7.5%, very_high=10% "
-        "of portfolio. Higher confidence results in larger position sizes, automatically adjusted by confidence tier.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "symbol": {
-                    "type": "string",
-                    "description": "Stock symbol",
-                },
-                "action": {
-                    "type": "string",
-                    "description": "Trade action: 'buy' (go long) or 'sell' (go short)",
-                },
-                "thesis": {
-                    "type": "string",
-                    "description": "Your investment thesis for this trade",
-                },
-                "target_price": {
-                    "type": "number",
-                    "description": "Target exit price (optional, for profit taking)",
-                },
-                "stop_loss_pct": {
-                    "type": "number",
-                    "description": "Stop loss percentage (optional, default 2xATR)",
-                },
-            },
-            "required": ["symbol", "action", "thesis"],
         },
     }
 
@@ -372,70 +281,15 @@ def get_wait_response_tool_definition() -> dict[str, object]:
     }
 
 
-def get_run_backtest_tool_definition() -> dict[str, object]:
-    """Get run_backtest tool definition for strategy validation."""
-    return {
-        "name": "run_backtest",
-        "description": "Execute a backtest to validate a trading strategy using historical data. "
-        "Returns performance metrics including Sharpe ratio, win rate, max drawdown, and total return.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "symbol": {
-                    "type": "string",
-                    "description": "Stock symbol (e.g., 'AAPL', 'NVDA')",
-                },
-                "start_date": {
-                    "type": "string",
-                    "description": "Backtest start date (ISO format: YYYY-MM-DD)",
-                },
-                "end_date": {
-                    "type": "string",
-                    "description": "Backtest end date (ISO format: YYYY-MM-DD)",
-                },
-                "strategy": {
-                    "type": "string",
-                    "description": "Strategy name (default: 'signal_classifier')",
-                    "default": "signal_classifier",
-                },
-                "min_signal_strength": {
-                    "type": "integer",
-                    "description": "Minimum signal strength for entry (1-10, default: 7)",
-                    "default": 7,
-                },
-                "max_holding_days": {
-                    "type": "integer",
-                    "description": "Maximum holding period in days (default: 60)",
-                    "default": 60,
-                },
-                "position_sizing_method": {
-                    "type": "string",
-                    "description": "Position sizing method: 'fixed_dollars' or 'fixed_shares' (default: 'fixed_dollars')",
-                    "default": "fixed_dollars",
-                },
-                "position_size_value": {
-                    "type": "number",
-                    "description": "Position size in dollars or shares (default: 10000.00)",
-                    "default": 10000.00,
-                },
-            },
-            "required": ["symbol", "start_date", "end_date"],
-        },
-    }
-
-
 __all__ = [
     "get_add_symbol_tool_definition",
-    "get_create_paper_trade_tool_definition",
     "get_economic_data_tool_definition",
     "get_news_tool_definition",
     "get_portfolio_data_tool_definition",
     "get_price_data_tool_definition",
     "get_query_memory_tool_definition",
     "get_remove_symbol_tool_definition",
-    "get_run_backtest_tool_definition",
     "get_send_message_tool_definition",
-    "get_store_idea_tool_definition",
     "get_store_strategy_seed_tool_definition",
     "get_vote_decision_tool_definition",
     "get_wait_response_tool_definition",

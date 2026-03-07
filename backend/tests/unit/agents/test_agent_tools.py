@@ -14,7 +14,7 @@ from app.agents.tools import (
     get_news_tool_definition,
     get_portfolio_data_tool_definition,
     get_price_data_tool_definition,
-    get_store_idea_tool_definition,
+    get_store_strategy_seed_tool_definition,
 )
 from app.portfolio.models import (
     ConcentrationMetrics,
@@ -126,32 +126,23 @@ def test_get_price_data_tool_definition() -> None:
     assert tool_def["input_schema"]["required"] == ["symbols"]
 
 
-def test_get_store_idea_tool_definition() -> None:
-    """Test store idea tool definition structure."""
-    tool_def: dict[str, Any] = get_store_idea_tool_definition()
+def test_get_store_strategy_seed_tool_definition() -> None:
+    """Test strategy seed tool definition structure."""
+    tool_def: dict[str, Any] = get_store_strategy_seed_tool_definition()
 
-    assert tool_def["name"] == "store_idea"
+    assert tool_def["name"] == "store_strategy_seed"
     assert "description" in tool_def
     assert "input_schema" in tool_def
 
     properties = tool_def["input_schema"]["properties"]
-    assert "title" in properties
+    assert "symbol" in properties
     assert "thesis" in properties
-    assert "action" in properties
-    assert "idea_type" in properties
-    assert "confidence_score" in properties
-    assert "risk_level" in properties
-    assert "reward_estimate" in properties
-    assert "portfolio_impact" in properties
-    assert "risks" in properties
+    assert "confidence" in properties
 
     required = tool_def["input_schema"]["required"]
-    assert "title" in required
+    assert "symbol" in required
     assert "thesis" in required
-    assert "action" in required
-    assert "idea_type" in required
-    assert "confidence_score" in required
-    assert "risk_level" in required
+    assert "confidence" in required
 
 
 def test_execute_get_news(agent_tools: AgentTools, mock_news_service: Mock) -> None:
@@ -404,69 +395,6 @@ def test_execute_get_price_data(agent_tools: AgentTools, mock_price_fetcher: Moc
     assert result["prices"]["AAPL"]["price"] == 170.0
     assert result["prices"]["MSFT"]["price"] == 380.0
     mock_price_fetcher.fetch_price_data.assert_called_once_with(["AAPL", "MSFT"])
-
-
-def test_execute_store_idea(agent_tools: AgentTools, mock_storage: Mock) -> None:
-    """Test executing store_idea tool."""
-    # Setup
-    run_id = "test-run-id"
-    idea_data = {
-        "title": "Buy AAPL calls",
-        "thesis": "Apple is undervalued and earnings look strong",
-        "action": "Buy 10 AAPL 200 calls expiring 2025-12-31",
-        "idea_type": "option",
-        "confidence_score": 75.0,
-        "risk_level": "medium",
-        "reward_estimate": "15-20% return",
-        "portfolio_impact": "Adds tech exposure with limited downside",
-        "risks": "Earnings miss, macro weakness",
-    }
-
-    # Execute
-    result: dict[str, Any] = agent_tools.execute_store_idea(run_id, **idea_data)
-
-    # Verify
-    assert "idea_id" in result
-    assert result["status"] == "stored"
-
-    # Verify storage was called with correct data
-    mock_storage.insert_dict.assert_called_once()
-    call_args = mock_storage.insert_dict.call_args
-    assert call_args[0][0] == "agent_ideas"
-
-    stored_data = call_args[0][1]
-    assert stored_data["agent_run_id"] == run_id
-    assert stored_data["title"] == idea_data["title"]
-    assert stored_data["thesis"] == idea_data["thesis"]
-    assert stored_data["action"] == idea_data["action"]
-    assert stored_data["idea_type"] == idea_data["idea_type"]
-    # confidence_score is normalized: values > 1.0 are divided by 100 (percentage -> decimal)
-    assert stored_data["confidence_score"] == 0.75
-    assert stored_data["risk_level"] == idea_data["risk_level"]
-    assert stored_data["status"] == "pending"
-    assert "id" in stored_data
-    assert "created_at" in stored_data
-    assert "updated_at" in stored_data
-
-
-def test_execute_store_idea_minimal_fields(agent_tools: AgentTools, mock_storage: Mock) -> None:
-    """Test store_idea with only required fields."""
-    run_id = "test-run-id"
-    idea_data = {
-        "title": "Short SPY",
-        "thesis": "Market overheated",
-        "action": "Short 100 SPY",
-        "idea_type": "short",
-        "confidence_score": 60.0,
-        "risk_level": "high",
-    }
-
-    # Execute
-    result: dict[str, Any] = agent_tools.execute_store_idea(run_id, **idea_data)
-
-    # Verify
-    assert result["status"] == "stored"
-    mock_storage.insert_dict.assert_called_once()
 
 
 def test_agent_tools_initialization(

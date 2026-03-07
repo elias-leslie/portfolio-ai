@@ -1,79 +1,17 @@
-"""Investment ideas and strategy seed executors."""
+"""Strategy seed executor."""
 
 from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from app.storage.facade import PortfolioStorage
 
-from app.analytics.paper_trading import create_paper_trade
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
-
-
-def execute_store_idea(
-    storage: PortfolioStorage, agent_run_id: str, **idea_data: object
-) -> dict[str, object]:
-    """Execute store_idea tool and automatically create a paper trade.
-
-    Args:
-        storage: PortfolioStorage instance
-        agent_run_id: ID of the agent run
-        **idea_data: Idea data fields
-
-    Returns:
-        Result dictionary with idea ID and status
-    """
-    idea_id = str(uuid.uuid4())
-    now = datetime.now(UTC)
-
-    storage.insert_dict(
-        "agent_ideas",
-        {
-            "id": idea_id,
-            "agent_run_id": agent_run_id,
-            "idea_type": str(idea_data.get("idea_type")),
-            "title": str(idea_data.get("title")),
-            "thesis": str(idea_data.get("thesis")),
-            "action": str(idea_data.get("action")),
-            "confidence_score": (
-                cast(float, idea_data.get("confidence_score")) / 100.0
-                if cast(float, idea_data.get("confidence_score")) > 1.0
-                else cast(float, idea_data.get("confidence_score"))
-            ),
-            "risk_level": str(idea_data.get("risk_level")),
-            "reward_estimate": cast(float, idea_data.get("reward_estimate")),
-            "portfolio_impact": cast(float, idea_data.get("portfolio_impact")),
-            "data_needed": str(idea_data.get("data_needed")),
-            "risks": str(idea_data.get("risks")),
-            "status": "pending",
-            "created_at": now.isoformat(),
-            "updated_at": now.isoformat(),
-        },
-    )
-
-    logger.info(f"Stored idea {idea_id}: {idea_data.get('title')}")
-
-    # Automatically create paper trade for this idea
-    paper_trade = create_paper_trade(storage, idea_id)
-
-    if paper_trade:
-        logger.info(
-            f"Created paper trade for idea {idea_id}: "
-            f"{paper_trade['symbol']} @ ${paper_trade['entry_price']}"
-        )
-        return {
-            "idea_id": idea_id,
-            "status": "stored",
-            "paper_trade_created": True,
-            "symbol": paper_trade["symbol"],
-        }
-    logger.warning(f"Failed to create paper trade for idea {idea_id}")
-    return {"idea_id": idea_id, "status": "stored", "paper_trade_created": False}
 
 
 def execute_store_strategy_seed(
@@ -174,4 +112,4 @@ def execute_store_strategy_seed(
     }
 
 
-__all__ = ["execute_store_idea", "execute_store_strategy_seed"]
+__all__ = ["execute_store_strategy_seed"]

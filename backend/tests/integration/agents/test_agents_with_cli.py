@@ -153,7 +153,7 @@ def mock_llm_client() -> Mock:
     # Simulate a conversation where the agent:
     # 1. Calls get_news (returns JSON with tool call)
     # 2. Calls get_economic_data (returns JSON with tool call)
-    # 3. Stores 5 ideas (returns JSON with tool calls)
+    # 3. Stores 5 strategy seeds (returns JSON with tool calls)
     # 4. Returns final response
 
     # First call: agent requests to use get_news tool
@@ -178,22 +178,16 @@ def mock_llm_client() -> Mock:
         tool_calls=[{"name": "get_economic_data", "parameters": {"indicators": ["VIX", "TNX"]}}],
     )
 
-    # Third call: agent stores 5 ideas
+    # Third call: agent stores 5 strategy seeds
     ideas_tool_calls = []
     for i in range(5):
         ideas_tool_calls.append(
             {
-                "name": "store_idea",
+                "name": "store_strategy_seed",
                 "parameters": {
-                    "title": f"Investment Idea {i + 1}",
+                    "symbol": ["AAPL", "GOOGL", "MSFT", "TSLA", "NVDA"][i],
                     "thesis": f"This is investment thesis {i + 1} based on market analysis",
-                    "action": f"Buy {['AAPL', 'GOOGL', 'MSFT', 'TSLA', 'NVDA'][i]}",
-                    "idea_type": "long",
-                    "confidence_score": 70 + i * 5,
-                    "risk_level": "medium",
-                    "reward_estimate": "10-15%",
-                    "portfolio_impact": "Adds tech exposure",
-                    "risks": "Market volatility",
+                    "confidence": 7 + i * 0.5,
                 },
             }
         )
@@ -308,7 +302,7 @@ def test_discovery_agent_with_cli_full_execution(
     tool_names = [call["name"] for call in tool_calls]
     assert "get_news" in tool_names
     assert "get_economic_data" in tool_names
-    assert tool_names.count("store_idea") == 5
+    assert tool_names.count("store_strategy_seed") == 5
 
     # Verify agent_runs table
     with storage.connection() as conn:
@@ -317,12 +311,12 @@ def test_discovery_agent_with_cli_full_execution(
         assert runs[0][1] == "DiscoveryAgent"  # agent_type
         assert runs[0][4] == "completed"  # status
 
-    # Verify agent_ideas table
+    # Verify strategy_seeds table
     with storage.connection() as conn:
-        ideas = conn.execute("SELECT * FROM agent_ideas").fetchall()
+        ideas = conn.execute("SELECT * FROM strategy_seeds").fetchall()
         assert len(ideas) == 5
         for i, idea in enumerate(ideas):
-            assert idea[3] == f"Investment Idea {i + 1}"  # title
+            assert idea[1] == ["AAPL", "GOOGL", "MSFT", "TSLA", "NVDA"][i]
 
 
 def test_portfolio_analyzer_with_cli_initialization(

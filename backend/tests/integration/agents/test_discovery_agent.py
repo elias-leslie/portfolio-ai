@@ -149,7 +149,7 @@ def mock_anthropic_client() -> Mock:
     # Simulate a conversation where the agent:
     # 1. Calls get_news
     # 2. Calls get_economic_data
-    # 3. Stores 5 ideas
+    # 3. Stores 5 strategy seeds
     # 4. Returns final response
 
     # First call: agent requests to use get_news tool
@@ -172,28 +172,22 @@ def mock_anthropic_client() -> Mock:
     block2.input = {"indicators": ["VIX", "TNX"]}
     response2.content = [block2]
 
-    # Third call: agent stores 5 ideas
+    # Third call: agent stores 5 strategy seeds
     response3 = Mock()
     response3.stop_reason = "tool_use"
-    ideas = []
+    seeds = []
     for i in range(5):
         block = Mock()
         block.type = "tool_use"
-        block.id = f"tool_idea_{i}"
-        block.name = "store_idea"
+        block.id = f"tool_seed_{i}"
+        block.name = "store_strategy_seed"
         block.input = {
-            "title": f"Investment Idea {i + 1}",
+            "symbol": ["AAPL", "GOOGL", "MSFT", "TSLA", "NVDA"][i],
             "thesis": f"This is investment thesis {i + 1} based on market analysis",
-            "action": f"Buy {['AAPL', 'GOOGL', 'MSFT', 'TSLA', 'NVDA'][i]}",
-            "idea_type": "long",
-            "confidence_score": 70 + i * 5,
-            "risk_level": "medium",
-            "reward_estimate": "10-15%",
-            "portfolio_impact": "Adds tech exposure",
-            "risks": "Market volatility",
+            "confidence": 7 + i * 0.5,
         }
-        ideas.append(block)
-    response3.content = ideas
+        seeds.append(block)
+    response3.content = seeds
 
     # Fourth call: agent returns final text response
     response4 = Mock()
@@ -225,10 +219,10 @@ def test_discovery_agent_system_prompt(storage: PortfolioStorage, agent_tools: A
     prompt = agent.get_system_prompt()
 
     assert "Discovery Agent" in prompt
-    assert "investment ideas" in prompt
+    assert "strategy seeds" in prompt
     assert "get_news" in prompt
     assert "get_economic_data" in prompt
-    assert "store_idea" in prompt
+    assert "store_strategy_seed" in prompt
 
 
 def test_discovery_agent_tools(storage: PortfolioStorage, agent_tools: AgentTools) -> None:
@@ -238,7 +232,7 @@ def test_discovery_agent_tools(storage: PortfolioStorage, agent_tools: AgentTool
 
     assert len(tools) == 3
     tool_names = {tool["name"] for tool in tools}
-    assert tool_names == {"get_news", "get_economic_data", "store_idea"}
+    assert tool_names == {"get_news", "get_economic_data", "store_strategy_seed"}
 
 
 def test_discovery_agent_execute_tool_get_news(
@@ -276,10 +270,10 @@ def test_discovery_agent_execute_tool_get_economic_data(
     mock_fred_source.fetch_multiple.assert_called_once_with(["VIX", "FEDFUNDS"])
 
 
-def test_discovery_agent_execute_tool_store_idea(
+def test_discovery_agent_execute_tool_store_strategy_seed(
     storage: PortfolioStorage, agent_tools: AgentTools
 ) -> None:
-    """Test executing store_idea tool."""
+    """Test executing store_strategy_seed tool."""
     from datetime import UTC, datetime
 
     agent = DiscoveryAgent(storage=storage, tools=agent_tools)
@@ -305,48 +299,42 @@ def test_discovery_agent_execute_tool_store_idea(
     result = cast(
         dict[str, object],
         agent.execute_tool(
-            "store_idea",
+            "store_strategy_seed",
             {
-                "title": "Buy tech stocks",
+                "symbol": "AAPL",
                 "thesis": "Technology sector is undervalued",
-                "action": "Buy AAPL calls",
-                "idea_type": "option",
-                "confidence_score": 75,
-                "risk_level": "medium",
+                "confidence": 7.5,
             },
         ),
     )
 
     assert result["status"] == "stored"
-    assert "idea_id" in result
+    assert "seed_id" in result
 
-    # Verify idea was stored in database
+    # Verify seed was stored in database
     with storage.connection() as conn:
-        ideas = conn.execute(
-            "SELECT * FROM agent_ideas WHERE agent_run_id = ?", ["test-run-id"]
+        seeds = conn.execute(
+            "SELECT * FROM strategy_seeds WHERE agent_run_id = ?", ["test-run-id"]
         ).fetchall()
-        assert len(ideas) == 1
-        assert ideas[0][2] == "option"  # idea_type column
-        assert ideas[0][3] == "Buy tech stocks"  # title column
+        assert len(seeds) == 1
+        assert seeds[0][1] == "AAPL"  # symbol column
+        assert seeds[0][2] == "Technology sector is undervalued"  # thesis column
 
 
-def test_discovery_agent_execute_tool_store_idea_without_run_id(
+def test_discovery_agent_execute_tool_store_strategy_seed_without_run_id(
     storage: PortfolioStorage, agent_tools: AgentTools
 ) -> None:
-    """Test store_idea fails without active run_id."""
+    """Test store_strategy_seed fails without active run_id."""
     agent = DiscoveryAgent(storage=storage, tools=agent_tools)
     agent.current_run_id = None
 
     with pytest.raises(ValueError, match="No active run_id"):
         agent.execute_tool(
-            "store_idea",
+            "store_strategy_seed",
             {
-                "title": "Test",
+                "symbol": "AAPL",
                 "thesis": "Test",
-                "action": "Test",
-                "idea_type": "long",
-                "confidence_score": 50,
-                "risk_level": "low",
+                "confidence": 5,
             },
         )
 
@@ -399,13 +387,13 @@ def test_discovery_agent_run_full_execution(
 
     # Verify tool calls
     tool_calls = result["tool_calls"]
-    assert len(tool_calls) == 7  # 1 news + 1 econ + 5 ideas
+    assert len(tool_calls) == 7  # 1 news + 1 econ + 5 seeds
 
     # Verify tools were called
     tool_names = [call["name"] for call in tool_calls]
     assert "get_news" in tool_names
     assert "get_economic_data" in tool_names
-    assert tool_names.count("store_idea") == 5
+    assert tool_names.count("store_strategy_seed") == 5
 
     # Verify agent_runs table
     with storage.connection() as conn:
@@ -413,15 +401,15 @@ def test_discovery_agent_run_full_execution(
         assert len(runs) == 1
         assert runs[0][1] == "DiscoveryAgent"  # agent_type
         assert runs[0][4] == "completed"  # status (column 4, not 3)
-        # Note: base Agent records total tool calls in num_ideas field, not just store_idea calls
+        # Note: base Agent records total tool calls in num_ideas field, not just seed calls
         assert runs[0][5] == 7  # num_ideas actually stores total tool call count
 
-    # Verify agent_ideas table
+    # Verify strategy_seeds table
     with storage.connection() as conn:
-        ideas = conn.execute("SELECT * FROM agent_ideas").fetchall()
-        assert len(ideas) == 5
-        for i, idea in enumerate(ideas):
-            assert idea[3] == f"Investment Idea {i + 1}"  # title (column 3, not 4)
+        seeds = conn.execute("SELECT * FROM strategy_seeds").fetchall()
+        assert len(seeds) == 5
+        for i, seed in enumerate(seeds):
+            assert seed[1] == ["AAPL", "GOOGL", "MSFT", "TSLA", "NVDA"][i]
 
 
 def test_discovery_agent_run_records_tool_calls(
@@ -441,7 +429,7 @@ def test_discovery_agent_run_records_tool_calls(
 
     with patch("uuid.uuid4") as mock_uuid:
         # Return the same UUID object for the first two calls
-        # Then return unique UUIDs for idea IDs and tool call IDs
+        # Then return unique UUIDs for seed IDs and tool call IDs
         mock_uuid.side_effect = [shared_uuid, shared_uuid, *unique_uuids]
 
         agent = DiscoveryAgent(
@@ -459,7 +447,7 @@ def test_discovery_agent_run_records_tool_calls(
         tool_names = [call[2] for call in tool_calls]  # tool_name column (col 2)
         assert "get_news" in tool_names
         assert "get_economic_data" in tool_names
-        assert tool_names.count("store_idea") == 5
+        assert tool_names.count("store_strategy_seed") == 5
 
         # Verify each tool call has required fields
         for call in tool_calls:

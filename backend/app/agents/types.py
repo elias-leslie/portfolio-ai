@@ -33,23 +33,24 @@ class ToolInputDict(TypedDict, total=False):
     indicators: list[str]
     symbols: list[str]
     max_results: int
-    title: str
     thesis: str
-    action: str
-    idea_type: str
-    confidence_score: float
-    risk_level: str
+    confidence: float
     symbol: str
     reason: str
     expected_return_pct: float
     time_horizon_days: int
-    trade_type: str
-    quantity: int
-    entry_price: float
-    stop_loss: float
-    target_price: float
+    workflow_id: str
+    key: str
+    agent_type: str
+    message_type: str
     message: str
     message_id: str
+    data: dict[str, object]
+    priority: int
+    decision_id: str
+    vote: str
+    reasoning: str
+    timeout_seconds: int
 
 
 class ToolDefinitionDict(TypedDict, total=False):
@@ -68,7 +69,7 @@ class ToolResultDict(TypedDict, total=False):
     data: object
     error: str
     errors: list[str]
-    idea_id: str
+    seed_id: str
     success: bool
 
 
@@ -77,16 +78,3 @@ class AgentInitKwargs(TypedDict, total=False):
 
     model: str
     kwargs: object
-
-
-class IdeaDataDict(TypedDict, total=False):
-    """Investment idea data passed to store_idea tool."""
-
-    idea_type: str
-    title: str
-    thesis: str
-    action: str
-    confidence_score: float
-    risk_level: str
-    tags: list[str]
-    analysis: str

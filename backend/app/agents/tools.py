@@ -25,16 +25,13 @@ if TYPE_CHECKING:
 # Import all tool definitions for re-export
 from .tool_definitions import (
     get_add_symbol_tool_definition,
-    get_create_paper_trade_tool_definition,
     get_economic_data_tool_definition,
     get_news_tool_definition,
     get_portfolio_data_tool_definition,
     get_price_data_tool_definition,
     get_query_memory_tool_definition,
     get_remove_symbol_tool_definition,
-    get_run_backtest_tool_definition,
     get_send_message_tool_definition,
-    get_store_idea_tool_definition,
     get_store_strategy_seed_tool_definition,
     get_vote_decision_tool_definition,
     get_wait_response_tool_definition,
@@ -49,16 +46,13 @@ from .tool_executors_trading import TradingTools
 __all__ = [
     "AgentTools",
     "get_add_symbol_tool_definition",
-    "get_create_paper_trade_tool_definition",
     "get_economic_data_tool_definition",
     "get_news_tool_definition",
     "get_portfolio_data_tool_definition",
     "get_price_data_tool_definition",
     "get_query_memory_tool_definition",
     "get_remove_symbol_tool_definition",
-    "get_run_backtest_tool_definition",
     "get_send_message_tool_definition",
-    "get_store_idea_tool_definition",
     "get_store_strategy_seed_tool_definition",
     "get_vote_decision_tool_definition",
     "get_wait_response_tool_definition",
@@ -124,10 +118,6 @@ class AgentTools:
         return self.data.execute_get_price_data(symbols)
 
     # Trading tools - delegate to TradingTools
-    def execute_store_idea(self, agent_run_id: str, **idea_data: object) -> dict[str, object]:
-        """Execute store_idea tool (DEPRECATED - use execute_store_strategy_seed)."""
-        return self.trading.execute_store_idea(agent_run_id, **idea_data)
-
     def execute_store_strategy_seed(
         self,
         agent_run_id: str,
@@ -159,47 +149,6 @@ class AgentTools:
     ) -> dict[str, object]:
         """Execute remove_symbol tool."""
         return self.trading.execute_remove_symbol(agent_run_id, symbol, reason)
-
-    def execute_create_paper_trade(
-        self,
-        agent_run_id: str,
-        symbol: str,
-        action: str,
-        thesis: str,
-        target_price: float | None = None,
-        stop_loss_pct: float | None = None,
-    ) -> dict[str, object]:
-        """Execute create_paper_trade tool."""
-        return self.trading.execute_create_paper_trade(
-            agent_run_id, symbol, action, thesis, target_price, stop_loss_pct
-        )
-
-    def execute_run_backtest(
-        self,
-        agent_run_id: str,
-        symbol: str,
-        start_date: str,
-        end_date: str,
-        initial_capital: float = 100000.0,
-        strategy: str = "signal_classifier",
-        min_signal_strength: int = 7,
-        max_holding_days: int = 60,
-        position_sizing_method: str = "fixed_dollars",
-        position_size_value: float = 10000.0,
-    ) -> dict[str, object]:
-        """Execute run_backtest tool."""
-        return self.trading.execute_run_backtest(
-            agent_run_id,
-            symbol,
-            start_date,
-            end_date,
-            initial_capital,
-            strategy,
-            min_signal_strength,
-            max_holding_days,
-            position_sizing_method,
-            position_size_value,
-        )
 
     # Collaboration tools - delegate to CollaborationTools
     def execute_send_message_to_agent(

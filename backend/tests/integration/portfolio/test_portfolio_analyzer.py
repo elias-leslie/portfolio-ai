@@ -190,7 +190,7 @@ def mock_anthropic_client() -> Mock:
     # 1. Calls get_portfolio_data
     # 2. Calls get_news
     # 3. Calls get_economic_data
-    # 4. Stores 5 personalized ideas
+    # 4. Stores 5 personalized strategy seeds
     # 5. Returns final response
 
     # First call: get_portfolio_data
@@ -223,28 +223,22 @@ def mock_anthropic_client() -> Mock:
     block3.input = {"indicators": ["VIX", "TNX"]}
     response3.content = [block3]
 
-    # Fourth call: store 5 personalized ideas
+    # Fourth call: store 5 personalized strategy seeds
     response4 = Mock()
     response4.stop_reason = "tool_use"
-    ideas = []
+    seeds = []
     for i in range(5):
         block = Mock()
         block.type = "tool_use"
-        block.id = f"tool_idea_{i}"
-        block.name = "store_idea"
+        block.id = f"tool_seed_{i}"
+        block.name = "store_strategy_seed"
         block.input = {
-            "title": f"Portfolio Idea {i + 1}",
+            "symbol": ["JNJ", "XOM", "UNH", "PG", "BND"][i],
             "thesis": f"Given your heavy tech exposure, this idea {i + 1} helps diversify",
-            "action": f"Action for idea {i + 1}",
-            "idea_type": "long",
-            "confidence_score": 65 + i * 5,
-            "risk_level": "medium",
-            "reward_estimate": "8-12%",
-            "portfolio_impact": "Reduces tech concentration, adds diversification",
-            "risks": "Market volatility, sector rotation",
+            "confidence": 6.5 + i * 0.5,
         }
-        ideas.append(block)
-    response4.content = ideas
+        seeds.append(block)
+    response4.content = seeds
 
     # Fifth call: final response
     response5 = Mock()
@@ -289,7 +283,7 @@ def test_portfolio_analyzer_system_prompt(
     assert "personalized" in prompt
     assert "get_portfolio_data" in prompt
     assert "portfolio" in prompt.lower()
-    assert "store_idea" in prompt
+    assert "store_strategy_seed" in prompt
 
 
 def test_portfolio_analyzer_tools(storage: PortfolioStorage, agent_tools: AgentTools) -> None:
@@ -304,7 +298,7 @@ def test_portfolio_analyzer_tools(storage: PortfolioStorage, agent_tools: AgentT
         "get_news",
         "get_economic_data",
         "get_price_data",
-        "store_idea",
+        "store_strategy_seed",
     }
 
 
@@ -344,10 +338,10 @@ def test_portfolio_analyzer_execute_tool_get_price_data(
     mock_price_fetcher.fetch_price_data.assert_called_with(["AAPL", "MSFT"])
 
 
-def test_portfolio_analyzer_execute_tool_store_idea(
+def test_portfolio_analyzer_execute_tool_store_strategy_seed(
     storage: PortfolioStorage, agent_tools: AgentTools
 ) -> None:
-    """Test executing store_idea tool."""
+    """Test executing store_strategy_seed tool."""
     agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools)
     agent.current_run_id = "test-run-id"
 
@@ -371,20 +365,17 @@ def test_portfolio_analyzer_execute_tool_store_idea(
     result = cast(
         dict[str, object],
         agent.execute_tool(
-            "store_idea",
+            "store_strategy_seed",
             {
-                "title": "Diversify into bonds",
+                "symbol": "BND",
                 "thesis": "Portfolio is 100% tech, bonds reduce volatility",
-                "action": "Buy BND ETF",
-                "idea_type": "long",
-                "confidence_score": 70,
-                "risk_level": "low",
+                "confidence": 7.0,
             },
         ),
     )
 
     assert result["status"] == "stored"
-    assert "idea_id" in result
+    assert "seed_id" in result
 
 
 def test_portfolio_analyzer_execute_tool_unknown(
@@ -429,14 +420,14 @@ def test_portfolio_analyzer_run_full_execution(
 
     # Verify tool calls
     tool_calls = result["tool_calls"]
-    assert len(tool_calls) == 8  # 1 portfolio + 1 news + 1 econ + 5 ideas
+    assert len(tool_calls) == 8  # 1 portfolio + 1 news + 1 econ + 5 seeds
 
     # Verify tools were called
     tool_names = [call["name"] for call in tool_calls]
     assert "get_portfolio_data" in tool_names
     assert "get_news" in tool_names
     assert "get_economic_data" in tool_names
-    assert tool_names.count("store_idea") == 5
+    assert tool_names.count("store_strategy_seed") == 5
 
     # Verify price fetcher was called for portfolio analytics
     mock_price_fetcher.fetch_price_data.assert_called()
@@ -449,16 +440,15 @@ def test_portfolio_analyzer_run_full_execution(
         assert runs[0][4] == "completed"  # status
         assert runs[0][5] == 8  # num_ideas (total tool calls)
 
-    # Verify agent_ideas table
+    # Verify strategy_seeds table
     with storage.connection() as conn:
-        ideas = conn.execute("SELECT * FROM agent_ideas").fetchall()
-        assert len(ideas) == 5
-        for i, idea in enumerate(ideas):
-            assert idea[3] == f"Portfolio Idea {i + 1}"  # title
-            # Verify ideas reference portfolio
-            thesis = idea[4]
+        seeds = conn.execute("SELECT * FROM strategy_seeds").fetchall()
+        assert len(seeds) == 5
+        for i, seed in enumerate(seeds):
+            assert seed[1] == ["JNJ", "XOM", "UNH", "PG", "BND"][i]
+            thesis = seed[2]
             assert isinstance(thesis, str)
-            assert "tech" in thesis.lower() or "portfolio" in thesis.lower()  # thesis
+            assert "tech" in thesis.lower() or "portfolio" in thesis.lower()
 
 
 def test_portfolio_analyzer_run_with_empty_portfolio(
@@ -514,14 +504,14 @@ def test_portfolio_analyzer_run_records_tool_calls(
     # Verify agent_tool_calls table
     with storage.connection() as conn:
         tool_calls = conn.execute("SELECT * FROM agent_tool_calls").fetchall()
-        assert len(tool_calls) == 8  # 1 portfolio + 1 news + 1 econ + 5 ideas
+        assert len(tool_calls) == 8  # 1 portfolio + 1 news + 1 econ + 5 seeds
 
         # Check tool names
         tool_names = [call[2] for call in tool_calls]
         assert "get_portfolio_data" in tool_names
         assert "get_news" in tool_names
         assert "get_economic_data" in tool_names
-        assert tool_names.count("store_idea") == 5
+        assert tool_names.count("store_strategy_seed") == 5
 
 
 def test_portfolio_analyzer_run_clears_run_id_after_execution(
