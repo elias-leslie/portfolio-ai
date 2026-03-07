@@ -62,7 +62,7 @@ def _as_date(value: object) -> object:
     return value.date() if isinstance(value, datetime) else value
 
 
-def _get_security_type(storage: PortfolioStorage, symbol: str) -> str:
+def get_security_type(storage: PortfolioStorage, symbol: str) -> str:
     try:
         df = storage.query("SELECT security_type FROM symbols WHERE symbol = ?", [symbol])
         if df.is_empty():
@@ -266,7 +266,7 @@ def calculate_data_quality(storage: PortfolioStorage, symbols: list[str]) -> dic
     logger.info("calculating_data_quality", symbol_count=len(symbols))
     for symbol in symbols:
         try:
-            security_type = _get_security_type(storage, symbol)
+            security_type = get_security_type(storage, symbol)
             raw_pillars = _check_all_pillars(storage, symbol, now)
             # Weighted score uses only applicable pillars; DataQuality stores all raw pillar data
             overall_pct = _weighted_score(raw_pillars, security_type)

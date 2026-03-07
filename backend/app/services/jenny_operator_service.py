@@ -30,9 +30,12 @@ from app.models.thesis import Thesis
 from app.portfolio.analytics_returns import calculate_position_performances
 from app.portfolio.manager import PortfolioManager
 from app.portfolio.price_fetcher import PriceDataFetcher
+from app.portfolio.sector_labels import FUND_CATEGORY_LABELS
 from app.repositories.agent_repository import AgentRunRepository
 from app.services.thesis_service import ThesisService
 from app.storage import get_storage
+from app.watchlist.data_quality import calculate_data_quality, get_security_type
+from app.watchlist.trading_style import INDEX_ETFS
 from app.watchlist.watchlist_service import WatchlistService
 
 logger = get_logger(__name__)
@@ -47,6 +50,8 @@ FINAL_VERDICT_PRIORITY = {
 }
 POSITIVE_VERDICTS = {"buy", "hold"}
 JENNY_AGENT_TIMEOUT_SECONDS = 90.0
+MIN_AGENT_REVIEW_DATA_QUALITY_PCT = 55.0
+PASSIVE_FUND_SYMBOLS = frozenset(INDEX_ETFS) | frozenset(FUND_CATEGORY_LABELS)
 
 
 @dataclass(frozen=True)
@@ -146,16 +151,19 @@ class JennyOperatorService:
             symbols = self._select_symbols(live_positions)
             symbol_count = len(symbols)
             price_data = self.price_fetcher.fetch_price_data(symbols) if symbols else {}
+            symbol_profiles = self._build_symbol_profiles(symbols)
             evaluations_by_symbol: dict[str, list[dict[str, Any]]] = defaultdict(list)
 
             for symbol in symbols:
-                thesis = self._ensure_thesis(symbol)
+                symbol_profile = symbol_profiles.get(symbol, self._default_symbol_profile(symbol))
+                thesis = self._ensure_thesis(symbol, symbol_profile)
                 evaluations = self._evaluate_symbol(
                     symbol,
                     thesis,
                     price_data.get(symbol),
                     routine_id=routine_id,
                     workflow_id=workflow_id,
+                    symbol_profile=symbol_profile,
                 )
                 for evaluation in evaluations:
                     self._save_agent_evaluation(routine_id, symbol, thesis, evaluation)
@@ -318,10 +326,47 @@ class JennyOperatorService:
         ][:3]
         return list(dict.fromkeys(symbols + candidate_symbols))
 
-    def _ensure_thesis(self, symbol: str) -> Thesis | None:
+    def _default_symbol_profile(self, symbol: str) -> dict[str, Any]:
+        security_type = self._normalize_security_type(symbol, None)
+        return {
+            "security_type": security_type,
+            "is_passive_fund": security_type == "etf",
+            "data_quality_pct": None,
+        }
+
+    def _normalize_security_type(self, symbol: str, stored_security_type: str | None) -> str:
+        normalized_symbol = symbol.upper()
+        normalized_type = (stored_security_type or "").strip().lower()
+        if normalized_type == "etf" or normalized_symbol in PASSIVE_FUND_SYMBOLS:
+            return "etf"
+        if normalized_type in {"equity", "index", "other"}:
+            return normalized_type
+        return "equity"
+
+    def _build_symbol_profiles(self, symbols: list[str]) -> dict[str, dict[str, Any]]:
+        if not symbols:
+            return {}
+        quality_map = calculate_data_quality(self.storage, symbols)
+        profiles: dict[str, dict[str, Any]] = {}
+        for symbol in symbols:
+            security_type = self._normalize_security_type(symbol, get_security_type(self.storage, symbol))
+            quality = quality_map.get(symbol)
+            profiles[symbol] = {
+                "security_type": security_type,
+                "is_passive_fund": security_type == "etf",
+                "data_quality_pct": quality.overall_pct if quality else None,
+            }
+        return profiles
+
+    def _ensure_thesis(self, symbol: str, symbol_profile: dict[str, Any]) -> Thesis | None:
         thesis = self.thesis_service.get_thesis(symbol)
         if thesis is not None:
             return thesis
+        if symbol_profile.get("is_passive_fund"):
+            return None
+        data_quality_pct = symbol_profile.get("data_quality_pct")
+        if data_quality_pct is not None and data_quality_pct < MIN_AGENT_REVIEW_DATA_QUALITY_PCT:
+            return None
         if not AGENT_HUB_ENABLED:
             return None
         try:
@@ -337,11 +382,12 @@ class JennyOperatorService:
         price_data: Any,
         routine_id: str,
         workflow_id: str,
+        symbol_profile: dict[str, Any],
     ) -> list[dict[str, Any]]:
-        if not AGENT_HUB_ENABLED:
-            return [self._fallback_evaluation(symbol, thesis)]
+        if not AGENT_HUB_ENABLED or self._should_use_insufficient_evidence_fallback(thesis, symbol_profile):
+            return [self._fallback_evaluation(symbol, thesis, symbol_profile=symbol_profile)]
 
-        payload = self._build_symbol_context(symbol, thesis, price_data)
+        payload = self._build_symbol_context(symbol, thesis, price_data, symbol_profile)
         payload["routine_id"] = routine_id
         payload["workflow_id"] = workflow_id
         evaluations = []
@@ -349,12 +395,44 @@ class JennyOperatorService:
             evaluations.append(self._run_agent_review(spec, payload))
         return evaluations
 
-    def _build_symbol_context(self, symbol: str, thesis: Thesis | None, price_data: Any) -> dict[str, Any]:
+    def _should_use_insufficient_evidence_fallback(
+        self,
+        thesis: Thesis | None,
+        symbol_profile: dict[str, Any],
+    ) -> bool:
+        if thesis is not None:
+            return False
+        data_quality_pct = symbol_profile.get("data_quality_pct")
+        return data_quality_pct is not None and data_quality_pct < MIN_AGENT_REVIEW_DATA_QUALITY_PCT
+
+    def _build_symbol_context(
+        self,
+        symbol: str,
+        thesis: Thesis | None,
+        price_data: Any,
+        symbol_profile: dict[str, Any],
+    ) -> dict[str, Any]:
         price = getattr(price_data, "price", None) if price_data else None
+        is_passive_fund = bool(symbol_profile.get("is_passive_fund"))
+        data_quality_pct = symbol_profile.get("data_quality_pct")
         return {
             "symbol": symbol,
             "current_price": price,
-            "thesis_status": thesis.status.value if thesis else "missing",
+            "security_type": symbol_profile.get("security_type"),
+            "review_mode": "allocation" if is_passive_fund else "thesis",
+            "data_quality_pct": data_quality_pct,
+            "evidence_status": (
+                "thin"
+                if data_quality_pct is not None and data_quality_pct < MIN_AGENT_REVIEW_DATA_QUALITY_PCT
+                else "usable"
+            ),
+            "thesis_status": (
+                thesis.status.value
+                if thesis
+                else "not_required_for_fund"
+                if is_passive_fund
+                else "missing"
+            ),
             "thesis_action": thesis.action.value if thesis else None,
             "expected_return_pct": thesis.expected_return_pct if thesis else None,
             "expected_timeframe_days": thesis.expected_timeframe_days if thesis else None,
@@ -429,8 +507,21 @@ class JennyOperatorService:
             "exit": "Focus on the next action for the position: hold, trim, review, exit, or avoid.",
             "synthesis": "Combine the prior evidence into the clearest plain-English next step.",
         }[mode]
+        review_instruction = ""
+        if payload.get("review_mode") == "allocation":
+            review_instruction = (
+                " This symbol is a passive fund or index-style holding. "
+                "Do not complain about a missing single-company thesis. "
+                "Focus on allocation fit, concentration, market regime, and whether to hold, trim, or avoid adding."
+            )
+        elif payload.get("evidence_status") == "thin":
+            review_instruction = (
+                " Fresh evidence is limited. "
+                "Do not invent precision or hidden conviction. "
+                "If the facts are too thin, prefer review or avoid and explain the missing evidence plainly."
+            )
         return (
-            f"{mode_instruction}\n"
+            f"{mode_instruction}{review_instruction}\n"
             "Return JSON with keys: verdict, confidence, rationale, recommendation, strengths, weaknesses.\n"
             "Set confidence as a number from 0.0 to 1.0.\n"
             f"Context:\n{json.dumps(payload, default=str)}"
@@ -519,9 +610,25 @@ class JennyOperatorService:
         symbol: str,
         thesis: Thesis | None,
         agent_name: str = "fallback_operator",
+        symbol_profile: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         verdict = "review"
         rationale = "Jenny could not reach Agent Hub, so this symbol needs manual review."
+        recommendation = "Check the thesis and current price action before taking action."
+        strengths = ["Existing thesis is still stored." if thesis else "Keeps the workflow running without fake certainty."]
+        weaknesses = ["Agent Hub unavailable, so confidence is limited."]
+        profile = symbol_profile or {}
+        data_quality_pct = profile.get("data_quality_pct")
+        if data_quality_pct is not None and data_quality_pct < MIN_AGENT_REVIEW_DATA_QUALITY_PCT and thesis is None:
+            rationale = "There is not enough fresh evidence to form a trustworthy review yet."
+            recommendation = "Wait for fresher price, signal, and catalyst data before acting."
+            strengths = ["Jenny avoided pretending the evidence was stronger than it is."]
+            weaknesses = ["Fresh data is too thin for a trustworthy review right now."]
+        elif profile.get("is_passive_fund") and thesis is None:
+            rationale = "This is a passive fund holding, so Jenny is treating it as an allocation review instead of a missing company thesis."
+            recommendation = "Review concentration, portfolio role, and whether you still want more exposure here."
+            strengths = ["Passive fund holdings do not require a single-company thesis to stay actionable."]
+            weaknesses = ["Fund reviews rely more on allocation and concentration than company-specific catalysts."]
         if thesis and thesis.status.value == "active" and thesis.action.value == "BUY":
             verdict = "hold"
             rationale = "Active thesis exists, but Jenny could not refresh the agent review."
@@ -532,10 +639,10 @@ class JennyOperatorService:
             "verdict": verdict,
             "confidence": 0.35,
             "rationale": rationale,
-            "recommendation": "Check the thesis and current price action before taking action.",
-            "strengths": ["Existing thesis is still stored." if thesis else "Keeps the workflow running without fake certainty."],
-            "weaknesses": ["Agent Hub unavailable, so confidence is limited."],
-            "metadata": {"fallback": True, "symbol": symbol},
+            "recommendation": recommendation,
+            "strengths": strengths,
+            "weaknesses": weaknesses,
+            "metadata": {"fallback": True, "symbol": symbol, "symbol_profile": profile},
             "agent_run_id": None,
         }
 
@@ -596,6 +703,7 @@ class JennyOperatorService:
         )
         for symbol, review in review_map.items():
             position_action = position_actions.get(symbol)
+            evaluations = evaluations_by_symbol.get(symbol, [])
             if symbol in live_symbols and position_action and position_action["action"] != "hold":
                 self._upsert_notification(
                     routine_id,
@@ -632,6 +740,7 @@ class JennyOperatorService:
 
             thesis = self.thesis_service.get_thesis(symbol)
             invalidation_triggers = self.thesis_service.check_invalidation_triggers(symbol) if thesis else []
+            profile = self._extract_symbol_profile(evaluations)
             if invalidation_triggers and not (
                 position_action and position_action["action"] == "exit"
             ):
@@ -645,7 +754,7 @@ class JennyOperatorService:
                     recommendation="Review the thesis and current price action before holding or adding.",
                 )
                 count += 1
-            if thesis is None:
+            if thesis is None and not profile.get("is_passive_fund"):
                 self._upsert_notification(
                     routine_id,
                     symbol,
@@ -657,6 +766,13 @@ class JennyOperatorService:
                 )
                 count += 1
         return count
+
+    def _extract_symbol_profile(self, evaluations: list[dict[str, Any]]) -> dict[str, Any]:
+        for evaluation in evaluations:
+            profile = (evaluation.get("metadata") or {}).get("symbol_profile")
+            if isinstance(profile, dict):
+                return profile
+        return {}
 
     def _upsert_notification(
         self,

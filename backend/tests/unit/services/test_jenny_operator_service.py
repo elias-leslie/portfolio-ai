@@ -241,6 +241,58 @@ def test_parse_agent_response_normalizes_free_form_verdicts() -> None:
     assert exit_trade["verdict"] == "exit"
 
 
+def test_build_agent_prompt_treats_passive_funds_as_allocation_reviews() -> None:
+    """Passive funds should be reviewed as portfolio allocations, not missing company theses."""
+    service = _service()
+
+    prompt = service._build_agent_prompt(
+        "thesis",
+        {
+            "symbol": "VTI",
+            "security_type": "etf",
+            "review_mode": "allocation",
+            "thesis_status": "not_required_for_fund",
+        },
+    )
+
+    assert "passive fund or index-style holding" in prompt
+    assert "Do not complain about a missing single-company thesis" in prompt
+
+
+def test_ensure_thesis_skips_generation_for_passive_funds() -> None:
+    """Jenny should not auto-generate single-name theses for passive funds."""
+    service = _service()
+    service.thesis_service = Mock()
+    service.thesis_service.get_thesis.return_value = None
+
+    thesis = service._ensure_thesis(
+        "VTI",
+        {"security_type": "etf", "is_passive_fund": True, "data_quality_pct": 88.0},
+    )
+
+    assert thesis is None
+    service.thesis_service.generate_thesis.assert_not_called()
+
+
+def test_evaluate_symbol_uses_insufficient_evidence_fallback_for_thin_data() -> None:
+    """Low-quality inputs should not trigger agent reviews that invent confidence."""
+    service = _service()
+
+    evaluations = service._evaluate_symbol(
+        symbol="XYZ",
+        thesis=None,
+        price_data=Mock(price=25.0),
+        routine_id="routine-1",
+        workflow_id="workflow-1",
+        symbol_profile={"security_type": "equity", "is_passive_fund": False, "data_quality_pct": 32.0},
+    )
+
+    assert len(evaluations) == 1
+    assert evaluations[0]["agent_name"] == "fallback_operator"
+    assert evaluations[0]["verdict"] == "review"
+    assert "not enough fresh evidence" in evaluations[0]["rationale"].lower()
+
+
 def test_create_notifications_adds_invalidation_alerts() -> None:
     """Active invalidation triggers should surface as explicit Jenny alerts."""
     service = _service()
@@ -275,6 +327,42 @@ def test_create_notifications_adds_invalidation_alerts() -> None:
         detail="Signal flipped from BUY to AVOID",
         recommendation="Review the thesis and current price action before holding or adding.",
     )
+
+
+def test_create_notifications_skips_missing_thesis_alert_for_passive_funds() -> None:
+    """Passive fund allocation reviews should not nag about missing single-name theses."""
+    service = _service()
+    service.thesis_service = Mock()
+    service.thesis_service.get_thesis.return_value = None
+    service.thesis_service.check_invalidation_triggers.return_value = []
+    service._aggregate_symbol_review = Mock(
+        return_value=Mock(
+            final_verdict="hold",
+            average_confidence=0.61,
+            reasons=["Allocation still fits the portfolio."],
+            evaluations=[],
+        )
+    )
+    service._build_position_action_map = Mock(return_value={})
+    service._upsert_notification = Mock()
+
+    created = service._create_notifications(
+        routine_id="routine-1",
+        live_symbols={"VTI"},
+        evaluations_by_symbol={
+            "VTI": [
+                {
+                    "verdict": "hold",
+                    "agent_name": "investment-committee",
+                    "rationale": "Allocation still fits the portfolio.",
+                    "metadata": {"symbol_profile": {"security_type": "etf", "is_passive_fund": True}},
+                }
+            ]
+        },
+    )
+
+    assert created == 0
+    service._upsert_notification.assert_not_called()
 
 
 def test_get_position_action_flags_trim_when_winner_gets_too_large() -> None:
