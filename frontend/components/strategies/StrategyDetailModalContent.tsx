@@ -53,7 +53,7 @@ export function StrategyDetailModalContent({
     updateStatus.mutate(
       {
         strategyId: strategy.id,
-        request: { status: 'archived', archiveReason },
+        request: { status: 'archived', archiveReason: archiveReason.trim() },
       },
       {
         onError: (error) => {

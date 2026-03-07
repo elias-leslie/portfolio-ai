@@ -149,7 +149,7 @@ export const features = [
     icon: Clock,
     title: 'Scheduled Refresh',
     description:
-      'Automated refresh jobs keep core datasets moving, while the Status page makes stale pipelines explicit when they fall behind.',
+      'Automated refresh jobs keep core datasets moving, while the Status page highlights pipelines that fall behind.',
   },
   {
     icon: Zap,

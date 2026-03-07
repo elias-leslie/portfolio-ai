@@ -129,7 +129,11 @@ async def refresh_watchlist_scores(data: RefreshRequest) -> RefreshResponse:
             failed=[],
         )
 
-    items = [item for item in items_df.to_dicts() if _is_live_watchlist_symbol(item.get("symbol"))]
+    items = [
+        item
+        for item in items_df.to_dicts()
+        if isinstance(item.get("symbol"), str) and _is_live_watchlist_symbol(item["symbol"])
+    ]
 
     if not items:
         return RefreshResponse(

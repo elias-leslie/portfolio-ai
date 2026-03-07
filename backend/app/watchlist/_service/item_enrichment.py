@@ -109,17 +109,7 @@ def build_data_quality_map(
         result: dict[str, Any] = {}
         for symbol, dq in quality_map.items():
             if dq:
-                result[symbol] = {
-                    "overall_pct": dq.overall_pct,
-                    "pillars": {
-                        name: {
-                            "status": pq.status,
-                            "score": pq.score,
-                            "details": pq.details,
-                        }
-                        for name, pq in dq.pillars.items()
-                    },
-                }
+                result[symbol] = _serialize_data_quality(dq)
             else:
                 result[symbol] = None
         return result

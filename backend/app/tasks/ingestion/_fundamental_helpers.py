@@ -195,8 +195,9 @@ def insert_short_interest(
 ) -> None:
     """Insert short interest data and dual-write to summary table."""
     symbol = data.get("symbol")
-    if not symbol:
+    if not symbol or not str(symbol).strip():
         raise ValueError("insert_short_interest: 'symbol' is required in data")
+    symbol = str(symbol).strip()
     ensure_symbol_exists(storage, symbol)
     as_of_datetime = datetime.combine(as_of_date, datetime.min.time())
 
@@ -217,7 +218,7 @@ def insert_short_interest(
             updated_at = NOW()
         """,
         [
-            data["symbol"],
+            symbol,
             as_of_datetime,
             to_python(data.get("short_shares")),
             to_python(data.get("short_ratio")),
