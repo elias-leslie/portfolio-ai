@@ -65,6 +65,8 @@ class ThesisService:
             thesis = ThesisBuilder.build(
                 symbol, thesis_data, claude_validation, cross_val_score, version
             )
+            if existing is not None:
+                thesis = thesis.model_copy(update={"id": existing.id})
             ensure_symbols_in_watchlist(self._app_storage, [symbol], source="portfolio")
             self._storage.save_thesis(thesis)
             self._storage.save_version(thesis, "updated" if existing else "created")

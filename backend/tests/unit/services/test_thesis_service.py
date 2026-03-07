@@ -36,3 +36,36 @@ def test_generate_thesis_syncs_symbol_to_watchlist_before_save(mocker) -> None:
     service._storage.save_thesis.assert_called_once_with(built_thesis)
     service._storage.save_version.assert_called_once_with(built_thesis, "created")
     build_mock.assert_called_once()
+
+
+def test_generate_thesis_reuses_existing_thesis_id_for_version_history(mocker) -> None:
+    """Regenerated theses should keep the canonical row id used by thesis_versions FK."""
+    service = ThesisService()
+    service._fetcher = Mock(fetch=Mock(return_value={"symbol": "AAPL"}))
+    service._generator = Mock(generate_thesis=Mock(return_value={"action": "BUY"}))
+    service._validator = Mock(
+        validate_thesis=Mock(return_value=Mock(approved=True, confidence=0.8, issues=[])),
+        calculate_cross_validation_score=Mock(return_value=0.8),
+    )
+    existing = Mock(id="existing-thesis-id", symbol="AAPL", version=2)
+    built_thesis = Mock(id="newly-built-id", symbol="AAPL", version=3)
+    persisted_thesis = Mock(id="existing-thesis-id", symbol="AAPL", version=3)
+    service._storage = Mock(
+        get_thesis=Mock(return_value=existing),
+        save_thesis=Mock(),
+        save_version=Mock(),
+    )
+
+    mocker.patch(
+        "app.services.thesis_service.ThesisBuilder.build",
+        return_value=built_thesis,
+    )
+    mocker.patch("app.services.thesis_service.ensure_symbols_in_watchlist")
+    copy_mock = mocker.patch.object(built_thesis, "model_copy", return_value=persisted_thesis)
+
+    result = service.generate_thesis("AAPL", force=True)
+
+    copy_mock.assert_called_once_with(update={"id": "existing-thesis-id"})
+    service._storage.save_thesis.assert_called_once_with(persisted_thesis)
+    service._storage.save_version.assert_called_once_with(persisted_thesis, "updated")
+    assert result is persisted_thesis
