@@ -320,7 +320,7 @@ class ThesisStorageManager:
             invalidated_at = invalidated_at.isoformat()
 
         return Thesis(
-            id=row[0],
+            id=str(row[0]),
             symbol=row[1],
             version=row[2],
             status=ThesisStatus(row[3]),

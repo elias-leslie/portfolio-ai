@@ -42,8 +42,8 @@ def test_agent_hub_client_uses_agent_slug_when_present(mock_sdk: Mock) -> None:
     assert init_kwargs["client_name"] == "portfolio-ai"
     assert call_kwargs["agent_slug"] == "persona"
     assert "model" not in call_kwargs
-    assert call_kwargs["use_memory"] is False
-    assert call_kwargs["execute_tools"] is False
+    assert "use_memory" not in call_kwargs
+    assert "execute_tools" not in call_kwargs
     assert response.raw_response["session_id"] == "session-123"
     assert client.get_model_name() == "persona"
 
@@ -60,6 +60,6 @@ def test_agent_hub_client_defaults_to_chat_agent_for_generic_calls(mock_sdk: Moc
     call_kwargs = mock_sdk.return_value.complete.call_args.kwargs
     assert call_kwargs["agent_slug"] == "chat"
     assert call_kwargs["model"] == "gemini-3-flash-preview"
-    assert call_kwargs["use_memory"] is False
+    assert "use_memory" not in call_kwargs
     assert response.raw_response["session_id"] == "session-123"
     assert client.get_model_name() == "gemini-3-flash-preview"

@@ -44,7 +44,7 @@ class AgentHubAPIClient(LLMClient):
         base_url: str = DEFAULT_AGENT_HUB_URL,
         api_key: str | None = None,
         timeout: float = 300.0,
-        use_memory: bool = False,
+        use_memory: bool | None = None,
     ) -> None:
         """Initialize Agent Hub client.
 
@@ -55,7 +55,8 @@ class AgentHubAPIClient(LLMClient):
             base_url: Agent Hub API base URL
             api_key: Optional API key for authentication
             timeout: Request timeout in seconds
-            use_memory: Whether to opt into Agent Hub memory injection
+            use_memory: Explicit memory override. ``None`` defers to the agent's
+                configured memory settings in Agent Hub.
 
         Raises:
             RuntimeError: If Agent Hub is disabled or service is not reachable
@@ -168,11 +169,11 @@ class AgentHubAPIClient(LLMClient):
                 "tools": tools,
                 "project_id": "portfolio-ai",
                 "purpose": purpose,
-                "use_memory": self.use_memory,
-                "execute_tools": False,
             }
             if self.model is not None:
                 request_kwargs["model"] = self.model
+            if self.use_memory is not None:
+                request_kwargs["use_memory"] = self.use_memory
 
             response = self._client.complete(
                 **request_kwargs,
