@@ -46,7 +46,7 @@ describe('preferences api', () => {
   })
 
   it('updates preferences without a trailing slash', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    vi.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       status: 200,
       headers: new Headers({ 'content-type': 'application/json' }),
