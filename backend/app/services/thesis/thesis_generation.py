@@ -26,7 +26,7 @@ class ThesisGenerator:
     def _ensure_llm_client(self) -> DualProviderClient:
         """Lazy-initialize LLM client."""
         if self._llm_client is None:
-            self._llm_client = DualProviderClient(primary="gemini")
+            self._llm_client = DualProviderClient(primary="gemini", agent_slug="analyst")
             logger.info("thesis_llm_client_initialized")
         return self._llm_client
 

@@ -39,6 +39,7 @@ class DualProviderClient(LLMClient):
         primary: Literal["claude", "gemini", "agent_hub"] = "agent_hub",
         claude_model: str = CLAUDE_SONNET,
         gemini_model: str = GEMINI_FLASH,
+        agent_slug: str | None = None,
         use_agent_hub: bool = True,  # Kept for API compatibility, always True
         agent_hub_url: str = "http://localhost:8003",
     ) -> None:
@@ -48,6 +49,7 @@ class DualProviderClient(LLMClient):
             primary: Which provider to use ("claude", "gemini", or "agent_hub")
             claude_model: Claude model to use (if primary="claude" or "agent_hub")
             gemini_model: Gemini model to use (if primary="gemini")
+            agent_slug: Preferred Agent Hub agent slug for routed completions
             use_agent_hub: Deprecated - always uses Agent Hub
             agent_hub_url: Agent Hub API base URL
         """
@@ -62,6 +64,7 @@ class DualProviderClient(LLMClient):
             model = claude_model
 
         self._client = AgentHubAPIClient(
+            agent_slug=agent_slug,
             model=model,
             base_url=agent_hub_url,
         )

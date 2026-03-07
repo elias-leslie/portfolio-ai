@@ -21,6 +21,7 @@ logger = get_logger(__name__)
 
 # Default Agent Hub URL
 DEFAULT_AGENT_HUB_URL = "http://localhost:8003"
+DEFAULT_AGENT_SLUG = "chat"
 
 # Portfolio-AI client credentials from centralized settings
 PORTFOLIO_CLIENT_ID = settings.portfolio_client_id or None
@@ -62,7 +63,8 @@ class AgentHubAPIClient(LLMClient):
                 "Agent Hub is disabled. Set AGENT_HUB_ENABLED=true to enable agentic calls."
             )
 
-        self.agent_slug = agent_slug
+        self.agent_slug = agent_slug or DEFAULT_AGENT_SLUG
+        self._preferred_agent_slug = agent_slug
         self.model = model
         self.base_url = base_url
         self._client = SDKClient(
@@ -86,6 +88,7 @@ class AgentHubAPIClient(LLMClient):
             "agent_hub_client_initialized",
             base_url=base_url,
             model=model,
+            agent_slug=self.agent_slug,
             provider=self.provider,
         )
 
@@ -108,7 +111,7 @@ class AgentHubAPIClient(LLMClient):
         Returns:
             Model identifier
         """
-        return self.agent_slug or self.model
+        return self._preferred_agent_slug or self.model
 
     def generate(
         self,
