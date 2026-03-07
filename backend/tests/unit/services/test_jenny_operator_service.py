@@ -151,3 +151,30 @@ def test_create_routine_starts_agent_workflow_and_records_metadata() -> None:
     service.workflow_orchestrator.start_workflow.assert_called_once()
     inserted_params = connection.execute.call_args.args[1]
     assert inserted_params[-1] == '{"workflow_id": "workflow-123"}'
+
+
+def test_parse_agent_response_normalizes_qualitative_confidence() -> None:
+    """Jenny should accept plain-language confidence labels from finance agents."""
+    service = _service()
+
+    parsed = service._parse_agent_response(
+        '{"verdict":"buy","confidence":"low","rationale":"Needs more confirmation.","strengths":["Cash flow"],"weaknesses":["Crowded trade"]}',
+        "equity-analyst",
+    )
+
+    assert parsed["verdict"] == "buy"
+    assert parsed["confidence"] == pytest.approx(0.35)
+    assert parsed["strengths"] == ["Cash flow"]
+    assert parsed["weaknesses"] == ["Crowded trade"]
+
+
+def test_parse_agent_response_normalizes_percentage_confidence() -> None:
+    """Percent-style confidence should be converted into the 0-1 range."""
+    service = _service()
+
+    parsed = service._parse_agent_response(
+        '{"verdict":"hold","confidence":"70%","rationale":"Trend intact."}',
+        "risk-manager",
+    )
+
+    assert parsed["confidence"] == pytest.approx(0.7)

@@ -427,8 +427,33 @@ class JennyOperatorService:
         return (
             f"{mode_instruction}\n"
             "Return JSON with keys: verdict, confidence, rationale, recommendation, strengths, weaknesses.\n"
+            "Set confidence as a number from 0.0 to 1.0.\n"
             f"Context:\n{json.dumps(payload, default=str)}"
         )
+
+    def _normalize_confidence(self, raw_confidence: Any) -> float | None:
+        if raw_confidence is None:
+            return None
+        if isinstance(raw_confidence, bool):
+            return 1.0 if raw_confidence else 0.0
+        if isinstance(raw_confidence, int | float):
+            value = float(raw_confidence)
+            return value / 100.0 if value > 1.0 else value
+        if isinstance(raw_confidence, str):
+            normalized = raw_confidence.strip().lower()
+            qualitative_map = {
+                "low": 0.35,
+                "medium": 0.6,
+                "med": 0.6,
+                "high": 0.8,
+            }
+            if normalized in qualitative_map:
+                return qualitative_map[normalized]
+            if normalized.endswith("%"):
+                normalized = normalized[:-1].strip()
+            value = float(normalized)
+            return value / 100.0 if value > 1.0 else value
+        raise ValueError(f"Unsupported confidence value: {raw_confidence!r}")
 
     def _parse_agent_response(self, content: str, agent_name: str) -> dict[str, Any]:
         try:
@@ -459,7 +484,7 @@ class JennyOperatorService:
         return {
             "agent_name": agent_name,
             "verdict": str(parsed.get("verdict", "review")).lower(),
-            "confidence": float(parsed.get("confidence", 0.5)) if parsed.get("confidence") is not None else None,
+            "confidence": self._normalize_confidence(parsed.get("confidence", 0.5)),
             "rationale": str(parsed.get("rationale") or "No rationale provided."),
             "recommendation": str(parsed.get("recommendation")) if parsed.get("recommendation") else None,
             "strengths": [str(item) for item in strengths][:5],
