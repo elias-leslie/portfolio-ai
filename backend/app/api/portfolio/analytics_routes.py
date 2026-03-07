@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
 
 from app.logging_config import get_logger
 from app.middleware.cache import cache_response
@@ -49,7 +49,30 @@ async def get_analytics(request: Request, include_paper: bool = False) -> Analyt
         positions = all_positions
 
     if not positions:
-        raise HTTPException(status_code=404, detail="No positions in portfolio")
+        return AnalyticsResponse(
+            portfolio_value={
+                "total_value": 0.0,
+                "total_cost_basis": 0.0,
+                "total_gain": 0.0,
+                "total_gain_pct": 0.0,
+            },
+            portfolio_beta=None,
+            portfolio_volatility=None,
+            sharpe_ratio=None,
+            sector_exposure={},
+            concentration={
+                "top_holding_pct": 0.0,
+                "top_3_pct": 0.0,
+                "top_10_pct": 0.0,
+                "herfindahl_index": 0.0,
+            },
+            risk_profile=None,
+            diversification_score=None,
+            top_performers=[],
+            bottom_performers=[],
+            num_positions=0,
+            num_symbols=0,
+        )
 
     # Get price data
     symbols = list({p.symbol for p in positions})

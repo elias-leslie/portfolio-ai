@@ -283,11 +283,26 @@ def test_portfolio_error_handling(client: TestClient) -> None:
     assert response.status_code == 404
     assert "Account not found" in response.json()["detail"]
 
-    # Try to get analytics with no positions
+    # Empty analytics should return a valid zero-state payload instead of a 404.
     response = client.get("/api/portfolio/analytics")
-    assert response.status_code == 404
-    assert "No positions in portfolio" in response.json()["detail"]
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["num_positions"] == 0
+    assert payload["num_symbols"] == 0
+    assert payload["portfolio_value"]["total_value"] == 0
+    assert payload["top_performers"] == []
+    assert payload["bottom_performers"] == []
 
     # Delete non-existent position (should be idempotent)
     response = client.delete("/api/portfolio/position/non-existent-id")
     assert response.status_code == 200
+
+
+def test_recommendations_accept_trailing_slash(client: TestClient) -> None:
+    """Frontend polling should not 404 on the slash variant of recommendations."""
+    response = client.get("/api/recommendations/?min_strength=6&limit=6&signal_type=BUY")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "recommendations" in payload
+    assert "summary" in payload
