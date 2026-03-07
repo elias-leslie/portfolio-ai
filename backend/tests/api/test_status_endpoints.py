@@ -106,8 +106,7 @@ class TestServiceMonitor:
 
         mock_get_service_status.assert_called_once()
         assert mock_get_service_status.call_args.args[0] == "portfolio-frontend"
-        assert "next" in mock_get_service_status.call_args.args[1]
-        assert "start" in mock_get_service_status.call_args.args[1]
+        assert mock_get_service_status.call_args.args[1] == SERVICE_PROCESS_PATTERNS["portfolio-frontend"]
         assert status.status == "running"
 
 
