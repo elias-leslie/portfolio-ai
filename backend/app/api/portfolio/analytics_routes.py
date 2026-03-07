@@ -37,16 +37,17 @@ async def get_analytics(request: Request, include_paper: bool = False) -> Analyt
     Args:
         include_paper: If False (default), excludes paper trading accounts.
     """
-    all_positions = portfolio_mgr.get_positions()
-
-    # Filter out paper accounts unless explicitly requested
+    all_accounts = portfolio_mgr.get_accounts()
     if not include_paper:
-        paper_account_ids = {
-            acc.id for acc in portfolio_mgr.get_accounts() if acc.account_type == "paper"
-        }
-        positions = [p for p in all_positions if p.account_id not in paper_account_ids]
+        accounts = [acc for acc in all_accounts if acc.account_type != "paper"]
     else:
-        positions = all_positions
+        accounts = all_accounts
+
+    account_ids = {acc.id for acc in accounts}
+    cash_balance_total = sum(acc.cash_balance for acc in accounts)
+
+    all_positions = portfolio_mgr.get_positions()
+    positions = [p for p in all_positions if p.account_id in account_ids]
 
     if not positions:
         return AnalyticsResponse(
@@ -56,6 +57,8 @@ async def get_analytics(request: Request, include_paper: bool = False) -> Analyt
                 "total_gain": 0.0,
                 "total_gain_pct": 0.0,
             },
+            cash_balance_total=cash_balance_total,
+            cash_inclusive_total_value=cash_balance_total,
             portfolio_beta=None,
             portfolio_volatility=None,
             sharpe_ratio=None,
@@ -77,14 +80,13 @@ async def get_analytics(request: Request, include_paper: bool = False) -> Analyt
     # Get price data
     symbols = list({p.symbol for p in positions})
     price_data = price_fetcher.fetch_price_data(symbols)
-    account_ids = list({p.account_id for p in positions})
 
     # Calculate analytics
     analytics = analytics_calculator.calculate_full_analytics(
         positions,
         price_data,
         storage=storage,
-        account_ids=account_ids,
+        account_ids=list(account_ids),
     )
 
     # Convert risk profile to response model
@@ -136,6 +138,8 @@ async def get_analytics(request: Request, include_paper: bool = False) -> Analyt
             "total_gain": analytics.portfolio_value.total_gain,
             "total_gain_pct": analytics.portfolio_value.total_gain_pct,
         },
+        cash_balance_total=cash_balance_total,
+        cash_inclusive_total_value=analytics.portfolio_value.total_value + cash_balance_total,
         portfolio_beta=analytics.portfolio_beta,
         portfolio_volatility=analytics.portfolio_volatility,
         sharpe_ratio=analytics.sharpe_ratio,

@@ -9,8 +9,7 @@ interface PortfolioStatsProps {
 }
 
 export function PortfolioStats({ analytics }: PortfolioStatsProps) {
-  // Calculate average position size
-  const avgPositionSize =
+  const avgInvestedPositionSize =
     analytics.numPositions > 0
       ? analytics.portfolioValue.totalValue / analytics.numPositions
       : 0
@@ -45,9 +44,23 @@ export function PortfolioStats({ analytics }: PortfolioStatsProps) {
           </span>
         </div>
         <div className="flex justify-between items-center">
-          <span className="text-sm text-text-muted">Avg Position Size</span>
+          <span className="text-sm text-text-muted">
+            Avg Invested Position Size
+          </span>
           <span className="text-sm font-medium text-text">
-            {formatCurrency(avgPositionSize)}
+            {formatCurrency(avgInvestedPositionSize)}
+          </span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="text-sm text-text-muted">Invested Value</span>
+          <span className="text-sm font-medium text-text">
+            {formatCurrency(analytics.portfolioValue.totalValue)}
+          </span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="text-sm text-text-muted">Cash Reserve</span>
+          <span className="text-sm font-medium text-text">
+            {formatCurrency(analytics.cashBalanceTotal)}
           </span>
         </div>
         <div className="flex justify-between items-center">

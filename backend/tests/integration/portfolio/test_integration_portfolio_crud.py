@@ -120,6 +120,8 @@ def test_portfolio_crud_integration_flow(client: TestClient) -> None:
     assert analytics["num_positions"] == 1
     assert analytics["num_symbols"] == 1
     assert analytics["portfolio_value"]["total_cost_basis"] == 15000.00
+    assert analytics["cash_balance_total"] == 0.0
+    assert analytics["cash_inclusive_total_value"] == 18000.0
     assert "portfolio_beta" in analytics
     assert "sector_exposure" in analytics
     assert "concentration" in analytics
@@ -276,6 +278,13 @@ def test_portfolio_totals_include_account_cash_balances(client: TestClient) -> N
     assert portfolio["total_value"] == 6800.0
     assert portfolio["total_gain_pct"] == pytest.approx((300.0 / 6500.0) * 100)
 
+    analytics_response = client.get("/api/portfolio/analytics")
+    assert analytics_response.status_code == 200
+    analytics = analytics_response.json()
+    assert analytics["cash_balance_total"] == 5000.0
+    assert analytics["portfolio_value"]["total_value"] == 1800.0
+    assert analytics["cash_inclusive_total_value"] == 6800.0
+
 
 def test_portfolio_returns_cash_only_accounts(client: TestClient) -> None:
     """Cash-only live accounts should still appear in totals and account responses."""
@@ -314,6 +323,13 @@ def test_portfolio_returns_cash_only_accounts(client: TestClient) -> None:
     accounts = accounts_response.json()
     assert accounts[0]["name"] == "Roth Cash"
     assert accounts[0]["cash_balance"] == 47880.13
+
+    analytics_response = client.get("/api/portfolio/analytics")
+    assert analytics_response.status_code == 200
+    analytics = analytics_response.json()
+    assert analytics["cash_balance_total"] == 47880.13
+    assert analytics["cash_inclusive_total_value"] == 47880.13
+    assert analytics["portfolio_value"]["total_value"] == 0.0
 
 
 def test_portfolio_cache_invalidation_handles_slash_variants(client: TestClient) -> None:

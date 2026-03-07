@@ -19,6 +19,7 @@ describe('portfolio api', () => {
       headers: new Headers({ 'content-type': 'application/json' }),
       json: vi.fn().mockResolvedValue({
         positions: [],
+        cash_balance_total: 0,
         total_value: 0,
         total_cost_basis: 0,
         total_gain: 0,

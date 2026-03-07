@@ -103,6 +103,8 @@ class AnalyticsResponse(BaseModel):
     """Response model for portfolio analytics."""
 
     portfolio_value: dict[str, float]
+    cash_balance_total: float
+    cash_inclusive_total_value: float
     portfolio_beta: float | None
     portfolio_volatility: float | None
     sharpe_ratio: float | None

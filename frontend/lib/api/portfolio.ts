@@ -69,6 +69,8 @@ export interface PortfolioAnalytics {
     totalGain: number
     totalGainPct: number
   }
+  cashBalanceTotal: number
+  cashInclusiveTotalValue: number
   portfolioBeta: number
   portfolioVolatility: number
   sharpeRatio: number | null
