@@ -8,7 +8,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -46,13 +46,22 @@ class Settings(BaseSettings):
     cache_default_ttl: int = 300
 
     # Agent Hub integration
-    agent_hub_enabled: bool = False
+    agent_hub_enabled: bool | None = None
     portfolio_client_id: str = ""
     portfolio_client_secret: str = ""
     portfolio_request_source: str = "portfolio-ai"
 
     # Filesystem paths
     artifacts_dir: Path = Path(__file__).resolve().parents[3] / "data" / "artifacts"
+
+    @model_validator(mode="after")
+    def resolve_agent_hub_enabled(self) -> Settings:
+        """Enable Agent Hub automatically when credentials are configured."""
+        if self.agent_hub_enabled is None:
+            self.agent_hub_enabled = bool(
+                self.portfolio_client_id and self.portfolio_client_secret
+            )
+        return self
 
 
 @lru_cache
