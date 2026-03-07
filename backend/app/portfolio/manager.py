@@ -50,10 +50,14 @@ class PortfolioManager:
         account_id = str(uuid.uuid4())
         now = datetime.now(UTC)
 
+        starting_cash = 100000.0 if account_type == "paper" else 0.0
+
         account = Account(
             id=account_id,
             name=name,
             account_type=account_type,
+            cash_balance=starting_cash,
+            initial_cash=starting_cash,
             created_at=now,
             updated_at=now,
         )
@@ -65,6 +69,32 @@ class PortfolioManager:
         )
 
         logger.info(f"Created account {account_id}: {name} ({account_type})")
+        return account
+
+    def update_account_cash_balance(
+        self,
+        account_id: str,
+        cash_balance: float,
+        initial_cash: float | None = None,
+    ) -> Account:
+        """Update stored cash balances for a portfolio account."""
+        df = self.storage.query(
+            "SELECT * FROM portfolio_accounts WHERE id = ?",
+            [account_id],
+        )
+        if df.is_empty():
+            raise ValueError(f"Account {account_id} not found")
+
+        account = Account(**df.to_dicts()[0])
+        account.cash_balance = cash_balance
+        if initial_cash is not None:
+            account.initial_cash = initial_cash
+        account.updated_at = datetime.now(UTC)
+
+        df_update = pl.DataFrame([account.model_dump()])
+        self.storage.upsert_by_id("portfolio_accounts", df_update, "id")
+
+        logger.info(f"Updated cash balance for account {account_id}")
         return account
 
     def get_accounts(self) -> list[Account]:

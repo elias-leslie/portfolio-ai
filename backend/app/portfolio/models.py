@@ -17,6 +17,8 @@ class Account(BaseModel):
     id: str
     name: str
     account_type: Literal["IRA", "Taxable", "401k", "Roth", "HSA", "paper"]
+    cash_balance: float = 0.0
+    initial_cash: float = 0.0
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
 

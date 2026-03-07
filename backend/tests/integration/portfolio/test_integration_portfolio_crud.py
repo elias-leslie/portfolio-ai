@@ -228,6 +228,94 @@ def test_portfolio_multiple_accounts_flow(client: TestClient) -> None:
     assert analytics["num_symbols"] == 2
 
 
+def test_portfolio_totals_include_account_cash_balances(client: TestClient) -> None:
+    """Live portfolio totals should include cash reserves alongside positions."""
+    account_response = client.post(
+        "/api/portfolio/account", json={"name": "Cash IRA", "account_type": "IRA"}
+    )
+    assert account_response.status_code == 200
+    account = account_response.json()
+    account_id = account["id"]
+
+    storage = get_storage()
+    with storage.connection() as conn:
+        conn.execute(
+            """
+            UPDATE portfolio_accounts
+            SET cash_balance = $1,
+                initial_cash = $1
+            WHERE id = $2
+            """,
+            [5000.0, account_id],
+        )
+        conn.commit()
+
+    position_response = client.post(
+        "/api/portfolio/position",
+        json={
+            "account_id": account_id,
+            "symbol": "AAPL",
+            "shares": 10,
+            "cost_basis": 150.00,
+            "position_type": "long",
+        },
+    )
+    assert position_response.status_code == 200
+
+    accounts_response = client.get("/api/portfolio/accounts")
+    assert accounts_response.status_code == 200
+    accounts = accounts_response.json()
+    assert accounts[0]["cash_balance"] == 5000.0
+
+    portfolio_response = client.get("/api/portfolio")
+    assert portfolio_response.status_code == 200
+    portfolio = portfolio_response.json()
+    assert portfolio["cash_balance_total"] == 5000.0
+    assert portfolio["total_cost_basis"] == 6500.0
+    assert portfolio["total_gain"] == 300.0
+    assert portfolio["total_value"] == 6800.0
+    assert portfolio["total_gain_pct"] == pytest.approx((300.0 / 6500.0) * 100)
+
+
+def test_portfolio_returns_cash_only_accounts(client: TestClient) -> None:
+    """Cash-only live accounts should still appear in totals and account responses."""
+    account_response = client.post(
+        "/api/portfolio/account", json={"name": "Roth Cash", "account_type": "Roth"}
+    )
+    assert account_response.status_code == 200
+    account = account_response.json()
+    account_id = account["id"]
+
+    storage = get_storage()
+    with storage.connection() as conn:
+        conn.execute(
+            """
+            UPDATE portfolio_accounts
+            SET cash_balance = $1,
+                initial_cash = $1
+            WHERE id = $2
+            """,
+            [47880.13, account_id],
+        )
+        conn.commit()
+
+    portfolio_response = client.get("/api/portfolio")
+    assert portfolio_response.status_code == 200
+    portfolio = portfolio_response.json()
+    assert portfolio["positions"] == []
+    assert portfolio["cash_balance_total"] == 47880.13
+    assert portfolio["total_value"] == 47880.13
+    assert portfolio["total_cost_basis"] == 47880.13
+    assert portfolio["total_gain"] == 0.0
+    assert portfolio["total_gain_pct"] == 0.0
+
+    accounts_response = client.get("/api/portfolio/accounts")
+    assert accounts_response.status_code == 200
+    accounts = accounts_response.json()
+    assert accounts[0]["name"] == "Roth Cash"
+    assert accounts[0]["cash_balance"] == 47880.13
+
+
 def test_portfolio_cache_invalidation_handles_slash_variants(client: TestClient) -> None:
     """Creating a position should invalidate both /api/portfolio and /api/portfolio/ cache entries."""
     empty_response = client.get("/api/portfolio")

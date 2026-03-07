@@ -37,6 +37,7 @@ class AccountResponse(BaseModel):
     id: str
     name: str
     account_type: str
+    cash_balance: float
     created_at: str
     updated_at: str
 
@@ -64,6 +65,7 @@ class PortfolioResponse(BaseModel):
     """Response model for portfolio with positions and current values."""
 
     positions: list[PositionResponse]
+    cash_balance_total: float
     total_value: float
     total_cost_basis: float
     total_gain: float

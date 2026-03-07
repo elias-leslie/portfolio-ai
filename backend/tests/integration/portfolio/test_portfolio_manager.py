@@ -30,7 +30,17 @@ def test_add_account(portfolio_mgr: PortfolioManager) -> None:
     assert account.id is not None
     assert account.name == "My IRA"
     assert account.account_type == "IRA"
+    assert account.cash_balance == 0.0
+    assert account.initial_cash == 0.0
     assert account.created_at is not None
+
+
+def test_add_paper_account_defaults_to_starting_cash(portfolio_mgr: PortfolioManager) -> None:
+    """Paper accounts should preserve their dedicated starting balance."""
+    account = portfolio_mgr.add_account("Paper", "paper")
+
+    assert account.cash_balance == 100000.0
+    assert account.initial_cash == 100000.0
 
 
 def test_get_accounts_empty(portfolio_mgr: PortfolioManager) -> None:
@@ -178,3 +188,17 @@ def test_delete_position_idempotent(portfolio_mgr: PortfolioManager) -> None:
     """Test that deleting a non-existent position doesn't raise an error."""
     # Should not raise
     portfolio_mgr.delete_position("nonexistent-id")
+
+
+def test_update_account_cash_balance(portfolio_mgr: PortfolioManager) -> None:
+    """Account cash balances should be updateable for live brokerage sync."""
+    account = portfolio_mgr.add_account("Brokerage", "Taxable")
+
+    updated = portfolio_mgr.update_account_cash_balance(
+        account.id,
+        cash_balance=1427.53,
+        initial_cash=1427.53,
+    )
+
+    assert updated.cash_balance == 1427.53
+    assert updated.initial_cash == 1427.53

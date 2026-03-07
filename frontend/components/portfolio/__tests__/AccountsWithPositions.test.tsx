@@ -26,7 +26,7 @@ const mockUseUpdatePosition = useUpdatePosition as unknown as Mock
 describe('AccountsWithPositions', () => {
   beforeEach(() => {
     mockUsePortfolio.mockReturnValue({
-      data: { positions: [] },
+      data: { positions: [], cashBalanceTotal: 0, totalValue: 0, totalCostBasis: 0, totalGain: 0, totalGainPct: 0 },
       isLoading: false,
     })
     mockUseDeleteAccount.mockReturnValue({
@@ -71,5 +71,28 @@ describe('AccountsWithPositions', () => {
     expect(
       screen.getByText(/No accounts yet\. Click "Add Account"/i),
     ).toBeVisible()
+  })
+
+  it('shows cash-only accounts without treating them as empty', () => {
+    mockUseAccounts.mockReturnValue({
+      data: [
+        {
+          id: 'acct-1',
+          name: 'Roth IRA',
+          accountType: 'Roth',
+          cashBalance: 47880.13,
+          createdAt: '2026-03-07T00:00:00Z',
+          updatedAt: '2026-03-07T00:00:00Z',
+        },
+      ],
+      isLoading: false,
+    })
+
+    render(<AccountsWithPositions />)
+
+    expect(screen.getByText('Roth IRA')).toBeVisible()
+    expect(screen.getByText('$47,880.13')).toBeVisible()
+    expect(screen.getByText(/Cash \$47,880\.13/)).toBeVisible()
+    expect(screen.queryByText(/No positions in this account yet/i)).not.toBeInTheDocument()
   })
 })

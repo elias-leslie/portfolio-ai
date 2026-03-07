@@ -75,6 +75,13 @@ def _build_position_response(
     )
 
 
+def _invalidate_portfolio_read_cache() -> None:
+    """Clear both slash variants used by the frontend and tests."""
+    invalidate_endpoint_cache("/api/portfolio", method="GET")
+    invalidate_endpoint_cache("/api/portfolio/", method="GET")
+    invalidate_endpoint_cache("/api/portfolio/analytics", method="GET")
+
+
 @router.post("/position", response_model=PositionResponse)
 async def create_position(position: PositionCreate) -> PositionResponse:
     """Add or update a portfolio position."""
@@ -93,9 +100,7 @@ async def create_position(position: PositionCreate) -> PositionResponse:
         strategy_id=position.strategy_id,
     )
 
-    # Invalidate portfolio cache
-    invalidate_endpoint_cache("/api/portfolio/", method="GET")
-    invalidate_endpoint_cache("/api/portfolio/analytics", method="GET")
+    _invalidate_portfolio_read_cache()
 
     return _build_position_response(created, include_strategy_name=True)
 
@@ -124,9 +129,7 @@ async def update_position(position_id: str, position: PositionCreate) -> Positio
         position_type=position.position_type,
     )
 
-    # Invalidate portfolio cache
-    invalidate_endpoint_cache("/api/portfolio/", method="GET")
-    invalidate_endpoint_cache("/api/portfolio/analytics", method="GET")
+    _invalidate_portfolio_read_cache()
 
     return _build_position_response(updated, include_strategy_name=False)
 
@@ -136,8 +139,6 @@ async def delete_position(position_id: str) -> dict[str, str]:
     """Delete a portfolio position."""
     portfolio_mgr.delete_position(position_id)
 
-    # Invalidate portfolio cache
-    invalidate_endpoint_cache("/api/portfolio/", method="GET")
-    invalidate_endpoint_cache("/api/portfolio/analytics", method="GET")
+    _invalidate_portfolio_read_cache()
 
     return {"status": "deleted", "position_id": position_id}

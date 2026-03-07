@@ -35,22 +35,24 @@ async def get_portfolio(request: Request, include_paper: bool = False) -> Portfo
     Args:
         include_paper: If False (default), excludes paper trading accounts.
     """
-    all_positions = portfolio_mgr.get_positions()
-
-    # Filter out paper accounts unless explicitly requested
+    all_accounts = portfolio_mgr.get_accounts()
     if not include_paper:
-        paper_account_ids = {
-            acc.id for acc in portfolio_mgr.get_accounts() if acc.account_type == "paper"
-        }
-        positions = [p for p in all_positions if p.account_id not in paper_account_ids]
+        accounts = [acc for acc in all_accounts if acc.account_type != "paper"]
     else:
-        positions = all_positions
+        accounts = all_accounts
+
+    account_ids = {acc.id for acc in accounts}
+    cash_balance_total = sum(acc.cash_balance for acc in accounts)
+
+    all_positions = portfolio_mgr.get_positions()
+    positions = [p for p in all_positions if p.account_id in account_ids]
 
     if not positions:
         return PortfolioResponse(
             positions=[],
-            total_value=0.0,
-            total_cost_basis=0.0,
+            cash_balance_total=cash_balance_total,
+            total_value=cash_balance_total,
+            total_cost_basis=cash_balance_total,
             total_gain=0.0,
             total_gain_pct=0.0,
         )
@@ -69,12 +71,11 @@ async def get_portfolio(request: Request, include_paper: bool = False) -> Portfo
 
     # Calculate analytics
     analytics_calculator = PortfolioAnalytics()
-    account_ids = list({p.account_id for p in positions})
     analytics = analytics_calculator.calculate_full_analytics(
         positions,
         price_data,
         storage=storage,
-        account_ids=account_ids,
+        account_ids=list(account_ids),
     )
 
     # Build position responses with current values
@@ -109,12 +110,18 @@ async def get_portfolio(request: Request, include_paper: bool = False) -> Portfo
             )
         )
 
+    total_cost_basis = analytics.portfolio_value.total_cost_basis + cash_balance_total
+    total_gain = analytics.portfolio_value.total_gain
+    total_value = analytics.portfolio_value.total_value + cash_balance_total
+    total_gain_pct = (total_gain / total_cost_basis) * 100 if total_cost_basis > 0 else 0.0
+
     return PortfolioResponse(
         positions=position_responses,
-        total_value=analytics.portfolio_value.total_value,
-        total_cost_basis=analytics.portfolio_value.total_cost_basis,
-        total_gain=analytics.portfolio_value.total_gain,
-        total_gain_pct=analytics.portfolio_value.total_gain_pct,
+        cash_balance_total=cash_balance_total,
+        total_value=total_value,
+        total_cost_basis=total_cost_basis,
+        total_gain=total_gain,
+        total_gain_pct=total_gain_pct,
     )
 
 
@@ -136,6 +143,7 @@ async def get_accounts(include_paper: bool = False) -> list[AccountResponse]:
             id=acc.id,
             name=acc.name,
             account_type=acc.account_type,
+            cash_balance=acc.cash_balance,
             created_at=acc.created_at.isoformat(),
             updated_at=acc.updated_at.isoformat(),
         )
@@ -152,6 +160,7 @@ async def create_account(account: AccountCreate) -> AccountResponse:
         id=created.id,
         name=created.name,
         account_type=created.account_type,
+        cash_balance=created.cash_balance,
         created_at=created.created_at.isoformat(),
         updated_at=created.updated_at.isoformat(),
     )

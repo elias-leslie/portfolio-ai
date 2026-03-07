@@ -9,6 +9,7 @@ export interface Account {
   id: string
   name: string
   accountType: string
+  cashBalance: number
   createdAt: string
   updatedAt: string
 }
@@ -33,6 +34,7 @@ export interface PositionWithValue extends Position {
 
 export interface PortfolioResponse {
   positions: PositionWithValue[]
+  cashBalanceTotal: number
   totalValue: number
   totalCostBasis: number
   totalGain: number

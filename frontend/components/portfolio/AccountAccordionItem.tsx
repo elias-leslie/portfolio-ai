@@ -44,8 +44,9 @@ export function AccountAccordionItem({
   isDeletingPosition,
 }: AccountAccordionItemProps) {
   const positions = getAccountPositions(account.id, allPositions)
-  const totalValue = getAccountTotalValue(account.id, allPositions)
-  const totalGain = getAccountTotalGain(account.id, allPositions)
+  const totalValue = getAccountTotalValue(account, allPositions)
+  const totalGain = getAccountTotalGain(account, allPositions)
+  const hasCashBalance = account.cashBalance > 0
 
   return (
     <AccordionItem
@@ -67,16 +68,23 @@ export function AccountAccordionItem({
                   {positions.length} position
                   {positions.length !== 1 ? 's' : ''}
                 </span>
-                {positions.length > 0 && (
+                {(positions.length > 0 || hasCashBalance) && (
                   <>
                     <span className="text-text">
                       {formatCurrency(totalValue)}
                     </span>
-                    <span
-                      className={totalGain >= 0 ? 'text-profit' : 'text-loss'}
-                    >
-                      {formatPercent(totalGain)}
-                    </span>
+                    {positions.length > 0 && (
+                      <span
+                        className={totalGain >= 0 ? 'text-profit' : 'text-loss'}
+                      >
+                        {formatPercent(totalGain)}
+                      </span>
+                    )}
+                    {hasCashBalance && (
+                      <span className="text-text-muted">
+                        Cash {formatCurrency(account.cashBalance)}
+                      </span>
+                    )}
                   </>
                 )}
               </div>
@@ -111,8 +119,9 @@ export function AccountAccordionItem({
         )}
         {positions.length === 0 ? (
           <div className="py-8 text-center text-sm text-text-muted">
-            No positions in this account yet. Click &quot;Add Position&quot;
-            above to get started.
+            {hasCashBalance
+              ? `This account is currently cash only with ${formatCurrency(account.cashBalance)} available.`
+              : 'No positions in this account yet. Click "Add Position" above to get started.'}
           </div>
         ) : (
           <div className="rounded-md border border-border bg-surface/50 overflow-hidden">

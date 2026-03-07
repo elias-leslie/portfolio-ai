@@ -61,6 +61,9 @@ export function PortfolioOverview() {
               <div className="mt-1 text-xs text-text-muted">
                 Cost: {formatCurrency(portfolio?.totalCostBasis ?? 0)}
               </div>
+              <div className="mt-1 text-xs text-text-muted">
+                Cash reserve: {formatCurrency(portfolio?.cashBalanceTotal ?? 0)}
+              </div>
             </div>
           </div>
         </Card>

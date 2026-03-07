@@ -1,4 +1,4 @@
-import type { PositionWithValue } from '@/lib/api/portfolio'
+import type { Account, PositionWithValue } from '@/lib/api/portfolio'
 
 export const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('en-US', {
@@ -25,25 +25,37 @@ export const getAccountPositions = (
 }
 
 export const getAccountTotalValue = (
+  account: Account,
+  positions: PositionWithValue[] | undefined,
+) => {
+  const accountPositions = getAccountPositions(account.id, positions)
+  return (
+    account.cashBalance +
+    accountPositions.reduce((sum, p) => sum + (p.currentValue || 0), 0)
+  )
+}
+
+export const getAccountTotalCostBasis = (
   accountId: string,
+  cashBalance: number,
   positions: PositionWithValue[] | undefined,
 ) => {
   const accountPositions = getAccountPositions(accountId, positions)
-  return accountPositions.reduce((sum, p) => sum + (p.currentValue || 0), 0)
+  return (
+    cashBalance +
+    accountPositions.reduce((sum, p) => sum + p.shares * p.costBasis, 0)
+  )
 }
 
 export const getAccountTotalGain = (
-  accountId: string,
+  account: Account,
   positions: PositionWithValue[] | undefined,
 ) => {
-  const accountPositions = getAccountPositions(accountId, positions)
-  const totalValue = accountPositions.reduce(
-    (sum, p) => sum + (p.currentValue || 0),
-    0,
-  )
-  const totalCost = accountPositions.reduce(
-    (sum, p) => sum + p.shares * p.costBasis,
-    0,
+  const totalValue = getAccountTotalValue(account, positions)
+  const totalCost = getAccountTotalCostBasis(
+    account.id,
+    account.cashBalance,
+    positions,
   )
   return totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : 0
 }
