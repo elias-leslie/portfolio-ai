@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 
 from app.logging_config import get_logger
 
-from ._earnings_surprise_fetch import fetch_earnings_surprises_from_finnhub
+from . import _earnings_surprise_fetch
 from ._earnings_surprise_storage import get_recent_earnings_surprises, save_earnings_surprises
 from .earnings_surprise_types import (
     LARGE_BEAT_PCT,
@@ -29,6 +29,9 @@ if TYPE_CHECKING:
     from app.storage import PortfolioStorage
 
 logger = get_logger(__name__)
+
+# Preserve the historic patch seam used by tests/callers.
+requests = _earnings_surprise_fetch.requests
 
 __all__ = [
     "LARGE_BEAT_PCT",
@@ -128,3 +131,8 @@ def fetch_and_store_earnings_surprises(
     if surprises:
         return save_earnings_surprises(storage, surprises)
     return 0
+
+
+def fetch_earnings_surprises_from_finnhub(symbol: str, limit: int = 4) -> list[EarningsSurprise]:
+    """Compatibility wrapper around the extracted Finnhub fetch helper."""
+    return _earnings_surprise_fetch.fetch_earnings_surprises_from_finnhub(symbol, limit=limit)

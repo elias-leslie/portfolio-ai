@@ -11,16 +11,19 @@ IMPORTANT: Uses pytest fixtures to ensure cleanup happens even on test failure.
 from __future__ import annotations
 
 import concurrent.futures
+import importlib
 from collections.abc import Generator
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.main import app
 from app.storage import get_storage
 
-# Use a unique prefix to avoid conflicts with other tests
-TEST_SYMBOL_PREFIX = "ZZTEST"
+crud_router = importlib.import_module("app.api.watchlist.crud_router")
+
+# Use a unique but valid prefix to avoid conflicts with the live ZZTEST blocker.
+TEST_SYMBOL_PREFIX = "ZXCOLL"
 NUM_CONCURRENT_REQUESTS = 10  # Reduced from 100 - enough to test concurrency
 
 
@@ -49,13 +52,23 @@ def cleanup_test_symbols() -> Generator[None]:
     do_cleanup()
 
 
-def test_concurrent_watchlist_creation_no_collisions(cleanup_test_symbols: None) -> None:
+@pytest.fixture
+def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
+    """Use a test client with background side effects disabled."""
+    monkeypatch.setattr(crud_router, "schedule_new_symbol_tasks", lambda _symbol: None)
+    app = FastAPI()
+    app.include_router(crud_router.router, prefix="/api/watchlist")
+    return TestClient(app)
+
+
+def test_concurrent_watchlist_creation_no_collisions(
+    cleanup_test_symbols: None, client: TestClient
+) -> None:
     """Test that concurrent watchlist item creations don't cause ID collisions.
 
     Uses UUID-based IDs to prevent UNIQUE constraint violations when
     multiple requests arrive within the same millisecond.
     """
-    client = TestClient(app)
     storage = get_storage()
 
     symbols = [f"{TEST_SYMBOL_PREFIX}{i:03d}" for i in range(NUM_CONCURRENT_REQUESTS)]
@@ -120,9 +133,9 @@ def test_concurrent_watchlist_creation_no_collisions(cleanup_test_symbols: None)
 
 @pytest.fixture
 def cleanup_uuid_test_symbol() -> Generator[str]:
-    """Fixture that cleans up the ZZTESTUUID symbol before and after test."""
+    """Fixture that cleans up the test UUID symbol before and after test."""
     storage = get_storage()
-    test_symbol = "ZZTESTUUID"
+    test_symbol = "ZXUUID001"
 
     def do_cleanup() -> None:
         with storage.connection() as conn:
@@ -134,7 +147,7 @@ def cleanup_uuid_test_symbol() -> Generator[str]:
     do_cleanup()
 
 
-def test_uuid_format_validation(cleanup_uuid_test_symbol: str) -> None:
+def test_uuid_format_validation(cleanup_uuid_test_symbol: str, client: TestClient) -> None:
     """Test that watchlist item IDs follow UUID format.
 
     This test verifies that IDs are in UUID format (lowercase hex with dashes),
@@ -142,7 +155,6 @@ def test_uuid_format_validation(cleanup_uuid_test_symbol: str) -> None:
     """
     import re
 
-    client = TestClient(app)
     test_symbol = cleanup_uuid_test_symbol
 
     # Create a watchlist item

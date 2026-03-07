@@ -119,6 +119,18 @@ TABLES_TO_CLEAN = [
 ]
 
 
+def _get_existing_tables(conn: ConnectionManager) -> set[str]:
+    """Return the subset of cleanup tables that exist in the current test schema."""
+    rows = conn.execute(
+        """
+        SELECT table_name
+        FROM information_schema.tables
+        WHERE table_schema = 'public'
+        """
+    ).fetchall()
+    return {str(row[0]) for row in rows}
+
+
 @pytest.fixture(autouse=False)
 def clean_database() -> None:
     """Clean all test data from database tables between tests.
@@ -138,12 +150,16 @@ def clean_database() -> None:
     cm = ConnectionManager()
 
     with cm.connection() as conn:
+        existing_tables = [table for table in TABLES_TO_CLEAN if table in _get_existing_tables(conn)]
+        if not existing_tables:
+            return
+
         # Build single TRUNCATE statement with CASCADE for efficiency
-        table_list = ", ".join(TABLES_TO_CLEAN)
+        table_list = ", ".join(existing_tables)
         try:
             conn.execute(f"TRUNCATE TABLE {table_list} CASCADE")
             conn.commit()
-            logger.debug(f"Cleaned {len(TABLES_TO_CLEAN)} tables for test isolation")
+            logger.debug(f"Cleaned {len(existing_tables)} tables for test isolation")
         except Exception as e:
             # Log but don't fail if tables don't exist yet
             logger.warning(f"Database cleanup failed (may be expected on first run): {e}")
