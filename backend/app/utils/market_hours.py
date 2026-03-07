@@ -14,6 +14,8 @@ Public API is re-exported from focused submodules:
 - _market_staleness: Staleness thresholds and age calculations
 """
 
+from datetime import datetime
+
 from app.utils._market_calendar import (
     NY_TZ,
     US_MARKET_HOLIDAYS,
@@ -59,6 +61,7 @@ __all__ = [
     "STALE_THRESHOLD_MARKET_HOURS",
     "US_MARKET_HOLIDAYS",
     "MarketStatus",
+    "datetime",
     "get_expected_data_date",
     "get_hours_since_last_close",
     "get_last_trading_day",

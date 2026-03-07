@@ -144,6 +144,10 @@ class CrossValidationService:
             raise RuntimeError("Validator client (Claude) not available")
         return self._validator
 
+    def _parse_review_response(self, content: str) -> dict[str, Any]:
+        """Backward-compatible instance wrapper around the parser helper."""
+        return _parse_review_response(content)
+
     def validate(
         self,
         generator_output: str,

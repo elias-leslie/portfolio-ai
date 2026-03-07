@@ -19,6 +19,7 @@ from ..constants import CLAUDE_SONNET, GEMINI_FLASH
 from ..logging_config import get_logger
 from .llm_client import AgentHubAPIClient, LLMClient, LLMResponse
 from .multi_reviewer_consensus import (
+    analyze_sentiment,
     compute_consensus,
     detect_rules_disagreement,
     generate_consensus_summary,
@@ -82,6 +83,35 @@ class MultiReviewer:
                 logger.warning("llm_client_unavailable", client=name)
                 self._clients[name] = None
         return self._clients[name]
+
+    # Thin instance wrappers preserve the historic test/caller surface while
+    # keeping the actual logic centralized in multi_reviewer_consensus.
+    def _analyze_sentiment(self, review_text: str) -> float:
+        return analyze_sentiment(review_text)
+
+    def _detect_rules_disagreement(self, review_text: str, rationale: str) -> bool:
+        return detect_rules_disagreement(review_text, rationale)
+
+    def _generate_consensus_summary(
+        self,
+        gemini: ProviderReview,
+        claude: ProviderReview,
+        severity: DisagreementSeverity,
+        provider_disagreement: bool,
+    ) -> str:
+        return generate_consensus_summary(gemini, claude, severity, provider_disagreement)
+
+    def _compute_consensus(
+        self, gemini: ProviderReview, claude: ProviderReview
+    ) -> tuple[float | None, DisagreementSeverity, bool]:
+        agreement_score, severity, provider_disagreement = compute_consensus(gemini, claude)
+
+        # Historical callers treated a single-provider success as full agreement
+        # because there is no conflicting view to compare against.
+        if agreement_score is None and (gemini.error or claude.error):
+            return 1.0, DisagreementSeverity.NONE, False
+
+        return agreement_score, severity, provider_disagreement
 
     async def review_signal_dual(self, signal_data: dict[str, Any]) -> DualReviewResult:
         """Review a trading signal using both providers in parallel.

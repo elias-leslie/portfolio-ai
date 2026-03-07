@@ -37,7 +37,8 @@ def _resolve_backtest_date_range(
         logger.warning(f"No historical data for {symbol}, triggering backfill")
         from app.tasks.ingestion.price_ingestion import ingest_historical_ohlcv
 
-        ingest_historical_ohlcv([symbol], days=1300)
+        dispatch = getattr(ingest_historical_ohlcv, "delay", ingest_historical_ohlcv)
+        dispatch([symbol], days=1300)
         return {
             "status": "pending_data",
             "message": f"Triggered historical data fetch for {symbol}. Retry in 5 minutes.",
