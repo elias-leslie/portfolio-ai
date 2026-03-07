@@ -65,7 +65,7 @@ class ThesisService:
             thesis = ThesisBuilder.build(
                 symbol, thesis_data, claude_validation, cross_val_score, version
             )
-            ensure_symbols_in_watchlist(self._app_storage, [symbol], source="thesis")
+            ensure_symbols_in_watchlist(self._app_storage, [symbol], source="portfolio")
             self._storage.save_thesis(thesis)
             self._storage.save_version(thesis, "updated" if existing else "created")
 

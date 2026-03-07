@@ -32,7 +32,7 @@ def test_generate_thesis_syncs_symbol_to_watchlist_before_save(mocker) -> None:
     result = service.generate_thesis("AAPL", force=True)
 
     assert result is built_thesis
-    ensure_mock.assert_called_once_with(service._app_storage, ["AAPL"], source="thesis")
+    ensure_mock.assert_called_once_with(service._app_storage, ["AAPL"], source="portfolio")
     service._storage.save_thesis.assert_called_once_with(built_thesis)
     service._storage.save_version.assert_called_once_with(built_thesis, "created")
     build_mock.assert_called_once()
