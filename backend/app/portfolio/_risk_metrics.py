@@ -33,6 +33,7 @@ def _build_return_series(df: pl.DataFrame, symbol_value: str, return_col_name: s
         .sort("date")
         .with_columns(pl.col("close").pct_change().alias(return_col_name))
         .drop_nulls([return_col_name])
+        .select(["date", return_col_name])
     )
 
 
@@ -115,7 +116,7 @@ def compute_local_risk_metrics(
     if market_variance <= 1e-10 or np.isnan(market_variance):  # use tolerance instead of == 0
         beta = None
     else:
-        covariance = float(np.cov(symbol_returns, market_returns)[0][1])
+        covariance = float(np.cov(symbol_returns, market_returns, ddof=1)[0][1])
         beta = covariance / market_variance
 
     return (beta, volatility)

@@ -59,8 +59,9 @@ def _coerce_date(value: Any) -> datetime | None:
 def insert_cash_flow(storage: PortfolioStorage, data: dict[str, Any], as_of_date: date) -> None:
     """Insert cash flow metrics."""
     symbol = data.get("symbol")
-    if not symbol:
+    if not symbol or not str(symbol).strip():
         raise ValueError("insert_cash_flow: 'symbol' is required in data")
+    symbol = str(symbol).strip()
     ensure_symbol_exists(storage, symbol)
     query = """
         INSERT INTO cash_flow_metrics (
@@ -82,7 +83,7 @@ def insert_cash_flow(storage: PortfolioStorage, data: dict[str, Any], as_of_date
     storage.execute(
         query,
         [
-            data["symbol"],
+            symbol,
             datetime.combine(as_of_date, datetime.min.time()),
             to_python(data.get("operating_cash_flow")),
             to_python(data.get("free_cash_flow")),
@@ -98,8 +99,9 @@ def insert_cash_flow(storage: PortfolioStorage, data: dict[str, Any], as_of_date
 def insert_insider_transaction(storage: PortfolioStorage, data: dict[str, Any]) -> None:
     """Insert insider transaction."""
     symbol = data.get("symbol")
-    if not symbol:
+    if not symbol or not str(symbol).strip():
         raise ValueError("insert_insider_transaction: 'symbol' is required in data")
+    symbol = str(symbol).strip()
     ensure_symbol_exists(storage, symbol)
     query = """
         INSERT INTO insider_transactions (
@@ -112,7 +114,7 @@ def insert_insider_transaction(storage: PortfolioStorage, data: dict[str, Any]) 
     storage.execute(
         query,
         [
-            data["symbol"],
+            symbol,
             data.get("insider_name"),
             data.get("insider_title"),
             data.get("transaction_type"),

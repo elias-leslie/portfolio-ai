@@ -67,6 +67,7 @@ class FinBertSentimentAnalyzer:
         self.device = device or "cpu"
         self._tokenizer: Any | None = None
         self._model: Any | None = None
+        self._torch: Any | None = None
         self._lock = threading.Lock()
 
     def _ensure_model(self) -> None:
@@ -85,6 +86,7 @@ class FinBertSentimentAnalyzer:
                 "Loading FinBERT sentiment model", model_name=self.model_name, device=self.device
             )
             try:
+                self._torch = torch
                 self._tokenizer = auto_tokenizer.from_pretrained(self.model_name)
                 self._model = auto_model.from_pretrained(self.model_name)
                 self._model.to(self.device)
@@ -105,11 +107,10 @@ class FinBertSentimentAnalyzer:
             return []
 
         self._ensure_model()
-        torch, _, _ = _load_finbert_dependencies()
-        if torch is None:
-            raise FinBertUnavailableError("transformers/torch not available")
-        assert self._tokenizer is not None  # For mypy
+        assert self._torch is not None  # For mypy; set by _ensure_model
+        assert self._tokenizer is not None
         assert self._model is not None
+        torch = self._torch
 
         encoded = self._tokenizer(
             list(texts),

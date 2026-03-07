@@ -488,10 +488,7 @@ def replay_backtest(
     # 1. Fetch ALL data at once (optimization)
     # We need data from (start_date - lookback) to end_date
     # 365 days lookback ensures we have enough for 200-day MA even with weekends/holidays
-    lookback_days = INDICATOR_LOOKBACK_DAYS
-    data_start_date = start_date - timedelta(days=lookback_days)
-
-    logger.info(f"Fetching bulk OHLCV data for {symbol} from {data_start_date} to {end_date}")
+    logger.info(f"Fetching bulk OHLCV data for {symbol} up to {end_date}")
 
     # Use the internal fetcher from indicators module or direct query
     # We'll use a direct query here for efficiency to get a DataFrame

@@ -9,7 +9,7 @@ from .models import PriceData
 
 logger = get_logger(__name__)
 
-_NULL_STRINGS = {"null", "n/a", "none", ""}
+_NULL_STRINGS = {"null", "n/a", "none", "nan", ""}
 
 
 def _safe_float(val: object) -> float | None:
@@ -29,7 +29,7 @@ def _safe_int(val: object) -> int | None:
     if isinstance(val, str) and val.strip().lower() in _NULL_STRINGS:
         return None
     try:
-        return int(val)
+        return int(float(val))
     except (ValueError, TypeError):
         return None
 

@@ -41,9 +41,9 @@ storage = get_storage()
 watchlist_repo = WatchlistRepository(storage)
 
 
-def _is_live_watchlist_symbol(symbol: object) -> bool:
+def _is_live_watchlist_symbol(symbol: str) -> bool:
     """Exclude leaked test fixtures from live refresh operations."""
-    return not str(symbol).upper().startswith("ZZTEST")
+    return not symbol.upper().startswith("ZZTEST")
 
 
 @router.get("/refresh-status", response_model=RefreshStatusResponse)

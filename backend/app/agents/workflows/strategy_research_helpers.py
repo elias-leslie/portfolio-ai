@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import asdict
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 import psycopg2
 
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 MIN_RESEARCH_CONFIDENCE = 0.5
 
 
-class StorageProtocol:
+class StorageProtocol(Protocol):
     """Minimal interface required by check_existing_strategy."""
 
     def get_active_strategy(self, symbol: str) -> StrategyDefinition | None: ...

@@ -152,7 +152,7 @@ async def get_valuation_metrics_batch(
                 continue  # already have the most recent entry
             as_of = row[8]
             if not isinstance(as_of, (str, dt.date, dt.datetime)):
-                logger.warning("Skipping result with non-string as_of_date", symbol=sym, as_of_type=type(as_of))
+                logger.warning("Skipping result with invalid as_of_date type", symbol=sym, as_of_type=type(as_of))
                 continue
             metrics_by_symbol[sym] = _row_to_metrics(row)
 
