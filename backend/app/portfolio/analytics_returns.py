@@ -107,6 +107,7 @@ def calculate_portfolio_volatility(
     positions: list[Position],
     price_data: dict[str, PriceData],
     storage: PortfolioStorage | None = None,
+    account_ids: list[str] | None = None,
 ) -> float | None:
     """Calculate portfolio volatility using covariance matrix (GAP-020 fix).
 
@@ -145,10 +146,11 @@ def calculate_portfolio_volatility(
         try:
             from ..analytics.covariance import get_portfolio_volatility  # noqa: PLC0415
 
+            portfolio_id = _get_covariance_portfolio_id(positions, account_ids)
             portfolio_vol, weighted_avg_vol, div_benefit = get_portfolio_volatility(
                 storage,
                 weights,
-                portfolio_id="portfolio",
+                portfolio_id=portfolio_id,
             )
 
             if portfolio_vol is not None:
@@ -164,6 +166,15 @@ def calculate_portfolio_volatility(
 
     # Fallback to weighted average (incorrect but better than nothing)
     return _calculate_weighted_avg_volatility(positions, price_data)
+
+
+def _get_covariance_portfolio_id(
+    positions: list[Position],
+    account_ids: list[str] | None = None,
+) -> str:
+    """Pick a real account-backed cache namespace for covariance lookups."""
+    candidate_ids = sorted(set(account_ids or [position.account_id for position in positions]))
+    return candidate_ids[0] if candidate_ids else "default"
 
 
 def _calculate_weighted_avg_volatility(

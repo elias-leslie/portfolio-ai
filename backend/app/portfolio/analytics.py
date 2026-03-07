@@ -71,9 +71,15 @@ class PortfolioAnalytics:
         positions: list[Position],
         price_data: dict[str, PriceData],
         storage: PortfolioStorage | None = None,
+        account_ids: list[str] | None = None,
     ) -> float | None:
         """Calculate portfolio volatility."""
-        return calculate_portfolio_volatility(positions, price_data, storage)
+        return calculate_portfolio_volatility(
+            positions,
+            price_data,
+            storage,
+            account_ids=account_ids,
+        )
 
     def calculate_sector_exposure(
         self,
@@ -155,7 +161,12 @@ class PortfolioAnalytics:
         """
         portfolio_value = calculate_portfolio_value(positions, price_data)
         portfolio_beta = calculate_portfolio_beta(positions, price_data)
-        portfolio_volatility = calculate_portfolio_volatility(positions, price_data, storage)
+        portfolio_volatility = calculate_portfolio_volatility(
+            positions,
+            price_data,
+            storage,
+            account_ids=account_ids,
+        )
         sector_exposure = calculate_sector_exposure(positions, price_data)
         concentration_metrics = calculate_concentration_risk(positions, price_data)
 
