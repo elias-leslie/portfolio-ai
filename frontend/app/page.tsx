@@ -3,6 +3,7 @@
 import { Loader2 } from 'lucide-react'
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { MarketIntelligence } from '@/components/market/MarketIntelligence'
+import { TodayIdeasSection } from '@/components/recommendations/TodayIdeasSection'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { UnifiedNewsIntelligenceCard } from '@/components/shared/UnifiedNewsIntelligenceCard'
@@ -133,9 +134,11 @@ export default function Dashboard() {
   return (
     <PageContainer className="space-y-10 py-10">
       <PageHeader
-        title="Portfolio AI Dashboard"
-        description="AI-powered portfolio intelligence and market insights"
+        title="Today"
+        description="What matters today: a short list of ideas, market context, and portfolio checks."
       />
+
+      <TodayIdeasSection />
 
       <Suspense
         fallback={
@@ -149,8 +152,8 @@ export default function Dashboard() {
 
       <SectionCard
         variant="surface"
-        title="Portfolio Overview"
-        description="Snapshot of current allocation, risk profile, and performance."
+        title="Portfolio Coach"
+        description="A plain-English check on size, concentration, and recent performance."
       >
         <Suspense fallback={<SectionLoadingState label="Loading portfolio overview" rows={4} />}>
           <PortfolioOverview />

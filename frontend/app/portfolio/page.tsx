@@ -122,8 +122,8 @@ export default function PortfolioPage() {
   return (
     <PageContainer className="space-y-10 py-10">
       <PageHeader
-        title="Portfolio Management"
-        description="Manage your positions, accounts, and view detailed analytics."
+        title="Portfolio Coach"
+        description="Review your holdings, spot concentration risk, and keep position sizes honest."
       />
 
       <PortfolioOverview />

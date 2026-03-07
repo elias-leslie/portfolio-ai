@@ -62,21 +62,29 @@ export default function RootLayout({
           <Toaster position="top-right" richColors />
         </Providers>
         <Script
-          id="sw-register"
+          id="sw-cleanup"
           strategy="afterInteractive"
-          // biome-ignore lint/security/noDangerouslySetInnerHtml: SW registration is hardcoded, no user input
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: cleanup script is static, no user input
           dangerouslySetInnerHTML={{
             __html: `
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js').then(
-                    function(registration) {
-                      console.log('SW registered:', registration.scope);
-                    },
-                    function(err) {
-                      console.log('SW registration failed:', err);
-                    }
-                  );
+                  navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                    registrations.forEach(function(registration) {
+                      registration.unregister();
+                    });
+                  });
+                  if ('caches' in window) {
+                    caches.keys().then(function(keys) {
+                      keys
+                        .filter(function(key) {
+                          return key.startsWith('portfolio-ai-');
+                        })
+                        .forEach(function(key) {
+                          caches.delete(key);
+                        });
+                    });
+                  }
                 });
               }
             `,

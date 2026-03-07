@@ -13,13 +13,6 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useCreatePaperTrade } from '@/lib/hooks/usePaperTrades'
 
@@ -30,7 +23,6 @@ interface NewOrderDialogProps {
 
 export function NewOrderDialog({ open, onOpenChange }: NewOrderDialogProps) {
   const [symbol, setSymbol] = useState('')
-  const [action, setAction] = useState<'buy' | 'sell'>('buy')
   const [thesis, setThesis] = useState('')
   const [targetPrice, setTargetPrice] = useState('')
   const [stopLossPct, setStopLossPct] = useState('')
@@ -43,7 +35,7 @@ export function NewOrderDialog({ open, onOpenChange }: NewOrderDialogProps) {
     createTrade.mutate(
       {
         symbol,
-        action,
+        action: 'buy',
         thesis,
         targetPrice: targetPrice ? Number.parseFloat(targetPrice) : undefined,
         stopLossPct: stopLossPct ? Number.parseFloat(stopLossPct) : undefined,
@@ -51,7 +43,6 @@ export function NewOrderDialog({ open, onOpenChange }: NewOrderDialogProps) {
       {
         onSuccess: () => {
           setSymbol('')
-          setAction('buy')
           setThesis('')
           setTargetPrice('')
           setStopLossPct('')
@@ -67,47 +58,30 @@ export function NewOrderDialog({ open, onOpenChange }: NewOrderDialogProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>New Paper Trade</DialogTitle>
+          <DialogTitle>New Practice Buy</DialogTitle>
           <DialogDescription>
-            Create a manual paper trade. Position size will be automatically
-            calculated as 5% of available cash.
+            Create a long-only practice trade. Position size will be automatically
+            set to 5% of available cash.
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="symbol">Symbol</Label>
-              <Input
-                id="symbol"
-                placeholder="AAPL"
-                value={symbol}
-                onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-                className="font-mono uppercase"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="action">Action</Label>
-              <Select
-                value={action}
-                onValueChange={(val) => setAction(val as 'buy' | 'sell')}
-              >
-                <SelectTrigger id="action">
-                  <SelectValue placeholder="Select action" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="buy">Buy (Long)</SelectItem>
-                  <SelectItem value="sell">Sell (Short)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="grid gap-2">
+            <Label htmlFor="symbol">Symbol</Label>
+            <Input
+              id="symbol"
+              placeholder="AAPL"
+              value={symbol}
+              onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+              className="font-mono uppercase"
+            />
           </div>
 
           <div className="grid gap-2">
             <Label htmlFor="thesis">Investment Thesis</Label>
             <Textarea
               id="thesis"
-              placeholder="Why are you making this trade?"
+              placeholder="Why do you want to own this stock?"
               value={thesis}
               onChange={(e) => setThesis(e.target.value)}
               rows={3}

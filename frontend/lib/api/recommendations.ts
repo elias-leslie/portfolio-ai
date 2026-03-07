@@ -105,7 +105,7 @@ export async function getRecommendations(params?: {
 
   const query = searchParams.toString()
   return apiRequest<RecommendationsResponse>(
-    `/api/recommendations/${query ? `?${query}` : ''}`,
+    `/api/recommendations${query ? `?${query}` : ''}`,
   )
 }
 

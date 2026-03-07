@@ -68,7 +68,7 @@ export default function WatchlistPage() {
   return (
     <PageContainer className="py-10">
       <PageHeader
-        title="Watchlist Intelligence Hub"
+        title="Watchlist"
         description={description}
         size="md"
         actions={

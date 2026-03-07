@@ -36,7 +36,7 @@ class CreateTradeRequest(BaseModel):
     """Request model for creating a manual paper trade."""
 
     symbol: str = Field(..., description="Stock symbol")
-    action: str = Field(..., description="Trade action: 'buy' or 'sell'")
+    action: Literal["buy"] = Field(..., description="Trade action: 'buy' only")
     thesis: str = Field(..., description="Investment thesis for this trade")
     target_price: float | None = Field(None, description="Optional target exit price")
     stop_loss_pct: float | None = Field(None, description="Optional stop loss percentage")
@@ -111,12 +111,6 @@ async def create_paper_trade(request: CreateTradeRequest) -> CreateTradeResponse
     symbol = request.symbol.upper()
     action = request.action.lower()
 
-    if action not in ["buy", "sell"]:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid action '{action}' (must be 'buy' or 'sell')",
-        )
-
     # Check market hours
     if not is_market_open():
         raise HTTPException(
@@ -180,7 +174,7 @@ async def create_paper_trade(request: CreateTradeRequest) -> CreateTradeResponse
 
     # Execute market order (now transaction logger can insert with valid FK)
     # Cast action to Literal type for type safety
-    action_typed = cast(Literal["buy", "sell"], action)
+    action_typed = cast(Literal["buy"], action)
 
     order_result = order_executor.execute_market_order(
         symbol=symbol,
@@ -201,10 +195,7 @@ async def create_paper_trade(request: CreateTradeRequest) -> CreateTradeResponse
     stop_loss_price = None
 
     if request.stop_loss_pct is not None:
-        if action == "buy":
-            stop_loss_price = entry_price * (1 - request.stop_loss_pct / 100)
-        else:  # sell (short)
-            stop_loss_price = entry_price * (1 + request.stop_loss_pct / 100)
+        stop_loss_price = entry_price * (1 - request.stop_loss_pct / 100)
 
     # Update idea_outcomes record with actual execution details
     with storage.connection() as conn:

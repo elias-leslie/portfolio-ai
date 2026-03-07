@@ -2,64 +2,23 @@
 
 import {
   Activity,
-  BarChart3,
-  Brain,
   Briefcase,
-  Database,
   Eye,
   Info,
   LayoutDashboard,
   Settings,
-  Target,
-  TrendingUp,
 } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { MarketStatusBadge } from '@/components/market/MarketStatusBadge'
+import { MAIN_PRODUCT_ROUTES } from '@/lib/product-routes'
 import { cn } from '@/lib/utils'
 
-const mainLinks = [
-  {
-    href: '/',
-    label: 'Dashboard',
-    icon: LayoutDashboard,
-  },
-  {
-    href: '/portfolio',
-    label: 'Portfolio',
-    icon: Briefcase,
-  },
-  {
-    href: '/watchlist',
-    label: 'Watchlist',
-    icon: Eye,
-  },
-  {
-    href: '/trading',
-    label: 'Trading',
-    icon: TrendingUp,
-  },
-  {
-    href: '/backtest',
-    label: 'Backtest',
-    icon: BarChart3,
-  },
-  {
-    href: '/strategies',
-    label: 'Strategies',
-    icon: Brain,
-  },
-  {
-    href: '/recommendations',
-    label: 'Picks',
-    icon: Target,
-  },
-  {
-    href: '/capabilities',
-    label: 'Capabilities',
-    icon: Database,
-  },
-]
+const routeIcons = {
+  '/': LayoutDashboard,
+  '/portfolio': Briefcase,
+  '/watchlist': Eye,
+}
 
 const utilityLinks = [
   {
@@ -101,8 +60,8 @@ function NavigationContent({ pathname }: { pathname: string }) {
           {/* Main Navigation - Centered */}
           <div className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
             <div className="flex items-center gap-1 rounded-full bg-surface-muted/50 border border-border/50 p-1 shadow-sm backdrop-blur-sm">
-              {mainLinks.map((link) => {
-                const Icon = link.icon
+              {MAIN_PRODUCT_ROUTES.map((link) => {
+                const Icon = routeIcons[link.href]
                 const isActive = pathname === link.href
 
                 return (

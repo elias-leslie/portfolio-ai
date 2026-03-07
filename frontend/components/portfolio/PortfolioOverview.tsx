@@ -91,13 +91,13 @@ export function PortfolioOverview() {
             </div>
             <div className="flex-1">
               <div className="text-sm font-medium text-text-muted">
-                Portfolio Beta
+                Market Sensitivity
               </div>
               <div className="mt-1 text-2xl font-bold text-text">
                 {analytics?.portfolioBeta?.toFixed(2) ?? '—'}
               </div>
               <div className="mt-1 text-xs text-text-muted">
-                vs. Market (1.0)
+                1.0 means it usually moves with the market
               </div>
             </div>
           </div>
@@ -110,14 +110,14 @@ export function PortfolioOverview() {
             </div>
             <div className="flex-1">
               <div className="text-sm font-medium text-text-muted">
-                Volatility
+                Typical Swings
               </div>
               <div className="mt-1 text-2xl font-bold text-text">
                 {analytics?.portfolioVolatility
                   ? `${(analytics.portfolioVolatility * 100).toFixed(1)}%`
                   : '—'}
               </div>
-              <div className="mt-1 text-xs text-text-muted">Annualized</div>
+              <div className="mt-1 text-xs text-text-muted">Based on recent history</div>
             </div>
           </div>
         </Card>
@@ -154,7 +154,7 @@ export function PortfolioOverview() {
         <div className="grid gap-4 md:grid-cols-2">
           <Card className="p-6">
             <h3 className="mb-4 text-sm font-semibold text-text">
-              Concentration Risk
+              Single-Stock Risk
             </h3>
             <div className="space-y-3">
               <div className="flex justify-between items-center">
@@ -177,7 +177,7 @@ export function PortfolioOverview() {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-text-muted">
-                  Herfindahl Index
+                  Concentration Score
                 </span>
                 <span className="text-sm font-medium">
                   {analytics.concentration.herfindahlIndex.toFixed(3)}
@@ -188,7 +188,7 @@ export function PortfolioOverview() {
 
           <Card className="p-6">
             <h3 className="mb-4 text-sm font-semibold text-text">
-              Sector Exposure
+              Where Your Money Is Concentrated
             </h3>
             <div className="space-y-3">
               {Object.entries(analytics.sectorExposure)

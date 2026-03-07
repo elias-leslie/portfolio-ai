@@ -79,7 +79,7 @@ export interface CloseTradeResponse {
 
 export interface CreateTradeRequest {
   symbol: string
-  action: 'buy' | 'sell'
+  action: 'buy'
   thesis: string
   targetPrice?: number
   stopLossPct?: number
