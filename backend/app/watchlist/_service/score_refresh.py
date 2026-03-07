@@ -42,7 +42,7 @@ def build_score_snapshot(
     storage: PortfolioStorage,
     item_id: str,
     symbol: str,
-    price_data: PriceData,
+    price_data: PriceData | None,
     change_pct: float,
 ) -> WatchlistSnapshot:
     """Build a WatchlistSnapshot from current price and technical data."""

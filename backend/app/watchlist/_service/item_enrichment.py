@@ -120,9 +120,10 @@ def build_data_quality_map(
 
 def enrich_priority_indicators(results: list[dict[str, Any]]) -> None:
     """Enrich each item in results with priority indicators in place."""
+    typed_results = cast(list[WatchlistItemDict], results)
     for item in results:
         indicators = calculate_priority_indicators(
-            cast(list[WatchlistItemDict], results), cast(WatchlistItemDict, item)
+            typed_results, cast(WatchlistItemDict, item)
         )
         item["priority_indicators"] = [ind.model_dump() for ind in indicators]
 

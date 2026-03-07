@@ -113,7 +113,14 @@ def _persist_report(
         with conn.raw_connection.cursor() as cur:
             cur.execute(
                 _SQL_UPSERT,
-                (str(uuid4()), report_date, json.dumps(symbols_added), json.dumps(symbols_removed), json.dumps(score_changes), now),
+                (
+                    str(uuid4()),
+                    report_date,
+                    json.dumps(symbols_added),
+                    json.dumps(symbols_removed),
+                    json.dumps(score_changes),
+                    now,
+                ),
             )
         conn.commit()
 

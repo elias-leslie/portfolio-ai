@@ -241,7 +241,7 @@ def insert_short_interest(
             updated_at = NOW()
         """,
         [
-            data["symbol"],
+            symbol,
             as_of_datetime,
             to_python(data.get("short_shares")),
             to_python(data.get("short_ratio")),

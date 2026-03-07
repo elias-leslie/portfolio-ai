@@ -134,8 +134,8 @@ export function StrategyDetailModalContent({
         onOpenChange={setBacktestOpen}
       >
         <div className="space-y-2">
-          {strategy.backtestMetrics.map((metric) => (
-            <BacktestMetricRow key={`${metric.windowStart}-${metric.windowEnd}`} metric={metric} />
+          {strategy.backtestMetrics.map((metric, index) => (
+            <BacktestMetricRow key={`${metric.windowStart}-${metric.windowEnd}-${index}`} metric={metric} />
           ))}
         </div>
       </CollapsibleSection>

@@ -65,6 +65,10 @@ vi.mock('./useSettingsState', () => ({
 }))
 
 describe('SettingsPage', () => {
+  beforeEach(() => {
+    mockRetry.mockClear()
+  })
+
   it('renders a useful error state when preferences fail to load', () => {
     render(<SettingsPage />)
 

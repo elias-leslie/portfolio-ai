@@ -26,7 +26,7 @@ function normalizeStatus(status: string) {
   switch (status.toUpperCase()) {
     case 'RUNNING':
     case 'ACTIVE':
-      return { label: 'Running', badgeClass: 'bg-status-info text-text-inverted animate-pulse' }
+      return { label: 'Running', badgeClass: 'bg-status-info text-text-inverted animate-pulse', variant: 'default' as const }
     case 'PENDING':
     case 'QUEUED':
       return { label: status.toUpperCase() === 'QUEUED' ? 'Queued' : 'Pending', badgeClass: 'bg-status-warning text-text-inverted', variant: 'secondary' as const }

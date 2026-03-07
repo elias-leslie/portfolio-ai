@@ -2,18 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fetchPreferences, updatePreferences } from './preferences'
 
 describe('preferences api', () => {
-  const originalFetch = global.fetch
-
   beforeEach(() => {
     vi.restoreAllMocks()
   })
 
-  afterEach(() => {
-    global.fetch = originalFetch
-  })
-
   it('requests preferences without a trailing slash', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    vi.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       status: 200,
       headers: new Headers({ 'content-type': 'application/json' }),
