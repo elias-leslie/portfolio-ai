@@ -145,6 +145,16 @@ def _build_gap_analysis_summary(final_analysis: str) -> str:
         return "Analysis complete"
 
 
+def _safe_float(val: object, default: float = 0.0) -> float:
+    """Safely convert a value to float, returning default on failure."""
+    if val is None:
+        return default
+    try:
+        return float(str(val))
+    except (ValueError, TypeError):
+        return default
+
+
 def _build_trade_summary(
     symbol: str,
     action: str,
@@ -157,10 +167,8 @@ def _build_trade_summary(
     summary = f"{symbol} {action} {decision}"
 
     if backtest_metrics:
-        sharpe_raw = backtest_metrics.get("sharpe_ratio", 0)
-        win_rate_raw = backtest_metrics.get("win_rate", 0)
-        sharpe_f = float(str(sharpe_raw)) if sharpe_raw is not None else 0.0
-        win_rate_f = float(str(win_rate_raw)) if win_rate_raw is not None else 0.0
+        sharpe_f = _safe_float(backtest_metrics.get("sharpe_ratio", 0))
+        win_rate_f = _safe_float(backtest_metrics.get("win_rate", 0))
         summary += f" (Sharpe {sharpe_f:.1f}, win rate {win_rate_f:.0f}%)"
 
     if trade_id:
@@ -177,12 +185,9 @@ def _check_backtest_gating(
     Returns:
         List of failure reasons (empty if all pass)
     """
-    sharpe_val = backtest_metrics.get("sharpe_ratio")
-    win_rate_val = backtest_metrics.get("win_rate")
-    max_dd_val = backtest_metrics.get("max_drawdown_pct")
-    sharpe = float(str(sharpe_val)) if sharpe_val is not None else 0.0
-    win_rate = float(str(win_rate_val)) if win_rate_val is not None else 0.0
-    max_dd = float(str(max_dd_val)) if max_dd_val is not None else 0.0
+    sharpe = _safe_float(backtest_metrics.get("sharpe_ratio"))
+    win_rate = _safe_float(backtest_metrics.get("win_rate"))
+    max_dd = _safe_float(backtest_metrics.get("max_drawdown_pct"))
 
     failures = []
     if sharpe < 1.0:
