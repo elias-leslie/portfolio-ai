@@ -24,7 +24,6 @@ DEFAULT_AGENT_HUB_URL = "http://localhost:8003"
 
 # Portfolio-AI client credentials from centralized settings
 PORTFOLIO_CLIENT_ID = settings.portfolio_client_id or None
-PORTFOLIO_CLIENT_SECRET = settings.portfolio_client_secret or None
 PORTFOLIO_REQUEST_SOURCE = settings.portfolio_request_source
 
 # Feature flag to enable/disable Agent Hub calls
@@ -72,7 +71,6 @@ class AgentHubAPIClient(LLMClient):
             timeout=timeout,
             client_name="portfolio-ai",  # Usage tracking
             client_id=PORTFOLIO_CLIENT_ID,
-            client_secret=PORTFOLIO_CLIENT_SECRET,
             request_source=PORTFOLIO_REQUEST_SOURCE,
         )
 
