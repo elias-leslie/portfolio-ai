@@ -65,17 +65,7 @@ def enrich_data_quality(
         quality_map = calculate_data_quality(storage, [symbol])
         dq = quality_map.get(symbol)
         if dq:
-            item_data["data_quality"] = {
-                "overall_pct": dq.overall_pct,
-                "pillars": {
-                    name: {
-                        "status": pq.status,
-                        "score": pq.score,
-                        "details": pq.details,
-                    }
-                    for name, pq in dq.pillars.items()
-                },
-            }
+            item_data["data_quality"] = _serialize_data_quality(dq)
         else:
             item_data["data_quality"] = None
     except Exception as e:

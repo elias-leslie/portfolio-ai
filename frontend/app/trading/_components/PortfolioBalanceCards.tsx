@@ -15,7 +15,7 @@ interface PortfolioBalanceCardsProps {
 }
 
 const formatChangeFromStart = (current: number, start: number | undefined): string => {
-  if (!start || start === 0) return '0.00% from start'
+  if (!start) return '0.00% from start'
   const pct = ((current - start) / start) * 100
   return `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}% from start`
 }

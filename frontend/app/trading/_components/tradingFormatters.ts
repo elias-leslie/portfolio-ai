@@ -8,7 +8,7 @@ export function formatPct(value: number | null | undefined): string {
   return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
 }
 
-export function formatCurrency(value: number | undefined): string {
+export function formatCurrency(value: number | null | undefined): string {
   if (value === undefined || value === null) return '$0.00'
   const prefix = value >= 0 ? '+$' : '-$'
   return `${prefix}${Math.abs(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
