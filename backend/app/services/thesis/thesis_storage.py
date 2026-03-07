@@ -133,6 +133,10 @@ class ThesisStorageManager:
                 INSERT INTO thesis_versions (
                     id, thesis_id, version, snapshot, change_reason, created_at
                 ) VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (thesis_id, version) DO UPDATE SET
+                    snapshot = EXCLUDED.snapshot,
+                    change_reason = EXCLUDED.change_reason,
+                    created_at = EXCLUDED.created_at
                 """,
                 (
                     version_id,

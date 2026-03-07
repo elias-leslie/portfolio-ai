@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.models.thesis import ThesisAction, ThesisStatus
+from app.models.thesis import Thesis, ThesisAction, ThesisStatus
 from app.services.thesis.thesis_storage import ThesisStorageManager
 
 
@@ -68,3 +68,39 @@ def test_row_to_thesis_stringifies_uuid_primary_key() -> None:
     assert thesis.symbol == "AAPL"
     assert thesis.status is ThesisStatus.ACTIVE
     assert thesis.action is ThesisAction.BUY
+
+
+def test_save_version_uses_upsert_for_duplicate_thesis_versions(mocker) -> None:
+    """Saving the same thesis/version again should update the snapshot instead of failing."""
+    conn = mocker.Mock()
+    conn_mgr = mocker.MagicMock()
+    conn_mgr.connection.return_value.__enter__.return_value = conn
+    storage = object.__new__(ThesisStorageManager)
+    storage._conn_mgr = conn_mgr
+
+    thesis = Thesis(
+        id="thesis-1",
+        symbol="AAPL",
+        version=5,
+        status=ThesisStatus.ACTIVE,
+        action=ThesisAction.BUY,
+        core_reasons=[],
+        key_catalysts=[],
+        risks=[],
+        value_drivers=None,
+        expected_return_pct=12.5,
+        expected_timeframe_days=60,
+        claude_validation=None,
+        gemini_validation=None,
+        cross_validation_score=0.7,
+        invalidation_reason=None,
+        invalidated_at=None,
+        created_at="2026-03-07T16:00:00+00:00",
+        updated_at="2026-03-07T16:00:00+00:00",
+    )
+
+    storage.save_version(thesis, "updated")
+
+    executed_sql = conn.execute.call_args.args[0]
+    assert "ON CONFLICT (thesis_id, version) DO UPDATE SET" in executed_sql
+    conn.commit.assert_called_once()
