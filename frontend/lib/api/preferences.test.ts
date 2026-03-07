@@ -33,7 +33,7 @@ describe('preferences api', () => {
         display_timezone: 'America/New_York',
         watchlist_show_news: true,
       }),
-    }) as unknown as typeof fetch
+    } as unknown as Response)
 
     await fetchPreferences()
 
@@ -53,7 +53,7 @@ describe('preferences api', () => {
       json: vi.fn().mockResolvedValue({
         risk_tolerance: 7,
       }),
-    }) as unknown as typeof fetch
+    } as unknown as Response)
 
     await updatePreferences({ riskTolerance: 7 })
 
