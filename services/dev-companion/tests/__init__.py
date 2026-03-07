@@ -1,1 +1,0 @@
-# Dev Companion Tests

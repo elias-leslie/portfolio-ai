@@ -110,7 +110,7 @@ class SitemapService:
         """Run comprehensive discovery across all service types.
 
         Discovery methods:
-        - OpenAPI: All ports with /openapi.json (backend, dev-companion, etc.)
+        - OpenAPI: All monitored ports with /openapi.json
         - Frontend: Crawl pages and parse Next.js app directory
         - WebSocket: Probe for WS endpoints on applicable ports
 

@@ -86,7 +86,7 @@ class RegisterRequest(BaseModel):
 class DiscoveryResponse(BaseModel):
     """Response from comprehensive discovery scan."""
 
-    openapi_discovered: int  # All ports with OpenAPI (backend, dev-companion, etc.)
+    openapi_discovered: int  # All monitored ports with OpenAPI
     frontend_discovered: int  # Crawler-discovered pages
     websocket_discovered: int = 0  # WebSocket endpoints
     nextjs_discovered: int = 0  # Next.js app directory routes
