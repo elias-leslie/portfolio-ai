@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch
 
 from fastapi.testclient import TestClient
 
+from app.constants.services import SERVICE_PROCESS_PATTERNS
 from app.main import app
 from app.services.service_monitor import check_frontend, get_service_status
 

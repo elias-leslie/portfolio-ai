@@ -134,22 +134,17 @@ def generate_news_headline(
     return f"Mixed news ({article_count} articles in 24h)"
 
 
-def build_news_intelligence(repo: WatchlistRepository, symbol: str) -> NewsIntelligence | None:
-    """Build news intelligence summary for a symbol.
+def _build_intelligence_from_rows(
+    rows: list[tuple[Any, ...]],
+) -> NewsIntelligence:
+    """Build a NewsIntelligence object from pre-fetched database rows.
 
     Args:
-        repo: Watchlist repository instance
-        symbol: Ticker symbol
+        rows: Non-empty list of database row tuples
 
     Returns:
-        NewsIntelligence object or None if no recent news
+        NewsIntelligence object
     """
-    # Query news cache for recent articles
-    rows = repo.get_recent_news(symbol, hours=24, limit=20)
-    if not rows:
-        return None
-
-    # Parse articles and extract key events
     articles: list[NewsArticleDict] = []
     sentiment_scores: list[float] = []
     key_events: list[KeyEvent] = []
@@ -160,10 +155,8 @@ def build_news_intelligence(repo: WatchlistRepository, symbol: str) -> NewsIntel
         if sentiment is not None:
             sentiment_scores.append(sentiment)
 
-    # Calculate average sentiment
     avg_sentiment = sum(sentiment_scores) / len(sentiment_scores) if sentiment_scores else 0.0
 
-    # Determine sentiment label
     if avg_sentiment > 0.15:
         sentiment_label = "Positive"
     elif avg_sentiment < -0.15:
@@ -171,17 +164,33 @@ def build_news_intelligence(repo: WatchlistRepository, symbol: str) -> NewsIntel
     else:
         sentiment_label = "Neutral"
 
-    # Generate headline summary
     headline = generate_news_headline(key_events, avg_sentiment, len(articles))
 
     return NewsIntelligence(
-        headline=headline[:100],  # Limit headline length
+        headline=headline[:100],
         sentiment_score=round(avg_sentiment, 2),
         sentiment_label=sentiment_label,
         article_count_24h=len(articles),
         key_events=key_events,
-        recent_articles=articles[:5],  # Top 5 most recent
+        recent_articles=articles[:5],
     )
+
+
+def build_news_intelligence(repo: WatchlistRepository, symbol: str) -> NewsIntelligence | None:
+    """Build news intelligence summary for a symbol.
+
+    Args:
+        repo: Watchlist repository instance
+        symbol: Ticker symbol
+
+    Returns:
+        NewsIntelligence object or None if no recent news
+    """
+    rows = repo.get_recent_news(symbol, hours=24, limit=20)
+    if not rows:
+        return None
+
+    return _build_intelligence_from_rows(rows)
 
 
 def build_news_intelligence_batch(
@@ -205,35 +214,7 @@ def build_news_intelligence_batch(
             result[symbol] = None
             continue
 
-        articles: list[NewsArticleDict] = []
-        sentiment_scores: list[float] = []
-        key_events: list[KeyEvent] = []
-
-        for row in rows:
-            article, sentiment = parse_news_article(row, key_events)
-            articles.append(article)
-            if sentiment is not None:
-                sentiment_scores.append(sentiment)
-
-        avg_sentiment = sum(sentiment_scores) / len(sentiment_scores) if sentiment_scores else 0.0
-
-        if avg_sentiment > 0.15:
-            sentiment_label = "Positive"
-        elif avg_sentiment < -0.15:
-            sentiment_label = "Negative"
-        else:
-            sentiment_label = "Neutral"
-
-        headline = generate_news_headline(key_events, avg_sentiment, len(articles))
-
-        result[symbol] = NewsIntelligence(
-            headline=headline[:100],
-            sentiment_score=round(avg_sentiment, 2),
-            sentiment_label=sentiment_label,
-            article_count_24h=len(articles),
-            key_events=key_events,
-            recent_articles=articles[:5],
-        )
+        result[symbol] = _build_intelligence_from_rows(rows)
     return result
 
 
