@@ -1067,19 +1067,36 @@ class JennyOperatorService:
         with self.storage.connection() as conn:
             rows = conn.execute(
                 """
-                SELECT id, routine_id, symbol, agent_name, provider, model, verdict, confidence,
-                       rationale, recommendation, strengths, weaknesses, metadata, thesis_id,
-                       agent_run_id, created_at
-                FROM jenny_agent_evaluations
-                WHERE created_at >= NOW() - INTERVAL '7 days'
-                ORDER BY created_at DESC
+                WITH latest_symbol_routines AS (
+                    SELECT DISTINCT ON (symbol)
+                        symbol,
+                        routine_id,
+                        created_at
+                    FROM jenny_agent_evaluations
+                    WHERE created_at >= NOW() - INTERVAL '7 days'
+                    ORDER BY symbol, created_at DESC
+                )
+                SELECT e.id, e.routine_id, e.symbol, e.agent_name, e.provider, e.model, e.verdict, e.confidence,
+                       e.rationale, e.recommendation, e.strengths, e.weaknesses, e.metadata, e.thesis_id,
+                       e.agent_run_id, e.created_at
+                FROM jenny_agent_evaluations e
+                JOIN latest_symbol_routines lsr
+                  ON lsr.symbol = e.symbol
+                 AND lsr.routine_id = e.routine_id
+                ORDER BY lsr.created_at DESC, e.created_at DESC
                 LIMIT %s
                 """,
                 [limit * len(AGENT_SPECS) * 2],
             ).fetchall()
         evaluations = [self._row_to_evaluation(row) for row in rows]
+        latest_routine_by_symbol: dict[str, str] = {}
+        for evaluation in evaluations:
+            latest_routine_by_symbol.setdefault(evaluation.symbol, evaluation.routine_id)
+
         grouped: dict[str, list[JennyAgentEvaluation]] = defaultdict(list)
         for evaluation in evaluations:
+            if latest_routine_by_symbol.get(evaluation.symbol) != evaluation.routine_id:
+                continue
             grouped[evaluation.symbol].append(evaluation)
         reviews = [
             self._aggregate_symbol_review(symbol, symbol_evaluations, self.thesis_service.get_thesis(symbol))
