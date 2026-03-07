@@ -9,6 +9,7 @@ instead of incorrect weighted-average approach that assumed rho=1.
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
 from ..logging_config import get_logger
@@ -90,7 +91,12 @@ def calculate_portfolio_beta(
 
     for position in positions:
         price = price_data.get(position.symbol)
-        if not price or price.beta is None or price.error:
+        if (
+            not price
+            or price.beta is None
+            or not math.isfinite(price.beta)
+            or price.error
+        ):
             continue
 
         position_value = position.shares * price.price

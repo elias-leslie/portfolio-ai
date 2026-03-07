@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -139,6 +140,39 @@ def test_calculate_portfolio_beta_missing_data() -> None:
     portfolio_beta = analytics.calculate_portfolio_beta(positions, price_data)
 
     assert portfolio_beta is None
+
+
+def test_calculate_portfolio_beta_skips_nan_values() -> None:
+    """NaN betas should be ignored so analytics remain JSON-serializable."""
+    analytics = PortfolioAnalytics()
+
+    positions = [
+        Position(
+            id="1",
+            account_id="acc1",
+            symbol="AAPL",
+            shares=100.0,
+            cost_basis=150.0,
+            position_type="long",
+        ),
+        Position(
+            id="2",
+            account_id="acc1",
+            symbol="MSFT",
+            shares=50.0,
+            cost_basis=300.0,
+            position_type="long",
+        ),
+    ]
+
+    price_data = {
+        "AAPL": PriceData(symbol="AAPL", price=180.0, beta=math.nan),
+        "MSFT": PriceData(symbol="MSFT", price=350.0, beta=1.05),
+    }
+
+    portfolio_beta = analytics.calculate_portfolio_beta(positions, price_data)
+
+    assert portfolio_beta == 1.05
 
 
 def test_calculate_sector_exposure() -> None:
