@@ -50,7 +50,6 @@ from app.workflows.maintenance import (
     vacuum_db_wf,
 )
 from app.workflows.monitoring import (
-    generate_sitemap_wf,
     monitor_theses_wf,
     qa_scan_wf,
 )
@@ -166,7 +165,6 @@ def main() -> None:
             schedule_new_symbol_wf,
             # Monitoring (3)
             qa_scan_wf,
-            generate_sitemap_wf,
             monitor_theses_wf,
             # Jenny (2)
             jenny_daily_operator_wf,

@@ -1,4 +1,4 @@
-"""Monitoring, QA & thesis workflows.
+"""Monitoring, QA, and thesis workflows.
 
 Thin async wrappers around existing business logic in tasks/.
 """
@@ -30,24 +30,6 @@ async def qa_scan_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
     from ..tasks.qa_tasks import daily_qa_scan
 
     return await asyncio.to_thread(daily_qa_scan)
-
-
-@hatchet.task(
-    name="portfolio-generate-sitemap",
-    input_validator=EmptyInput,
-    execution_timeout="1800s",
-    retries=1,
-    on_crons=["0 5 * * *"],
-    concurrency=ConcurrencyExpression(
-        expression="'portfolio-generate-sitemap'",
-        max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
-    ),
-)
-async def generate_sitemap_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.sitemap_tasks import check_sitemap_health
-
-    return await asyncio.to_thread(check_sitemap_health)
 
 
 @hatchet.task(
