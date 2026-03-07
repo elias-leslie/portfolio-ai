@@ -70,6 +70,7 @@ class AgentHubAPIClient(LLMClient):
         self._preferred_agent_slug = agent_slug
         self.model = model
         self.base_url = base_url
+        self.timeout = timeout
         self.use_memory = use_memory
         self._client = SDKClient(
             base_url=base_url,
@@ -169,6 +170,7 @@ class AgentHubAPIClient(LLMClient):
                 "tools": tools,
                 "project_id": "portfolio-ai",
                 "purpose": purpose,
+                "timeout_seconds": self.timeout,
             }
             if self.model is not None:
                 request_kwargs["model"] = self.model

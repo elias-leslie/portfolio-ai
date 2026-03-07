@@ -63,3 +63,16 @@ def test_agent_hub_client_defaults_to_chat_agent_for_generic_calls(mock_sdk: Moc
     assert "use_memory" not in call_kwargs
     assert response.raw_response["session_id"] == "session-123"
     assert client.get_model_name() == "gemini-3-flash-preview"
+
+
+@patch("app.agents.clients.agent_hub_client.SDKClient")
+def test_agent_hub_client_forwards_timeout_seconds_to_completion_api(mock_sdk: Mock) -> None:
+    """Agent Hub server-side timeouts should be enforced, not only local HTTP client timeouts."""
+    mock_sdk.return_value.complete.return_value = _mock_response()
+
+    with patch("app.agents.clients.agent_hub_client.AGENT_HUB_ENABLED", True):
+        client = AgentHubAPIClient(agent_slug="equity-analyst", timeout=45.0)
+        client.generate(prompt="Review AMZN")
+
+    call_kwargs = mock_sdk.return_value.complete.call_args.kwargs
+    assert call_kwargs["timeout_seconds"] == 45.0
