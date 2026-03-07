@@ -85,6 +85,110 @@ export interface PortfolioAnalytics {
   numSymbols: number
 }
 
+export interface JennyRoutine {
+  id: string
+  routineType: string
+  status: string
+  triggeredBy: string
+  summary: string | null
+  agentsUsed: string[]
+  symbolsScanned: number
+  notificationsCreated: number
+  startedAt: string
+  completedAt: string | null
+  metadata: Record<string, unknown>
+}
+
+export interface JennyEvaluation {
+  id: string
+  routineId: string
+  symbol: string
+  agentName: string
+  provider: string | null
+  model: string | null
+  verdict: string
+  confidence: number | null
+  rationale: string
+  recommendation: string | null
+  strengths: string[]
+  weaknesses: string[]
+  thesisId: string | null
+  agentRunId: string | null
+  createdAt: string
+  metadata: Record<string, unknown>
+}
+
+export interface JennySymbolReview {
+  symbol: string
+  finalVerdict: string
+  averageConfidence: number | null
+  thesisStatus: string | null
+  thesisAction: string | null
+  reasons: string[]
+  evaluations: JennyEvaluation[]
+}
+
+export interface JennyNotification {
+  id: string
+  routineId: string | null
+  symbol: string | null
+  category: string
+  severity: string
+  status: string
+  title: string
+  detail: string
+  recommendation: string | null
+  createdAt: string
+  acknowledgedAt: string | null
+  metadata: Record<string, unknown>
+}
+
+export interface JennyTradeReview {
+  id: string
+  symbol: string
+  thesisId: string | null
+  ideaId: string | null
+  reviewSource: string
+  outcomeLabel: string
+  returnPct: number | null
+  lesson: string
+  whatWorked: string | null
+  whatFailed: string | null
+  nextTime: string | null
+  createdAt: string
+  updatedAt: string
+  agentConsensus: Record<string, unknown>
+  metadata: Record<string, unknown>
+}
+
+export interface JennyAgentScorecard {
+  agentName: string
+  totalEvaluations: number
+  completedReviews: number
+  positiveVerdicts: number
+  winRate: number | null
+  avgReturnPct: number | null
+  agreementRate: number | null
+  calibrationScore: number | null
+  strengths: string[]
+  weaknesses: string[]
+  lastEvaluationAt: string | null
+  updatedAt: string
+}
+
+export interface JennyDashboard {
+  routines: JennyRoutine[]
+  notifications: JennyNotification[]
+  symbolReviews: JennySymbolReview[]
+  tradeReviews: JennyTradeReview[]
+  scorecards: JennyAgentScorecard[]
+}
+
+export interface JennyRunResponse {
+  routine: JennyRoutine
+  dashboard: JennyDashboard
+}
+
 export interface CreateAccountRequest {
   name: string
   accountType: string
@@ -157,4 +261,22 @@ export async function deletePosition(positionId: string): Promise<void> {
  */
 export async function fetchAnalytics(): Promise<PortfolioAnalytics> {
   return get<PortfolioAnalytics>('/api/portfolio/analytics')
+}
+
+export async function fetchJennyDashboard(): Promise<JennyDashboard> {
+  return get<JennyDashboard>('/api/portfolio/jenny')
+}
+
+export async function runJennyRoutine(
+  routineType: 'dailyOperator' | 'weeklyLearning',
+): Promise<JennyRunResponse> {
+  return post<JennyRunResponse>('/api/portfolio/jenny/run', { routineType })
+}
+
+export async function acknowledgeJennyNotification(
+  notificationId: string,
+): Promise<JennyNotification> {
+  return post<JennyNotification>(
+    `/api/portfolio/jenny/notifications/${notificationId}/acknowledge`,
+  )
 }

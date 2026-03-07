@@ -12,6 +12,7 @@ from app.portfolio.price_fetcher import PriceDataFetcher
 from app.storage import get_storage
 
 from .analytics_routes import router as analytics_router
+from .jenny_routes import router as jenny_router
 from .models import AccountCreate, AccountResponse, PortfolioResponse, PositionResponse
 from .position_routes import router as position_router
 
@@ -180,3 +181,4 @@ async def delete_account(account_id: str) -> dict[str, str]:
 # Include sub-routers
 router.include_router(position_router)
 router.include_router(analytics_router)
+router.include_router(jenny_router)

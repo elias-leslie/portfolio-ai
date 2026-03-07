@@ -28,6 +28,7 @@ from app.workflows.data_refresh import (
     update_technical_indicators_wf,
 )
 from app.workflows.events import cross_validate_insight_wf
+from app.workflows.jenny import jenny_daily_operator_wf, jenny_weekly_learning_wf
 from app.workflows.maintenance import (
     check_all_data_freshness_wf,
     check_data_source_health_wf,
@@ -167,6 +168,9 @@ def main() -> None:
             qa_scan_wf,
             generate_sitemap_wf,
             monitor_theses_wf,
+            # Jenny (2)
+            jenny_daily_operator_wf,
+            jenny_weekly_learning_wf,
             # Events (1)
             cross_validate_insight_wf,
         ],

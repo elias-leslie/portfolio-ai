@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
   type AddPositionRequest,
+  acknowledgeJennyNotification,
   addPosition,
   type CreateAccountRequest,
   createAccount,
@@ -13,7 +14,9 @@ import {
   deletePosition,
   fetchAccounts,
   fetchAnalytics,
+  fetchJennyDashboard,
   fetchPortfolio,
+  runJennyRoutine,
   updatePosition,
 } from '../api/portfolio'
 
@@ -41,6 +44,15 @@ export function usePortfolioAnalytics() {
     queryFn: fetchAnalytics,
     staleTime: 1000 * 60 * 2, // 2 minutes (reduced from 5min for fresher data)
     refetchInterval: 1000 * 60 * 5, // Refetch every 5 minutes (reduced from 15min)
+  })
+}
+
+export function useJennyDashboard() {
+  return useQuery({
+    queryKey: ['portfolio', 'jenny'],
+    queryFn: fetchJennyDashboard,
+    staleTime: 1000 * 60,
+    refetchInterval: 1000 * 60 * 5,
   })
 }
 
@@ -199,6 +211,41 @@ export function useDeletePosition() {
       // Invalidate and refetch both portfolio and analytics queries
       queryClient.invalidateQueries({
         queryKey: ['portfolio'],
+        refetchType: 'active',
+      })
+    },
+  })
+}
+
+export function useRunJennyRoutine() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: runJennyRoutine,
+    onSuccess: (result) => {
+      queryClient.setQueryData(['portfolio', 'jenny'], result.dashboard)
+      queryClient.invalidateQueries({
+        queryKey: ['portfolio'],
+        refetchType: 'active',
+      })
+      toast.success('Jenny finished a new review.')
+    },
+    onError: (error) => {
+      const errorMsg =
+        error instanceof Error ? error.message : 'Jenny review failed'
+      toast.error(errorMsg)
+    },
+  })
+}
+
+export function useAcknowledgeJennyNotification() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: acknowledgeJennyNotification,
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ['portfolio', 'jenny'],
         refetchType: 'active',
       })
     },

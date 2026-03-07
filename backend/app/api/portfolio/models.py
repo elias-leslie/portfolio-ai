@@ -112,3 +112,113 @@ class AnalyticsResponse(BaseModel):
     bottom_performers: list[PositionPerformanceResponse]
     num_positions: int
     num_symbols: int
+
+
+class JennyRoutineResponse(BaseModel):
+    id: str
+    routine_type: str
+    status: str
+    triggered_by: str
+    summary: str | None
+    agents_used: list[str]
+    symbols_scanned: int
+    notifications_created: int
+    started_at: str
+    completed_at: str | None
+    metadata: dict[str, object]
+
+
+class JennyEvaluationResponse(BaseModel):
+    id: str
+    routine_id: str
+    symbol: str
+    agent_name: str
+    provider: str | None
+    model: str | None
+    verdict: str
+    confidence: float | None
+    rationale: str
+    recommendation: str | None
+    strengths: list[str]
+    weaknesses: list[str]
+    thesis_id: str | None
+    agent_run_id: str | None
+    created_at: str
+    metadata: dict[str, object]
+
+
+class JennySymbolReviewResponse(BaseModel):
+    symbol: str
+    final_verdict: str
+    average_confidence: float | None
+    thesis_status: str | None
+    thesis_action: str | None
+    reasons: list[str]
+    evaluations: list[JennyEvaluationResponse]
+
+
+class JennyNotificationResponse(BaseModel):
+    id: str
+    routine_id: str | None
+    symbol: str | None
+    category: str
+    severity: str
+    status: str
+    title: str
+    detail: str
+    recommendation: str | None
+    created_at: str
+    acknowledged_at: str | None
+    metadata: dict[str, object]
+
+
+class JennyTradeReviewResponse(BaseModel):
+    id: str
+    symbol: str
+    thesis_id: str | None
+    idea_id: str | None
+    review_source: str
+    outcome_label: str
+    return_pct: float | None
+    lesson: str
+    what_worked: str | None
+    what_failed: str | None
+    next_time: str | None
+    created_at: str
+    updated_at: str
+    agent_consensus: dict[str, object]
+    metadata: dict[str, object]
+
+
+class JennyAgentScorecardResponse(BaseModel):
+    agent_name: str
+    total_evaluations: int
+    completed_reviews: int
+    positive_verdicts: int
+    win_rate: float | None
+    avg_return_pct: float | None
+    agreement_rate: float | None
+    calibration_score: float | None
+    strengths: list[str]
+    weaknesses: list[str]
+    last_evaluation_at: str | None
+    updated_at: str
+
+
+class JennyDashboardResponse(BaseModel):
+    routines: list[JennyRoutineResponse]
+    notifications: list[JennyNotificationResponse]
+    symbol_reviews: list[JennySymbolReviewResponse]
+    trade_reviews: list[JennyTradeReviewResponse]
+    scorecards: list[JennyAgentScorecardResponse]
+
+
+class JennyRunRequest(BaseModel):
+    routine_type: Literal["daily_operator", "weekly_learning"] = Field(
+        ..., description="Jenny routine to run"
+    )
+
+
+class JennyRunResponseModel(BaseModel):
+    routine: JennyRoutineResponse
+    dashboard: JennyDashboardResponse

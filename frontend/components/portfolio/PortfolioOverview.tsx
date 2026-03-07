@@ -4,6 +4,7 @@ import { Activity, DollarSign, Gauge, TrendingUp } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { usePortfolio, usePortfolioAnalytics } from '@/lib/hooks/usePortfolio'
 import { AssetAllocation } from './AssetAllocation'
+import { JennyOperatorPanel } from './JennyOperatorPanel'
 import { PortfolioCoachAlerts } from './PortfolioCoachAlerts'
 import { DiversificationScore } from './DiversificationScore'
 import { PortfolioStats } from './PortfolioStats'
@@ -137,6 +138,8 @@ export function PortfolioOverview() {
       {portfolio && analytics && (
         <PortfolioCoachAlerts portfolio={portfolio} analytics={analytics} />
       )}
+
+      <JennyOperatorPanel />
 
       {/* Risk Profile (if available) */}
       {analytics?.riskProfile && (

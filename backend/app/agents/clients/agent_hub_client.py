@@ -40,6 +40,7 @@ class AgentHubAPIClient(LLMClient):
 
     def __init__(
         self,
+        agent_slug: str | None = None,
         model: str = CLAUDE_SONNET,
         base_url: str = DEFAULT_AGENT_HUB_URL,
         api_key: str | None = None,
@@ -48,6 +49,7 @@ class AgentHubAPIClient(LLMClient):
         """Initialize Agent Hub client.
 
         Args:
+            agent_slug: Preferred Agent Hub agent slug for routed completions
             model: Model to use (e.g., claude-sonnet-4-5, gemini-3-flash-preview)
             base_url: Agent Hub API base URL
             api_key: Optional API key for authentication
@@ -61,6 +63,7 @@ class AgentHubAPIClient(LLMClient):
                 "Agent Hub is disabled. Set AGENT_HUB_ENABLED=true to enable agentic calls."
             )
 
+        self.agent_slug = agent_slug
         self.model = model
         self.base_url = base_url
         self._client = SDKClient(
@@ -107,7 +110,7 @@ class AgentHubAPIClient(LLMClient):
         Returns:
             Model identifier
         """
-        return self.model
+        return self.agent_slug or self.model
 
     def generate(
         self,
@@ -153,6 +156,7 @@ class AgentHubAPIClient(LLMClient):
 
         try:
             response = self._client.complete(
+                agent_slug=self.agent_slug,
                 model=self.model,
                 messages=messages,
                 temperature=temperature,
@@ -197,6 +201,11 @@ class AgentHubAPIClient(LLMClient):
                 usage=usage,
                 stop_reason=response.finish_reason or "end_turn",
                 tool_calls=tool_calls,
+                raw_response={
+                    "session_id": response.session_id,
+                    "from_cache": response.from_cache,
+                    "finish_reason": response.finish_reason,
+                },
             )
 
         except AgentHubError as e:
