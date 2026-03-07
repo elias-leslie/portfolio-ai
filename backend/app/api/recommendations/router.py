@@ -1,8 +1,4 @@
-"""API endpoints for trade recommendations.
-
-Provides recommendations for top trades based on active strategy signals.
-Used by /recommendations page to show actionable trades.
-"""
+"""API endpoints for trade recommendations."""
 
 from __future__ import annotations
 
@@ -10,7 +6,6 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.analytics.paper_trading_orders import create_paper_trade_from_strategy_signal
 from app.logging_config import get_logger
 from app.middleware.cache import invalidate_endpoint_cache
 from app.portfolio.manager import PortfolioManager
@@ -129,87 +124,6 @@ async def get_recommended_symbols(
     except Exception as e:
         logger.exception("Failed to get recommended symbols", error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to get symbols: {e!s}") from e
-
-
-@router.post("/paper-trade/{symbol}", response_model=dict[str, Any])
-async def paper_trade_recommendation(
-    symbol: str,
-    strategy_id: str = Query(..., description="Strategy ID to link"),
-) -> dict[str, Any]:
-    """Create a paper trade from a recommendation.
-
-    Uses the proper paper trading flow with strategy linkage and backtest metrics.
-    Creates records in agent_ideas and idea_outcomes that appear on /trading page.
-
-    Args:
-        symbol: Stock symbol
-        strategy_id: Strategy UUID to link
-
-    Returns:
-        Paper trade details
-    """
-    try:
-        conn_mgr = get_connection_manager()
-        storage = get_storage()
-
-        with conn_mgr.connection() as conn:
-            # Get strategy details and signal strength
-            strategy = conn.execute(
-                """SELECT sd.name, ss.signal_strength
-                   FROM strategy_definitions sd
-                   LEFT JOIN strategy_signals ss ON sd.id = ss.strategy_id
-                     AND ss.symbol = %s
-                     AND ss.signal_date >= CURRENT_DATE - INTERVAL '1 day'
-                   WHERE sd.id = %s AND sd.status = 'active'
-                   ORDER BY ss.signal_date DESC NULLS LAST
-                   LIMIT 1""",
-                (symbol, strategy_id),
-            ).fetchone()
-
-            if not strategy:
-                raise HTTPException(
-                    status_code=404, detail=f"Active strategy {strategy_id} not found"
-                )
-
-            signal_strength = (
-                int(strategy[1]) if strategy[1] else 7
-            )  # Default to 7 if no recent signal
-
-        # Use the proper paper trading function with backtest metrics
-        trade = create_paper_trade_from_strategy_signal(
-            storage=storage,
-            strategy_id=strategy_id,
-            symbol=symbol,
-            signal_strength=signal_strength,
-            signal_reasons=["Manual paper trade from recommendations page"],
-        )
-
-        if not trade:
-            raise HTTPException(
-                status_code=400,
-                detail="Failed to create paper trade (insufficient data or cash)",
-            )
-
-        return {
-            "status": "created",
-            "trade": {
-                "idea_id": trade["idea_id"],
-                "symbol": symbol,
-                "entry_price": trade["entry_price"],
-                "target_price": trade.get("target_price"),
-                "stop_loss_price": trade.get("stop_loss_price"),
-                "strategy_name": strategy[0],
-                "backtest_sharpe": trade.get("backtest_sharpe"),
-                "backtest_win_rate": trade.get("backtest_win_rate"),
-            },
-            "message": f"Paper trade: bought {symbol} at ${trade['entry_price']:.2f}",
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception("Failed to create paper trade", symbol=symbol, error=str(e))
-        raise HTTPException(status_code=500, detail=f"Failed to paper trade: {e!s}") from e
 
 
 @router.post("/track/{symbol}", response_model=dict[str, Any])

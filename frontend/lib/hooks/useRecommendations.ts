@@ -7,7 +7,6 @@ import { toast } from 'sonner'
 import {
   getRecommendations,
   getRecommendedSymbols,
-  paperTradeRecommendation,
   trackInPortfolio,
 } from '@/lib/api/recommendations'
 
@@ -60,42 +59,6 @@ export function useRecommendedSymbols(minStrength = 5) {
 // ============================================================================
 // Mutation Hooks
 // ============================================================================
-
-export function usePaperTrade() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: ({
-      symbol,
-      strategyId,
-    }: {
-      symbol: string
-      strategyId: string
-    }) => paperTradeRecommendation(symbol, strategyId),
-
-    onMutate: ({ symbol }) => {
-      toast.loading(`Creating paper trade for ${symbol}...`, {
-        id: `paper-${symbol}`,
-      })
-    },
-
-    onSuccess: (data, { symbol }) => {
-      toast.dismiss(`paper-${symbol}`)
-      toast.success(data.message)
-
-      // Invalidate relevant queries
-      queryClient.invalidateQueries({ queryKey: recommendationKeys.lists() })
-      queryClient.invalidateQueries({ queryKey: ['paper-trades'] })
-    },
-
-    onError: (error, { symbol }) => {
-      toast.dismiss(`paper-${symbol}`)
-      toast.error(
-        `Failed to paper trade ${symbol}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      )
-    },
-  })
-}
 
 export function useTrackInPortfolio() {
   const queryClient = useQueryClient()

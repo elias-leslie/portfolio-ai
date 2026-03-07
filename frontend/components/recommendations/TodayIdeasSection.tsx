@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Slider } from '@/components/ui/slider'
 import type { TradeRecommendation } from '@/lib/api/recommendations'
-import { usePaperTrade, useRecommendations, useTrackInPortfolio } from '@/lib/hooks/useRecommendations'
+import { useRecommendations, useTrackInPortfolio } from '@/lib/hooks/useRecommendations'
 import { DecisionMemoCard } from './DecisionMemoCard'
 import { TrackInPortfolioModal } from './TrackInPortfolioModal'
 
@@ -22,7 +22,6 @@ export function TodayIdeasSection() {
     portfolioSize,
     positionPct: 0.05,
   })
-  const paperTradeMutation = usePaperTrade()
   const trackMutation = useTrackInPortfolio()
   const recommendations = data?.recommendations ?? []
 
@@ -101,17 +100,10 @@ export function TodayIdeasSection() {
               <DecisionMemoCard
                 key={`${recommendation.strategyId}-${recommendation.symbol}`}
                 recommendation={recommendation}
-                onPaperTrade={() =>
-                  paperTradeMutation.mutate({
-                    symbol: recommendation.symbol,
-                    strategyId: recommendation.strategyId,
-                  })
-                }
                 onTrackInPortfolio={() => {
                   setSelectedRecommendation(recommendation)
                   setTrackModalOpen(true)
                 }}
-                isPaperTrading={paperTradeMutation.isPending}
               />
             ))}
           </div>

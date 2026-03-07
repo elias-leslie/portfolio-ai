@@ -57,18 +57,6 @@ export interface RecommendedSymbolsResponse {
   count: number
 }
 
-export interface PaperTradeResponse {
-  status: string
-  trade: {
-    symbol: string
-    shares: number
-    entryPrice: number
-    totalCost: number
-    strategyName: string
-  }
-  message: string
-}
-
 export interface TrackPortfolioResponse {
   status: string
   position: {
@@ -114,19 +102,6 @@ export async function getRecommendedSymbols(
 ): Promise<RecommendedSymbolsResponse> {
   return apiRequest<RecommendedSymbolsResponse>(
     `/api/recommendations/symbols?min_strength=${minStrength}`,
-  )
-}
-
-export async function paperTradeRecommendation(
-  symbol: string,
-  strategyId: string,
-): Promise<PaperTradeResponse> {
-  const params = new URLSearchParams()
-  params.set('strategy_id', strategyId)
-
-  return apiRequest<PaperTradeResponse>(
-    `/api/recommendations/paper-trade/${symbol}?${params.toString()}`,
-    { method: 'POST' },
   )
 }
 

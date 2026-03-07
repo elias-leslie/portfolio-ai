@@ -13,9 +13,6 @@ from .crud_router import create_watchlist_item, get_score_history, list_watchlis
 from .crud_router import router as crud_router
 from .refresh_router import router as refresh_router
 
-# reports_router removed - daily report feature disabled (never executed, no data)
-from .review_router import router as review_router
-
 # Create main router (prefix applied in main.py as /api/watchlist)
 router = APIRouter(tags=["watchlist"])
 
@@ -26,7 +23,6 @@ router.add_api_route("", create_watchlist_item, methods=["POST"], response_model
 
 # Include all domain routers - specific routes first, catch-all {item_id} last
 router.include_router(refresh_router)  # /refresh - specific route
-router.include_router(review_router)  # /review - specific route
 router.include_router(crud_router)  # / and /{item_id} - catch-all, must be last
 
 __all__ = ["get_score_history", "router"]

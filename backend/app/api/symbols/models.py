@@ -118,25 +118,6 @@ class PortfolioSection(BaseModel):
     context: PortfolioContext | None = None
 
 
-class PaperTradeInfo(BaseModel):
-    """Paper trade summary."""
-
-    entry_price: float
-    exit_price: float | None = None
-    return_pct: float | None = None
-    holding_days: int | None = None
-    status: str
-
-
-class PaperTradesSection(BaseModel):
-    """Paper trading history for symbol."""
-
-    open_position: PaperTradeInfo | None = None
-    closed_trades: list[PaperTradeInfo] = []
-    win_rate: float | None = None
-    avg_return: float | None = None
-
-
 class StrategyInfo(BaseModel):
     """Strategy summary."""
 
@@ -216,7 +197,6 @@ class SymbolIntelligenceResponse(BaseModel):
     company: CompanySection | None = None
     trends: TrendSection | None = None
     portfolio: PortfolioSection | None = None
-    paper_trades: PaperTradesSection | None = None
     strategies: StrategiesSection | None = None
     news: NewsSection | None = None
     market: MarketSection | None = None

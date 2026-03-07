@@ -1,8 +1,4 @@
-"""Data fetching functions for symbol intelligence.
-
-Fetches data from various sources: watchlist, portfolio, paper trades,
-strategies, news, and market data.
-"""
+"""Data fetching functions for symbol intelligence."""
 
 from __future__ import annotations
 
@@ -117,51 +113,6 @@ def get_portfolio_data(symbol: str, storage: PortfolioStorage) -> dict[str, Any]
     return {"position": position, "summary": summary}
 
 
-def get_paper_trades_data(symbol: str, storage: PortfolioStorage) -> dict[str, Any]:
-    """Fetch paper trading history for symbol."""
-    trades = []
-    try:
-        with storage.connection() as conn:
-            result = conn.execute(
-                """
-                SELECT
-                    idea_id, symbol, shares, entry_price, entry_date,
-                    exit_price, exit_date, exit_reason,
-                    current_price, current_return_pct, realized_return_pct,
-                    CASE WHEN exit_date IS NULL THEN 'open' ELSE 'closed' END as status,
-                    EXTRACT(DAY FROM COALESCE(exit_date, NOW()) - entry_date)::int as holding_days
-                FROM idea_outcomes
-                WHERE UPPER(symbol) = UPPER(%s)
-                ORDER BY entry_date DESC
-                """,
-                [symbol],
-            )
-            rows = result.fetchall()
-            if rows and result.description:
-                trades = rows_to_dicts(rows, result.description)
-    except Exception as e:
-        logger.warning(f"Failed to get paper trades data for {symbol}: {e}")
-
-    closed = [t for t in trades if t.get("status") == "closed"]
-    open_trade = next((t for t in trades if t.get("status") == "open"), None)
-
-    wins = [t for t in closed if float(t.get("realized_return_pct") or 0) > 0]
-    win_rate = (len(wins) / len(closed) * 100) if closed else None
-    avg_return = (
-        sum(float(t.get("realized_return_pct") or 0) for t in closed) / len(closed)
-        if closed
-        else None
-    )
-
-    return {
-        "trades": trades,
-        "open_trade": open_trade,
-        "closed_trades": closed,
-        "win_rate": win_rate,
-        "avg_return": avg_return,
-    }
-
-
 def get_strategies_data(symbol: str, storage: PortfolioStorage) -> dict[str, Any]:
     """Fetch active strategies for symbol."""
     strategies = []
@@ -269,17 +220,15 @@ def fetch_all_data(
     storage: PortfolioStorage,
     watchlist_service: WatchlistService,
     include_market: bool,
-    include_paper_trades: bool,
     include_strategies: bool,
 ) -> dict[str, Any]:
     """Fetch all data sources for symbol intelligence.
 
-    Returns dict with keys: watchlist, portfolio, paper_trades, strategies, news, market
+    Returns dict with keys: watchlist, portfolio, strategies, news, market
     """
     return {
         "watchlist": get_watchlist_data(symbol, watchlist_service),
         "portfolio": get_portfolio_data(symbol, storage),
-        "paper_trades": get_paper_trades_data(symbol, storage) if include_paper_trades else None,
         "strategies": get_strategies_data(symbol, storage) if include_strategies else None,
         "news": get_news_data(symbol, storage),
         "market": get_market_data(storage) if include_market else {},

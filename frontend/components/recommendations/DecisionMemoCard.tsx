@@ -8,9 +8,7 @@ import type { TradeRecommendation } from '@/lib/api/recommendations'
 
 interface DecisionMemoCardProps {
   recommendation: TradeRecommendation
-  onPaperTrade: () => void
   onTrackInPortfolio: () => void
-  isPaperTrading: boolean
 }
 
 function getConfidenceLabel(recommendation: TradeRecommendation): string {
@@ -49,9 +47,7 @@ function buildConfidenceText(recommendation: TradeRecommendation): string {
 
 export function DecisionMemoCard({
   recommendation,
-  onPaperTrade,
   onTrackInPortfolio,
-  isPaperTrading,
 }: DecisionMemoCardProps) {
   return (
     <Card className="border-border/60 bg-surface/90">
@@ -107,10 +103,7 @@ export function DecisionMemoCard({
         </div>
 
         <div className="flex gap-2">
-          <Button onClick={onPaperTrade} disabled={isPaperTrading} className="flex-1">
-            {isPaperTrading ? 'Paper trade in progress...' : 'Paper Trade'}
-          </Button>
-          <Button variant="outline" className="flex-1" onClick={onTrackInPortfolio}>
+          <Button className="flex-1" onClick={onTrackInPortfolio}>
             Track in Portfolio
           </Button>
         </div>

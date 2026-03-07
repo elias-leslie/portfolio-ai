@@ -14,8 +14,6 @@ from .models import (
     MarketSection,
     NewsArticle,
     NewsSection,
-    PaperTradeInfo,
-    PaperTradesSection,
     PillarScore,
     PortfolioContext,
     PortfolioSection,
@@ -207,35 +205,6 @@ def build_portfolio_section(
         )
         if summary
         else None,
-    )
-
-
-def build_paper_trades_section(paper_trades: dict[str, Any]) -> PaperTradesSection:
-    """Build the paper trades section from paper trades data."""
-    open_pos = paper_trades.get("open_trade")
-    closed = paper_trades.get("closed_trades") or []
-
-    return PaperTradesSection(
-        open_position=PaperTradeInfo(
-            entry_price=open_pos.get("entry_price", 0),
-            return_pct=open_pos.get("current_return_pct"),
-            holding_days=open_pos.get("holding_days"),
-            status="open",
-        )
-        if open_pos
-        else None,
-        closed_trades=[
-            PaperTradeInfo(
-                entry_price=t.get("entry_price", 0),
-                exit_price=t.get("exit_price"),
-                return_pct=t.get("realized_return_pct"),
-                holding_days=t.get("holding_days"),
-                status="closed",
-            )
-            for t in closed[:5]
-        ],
-        win_rate=paper_trades.get("win_rate"),
-        avg_return=paper_trades.get("avg_return"),
     )
 
 

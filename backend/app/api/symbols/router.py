@@ -20,7 +20,6 @@ from .builders import (
     build_market_section,
     build_news_section_fallback,
     build_news_section_from_watchlist,
-    build_paper_trades_section,
     build_portfolio_section,
     build_scores_section,
     build_signal_section,
@@ -40,18 +39,17 @@ watchlist_service = WatchlistService(storage)
 
 
 def _build_response(
-    symbol: str, include_market: bool, include_paper_trades: bool, include_strategies: bool
+    symbol: str, include_market: bool, include_strategies: bool
 ) -> SymbolIntelligenceResponse:
     """Build the full intelligence response synchronously."""
     symbol = symbol.upper()
 
     # Fetch all data
     data = fetch_all_data(
-        symbol, storage, watchlist_service, include_market, include_paper_trades, include_strategies
+        symbol, storage, watchlist_service, include_market, include_strategies
     )
     watchlist = data["watchlist"]
     portfolio = data["portfolio"]
-    paper_trades = data["paper_trades"]
     strategies = data["strategies"]
     news = data["news"]
     market = data["market"]
@@ -73,10 +71,6 @@ def _build_response(
     pos = portfolio.get("position") if portfolio else None
     summary = portfolio.get("summary") if portfolio else None
     response.portfolio = build_portfolio_section(pos, summary)
-
-    # Paper trades section
-    if paper_trades:
-        response.paper_trades = build_paper_trades_section(paper_trades)
 
     # Strategies section
     if strategies:
@@ -102,7 +96,6 @@ def _build_response(
 async def get_symbol_intelligence(
     symbol: str,
     include_market: bool = True,
-    include_paper_trades: bool = True,
     include_strategies: bool = True,
 ) -> SymbolIntelligenceResponse:
     """Get comprehensive intelligence for a symbol.
@@ -117,9 +110,7 @@ async def get_symbol_intelligence(
     - Personalized recommendation
     """
     try:
-        return await run_in_threadpool(
-            _build_response, symbol, include_market, include_paper_trades, include_strategies
-        )
+        return await run_in_threadpool(_build_response, symbol, include_market, include_strategies)
     except Exception as e:
         logger.exception(f"Error getting symbol intelligence for {symbol}")
         return SymbolIntelligenceResponse(
