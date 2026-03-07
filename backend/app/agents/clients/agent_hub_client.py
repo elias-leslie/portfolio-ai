@@ -1,7 +1,7 @@
 """Agent Hub API client.
 
 Implements LLMClient interface for Agent Hub service.
-Provides unified access to Claude and Gemini models via Agent Hub API.
+Uses either explicit model overrides or the agent's configured defaults.
 """
 
 from __future__ import annotations
@@ -13,7 +13,6 @@ from agent_hub import AgentHubClient as SDKClient
 from agent_hub.exceptions import AgentHubError
 
 from ...config import settings
-from ...constants import CLAUDE_SONNET
 from ...logging_config import get_logger
 from .base_client import LLMClient, LLMResponse
 
@@ -41,7 +40,7 @@ class AgentHubAPIClient(LLMClient):
     def __init__(
         self,
         agent_slug: str | None = None,
-        model: str = CLAUDE_SONNET,
+        model: str | None = None,
         base_url: str = DEFAULT_AGENT_HUB_URL,
         api_key: str | None = None,
         timeout: float = 300.0,
@@ -50,7 +49,8 @@ class AgentHubAPIClient(LLMClient):
 
         Args:
             agent_slug: Preferred Agent Hub agent slug for routed completions
-            model: Model to use (e.g., claude-sonnet-4-5, gemini-3-flash-preview)
+            model: Optional explicit model override. If omitted, Agent Hub
+                chooses the agent's configured primary/fallback models.
             base_url: Agent Hub API base URL
             api_key: Optional API key for authentication
             timeout: Request timeout in seconds
@@ -76,8 +76,10 @@ class AgentHubAPIClient(LLMClient):
             request_source=PORTFOLIO_REQUEST_SOURCE,
         )
 
-        # Determine provider from model name
-        if "claude" in model.lower():
+        # Determine provider from model name when explicitly overridden.
+        if model is None:
+            self.provider = "agent_hub"
+        elif "claude" in model.lower():
             self.provider = "claude"
         elif "gemini" in model.lower():
             self.provider = "gemini"
@@ -111,7 +113,7 @@ class AgentHubAPIClient(LLMClient):
         Returns:
             Model identifier
         """
-        return self._preferred_agent_slug or self.model
+        return self._preferred_agent_slug or self.model or DEFAULT_AGENT_SLUG
 
     def generate(
         self,
@@ -156,14 +158,19 @@ class AgentHubAPIClient(LLMClient):
         )
 
         try:
+            request_kwargs = {
+                "agent_slug": self.agent_slug,
+                "messages": messages,
+                "temperature": temperature,
+                "tools": tools,
+                "project_id": "portfolio-ai",
+                "purpose": purpose,
+            }
+            if self.model is not None:
+                request_kwargs["model"] = self.model
+
             response = self._client.complete(
-                agent_slug=self.agent_slug,
-                model=self.model,
-                messages=messages,
-                temperature=temperature,
-                tools=tools,
-                project_id="portfolio-ai",
-                purpose=purpose,
+                **request_kwargs,
             )
 
             duration_ms = int((time.time() - start_time) * 1000)

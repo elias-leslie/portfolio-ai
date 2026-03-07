@@ -55,8 +55,8 @@ class ThesisService:
 
         try:
             intelligence = self._fetcher.fetch(symbol)
-            thesis_data = self._generator.generate_with_gemini(intelligence)
-            claude_validation = self._validator.validate_with_claude(intelligence, thesis_data)
+            thesis_data = self._generator.generate_thesis(intelligence)
+            claude_validation = self._validator.validate_thesis(intelligence, thesis_data)
             cross_val_score = self._validator.calculate_cross_validation_score(claude_validation)
 
             existing = self.get_thesis(symbol)

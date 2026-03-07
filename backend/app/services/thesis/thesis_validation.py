@@ -1,11 +1,10 @@
-"""Thesis Validation - LLM-powered thesis validation logic."""
+"""Thesis validation logic."""
 
 from __future__ import annotations
 
 import json
 from typing import Any
 
-from ...constants import CLAUDE_SONNET
 from ...logging_config import get_logger
 from ...models.thesis import ThesisValidation
 from .thesis_generation import ThesisGenerator
@@ -21,10 +20,10 @@ class ThesisValidator:
         """Initialize validator."""
         self._generator = ThesisGenerator()
 
-    def validate_with_claude(
+    def validate_thesis(
         self, intelligence: dict[str, Any], thesis_data: dict[str, Any]
     ) -> ThesisValidation:
-        """Validate thesis using Claude.
+        """Validate thesis using the configured finance risk agent.
 
         Args:
             intelligence: Original intelligence data
@@ -36,7 +35,7 @@ class ThesisValidator:
         from ...agents.clients.agent_hub_client import AgentHubAPIClient  # noqa: PLC0415
 
         try:
-            claude = AgentHubAPIClient(agent_slug="risk-manager", model=CLAUDE_SONNET)
+            validator = AgentHubAPIClient(agent_slug="risk-manager")
 
             # Build validation prompt
             intelligence_json = json.dumps(intelligence, indent=2)
@@ -45,9 +44,9 @@ class ThesisValidator:
                 intelligence_json=intelligence_json, thesis_json=thesis_json
             )
 
-            logger.info("claude_validation_started", prompt_length=len(prompt))
+            logger.info("thesis_validation_started", prompt_length=len(prompt))
 
-            response = claude.generate(
+            response = validator.generate(
                 prompt=prompt,
                 system="You are a thorough investment thesis reviewer. Always respond with valid JSON.",
                 temperature=0.3,  # Lower temperature for consistent reviews
@@ -57,13 +56,13 @@ class ThesisValidator:
             validation_data = self._generator.parse_json_response(response.content)
 
             logger.info(
-                "claude_validation_completed",
+                "thesis_validation_completed",
                 approved=validation_data.get("approved"),
                 confidence=validation_data.get("confidence"),
             )
 
             return ThesisValidation(
-                provider="claude",
+                provider="risk-manager",
                 approved=validation_data.get("approved", False),
                 confidence=validation_data.get("confidence", 0.0),
                 review_summary=validation_data.get("review_summary", ""),
@@ -71,10 +70,10 @@ class ThesisValidator:
             )
 
         except Exception as e:
-            logger.error("claude_validation_failed", error=str(e))
+            logger.error("thesis_validation_failed", error=str(e))
             # Return failed validation instead of raising
             return ThesisValidation(
-                provider="claude",
+                provider="risk-manager",
                 approved=False,
                 confidence=0.0,
                 review_summary=f"Validation failed: {e}",

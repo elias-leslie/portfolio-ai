@@ -31,6 +31,7 @@ class TestDualProviderClient:
         with patch("app.agents.llm_client.AgentHubAPIClient") as mock_client:
             client = DualProviderClient()
             mock_client.assert_called_once()
+            assert mock_client.call_args.kwargs["model"] is None
             assert client.primary == "agent_hub"
 
     def test_initialization_claude_primary(self) -> None:
@@ -54,9 +55,10 @@ class TestDualProviderClient:
     def test_initialization_passes_agent_slug(self) -> None:
         """Specialist workflows should be able to choose a routed Agent Hub agent."""
         with patch("app.agents.llm_client.AgentHubAPIClient") as mock_client:
-            DualProviderClient(primary="gemini", agent_slug="equity-analyst")
+            DualProviderClient(agent_slug="equity-analyst")
             call_kwargs = mock_client.call_args.kwargs
             assert call_kwargs["agent_slug"] == "equity-analyst"
+            assert call_kwargs["model"] is None
 
     def test_is_available_delegates_to_client(self) -> None:
         """Test that is_available delegates to Agent Hub client."""
@@ -110,7 +112,7 @@ class TestDualProviderClient:
                 claude_model=CLAUDE_OPUS,
             )
             call_kwargs = mock_client.call_args.kwargs
-            assert call_kwargs["model"] == "claude-opus-4-5"
+            assert call_kwargs["model"] == CLAUDE_OPUS
 
     def test_close_delegates_to_client(self) -> None:
         """Test that close delegates to Agent Hub client."""

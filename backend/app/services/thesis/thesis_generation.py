@@ -1,4 +1,4 @@
-"""Thesis Generation - LLM-powered thesis generation logic."""
+"""Thesis generation logic."""
 
 from __future__ import annotations
 
@@ -19,15 +19,15 @@ class ThesisGenerator:
         """Initialize generator.
 
         Args:
-            llm_client: Dual-provider LLM client (Gemini + Claude)
+            llm_client: Routed LLM client
         """
         self._llm_client = llm_client
 
     def _ensure_llm_client(self) -> DualProviderClient:
         """Lazy-initialize LLM client."""
         if self._llm_client is None:
-            self._llm_client = DualProviderClient(primary="gemini", agent_slug="equity-analyst")
-            logger.info("thesis_llm_client_initialized")
+            self._llm_client = DualProviderClient(agent_slug="equity-analyst")
+            logger.info("thesis_llm_client_initialized", agent_slug="equity-analyst")
         return self._llm_client
 
     def parse_json_response(self, content: str) -> dict[str, Any]:
@@ -63,8 +63,8 @@ class ThesisGenerator:
             logger.error("json_parse_failed", content_preview=content[:500], error=str(e))
             raise ValueError(f"Failed to parse JSON from LLM response: {e}") from e
 
-    def generate_with_gemini(self, intelligence: dict[str, Any]) -> dict[str, Any]:
-        """Generate thesis using Gemini.
+    def generate_thesis(self, intelligence: dict[str, Any]) -> dict[str, Any]:
+        """Generate thesis using the configured finance analyst agent.
 
         Args:
             intelligence: Intelligence data
@@ -81,7 +81,7 @@ class ThesisGenerator:
         intelligence_json = json.dumps(intelligence, indent=2)
         prompt = THESIS_GENERATION_PROMPT.format(intelligence_json=intelligence_json)
 
-        logger.info("gemini_thesis_generation_started", prompt_length=len(prompt))
+        logger.info("thesis_generation_started", prompt_length=len(prompt))
 
         try:
             response = llm.generate(
@@ -92,9 +92,9 @@ class ThesisGenerator:
             )
 
             thesis_data = self.parse_json_response(response.content)
-            logger.info("gemini_thesis_generated", keys=list(thesis_data.keys()))
+            logger.info("thesis_generated", keys=list(thesis_data.keys()))
             return thesis_data
 
         except Exception as e:
-            logger.error("gemini_thesis_generation_failed", error=str(e))
-            raise RuntimeError(f"Gemini thesis generation failed: {e}") from e
+            logger.error("thesis_generation_failed", error=str(e))
+            raise RuntimeError(f"Thesis generation failed: {e}") from e

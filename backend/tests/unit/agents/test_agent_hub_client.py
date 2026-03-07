@@ -33,7 +33,7 @@ def test_agent_hub_client_uses_agent_slug_when_present(mock_sdk: Mock) -> None:
     mock_sdk.return_value.complete.return_value = _mock_response()
 
     with patch("app.agents.clients.agent_hub_client.AGENT_HUB_ENABLED", True):
-        client = AgentHubAPIClient(agent_slug="persona", model="claude-sonnet-4-5")
+        client = AgentHubAPIClient(agent_slug="persona")
         response = client.generate(prompt="Review AAPL")
 
     init_kwargs = mock_sdk.call_args.kwargs
@@ -41,7 +41,7 @@ def test_agent_hub_client_uses_agent_slug_when_present(mock_sdk: Mock) -> None:
     assert "client_secret" not in init_kwargs
     assert init_kwargs["client_name"] == "portfolio-ai"
     assert call_kwargs["agent_slug"] == "persona"
-    assert call_kwargs["model"] == "claude-sonnet-4-5"
+    assert "model" not in call_kwargs
     assert response.raw_response["session_id"] == "session-123"
     assert client.get_model_name() == "persona"
 

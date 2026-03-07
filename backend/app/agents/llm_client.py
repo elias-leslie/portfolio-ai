@@ -57,11 +57,13 @@ class DualProviderClient(LLMClient):
 
         self.primary = primary
 
-        # Determine model based on primary provider
+        # Only force a model when the caller explicitly chooses a provider lane.
         if primary == "gemini":
-            model = gemini_model
-        else:
+            model: str | None = gemini_model
+        elif primary == "claude":
             model = claude_model
+        else:
+            model = None
 
         self._client = AgentHubAPIClient(
             agent_slug=agent_slug,
