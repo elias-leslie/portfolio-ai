@@ -563,6 +563,13 @@ class JennyOperatorService:
             )
             self.agent_run_repo.store_message(run_id, "assistant", response.content)
             parsed = self._parse_agent_response(response.content, spec.agent_slug)
+            parsed.setdefault("metadata", {})
+            parsed["metadata"]["symbol_profile"] = {
+                "security_type": payload.get("security_type"),
+                "is_passive_fund": payload.get("review_mode") == "allocation",
+                "data_quality_pct": payload.get("data_quality_pct"),
+            }
+            parsed["metadata"]["invalidation_triggers"] = list(payload.get("invalidation_triggers") or [])
             parsed["provider"] = response.provider
             parsed["model"] = response.model
             parsed["agent_run_id"] = run_id
@@ -735,7 +742,12 @@ class JennyOperatorService:
             "recommendation": recommendation,
             "strengths": strengths,
             "weaknesses": weaknesses,
-            "metadata": {"fallback": True, "symbol": symbol, "symbol_profile": profile},
+            "metadata": {
+                "fallback": True,
+                "symbol": symbol,
+                "symbol_profile": profile,
+                "invalidation_triggers": [],
+            },
             "agent_run_id": None,
         }
 
@@ -832,7 +844,7 @@ class JennyOperatorService:
                 count += 1
 
             thesis = self.thesis_service.get_thesis(symbol)
-            invalidation_triggers = self.thesis_service.check_invalidation_triggers(symbol) if thesis else []
+            invalidation_triggers = self._extract_invalidation_triggers(evaluations)
             profile = self._extract_symbol_profile(evaluations)
             if invalidation_triggers and not (
                 position_action and position_action["action"] == "exit"
@@ -866,6 +878,13 @@ class JennyOperatorService:
             if isinstance(profile, dict):
                 return profile
         return {}
+
+    def _extract_invalidation_triggers(self, evaluations: list[dict[str, Any]]) -> list[str]:
+        for evaluation in evaluations:
+            raw_triggers = (evaluation.get("metadata") or {}).get("invalidation_triggers")
+            if isinstance(raw_triggers, list):
+                return [str(trigger) for trigger in raw_triggers if trigger]
+        return []
 
     def _upsert_notification(
         self,

@@ -359,7 +359,16 @@ def test_create_notifications_adds_invalidation_alerts() -> None:
     created = service._create_notifications(
         routine_id="routine-1",
         live_symbols={"AAPL"},
-        evaluations_by_symbol={"AAPL": [{"verdict": "hold"}]},
+        evaluations_by_symbol={
+            "AAPL": [
+                {
+                    "verdict": "hold",
+                    "agent_name": "risk-manager",
+                    "rationale": "Trend intact.",
+                    "metadata": {"invalidation_triggers": ["Signal flipped from BUY to AVOID"]},
+                }
+            ]
+        },
     )
 
     assert created == 1
@@ -372,6 +381,7 @@ def test_create_notifications_adds_invalidation_alerts() -> None:
         detail="Signal flipped from BUY to AVOID",
         recommendation="Review the thesis and current price action before holding or adding.",
     )
+    service.thesis_service.check_invalidation_triggers.assert_not_called()
 
 
 def test_create_notifications_skips_missing_thesis_alert_for_passive_funds() -> None:
