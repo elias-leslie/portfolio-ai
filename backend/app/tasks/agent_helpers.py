@@ -10,8 +10,6 @@ from typing import TYPE_CHECKING, Any
 
 from app.agents.llm_client import DualProviderClient
 from app.agents.tools import AgentTools
-from app.analytics.paper_trading import update_paper_trades
-from app.analytics.types import PaperTradeStatsDict
 from app.logging_config import get_logger
 from app.portfolio.analytics import PortfolioAnalytics
 from app.portfolio.manager import PortfolioManager
@@ -133,36 +131,3 @@ def run_agent_task(
         if llm_client is not None:
             llm_client.close()
         task_cleanup(f"run_{task_name}")
-
-
-def run_paper_trades_update(max_holding_days: int = 60) -> PaperTradeStatsDict:
-    """Update all open paper trades with current prices and check for exits.
-
-    Args:
-        max_holding_days: Maximum days to hold before auto-closing (default: 60)
-
-    Returns:
-        Dict with update statistics (trades_updated, trades_closed, target_hits,
-        stop_hits, expired).
-    """
-    task_id = str(uuid.uuid4())
-    logger.info(
-        "update_paper_trades_task_started",
-        task_id=task_id,
-        max_holding_days=max_holding_days,
-    )
-
-    try:
-        storage = get_storage()
-        stats = update_paper_trades(storage, max_holding_days=max_holding_days)
-        logger.info("update_paper_trades_task_completed", task_id=task_id, **stats)
-        return stats
-
-    except Exception as e:
-        logger.error(
-            "update_paper_trades_task_failed",
-            task_id=task_id,
-            error=str(e),
-            error_type=type(e).__name__,
-        )
-        raise

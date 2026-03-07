@@ -1,4 +1,4 @@
-"""Agent & workflow orchestration workflows.
+"""Agent and workflow orchestration workflows.
 
 Thin async wrappers around existing business logic in tasks/.
 """
@@ -49,25 +49,6 @@ async def run_portfolio_analyzer_wf(input: EmptyInput, ctx: Context) -> dict[str
     from ..tasks.agent_tasks import run_portfolio_analyzer
 
     result = await asyncio.to_thread(run_portfolio_analyzer)
-    return {"result": result}
-
-
-@hatchet.task(
-    name="portfolio-update-paper-trades",
-    input_validator=EmptyInput,
-    execution_timeout="1800s",
-    retries=1,
-    on_crons=["36 21 * * *"],
-    concurrency=ConcurrencyExpression(
-        expression="'portfolio-update-paper-trades'",
-        max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
-    ),
-)
-async def update_paper_trades_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.agent_tasks import update_paper_trades_task
-
-    result = await asyncio.to_thread(update_paper_trades_task)
     return {"result": result}
 
 

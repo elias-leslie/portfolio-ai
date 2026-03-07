@@ -1,7 +1,7 @@
 """Background tasks for asynchronous execution.
 
 This package contains task modules organized by function:
-- agent_tasks: AI agent execution and paper trading
+- agent_tasks: AI agent execution
 - watchlist_tasks: Watchlist score refresh
 - ingestion: Data ingestion tasks (OHLCV, analytics)
 - indicators: Technical indicator calculations (package)
@@ -33,7 +33,6 @@ from . import (
 from .agent_tasks import (
     run_discovery_agent,
     run_portfolio_analyzer,
-    update_paper_trades_task,
 )
 from .indicators import (
     backfill_technical_indicators,
@@ -65,7 +64,6 @@ __all__ = [
     "run_discovery_agent",
     "run_portfolio_analyzer",
     "strategy",
-    "update_paper_trades_task",
     "update_technical_indicators",
     "watchlist_tasks",
     "workflow_tasks",

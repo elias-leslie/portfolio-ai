@@ -11,7 +11,6 @@ from app.workflows.agents import (
     run_discovery_agent_wf,
     run_portfolio_analyzer_wf,
     schedule_new_symbol_wf,
-    update_paper_trades_wf,
 )
 from app.workflows.data_refresh import (
     backfill_indicators_wf,
@@ -161,7 +160,6 @@ def main() -> None:
             # Agents (4)
             run_discovery_agent_wf,
             run_portfolio_analyzer_wf,
-            update_paper_trades_wf,
             schedule_new_symbol_wf,
             # Monitoring (3)
             qa_scan_wf,

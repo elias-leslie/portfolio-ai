@@ -1,8 +1,7 @@
-"""Background tasks for agent execution and paper trading.
+"""Background tasks for agent execution.
 
 This module defines background tasks for:
 - Running AI agents (Discovery, Portfolio Analyzer)
-- Updating paper trades
 
 For other background tasks, see:
 - watchlist_tasks.py - Watchlist score refresh
@@ -12,13 +11,11 @@ For other background tasks, see:
 
 from __future__ import annotations
 
-from app.analytics.types import PaperTradeStatsDict
-from app.tasks.agent_helpers import run_agent_task, run_paper_trades_update
+from app.tasks.agent_helpers import run_agent_task
 
 __all__ = [
     "run_discovery_agent",
     "run_portfolio_analyzer",
-    "update_paper_trades_task",
 ]
 
 
@@ -52,22 +49,3 @@ def run_portfolio_analyzer() -> str:
         context_type="portfolio_analysis",
         confidence=0.85,
     )
-
-
-def update_paper_trades_task(max_holding_days: int = 60) -> PaperTradeStatsDict:
-    """Update all open paper trades with current prices and check for exits.
-
-    Should be scheduled daily at market close + 30 minutes (4:30 PM ET).
-
-    Args:
-        max_holding_days: Maximum days to hold before auto-closing (default: 60)
-
-    Returns:
-        Dict with update statistics:
-        - trades_updated: Number of trades updated
-        - trades_closed: Number of trades closed
-        - target_hits: Number of target price hits
-        - stop_hits: Number of stop loss hits
-        - expired: Number of trades closed due to time limit
-    """
-    return run_paper_trades_update(max_holding_days=max_holding_days)
