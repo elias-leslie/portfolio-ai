@@ -15,6 +15,7 @@ from app.logging_config import get_logger
 from app.middleware.cache import invalidate_endpoint_cache
 from app.portfolio.manager import PortfolioManager
 from app.portfolio.price_fetcher import PriceDataFetcher
+from app.portfolio.totals import get_live_portfolio_totals
 from app.storage import get_storage
 from app.storage.connection import get_connection_manager
 
@@ -33,8 +34,8 @@ async def get_recommendations(
     min_strength: int = Query(5, ge=0, le=10, description="Minimum signal strength"),
     limit: int = Query(20, ge=1, le=100, description="Maximum recommendations"),
     signal_type: Literal["BUY", "SELL", "all"] = Query("BUY", description="Filter by signal type"),
-    portfolio_size: float = Query(
-        DEFAULT_PORTFOLIO_SIZE, ge=1000, description="Portfolio size for sizing"
+    portfolio_size: float | None = Query(
+        None, ge=1000, description="Portfolio size override for sizing"
     ),
     position_pct: float = Query(
         DEFAULT_POSITION_PCT, ge=0.01, le=0.25, description="Position size %"
@@ -64,11 +65,17 @@ async def get_recommendations(
         List of trade recommendations with full details
     """
     try:
+        resolved_portfolio_size = portfolio_size or get_live_portfolio_totals(
+            get_storage(), include_paper=False
+        ).cash_inclusive_total_value
+        if resolved_portfolio_size <= 0:
+            resolved_portfolio_size = DEFAULT_PORTFOLIO_SIZE
+
         recommendations = fetch_recommendations(
             min_strength=min_strength,
             limit=limit,
             signal_type=signal_type,
-            portfolio_size=portfolio_size,
+            portfolio_size=resolved_portfolio_size,
             position_pct=position_pct,
             validation_filter=validation_filter,
         )
@@ -91,7 +98,7 @@ async def get_recommendations(
                 )
                 if recommendations
                 else 0,
-                "portfolio_size": portfolio_size,
+                "portfolio_size": resolved_portfolio_size,
                 "position_pct": position_pct,
             },
         )

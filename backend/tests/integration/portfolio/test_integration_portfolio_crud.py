@@ -21,22 +21,46 @@ def client() -> TestClient:
 
 @pytest.fixture(autouse=True)
 def cleanup_database() -> Generator[None]:
-    """Clean up database before and after each test."""
+    """Clean up only rows created by this test, preserving live portfolio data."""
     storage = get_storage()
 
-    # Clean up before test
     with storage.connection() as conn:
-        conn.execute("DELETE FROM portfolio_positions")
-        conn.execute("DELETE FROM portfolio_accounts")
-        conn.execute("DELETE FROM price_cache")  # Clear price cache too
+        existing_account_ids = {
+            str(row[0]) for row in conn.execute("SELECT id FROM portfolio_accounts").fetchall()
+        }
+        existing_position_ids = {
+            str(row[0]) for row in conn.execute("SELECT id FROM portfolio_positions").fetchall()
+        }
+        existing_price_cache_keys = {
+            (str(row[0]), row[1])
+            for row in conn.execute("SELECT symbol, cached_at FROM price_cache").fetchall()
+        }
 
     yield
 
-    # Clean up after test
     with storage.connection() as conn:
-        conn.execute("DELETE FROM portfolio_positions")
-        conn.execute("DELETE FROM portfolio_accounts")
-        conn.execute("DELETE FROM price_cache")  # Clear price cache too
+        current_position_ids = {
+            str(row[0]) for row in conn.execute("SELECT id FROM portfolio_positions").fetchall()
+        }
+        for position_id in current_position_ids - existing_position_ids:
+            conn.execute("DELETE FROM portfolio_positions WHERE id = %s", (position_id,))
+
+        current_account_ids = {
+            str(row[0]) for row in conn.execute("SELECT id FROM portfolio_accounts").fetchall()
+        }
+        for account_id in current_account_ids - existing_account_ids:
+            conn.execute("DELETE FROM portfolio_accounts WHERE id = %s", (account_id,))
+
+        current_price_cache_keys = conn.execute(
+            "SELECT symbol, cached_at FROM price_cache"
+        ).fetchall()
+        for symbol, cached_at in current_price_cache_keys:
+            key = (str(symbol), cached_at)
+            if key not in existing_price_cache_keys:
+                conn.execute(
+                    "DELETE FROM price_cache WHERE symbol = %s AND cached_at = %s",
+                    (symbol, cached_at),
+                )
 
 
 @pytest.fixture(autouse=True)
@@ -410,3 +434,39 @@ def test_recommendations_accept_trailing_slash(client: TestClient) -> None:
     payload = response.json()
     assert "recommendations" in payload
     assert "summary" in payload
+
+
+def test_recommendations_default_to_live_portfolio_value(client: TestClient) -> None:
+    """Recommendations should size against the real portfolio value when no override is passed."""
+    account_response = client.post(
+        "/api/portfolio/account", json={"name": "Live IRA", "account_type": "IRA"}
+    )
+    assert account_response.status_code == 200
+    account_id = account_response.json()["id"]
+
+    position_response = client.post(
+        "/api/portfolio/position",
+        json={
+            "account_id": account_id,
+            "symbol": "AAPL",
+            "shares": 100,
+            "cost_basis": 150.00,
+            "position_type": "long",
+        },
+    )
+    assert position_response.status_code == 200
+
+    storage = get_storage()
+    with storage.connection() as conn:
+        conn.execute(
+            "UPDATE portfolio_accounts SET cash_balance = %s, initial_cash = %s WHERE id = %s",
+            (2500.0, 2500.0, account_id),
+        )
+        conn.commit()
+
+    response = client.get("/api/recommendations/?min_strength=6&limit=6&signal_type=BUY")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["summary"]["portfolio_size"] == 20500.0
+    assert payload["summary"]["position_pct"] == 0.05

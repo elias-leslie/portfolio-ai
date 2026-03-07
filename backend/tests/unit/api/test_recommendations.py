@@ -5,8 +5,12 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from app.api.recommendations._row_parser import parse_row
+from app.api.recommendations.router import get_recommendations
 from app.portfolio.models import PriceData
+from app.portfolio.totals import PortfolioTotals
 
 
 def _build_row(
@@ -133,3 +137,34 @@ def test_parse_row_skips_recommendation_when_current_price_is_stale() -> None:
     )
 
     assert recommendation is None
+
+
+@pytest.mark.asyncio
+async def test_get_recommendations_uses_live_portfolio_total_when_no_override() -> None:
+    """Route should default sizing to the live cash-inclusive portfolio total."""
+    with (
+        patch(
+            "app.api.recommendations.router.get_live_portfolio_totals",
+            return_value=PortfolioTotals(cash_balance_total=2_500.0, invested_total_value=18_000.0),
+        ),
+        patch("app.api.recommendations.router.fetch_recommendations", return_value=[]),
+    ):
+        response = await get_recommendations(portfolio_size=None, position_pct=0.05)
+
+    assert response.summary["portfolio_size"] == 20_500.0
+    assert response.summary["position_pct"] == 0.05
+
+
+@pytest.mark.asyncio
+async def test_get_recommendations_respects_explicit_portfolio_override() -> None:
+    """Explicit sizing override should win over the live portfolio total."""
+    with (
+        patch(
+            "app.api.recommendations.router.get_live_portfolio_totals",
+            return_value=PortfolioTotals(cash_balance_total=2_500.0, invested_total_value=18_000.0),
+        ),
+        patch("app.api.recommendations.router.fetch_recommendations", return_value=[]),
+    ):
+        response = await get_recommendations(portfolio_size=50_000.0, position_pct=0.05)
+
+    assert response.summary["portfolio_size"] == 50_000.0
