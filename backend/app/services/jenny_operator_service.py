@@ -455,6 +455,23 @@ class JennyOperatorService:
             return value / 100.0 if value > 1.0 else value
         raise ValueError(f"Unsupported confidence value: {raw_confidence!r}")
 
+    def _normalize_verdict(self, raw_verdict: Any) -> str:
+        verdict = str(raw_verdict or "review").strip().lower()
+        compact = verdict.split("—", 1)[0].split("-", 1)[0].strip()
+        prefix_map = (
+            (("buy",), "buy"),
+            (("hold",), "hold"),
+            (("trim",), "trim"),
+            (("exit", "sell"), "exit"),
+            (("avoid", "pass", "skip"), "avoid"),
+        )
+        for prefixes, normalized in prefix_map:
+            if compact.startswith(prefixes):
+                return normalized
+        if compact in {"wait", "watch", "review", "reassess"}:
+            return "review"
+        return "review"
+
     def _parse_agent_response(self, content: str, agent_name: str) -> dict[str, Any]:
         try:
             if "```json" in content:
@@ -483,7 +500,7 @@ class JennyOperatorService:
 
         return {
             "agent_name": agent_name,
-            "verdict": str(parsed.get("verdict", "review")).lower(),
+            "verdict": self._normalize_verdict(parsed.get("verdict", "review")),
             "confidence": self._normalize_confidence(parsed.get("confidence", 0.5)),
             "rationale": str(parsed.get("rationale") or "No rationale provided."),
             "recommendation": str(parsed.get("recommendation")) if parsed.get("recommendation") else None,
@@ -591,6 +608,18 @@ class JennyOperatorService:
                 count += 1
 
             thesis = self.thesis_service.get_thesis(symbol)
+            invalidation_triggers = self.thesis_service.check_invalidation_triggers(symbol) if thesis else []
+            if invalidation_triggers:
+                self._upsert_notification(
+                    routine_id,
+                    symbol,
+                    category="thesis_invalidation",
+                    severity="critical" if symbol in live_symbols else "warning",
+                    title=f"{symbol}: thesis invalidation triggered",
+                    detail=" ".join(invalidation_triggers),
+                    recommendation="Review the thesis and current price action before holding or adding.",
+                )
+                count += 1
             if thesis is None:
                 self._upsert_notification(
                     routine_id,

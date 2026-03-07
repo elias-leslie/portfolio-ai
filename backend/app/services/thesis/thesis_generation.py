@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 from typing import Any
 
@@ -63,6 +64,76 @@ class ThesisGenerator:
             logger.error("json_parse_failed", content_preview=content[:500], error=str(e))
             raise ValueError(f"Failed to parse JSON from LLM response: {e}") from e
 
+    def _coerce_float(self, value: Any) -> float | None:
+        if value is None or isinstance(value, bool):
+            return None
+        if isinstance(value, int | float):
+            return float(value)
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return None
+            try:
+                return float(stripped)
+            except ValueError:
+                return None
+        return None
+
+    def _sanitize_intelligence_for_prompt(self, intelligence: dict[str, Any]) -> dict[str, Any]:
+        sanitized = copy.deepcopy(intelligence)
+        constraints: list[str] = ["Ignore unavailable trading guidance fields."]
+
+        trading = sanitized.get("trading")
+        if not isinstance(trading, dict):
+            sanitized["analysis_constraints"] = constraints
+            return sanitized
+
+        entry_price = self._coerce_float(trading.get("entry_price"))
+        stop_loss = self._coerce_float(trading.get("stop_loss"))
+        profit_target = self._coerce_float(trading.get("profit_target"))
+
+        if entry_price is None or entry_price <= 0:
+            trading["entry_price"] = None
+            constraints.append("Entry price was unavailable or invalid in the source intelligence.")
+        stop_too_close = (
+            stop_loss is not None
+            and entry_price is not None
+            and abs(entry_price - stop_loss) / entry_price < 0.005
+        )
+        if stop_loss is None or entry_price is None or stop_loss <= 0 or stop_loss >= entry_price or stop_too_close:
+            trading["stop_loss"] = None
+            constraints.append("Stop loss was unavailable or failed risk validation.")
+        if (
+            profit_target is None
+            or entry_price is None
+            or profit_target <= entry_price
+        ):
+            trading["profit_target"] = None
+            constraints.append("Profit target was unavailable or failed reward validation.")
+
+        portfolio = sanitized.get("portfolio") or {}
+        context = portfolio.get("context") if isinstance(portfolio, dict) else {}
+        total_value = self._coerce_float(context.get("total_value")) if isinstance(context, dict) else None
+        position_size_shares = trading.get("position_size_shares")
+        position_size_dollars = self._coerce_float(trading.get("position_size_dollars"))
+        invalid_sizing = (
+            position_size_shares is not None
+            or position_size_dollars is not None
+        ) and (
+            total_value is None
+            or total_value <= 0
+            or position_size_dollars is None
+            or position_size_dollars <= 0
+            or position_size_dollars > total_value
+        )
+        if invalid_sizing:
+            trading["position_size_shares"] = None
+            trading["position_size_dollars"] = None
+            constraints.append("Position sizing was unavailable because the source sizing exceeded portfolio context or had no usable portfolio value.")
+
+        sanitized["analysis_constraints"] = constraints
+        return sanitized
+
     def generate_thesis(self, intelligence: dict[str, Any]) -> dict[str, Any]:
         """Generate thesis using the configured finance analyst agent.
 
@@ -78,7 +149,7 @@ class ThesisGenerator:
         llm = self._ensure_llm_client()
 
         # Build prompt
-        intelligence_json = json.dumps(intelligence, indent=2)
+        intelligence_json = json.dumps(self._sanitize_intelligence_for_prompt(intelligence), indent=2)
         prompt = THESIS_GENERATION_PROMPT.format(intelligence_json=intelligence_json)
 
         logger.info("thesis_generation_started", prompt_length=len(prompt))

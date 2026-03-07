@@ -47,7 +47,8 @@ ANALYSIS GUIDELINES:
 6. Align action with signal_type (BUY/HOLD/AVOID) and signal_strength (1-10)
 7. Consider company health, earnings timing, and trend alignment
 8. Incorporate news sentiment and recent events
-9. Respect stop-loss levels and profit targets from trading guidance
+9. Use trading guidance only when the field is present and valid
+10. If a trading field is null, unavailable, or called out in analysis_constraints, say it is unavailable instead of inventing precision
 
 Respond ONLY with valid JSON. No markdown, no explanations."""
 

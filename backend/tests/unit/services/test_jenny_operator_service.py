@@ -178,3 +178,66 @@ def test_parse_agent_response_normalizes_percentage_confidence() -> None:
     )
 
     assert parsed["confidence"] == pytest.approx(0.7)
+
+
+def test_parse_agent_response_normalizes_free_form_verdicts() -> None:
+    """Free-form finance verdicts should collapse into Jenny's fixed action enum."""
+    service = _service()
+
+    buy = service._parse_agent_response(
+        '{"verdict":"BUY — small starter position only","confidence":0.7,"rationale":"Constructive but early."}',
+        "equity-analyst",
+    )
+    hold = service._parse_agent_response(
+        '{"verdict":"hold — do not add, do not exit","confidence":0.7,"rationale":"Trend intact."}',
+        "trade-manager",
+    )
+    review = service._parse_agent_response(
+        '{"verdict":"wait","confidence":0.5,"rationale":"No edge yet."}',
+        "investment-committee",
+    )
+    exit_trade = service._parse_agent_response(
+        '{"verdict":"sell now","confidence":0.8,"rationale":"Thesis broken."}',
+        "risk-manager",
+    )
+
+    assert buy["verdict"] == "buy"
+    assert hold["verdict"] == "hold"
+    assert review["verdict"] == "review"
+    assert exit_trade["verdict"] == "exit"
+
+
+def test_create_notifications_adds_invalidation_alerts() -> None:
+    """Active invalidation triggers should surface as explicit Jenny alerts."""
+    service = _service()
+    service.thesis_service = Mock()
+    service.thesis_service.get_thesis.return_value = Mock()
+    service.thesis_service.check_invalidation_triggers.return_value = [
+        "Signal flipped from BUY to AVOID",
+    ]
+    service._aggregate_symbol_review = Mock(
+        return_value=Mock(
+            final_verdict="hold",
+            average_confidence=0.6,
+            reasons=["Trend intact."],
+            evaluations=[],
+        )
+    )
+    service._upsert_notification = Mock()
+
+    created = service._create_notifications(
+        routine_id="routine-1",
+        live_symbols={"AAPL"},
+        evaluations_by_symbol={"AAPL": [{"verdict": "hold"}]},
+    )
+
+    assert created == 1
+    service._upsert_notification.assert_called_once_with(
+        "routine-1",
+        "AAPL",
+        category="thesis_invalidation",
+        severity="critical",
+        title="AAPL: thesis invalidation triggered",
+        detail="Signal flipped from BUY to AVOID",
+        recommendation="Review the thesis and current price action before holding or adding.",
+    )
