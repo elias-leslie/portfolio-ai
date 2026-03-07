@@ -1,6 +1,6 @@
 """Business logic for trade recommendations.
 
-Position sizing, risk calculations, and signal status evaluation.
+Signal status evaluation and endpoint defaults.
 """
 
 from __future__ import annotations
@@ -12,32 +12,6 @@ DEFAULT_PORTFOLIO_SIZE = 100_000.0
 
 # Default position size as percentage of portfolio
 DEFAULT_POSITION_PCT = 0.05  # 5%
-
-def calculate_position_size(
-    entry_price: float,
-    portfolio_size: float = DEFAULT_PORTFOLIO_SIZE,
-    position_pct: float = DEFAULT_POSITION_PCT,
-) -> tuple[float, int]:
-    """Calculate position size in dollars and shares.
-
-    Args:
-        entry_price: Current price per share
-        portfolio_size: Total portfolio value
-        position_pct: Percentage of portfolio per position
-
-    Returns:
-        Tuple of (dollars, shares)
-    """
-    dollars = portfolio_size * position_pct
-    shares = int(dollars / entry_price) if entry_price > 0 else 0
-    return dollars, shares
-def calculate_risk_reward(entry: float, stop: float, target: float) -> float:
-    """Calculate risk/reward ratio."""
-    risk = entry - stop
-    reward = target - entry
-    if risk <= 0:
-        return 0.0
-    return round(reward / risk, 2)
 
 
 def calculate_signal_status(  # noqa: PLR0911

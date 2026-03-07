@@ -5,14 +5,10 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any, Literal, cast
 
-from app.analytics.trade_calculations import calculate_stop_loss
+from app.analytics.calculation_engine import build_trade_setup
 from app.logging_config import get_logger
 
-from .logic import (
-    calculate_position_size,
-    calculate_risk_reward,
-    calculate_signal_status,
-)
+from .logic import calculate_signal_status
 from .models import TradeRecommendation
 
 if TYPE_CHECKING:
@@ -105,31 +101,33 @@ def parse_row(
     if not _is_actionable_row(entry_price, validation_type, validation_filter):
         return None
 
-    current_price = current_prices.get(symbol, entry_price)  # type: ignore[arg-type]
-    price_change_pct, signal_status = calculate_signal_status(sig_type, entry_price, current_price)  # type: ignore[arg-type]
+    current_price = current_prices.get(symbol, entry_price)
+    price_change_pct, signal_status = calculate_signal_status(sig_type, entry_price, current_price)
     if signal_status == "invalidated":
         logger.info(
             f"Skipping {symbol}: signal invalidated (price change: {price_change_pct:.1f}%)"
         )
         return None
 
-    dollars, shares = calculate_position_size(current_price, portfolio_size, position_pct)
-    risk_levels = _build_risk_levels(storage, symbol, current_price, entry_price, expected_return_pct)
-    if risk_levels is None:
+    trade_setup = build_trade_setup(
+        storage=storage,
+        symbol=symbol,
+        entry_price=entry_price,
+        expected_return_pct=expected_return_pct,
+        risk_budget=portfolio_size * 0.015,
+        portfolio_value=portfolio_size,
+        current_price=current_price,
+        position_cap_pct=position_pct,
+    )
+    if trade_setup is None:
         logger.info(f"Skipping {symbol}: missing actionable risk levels")
         return None
 
-    stop_loss, target_price = risk_levels
-    risk_reward = calculate_risk_reward(current_price, stop_loss, target_price)
-    if risk_reward <= 0:
-        logger.info(f"Skipping {symbol}: invalid risk reward ratio")
-        return None
-
     return TradeRecommendation(
-        symbol=symbol,  # type: ignore[arg-type]
+        symbol=symbol,
         strategy_id=strategy_id,
-        strategy_name=strategy_name,  # type: ignore[arg-type]
-        strategy_type=strategy_type,  # type: ignore[arg-type]
+        strategy_name=strategy_name,
+        strategy_type=strategy_type,
         signal_strength=strength,
         signal_type=cast(Literal["BUY", "SELL", "HOLD"], sig_type),
         signal_reasons=reasons,
@@ -137,27 +135,16 @@ def parse_row(
         current_price=current_price,
         price_change_pct=round(price_change_pct, 2),
         signal_status=signal_status,
-        stop_loss=stop_loss,
-        target_price=target_price,
-        position_size_dollars=dollars,
-        position_size_shares=shares,
-        risk_reward_ratio=risk_reward,
+        stop_loss=trade_setup.stop_loss,
+        target_price=trade_setup.target_price,
+        position_size_dollars=trade_setup.sample_dollar_size,
+        position_size_shares=trade_setup.sample_share_count,
+        risk_reward_ratio=trade_setup.risk_reward_ratio,
         expected_sharpe=expected_sharpe,
         signal_date=_to_date_str(row[8]),
         generated_at=_to_date_str(row[9]) or None,
         validation_type=validation_type,
     )
-
-
-def _build_target_price(entry_price: float, expected_return_pct: float | None) -> float | None:
-    """Convert thesis expected return into an actionable target price."""
-    if expected_return_pct is None:
-        return None
-    if expected_return_pct <= 0:
-        return None
-    return round(entry_price * (1 + (expected_return_pct / 100.0)), 2)
-
-
 def _extract_base_row(
     row: Any,
 ) -> tuple[str, str, str, str, str, int] | None:
@@ -189,18 +176,3 @@ def _is_actionable_row(
 ) -> bool:
     """Return True when the row has enough data to continue parsing."""
     return entry_price > 0 and _passes_validation_filter(validation_type, validation_filter)
-
-
-def _build_risk_levels(
-    storage: PortfolioStorage,
-    symbol: str,
-    current_price: float,
-    entry_price: float,
-    expected_return_pct: float | None,
-) -> tuple[float, float] | None:
-    """Build stop loss and target price, or None when either level is missing."""
-    stop_loss = calculate_stop_loss(storage, symbol, current_price)
-    target_price = _build_target_price(entry_price, expected_return_pct)
-    if stop_loss is None or target_price is None:
-        return None
-    return stop_loss, target_price

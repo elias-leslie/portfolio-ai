@@ -48,7 +48,7 @@ def test_parse_row_skips_recommendation_without_atr_stop_loss() -> None:
     row = _build_row()
     mock_storage = MagicMock()
 
-    with patch("app.api.recommendations._row_parser.calculate_stop_loss", return_value=None):
+    with patch("app.api.recommendations._row_parser.build_trade_setup", return_value=None):
         recommendation = parse_row(
             row,
             current_prices={"AAPL": 102.0},
@@ -66,7 +66,16 @@ def test_parse_row_uses_real_stop_and_thesis_target_instead_of_fixed_percentages
     row = _build_row(expected_return_pct=30.0)
     mock_storage = MagicMock()
 
-    with patch("app.api.recommendations._row_parser.calculate_stop_loss", return_value=94.5):
+    with patch(
+        "app.api.recommendations._row_parser.build_trade_setup",
+        return_value=MagicMock(
+            stop_loss=94.5,
+            target_price=130.0,
+            sample_dollar_size=5_000.0,
+            sample_share_count=49,
+            risk_reward_ratio=4.62,
+        ),
+    ):
         recommendation = parse_row(
             row,
             current_prices={"AAPL": 101.0},

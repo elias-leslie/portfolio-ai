@@ -15,10 +15,15 @@ from typing import Literal, cast
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from app.analytics.calculation_engine import (
+    calculate_atr_stop_loss,
+    calculate_position_size_from_risk,
+)
 from app.analytics.order_executor import OrderExecutor
 from app.analytics.transaction_logger import TransactionLogger
 from app.analytics.types import TransactionDict
 from app.logging_config import get_logger
+from app.rules import get_rules
 from app.storage import get_storage
 from app.utils.market_hours import is_market_open
 
@@ -120,13 +125,7 @@ async def create_paper_trade(request: CreateTradeRequest) -> CreateTradeResponse
 
     # Calculate max affordable shares (5% of account)
     account_id = "paper_trading"
-    max_shares = order_executor.calculate_max_shares(symbol, account_id, max_position_pct=0.05)
-
-    if max_shares == 0:
-        raise HTTPException(
-            status_code=400,
-            detail="Insufficient cash or failed to calculate position size",
-        )
+    rules = get_rules()
 
     # Create agent idea record (agent_run_id = "manual" for manual trades)
     idea_id = str(uuid.uuid4())
@@ -139,7 +138,7 @@ async def create_paper_trade(request: CreateTradeRequest) -> CreateTradeResponse
             "idea_type": action,
             "title": f"{action.capitalize()} {symbol}",
             "thesis": request.thesis,
-            "action": f"{action.capitalize()} {max_shares} shares of {symbol}",
+            "action": f"{action.capitalize()} {symbol}",
             "confidence_score": 0.7,  # Default confidence for manual trades (0-1 scale)
             "risk_level": "medium",  # Default risk
             "status": "pending",
@@ -165,17 +164,64 @@ async def create_paper_trade(request: CreateTradeRequest) -> CreateTradeResponse
             "current_price": 0.0,  # Placeholder
             "current_return_pct": 0.0,
             "status": "open",
-            "shares": max_shares,
+            "shares": 0,
             "entry_amount": 0.0,  # Placeholder
             "created_at": datetime.now(UTC).isoformat(),
             "updated_at": datetime.now(UTC).isoformat(),
         },
     )
 
-    # Execute market order (now transaction logger can insert with valid FK)
-    # Cast action to Literal type for type safety
-    action_typed = cast(Literal["buy"], action)
+    price_data = order_executor.price_fetcher.fetch_price_data([symbol])
+    if symbol not in price_data or price_data[symbol].error:
+        raise HTTPException(status_code=400, detail=f"Failed to fetch price for {symbol}")
 
+    entry_price = price_data[symbol].price
+    stop_loss_price = (
+        round(entry_price * (1 - request.stop_loss_pct / 100.0), 2)
+        if request.stop_loss_pct is not None
+        else calculate_atr_stop_loss(storage, symbol, entry_price)
+    )
+    if stop_loss_price is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot calculate an ATR-backed stop loss for this symbol",
+        )
+
+    cash_balance = order_executor.cash_manager.get_cash_balance(account_id)
+    risk_budget = cash_balance * rules.position_sizing.default_risk_percent
+    risk_based_shares = calculate_position_size_from_risk(
+        entry_price,
+        stop_loss_price,
+        risk_budget,
+    )
+    cap_based_shares = order_executor.calculate_max_shares(
+        symbol,
+        account_id,
+        max_position_pct=rules.paper_trading.default_position_pct,
+    )
+    max_shares = min(risk_based_shares or 0, cap_based_shares)
+
+    if max_shares <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Insufficient cash or failed to calculate position size",
+        )
+
+    with storage.connection() as conn:
+        conn.execute(
+            """
+            UPDATE idea_outcomes
+            SET shares = $1,
+                target_price = $2,
+                stop_loss_price = $3,
+                updated_at = NOW()
+            WHERE idea_id = $4
+            """,
+            [max_shares, request.target_price, stop_loss_price, idea_id],
+        )
+        conn.commit()
+
+    action_typed = cast(Literal["buy"], action)
     order_result = order_executor.execute_market_order(
         symbol=symbol,
         action=action_typed,
@@ -189,13 +235,6 @@ async def create_paper_trade(request: CreateTradeRequest) -> CreateTradeResponse
         error_msg = order_result.get("error", "Unknown error")
         logger.error(f"Failed to execute manual paper trade for {symbol}: {error_msg}")
         raise HTTPException(status_code=500, detail=error_msg)
-
-    # Calculate stop loss price if provided
-    entry_price = order_result["price"]
-    stop_loss_price = None
-
-    if request.stop_loss_pct is not None:
-        stop_loss_price = entry_price * (1 - request.stop_loss_pct / 100)
 
     # Update idea_outcomes record with actual execution details
     with storage.connection() as conn:

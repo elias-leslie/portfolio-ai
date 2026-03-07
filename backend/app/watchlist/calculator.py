@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from app.analytics.calculation_engine import calculate_position_size_from_risk
 from app.storage.types import DatabaseConnection
 
 if TYPE_CHECKING:
@@ -249,15 +250,4 @@ def calculate_position_size(entry_price: float, stop_loss: float, risk_budget: f
         >>> calculate_position_size(entry_price=202.0, stop_loss=195.0, risk_budget=500.0)
         71  # floor(500 / (202 - 195)) = floor(500 / 7) = 71 shares
     """
-    # Invalid setup: stop should be below entry
-    # Also handle None values gracefully
-    if stop_loss is None or entry_price <= stop_loss:
-        return None
-
-    # Calculate risk per share
-    risk_per_share = entry_price - stop_loss
-
-    # Calculate shares
-    shares = int(risk_budget / risk_per_share)
-
-    return shares
+    return calculate_position_size_from_risk(entry_price, stop_loss, risk_budget)
