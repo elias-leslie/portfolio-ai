@@ -6,6 +6,7 @@ import json
 
 from ..logging_config import get_logger
 from .models import PriceData
+from .sector_labels import resolve_sector_label
 
 logger = get_logger(__name__)
 
@@ -61,7 +62,7 @@ def parse_payload_row(row: dict) -> PriceData:
             ) from exc
 
     price = payload.get("price", 0.0)
-    sector = payload.get("sector")
+    sector = resolve_sector_label(str(symbol), payload.get("sector"))
     beta = payload.get("beta")
     volatility = payload.get("volatility")
     bid = payload.get("bid")

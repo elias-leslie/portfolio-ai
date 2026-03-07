@@ -220,6 +220,45 @@ def test_calculate_sector_exposure() -> None:
     assert abs(sector_exposure["Financials"] - 17.34) < 0.01
 
 
+def test_calculate_sector_exposure_uses_fund_labels_when_available() -> None:
+    """ETF labels should be preserved so exposure doesn't collapse into Unknown."""
+    analytics = PortfolioAnalytics()
+
+    positions = [
+        Position(
+            id="1",
+            account_id="acc1",
+            symbol="VTI",
+            shares=100.0,
+            cost_basis=300.0,
+            position_type="long",
+        ),
+        Position(
+            id="2",
+            account_id="acc1",
+            symbol="VUG",
+            shares=10.0,
+            cost_basis=450.0,
+            position_type="long",
+        ),
+    ]
+
+    price_data = {
+        "VTI": PriceData(symbol="VTI", price=330.0, sector="Broad Market Index"),
+        "VUG": PriceData(symbol="VUG", price=460.0, sector="Large-Cap Growth Fund"),
+    }
+
+    sector_exposure = analytics.calculate_sector_exposure(positions, price_data)
+
+    assert sector_exposure["Broad Market Index"] == pytest.approx(
+        (33000.0 / 37600.0) * 100
+    )
+    assert sector_exposure["Large-Cap Growth Fund"] == pytest.approx(
+        (4600.0 / 37600.0) * 100
+    )
+    assert "Unknown" not in sector_exposure
+
+
 def test_calculate_concentration_risk() -> None:
     """Test calculating concentration risk metrics."""
     analytics = PortfolioAnalytics()
