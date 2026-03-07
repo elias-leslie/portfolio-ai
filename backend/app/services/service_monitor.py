@@ -218,36 +218,6 @@ def check_redis() -> ServiceStatus:
     return status
 
 
-def check_dev_companion() -> ServiceStatus:
-    """Check dev-companion service status.
-
-    Returns:
-        ServiceStatus for dev-companion
-    """
-    status = get_service_status("portfolio-dev-companion", r"dev-companion")
-
-    if status.status == "running":
-        # Additional check: try to connect to port 9999
-        try:
-            response = httpx.get("http://localhost:9999/health", timeout=2.0)
-            if response.status_code != 200:
-                status.status = "degraded"
-                status.message = f"Dev companion returned {response.status_code}"
-
-        except httpx.TimeoutException:
-            status.status = "degraded"
-            status.message = "Dev companion timeout"
-        except httpx.ConnectError:
-            # Port not responding but process running - might be starting
-            status.status = "degraded"
-            status.message = "Dev companion port not responding"
-        except Exception as e:
-            status.status = "degraded"
-            status.message = f"Dev companion check error: {e!s}"
-
-    return status
-
-
 def get_all_service_statuses(skip_slow_checks: bool = False) -> dict[str, ServiceStatus]:
     """Get status of all monitored services.
 
@@ -263,5 +233,4 @@ def get_all_service_statuses(skip_slow_checks: bool = False) -> dict[str, Servic
         "portfolio-backend": check_backend_api(skip_http_check=skip_slow_checks),
         "portfolio-hatchet-worker": check_hatchet_worker(),
         "portfolio-frontend": check_frontend(),
-        "portfolio-dev-companion": check_dev_companion(),
     }

@@ -27,7 +27,6 @@ SERVICE_PROCESS_PATTERNS: dict[str, str] = {
     "portfolio-hatchet-worker": r"python.*app\.worker",
     "portfolio-frontend": r"(next.*dev|next.*start|next-server)",
     "portfolio-redis": r"redis-server",
-    "portfolio-dev-companion": r"dev-companion",
 }
 
 # Valid service names for API validation

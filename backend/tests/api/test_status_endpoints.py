@@ -9,7 +9,11 @@ from fastapi.testclient import TestClient
 
 from app.constants.services import SERVICE_PROCESS_PATTERNS
 from app.main import app
-from app.services.service_monitor import check_frontend, get_service_status
+from app.services.service_monitor import (
+    check_frontend,
+    get_all_service_statuses,
+    get_service_status,
+)
 
 client = TestClient(app)
 
@@ -108,6 +112,23 @@ class TestServiceMonitor:
         assert mock_get_service_status.call_args.args[0] == "portfolio-frontend"
         assert mock_get_service_status.call_args.args[1] == SERVICE_PROCESS_PATTERNS["portfolio-frontend"]
         assert status.status == "running"
+
+    def test_get_all_service_statuses_excludes_dev_companion(self) -> None:
+        """Service monitor should only report active product services."""
+        with (
+            patch("app.services.service_monitor.check_redis", return_value=Mock()),
+            patch("app.services.service_monitor.check_backend_api", return_value=Mock()),
+            patch("app.services.service_monitor.check_hatchet_worker", return_value=Mock()),
+            patch("app.services.service_monitor.check_frontend", return_value=Mock()),
+        ):
+            statuses = get_all_service_statuses(skip_slow_checks=True)
+
+        assert set(statuses) == {
+            "portfolio-redis",
+            "portfolio-backend",
+            "portfolio-hatchet-worker",
+            "portfolio-frontend",
+        }
 
 
 class TestStatusEndpoints:
