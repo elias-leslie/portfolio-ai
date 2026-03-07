@@ -3,6 +3,7 @@
 import { AlertTriangle, CheckCircle2, ScissorsLineDashed } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import type { PortfolioAnalytics, PortfolioResponse } from '@/lib/api/portfolio'
+import { formatDisplayLabel } from './portfolio-utils'
 
 interface PortfolioCoachAlertsProps {
   portfolio: PortfolioResponse
@@ -47,9 +48,10 @@ function buildCoachAlerts(
   }
 
   if (topSector && topSector[1] >= 35) {
+    const sectorLabel = formatDisplayLabel(topSector[0])
     alerts.push({
-      title: `Too much in one area: ${topSector[0]}`,
-      detail: `${topSector[0]} now makes up ${topSector[1].toFixed(1)}% of your portfolio. A good stock can still hurt you if too many positions depend on the same story.`,
+      title: `Too much in one area: ${sectorLabel}`,
+      detail: `${sectorLabel} now makes up ${topSector[1].toFixed(1)}% of your portfolio. A good stock can still hurt you if too many positions depend on the same story.`,
       tone: 'caution',
     })
   }

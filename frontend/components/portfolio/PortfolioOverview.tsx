@@ -10,6 +10,7 @@ import { DiversificationScore } from './DiversificationScore'
 import { PortfolioStats } from './PortfolioStats'
 import { RiskProfile } from './RiskProfile'
 import { TopPerformers } from './TopPerformers'
+import { formatDisplayLabel } from './portfolio-utils'
 
 export function PortfolioOverview() {
   const { data: portfolio, isLoading: portfolioLoading } = usePortfolio()
@@ -210,7 +211,9 @@ export function PortfolioOverview() {
                     key={sector}
                     className="flex justify-between items-center"
                   >
-                    <span className="text-sm text-text-muted">{sector}</span>
+                    <span className="text-sm text-text-muted">
+                      {formatDisplayLabel(sector)}
+                    </span>
                     <span className="text-sm font-medium">
                       {percentage.toFixed(1)}%
                     </span>

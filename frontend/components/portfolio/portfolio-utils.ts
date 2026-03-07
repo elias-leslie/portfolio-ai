@@ -17,6 +17,13 @@ export const formatPnlDollars = (value: number) => {
   return `${prefix}${Math.abs(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+export const formatDisplayLabel = (value: string) => {
+  const withSpaces = value
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')
+  return withSpaces.charAt(0).toUpperCase() + withSpaces.slice(1)
+}
+
 export const getAccountPositions = (
   accountId: string,
   positions: PositionWithValue[] | undefined,
