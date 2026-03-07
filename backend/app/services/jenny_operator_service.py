@@ -46,6 +46,7 @@ FINAL_VERDICT_PRIORITY = {
     "hold": 0,
 }
 POSITIVE_VERDICTS = {"buy", "hold"}
+JENNY_AGENT_TIMEOUT_SECONDS = 90.0
 
 
 @dataclass(frozen=True)
@@ -367,7 +368,10 @@ class JennyOperatorService:
     def _run_agent_review(self, spec: JennyAgentSpec, payload: dict[str, Any]) -> dict[str, Any]:
         run_id = str(uuid.uuid4())
         started_at = datetime.now(UTC)
-        client = AgentHubAPIClient(agent_slug=spec.agent_slug)
+        client = AgentHubAPIClient(
+            agent_slug=spec.agent_slug,
+            timeout=JENNY_AGENT_TIMEOUT_SECONDS,
+        )
         prompt = self._build_agent_prompt(spec.prompt_mode, payload)
         self.agent_run_repo.create_run(
             run_id=run_id,

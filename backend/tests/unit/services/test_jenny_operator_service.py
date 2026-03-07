@@ -157,6 +157,36 @@ def test_create_routine_starts_agent_workflow_and_records_metadata() -> None:
     assert inserted_params[-1] == '{"workflow_id": "workflow-123"}'
 
 
+def test_run_agent_review_uses_bounded_timeout_for_jenny_calls(mocker: Mock) -> None:
+    """Jenny should use a tighter Agent Hub timeout so one slow agent cannot stall the whole routine."""
+    service = _service()
+    service.agent_run_repo = Mock()
+    mock_client = Mock()
+    mock_client.get_model_name.return_value = "investment-committee"
+    mock_client.provider = "agent_hub"
+    mock_client.generate.return_value = Mock(
+        content='{"verdict":"review","confidence":0.4,"rationale":"Needs review."}',
+        provider="claude",
+        model="claude-opus",
+        usage={},
+        finish_reason="end_turn",
+    )
+    mock_client.close = Mock()
+    client_cls = mocker.patch(
+        "app.services.jenny_operator_service.AgentHubAPIClient",
+        return_value=mock_client,
+    )
+    service._build_agent_prompt = Mock(return_value="prompt")
+
+    parsed = service._run_agent_review(
+        Mock(agent_slug="investment-committee", prompt_mode="synthesis", system_prompt="system"),
+        {"symbol": "AAPL", "workflow_id": "wf-1"},
+    )
+
+    client_cls.assert_called_once_with(agent_slug="investment-committee", timeout=90.0)
+    assert parsed["verdict"] == "review"
+
+
 def test_parse_agent_response_normalizes_qualitative_confidence() -> None:
     """Jenny should accept plain-language confidence labels from finance agents."""
     service = _service()
