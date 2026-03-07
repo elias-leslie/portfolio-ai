@@ -26,7 +26,6 @@ from . import (
     reference_tasks,
     strategy,  # Strategy performance, generation, and evolution tasks
     watchlist_tasks,
-    workflow_tasks,
 )
 
 # For backward compatibility, also import specific tasks
@@ -66,5 +65,4 @@ __all__ = [
     "strategy",
     "update_technical_indicators",
     "watchlist_tasks",
-    "workflow_tasks",
 ]

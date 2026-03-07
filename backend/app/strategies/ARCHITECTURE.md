@@ -640,49 +640,14 @@ async def strategy_research_workflow(
         )
 ```
 
-### Integration with Paper Trading
+### Trade Execution Note
 
-**File**: `backend/app/agents/workflows/paper_trade_validation_workflow.py` (UPDATE)
+The legacy paper-trade validation workflow described in earlier drafts has been removed from the live product.
+Current product scope keeps strategy generation separate from broker-execution support and focuses on:
 
-**Changes**:
-1. Query for active strategy: `SELECT * FROM strategy_definitions WHERE symbol = ? AND status = 'active' ORDER BY version DESC LIMIT 1`
-2. If custom strategy exists: Use its parameters instead of default SignalStrategy
-3. Log which strategy was used: Add `strategy_id` to trade metadata
-4. Fallback: If no custom strategy, use SignalStrategy (current behavior)
-
-```python
-# BEFORE (Task 3 - current state)
-backtest_result = await execute_run_backtest(
-    symbol=symbol,
-    start_date=start_date,
-    end_date=end_date,
-    strategy="signal_classifier",  # HARDCODED
-    min_signal_strength=7,
-    max_holding_days=60,
-    ...
-)
-
-# AFTER (Task 4.7 - dynamic strategies)
-strategy = await get_active_strategy(symbol)
-if strategy:
-    # Use dynamic strategy
-    backtest_result = await execute_run_backtest_with_strategy(
-        symbol=symbol,
-        start_date=start_date,
-        end_date=end_date,
-        strategy_config=strategy.parameters,  # DYNAMIC
-        strategy_id=strategy.id,
-    )
-    logger.info(f"Using dynamic strategy: {strategy.name} v{strategy.version}")
-else:
-    # Fallback to default
-    backtest_result = await execute_run_backtest(
-        symbol=symbol,
-        strategy="signal_classifier",  # DEFAULT
-        ...
-    )
-    logger.info("Using default SignalStrategy (no custom strategy found)")
-```
+1. strategy-backed recommendations
+2. portfolio tracking after manual execution
+3. Jenny-led thesis and management reviews
 
 ---
 
@@ -791,11 +756,6 @@ def evaluate_strategy_performance() -> dict[str, Any]:
     "options": {"expires": 3600},
 },
 
-"generate-weekly-strategies": {
-    "task": "app.tasks.workflow_tasks.weekly_strategy_generation",
-    "schedule": crontab(hour=5, minute=0, day_of_week=0),  # Sunday 05:00 UTC
-    "options": {"expires": 7200},
-},
 ```
 
 ---
@@ -923,11 +883,11 @@ Response: {
   - Verify parameters optimized via backtest
   - Verify strategy stored in database with correct status
 
-- **Test 2**: Use dynamic strategy in paper trade workflow
+- **Test 2**: Use dynamic strategy in recommendation generation
   - Create test strategy in database
-  - Trigger paper_trade_validation_workflow
-  - Verify workflow used custom strategy (not default)
-  - Verify trade metadata includes strategy_id
+  - Trigger recommendation/query flow
+  - Verify the active strategy is selected for the symbol
+  - Verify recommendation payload includes strategy metadata
 
 - **Test 3**: Performance tracking and archival
   - Create strategy with poor live performance
@@ -981,10 +941,9 @@ Response: {
 ### Phase B.5: Workflow Integration (Tasks 4.6-4.7)
 **Deliverables**:
 - `strategy_research_workflow.py` orchestration
-- Update `paper_trade_validation_workflow.py` to use dynamic strategies
 - Git automation for strategy commits
 
-**Success**: Can generate strategy end-to-end, use it in paper trades
+**Success**: Can generate strategy end-to-end and surface it in recommendations
 
 ---
 
