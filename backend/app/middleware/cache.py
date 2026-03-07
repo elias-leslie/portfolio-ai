@@ -348,8 +348,15 @@ def invalidate_endpoint_cache(endpoint: str, method: str = "GET") -> int:
     Returns:
         Number of cache entries invalidated
     """
-    pattern = f"{method}:{endpoint}:*"
-    return invalidate_cache_pattern(pattern)
+    variants = {endpoint}
+    if endpoint != "/":
+        variants.add(endpoint.rstrip("/"))
+        variants.add(f"{endpoint.rstrip('/')}/")
+
+    total = 0
+    for variant in variants:
+        total += invalidate_cache_pattern(f"{method}:{variant}:*")
+    return total
 
 
 def invalidate_market_data_cache() -> int:

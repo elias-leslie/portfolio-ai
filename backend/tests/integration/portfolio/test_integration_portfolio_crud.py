@@ -228,6 +228,44 @@ def test_portfolio_multiple_accounts_flow(client: TestClient) -> None:
     assert analytics["num_symbols"] == 2
 
 
+def test_portfolio_cache_invalidation_handles_slash_variants(client: TestClient) -> None:
+    """Creating a position should invalidate both /api/portfolio and /api/portfolio/ cache entries."""
+    empty_response = client.get("/api/portfolio")
+    assert empty_response.status_code == 200
+    assert empty_response.headers["x-cache-hit"] == "false"
+    assert empty_response.json()["positions"] == []
+
+    cached_empty_response = client.get("/api/portfolio")
+    assert cached_empty_response.status_code == 200
+    assert cached_empty_response.headers["x-cache-hit"] == "true"
+    assert cached_empty_response.json()["positions"] == []
+
+    account_response = client.post(
+        "/api/portfolio/account",
+        json={"name": "Slash Cache IRA", "account_type": "IRA"},
+    )
+    account_id = account_response.json()["id"]
+
+    position_response = client.post(
+        "/api/portfolio/position",
+        json={
+            "account_id": account_id,
+            "symbol": "AAPL",
+            "shares": 5,
+            "cost_basis": 150.00,
+            "position_type": "long",
+        },
+    )
+    assert position_response.status_code == 200
+
+    refreshed_response = client.get("/api/portfolio")
+    assert refreshed_response.status_code == 200
+    assert refreshed_response.headers["x-cache-hit"] == "false"
+    payload = refreshed_response.json()
+    assert len(payload["positions"]) == 1
+    assert payload["positions"][0]["symbol"] == "AAPL"
+
+
 def test_portfolio_error_handling(client: TestClient) -> None:
     """Test error handling in portfolio CRUD operations."""
 
