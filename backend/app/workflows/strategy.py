@@ -6,12 +6,27 @@ Thin async wrappers around existing business logic in tasks/.
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any, cast
 
 from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy, Context
 
 from ..hatchet_app import hatchet
+from ..utils.market_hours import is_trading_day
 from .models import EmptyInput, SeedInput, StrategyInput
+
+logger = logging.getLogger(__name__)
+
+# Shared skip result for non-trading-day early exits
+_SKIP_NON_TRADING_DAY = {"status": "skipped", "reason": "Not a trading day (weekend/holiday)"}
+
+
+def _skip_if_not_trading_day(task_name: str) -> dict[str, Any] | None:
+    """Return skip result if today is not a trading day, else None."""
+    if not is_trading_day():
+        logger.info("Skipping %s: not a trading day", task_name)
+        return _SKIP_NON_TRADING_DAY
+    return None
 
 
 @hatchet.task(
@@ -63,6 +78,8 @@ async def auto_promote_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
     ),
 )
 async def daily_strategy_refresh_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
+    if skip := _skip_if_not_trading_day("daily-strategy-refresh"):
+        return skip
     from ..tasks.strategy.generation_tasks import daily_strategy_refresh
 
     return await asyncio.to_thread(daily_strategy_refresh)
@@ -73,7 +90,7 @@ async def daily_strategy_refresh_wf(input: EmptyInput, ctx: Context) -> dict[str
     input_validator=EmptyInput,
     execution_timeout="7200s",
     retries=1,
-    on_crons=["0 5 * * 0"],
+    on_crons=["0 5 * * 1"],
     concurrency=ConcurrencyExpression(
         expression="'portfolio-weekly-strategy-gen'",
         max_runs=1,
@@ -81,6 +98,8 @@ async def daily_strategy_refresh_wf(input: EmptyInput, ctx: Context) -> dict[str
     ),
 )
 async def weekly_strategy_gen_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
+    if skip := _skip_if_not_trading_day("weekly-strategy-gen"):
+        return skip
     from ..tasks.strategy.generation_tasks import weekly_strategy_generation
 
     return cast(dict[str, Any], await asyncio.to_thread(weekly_strategy_generation))
@@ -117,6 +136,8 @@ async def weekly_evolution_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]
     ),
 )
 async def daily_signals_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
+    if skip := _skip_if_not_trading_day("daily-signals"):
+        return skip
     from ..tasks.strategy_signal_tasks import generate_daily_strategy_signals
 
     return await asyncio.to_thread(generate_daily_strategy_signals)
@@ -135,6 +156,8 @@ async def daily_signals_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
     ),
 )
 async def auto_paper_trade_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
+    if skip := _skip_if_not_trading_day("auto-paper-trade"):
+        return skip
     from ..tasks.strategy_signal_tasks import auto_paper_trade_from_signals
 
     return await asyncio.to_thread(auto_paper_trade_from_signals)
@@ -224,6 +247,8 @@ async def weekly_optimization_wf(input: EmptyInput, ctx: Context) -> dict[str, A
     ),
 )
 async def trigger_from_seed_wf(input: SeedInput, ctx: Context) -> dict[str, Any]:
+    if skip := _skip_if_not_trading_day("trigger-from-seed"):
+        return skip
     from ..tasks.strategy.generation_tasks import trigger_strategy_from_seed
 
     return await asyncio.to_thread(trigger_strategy_from_seed, seed_id=input.seed_id, symbol=input.symbol)
@@ -241,6 +266,8 @@ async def trigger_from_seed_wf(input: SeedInput, ctx: Context) -> dict[str, Any]
     ),
 )
 async def trigger_top_strategies_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
+    if skip := _skip_if_not_trading_day("trigger-top-strategies"):
+        return skip
     from ..tasks.strategy.generation_tasks import trigger_strategies_for_top_watchlist
 
     return await asyncio.to_thread(trigger_strategies_for_top_watchlist)
