@@ -314,14 +314,12 @@ def test_discovery_agent_execute_tool_store_strategy_seed(
     # Verify seed was stored in database
     with storage.connection() as conn:
         seeds = conn.execute(
-            "SELECT * FROM strategy_seeds WHERE agent_run_id = ?", ["test-run-id"]
+            "SELECT symbol, thesis FROM strategy_seeds WHERE agent_run_id = ?",
+            ["test-run-id"],
         ).fetchall()
         assert len(seeds) == 1
-        # Note: column indices depend on strategy_seeds table column order:
-        # 0=seed_id, 1=symbol, 2=thesis, 3=confidence, ...
-        # Using positional access because the DB wrapper returns tuples (not dicts).
-        assert seeds[0][1] == "AAPL"  # symbol column
-        assert seeds[0][2] == "Technology sector is undervalued"  # thesis column
+        assert seeds[0][0] == "AAPL"
+        assert seeds[0][1] == "Technology sector is undervalued"
 
 
 def test_discovery_agent_execute_tool_store_strategy_seed_without_run_id(

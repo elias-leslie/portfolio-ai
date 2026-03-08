@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Any, cast
 
 from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy, Context
@@ -49,7 +49,7 @@ def _skip_weekly_with_holiday_fallback(task_name: str) -> dict[str, Any] | None:
 
     if weekday == 1:
         # Tuesday: run only if Monday was a holiday (i.e. Monday was skipped)
-        monday = date.today() - timedelta(days=1)
+        monday = (now - timedelta(days=1)).date()
         if not is_trading_day(check_date=monday):
             if is_trading_day():
                 logger.info("Running %s: Tuesday holiday-fallback (Monday was not a trading day)", task_name)

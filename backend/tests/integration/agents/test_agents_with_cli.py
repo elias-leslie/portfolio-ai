@@ -6,6 +6,7 @@ when using Gemini CLI and Claude CLI instead of direct Anthropic API calls.
 
 from __future__ import annotations
 
+import json
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
@@ -194,7 +195,7 @@ def mock_llm_client() -> Mock:
 
     seeds_json = {"tool_calls": seeds_tool_calls}
     response3 = LLMResponse(
-        content=str(seeds_json).replace("'", '"'),
+        content=json.dumps(seeds_json),
         stop_reason="tool_use",
         model=GEMINI_PRO,
         provider="gemini",
@@ -313,10 +314,12 @@ def test_discovery_agent_with_cli_full_execution(
 
     # Verify strategy_seeds table
     with storage.connection() as conn:
-        ideas = conn.execute("SELECT * FROM strategy_seeds").fetchall()
+        ideas = conn.execute(
+            "SELECT symbol FROM strategy_seeds ORDER BY created_at"
+        ).fetchall()
         assert len(ideas) == 5
         for i, idea in enumerate(ideas):
-            assert idea[1] == ["AAPL", "GOOGL", "MSFT", "TSLA", "NVDA"][i]
+            assert idea[0] == ["AAPL", "GOOGL", "MSFT", "TSLA", "NVDA"][i]
 
 
 def test_portfolio_analyzer_with_cli_initialization(

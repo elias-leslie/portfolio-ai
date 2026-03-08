@@ -642,12 +642,14 @@ async def strategy_research_workflow(
 
 ### Trade Execution Note
 
-The legacy paper-trade validation workflow described in earlier drafts has been removed from the live product.
+The paper-trade validation workflow described in earlier design drafts was never deployed to production and has been removed from the live product.
 Current product scope keeps strategy generation separate from broker-execution support and focuses on:
 
 1. strategy-backed recommendations
 2. portfolio tracking after manual execution
 3. Jenny-led thesis and management reviews
+
+> **TODO**: The Layer 6 code sample below (line ~689) still references `paper_trade_transactions` in a comment. Update that reference to reflect the current metrics source (e.g., `strategy_performance`).
 
 ---
 

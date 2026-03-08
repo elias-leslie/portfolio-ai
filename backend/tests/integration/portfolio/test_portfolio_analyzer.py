@@ -234,7 +234,7 @@ def mock_anthropic_client() -> Mock:
         block.name = "store_strategy_seed"
         block.input = {
             "symbol": ["JNJ", "XOM", "UNH", "PG", "BND"][i],
-            "thesis": f"Given your heavy tech exposure, this idea {i + 1} helps diversify",
+            "thesis": f"Given your heavy tech exposure, this seed {i + 1} helps diversify",
             "confidence": 6.5 + i * 0.5,
         }
         seeds.append(block)
@@ -442,11 +442,11 @@ def test_portfolio_analyzer_run_full_execution(
 
     # Verify strategy_seeds table
     with storage.connection() as conn:
-        seeds = conn.execute("SELECT * FROM strategy_seeds").fetchall()
+        seeds = conn.execute("SELECT symbol, thesis FROM strategy_seeds ORDER BY created_at").fetchall()
         assert len(seeds) == 5
         for i, seed in enumerate(seeds):
-            assert seed[1] == ["JNJ", "XOM", "UNH", "PG", "BND"][i]
-            thesis = seed[2]
+            assert seed[0] == ["JNJ", "XOM", "UNH", "PG", "BND"][i]
+            thesis = seed[1]
             assert isinstance(thesis, str)
             assert "tech" in thesis.lower() or "portfolio" in thesis.lower()
 

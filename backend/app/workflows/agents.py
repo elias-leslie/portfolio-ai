@@ -1,4 +1,4 @@
-"""Agent and workflow orchestration workflows.
+"""Agent orchestration workflows.
 
 Thin async wrappers around existing business logic in tasks/.
 """
