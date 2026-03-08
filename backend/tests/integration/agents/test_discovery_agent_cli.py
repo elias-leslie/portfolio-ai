@@ -65,8 +65,12 @@ class TestDiscoveryAgentWithCLI:
 
         # Mock store_strategy_seed to confirm storage
         tools.execute_store_strategy_seed.return_value = {
-            "success": True,
             "seed_id": "test-seed-1",
+            "symbol": "AAPL",
+            "confidence": 8.0,
+            "status": "stored",
+            "workflow_triggered": True,
+            "message": "Seed stored. Strategy workflow triggered.",
         }
 
         return tools

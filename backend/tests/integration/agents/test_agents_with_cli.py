@@ -179,9 +179,9 @@ def mock_llm_client() -> Mock:
     )
 
     # Third call: agent stores 5 strategy seeds
-    ideas_tool_calls = []
+    seeds_tool_calls = []
     for i in range(5):
-        ideas_tool_calls.append(
+        seeds_tool_calls.append(
             {
                 "name": "store_strategy_seed",
                 "parameters": {
@@ -192,14 +192,14 @@ def mock_llm_client() -> Mock:
             }
         )
 
-    ideas_json = {"tool_calls": ideas_tool_calls}
+    seeds_json = {"tool_calls": seeds_tool_calls}
     response3 = LLMResponse(
-        content=str(ideas_json).replace("'", '"'),
+        content=str(seeds_json).replace("'", '"'),
         stop_reason="tool_use",
         model=GEMINI_PRO,
         provider="gemini",
         usage={"total_tokens": 500},
-        tool_calls=ideas_tool_calls,
+        tool_calls=seeds_tool_calls,
     )
 
     # Fourth call: agent returns final text response

@@ -7,12 +7,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import date, datetime, timedelta
 from typing import Any, cast
 
 from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy, Context
 
 from ..hatchet_app import hatchet
-from ..utils.market_hours import is_trading_day
+from ..utils.market_hours import NY_TZ, is_trading_day
 from .models import EmptyInput, SeedInput, StrategyInput
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,40 @@ def _skip_if_not_trading_day(task_name: str) -> dict[str, Any] | None:
         logger.info("Skipping %s: not a trading day", task_name)
         return _SKIP_NON_TRADING_DAY
     return None
+
+
+def _skip_weekly_with_holiday_fallback(task_name: str) -> dict[str, Any] | None:
+    """Gate weekly jobs that run on Mon/Tue crons with holiday-Monday fallback.
+
+    - Monday + trading day → run
+    - Tuesday + Monday was NOT a trading day → run (holiday fallback)
+    - Otherwise → skip
+    """
+    now = datetime.now(NY_TZ)
+    weekday = now.weekday()  # 0=Mon, 1=Tue
+
+    if weekday == 0:
+        # Monday: run only if it's a trading day
+        if is_trading_day():
+            return None
+        logger.info("Skipping %s: Monday is not a trading day", task_name)
+        return _SKIP_NON_TRADING_DAY
+
+    if weekday == 1:
+        # Tuesday: run only if Monday was a holiday (i.e. Monday was skipped)
+        monday = date.today() - timedelta(days=1)
+        if not is_trading_day(check_date=monday):
+            if is_trading_day():
+                logger.info("Running %s: Tuesday holiday-fallback (Monday was not a trading day)", task_name)
+                return None
+            logger.info("Skipping %s: Tuesday is also not a trading day", task_name)
+            return _SKIP_NON_TRADING_DAY
+        logger.info("Skipping %s: Tuesday fallback not needed, Monday was a trading day", task_name)
+        return {"status": "skipped", "reason": "Tuesday fallback not needed"}
+
+    # Should not happen with Mon/Tue cron, but guard anyway
+    logger.info("Skipping %s: not Monday or Tuesday", task_name)
+    return {"status": "skipped", "reason": "Not scheduled day"}
 
 
 @hatchet.task(
@@ -90,7 +125,7 @@ async def daily_strategy_refresh_wf(input: EmptyInput, ctx: Context) -> dict[str
     input_validator=EmptyInput,
     execution_timeout="7200s",
     retries=1,
-    on_crons=["0 5 * * 1"],
+    on_crons=["0 5 * * 1,2"],
     concurrency=ConcurrencyExpression(
         expression="'portfolio-weekly-strategy-gen'",
         max_runs=1,
@@ -98,7 +133,7 @@ async def daily_strategy_refresh_wf(input: EmptyInput, ctx: Context) -> dict[str
     ),
 )
 async def weekly_strategy_gen_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
-    if skip := _skip_if_not_trading_day("weekly-strategy-gen"):
+    if skip := _skip_weekly_with_holiday_fallback("weekly-strategy-gen"):
         return skip
     from ..tasks.strategy.generation_tasks import weekly_strategy_generation
 
@@ -110,7 +145,7 @@ async def weekly_strategy_gen_wf(input: EmptyInput, ctx: Context) -> dict[str, A
     input_validator=EmptyInput,
     execution_timeout="7200s",
     retries=1,
-    on_crons=["0 6 * * 0"],
+    on_crons=["0 6 * * 1,2"],
     concurrency=ConcurrencyExpression(
         expression="'portfolio-weekly-evolution'",
         max_runs=1,
@@ -118,6 +153,8 @@ async def weekly_strategy_gen_wf(input: EmptyInput, ctx: Context) -> dict[str, A
     ),
 )
 async def weekly_evolution_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
+    if skip := _skip_weekly_with_holiday_fallback("weekly-evolution"):
+        return skip
     from ..tasks.strategy.evolution_tasks import weekly_strategy_evolution
 
     return await asyncio.to_thread(weekly_strategy_evolution)

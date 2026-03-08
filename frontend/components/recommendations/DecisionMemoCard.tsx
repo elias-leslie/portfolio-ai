@@ -102,11 +102,9 @@ export function DecisionMemoCard({
           </p>
         </div>
 
-        <div className="flex gap-2">
-          <Button className="flex-1" onClick={onTrackInPortfolio}>
-            Track in Portfolio
-          </Button>
-        </div>
+        <Button onClick={onTrackInPortfolio}>
+          Track in Portfolio
+        </Button>
       </CardContent>
     </Card>
   )

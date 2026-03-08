@@ -143,14 +143,20 @@ Generate exactly 5 strategy seeds that are specifically tailored to this portfol
         if tool_name == "store_strategy_seed":
             if not self.current_run_id:
                 raise ValueError("No active run_id for storing seeds")
+            symbol = str(tool_input.get("symbol", "")).strip()
+            thesis = str(tool_input.get("thesis", "")).strip()
+            if not symbol:
+                raise ValueError("symbol is required for storing seeds")
+            if not thesis:
+                raise ValueError("thesis is required for storing seeds")
             confidence_raw = tool_input.get("confidence", 5)
             confidence_val = (
                 float(confidence_raw) if isinstance(confidence_raw, (int, float, str)) else 5.0
             )
             return self.tools.execute_store_strategy_seed(
                 agent_run_id=self.current_run_id,
-                symbol=str(tool_input.get("symbol", "")),
-                thesis=str(tool_input.get("thesis", "")),
+                symbol=symbol,
+                thesis=thesis,
                 confidence=confidence_val,
             )
 
