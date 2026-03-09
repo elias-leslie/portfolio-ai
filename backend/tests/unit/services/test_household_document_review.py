@@ -96,6 +96,19 @@ def test_extract_csv_text_preserves_amazon_price_columns(tmp_path: Path) -> None
     assert "40.93" in extracted
 
 
+@patch.object(HouseholdDocumentReviewService, "_extract_image_text")
+def test_extract_text_uses_image_ocr(image_ocr: MagicMock, tmp_path: Path) -> None:
+    service = HouseholdDocumentReviewService()
+    image_ocr.return_value = "Walmart 23.41 VISA"
+    image_path = tmp_path / "receipt.png"
+    image_path.write_bytes(b"fake-image")
+
+    extracted = service._extract_text(image_path, "image/png")
+
+    image_ocr.assert_called_once_with(image_path)
+    assert extracted == "Walmart 23.41 VISA"
+
+
 def test_baseline_review_detects_wells_fargo_checking_statement() -> None:
     service = HouseholdDocumentReviewService()
 

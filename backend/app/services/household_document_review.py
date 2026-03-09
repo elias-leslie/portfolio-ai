@@ -8,12 +8,15 @@ import hashlib
 import json
 import re
 from datetime import UTC, datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 import fitz
 from agent_hub.models.content import ImageContent, MessageInput, TextContent
+from PIL import Image, ImageOps
 from pypdf import PdfReader
+from rapidocr_onnxruntime import RapidOCR
 
 from app.agents.clients.agent_hub_client import AGENT_HUB_ENABLED, AgentHubAPIClient
 from app.logging_config import get_logger
@@ -297,6 +300,10 @@ class HouseholdDocumentReviewService:
             return self._extract_csv_text(stored_path)
         if suffix == ".pdf" or content_type == "application/pdf":
             return self._extract_pdf_text(stored_path)
+        if content_type and content_type.startswith("image/"):
+            return self._extract_image_text(stored_path)
+        if suffix in {".png", ".jpg", ".jpeg", ".webp", ".bmp"}:
+            return self._extract_image_text(stored_path)
         if suffix in {".txt", ".json"}:
             return stored_path.read_text(encoding="utf-8", errors="ignore")[:12000]
         return None
@@ -324,6 +331,39 @@ class HouseholdDocumentReviewService:
         except Exception as exc:
             logger.warning("household_pdf_extract_failed", path=str(stored_path), error=str(exc))
             return None
+
+    def _extract_image_text(self, stored_path: Path) -> str | None:
+        try:
+            image = Image.open(stored_path)
+            processed = self._prepare_image_for_ocr(image)
+            ocr_engine = self._image_ocr_engine()
+            result, _ = ocr_engine(processed)
+            if not result:
+                return None
+            text = "\n".join(
+                line[1]
+                for line in result
+                if isinstance(line, (list, tuple)) and len(line) > 1 and isinstance(line[1], str)
+            ).strip()
+            return text[:12000] if text else None
+        except Exception as exc:
+            logger.warning("household_image_ocr_failed", path=str(stored_path), error=str(exc))
+            return None
+
+    def _prepare_image_for_ocr(self, image: Image.Image) -> Image.Image:
+        grayscale = ImageOps.grayscale(image)
+        contrast = ImageOps.autocontrast(grayscale)
+        width, height = contrast.size
+        scale = 2 if max(width, height) < 2200 else 1
+        if scale > 1:
+            contrast = contrast.resize(
+                (width * scale, height * scale),
+                Image.Resampling.LANCZOS,
+            )
+        return contrast
+
+    def _image_ocr_engine(self) -> RapidOCR:
+        return _build_image_ocr_engine()
 
     def _baseline_review(
         self,
@@ -673,3 +713,8 @@ class HouseholdDocumentReviewService:
         if "keep refining" not in summary.lower():
             questions[0]["rationale"] = f"{questions[0]['rationale']} Current best read: {summary}"
         return questions
+
+
+@lru_cache(maxsize=1)
+def _build_image_ocr_engine() -> RapidOCR:
+    return RapidOCR()
