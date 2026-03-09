@@ -19,8 +19,40 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Drop Celery result backend tables (migrated to Hatchet)."""
-    op.execute("DROP TABLE IF EXISTS celery_tasksetmeta CASCADE")
-    op.execute("DROP TABLE IF EXISTS celery_taskmeta CASCADE")
+    op.execute(
+        """
+        DO $$
+        DECLARE
+            owner_name text;
+        BEGIN
+            SELECT tableowner
+            INTO owner_name
+            FROM pg_tables
+            WHERE schemaname = 'public' AND tablename = 'celery_tasksetmeta';
+
+            IF owner_name = current_user THEN
+                EXECUTE 'DROP TABLE public.celery_tasksetmeta CASCADE';
+            END IF;
+        END $$;
+        """
+    )
+    op.execute(
+        """
+        DO $$
+        DECLARE
+            owner_name text;
+        BEGIN
+            SELECT tableowner
+            INTO owner_name
+            FROM pg_tables
+            WHERE schemaname = 'public' AND tablename = 'celery_taskmeta';
+
+            IF owner_name = current_user THEN
+                EXECUTE 'DROP TABLE public.celery_taskmeta CASCADE';
+            END IF;
+        END $$;
+        """
+    )
 
 
 def downgrade() -> None:

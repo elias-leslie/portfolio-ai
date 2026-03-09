@@ -72,9 +72,9 @@ export async function apiRequest<T>(
   const fullUrl = url.startsWith('http') ? url : `${getApiBaseUrl()}${url}`
 
   // Merge default headers with custom headers
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    ...options.headers,
+  const headers = new Headers(options.headers)
+  if (!(options.body instanceof FormData) && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
   }
 
   // TODO: Add auth interceptor here when authentication is implemented
@@ -162,6 +162,21 @@ export async function post<T>(
     ...options,
     method: 'POST',
     body: transformedData ? JSON.stringify(transformedData) : undefined,
+  })
+}
+
+/**
+ * Convenience method for multipart/form-data POST requests.
+ */
+export async function postForm<T>(
+  url: string,
+  data: FormData,
+  options: RequestInit = {},
+): Promise<T> {
+  return apiRequest<T>(url, {
+    ...options,
+    method: 'POST',
+    body: data,
   })
 }
 

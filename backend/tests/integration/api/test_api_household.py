@@ -1,0 +1,152 @@
+"""Integration tests for Household Finance API endpoints."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app.main import app
+from app.portfolio.models import PriceData
+
+
+@pytest.fixture
+def client() -> TestClient:
+    return TestClient(app)
+
+
+@pytest.fixture
+def test_storage():
+    from app.storage import get_storage
+
+    return get_storage()
+
+
+def test_household_profile_is_created_and_can_be_updated(client: TestClient) -> None:
+    response = client.get("/api/household/profile")
+    assert response.status_code == 200
+    profile = response.json()
+    assert profile["household_name"] == "Household"
+
+    update_response = client.post(
+        "/api/household/profile",
+        json={
+            "household_name": "Kasadis Family",
+            "monthly_net_income_target": 12500,
+            "monthly_essential_target": 5200,
+            "monthly_discretionary_target": 1800,
+            "monthly_savings_target": 2600,
+            "target_retirement_age": 60,
+            "target_retirement_spend": 9000,
+            "notes": "Prioritize travel flexibility.",
+        },
+    )
+    assert update_response.status_code == 200
+    updated = update_response.json()
+    assert updated["household_name"] == "Kasadis Family"
+    assert updated["monthly_net_income_target"] == 12500
+    assert updated["target_retirement_age"] == 60
+
+
+def test_household_document_upload_persists_metadata(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    with patch(
+        "app.services.household_finance_service.HouseholdFinanceService._upload_root",
+        return_value=tmp_path,
+    ):
+        response = client.post(
+            "/api/household/documents",
+            files={"file": ("amex_statement_march.pdf", b"fake pdf bytes", "application/pdf")},
+            data={"account_label": "Amex Gold"},
+        )
+
+    assert response.status_code == 200
+    document = response.json()
+    assert document["filename"] == "amex_statement_march.pdf"
+    assert document["source_type"] == "credit_card"
+    assert document["document_type"] == "statement"
+    assert document["status"] == "staged"
+    assert document["account_label"] == "Amex Gold"
+    assert document["metadata"]["stored_path"].endswith(".pdf")
+
+
+def test_household_dashboard_uses_profile_documents_and_portfolio(
+    client: TestClient,
+    test_storage,
+) -> None:
+    client.post(
+        "/api/household/profile",
+        json={
+            "household_name": "Kasadis Family",
+            "monthly_net_income_target": 12500,
+            "monthly_essential_target": 5200,
+            "monthly_discretionary_target": 1800,
+            "monthly_savings_target": 2600,
+            "target_retirement_age": 60,
+            "target_retirement_spend": 9000,
+        },
+    )
+
+    with test_storage.connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO symbols (symbol, company_name)
+            VALUES ('VTI', 'Vanguard Total Stock Market ETF'),
+                   ('VXUS', 'Vanguard Total International Stock ETF')
+            ON CONFLICT (symbol) DO NOTHING
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO portfolio_accounts (
+                id, name, account_type, cash_balance, initial_cash, created_at, updated_at
+            ) VALUES
+                ('11111111-1111-1111-1111-111111111111', 'Joint Taxable', 'Taxable', 12000, 12000, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                ('22222222-2222-2222-2222-222222222222', 'Roth IRA', 'Roth', 3500, 3500, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO portfolio_positions (
+                id, account_id, symbol, shares, cost_basis, position_type, created_at, updated_at
+            ) VALUES
+                ('33333333-3333-3333-3333-333333333333', '11111111-1111-1111-1111-111111111111', 'VTI', 10, 240, 'long', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                ('44444444-4444-4444-4444-444444444444', '22222222-2222-2222-2222-222222222222', 'VXUS', 20, 55, 'long', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """
+        )
+        conn.commit()
+
+    with (
+        patch(
+            "app.services.household_finance_service.HouseholdFinanceService._upload_root",
+            return_value=Path("/tmp/household-test-uploads"),
+        ),
+        patch(
+            "app.services.household_finance_service.PriceDataFetcher.fetch_price_data",
+            return_value={
+                "VTI": PriceData(symbol="VTI", price=275),
+                "VXUS": PriceData(symbol="VXUS", price=62),
+            },
+        ),
+    ):
+        client.post(
+            "/api/household/documents",
+            files={"file": ("checking_statement.pdf", b"bank bytes", "application/pdf")},
+        )
+        response = client.get("/api/household/dashboard")
+
+    assert response.status_code == 200
+    dashboard = response.json()
+    assert dashboard["profile"]["household_name"] == "Kasadis Family"
+    assert dashboard["overview"]["invested_assets"] == 3990
+    assert dashboard["overview"]["cash_reserve"] == 15500
+    assert dashboard["overview"]["retirement_assets"] == 4740
+    assert dashboard["overview"]["taxable_assets"] == 14750
+    assert dashboard["overview"]["visibility_score"] >= 90
+    assert dashboard["budget_readiness"]["status"] == "ready_for_budgeting"
+    assert dashboard["retirement_preparedness"]["status"] == "scenario_ready"
+    assert dashboard["import_center"]["tracked_documents"] == 1

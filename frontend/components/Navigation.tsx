@@ -4,6 +4,7 @@ import {
   Briefcase,
   Eye,
   LayoutDashboard,
+  Wallet,
 } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -13,6 +14,7 @@ import { cn } from '@/lib/utils'
 
 const routeIcons = {
   '/': LayoutDashboard,
+  '/money': Wallet,
   '/portfolio': Briefcase,
   '/watchlist': Eye,
 }
