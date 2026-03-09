@@ -17,38 +17,52 @@ export function HouseholdDocumentCenter({
 }) {
   const upload = useUploadHouseholdDocument()
   const inputRef = useRef<HTMLInputElement | null>(null)
-  const [file, setFile] = useState<File | null>(null)
+  const [files, setFiles] = useState<File[]>([])
   const [isDragActive, setIsDragActive] = useState(false)
 
   const resetComposer = () => {
-    setFile(null)
+    setFiles([])
     setIsDragActive(false)
     if (inputRef.current) {
       inputRef.current.value = ''
     }
   }
 
-  const pickFirstFile = (files: FileList | File[] | null | undefined): File | null => {
-    if (!files || files.length === 0) {
-      return null
+  const pickFiles = (incoming: FileList | File[] | null | undefined): File[] => {
+    if (!incoming || incoming.length === 0) {
+      return []
     }
-    return files[0] ?? null
+    return Array.from(incoming).filter((file) => file.size > 0)
   }
 
-  const stageIncomingFile = (incoming: File | null) => {
-    if (!incoming) {
+  const stageIncomingFiles = (incoming: File[]) => {
+    if (incoming.length === 0) {
       return
     }
-    setFile(incoming)
+    setFiles((current) => {
+      const next = [...current]
+      for (const file of incoming) {
+        const alreadyQueued = next.some(
+          (existing) =>
+            existing.name === file.name &&
+            existing.size === file.size &&
+            existing.lastModified === file.lastModified,
+        )
+        if (!alreadyQueued) {
+          next.push(file)
+        }
+      }
+      return next
+    })
   }
 
   const handlePaste = (event: ClipboardEvent<HTMLDivElement>) => {
-    const incoming = pickFirstFile(event.clipboardData.files)
-    if (!incoming) {
+    const incoming = pickFiles(event.clipboardData.files)
+    if (incoming.length === 0) {
       return
     }
     event.preventDefault()
-    stageIncomingFile(incoming)
+    stageIncomingFiles(incoming)
   }
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
@@ -64,7 +78,7 @@ export function HouseholdDocumentCenter({
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault()
     setIsDragActive(false)
-    stageIncomingFile(pickFirstFile(event.dataTransfer.files))
+    stageIncomingFiles(pickFiles(event.dataTransfer.files))
   }
 
   const handleDropzoneKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -75,21 +89,17 @@ export function HouseholdDocumentCenter({
     inputRef.current?.click()
   }
 
-  const handleUpload = () => {
-    if (!file) {
+  const handleUpload = async () => {
+    if (files.length === 0) {
       return
     }
 
-    upload.mutate(
-      {
-        file,
-      },
-      {
-        onSuccess: () => {
-          resetComposer()
-        },
-      },
-    )
+    try {
+      await Promise.all(files.map((file) => upload.mutateAsync({ file })))
+      resetComposer()
+    } catch {
+      // Mutation hook already surfaces the upload error.
+    }
   }
 
   return (
@@ -122,10 +132,20 @@ export function HouseholdDocumentCenter({
                 Use <span className="font-medium text-text">Ctrl+V</span> after a screenshot, drag files in,
                 or use the picker below.
               </p>
-              {file ? (
-                <p className="mt-3 text-text">
-                  Ready to upload: <span className="font-medium">{file.name}</span>
-                </p>
+              {files.length > 0 ? (
+                <div className="mt-3 space-y-1 text-text">
+                  <p className="font-medium">
+                    Ready to upload: {files.length} file{files.length === 1 ? '' : 's'}
+                  </p>
+                  {files.slice(0, 5).map((file) => (
+                    <p key={`${file.name}-${file.lastModified}`} className="text-sm">
+                      {file.name}
+                    </p>
+                  ))}
+                  {files.length > 5 ? (
+                    <p className="text-sm text-text-muted">+{files.length - 5} more</p>
+                  ) : null}
+                </div>
               ) : null}
             </div>
             <div>
@@ -134,16 +154,21 @@ export function HouseholdDocumentCenter({
                 id="document-file"
                 ref={inputRef}
                 type="file"
+                multiple
                 accept=".pdf,.csv,.ofx,.qfx,.png,.jpg,.jpeg,.heic,.webp,.txt,.json,image/*,application/pdf,text/plain,text/csv"
-                onChange={(event) => stageIncomingFile(event.target.files?.[0] ?? null)}
+                onChange={(event) => stageIncomingFiles(pickFiles(event.target.files))}
               />
             </div>
             <div className="rounded-2xl border border-border/50 bg-surface-muted/20 p-4 text-sm text-text-muted">
               Jenny will infer the source, document type, and likely account label from the file contents, filename, and screenshot evidence.
               If anything is ambiguous, she will open a short follow-up question in the household plan queue.
             </div>
-            <Button onClick={handleUpload} disabled={!file || upload.isPending}>
-              {upload.isPending ? 'Uploading...' : 'Stage Document'}
+            <Button onClick={() => void handleUpload()} disabled={files.length === 0 || upload.isPending}>
+              {upload.isPending
+                ? 'Uploading...'
+                : files.length > 1
+                  ? 'Stage Documents'
+                  : 'Stage Document'}
             </Button>
           </div>
         </div>

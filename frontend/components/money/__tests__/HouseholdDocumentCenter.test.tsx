@@ -1,20 +1,28 @@
 'use client'
 
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { HouseholdDocumentCenter } from '../HouseholdDocumentCenter'
 
 const mutate = vi.fn()
+const mutateAsync = vi.fn()
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
   useUploadHouseholdDocument: () => ({
     mutate,
+    mutateAsync,
     isPending: false,
   }),
 }))
 
 describe('HouseholdDocumentCenter', () => {
-  it('stages a pasted screenshot and uploads it', () => {
+  beforeEach(() => {
+    mutate.mockReset()
+    mutateAsync.mockReset()
+  })
+
+  it('stages a pasted screenshot and uploads it', async () => {
+    mutateAsync.mockResolvedValue(undefined)
     render(<HouseholdDocumentCenter documents={[]} />)
 
     const screenshot = new File(['image-bytes'], 'clipboard.png', {
@@ -30,17 +38,45 @@ describe('HouseholdDocumentCenter', () => {
       },
     })
 
-    expect(
-      screen.getByText((_, element) => element?.textContent === 'Ready to upload: clipboard.png'),
-    ).toBeInTheDocument()
+    expect(screen.getByText(/ready to upload: 1 file/i)).toBeInTheDocument()
+    expect(screen.getByText('clipboard.png')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /stage document/i }))
 
-    expect(mutate).toHaveBeenCalledWith(
+    expect(mutateAsync).toHaveBeenCalledWith(
       expect.objectContaining({
         file: screenshot,
       }),
-      expect.any(Object),
+    )
+  })
+
+  it('stages multiple selected files and uploads them together', async () => {
+    mutateAsync.mockResolvedValue(undefined)
+    render(<HouseholdDocumentCenter documents={[]} />)
+
+    const january = new File(['jan'], 'january.pdf', { type: 'application/pdf' })
+    const february = new File(['feb'], 'february.pdf', { type: 'application/pdf' })
+    const input = screen.getByLabelText(/file/i)
+
+    fireEvent.change(input, {
+      target: {
+        files: [january, february],
+      },
+    })
+
+    expect(screen.getByText(/ready to upload: 2 files/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /stage documents/i })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /stage documents/i }))
+
+    expect(mutateAsync).toHaveBeenCalledTimes(2)
+    expect(mutateAsync).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ file: january }),
+    )
+    expect(mutateAsync).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ file: february }),
     )
   })
 })
