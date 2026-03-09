@@ -626,7 +626,7 @@ def test_household_list_questions_suppresses_inferable_merchant_frequency_questi
         ):
             response = client.post(
                 "/api/household/documents",
-                files={"file": (filename, f"pdf bytes {index}".encode("utf-8"), "application/pdf")},
+                files={"file": (filename, f"pdf bytes {index}".encode(), "application/pdf")},
             )
             assert response.status_code == 200
 
@@ -689,7 +689,7 @@ def test_household_list_questions_keeps_frequency_question_when_cadence_is_unkno
         ):
             response = client.post(
                 "/api/household/documents",
-                files={"file": (filename, f"pdf bytes {index}".encode("utf-8"), "application/pdf")},
+                files={"file": (filename, f"pdf bytes {index}".encode(), "application/pdf")},
             )
             assert response.status_code == 200
 
