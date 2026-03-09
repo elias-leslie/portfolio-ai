@@ -558,6 +558,146 @@ def test_household_list_questions_collapses_semantic_shopping_channel_duplicates
     assert "Walmart" in questions[0]["question"]
 
 
+def test_household_list_questions_suppresses_inferable_merchant_frequency_question(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    review_payloads = [
+        {
+            "summary": "Walmart grocery receipt.",
+            "document_type": "receipt",
+            "source_type": "receipt",
+            "confidence": 0.94,
+            "structured_data": {
+                "merchant": "Walmart (Store #5831, Largo, FL)",
+                "statement_period": "2026-01-03",
+            },
+            "inferred_values": [],
+            "questions": [],
+        },
+        {
+            "summary": "Walmart grocery receipt.",
+            "document_type": "receipt",
+            "source_type": "receipt",
+            "confidence": 0.94,
+            "structured_data": {
+                "merchant": "Walmart (Store #5831, Largo, FL)",
+                "statement_period": "2026-01-10",
+            },
+            "inferred_values": [],
+            "questions": [],
+        },
+        {
+            "summary": "Walmart grocery receipt.",
+            "document_type": "receipt",
+            "source_type": "receipt",
+            "confidence": 0.94,
+            "structured_data": {
+                "merchant": "Walmart (Store #5831, Largo, FL)",
+                "statement_period": "2026-01-17",
+            },
+            "inferred_values": [],
+            "questions": [
+                {
+                    "field_name": None,
+                    "question": "How often does the household shop at Walmart like this — weekly, bi-weekly, or less frequently?",
+                    "priority": "high",
+                    "recommendation": "If this is a weekly or bi-weekly run, multiply accordingly to size your monthly grocery budget line.",
+                    "rationale": "Trip frequency is needed to estimate true monthly grocery spend.",
+                }
+            ],
+        },
+    ]
+
+    with patch(
+        "app.services.household_finance_service.HouseholdFinanceService._upload_root",
+        return_value=tmp_path,
+    ), patch(
+        "app.services.household_document_review.HouseholdDocumentReviewService.review",
+        side_effect=review_payloads,
+    ):
+        for index, filename in enumerate(
+            [
+                "walmart_1.pdf",
+                "walmart_2.pdf",
+                "walmart_3.pdf",
+            ],
+            start=1,
+        ):
+            response = client.post(
+                "/api/household/documents",
+                files={"file": (filename, f"pdf bytes {index}".encode("utf-8"), "application/pdf")},
+            )
+            assert response.status_code == 200
+
+    questions = client.get("/api/household/questions").json()["items"]
+    assert questions == []
+
+
+def test_household_list_questions_keeps_frequency_question_when_cadence_is_unknowable(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    review_payloads = [
+        {
+            "summary": "Walmart grocery receipt.",
+            "document_type": "receipt",
+            "source_type": "receipt",
+            "confidence": 0.94,
+            "structured_data": {
+                "merchant": "Walmart (Store #5831, Largo, FL)",
+                "statement_period": "2026-01-03",
+            },
+            "inferred_values": [],
+            "questions": [],
+        },
+        {
+            "summary": "Walmart grocery receipt.",
+            "document_type": "receipt",
+            "source_type": "receipt",
+            "confidence": 0.94,
+            "structured_data": {
+                "merchant": "Walmart (Store #5831, Largo, FL)",
+                "statement_period": "2026-01-03",
+            },
+            "inferred_values": [],
+            "questions": [
+                {
+                    "field_name": None,
+                    "question": "How often does the household shop at Walmart like this — weekly, bi-weekly, or less frequently?",
+                    "priority": "high",
+                    "recommendation": "If this is a weekly or bi-weekly run, multiply accordingly to size your monthly grocery budget line.",
+                    "rationale": "Trip frequency is needed to estimate true monthly grocery spend.",
+                }
+            ],
+        },
+    ]
+
+    with patch(
+        "app.services.household_finance_service.HouseholdFinanceService._upload_root",
+        return_value=tmp_path,
+    ), patch(
+        "app.services.household_document_review.HouseholdDocumentReviewService.review",
+        side_effect=review_payloads,
+    ):
+        for index, filename in enumerate(
+            [
+                "walmart_a.pdf",
+                "walmart_b.pdf",
+            ],
+            start=1,
+        ):
+            response = client.post(
+                "/api/household/documents",
+                files={"file": (filename, f"pdf bytes {index}".encode("utf-8"), "application/pdf")},
+            )
+            assert response.status_code == 200
+
+    questions = client.get("/api/household/questions").json()["items"]
+    assert len(questions) == 1
+    assert "How often does the household shop" in questions[0]["question"]
+
+
 def test_household_document_duplicate_upload_returns_existing_document(
     client: TestClient,
     tmp_path: Path,

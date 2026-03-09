@@ -7,8 +7,9 @@ import json
 import re
 import uuid
 from csv import DictReader
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
+from itertools import pairwise
 from pathlib import Path
 from typing import Any, cast
 
@@ -414,6 +415,34 @@ class HouseholdFinanceService:
                     )
                     duplicate_question.status = "dismissed"
                     updated = True
+
+            for candidate_question in open_questions:
+                if candidate_question.status != "open":
+                    continue
+                inferred_resolution = self._infer_question_resolution_from_existing_context(
+                    conn=conn,
+                    question=candidate_question,
+                )
+                if inferred_resolution is None:
+                    continue
+
+                conn.execute(
+                    """
+                    UPDATE household_questions
+                    SET status = 'dismissed',
+                        answered_at = %s,
+                        metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
+                    WHERE id = %s
+                      AND status = 'open'
+                    """,
+                    [
+                        datetime.now(UTC).isoformat(),
+                        json.dumps(inferred_resolution),
+                        candidate_question.id,
+                    ],
+                )
+                candidate_question.status = "dismissed"
+                updated = True
 
             if updated:
                 conn.commit()
@@ -1133,6 +1162,39 @@ class HouseholdFinanceService:
                 if not prompt:
                     continue
                 field_name = str(question.get("field_name") or "").strip() or None
+                candidate_question = HouseholdQuestion(
+                    id=str(uuid.uuid4()),
+                    field_name=field_name,
+                    status="open",
+                    priority=self._normalize_priority(question.get("priority")),
+                    question=prompt,
+                    rationale=str(question.get("rationale")) if question.get("rationale") is not None else None,
+                    recommendation=str(question.get("recommendation")) if question.get("recommendation") is not None else None,
+                    answer_text=None,
+                    source_document_id=document.id,
+                    metadata={
+                        "document_id": document.id,
+                        "recommendation": question.get("recommendation"),
+                        "source_document": {
+                            "id": document.id,
+                            "filename": document.filename,
+                            "source_type": resolved_source_type,
+                            "document_type": resolved_document_type,
+                            "account_label": str(account_hint) if account_hint is not None else document.account_label,
+                            "review_summary": str(reviewed.get("summary")) if reviewed.get("summary") is not None else None,
+                            "merchant": structured_data.get("merchant"),
+                            "account_hint": structured_data.get("account_hint"),
+                        },
+                    },
+                    created_at=now,
+                    answered_at=None,
+                )
+                inferred_resolution = self._infer_question_resolution_from_existing_context(
+                    conn=conn,
+                    question=candidate_question,
+                )
+                if inferred_resolution is not None:
+                    continue
                 conn.execute(
                     """
                     INSERT INTO household_questions (
@@ -1553,11 +1615,156 @@ class HouseholdFinanceService:
             return "core_spending"
         if "regular household spending" in normalized or "recurring household shopping channel" in normalized:
             return "shopping_channel"
+        if "how often does the household shop" in normalized or "weekly, bi-weekly" in normalized:
+            return "merchant_cadence"
         if field_name in {"target_retirement_age", "target_retirement_spend"}:
             return "retirement_target"
         if "what role should this document play" in normalized:
             return "document_role"
         return "unknown"
+
+    def _infer_question_resolution_from_existing_context(
+        self,
+        *,
+        conn: Any,
+        question: HouseholdQuestion,
+    ) -> dict[str, object] | None:
+        question_family = self._question_family(question.question, question.field_name)
+        if question_family != "merchant_cadence":
+            return None
+
+        source_document = question.metadata.get("source_document")
+        if not isinstance(source_document, dict):
+            return None
+        merchant = source_document.get("merchant")
+        if not isinstance(merchant, str) or not merchant.strip():
+            return None
+
+        cadence = self._infer_merchant_cadence(conn=conn, merchant=merchant)
+        if cadence is None:
+            return None
+
+        return {
+            "inferred_resolution": "merchant_cadence_from_existing_context",
+            "inferred_answer": cadence["label"],
+            "inferred_confidence": cadence["confidence"],
+            "inferred_rationale": cadence["rationale"],
+        }
+
+    def _infer_merchant_cadence(
+        self,
+        *,
+        conn: Any,
+        merchant: str,
+    ) -> dict[str, object] | None:
+        normalized_root = self._merchant_root(merchant)
+        if not normalized_root:
+            return None
+
+        observed_dates: set[date] = set()
+
+        document_rows = conn.execute(
+            """
+            SELECT
+                COALESCE(d.metadata->'structured_data'->>'statement_period', ''),
+                COALESCE(r.extracted_text, '')
+            FROM household_documents d
+            LEFT JOIN LATERAL (
+                SELECT extracted_text
+                FROM household_document_reviews
+                WHERE document_id = d.id
+                ORDER BY created_at DESC
+                LIMIT 1
+            ) r ON TRUE
+            WHERE lower(COALESCE(d.metadata->'structured_data'->>'merchant', '')) LIKE %s
+            """,
+            [f"%{normalized_root}%"],
+        ).fetchall()
+        for row in document_rows:
+            for raw_value in row:
+                if raw_value is None:
+                    continue
+                observed_dates.update(self._extract_dates_from_text(str(raw_value)))
+
+        import_rows = conn.execute(
+            """
+            SELECT row_date
+            FROM household_import_rows
+            WHERE lower(COALESCE(merchant, '')) LIKE %s
+            """,
+            [f"%{normalized_root}%"],
+        ).fetchall()
+        for row in import_rows:
+            row_date = row[0]
+            if isinstance(row_date, datetime):
+                observed_dates.add(row_date.date())
+
+        ordered_dates = sorted(observed_dates)
+        if len(ordered_dates) < 3:
+            return None
+
+        intervals = [
+            (later - earlier).days
+            for earlier, later in pairwise(ordered_dates)
+            if (later - earlier).days > 0
+        ]
+        if len(intervals) < 2:
+            return None
+
+        median_interval = sorted(intervals)[len(intervals) // 2]
+        if median_interval <= 10:
+            label = "likely weekly"
+        elif median_interval <= 20:
+            label = "likely bi-weekly"
+        elif median_interval <= 45:
+            label = "likely monthly"
+        else:
+            label = "less frequent"
+
+        confidence = 0.72 if len(ordered_dates) == 3 else 0.82
+        rationale = (
+            f"Jenny found {len(ordered_dates)} dated {merchant} events across uploaded evidence, "
+            f"with a median gap of {median_interval} days."
+        )
+        return {
+            "label": label,
+            "confidence": confidence,
+            "rationale": rationale,
+        }
+
+    def _merchant_root(self, merchant: str) -> str:
+        normalized = merchant.strip().lower()
+        normalized = re.sub(r"\([^)]*\)", "", normalized)
+        normalized = re.sub(r"[^a-z0-9]+", " ", normalized)
+        normalized = re.sub(r"\s+", " ", normalized).strip()
+        return normalized
+
+    def _extract_dates_from_text(self, value: str) -> set[date]:
+        candidates: set[date] = set()
+        if not value:
+            return candidates
+
+        patterns = [
+            r"\b(\d{4}-\d{2}-\d{2})\b",
+            r"\b(\d{1,2}/\d{1,2}/\d{4})\b",
+            r"\b(\d{2}/\d{2}/\d{2})\b",
+            r"\b([A-Z][a-z]+ \d{1,2}, \d{4})\b",
+        ]
+        for pattern in patterns:
+            for match in re.findall(pattern, value):
+                parsed = self._parse_date_candidate(match)
+                if parsed is not None:
+                    candidates.add(parsed)
+        return candidates
+
+    def _parse_date_candidate(self, raw_value: str) -> date | None:
+        value = raw_value.strip()
+        for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y", "%B %d, %Y"):
+            try:
+                return datetime.strptime(value, fmt).date()
+            except ValueError:
+                continue
+        return None
 
     def _clean_source_value(self, value: object) -> str | None:
         if not isinstance(value, str):
