@@ -67,6 +67,10 @@ export function useUploadHouseholdDocument() {
     mutationFn: (payload: HouseholdDocumentUpload) => uploadHouseholdDocument(payload),
     onSuccess: (document) => {
       queryClient.invalidateQueries({ queryKey: ['household'], refetchType: 'active' })
+      if (document.metadata?.duplicate_detected === true) {
+        toast.info(`${document.filename} already exists in household intake.`)
+        return
+      }
       toast.success(`${document.filename} staged for household intake.`)
     },
     onError: (error) => {

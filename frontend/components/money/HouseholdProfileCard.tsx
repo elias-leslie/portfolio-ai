@@ -15,6 +15,17 @@ import { Textarea } from '@/components/ui/textarea'
 import { useAnswerHouseholdQuestion, useUpdateHouseholdProfile } from '@/lib/hooks/useHousehold'
 import { formatCurrency } from './formatters'
 
+type QuestionSourceDocument = {
+  id?: string | null
+  filename?: string | null
+  sourceType?: string | null
+  documentType?: string | null
+  accountLabel?: string | null
+  reviewSummary?: string | null
+  merchant?: string | null
+  accountHint?: string | null
+}
+
 function numberInput(value: number | null): string {
   return value == null ? '' : String(value)
 }
@@ -50,6 +61,34 @@ function badgeVariantForStatus(status: string) {
     default:
       return 'secondary' as const
   }
+}
+
+function getQuestionSourceDocument(question: HouseholdQuestion): QuestionSourceDocument | null {
+  const sourceDocument = question.metadata.sourceDocument
+  if (!sourceDocument || typeof sourceDocument !== 'object') {
+    return null
+  }
+  return sourceDocument as QuestionSourceDocument
+}
+
+function questionSourceLabel(question: HouseholdQuestion): string {
+  const sourceDocument = getQuestionSourceDocument(question)
+  if (!sourceDocument) {
+    return 'Source document unavailable'
+  }
+  if (sourceDocument.merchant) {
+    return sourceDocument.merchant
+  }
+  if (sourceDocument.accountLabel) {
+    return sourceDocument.accountLabel
+  }
+  if (sourceDocument.accountHint) {
+    return sourceDocument.accountHint
+  }
+  if (sourceDocument.filename) {
+    return sourceDocument.filename
+  }
+  return 'Source document unavailable'
 }
 
 export function HouseholdProfileCard({
@@ -172,47 +211,65 @@ export function HouseholdProfileCard({
                 Jenny has enough confirmed information for now. Keep uploading fresh documents and she will reopen the queue only when confidence drops.
               </div>
             ) : (
-              questions.map((question) => (
-                <div
-                  key={question.id}
-                  className="rounded-2xl border border-border/40 bg-surface/80 p-4"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm font-semibold text-text">{question.question}</p>
-                    <Badge variant={question.priority === 'high' ? 'warning' : 'secondary'}>
-                      {question.priority}
-                    </Badge>
+              questions.map((question) => {
+                const sourceDocument = getQuestionSourceDocument(question)
+                return (
+                  <div
+                    key={question.id}
+                    className="rounded-2xl border border-border/40 bg-surface/80 p-4"
+                  >
+                    <div className="mb-3 rounded-xl border border-border/40 bg-surface-muted/30 px-3 py-2 text-xs text-text-muted">
+                      <p className="font-medium text-text">Source: {questionSourceLabel(question)}</p>
+                      {sourceDocument?.filename ? (
+                        <p className="mt-1">File: {sourceDocument.filename}</p>
+                      ) : null}
+                      {sourceDocument?.reviewSummary ? (
+                        <p className="mt-1">{sourceDocument.reviewSummary}</p>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-semibold text-text">{question.question}</p>
+                      <Badge variant={question.priority === 'high' ? 'warning' : 'secondary'}>
+                        {question.priority}
+                      </Badge>
+                    </div>
+                    {question.rationale ? (
+                      <p className="mt-2 text-sm text-text-muted">{question.rationale}</p>
+                    ) : null}
+                    {question.recommendation ? (
+                      <div className="mt-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-text">
+                        <span className="font-semibold">Jenny recommends:</span>{' '}
+                        {question.recommendation}
+                      </div>
+                    ) : null}
+                    <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+                      <Input
+                        value={answers[question.id] ?? ''}
+                        onChange={(event) =>
+                          setAnswers((current) => ({
+                            ...current,
+                            [question.id]: event.target.value,
+                          }))
+                        }
+                        placeholder="Answer briefly so Jenny can confirm the plan"
+                      />
+                      <Button
+                        onClick={() =>
+                          answerQuestion.mutate({
+                            questionId: question.id,
+                            answerText: (answers[question.id] ?? '').trim(),
+                          })
+                        }
+                        disabled={
+                          answerQuestion.isPending || !(answers[question.id] ?? '').trim()
+                        }
+                      >
+                        Confirm
+                      </Button>
+                    </div>
                   </div>
-                  {question.rationale ? (
-                    <p className="mt-2 text-sm text-text-muted">{question.rationale}</p>
-                  ) : null}
-                  <div className="mt-3 flex flex-col gap-3 sm:flex-row">
-                    <Input
-                      value={answers[question.id] ?? ''}
-                      onChange={(event) =>
-                        setAnswers((current) => ({
-                          ...current,
-                          [question.id]: event.target.value,
-                        }))
-                      }
-                      placeholder="Answer briefly so Jenny can confirm the plan"
-                    />
-                    <Button
-                      onClick={() =>
-                        answerQuestion.mutate({
-                          questionId: question.id,
-                          answerText: (answers[question.id] ?? '').trim(),
-                        })
-                      }
-                      disabled={
-                        answerQuestion.isPending || !(answers[question.id] ?? '').trim()
-                      }
-                    >
-                      Confirm
-                    </Button>
-                  </div>
-                </div>
-              ))
+                )
+              })
             )}
           </div>
         </div>

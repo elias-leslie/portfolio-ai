@@ -113,6 +113,7 @@ export interface HouseholdQuestion {
   priority: string
   question: string
   rationale: string | null
+  recommendation: string | null
   answerText: string | null
   sourceDocumentId: string | null
   metadata: Record<string, unknown>

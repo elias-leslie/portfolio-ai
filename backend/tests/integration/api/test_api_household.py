@@ -234,6 +234,7 @@ def test_household_questions_can_be_answered_and_confirm_profile_value(
                         "field_name": "target_retirement_age",
                         "question": "What age do you want to retire?",
                         "priority": "high",
+                        "recommendation": "Use age 60 unless you expect to work materially longer.",
                         "rationale": "Jenny needs a target age to anchor retirement scenarios.",
                     }
                 ],
@@ -252,6 +253,8 @@ def test_household_questions_can_be_answered_and_confirm_profile_value(
     questions = questions_response.json()["items"]
     assert len(questions) == 1
     assert questions[0]["field_name"] == "target_retirement_age"
+    assert questions[0]["recommendation"] == "Use age 60 unless you expect to work materially longer."
+    assert questions[0]["metadata"]["source_document"]["filename"] == "roth_statement.pdf"
 
     answer_response = client.post(
         f"/api/household/questions/{questions[0]['id']}/answer",
@@ -277,3 +280,115 @@ def test_household_questions_can_be_answered_and_confirm_profile_value(
     )
     assert retirement_value["status"] == "confirmed"
     assert retirement_value["source"] == "manual"
+
+
+def test_household_document_duplicate_upload_returns_existing_document(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    with (
+        patch(
+            "app.services.household_finance_service.HouseholdFinanceService._upload_root",
+            return_value=tmp_path,
+        ),
+        patch(
+            "app.services.household_document_review.HouseholdDocumentReviewService.review",
+            return_value={
+                "summary": "Checking statement covering recurring deposits and baseline spending.",
+                "document_type": "statement",
+                "source_type": "bank",
+                "confidence": 0.89,
+                "structured_data": {"account_hint": "Joint Checking"},
+                "inferred_values": [],
+                "questions": [],
+            },
+        ) as review_mock,
+    ):
+        first = client.post(
+            "/api/household/documents",
+            files={"file": ("checking_statement.pdf", b"same-bytes", "application/pdf")},
+        )
+        second = client.post(
+            "/api/household/documents",
+            files={"file": ("checking_statement.pdf", b"same-bytes", "application/pdf")},
+        )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    first_document = first.json()
+    second_document = second.json()
+    assert second_document["id"] == first_document["id"]
+    assert second_document["metadata"]["duplicate_detected"] is True
+    assert review_mock.call_count == 1
+
+    documents_response = client.get("/api/household/documents")
+    assert documents_response.status_code == 200
+    assert len(documents_response.json()["items"]) == 1
+
+
+def test_household_order_history_reupload_dedupes_import_rows(
+    client: TestClient,
+    tmp_path: Path,
+    test_storage,
+) -> None:
+    review_payload = {
+        "summary": "Amazon order history export.",
+        "document_type": "receipt",
+        "source_type": "receipt",
+        "confidence": 0.93,
+        "structured_data": {
+            "merchant": "Amazon",
+            "account_hint": "Amazon account",
+        },
+        "inferred_values": [],
+        "questions": [],
+        "extracted_text": (
+            "ASIN,Order Date,Order ID,Payment Instrument Type,Original Quantity\n"
+            "B001,2026-03-01T00:00:00Z,111-1111111-1111111,VISA,1"
+        ),
+    }
+
+    first_csv = (
+        "ASIN,Order Date,Order ID,Payment Instrument Type,Original Quantity,Currency\n"
+        "B001,2026-03-01T00:00:00Z,111-1111111-1111111,VISA,1,USD\n"
+        "B002,2026-03-02T00:00:00Z,222-2222222-2222222,VISA,1,USD\n"
+    )
+    second_csv = (
+        "ASIN,Order Date,Order ID,Payment Instrument Type,Original Quantity,Currency\n"
+        "B001,2026-03-01T00:00:00Z,111-1111111-1111111,VISA,1,USD\n"
+        "B002,2026-03-02T00:00:00Z,222-2222222-2222222,VISA,1,USD\n"
+        "B003,2026-03-03T00:00:00Z,333-3333333-3333333,VISA,2,USD\n"
+    )
+
+    with (
+        patch(
+            "app.services.household_finance_service.HouseholdFinanceService._upload_root",
+            return_value=tmp_path,
+        ),
+        patch(
+            "app.services.household_document_review.HouseholdDocumentReviewService.review",
+            return_value=review_payload,
+        ),
+        patch(
+            "app.services.household_review_agent_service.HouseholdReviewAgentService.save_learning",
+            return_value="memory-1",
+        ),
+    ):
+        first = client.post(
+            "/api/household/documents",
+            files={"file": ("Order History.csv", first_csv.encode("utf-8"), "text/csv")},
+        )
+        second = client.post(
+            "/api/household/documents",
+            files={"file": ("Order History.csv", second_csv.encode("utf-8"), "text/csv")},
+        )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+
+    with test_storage.connection() as conn:
+        import_rows = conn.execute("SELECT COUNT(*) FROM household_import_rows").fetchone()[0]
+        signatures = conn.execute("SELECT COUNT(*) FROM household_document_signatures").fetchone()[0]
+
+    assert import_rows == 3
+    assert signatures >= 1

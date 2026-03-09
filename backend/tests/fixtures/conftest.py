@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -81,6 +82,8 @@ TABLES_TO_CLEAN = [
     "household_questions",
     "household_inferred_values",
     "household_document_reviews",
+    "household_import_rows",
+    "household_document_signatures",
     "household_documents",
     "household_profiles",
     # Agent workflow tables (agent_messages references agent_workflows)
@@ -123,6 +126,20 @@ def _get_existing_tables(conn: ConnectionManager) -> set[str]:
         """
     ).fetchall()
     return {str(row[0]) for row in rows}
+
+
+@pytest.fixture(scope="session", autouse=True)
+def ensure_test_schema_up_to_date() -> None:
+    """Apply Alembic migrations to the test database before any tests run."""
+    backend_root = Path(__file__).resolve().parents[2]
+    env = os.environ.copy()
+    env["PORTFOLIO_DB_URL"] = TEST_DB_URL
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "-c", str(backend_root / "alembic.ini"), "upgrade", "head"],
+        cwd=backend_root,
+        env=env,
+        check=True,
+    )
 
 
 @pytest.fixture(autouse=False)

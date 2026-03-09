@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import uuid
+from csv import DictReader
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from fastapi import UploadFile
 
@@ -34,6 +36,10 @@ from app.models.household_finance import (
 from app.portfolio.manager import PortfolioManager
 from app.portfolio.price_fetcher import PriceDataFetcher
 from app.services.household_document_review import HouseholdDocumentReviewService
+from app.services.household_review_agent_service import (
+    HOUSEHOLD_REVIEW_MEMORY_TAGS,
+    HouseholdReviewAgentService,
+)
 from app.storage import get_storage
 
 RETIREMENT_ACCOUNT_TYPES = {"IRA", "401k", "Roth", "HSA"}
@@ -57,7 +63,10 @@ class HouseholdFinanceService:
         self.storage = get_storage()
         self.portfolio_mgr = PortfolioManager(self.storage)
         self.price_fetcher = PriceDataFetcher(self.storage)
-        self.review_service = HouseholdDocumentReviewService()
+        self.review_agent_service = HouseholdReviewAgentService()
+        self.review_service = HouseholdDocumentReviewService(
+            agent_service=self.review_agent_service
+        )
 
     def get_dashboard(self) -> HouseholdFinanceDashboard:
         profile = self.get_profile()
@@ -270,17 +279,19 @@ class HouseholdFinanceService:
             rows = conn.execute(
                 """
                 SELECT
-                    id, field_name, status, priority, question, rationale,
-                    answer_text, source_document_id, metadata, created_at, answered_at
-                FROM household_questions
-                WHERE status = 'open'
+                    q.id, q.field_name, q.status, q.priority, q.question, q.rationale,
+                    q.answer_text, q.source_document_id, q.metadata, q.created_at, q.answered_at,
+                    d.filename, d.source_type, d.document_type, d.account_label, d.review_summary, d.metadata
+                FROM household_questions q
+                LEFT JOIN household_documents d ON d.id = q.source_document_id
+                WHERE q.status = 'open'
                 ORDER BY
-                    CASE priority
+                    CASE q.priority
                         WHEN 'high' THEN 0
                         WHEN 'medium' THEN 1
                         ELSE 2
                     END,
-                    created_at ASC
+                    q.created_at ASC
                 LIMIT %s
                 """,
                 [limit],
@@ -316,6 +327,8 @@ class HouseholdFinanceService:
                 )
             conn.commit()
 
+        self._store_confirmed_question_learning(row_question, payload.answer_text.strip())
+
         answered = self._get_question_row(question_id)
         return self._row_to_question(answered) if answered is not None else None
 
@@ -329,6 +342,14 @@ class HouseholdFinanceService:
     ) -> HouseholdDocument:
         document_id = str(uuid.uuid4())
         filename = upload.filename or f"{document_id}.bin"
+        content = await upload.read()
+        content_sha256 = hashlib.sha256(content).hexdigest()
+        duplicate_document = self._find_duplicate_document_by_hash(content_sha256)
+        if duplicate_document is not None:
+            duplicate_document.metadata["duplicate_detected"] = True
+            duplicate_document.metadata["duplicate_reason"] = "exact_content_match"
+            return duplicate_document
+
         inferred_source, inferred_type, confidence = self._classify_document(
             filename=filename,
             content_type=upload.content_type,
@@ -339,13 +360,13 @@ class HouseholdFinanceService:
         upload_dir = self._upload_root()
         upload_dir.mkdir(parents=True, exist_ok=True)
         stored_path = upload_dir / f"{document_id}{suffix.lower()}"
-        content = await upload.read()
         stored_path.write_bytes(content)
 
         now = datetime.now(UTC).isoformat()
         metadata = {
             "original_filename": filename,
             "stored_path": str(stored_path),
+            "content_sha256": content_sha256,
         }
 
         with self.storage.connection() as conn:
@@ -497,13 +518,33 @@ class HouseholdFinanceService:
             return conn.execute(
                 """
                 SELECT
-                    id, field_name, status, priority, question, rationale,
-                    answer_text, source_document_id, metadata, created_at, answered_at
-                FROM household_questions
-                WHERE id = %s
+                    q.id, q.field_name, q.status, q.priority, q.question, q.rationale,
+                    q.answer_text, q.source_document_id, q.metadata, q.created_at, q.answered_at,
+                    d.filename, d.source_type, d.document_type, d.account_label, d.review_summary, d.metadata
+                FROM household_questions q
+                LEFT JOIN household_documents d ON d.id = q.source_document_id
+                WHERE q.id = %s
                 """,
                 [question_id],
             ).fetchone()
+
+    def _find_duplicate_document_by_hash(self, content_sha256: str) -> HouseholdDocument | None:
+        with self.storage.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT
+                    id, filename, source_type, document_type, status, account_label,
+                    file_size_bytes, content_type, classification_confidence,
+                    review_status, review_summary, review_confidence,
+                    statement_start, statement_end, uploaded_at, parsed_at, metadata
+                FROM household_documents
+                WHERE metadata->>'content_sha256' = %s
+                ORDER BY uploaded_at DESC
+                LIMIT 1
+                """,
+                [content_sha256],
+            ).fetchone()
+        return self._row_to_document(row) if row is not None else None
 
     def _get_profile_row(self) -> tuple[Any, ...] | None:
         with self.storage.connection() as conn:
@@ -522,7 +563,9 @@ class HouseholdFinanceService:
 
     def _fetch_prices(self, positions: list[object]) -> dict[str, object]:
         symbols = sorted({position.symbol for position in positions})
-        return self.price_fetcher.fetch_price_data(symbols) if symbols else {}
+        if not symbols:
+            return {}
+        return cast(dict[str, object], self.price_fetcher.fetch_price_data(symbols))
 
     def _calculate_holdings_by_account(
         self,
@@ -967,12 +1010,25 @@ class HouseholdFinanceService:
                         prompt,
                         question.get("rationale"),
                         document.id,
-                        json.dumps({"document_id": document.id}),
+                        json.dumps(
+                            {
+                                "document_id": document.id,
+                                "recommendation": question.get("recommendation"),
+                            }
+                        ),
                         now,
                     ],
                 )
 
             conn.commit()
+
+        self._store_document_learning(
+            document=document,
+            reviewed=reviewed,
+            review_confidence=review_confidence,
+        )
+        self._upsert_document_signatures(document=document, reviewed=reviewed)
+        self._import_document_rows(document=document, reviewed=reviewed)
 
     def _row_to_profile(self, row: tuple[Any, ...]) -> HouseholdProfile:
         return HouseholdProfile(
@@ -998,6 +1054,12 @@ class HouseholdFinanceService:
             metadata = json.loads(raw_metadata)
         else:
             metadata = {}
+        source_document = self._question_source_document(row)
+        if source_document is not None:
+            metadata = {
+                **metadata,
+                "source_document": source_document,
+            }
         return HouseholdQuestion(
             id=str(row[0]),
             field_name=str(row[1]) if row[1] is not None else None,
@@ -1005,12 +1067,362 @@ class HouseholdFinanceService:
             priority=str(row[3]),
             question=str(row[4]),
             rationale=str(row[5]) if row[5] is not None else None,
+            recommendation=self._question_recommendation(
+                field_name=str(row[1]) if row[1] is not None else None,
+                metadata=metadata,
+                source_document=source_document,
+            ),
             answer_text=str(row[6]) if row[6] is not None else None,
             source_document_id=str(row[7]) if row[7] is not None else None,
             metadata=metadata,
             created_at=self._iso(row[9]),
             answered_at=self._iso_or_none(row[10]),
         )
+
+    def _question_source_document(self, row: tuple[Any, ...]) -> dict[str, object] | None:
+        if len(row) < 17 or row[11] is None:
+            return None
+
+        raw_document_metadata = row[16]
+        document_metadata: dict[str, object]
+        if isinstance(raw_document_metadata, dict):
+            document_metadata = raw_document_metadata
+        elif isinstance(raw_document_metadata, str) and raw_document_metadata:
+            document_metadata = json.loads(raw_document_metadata)
+        else:
+            document_metadata = {}
+
+        structured_data = document_metadata.get("structured_data")
+        if not isinstance(structured_data, dict):
+            structured_data = {}
+
+        merchant = structured_data.get("merchant")
+        account_hint = structured_data.get("account_hint")
+
+        return {
+            "id": str(row[7]) if row[7] is not None else None,
+            "filename": str(row[11]),
+            "source_type": str(row[12]) if row[12] is not None else None,
+            "document_type": str(row[13]) if row[13] is not None else None,
+            "account_label": str(row[14]) if row[14] is not None else None,
+            "review_summary": str(row[15]) if row[15] is not None else None,
+            "merchant": str(merchant) if isinstance(merchant, str) and merchant else None,
+            "account_hint": str(account_hint) if isinstance(account_hint, str) and account_hint else None,
+        }
+
+    def _question_recommendation(
+        self,
+        *,
+        field_name: str | None,
+        metadata: dict[str, object],
+        source_document: dict[str, object] | None,
+    ) -> str | None:
+        recommendation = (
+            "Give Jenny the shortest clarification needed so she can classify the document and continue automatically."
+        )
+        explicit = metadata.get("recommendation")
+        if isinstance(explicit, str) and explicit.strip():
+            recommendation = explicit.strip()
+        elif field_name == "monthly_essential_target":
+            recommendation = (
+                "Answer 'yes' if this account is used for regular household bills, groceries, gas, or everyday spending."
+            )
+        elif field_name == "target_retirement_spend":
+            recommendation = (
+                "Answer 'yes' if this account should shape retirement readiness and future spending plans."
+            )
+        elif source_document is not None:
+            merchant = source_document.get("merchant")
+            account_label = source_document.get("account_label")
+            account_hint = source_document.get("account_hint")
+            filename = source_document.get("filename")
+
+            if isinstance(merchant, str) and merchant:
+                recommendation = (
+                    f"Confirm that this is a {merchant} purchase or order and say whether it belongs in your regular household budget."
+                )
+            elif isinstance(account_label, str) and account_label:
+                recommendation = (
+                    f"Confirm what '{account_label}' is used for and whether Jenny should treat it as part of your main household plan."
+                )
+            elif isinstance(account_hint, str) and account_hint:
+                recommendation = (
+                    f"Confirm whether '{account_hint}' is the right account or institution for this document."
+                )
+            elif isinstance(filename, str) and filename:
+                recommendation = (
+                    f"Identify the merchant, institution, or account behind '{filename}' so Jenny can classify it correctly."
+                )
+
+        return recommendation
+
+    def _store_confirmed_question_learning(
+        self,
+        question: HouseholdQuestion,
+        answer_text: str,
+    ) -> None:
+        field_label = FIELD_LABELS.get(question.field_name or "", question.question)
+        source_document = question.metadata.get("source_document")
+        filename = None
+        if isinstance(source_document, dict):
+            raw_filename = source_document.get("filename")
+            if isinstance(raw_filename, str) and raw_filename:
+                filename = raw_filename
+
+        context_parts = ["User confirmed a household finance question."]
+        if filename:
+            context_parts.append(f"Source document: {filename}.")
+        context_parts.append(f"Question: {question.question}")
+        context_parts.append(f"Answer: {answer_text}")
+
+        self.review_agent_service.save_learning(
+            content=" ".join(context_parts),
+            summary=f"Confirmed {field_label}"[:80],
+            confidence=95,
+            tags=[
+                *HOUSEHOLD_REVIEW_MEMORY_TAGS,
+                "confirmed-household-fact",
+            ],
+            context="household_question_confirmation",
+        )
+
+    def _store_document_learning(
+        self,
+        *,
+        document: HouseholdDocument,
+        reviewed: dict[str, Any],
+        review_confidence: float | None,
+    ) -> None:
+        confidence = review_confidence or 0.0
+        if confidence < 0.8:
+            return
+
+        structured_data = reviewed.get("structured_data")
+        if not isinstance(structured_data, dict):
+            return
+
+        merchant = structured_data.get("merchant")
+        account_hint = structured_data.get("account_hint")
+        statement_period = structured_data.get("statement_period")
+
+        if not any(isinstance(value, str) and value for value in [merchant, account_hint, statement_period]):
+            return
+
+        learnings = [
+            f"Document pattern for this household: '{document.filename}' classified as {reviewed.get('document_type')} from {reviewed.get('source_type')}."
+        ]
+        if isinstance(merchant, str) and merchant:
+            learnings.append(f"Merchant or provider: {merchant}.")
+        if isinstance(account_hint, str) and account_hint:
+            learnings.append(f"Account hint: {account_hint}.")
+        if isinstance(statement_period, str) and statement_period:
+            learnings.append(f"Statement period example: {statement_period}.")
+        if reviewed.get("summary"):
+            learnings.append(f"Summary: {reviewed['summary']}")
+
+        summary_subject = None
+        for candidate in [merchant, account_hint, document.filename]:
+            if isinstance(candidate, str) and candidate:
+                summary_subject = candidate
+                break
+
+        self.review_agent_service.save_learning(
+            content=" ".join(learnings),
+            summary=f"Pattern {summary_subject or document.id}"[:80],
+            confidence=max(75, int(confidence * 100)),
+            tags=[
+                *HOUSEHOLD_REVIEW_MEMORY_TAGS,
+                "document-pattern",
+            ],
+            context="household_document_review",
+        )
+
+    def _upsert_document_signatures(
+        self,
+        *,
+        document: HouseholdDocument,
+        reviewed: dict[str, Any],
+    ) -> None:
+        extracted_text = reviewed.get("extracted_text")
+        if not isinstance(extracted_text, str) or not extracted_text:
+            return
+
+        signature_candidates = self.review_service.build_signature_candidates(
+            filename=document.filename,
+            extracted_text=extracted_text,
+        )
+        if not signature_candidates:
+            return
+
+        structured_data = reviewed.get("structured_data")
+        if not isinstance(structured_data, dict):
+            structured_data = {}
+
+        now = datetime.now(UTC).isoformat()
+        with self.storage.connection() as conn:
+            for signature_type, signature_key, metadata in signature_candidates:
+                conn.execute(
+                    """
+                    INSERT INTO household_document_signatures (
+                        id, signature_key, signature_type, source_type, document_type,
+                        merchant, account_hint, confidence, sample_document_id,
+                        metadata, match_count, created_at, updated_at, last_seen_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, 1, %s, %s, %s)
+                    ON CONFLICT (signature_key) DO UPDATE SET
+                        source_type = EXCLUDED.source_type,
+                        document_type = EXCLUDED.document_type,
+                        merchant = COALESCE(EXCLUDED.merchant, household_document_signatures.merchant),
+                        account_hint = COALESCE(EXCLUDED.account_hint, household_document_signatures.account_hint),
+                        confidence = GREATEST(
+                            COALESCE(household_document_signatures.confidence, 0),
+                            COALESCE(EXCLUDED.confidence, 0)
+                        ),
+                        sample_document_id = EXCLUDED.sample_document_id,
+                        metadata = household_document_signatures.metadata || EXCLUDED.metadata,
+                        match_count = household_document_signatures.match_count + 1,
+                        updated_at = EXCLUDED.updated_at,
+                        last_seen_at = EXCLUDED.last_seen_at
+                    """,
+                    [
+                        str(uuid.uuid4()),
+                        signature_key,
+                        signature_type,
+                        str(reviewed.get("source_type") or document.source_type),
+                        str(reviewed.get("document_type") or document.document_type),
+                        structured_data.get("merchant"),
+                        structured_data.get("account_hint"),
+                        self._to_float(reviewed.get("confidence")),
+                        document.id,
+                        json.dumps(metadata),
+                        now,
+                        now,
+                        now,
+                    ],
+                )
+            conn.commit()
+
+    def _import_document_rows(
+        self,
+        *,
+        document: HouseholdDocument,
+        reviewed: dict[str, Any],
+    ) -> None:
+        dataset_type = self._detect_import_dataset(document=document, reviewed=reviewed)
+        if dataset_type is None:
+            return
+
+        stored_path = document.metadata.get("stored_path")
+        if not isinstance(stored_path, str) or not stored_path:
+            return
+
+        inserted = 0
+        duplicates = 0
+        now = datetime.now(UTC).isoformat()
+        with Path(stored_path).open("r", encoding="utf-8", errors="ignore", newline="") as handle:
+            reader = DictReader(handle)
+            with self.storage.connection() as conn:
+                for row in reader:
+                    row_hash = self._build_import_row_hash(dataset_type=dataset_type, row=row)
+                    if row_hash is None:
+                        continue
+                    row_date = self._parse_row_date(row.get("Order Date"))
+                    inserted_row = conn.execute(
+                        """
+                        INSERT INTO household_import_rows (
+                            id, document_id, dataset_type, row_hash, external_row_id,
+                            row_date, merchant, description, amount, currency, row_metadata,
+                            created_at, updated_at
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
+                        ON CONFLICT (row_hash) DO NOTHING
+                        RETURNING id
+                        """,
+                        [
+                            str(uuid.uuid4()),
+                            document.id,
+                            dataset_type,
+                            row_hash,
+                            row.get("Order ID"),
+                            row_date,
+                            "Amazon",
+                            row.get("ASIN"),
+                            None,
+                            row.get("Currency"),
+                            json.dumps(row),
+                            now,
+                            now,
+                        ],
+                    ).fetchone()
+                    if inserted_row is not None:
+                        inserted += 1
+                    else:
+                        duplicates += 1
+
+                conn.execute(
+                    """
+                    UPDATE household_documents
+                    SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
+                    WHERE id = %s
+                    """,
+                    [
+                        json.dumps(
+                            {
+                                "import_summary": {
+                                    "dataset_type": dataset_type,
+                                    "inserted_rows": inserted,
+                                    "duplicate_rows": duplicates,
+                                }
+                            }
+                        ),
+                        document.id,
+                    ],
+                )
+                conn.commit()
+
+    def _detect_import_dataset(
+        self,
+        *,
+        document: HouseholdDocument,
+        reviewed: dict[str, Any],
+    ) -> str | None:
+        if not document.filename.lower().endswith(".csv"):
+            return None
+        structured_data = reviewed.get("structured_data")
+        if not isinstance(structured_data, dict):
+            structured_data = {}
+        merchant = structured_data.get("merchant")
+        if document.filename.lower() == "order history.csv" and merchant == "Amazon":
+            return "amazon_order_history"
+        return None
+
+    def _build_import_row_hash(
+        self,
+        *,
+        dataset_type: str,
+        row: dict[str, str | None],
+    ) -> str | None:
+        if dataset_type == "amazon_order_history":
+            order_id = (row.get("Order ID") or "").strip()
+            asin = (row.get("ASIN") or "").strip()
+            order_date = (row.get("Order Date") or "").strip()
+            quantity = (row.get("Original Quantity") or "").strip()
+            if not order_id or not asin or not order_date:
+                return None
+            fingerprint = "|".join([dataset_type, order_id, asin, order_date, quantity])
+            return hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()
+        return None
+
+    def _parse_row_date(self, value: str | None) -> str | None:
+        if not value:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            return None
+        if normalized.endswith("Z"):
+            normalized = normalized.replace("Z", "+00:00")
+        try:
+            return datetime.fromisoformat(normalized).isoformat()
+        except ValueError:
+            return None
 
     def _row_to_document(self, row: tuple[Any, ...]) -> HouseholdDocument:
         raw_metadata = row[16]

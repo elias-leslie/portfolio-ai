@@ -138,6 +138,7 @@ describe('household api', () => {
         priority: 'high',
         question: 'What age do you want to retire?',
         rationale: null,
+        recommendation: 'Use age 60 unless you expect to work materially longer.',
         answer_text: '60',
         source_document_id: 'doc-1',
         metadata: {},

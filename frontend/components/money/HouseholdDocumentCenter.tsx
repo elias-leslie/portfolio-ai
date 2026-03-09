@@ -35,6 +35,18 @@ export function HouseholdDocumentCenter({
     return Array.from(incoming).filter((file) => file.size > 0)
   }
 
+  const pickDraggedFiles = (event: DragEvent<HTMLDivElement>): File[] => {
+    const fromFiles = pickFiles(event.dataTransfer.files)
+    if (fromFiles.length > 0) {
+      return fromFiles
+    }
+    const fromItems = Array.from(event.dataTransfer.items ?? [])
+      .filter((item) => item.kind === 'file')
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => file != null && file.size > 0)
+    return fromItems
+  }
+
   const stageIncomingFiles = (incoming: File[]) => {
     if (incoming.length === 0) {
       return
@@ -78,7 +90,7 @@ export function HouseholdDocumentCenter({
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault()
     setIsDragActive(false)
-    stageIncomingFiles(pickFiles(event.dataTransfer.files))
+    stageIncomingFiles(pickDraggedFiles(event))
   }
 
   const handleDropzoneKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -127,7 +139,7 @@ export function HouseholdDocumentCenter({
                   : 'border-border/60 bg-surface/70 text-text-muted',
               ].join(' ')}
             >
-              <p className="font-medium text-text">Paste or drop screenshots here</p>
+              <p className="font-medium text-text">Paste or drop screenshots or files here</p>
               <p className="mt-1">
                 Use <span className="font-medium text-text">Ctrl+V</span> after a screenshot, drag files in,
                 or use the picker below.

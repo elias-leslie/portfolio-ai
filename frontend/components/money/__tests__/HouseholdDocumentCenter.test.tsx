@@ -1,6 +1,6 @@
 'use client'
 
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { HouseholdDocumentCenter } from '../HouseholdDocumentCenter'
 
@@ -29,7 +29,7 @@ describe('HouseholdDocumentCenter', () => {
       type: 'image/png',
     })
     const pasteTarget = screen.getByRole('button', {
-      name: /paste or drop screenshots here/i,
+      name: /paste or drop screenshots or files here/i,
     })
 
     fireEvent.paste(pasteTarget, {
@@ -43,11 +43,13 @@ describe('HouseholdDocumentCenter', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /stage document/i }))
 
-    expect(mutateAsync).toHaveBeenCalledWith(
-      expect.objectContaining({
-        file: screenshot,
-      }),
-    )
+    await waitFor(() => {
+      expect(mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          file: screenshot,
+        }),
+      )
+    })
   })
 
   it('stages multiple selected files and uploads them together', async () => {
@@ -69,14 +71,16 @@ describe('HouseholdDocumentCenter', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /stage documents/i }))
 
-    expect(mutateAsync).toHaveBeenCalledTimes(2)
-    expect(mutateAsync).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({ file: january }),
-    )
-    expect(mutateAsync).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({ file: february }),
-    )
+    await waitFor(() => {
+      expect(mutateAsync).toHaveBeenCalledTimes(2)
+      expect(mutateAsync).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ file: january }),
+      )
+      expect(mutateAsync).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ file: february }),
+      )
+    })
   })
 })

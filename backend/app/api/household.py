@@ -78,5 +78,6 @@ async def upload_household_document(
         document_type=document_type,
         account_label=account_label,
     )
-    background_tasks.add_task(service.review_document, document.id)
+    if document.metadata.get("duplicate_detected") is not True:
+        background_tasks.add_task(service.review_document, document.id)
     return document

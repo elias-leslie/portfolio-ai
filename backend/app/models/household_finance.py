@@ -141,6 +141,7 @@ class HouseholdQuestion(BaseModel):
     priority: str
     question: str
     rationale: str | None = None
+    recommendation: str | None = None
     answer_text: str | None = None
     source_document_id: str | None = None
     metadata: dict[str, object] = Field(default_factory=dict)
