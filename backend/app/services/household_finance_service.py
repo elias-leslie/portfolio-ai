@@ -276,6 +276,7 @@ class HouseholdFinanceService:
         return self.get_profile()
 
     def list_questions(self, limit: int = 20) -> HouseholdQuestionList:
+        self._reconcile_open_questions()
         with self.storage.connection() as conn:
             rows = conn.execute(
                 """
@@ -298,6 +299,88 @@ class HouseholdFinanceService:
                 [limit],
             ).fetchall()
         return HouseholdQuestionList(items=[self._row_to_question(row) for row in rows])
+
+    def _reconcile_open_questions(self) -> None:
+        with self.storage.connection() as conn:
+            answered_rows = conn.execute(
+                """
+                SELECT
+                    q.id, q.field_name, q.status, q.priority, q.question, q.rationale,
+                    q.answer_text, q.source_document_id, q.metadata, q.created_at, q.answered_at,
+                    d.filename, d.source_type, d.document_type, d.account_label, d.review_summary, d.metadata
+                FROM household_questions q
+                LEFT JOIN household_documents d ON d.id = q.source_document_id
+                WHERE q.status = 'answered'
+                ORDER BY q.answered_at DESC NULLS LAST, q.created_at DESC
+                """
+            ).fetchall()
+            open_rows = conn.execute(
+                """
+                SELECT
+                    q.id, q.field_name, q.status, q.priority, q.question, q.rationale,
+                    q.answer_text, q.source_document_id, q.metadata, q.created_at, q.answered_at,
+                    d.filename, d.source_type, d.document_type, d.account_label, d.review_summary, d.metadata
+                FROM household_questions q
+                LEFT JOIN household_documents d ON d.id = q.source_document_id
+                WHERE q.status = 'open'
+                ORDER BY q.created_at ASC
+                """
+            ).fetchall()
+
+            answered_questions = [self._row_to_question(row) for row in answered_rows]
+            open_questions = [self._row_to_question(row) for row in open_rows]
+            updated = False
+
+            for answered_question in answered_questions:
+                answer_text = (answered_question.answer_text or "").strip()
+                if not answer_text:
+                    continue
+                answered_family = self._question_family(
+                    answered_question.question,
+                    answered_question.field_name,
+                )
+                answered_at = answered_question.answered_at or datetime.now(UTC).isoformat()
+
+                for candidate_question in open_questions:
+                    if candidate_question.status != "open":
+                        continue
+                    if not self._question_is_answered_by_context(
+                        answered_question=answered_question,
+                        candidate_question=candidate_question,
+                        answer_text=answer_text,
+                        answered_family=answered_family,
+                    ):
+                        continue
+
+                    conn.execute(
+                        """
+                        UPDATE household_questions
+                        SET status = 'answered',
+                            answer_text = %s,
+                            answered_at = %s,
+                            metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
+                        WHERE id = %s
+                          AND status = 'open'
+                        """,
+                        [
+                            answer_text,
+                            answered_at,
+                            json.dumps(
+                                {
+                                    "reconciled_from_question_id": answered_question.id,
+                                    "reconciliation_reason": "answered_by_existing_context",
+                                }
+                            ),
+                            candidate_question.id,
+                        ],
+                    )
+                    candidate_question.status = "answered"
+                    candidate_question.answer_text = answer_text
+                    candidate_question.answered_at = answered_at
+                    updated = True
+
+            if updated:
+                conn.commit()
 
     def answer_question(self, question_id: str, payload: HouseholdQuestionAnswer) -> HouseholdQuestion | None:
         question = self._get_question_row(question_id)
@@ -1335,6 +1418,10 @@ class HouseholdFinanceService:
         )
         normalized_answer = answer_text.strip().lower()
         is_covered = False
+        is_same_question = (
+            candidate_question.question == answered_question.question
+            and candidate_question.field_name == answered_question.field_name
+        )
         family_tokens = {
             "core_spending": [
                 "yes",
@@ -1363,7 +1450,7 @@ class HouseholdFinanceService:
             and candidate_family == answered_family
             and len(normalized_answer) >= 3
         ):
-            if answered_family == "retirement_target":
+            if (is_same_question and len(normalized_answer) >= 8) or answered_family == "retirement_target":
                 is_covered = True
             elif answered_family == "document_role":
                 is_covered = len(normalized_answer) >= 8

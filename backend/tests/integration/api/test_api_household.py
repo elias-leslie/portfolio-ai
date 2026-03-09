@@ -413,6 +413,79 @@ def test_household_answer_reconciles_related_open_questions_with_different_wordi
     assert refreshed_questions == []
 
 
+def test_household_list_questions_reconciles_stale_open_duplicates(
+    client: TestClient,
+    tmp_path: Path,
+    test_storage,
+) -> None:
+    review_payload = {
+        "summary": "Checking statement covering recurring deposits and baseline spending.",
+        "document_type": "statement",
+        "source_type": "bank",
+        "confidence": 0.89,
+        "structured_data": {"account_hint": "Wells Fargo Everyday Checking"},
+        "inferred_values": [],
+        "questions": [
+            {
+                "field_name": "monthly_essential_target",
+                "question": "Is Wells Fargo Everyday Checking your primary account for monthly bills, deposits, and budget tracking?",
+                "priority": "high",
+                "recommendation": "Answer 'yes' if most paycheck deposits, bill payments, and core household cash flow pass through this account.",
+                "rationale": "Primary checking accounts anchor the household cash-flow model.",
+            }
+        ],
+    }
+
+    with (
+        patch(
+            "app.services.household_finance_service.HouseholdFinanceService._upload_root",
+            return_value=tmp_path,
+        ),
+        patch(
+            "app.services.household_document_review.HouseholdDocumentReviewService.review",
+            return_value=review_payload,
+        ),
+    ):
+        first = client.post(
+            "/api/household/documents",
+            files={"file": ("022726 WellsFargo.pdf", b"bank bytes 1", "application/pdf")},
+        )
+        second = client.post(
+            "/api/household/documents",
+            files={"file": ("012726 WellsFargo.pdf", b"bank bytes 2", "application/pdf")},
+        )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+
+    questions = client.get("/api/household/questions").json()["items"]
+    assert len(questions) == 2
+
+    answer_response = client.post(
+        f"/api/household/questions/{questions[0]['id']}/answer",
+        json={"answer_text": "yes"},
+    )
+    assert answer_response.status_code == 200
+
+    sibling_id = questions[1]["id"]
+    with test_storage.connection() as conn:
+        conn.execute(
+            """
+            UPDATE household_questions
+            SET status = 'open',
+                answer_text = NULL,
+                answered_at = NULL,
+                metadata = '{}'::jsonb
+            WHERE id = %s
+            """,
+            [sibling_id],
+        )
+        conn.commit()
+
+    refreshed_questions = client.get("/api/household/questions").json()["items"]
+    assert refreshed_questions == []
+
+
 def test_household_document_duplicate_upload_returns_existing_document(
     client: TestClient,
     tmp_path: Path,
