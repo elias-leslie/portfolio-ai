@@ -26,6 +26,133 @@ from app.storage import get_storage
 logger = get_logger(__name__)
 
 
+# ---------------------------------------------------------------------------
+# Pure module-level helpers (no instance state)
+# ---------------------------------------------------------------------------
+
+
+def _merchant_root(merchant: str) -> str:
+    normalized = merchant.strip().lower()
+    normalized = re.sub(r"\([^)]*\)", "", normalized)
+    normalized = re.sub(r"[^a-z0-9]+", " ", normalized)
+    return re.sub(r"\s+", " ", normalized).strip()
+
+
+def _merchant_aliases(raw_merchant: str) -> set[str]:
+    root = _merchant_root(raw_merchant)
+    aliases: set[str] = {root, root.replace(" ", "")} if root else set()
+    collapsed = root.replace(" ", "") if root else ""
+    if "walmart" in collapsed or "wmsupercenter" in collapsed:
+        aliases.update({"walmart", "wal mart", "walmart supercenter", "wm supercenter", "wmsupercenter"})
+    if "amazon" in collapsed or "amzn" in collapsed:
+        aliases.update({"amazon", "amzn", "amazon mktpl", "amazoncom", "amazon com"})
+    if "wholefoods" in collapsed:
+        aliases.update({"whole foods", "wholefoods"})
+    return {alias for alias in aliases if alias}
+
+
+def _canonical_merchant_name(raw_merchant: str) -> str:
+    root = _merchant_root(raw_merchant)
+    if not root:
+        return raw_merchant.strip() or "Unknown merchant"
+    collapsed = root.replace(" ", "")
+    if "walmart" in collapsed or "wmsupercenter" in collapsed:
+        store_match = re.search(r"#\s?(\d{4})", raw_merchant)
+        location_match = re.search(r"(LARGO|CLEARWATER|BELLEAIR BLUF|BELLEAIR BLF)\s+FL", raw_merchant, flags=re.IGNORECASE)
+        store_suffix = f" (Store #{store_match.group(1)})" if store_match else ""
+        location_suffix = f", {location_match.group(1).title()}, FL" if location_match else ""
+        return f"Walmart{store_suffix}{location_suffix}"
+    if "amazon" in collapsed or "amzn" in collapsed:
+        return "Amazon"
+    if "wholefoods" in collapsed:
+        return "Whole Foods"
+    return re.sub(r"\s+", " ", raw_merchant).strip()
+
+
+def _classify_statement_flow(description: str) -> str:
+    normalized = description.lower()
+    if "payment thank you" in normalized or normalized.startswith("payment"):
+        return "payment"
+    if "refund" in normalized or "return" in normalized:
+        return "refund"
+    return "expense"
+
+
+def _classify_wells_flow(description: str) -> str:
+    normalized = description.lower()
+    if "payroll" in normalized or "deposit" in normalized:
+        return "income"
+    if "transfer from" in normalized:
+        return "transfer_in"
+    if "transfer to" in normalized or "zelle to" in normalized:
+        return "transfer_out"
+    return "expense"
+
+
+def _classify_merchant(*, raw_merchant: str, description: str) -> tuple[str, str]:
+    normalized = _merchant_root(f"{raw_merchant} {description}")
+    rules = [
+        (["walmart", "wal mart", "wm supercenter", "publix", "whole foods", "food patch"], ("Groceries", "essential")),
+        (["dukeenergy", "utilities", "mortgage", "insurance"], ("Bills", "essential")),
+        (["shell", "speedway", "gas"], ("Gas", "essential")),
+        (["spotify", "cloudflare", "prime", "netflix"], ("Subscriptions", "discretionary")),
+        (["target", "tjmaxx", "american eagle", "sephora", "amazon"], ("Retail", "discretionary")),
+        (["chipotle", "bonefish", "cantina"], ("Dining", "discretionary")),
+        (["payroll"], ("Income", "essential")),
+        (["transfer", "payment thank you", "payment"], ("Transfers", "mixed")),
+    ]
+    for keywords, classification in rules:
+        if any(keyword in normalized for keyword in keywords):
+            return classification
+    return ("Household", "mixed")
+
+
+def _parse_date_value(raw_value: str) -> date | None:
+    value = raw_value.strip()
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y", "%B %d, %Y"):
+        try:
+            return datetime.strptime(value, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _extract_statement_date(extracted_text: str) -> date | None:
+    match = re.search(r"Statement Date:\s*(\d{2}/\d{2}/\d{2,4})", extracted_text, flags=re.IGNORECASE)
+    if match:
+        return _parse_date_value(match.group(1))
+    match = re.search(r"([A-Z][a-z]+ \d{1,2}, \d{4})", extracted_text)
+    if match:
+        return _parse_date_value(match.group(1))
+    return None
+
+
+def _statement_transaction_date(*, raw_date: str, statement_date: date) -> date | None:
+    month_text, day_text = raw_date.split("/", maxsplit=1)
+    month = int(month_text)
+    day = int(day_text)
+    year = statement_date.year - 1 if month > statement_date.month else statement_date.year
+    try:
+        return date(year, month, day)
+    except ValueError:
+        return None
+
+
+def _parse_decimal(raw_value: str) -> Decimal | None:
+    cleaned = raw_value.strip().replace(",", "").replace("$", "")
+    if not cleaned:
+        return None
+    try:
+        return Decimal(cleaned)
+    except InvalidOperation:
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Data model
+# ---------------------------------------------------------------------------
+
+
 @dataclass(slots=True)
 class ExtractedTransaction:
     transaction_date: date
@@ -40,6 +167,11 @@ class ExtractedTransaction:
     currency: str = "USD"
     account_label: str | None = None
     metadata: dict[str, object] | None = None
+
+
+# ---------------------------------------------------------------------------
+# Service class (10 methods)
+# ---------------------------------------------------------------------------
 
 
 class HouseholdTransactionService:
@@ -86,11 +218,16 @@ class HouseholdTransactionService:
                     category=transaction.category,
                     essentiality=transaction.essentiality,
                 )
-                row_hash = self._transaction_row_hash(
-                    document_id=document.id,
-                    transaction=transaction,
-                    canonical_name=canonical_name,
-                )
+                row_hash = hashlib.sha256(
+                    "|".join([
+                        document.id,
+                        transaction.transaction_date.isoformat(),
+                        canonical_name.lower(),
+                        transaction.description.lower(),
+                        f"{transaction.amount:.4f}",
+                        transaction.flow_type,
+                    ]).encode("utf-8")
+                ).hexdigest()
                 metadata = {
                     "filename": document.filename,
                     "canonical_name": canonical_name,
@@ -161,14 +298,7 @@ class HouseholdTransactionService:
                 WHERE id = %s
                 """,
                 [
-                    json.dumps(
-                        {
-                            "transaction_import_summary": {
-                                "inserted": inserted,
-                                "updated": updated,
-                            }
-                        }
-                    ),
+                    json.dumps({"transaction_import_summary": {"inserted": inserted, "updated": updated}}),
                     document.id,
                 ],
             )
@@ -216,7 +346,10 @@ class HouseholdTransactionService:
             transaction_date = row[0]
             if not isinstance(transaction_date, datetime):
                 continue
-            amount = self._to_float(row[3])
+            try:
+                amount: float | None = float(row[3]) if row[3] is not None else None
+            except (TypeError, ValueError):
+                amount = None
             if amount is None:
                 continue
             report_rows.append(
@@ -236,7 +369,10 @@ class HouseholdTransactionService:
             row_date = row[0]
             if not isinstance(row_date, datetime):
                 continue
-            amount = self._to_float(row[3])
+            try:
+                amount = float(row[3]) if row[3] is not None else None
+            except (TypeError, ValueError):
+                amount = None
             if amount is None:
                 continue
             report_rows.append(
@@ -281,15 +417,9 @@ class HouseholdTransactionService:
             monthly_counts[month_key] = monthly_counts.get(month_key, 0) + 1
             category_key = (row["category"], row["essentiality"])
             category_totals[category_key] = category_totals.get(category_key, 0.0) + row["amount"]
-
             merchant_state = merchant_totals.setdefault(
                 row["merchant"],
-                {
-                    "amount": 0.0,
-                    "count": 0,
-                    "category": row["category"],
-                    "dates": [],
-                },
+                {"amount": 0.0, "count": 0, "category": row["category"], "dates": []},
             )
             merchant_state["amount"] += row["amount"]
             merchant_state["count"] += 1
@@ -298,21 +428,18 @@ class HouseholdTransactionService:
         coverage_months = max(len(monthly_totals), 1)
         total_spend = sum(monthly_totals.values())
         essential_spend = sum(
-            amount
-            for (category, essentiality), amount in category_totals.items()
-            if essentiality == "essential"
+            amount for (_, essentiality), amount in category_totals.items() if essentiality == "essential"
         )
         discretionary_spend = sum(
-            amount
-            for (category, essentiality), amount in category_totals.items()
-            if essentiality == "discretionary"
+            amount for (_, essentiality), amount in category_totals.items() if essentiality == "discretionary"
         )
         recent_30_day_spend = sum(
             row["amount"] for row in expense_only if row["date"].toordinal() >= recent_cutoff
         )
-
         recurring_merchant_count = sum(
-            1 for state in merchant_totals.values() if self._cadence_label(state["dates"]) != "one-off"
+            1
+            for state in merchant_totals.values()
+            if (self._dates_to_cadence(state["dates"]) or {}).get("label", "one-off") != "one-off"
         )
 
         executive = HouseholdExecutiveReport(
@@ -339,31 +466,28 @@ class HouseholdTransactionService:
                 essentiality=essentiality,
             )
             for (category, essentiality), amount in sorted(
-                category_totals.items(),
-                key=lambda item: item[1],
-                reverse=True,
+                category_totals.items(), key=lambda item: item[1], reverse=True
             )[:6]
         ]
 
-        merchant_highlights = [
-            HouseholdMerchantInsight(
-                canonical_name=merchant,
-                amount=round(state["amount"], 2),
-                transaction_count=state["count"],
-                cadence=self._cadence_label(state["dates"]),
-                category=str(state["category"]),
-                recommendation=self._merchant_recommendation(
-                    merchant=merchant,
+        merchant_highlights = []
+        for merchant, state in sorted(merchant_totals.items(), key=lambda item: item[1]["amount"], reverse=True)[:6]:
+            cad = self._dates_to_cadence(state["dates"])
+            cadence = str(cad["label"]) if cad else "one-off"
+            merchant_highlights.append(
+                HouseholdMerchantInsight(
+                    canonical_name=merchant,
+                    amount=round(state["amount"], 2),
+                    transaction_count=state["count"],
+                    cadence=cadence,
                     category=str(state["category"]),
-                    cadence=self._cadence_label(state["dates"]),
-                ),
+                    recommendation=self._merchant_recommendation(
+                        merchant=merchant,
+                        category=str(state["category"]),
+                        cadence=cadence,
+                    ),
+                )
             )
-            for merchant, state in sorted(
-                merchant_totals.items(),
-                key=lambda item: item[1]["amount"],
-                reverse=True,
-            )[:6]
-        ]
 
         monthly_spend_trend = [
             HouseholdMonthlyTrendPoint(
@@ -407,7 +531,7 @@ class HouseholdTransactionService:
                   AND t.flow_type = 'expense'
                 ORDER BY transaction_date ASC
                 """,
-                [f"%{self._merchant_root(merchant)}%"],
+                [f"%{_merchant_root(merchant)}%"],
             ).fetchall()
             for row in rows:
                 if isinstance(row[0], datetime):
@@ -424,27 +548,18 @@ class HouseholdTransactionService:
             for raw_merchant, raw_period in document_rows:
                 if not isinstance(raw_merchant, str) or not isinstance(raw_period, str):
                     continue
-                if not self._merchant_matches(raw_merchant, merchant):
+                observed_aliases = _merchant_aliases(raw_merchant)
+                target_aliases = _merchant_aliases(merchant)
+                if not (observed_aliases & target_aliases) and _merchant_root(raw_merchant) != _merchant_root(merchant):
                     continue
-                parsed_period = self._parse_date_value(raw_period)
+                parsed_period = _parse_date_value(raw_period)
                 if parsed_period is not None:
                     row_dates.append(parsed_period)
 
         row_dates = sorted(set(row_dates))
         if len(row_dates) < 3:
             return None
-
-        cadence = self._dates_to_cadence(row_dates)
-        if cadence is None:
-            return None
-        return cadence
-
-    def _merchant_matches(self, observed_merchant: str, target_merchant: str) -> bool:
-        observed_aliases = self._merchant_aliases(observed_merchant)
-        target_aliases = self._merchant_aliases(target_merchant)
-        if observed_aliases & target_aliases:
-            return True
-        return self._merchant_root(observed_merchant) == self._merchant_root(target_merchant)
+        return self._dates_to_cadence(row_dates)
 
     def _extract_transactions(
         self,
@@ -471,10 +586,14 @@ class HouseholdTransactionService:
             and isinstance(structured_data.get("merchant"), str)
             and isinstance(structured_data.get("total_amount"), str)
         ):
-            parsed_date = self._parse_receipt_date(structured_data, extracted_text)
-            parsed_amount = self._parse_decimal(str(structured_data.get("total_amount")))
+            candidate = structured_data.get("statement_period")
+            parsed_date = _parse_date_value(str(candidate)) if isinstance(candidate, str) else None
+            if parsed_date is None:
+                dm = re.search(r"\b(\d{1,2}/\d{1,2}/\d{2,4})\b", extracted_text)
+                parsed_date = _parse_date_value(dm.group(1)) if dm else None
+            parsed_amount = _parse_decimal(str(structured_data.get("total_amount")))
             if parsed_date is not None and parsed_amount is not None:
-                category, essentiality = self._classify_merchant(
+                category, essentiality = _classify_merchant(
                     raw_merchant=str(structured_data["merchant"]),
                     description=review_summary or filename,
                 )
@@ -500,7 +619,7 @@ class HouseholdTransactionService:
         extracted_text: str,
         account_label: str | None,
     ) -> list[ExtractedTransaction]:
-        statement_date = self._extract_statement_date(extracted_text)
+        statement_date = _extract_statement_date(extracted_text)
         if statement_date is None:
             return []
 
@@ -525,7 +644,7 @@ class HouseholdTransactionService:
             if not match:
                 continue
 
-            transaction_date = self._statement_transaction_date(
+            transaction_date = _statement_transaction_date(
                 raw_date=match.group("date"),
                 statement_date=statement_date,
             )
@@ -533,16 +652,13 @@ class HouseholdTransactionService:
                 continue
 
             description = match.group("desc").strip()
-            amount = self._parse_decimal(match.group("amount"))
+            amount = _parse_decimal(match.group("amount"))
             if amount is None:
                 continue
-            flow_type = self._classify_statement_flow(description)
+            flow_type = _classify_statement_flow(description)
             if flow_type != "expense":
                 amount = abs(amount)
-            category, essentiality = self._classify_merchant(
-                raw_merchant=description,
-                description=description,
-            )
+            category, essentiality = _classify_merchant(raw_merchant=description, description=description)
             rows.append(
                 ExtractedTransaction(
                     transaction_date=transaction_date,
@@ -567,6 +683,7 @@ class HouseholdTransactionService:
         if "Transaction history" not in extracted_text:
             return []
 
+        statement_date = _extract_statement_date(extracted_text)
         section = extracted_text.split("Transaction history", maxsplit=1)[1]
         lines = [line.strip() for line in section.splitlines() if line.strip()]
         rows: list[ExtractedTransaction] = []
@@ -579,40 +696,44 @@ class HouseholdTransactionService:
 
             date_match = re.match(r"^(?P<month>\d{1,2})/(?P<day>\d{1,2})\s+(?P<rest>.+)$", line)
             if date_match:
-                parsed_date = self._parse_wells_statement_date(
-                    extracted_text=extracted_text,
-                    month=int(date_match.group("month")),
-                    day=int(date_match.group("day")),
-                )
+                month = int(date_match.group("month"))
+                day = int(date_match.group("day"))
                 rest = date_match.group("rest").strip()
                 amounts = re.findall(r"\d[\d,]*\.\d{2}", rest)
-                if parsed_date is not None and amounts:
-                    amount = self._parse_decimal(amounts[-2] if len(amounts) >= 2 else amounts[0])
-                    if amount is not None:
-                        description = re.sub(r"\d[\d,]*\.\d{2}", "", rest).strip()
-                        flow_type = self._classify_wells_flow(description)
-                        category, essentiality = self._classify_merchant(
-                            raw_merchant=description,
+                parsed_date = (
+                    _statement_transaction_date(
+                        raw_date=f"{month:02d}/{day:02d}",
+                        statement_date=statement_date,
+                    )
+                    if statement_date is not None
+                    else None
+                )
+                amount = (
+                    _parse_decimal(amounts[-2] if len(amounts) >= 2 else amounts[0])
+                    if parsed_date is not None and amounts
+                    else None
+                )
+                if amount is not None and parsed_date is not None:
+                    description = re.sub(r"\d[\d,]*\.\d{2}", "", rest).strip()
+                    flow_type = _classify_wells_flow(description)
+                    category, essentiality = _classify_merchant(raw_merchant=description, description=description)
+                    rows.append(
+                        ExtractedTransaction(
+                            transaction_date=parsed_date,
                             description=description,
+                            raw_merchant=description,
+                            amount=amount,
+                            flow_type=flow_type,
+                            category=category,
+                            essentiality=essentiality,
+                            confidence=0.82,
+                            account_label=account_label,
+                            metadata={"source": "bank_statement"},
                         )
-                        rows.append(
-                            ExtractedTransaction(
-                                transaction_date=parsed_date,
-                                description=description,
-                                raw_merchant=description,
-                                amount=amount,
-                                flow_type=flow_type,
-                                category=category,
-                                essentiality=essentiality,
-                                confidence=0.82,
-                                account_label=account_label,
-                                metadata={"source": "bank_statement"},
-                            )
-                        )
-                        current_date = None
-                        description_parts = []
-                        continue
-
+                    )
+                    current_date = None
+                    description_parts = []
+                    continue
                 current_date = parsed_date
                 description_parts = [rest]
                 continue
@@ -622,15 +743,12 @@ class HouseholdTransactionService:
 
             amounts = re.findall(r"\d[\d,]*\.\d{2}", line)
             if amounts:
-                amount = self._parse_decimal(amounts[0])
+                amount = _parse_decimal(amounts[0])
                 if amount is None:
                     continue
                 description = " ".join(description_parts).strip()
-                flow_type = self._classify_wells_flow(description)
-                category, essentiality = self._classify_merchant(
-                    raw_merchant=description,
-                    description=description,
-                )
+                flow_type = _classify_wells_flow(description)
+                category, essentiality = _classify_merchant(raw_merchant=description, description=description)
                 rows.append(
                     ExtractedTransaction(
                         transaction_date=current_date,
@@ -660,8 +778,8 @@ class HouseholdTransactionService:
         category: str,
         essentiality: str,
     ) -> tuple[str | None, str, str, str]:
-        alias_keys = sorted(self._merchant_aliases(raw_merchant))
-        normalized_key = alias_keys[0] if alias_keys else self._merchant_root(raw_merchant)
+        alias_keys = sorted(_merchant_aliases(raw_merchant))
+        normalized_key = alias_keys[0] if alias_keys else _merchant_root(raw_merchant)
         if not normalized_key:
             normalized_key = "unknown"
         existing = conn.execute(
@@ -674,7 +792,7 @@ class HouseholdTransactionService:
             """,
             [alias_keys or [normalized_key]],
         ).fetchone()
-        canonical_name = self._canonical_merchant_name(raw_merchant)
+        canonical_name = _canonical_merchant_name(raw_merchant)
         if existing is not None:
             merchant_id = str(existing[0])
             canonical_name = str(existing[1])
@@ -724,176 +842,6 @@ class HouseholdTransactionService:
             ],
         )
         return merchant_id, canonical_name, category, essentiality
-
-    def _transaction_row_hash(
-        self,
-        *,
-        document_id: str,
-        transaction: ExtractedTransaction,
-        canonical_name: str,
-    ) -> str:
-        payload = "|".join(
-            [
-                document_id,
-                transaction.transaction_date.isoformat(),
-                canonical_name.lower(),
-                transaction.description.lower(),
-                f"{transaction.amount:.4f}",
-                transaction.flow_type,
-            ]
-        )
-        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
-
-    def _merchant_aliases(self, raw_merchant: str) -> set[str]:
-        root = self._merchant_root(raw_merchant)
-        aliases = {root, root.replace(" ", "")} if root else set()
-        collapsed = root.replace(" ", "") if root else ""
-        if "walmart" in collapsed or "wmsupercenter" in collapsed:
-            aliases.update(
-                {
-                    "walmart",
-                    "wal mart",
-                    "walmart supercenter",
-                    "wm supercenter",
-                    "wmsupercenter",
-                }
-            )
-        if "amazon" in collapsed or "amzn" in collapsed:
-            aliases.update({"amazon", "amzn", "amazon mktpl", "amazoncom", "amazon com"})
-        if "wholefoods" in collapsed:
-            aliases.update({"whole foods", "wholefoods"})
-        return {alias for alias in aliases if alias}
-
-    def _canonical_merchant_name(self, raw_merchant: str) -> str:
-        root = self._merchant_root(raw_merchant)
-        if not root:
-            return raw_merchant.strip() or "Unknown merchant"
-        collapsed = root.replace(" ", "")
-        if "walmart" in collapsed or "wmsupercenter" in collapsed:
-            store_match = re.search(r"#\s?(\d{4})", raw_merchant)
-            location_match = re.search(r"(LARGO|CLEARWATER|BELLEAIR BLUF|BELLEAIR BLF)\s+FL", raw_merchant, flags=re.IGNORECASE)
-            store_suffix = f" (Store #{store_match.group(1)})" if store_match else ""
-            location_suffix = f", {location_match.group(1).title()}, FL" if location_match else ""
-            return f"Walmart{store_suffix}{location_suffix}"
-        if "amazon" in collapsed or "amzn" in collapsed:
-            return "Amazon"
-        if "wholefoods" in collapsed:
-            return "Whole Foods"
-        return re.sub(r"\s+", " ", raw_merchant).strip()
-
-    def _merchant_root(self, merchant: str) -> str:
-        normalized = merchant.strip().lower()
-        normalized = re.sub(r"\([^)]*\)", "", normalized)
-        normalized = re.sub(r"[^a-z0-9]+", " ", normalized)
-        normalized = re.sub(r"\s+", " ", normalized).strip()
-        return normalized
-
-    def _classify_statement_flow(self, description: str) -> str:
-        normalized = description.lower()
-        if "payment thank you" in normalized or normalized.startswith("payment"):
-            return "payment"
-        if "refund" in normalized or "return" in normalized:
-            return "refund"
-        return "expense"
-
-    def _classify_wells_flow(self, description: str) -> str:
-        normalized = description.lower()
-        if "payroll" in normalized or "deposit" in normalized:
-            return "income"
-        if "transfer from" in normalized:
-            return "transfer_in"
-        if "transfer to" in normalized or "zelle to" in normalized:
-            return "transfer_out"
-        return "expense"
-
-    def _classify_merchant(self, *, raw_merchant: str, description: str) -> tuple[str, str]:
-        normalized = self._merchant_root(f"{raw_merchant} {description}")
-        rules = [
-            (["walmart", "wal mart", "wm supercenter", "publix", "whole foods", "food patch"], ("Groceries", "essential")),
-            (["dukeenergy", "utilities", "mortgage", "insurance"], ("Bills", "essential")),
-            (["shell", "speedway", "gas"], ("Gas", "essential")),
-            (["spotify", "cloudflare", "prime", "netflix"], ("Subscriptions", "discretionary")),
-            (["target", "tjmaxx", "american eagle", "sephora", "amazon"], ("Retail", "discretionary")),
-            (["chipotle", "bonefish", "cantina"], ("Dining", "discretionary")),
-            (["payroll"], ("Income", "essential")),
-            (["transfer", "payment thank you", "payment"], ("Transfers", "mixed")),
-        ]
-        for keywords, classification in rules:
-            if any(keyword in normalized for keyword in keywords):
-                return classification
-        return ("Household", "mixed")
-
-    def _parse_receipt_date(self, structured_data: dict[str, Any], extracted_text: str) -> date | None:
-        candidate = structured_data.get("statement_period")
-        if isinstance(candidate, str):
-            parsed = self._parse_date_value(candidate)
-            if parsed is not None:
-                return parsed
-        match = re.search(r"\b(\d{1,2}/\d{1,2}/\d{2,4})\b", extracted_text)
-        if match:
-            return self._parse_date_value(match.group(1))
-        return None
-
-    def _extract_statement_date(self, extracted_text: str) -> date | None:
-        match = re.search(r"Statement Date:\s*(\d{2}/\d{2}/\d{2,4})", extracted_text, flags=re.IGNORECASE)
-        if match:
-            return self._parse_date_value(match.group(1))
-        match = re.search(r"([A-Z][a-z]+ \d{1,2}, \d{4})", extracted_text)
-        if match:
-            return self._parse_date_value(match.group(1))
-        return None
-
-    def _statement_transaction_date(self, *, raw_date: str, statement_date: date) -> date | None:
-        month_text, day_text = raw_date.split("/", maxsplit=1)
-        month = int(month_text)
-        day = int(day_text)
-        year = statement_date.year - 1 if month > statement_date.month else statement_date.year
-        try:
-            return date(year, month, day)
-        except ValueError:
-            return None
-
-    def _parse_wells_statement_date(self, *, extracted_text: str, month: int, day: int) -> date | None:
-        statement_date = self._extract_statement_date(extracted_text)
-        if statement_date is None:
-            return None
-        year = statement_date.year - 1 if month > statement_date.month else statement_date.year
-        try:
-            return date(year, month, day)
-        except ValueError:
-            return None
-
-    def _parse_date_value(self, raw_value: str) -> date | None:
-        value = raw_value.strip()
-        for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y", "%B %d, %Y"):
-            try:
-                return datetime.strptime(value, fmt).date()
-            except ValueError:
-                continue
-        return None
-
-    def _parse_decimal(self, raw_value: str) -> Decimal | None:
-        cleaned = raw_value.strip().replace(",", "").replace("$", "")
-        if not cleaned:
-            return None
-        try:
-            return Decimal(cleaned)
-        except InvalidOperation:
-            return None
-
-    def _to_float(self, value: Any) -> float | None:
-        if value is None:
-            return None
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return None
-
-    def _cadence_label(self, observed_dates: list[date]) -> str:
-        cadence = self._dates_to_cadence(observed_dates)
-        if cadence is None:
-            return "one-off"
-        return str(cadence["label"])
 
     def _dates_to_cadence(self, observed_dates: list[date]) -> dict[str, object] | None:
         ordered_dates = sorted(set(observed_dates))
