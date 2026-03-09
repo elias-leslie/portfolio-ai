@@ -69,3 +69,27 @@ def test_save_learning_tags_project_scoped_household_memory(
         json={"tags": ["financial-doc-review", "household-finance"]},
         headers={"X-Tool-Name": "test"},
     )
+
+
+@patch("app.services.household_review_agent_service.AGENT_HUB_ENABLED", True)
+@patch("app.services.household_review_agent_service.SDKClient")
+def test_save_learning_truncates_summary_for_agent_hub(
+    mock_sdk_class: MagicMock,
+) -> None:
+    mock_sdk = MagicMock()
+    mock_sdk.save_learning.return_value = {"uuid": "memory-1"}
+    mock_sdk_class.return_value = mock_sdk
+
+    service = HouseholdReviewAgentService()
+    service._set_memory_tags = MagicMock()  # type: ignore[method-assign]
+    service.save_learning(
+        content="Detailed learning body.",
+        summary="Pattern Rollover IRA #267328698 100 percent cash held in money market",
+        confidence=95,
+        tags=["finance-relevant"],
+        context="household_document_review",
+    )
+
+    assert mock_sdk.save_learning.call_args.kwargs["summary"] == (
+        "Pattern Rollover IRA #267328698 100 percent cash h"
+    )

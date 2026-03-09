@@ -139,28 +139,35 @@ class HouseholdReviewAgentService:
         if not AGENT_HUB_ENABLED:
             return None
 
+        normalized_summary = self._normalize_summary(summary)
         try:
             result = self._sdk.save_learning(
-                self._format_learning_content(summary, content),
+                self._format_learning_content(normalized_summary, content),
                 injection_tier="reference",
                 confidence=confidence,
                 context=context,
                 scope="project",
                 scope_id=HOUSEHOLD_REVIEW_PROJECT_ID,
-                summary=summary,
+                summary=normalized_summary,
             )
             memory_id = result.get("uuid") or result.get("reinforced_uuid")
             if isinstance(memory_id, str) and memory_id:
                 self._set_memory_tags(memory_id, tags)
                 return memory_id
         except Exception as exc:
-            logger.warning("household_review_learning_save_failed", error=str(exc), summary=summary)
+            logger.warning("household_review_learning_save_failed", error=str(exc), summary=normalized_summary)
         return None
 
     def _format_learning_content(self, summary: str, content: str) -> str:
         topic = " ".join(summary.strip().split())[:50] or "Household Learning"
         body = " ".join(content.strip().split())
         return f"**{topic}**: {body}"
+
+    def _normalize_summary(self, summary: str) -> str:
+        normalized = " ".join(summary.strip().split())
+        if len(normalized) > 50:
+            normalized = normalized[:50].rstrip()
+        return normalized or "Household Learning"
 
     def _set_memory_tags(self, memory_id: str, tags: list[str]) -> None:
         if not tags:

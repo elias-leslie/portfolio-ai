@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import fitz
+import numpy as np
 from agent_hub.models.content import ImageContent, MessageInput, TextContent
 from PIL import Image, ImageOps
 from pypdf import PdfReader
@@ -337,7 +338,7 @@ class HouseholdDocumentReviewService:
             image = Image.open(stored_path)
             processed = self._prepare_image_for_ocr(image)
             ocr_engine = self._image_ocr_engine()
-            result, _ = ocr_engine(processed)
+            result, _ = ocr_engine(np.array(processed))
             if not result:
                 return None
             text = "\n".join(
