@@ -13,7 +13,6 @@ from app.logging_config import get_logger
 logger = get_logger(__name__)
 
 HOUSEHOLD_REVIEW_AGENT_SLUG = "financial-document-reviewer"
-HOUSEHOLD_REVIEW_PROJECT_ID = "portfolio-ai"
 HOUSEHOLD_REVIEW_MEMORY_TAGS = [
     "finance-relevant",
     "household-finance",
@@ -125,66 +124,6 @@ class HouseholdReviewAgentService:
             logger.info("household_review_agent_updated", slug=HOUSEHOLD_REVIEW_AGENT_SLUG)
 
         self._agent_ready = True
-
-    def save_learning(
-        self,
-        *,
-        content: str,
-        summary: str,
-        confidence: int,
-        tags: list[str],
-        context: str | None = None,
-    ) -> str | None:
-        """Persist a household-specific learning and tag it for this reviewer."""
-        if not AGENT_HUB_ENABLED:
-            return None
-
-        normalized_summary = self._normalize_summary(summary)
-        try:
-            result = self._sdk.save_learning(
-                self._format_learning_content(normalized_summary, content),
-                injection_tier="reference",
-                confidence=confidence,
-                context=context,
-                scope="project",
-                scope_id=HOUSEHOLD_REVIEW_PROJECT_ID,
-                summary=normalized_summary,
-            )
-            memory_id = result.get("uuid") or result.get("reinforced_uuid")
-            if isinstance(memory_id, str) and memory_id:
-                self._set_memory_tags(memory_id, tags)
-                return memory_id
-        except Exception as exc:
-            logger.warning("household_review_learning_save_failed", error=str(exc), summary=normalized_summary)
-        return None
-
-    def _format_learning_content(self, summary: str, content: str) -> str:
-        topic = " ".join(summary.strip().split())[:50] or "Household Learning"
-        body = " ".join(content.strip().split())
-        return f"**{topic}**: {body}"
-
-    def _normalize_summary(self, summary: str) -> str:
-        normalized = " ".join(summary.strip().split())
-        if len(normalized) > 50:
-            normalized = normalized[:50].rstrip()
-        return normalized or "Household Learning"
-
-    def _set_memory_tags(self, memory_id: str, tags: list[str]) -> None:
-        if not tags:
-            return
-
-        client = self._sdk._get_client()
-        headers = self._sdk._inject_tracking_headers("sdk.set_household_review_memory_tags")
-        response = client.put(
-            f"/api/memory/episodes/{memory_id}/tags",
-            json={"tags": sorted(set(tags))},
-            headers=self._sdk._build_memory_headers(
-                headers,
-                scope="project",
-                scope_id=HOUSEHOLD_REVIEW_PROJECT_ID,
-            ),
-        )
-        response.raise_for_status()
 
     def _agent_needs_update(self, current: dict[str, Any]) -> bool:
         comparable_fields = [

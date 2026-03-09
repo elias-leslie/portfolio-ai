@@ -38,7 +38,6 @@ from app.portfolio.manager import PortfolioManager
 from app.portfolio.price_fetcher import PriceDataFetcher
 from app.services.household_document_review import HouseholdDocumentReviewService
 from app.services.household_review_agent_service import (
-    HOUSEHOLD_REVIEW_MEMORY_TAGS,
     HouseholdReviewAgentService,
 )
 from app.services.household_transaction_service import HouseholdTransactionService
@@ -485,8 +484,6 @@ class HouseholdFinanceService:
                 answered_at=now,
             )
             conn.commit()
-
-        self._store_confirmed_question_learning(row_question, cleaned_answer)
 
         answered = self._get_question_row(question_id)
         return self._row_to_question(answered) if answered is not None else None
@@ -1224,11 +1221,6 @@ class HouseholdFinanceService:
 
             conn.commit()
 
-        self._store_document_learning(
-            document=document,
-            reviewed=reviewed,
-            review_confidence=review_confidence,
-        )
         self._upsert_document_signatures(document=document, reviewed=reviewed)
         self._import_document_rows(document=document, reviewed=reviewed)
         self.transaction_service.import_document_transactions(document=document, reviewed=reviewed)
@@ -1358,36 +1350,6 @@ class HouseholdFinanceService:
                 )
 
         return recommendation
-
-    def _store_confirmed_question_learning(
-        self,
-        question: HouseholdQuestion,
-        answer_text: str,
-    ) -> None:
-        field_label = FIELD_LABELS.get(question.field_name or "", question.question)
-        source_document = question.metadata.get("source_document")
-        filename = None
-        if isinstance(source_document, dict):
-            raw_filename = source_document.get("filename")
-            if isinstance(raw_filename, str) and raw_filename:
-                filename = raw_filename
-
-        context_parts = ["User confirmed a household finance question."]
-        if filename:
-            context_parts.append(f"Source document: {filename}.")
-        context_parts.append(f"Question: {question.question}")
-        context_parts.append(f"Answer: {answer_text}")
-
-        self.review_agent_service.save_learning(
-            content=" ".join(context_parts),
-            summary=f"Confirmed {field_label}"[:80],
-            confidence=95,
-            tags=[
-                *HOUSEHOLD_REVIEW_MEMORY_TAGS,
-                "confirmed-household-fact",
-            ],
-            context="household_question_confirmation",
-        )
 
     def _resolve_related_open_questions(
         self,
@@ -1660,57 +1622,6 @@ class HouseholdFinanceService:
             return None
         cleaned = value.strip().lower()
         return cleaned or None
-
-    def _store_document_learning(
-        self,
-        *,
-        document: HouseholdDocument,
-        reviewed: dict[str, Any],
-        review_confidence: float | None,
-    ) -> None:
-        confidence = review_confidence or 0.0
-        if confidence < 0.8:
-            return
-
-        structured_data = reviewed.get("structured_data")
-        if not isinstance(structured_data, dict):
-            return
-
-        merchant = structured_data.get("merchant")
-        account_hint = structured_data.get("account_hint")
-        statement_period = structured_data.get("statement_period")
-
-        if not any(isinstance(value, str) and value for value in [merchant, account_hint, statement_period]):
-            return
-
-        learnings = [
-            f"Document pattern for this household: '{document.filename}' classified as {reviewed.get('document_type')} from {reviewed.get('source_type')}."
-        ]
-        if isinstance(merchant, str) and merchant:
-            learnings.append(f"Merchant or provider: {merchant}.")
-        if isinstance(account_hint, str) and account_hint:
-            learnings.append(f"Account hint: {account_hint}.")
-        if isinstance(statement_period, str) and statement_period:
-            learnings.append(f"Statement period example: {statement_period}.")
-        if reviewed.get("summary"):
-            learnings.append(f"Summary: {reviewed['summary']}")
-
-        summary_subject = None
-        for candidate in [merchant, account_hint, document.filename]:
-            if isinstance(candidate, str) and candidate:
-                summary_subject = candidate
-                break
-
-        self.review_agent_service.save_learning(
-            content=" ".join(learnings),
-            summary=f"Pattern {summary_subject or document.id}"[:80],
-            confidence=max(75, int(confidence * 100)),
-            tags=[
-                *HOUSEHOLD_REVIEW_MEMORY_TAGS,
-                "document-pattern",
-            ],
-            context="household_document_review",
-        )
 
     def _upsert_document_signatures(
         self,
