@@ -25,6 +25,17 @@ export interface HouseholdProfile {
   updatedAt: string
 }
 
+export interface HouseholdResolvedValue {
+  fieldName: string
+  label: string
+  value: string | null
+  confidence: number | null
+  status: string
+  source: string
+  rationale: string | null
+  question: string | null
+}
+
 export interface BudgetLane {
   name: string
   objective: string
@@ -81,6 +92,9 @@ export interface HouseholdDocument {
   fileSizeBytes: number
   contentType: string | null
   classificationConfidence: number | null
+  reviewStatus: string | null
+  reviewSummary: string | null
+  reviewConfidence: number | null
   statementStart: string | null
   statementEnd: string | null
   uploadedAt: string
@@ -90,6 +104,24 @@ export interface HouseholdDocument {
 
 export interface HouseholdDocumentList {
   items: HouseholdDocument[]
+}
+
+export interface HouseholdQuestion {
+  id: string
+  fieldName: string | null
+  status: string
+  priority: string
+  question: string
+  rationale: string | null
+  answerText: string | null
+  sourceDocumentId: string | null
+  metadata: Record<string, unknown>
+  createdAt: string
+  answeredAt: string | null
+}
+
+export interface HouseholdQuestionList {
+  items: HouseholdQuestion[]
 }
 
 export interface JennyMoneyBrief {
@@ -102,10 +134,12 @@ export interface HouseholdFinanceDashboard {
   generatedAt: string
   overview: HouseholdOverview
   profile: HouseholdProfile
+  resolvedValues: HouseholdResolvedValue[]
   budgetReadiness: BudgetReadiness
   retirementPreparedness: RetirementPreparedness
   opportunities: HouseholdOpportunity[]
   importCenter: ImportCenter
+  questions: HouseholdQuestion[]
   jennyBrief: JennyMoneyBrief
 }
 
@@ -127,6 +161,10 @@ export interface HouseholdDocumentUpload {
   accountLabel?: string
 }
 
+export interface HouseholdQuestionAnswer {
+  answerText: string
+}
+
 export async function fetchHouseholdDashboard(): Promise<HouseholdFinanceDashboard> {
   return get<HouseholdFinanceDashboard>('/api/household/dashboard')
 }
@@ -145,6 +183,10 @@ export async function fetchHouseholdDocuments(): Promise<HouseholdDocumentList> 
   return get<HouseholdDocumentList>('/api/household/documents')
 }
 
+export async function fetchHouseholdQuestions(): Promise<HouseholdQuestionList> {
+  return get<HouseholdQuestionList>('/api/household/questions')
+}
+
 export async function uploadHouseholdDocument(
   payload: HouseholdDocumentUpload,
 ): Promise<HouseholdDocument> {
@@ -160,4 +202,11 @@ export async function uploadHouseholdDocument(
     form.append('accountLabel', payload.accountLabel)
   }
   return postForm<HouseholdDocument>('/api/household/documents', form)
+}
+
+export async function answerHouseholdQuestion(
+  questionId: string,
+  payload: HouseholdQuestionAnswer,
+): Promise<HouseholdQuestion> {
+  return post<HouseholdQuestion>(`/api/household/questions/${questionId}/answer`, payload)
 }

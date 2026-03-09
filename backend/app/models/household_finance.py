@@ -30,6 +30,17 @@ class HouseholdProfile(BaseModel):
     updated_at: str
 
 
+class HouseholdResolvedValue(BaseModel):
+    field_name: str
+    label: str
+    value: str | None = None
+    confidence: float | None = None
+    status: str
+    source: str
+    rationale: str | None = None
+    question: str | None = None
+
+
 class HouseholdProfileUpdate(BaseModel):
     household_name: str | None = None
     monthly_net_income_target: float | None = None
@@ -97,6 +108,9 @@ class HouseholdDocument(BaseModel):
     file_size_bytes: int
     content_type: str | None = None
     classification_confidence: float | None = None
+    review_status: str | None = None
+    review_summary: str | None = None
+    review_confidence: float | None = None
     statement_start: str | None = None
     statement_end: str | None = None
     uploaded_at: str
@@ -104,8 +118,42 @@ class HouseholdDocument(BaseModel):
     metadata: dict[str, object] = Field(default_factory=dict)
 
 
+class HouseholdDocumentReview(BaseModel):
+    id: str
+    document_id: str
+    status: str
+    summary: str | None = None
+    confidence: float | None = None
+    extracted_text: str | None = None
+    structured_data: dict[str, object] = Field(default_factory=dict)
+    created_at: str
+    updated_at: str
+
+
 class HouseholdDocumentList(BaseModel):
     items: list[HouseholdDocument] = Field(default_factory=list)
+
+
+class HouseholdQuestion(BaseModel):
+    id: str
+    field_name: str | None = None
+    status: str
+    priority: str
+    question: str
+    rationale: str | None = None
+    answer_text: str | None = None
+    source_document_id: str | None = None
+    metadata: dict[str, object] = Field(default_factory=dict)
+    created_at: str
+    answered_at: str | None = None
+
+
+class HouseholdQuestionList(BaseModel):
+    items: list[HouseholdQuestion] = Field(default_factory=list)
+
+
+class HouseholdQuestionAnswer(BaseModel):
+    answer_text: str
 
 
 class JennyMoneyBrief(BaseModel):
@@ -118,8 +166,10 @@ class HouseholdFinanceDashboard(BaseModel):
     generated_at: str
     overview: HouseholdOverview
     profile: HouseholdProfile
+    resolved_values: list[HouseholdResolvedValue] = Field(default_factory=list)
     budget_readiness: BudgetReadiness
     retirement_preparedness: RetirementPreparedness
     opportunities: list[HouseholdOpportunity] = Field(default_factory=list)
     import_center: ImportCenter
+    questions: list[HouseholdQuestion] = Field(default_factory=list)
     jenny_brief: JennyMoneyBrief

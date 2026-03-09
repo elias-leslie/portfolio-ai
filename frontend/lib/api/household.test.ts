@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fetchHouseholdDashboard, uploadHouseholdDocument } from './household'
+import {
+  answerHouseholdQuestion,
+  fetchHouseholdDashboard,
+  uploadHouseholdDocument,
+} from './household'
 
 describe('household api', () => {
   const originalFetch = global.fetch
@@ -42,6 +46,7 @@ describe('household api', () => {
           created_at: '2026-03-09T00:00:00Z',
           updated_at: '2026-03-09T00:00:00Z',
         },
+        resolved_values: [],
         budget_readiness: {
           status: 'setup_needed',
           summary: 'Needs setup',
@@ -66,6 +71,7 @@ describe('household api', () => {
           automations: [],
           supported_documents: [],
         },
+        questions: [],
         jenny_brief: {
           headline: 'Jenny',
           body: 'Body',
@@ -97,6 +103,9 @@ describe('household api', () => {
         file_size_bytes: 100,
         content_type: 'image/png',
         classification_confidence: 0.8,
+        review_status: 'complete',
+        review_summary: 'Reviewed',
+        review_confidence: 0.8,
         statement_start: null,
         statement_end: null,
         uploaded_at: '2026-03-09T00:00:00Z',
@@ -113,6 +122,36 @@ describe('household api', () => {
       expect.objectContaining({
         method: 'POST',
         body: expect.any(FormData),
+      }),
+    )
+  })
+
+  it('answers a household question', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: vi.fn().mockResolvedValue({
+        id: 'question-1',
+        field_name: 'target_retirement_age',
+        status: 'answered',
+        priority: 'high',
+        question: 'What age do you want to retire?',
+        rationale: null,
+        answer_text: '60',
+        source_document_id: 'doc-1',
+        metadata: {},
+        created_at: '2026-03-09T00:00:00Z',
+        answered_at: '2026-03-09T00:05:00Z',
+      }),
+    }) as unknown as typeof fetch
+
+    await answerHouseholdQuestion('question-1', { answerText: '60' })
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://localhost:8000/api/household/questions/question-1/answer',
+      expect.objectContaining({
+        method: 'POST',
       }),
     )
   })

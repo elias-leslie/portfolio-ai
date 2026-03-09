@@ -75,7 +75,7 @@ export function HouseholdDocumentCenter({
     <SectionCard
       variant="surface"
       title="Document Intake"
-      description="Upload statements, receipts, and invoices here. Jenny uses this queue as the raw material for budgeting and savings intelligence."
+      description="Upload statements, receipts, screenshots, invoices, and exports here. Jenny reviews each file, infers what she can, and asks only for the gaps."
     >
       <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
         <div className="rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-5">
@@ -87,7 +87,7 @@ export function HouseholdDocumentCenter({
                 id="document-file"
                 ref={inputRef}
                 type="file"
-                accept=".pdf,.csv,.ofx,.qfx,.png,.jpg,.jpeg,.heic"
+                accept=".pdf,.csv,.ofx,.qfx,.png,.jpg,.jpeg,.heic,.webp,.txt,.json,image/*,application/pdf,text/plain,text/csv"
                 onChange={(event) => setFile(event.target.files?.[0] ?? null)}
               />
             </div>
@@ -159,9 +159,20 @@ export function HouseholdDocumentCenter({
                     {document.accountLabel ? (
                       <p className="mt-1 text-sm text-text-muted">{document.accountLabel}</p>
                     ) : null}
+                    {document.reviewSummary ? (
+                      <p className="mt-2 text-sm text-text-muted">{document.reviewSummary}</p>
+                    ) : null}
                   </div>
                   <div className="text-right text-xs text-text-muted">
                     <p>{document.status.replaceAll('_', ' ')}</p>
+                    {document.reviewStatus ? (
+                      <p className="mt-1">
+                        Jenny: {document.reviewStatus.replaceAll('_', ' ')}
+                        {document.reviewConfidence != null
+                          ? ` (${Math.round(document.reviewConfidence * 100)}%)`
+                          : ''}
+                      </p>
+                    ) : null}
                     <p className="mt-1">{formatFileSize(document.fileSizeBytes)}</p>
                   </div>
                 </div>

@@ -3,10 +3,15 @@ import { describe, expect, it, vi } from 'vitest'
 import { HouseholdProfileCard } from '../HouseholdProfileCard'
 
 const mutate = vi.fn()
+const answerMutate = vi.fn()
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
   useUpdateHouseholdProfile: () => ({
     mutate,
+    isPending: false,
+  }),
+  useAnswerHouseholdQuestion: () => ({
+    mutate: answerMutate,
     isPending: false,
   }),
 }))
@@ -28,6 +33,19 @@ describe('HouseholdProfileCard', () => {
           createdAt: '2026-03-09T00:00:00Z',
           updatedAt: '2026-03-09T00:00:00Z',
         }}
+        resolvedValues={[
+          {
+            fieldName: 'monthlyNetIncomeTarget',
+            label: 'Monthly take-home income',
+            value: null,
+            confidence: null,
+            status: 'missing',
+            source: 'unknown',
+            rationale: null,
+            question: null,
+          },
+        ]}
+        questions={[]}
       />,
     )
 
@@ -37,7 +55,7 @@ describe('HouseholdProfileCard', () => {
     fireEvent.change(screen.getByLabelText(/monthly take-home income/i), {
       target: { value: '12500' },
     })
-    fireEvent.click(screen.getByRole('button', { name: /save plan/i }))
+    fireEvent.click(screen.getByRole('button', { name: /save overrides/i }))
 
     expect(mutate).toHaveBeenCalledWith(
       expect.objectContaining({

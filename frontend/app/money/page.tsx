@@ -62,8 +62,12 @@ export default function MoneyPage() {
       />
 
       <HouseholdOverviewGrid dashboard={dashboard} />
-      <HouseholdProfileCard profile={dashboard.profile} />
       <HouseholdDocumentCenter documents={documents?.items ?? []} />
+      <HouseholdProfileCard
+        profile={dashboard.profile}
+        resolvedValues={dashboard.resolvedValues}
+        questions={dashboard.questions}
+      />
       <HouseholdPlanningPanels dashboard={dashboard} />
       <JennyMoneyBoard dashboard={dashboard} />
     </PageContainer>

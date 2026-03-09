@@ -36,6 +36,7 @@ dependencies = [
     # Configuration
     "pydantic-settings>=2.6.0",
     "python-dotenv>=1.0.0",
+    "pypdf>=5.4.0",
 
     # Utilities
     "python-dateutil==2.9.0.post0",

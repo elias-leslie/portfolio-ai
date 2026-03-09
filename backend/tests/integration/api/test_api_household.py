@@ -54,9 +54,37 @@ def test_household_document_upload_persists_metadata(
     client: TestClient,
     tmp_path: Path,
 ) -> None:
-    with patch(
-        "app.services.household_finance_service.HouseholdFinanceService._upload_root",
-        return_value=tmp_path,
+    with (
+        patch(
+            "app.services.household_finance_service.HouseholdFinanceService._upload_root",
+            return_value=tmp_path,
+        ),
+        patch(
+            "app.services.household_document_review.HouseholdDocumentReviewService.review",
+            return_value={
+                "summary": "Primary Amex statement with enough history to infer spending lanes.",
+                "document_type": "statement",
+                "source_type": "credit_card",
+                "confidence": 0.91,
+                "structured_data": {"merchant": "American Express"},
+                "inferred_values": [
+                    {
+                        "field_name": "monthly_essential_target",
+                        "value": "5100",
+                        "confidence": 0.78,
+                        "rationale": "Core household bills and groceries appear stable.",
+                    }
+                ],
+                "questions": [
+                    {
+                        "field_name": "monthly_net_income_target",
+                        "question": "Is this your primary household card for recurring expenses?",
+                        "priority": "high",
+                        "rationale": "Jenny needs to know whether this spend stream is representative.",
+                    }
+                ],
+            },
+        ),
     ):
         response = client.post(
             "/api/household/documents",
@@ -71,6 +99,7 @@ def test_household_document_upload_persists_metadata(
     assert document["document_type"] == "statement"
     assert document["status"] == "staged"
     assert document["account_label"] == "Amex Gold"
+    assert document["review_status"] is None
     assert document["metadata"]["stored_path"].endswith(".pdf")
 
 
@@ -126,6 +155,25 @@ def test_household_dashboard_uses_profile_documents_and_portfolio(
             return_value=Path("/tmp/household-test-uploads"),
         ),
         patch(
+            "app.services.household_document_review.HouseholdDocumentReviewService.review",
+            return_value={
+                "summary": "Checking statement covering recurring deposits and baseline spending.",
+                "document_type": "statement",
+                "source_type": "bank",
+                "confidence": 0.89,
+                "structured_data": {"account_hint": "Joint Checking"},
+                "inferred_values": [
+                    {
+                        "field_name": "monthly_net_income_target",
+                        "value": "12500",
+                        "confidence": 0.82,
+                        "rationale": "Recurring deposits suggest household take-home income.",
+                    }
+                ],
+                "questions": [],
+            },
+        ),
+        patch(
             "app.services.household_finance_service.PriceDataFetcher.fetch_price_data",
             return_value={
                 "VTI": PriceData(symbol="VTI", price=275),
@@ -150,3 +198,71 @@ def test_household_dashboard_uses_profile_documents_and_portfolio(
     assert dashboard["budget_readiness"]["status"] == "ready_for_budgeting"
     assert dashboard["retirement_preparedness"]["status"] == "scenario_ready"
     assert dashboard["import_center"]["tracked_documents"] == 1
+
+
+def test_household_questions_can_be_answered_and_confirm_profile_value(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    with (
+        patch(
+            "app.services.household_finance_service.HouseholdFinanceService._upload_root",
+            return_value=tmp_path,
+        ),
+        patch(
+            "app.services.household_document_review.HouseholdDocumentReviewService.review",
+            return_value={
+                "summary": "Retirement statement with ambiguous target assumptions.",
+                "document_type": "retirement_statement",
+                "source_type": "retirement",
+                "confidence": 0.88,
+                "structured_data": {"account_hint": "Roth IRA"},
+                "inferred_values": [],
+                "questions": [
+                    {
+                        "field_name": "target_retirement_age",
+                        "question": "What age do you want to retire?",
+                        "priority": "high",
+                        "rationale": "Jenny needs a target age to anchor retirement scenarios.",
+                    }
+                ],
+            },
+        ),
+    ):
+        upload_response = client.post(
+            "/api/household/documents",
+            files={"file": ("roth_statement.pdf", b"retirement bytes", "application/pdf")},
+        )
+
+    assert upload_response.status_code == 200
+
+    questions_response = client.get("/api/household/questions")
+    assert questions_response.status_code == 200
+    questions = questions_response.json()["items"]
+    assert len(questions) == 1
+    assert questions[0]["field_name"] == "target_retirement_age"
+
+    answer_response = client.post(
+        f"/api/household/questions/{questions[0]['id']}/answer",
+        json={"answer_text": "Age 60"},
+    )
+    assert answer_response.status_code == 200
+    answered = answer_response.json()
+    assert answered["status"] == "answered"
+    assert answered["answer_text"] == "Age 60"
+
+    profile_response = client.get("/api/household/profile")
+    assert profile_response.status_code == 200
+    profile = profile_response.json()
+    assert profile["target_retirement_age"] == 60
+
+    dashboard_response = client.get("/api/household/dashboard")
+    assert dashboard_response.status_code == 200
+    dashboard = dashboard_response.json()
+    retirement_value = next(
+        item
+        for item in dashboard["resolved_values"]
+        if item["field_name"] == "target_retirement_age"
+    )
+    assert retirement_value["status"] == "confirmed"
+    assert retirement_value["source"] == "manual"

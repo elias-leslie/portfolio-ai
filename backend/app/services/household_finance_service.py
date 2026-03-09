@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -10,6 +11,7 @@ from typing import Any
 
 from fastapi import UploadFile
 
+from app.logging_config import get_logger
 from app.models.household_finance import (
     BudgetLane,
     BudgetReadiness,
@@ -20,6 +22,10 @@ from app.models.household_finance import (
     HouseholdOverview,
     HouseholdProfile,
     HouseholdProfileUpdate,
+    HouseholdQuestion,
+    HouseholdQuestionAnswer,
+    HouseholdQuestionList,
+    HouseholdResolvedValue,
     ImportCenter,
     ImportFormat,
     JennyMoneyBrief,
@@ -27,11 +33,21 @@ from app.models.household_finance import (
 )
 from app.portfolio.manager import PortfolioManager
 from app.portfolio.price_fetcher import PriceDataFetcher
+from app.services.household_document_review import HouseholdDocumentReviewService
 from app.storage import get_storage
 
 RETIREMENT_ACCOUNT_TYPES = {"IRA", "401k", "Roth", "HSA"}
 TAXABLE_ACCOUNT_TYPES = {"Taxable"}
 DEFAULT_HOUSEHOLD_NAME = "Household"
+FIELD_LABELS = {
+    "monthly_net_income_target": "Monthly take-home income",
+    "monthly_essential_target": "Essential budget",
+    "monthly_discretionary_target": "Discretionary budget",
+    "monthly_savings_target": "Monthly savings target",
+    "target_retirement_age": "Target retirement age",
+    "target_retirement_spend": "Target monthly retirement spend",
+}
+logger = get_logger(__name__)
 
 
 class HouseholdFinanceService:
@@ -41,10 +57,13 @@ class HouseholdFinanceService:
         self.storage = get_storage()
         self.portfolio_mgr = PortfolioManager(self.storage)
         self.price_fetcher = PriceDataFetcher(self.storage)
+        self.review_service = HouseholdDocumentReviewService()
 
     def get_dashboard(self) -> HouseholdFinanceDashboard:
         profile = self.get_profile()
         documents = self.list_documents(limit=12).items
+        questions = self.list_questions(limit=12).items
+        resolved_values = self.get_resolved_values(profile=profile, questions=questions)
         accounts = [account for account in self.portfolio_mgr.get_accounts() if account.account_type != "paper"]
         positions = self.portfolio_mgr.get_positions()
         account_ids = {account.id for account in accounts}
@@ -71,10 +90,10 @@ class HouseholdFinanceService:
             cash_reserve=cash_reserve,
             retirement_assets=retirement_assets,
             taxable_assets=taxable_assets,
-            profile=profile,
+            resolved_values=resolved_values,
             document_count=len(documents),
         )
-        budget_inputs = self._budget_input_status(profile, documents)
+        budget_inputs = self._budget_input_status(resolved_values, documents)
 
         overview = HouseholdOverview(
             invested_assets=invested_assets,
@@ -84,7 +103,12 @@ class HouseholdFinanceService:
             total_tracked_assets=total_tracked_assets,
             visibility_score=visibility_score,
             visibility_label=self._visibility_label(visibility_score),
-            next_best_action=self._next_best_action(profile, documents, visibility_score),
+            next_best_action=self._next_best_action(
+                documents,
+                visibility_score,
+                questions=questions,
+                resolved_values=resolved_values,
+            ),
         )
 
         budget_readiness = BudgetReadiness(
@@ -100,17 +124,17 @@ class HouseholdFinanceService:
                 BudgetLane(
                     name="Essentials",
                     objective="Protect fixed bills and groceries before lifestyle spending expands.",
-                    status="Configured" if profile.monthly_essential_target else "Needs target",
+                    status="Configured" if self._resolved_numeric_value(resolved_values, "monthly_essential_target") is not None else "Needs target",
                 ),
                 BudgetLane(
                     name="Lifestyle",
                     objective="Cap shopping, dining, convenience, and entertainment with clear guardrails.",
-                    status="Configured" if profile.monthly_discretionary_target else "Needs target",
+                    status="Configured" if self._resolved_numeric_value(resolved_values, "monthly_discretionary_target") is not None else "Needs target",
                 ),
                 BudgetLane(
                     name="Savings",
                     objective="Reserve dollars for investing, emergency cash, and future big-ticket items.",
-                    status="Configured" if profile.monthly_savings_target else "Needs target",
+                    status="Configured" if self._resolved_numeric_value(resolved_values, "monthly_savings_target") is not None else "Needs target",
                 ),
             ],
         )
@@ -119,16 +143,16 @@ class HouseholdFinanceService:
             (retirement_assets / total_tracked_assets) * 100 if total_tracked_assets > 0 else 0.0
         )
         retirement_preparedness = RetirementPreparedness(
-            status="scenario_ready" if self._retirement_ready(profile, documents) else "baseline_visible",
+            status="scenario_ready" if self._retirement_ready(resolved_values, documents) else "baseline_visible",
             summary=(
                 "Retirement planning can move from rough intuition to defensible scenario planning."
-                if self._retirement_ready(profile, documents)
+                if self._retirement_ready(resolved_values, documents)
                 else "Retirement assets are visible, but retirement readiness still depends on real spending and future-income assumptions."
             ),
             retirement_account_share=retirement_share,
-            strengths=self._retirement_strengths(retirement_assets, taxable_assets, cash_reserve, profile),
-            blockers=self._retirement_blockers(profile, documents),
-            next_steps=self._retirement_next_steps(profile, documents),
+            strengths=self._retirement_strengths(retirement_assets, taxable_assets, cash_reserve, resolved_values),
+            blockers=self._retirement_blockers(resolved_values, documents),
+            next_steps=self._retirement_next_steps(resolved_values, documents),
         )
 
         import_center = ImportCenter(
@@ -166,7 +190,7 @@ class HouseholdFinanceService:
         )
 
         opportunities = self._build_opportunities(
-            profile=profile,
+            resolved_values=resolved_values,
             documents=documents,
             taxable_assets=taxable_assets,
             retirement_assets=retirement_assets,
@@ -189,10 +213,12 @@ class HouseholdFinanceService:
             generated_at=datetime.now(UTC).isoformat(),
             overview=overview,
             profile=profile,
+            resolved_values=resolved_values,
             budget_readiness=budget_readiness,
             retirement_preparedness=retirement_preparedness,
             opportunities=opportunities,
             import_center=import_center,
+            questions=questions,
             jenny_brief=jenny_brief,
         )
 
@@ -238,6 +264,60 @@ class HouseholdFinanceService:
             conn.commit()
 
         return self.get_profile()
+
+    def list_questions(self, limit: int = 20) -> HouseholdQuestionList:
+        with self.storage.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    id, field_name, status, priority, question, rationale,
+                    answer_text, source_document_id, metadata, created_at, answered_at
+                FROM household_questions
+                WHERE status = 'open'
+                ORDER BY
+                    CASE priority
+                        WHEN 'high' THEN 0
+                        WHEN 'medium' THEN 1
+                        ELSE 2
+                    END,
+                    created_at ASC
+                LIMIT %s
+                """,
+                [limit],
+            ).fetchall()
+        return HouseholdQuestionList(items=[self._row_to_question(row) for row in rows])
+
+    def answer_question(self, question_id: str, payload: HouseholdQuestionAnswer) -> HouseholdQuestion | None:
+        question = self._get_question_row(question_id)
+        if question is None:
+            return None
+
+        row_question = self._row_to_question(question)
+        self._apply_answer_to_profile(row_question, payload.answer_text)
+
+        now = datetime.now(UTC).isoformat()
+        with self.storage.connection() as conn:
+            conn.execute(
+                """
+                UPDATE household_questions
+                SET status = 'answered', answer_text = %s, answered_at = %s
+                WHERE id = %s
+                """,
+                [payload.answer_text.strip(), now, question_id],
+            )
+            if row_question.field_name:
+                conn.execute(
+                    """
+                    UPDATE household_inferred_values
+                    SET status = 'confirmed', updated_at = %s
+                    WHERE field_name = %s
+                    """,
+                    [now, row_question.field_name],
+                )
+            conn.commit()
+
+        answered = self._get_question_row(question_id)
+        return self._row_to_question(answered) if answered is not None else None
 
     async def ingest_document(
         self,
@@ -306,6 +386,7 @@ class HouseholdFinanceService:
                 SELECT
                     id, filename, source_type, document_type, status, account_label,
                     file_size_bytes, content_type, classification_confidence,
+                    review_status, review_summary, review_confidence,
                     statement_start, statement_end, uploaded_at, parsed_at, metadata
                 FROM household_documents
                 ORDER BY uploaded_at DESC
@@ -322,6 +403,7 @@ class HouseholdFinanceService:
                 SELECT
                     id, filename, source_type, document_type, status, account_label,
                     file_size_bytes, content_type, classification_confidence,
+                    review_status, review_summary, review_confidence,
                     statement_start, statement_end, uploaded_at, parsed_at, metadata
                 FROM household_documents
                 WHERE id = %s
@@ -329,6 +411,99 @@ class HouseholdFinanceService:
                 [document_id],
             ).fetchone()
         return self._row_to_document(row) if row is not None else None
+
+    def get_resolved_values(
+        self,
+        *,
+        profile: HouseholdProfile,
+        questions: list[HouseholdQuestion],
+    ) -> list[HouseholdResolvedValue]:
+        inferred_map = self._get_inferred_value_rows()
+        questions_by_field = {question.field_name: question for question in questions if question.field_name}
+        resolved: list[HouseholdResolvedValue] = []
+
+        for field_name, label in FIELD_LABELS.items():
+            manual_value = getattr(profile, field_name)
+            inferred = inferred_map.get(field_name)
+            if manual_value is not None:
+                resolved.append(
+                    HouseholdResolvedValue(
+                        field_name=field_name,
+                        label=label,
+                        value=str(manual_value),
+                        confidence=1.0,
+                        status="confirmed",
+                        source="manual",
+                        rationale="You confirmed or overrode this value directly.",
+                    )
+                )
+                continue
+
+            if inferred is not None:
+                resolved.append(
+                    HouseholdResolvedValue(
+                        field_name=field_name,
+                        label=label,
+                        value=str(inferred["value"]),
+                        confidence=self._to_float(inferred["confidence"]),
+                        status=str(inferred["status"]),
+                        source="jenny_inference",
+                        rationale=str(inferred["rationale"]) if inferred["rationale"] is not None else None,
+                        question=questions_by_field.get(field_name).question if field_name in questions_by_field else None,
+                    )
+                )
+                continue
+
+            question = questions_by_field.get(field_name)
+            resolved.append(
+                HouseholdResolvedValue(
+                    field_name=field_name,
+                    label=label,
+                    value=None,
+                    confidence=None,
+                    status="missing",
+                    source="unknown",
+                    rationale=None,
+                    question=question.question if question is not None else None,
+                )
+            )
+
+        return resolved
+
+    def _get_inferred_value_rows(self) -> dict[str, dict[str, Any]]:
+        with self.storage.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT DISTINCT ON (field_name)
+                    field_name, value_text, confidence, status, rationale, source_document_id
+                FROM household_inferred_values
+                ORDER BY field_name, updated_at DESC
+                """
+            ).fetchall()
+
+        return {
+            str(row[0]): {
+                "value": row[1],
+                "confidence": row[2],
+                "status": row[3],
+                "rationale": row[4],
+                "source_document_id": row[5],
+            }
+            for row in rows
+        }
+
+    def _get_question_row(self, question_id: str) -> tuple[Any, ...] | None:
+        with self.storage.connection() as conn:
+            return conn.execute(
+                """
+                SELECT
+                    id, field_name, status, priority, question, rationale,
+                    answer_text, source_document_id, metadata, created_at, answered_at
+                FROM household_questions
+                WHERE id = %s
+                """,
+                [question_id],
+            ).fetchone()
 
     def _get_profile_row(self) -> tuple[Any, ...] | None:
         with self.storage.connection() as conn:
@@ -371,7 +546,7 @@ class HouseholdFinanceService:
         cash_reserve: float,
         retirement_assets: float,
         taxable_assets: float,
-        profile: HouseholdProfile,
+        resolved_values: list[HouseholdResolvedValue],
         document_count: int,
     ) -> int:
         score = 0
@@ -385,11 +560,17 @@ class HouseholdFinanceService:
             score += 10
         if cash_reserve > 0:
             score += 10
-        if profile.monthly_net_income_target is not None:
+        if self._resolved_numeric_value(resolved_values, "monthly_net_income_target") is not None:
             score += 10
-        if profile.monthly_essential_target is not None and profile.monthly_discretionary_target is not None:
+        if (
+            self._resolved_numeric_value(resolved_values, "monthly_essential_target") is not None
+            and self._resolved_numeric_value(resolved_values, "monthly_discretionary_target") is not None
+        ):
             score += 10
-        if profile.target_retirement_spend is not None and profile.target_retirement_age is not None:
+        if (
+            self._resolved_numeric_value(resolved_values, "target_retirement_spend") is not None
+            and self._resolved_numeric_value(resolved_values, "target_retirement_age") is not None
+        ):
             score += 5
         if document_count > 0:
             score += 5
@@ -404,38 +585,49 @@ class HouseholdFinanceService:
 
     def _next_best_action(
         self,
-        profile: HouseholdProfile,
         documents: list[HouseholdDocument],
         visibility_score: int,
+        *,
+        questions: list[HouseholdQuestion],
+        resolved_values: list[HouseholdResolvedValue],
     ) -> str:
-        if not documents:
-            return "Upload recent bank and credit-card statements so Jenny can see actual cash flow."
-        if profile.monthly_net_income_target is None:
-            return "Set a monthly income target so Jenny can compare inflows against spending and savings."
-        if profile.monthly_essential_target is None or profile.monthly_discretionary_target is None:
-            return "Define essential and discretionary targets so budget pacing alerts mean something."
-        if profile.target_retirement_spend is None or profile.target_retirement_age is None:
-            return "Add retirement age and spending targets so Jenny can start readiness modeling."
-        if visibility_score < 80:
-            return "Keep feeding statements and receipts until the full household money picture is visible."
-        return "Review this month's pacing and savings opportunities instead of collecting more setup data."
+        action = "Review this month's pacing and savings opportunities instead of collecting more setup data."
+        if questions:
+            action = questions[0].question
+        elif not documents:
+            action = "Upload recent bank and credit-card statements so Jenny can see actual cash flow."
+        elif self._resolved_numeric_value(resolved_values, "monthly_net_income_target") is None:
+            action = "Jenny still needs enough evidence to infer your monthly take-home income."
+        elif (
+            self._resolved_numeric_value(resolved_values, "monthly_essential_target") is None
+            or self._resolved_numeric_value(resolved_values, "monthly_discretionary_target") is None
+        ):
+            action = "Jenny still needs enough evidence to infer your spending guardrails."
+        elif (
+            self._resolved_numeric_value(resolved_values, "target_retirement_spend") is None
+            or self._resolved_numeric_value(resolved_values, "target_retirement_age") is None
+        ):
+            action = "Jenny still needs enough evidence to model retirement readiness."
+        elif visibility_score < 80:
+            action = "Keep feeding statements and receipts until the full household money picture is visible."
+        return action
 
     def _budget_input_status(
         self,
-        profile: HouseholdProfile,
+        resolved_values: list[HouseholdResolvedValue],
         documents: list[HouseholdDocument],
     ) -> dict[str, object]:
         missing_inputs: list[str] = []
         priorities: list[str] = []
-        if profile.monthly_net_income_target is None:
+        if self._resolved_numeric_value(resolved_values, "monthly_net_income_target") is None:
             missing_inputs.append("Monthly income target")
-            priorities.append("Set one monthly take-home income target for the household.")
-        if profile.monthly_essential_target is None:
+            priorities.append("Upload paystubs, deposit screenshots, or answer Jenny's income question.")
+        if self._resolved_numeric_value(resolved_values, "monthly_essential_target") is None:
             missing_inputs.append("Essential spending target")
-            priorities.append("Set an essentials budget that covers housing, food, utilities, and debt minimums.")
-        if profile.monthly_discretionary_target is None:
+            priorities.append("Jenny still needs bills and core spending data to infer the essentials budget.")
+        if self._resolved_numeric_value(resolved_values, "monthly_discretionary_target") is None:
             missing_inputs.append("Discretionary spending target")
-            priorities.append("Set a flexible-spend cap for shopping, dining, and convenience spending.")
+            priorities.append("Feed more card and checking data so Jenny can separate flexible spend from essentials.")
         if not documents:
             missing_inputs.append("Recent statements and receipts")
             priorities.append("Upload the last 90 days of statements to turn targets into monitored reality.")
@@ -446,11 +638,11 @@ class HouseholdFinanceService:
             "priorities": priorities or ["Keep statement imports current so Jenny can monitor pacing and savings."],
         }
 
-    def _retirement_ready(self, profile: HouseholdProfile, documents: list[HouseholdDocument]) -> bool:
+    def _retirement_ready(self, resolved_values: list[HouseholdResolvedValue], documents: list[HouseholdDocument]) -> bool:
         return (
-            profile.target_retirement_age is not None
-            and profile.target_retirement_spend is not None
-            and profile.monthly_essential_target is not None
+            self._resolved_numeric_value(resolved_values, "target_retirement_age") is not None
+            and self._resolved_numeric_value(resolved_values, "target_retirement_spend") is not None
+            and self._resolved_numeric_value(resolved_values, "monthly_essential_target") is not None
             and bool(documents)
         )
 
@@ -459,7 +651,7 @@ class HouseholdFinanceService:
         retirement_assets: float,
         taxable_assets: float,
         cash_reserve: float,
-        profile: HouseholdProfile,
+        resolved_values: list[HouseholdResolvedValue],
     ) -> list[str]:
         strengths: list[str] = []
         if retirement_assets > 0:
@@ -468,7 +660,7 @@ class HouseholdFinanceService:
             strengths.append("Taxable assets are tracked, which helps bridge flexibility before retirement accounts are tapped.")
         if cash_reserve > 0:
             strengths.append("Tracked cash provides a starting point for emergency-fund and withdrawal sequencing analysis.")
-        if profile.target_retirement_age is not None:
+        if self._resolved_numeric_value(resolved_values, "target_retirement_age") is not None:
             strengths.append("A target retirement age is saved, so future planning can anchor to a real timeline.")
         if not strengths:
             strengths.append("As soon as assets and targets are tracked here, Jenny can unify investing and retirement planning.")
@@ -476,15 +668,15 @@ class HouseholdFinanceService:
 
     def _retirement_blockers(
         self,
-        profile: HouseholdProfile,
+        resolved_values: list[HouseholdResolvedValue],
         documents: list[HouseholdDocument],
     ) -> list[str]:
         blockers: list[str] = []
-        if profile.target_retirement_age is None:
+        if self._resolved_numeric_value(resolved_values, "target_retirement_age") is None:
             blockers.append("No target retirement age yet.")
-        if profile.target_retirement_spend is None:
+        if self._resolved_numeric_value(resolved_values, "target_retirement_spend") is None:
             blockers.append("No target retirement spending figure yet.")
-        if profile.monthly_essential_target is None:
+        if self._resolved_numeric_value(resolved_values, "monthly_essential_target") is None:
             blockers.append("Essential spending is not defined, so baseline retirement needs are unclear.")
         if not documents:
             blockers.append("No household statements uploaded yet, so actual spend drift is still invisible.")
@@ -492,17 +684,17 @@ class HouseholdFinanceService:
 
     def _retirement_next_steps(
         self,
-        profile: HouseholdProfile,
+        resolved_values: list[HouseholdResolvedValue],
         documents: list[HouseholdDocument],
     ) -> list[str]:
         next_steps: list[str] = []
         if not documents:
             next_steps.append("Upload recent household statements to establish a spending baseline.")
-        if profile.target_retirement_age is None:
+        if self._resolved_numeric_value(resolved_values, "target_retirement_age") is None:
             next_steps.append("Set the age or date range you want to retire.")
-        if profile.target_retirement_spend is None:
+        if self._resolved_numeric_value(resolved_values, "target_retirement_spend") is None:
             next_steps.append("Set a target monthly retirement spending figure.")
-        if profile.monthly_savings_target is None:
+        if self._resolved_numeric_value(resolved_values, "monthly_savings_target") is None:
             next_steps.append("Add a monthly savings target so Jenny can monitor whether the plan is being funded.")
         if not next_steps:
             next_steps.append("Start scenario planning: early retirement, higher health costs, and lower-return years.")
@@ -511,7 +703,7 @@ class HouseholdFinanceService:
     def _build_opportunities(
         self,
         *,
-        profile: HouseholdProfile,
+        resolved_values: list[HouseholdResolvedValue],
         documents: list[HouseholdDocument],
         taxable_assets: float,
         retirement_assets: float,
@@ -530,17 +722,17 @@ class HouseholdFinanceService:
                     next_step="Import 90 days of checking and primary credit-card statements.",
                 )
             )
-        if profile.monthly_essential_target is None or profile.monthly_discretionary_target is None:
+        if self._resolved_numeric_value(resolved_values, "monthly_essential_target") is None or self._resolved_numeric_value(resolved_values, "monthly_discretionary_target") is None:
             opportunities.append(
                 HouseholdOpportunity(
                     title="Turn Jenny into a budget guardrail",
                     category="budget_control",
                     impact="High",
-                    detail="Jenny can only alert on overspend pace after the household budget has real targets.",
-                    next_step="Set essential and discretionary monthly targets for the household.",
+                    detail="Jenny can only alert on overspend pace after she has enough evidence to infer your budget guardrails.",
+                    next_step="Keep feeding statements and answer open Jenny questions so she can finalize the budget.",
                 )
             )
-        if retirement_assets > 0 and profile.target_retirement_spend is None:
+        if retirement_assets > 0 and self._resolved_numeric_value(resolved_values, "target_retirement_spend") is None:
             opportunities.append(
                 HouseholdOpportunity(
                     title="Connect retirement assets to a real spending target",
@@ -609,6 +801,170 @@ class HouseholdFinanceService:
 
         return inferred_source, inferred_type, confidence
 
+    def review_document(self, document_id: str) -> None:
+        document = self.get_document(document_id)
+        if document is None:
+            logger.warning("household_document_missing_for_review", document_id=document_id)
+            return
+        try:
+            self._process_document_review(document)
+        except Exception as exc:
+            logger.exception("household_document_review_failed", document_id=document_id, error=str(exc))
+            with self.storage.connection() as conn:
+                conn.execute(
+                    """
+                    UPDATE household_documents
+                    SET status = 'needs_review',
+                        review_status = 'failed',
+                        review_summary = %s,
+                        parsed_at = %s
+                    WHERE id = %s
+                    """,
+                    [
+                        "Jenny could not finish reviewing this document yet. Re-upload or add more context.",
+                        datetime.now(UTC).isoformat(),
+                        document_id,
+                    ],
+                )
+                conn.commit()
+
+    def _process_document_review(self, document: HouseholdDocument) -> None:
+        stored_path = document.metadata.get("stored_path")
+        if not isinstance(stored_path, str) or not stored_path:
+            return
+
+        now = datetime.now(UTC).isoformat()
+        reviewed = self.review_service.review(
+            document_id=document.id,
+            filename=document.filename,
+            stored_path=Path(stored_path),
+            content_type=document.content_type,
+            source_type=document.source_type,
+            document_type=document.document_type,
+        )
+        review_confidence = self._to_float(reviewed.get("confidence"))
+        review_status = "complete" if (review_confidence or 0.0) >= 0.65 else "needs_review"
+        document_status = "parsed" if review_status == "complete" else "needs_review"
+        structured_data = reviewed.get("structured_data") or {}
+        extracted_text = reviewed.get("extracted_text")
+
+        with self.storage.connection() as conn:
+            conn.execute(
+                """
+                UPDATE household_documents
+                SET status = %s,
+                    review_status = %s,
+                    review_summary = %s,
+                    review_confidence = %s,
+                    parsed_at = %s,
+                    metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
+                WHERE id = %s
+                """,
+                [
+                    document_status,
+                    review_status,
+                    reviewed.get("summary"),
+                    review_confidence,
+                    now,
+                    json.dumps({"structured_data": structured_data}),
+                    document.id,
+                ],
+            )
+            conn.execute(
+                """
+                INSERT INTO household_document_reviews (
+                    id, document_id, status, summary, confidence,
+                    extracted_text, structured_data, created_at, updated_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
+                """,
+                [
+                    str(uuid.uuid4()),
+                    document.id,
+                    review_status,
+                    reviewed.get("summary"),
+                    review_confidence,
+                    extracted_text,
+                    json.dumps(structured_data),
+                    now,
+                    now,
+                ],
+            )
+            conn.execute(
+                """
+                UPDATE household_inferred_values
+                SET status = CASE
+                    WHEN status = 'confirmed' THEN status
+                    ELSE 'superseded'
+                END,
+                    updated_at = %s
+                WHERE source_document_id = %s
+                """,
+                [now, document.id],
+            )
+            conn.execute(
+                """
+                UPDATE household_questions
+                SET status = CASE
+                    WHEN status = 'answered' THEN status
+                    ELSE 'dismissed'
+                END,
+                    answered_at = COALESCE(answered_at, %s)
+                WHERE source_document_id = %s
+                """,
+                [now, document.id],
+            )
+
+            for inferred in reviewed.get("inferred_values", []):
+                field_name = str(inferred.get("field_name") or "").strip()
+                if field_name not in FIELD_LABELS:
+                    continue
+                conn.execute(
+                    """
+                    INSERT INTO household_inferred_values (
+                        id, field_name, value_text, confidence, status, rationale,
+                        source_document_id, metadata, created_at, updated_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
+                    """,
+                    [
+                        str(uuid.uuid4()),
+                        field_name,
+                        str(inferred.get("value") or "").strip() or None,
+                        self._to_float(inferred.get("confidence")),
+                        "inferred",
+                        inferred.get("rationale"),
+                        document.id,
+                        json.dumps({"document_id": document.id}),
+                        now,
+                        now,
+                    ],
+                )
+
+            for question in reviewed.get("questions", []):
+                prompt = str(question.get("question") or "").strip()
+                if not prompt:
+                    continue
+                field_name = str(question.get("field_name") or "").strip() or None
+                conn.execute(
+                    """
+                    INSERT INTO household_questions (
+                        id, field_name, status, priority, question, rationale,
+                        source_document_id, metadata, created_at
+                    ) VALUES (%s, %s, 'open', %s, %s, %s, %s, %s::jsonb, %s)
+                    """,
+                    [
+                        str(uuid.uuid4()),
+                        field_name,
+                        self._normalize_priority(question.get("priority")),
+                        prompt,
+                        question.get("rationale"),
+                        document.id,
+                        json.dumps({"document_id": document.id}),
+                        now,
+                    ],
+                )
+
+            conn.commit()
+
     def _row_to_profile(self, row: tuple[Any, ...]) -> HouseholdProfile:
         return HouseholdProfile(
             id=str(row[0]),
@@ -624,8 +980,31 @@ class HouseholdFinanceService:
             updated_at=self._iso(row[10]),
         )
 
+    def _row_to_question(self, row: tuple[Any, ...]) -> HouseholdQuestion:
+        raw_metadata = row[8]
+        metadata: dict[str, object]
+        if isinstance(raw_metadata, dict):
+            metadata = raw_metadata
+        elif isinstance(raw_metadata, str) and raw_metadata:
+            metadata = json.loads(raw_metadata)
+        else:
+            metadata = {}
+        return HouseholdQuestion(
+            id=str(row[0]),
+            field_name=str(row[1]) if row[1] is not None else None,
+            status=str(row[2]),
+            priority=str(row[3]),
+            question=str(row[4]),
+            rationale=str(row[5]) if row[5] is not None else None,
+            answer_text=str(row[6]) if row[6] is not None else None,
+            source_document_id=str(row[7]) if row[7] is not None else None,
+            metadata=metadata,
+            created_at=self._iso(row[9]),
+            answered_at=self._iso_or_none(row[10]),
+        )
+
     def _row_to_document(self, row: tuple[Any, ...]) -> HouseholdDocument:
-        raw_metadata = row[13]
+        raw_metadata = row[16]
         metadata: dict[str, object]
         if isinstance(raw_metadata, dict):
             metadata = raw_metadata
@@ -643,12 +1022,93 @@ class HouseholdFinanceService:
             file_size_bytes=int(row[6]),
             content_type=str(row[7]) if row[7] is not None else None,
             classification_confidence=self._to_float(row[8]),
-            statement_start=self._iso_or_none(row[9]),
-            statement_end=self._iso_or_none(row[10]),
-            uploaded_at=self._iso(row[11]),
-            parsed_at=self._iso_or_none(row[12]),
+            review_status=str(row[9]) if row[9] is not None else None,
+            review_summary=str(row[10]) if row[10] is not None else None,
+            review_confidence=self._to_float(row[11]),
+            statement_start=self._iso_or_none(row[12]),
+            statement_end=self._iso_or_none(row[13]),
+            uploaded_at=self._iso(row[14]),
+            parsed_at=self._iso_or_none(row[15]),
             metadata=metadata,
         )
+
+    def _apply_answer_to_profile(self, question: HouseholdQuestion, answer_text: str) -> None:
+        cleaned_answer = answer_text.strip()
+        if not cleaned_answer:
+            return
+
+        parsed_value = None
+        updates: dict[str, Any] = {}
+        if question.field_name in FIELD_LABELS:
+            parsed_value = self._parse_answer_value(question.field_name, cleaned_answer)
+            if parsed_value is not None:
+                updates[question.field_name] = parsed_value
+
+        if not updates:
+            return
+
+        now = datetime.now(UTC).isoformat()
+        profile = self.get_profile()
+        set_clauses = ", ".join(f"{field} = %s" for field in updates)
+        params: list[Any] = list(updates.values())
+        params.extend([now, profile.id])
+        with self.storage.connection() as conn:
+            conn.execute(
+                f"""
+                UPDATE household_profiles
+                SET {set_clauses}, updated_at = %s
+                WHERE id = %s
+                """,
+                params,
+            )
+            if question.field_name:
+                conn.execute(
+                    """
+                    UPDATE household_inferred_values
+                    SET value_text = %s,
+                        status = 'confirmed',
+                        updated_at = %s,
+                        metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
+                    WHERE field_name = %s
+                    """,
+                    [
+                        str(parsed_value),
+                        now,
+                        json.dumps({"confirmed_by_question_id": question.id}),
+                        question.field_name,
+                    ],
+                )
+            conn.commit()
+
+    def _parse_answer_value(self, field_name: str, answer_text: str) -> float | int | None:
+        normalized = answer_text.replace(",", "").replace("$", "").strip().lower()
+        match = re.search(r"-?\d+(?:\.\d+)?", normalized)
+        if match is None:
+            return None
+        number = float(match.group(0))
+        if field_name == "target_retirement_age":
+            return round(number)
+        return round(number, 2)
+
+    def _normalize_priority(self, value: Any) -> str:
+        priority = str(value or "medium").strip().lower()
+        if priority not in {"high", "medium", "low"}:
+            return "medium"
+        return priority
+
+    def _resolved_numeric_value(
+        self,
+        resolved_values: list[HouseholdResolvedValue],
+        field_name: str,
+    ) -> float | None:
+        for value in resolved_values:
+            if value.field_name != field_name or value.value is None:
+                continue
+            try:
+                return float(str(value.value).replace(",", ""))
+            except ValueError:
+                return None
+        return None
 
     def _upload_root(self) -> Path:
         return Path(__file__).resolve().parents[2] / "data" / "household_uploads"

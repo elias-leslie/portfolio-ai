@@ -78,6 +78,9 @@ logger = logging.getLogger(__name__)
 # List of tables to clean between tests (ordered to respect foreign key constraints)
 # Tables are listed in deletion order (children before parents)
 TABLES_TO_CLEAN = [
+    "household_questions",
+    "household_inferred_values",
+    "household_document_reviews",
     "household_documents",
     "household_profiles",
     # Agent workflow tables (agent_messages references agent_workflows)
