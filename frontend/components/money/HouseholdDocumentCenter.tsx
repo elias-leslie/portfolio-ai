@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import type { ClipboardEvent, DragEvent, KeyboardEvent } from 'react'
 import type { HouseholdDocument } from '@/lib/api/household'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Button } from '@/components/ui/button'
@@ -44,6 +45,69 @@ export function HouseholdDocumentCenter({
   const [sourceType, setSourceType] = useState('')
   const [documentType, setDocumentType] = useState('')
   const [accountLabel, setAccountLabel] = useState('')
+  const [isDragActive, setIsDragActive] = useState(false)
+
+  const resetComposer = () => {
+    setFile(null)
+    setSourceType('')
+    setDocumentType('')
+    setAccountLabel('')
+    setIsDragActive(false)
+    if (inputRef.current) {
+      inputRef.current.value = ''
+    }
+  }
+
+  const pickFirstFile = (files: FileList | File[] | null | undefined): File | null => {
+    if (!files || files.length === 0) {
+      return null
+    }
+    return files[0] ?? null
+  }
+
+  const stageIncomingFile = (incoming: File | null) => {
+    if (!incoming) {
+      return
+    }
+    setFile(incoming)
+    if (!sourceType && incoming.type.startsWith('image/')) {
+      setSourceType('receipt')
+      setDocumentType('receipt')
+    }
+  }
+
+  const handlePaste = (event: ClipboardEvent<HTMLDivElement>) => {
+    const incoming = pickFirstFile(event.clipboardData.files)
+    if (!incoming) {
+      return
+    }
+    event.preventDefault()
+    stageIncomingFile(incoming)
+  }
+
+  const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setIsDragActive(true)
+  }
+
+  const handleDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setIsDragActive(false)
+  }
+
+  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setIsDragActive(false)
+    stageIncomingFile(pickFirstFile(event.dataTransfer.files))
+  }
+
+  const handleDropzoneKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return
+    }
+    event.preventDefault()
+    inputRef.current?.click()
+  }
 
   const handleUpload = () => {
     if (!file) {
@@ -59,13 +123,7 @@ export function HouseholdDocumentCenter({
       },
       {
         onSuccess: () => {
-          setFile(null)
-          setSourceType('')
-          setDocumentType('')
-          setAccountLabel('')
-          if (inputRef.current) {
-            inputRef.current.value = ''
-          }
+          resetComposer()
         },
       },
     )
@@ -81,6 +139,32 @@ export function HouseholdDocumentCenter({
         <div className="rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-5">
           <p className="text-sm font-semibold text-text">Stage a document</p>
           <div className="mt-4 space-y-4">
+            <div
+              role="button"
+              tabIndex={0}
+              onPaste={handlePaste}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onKeyDown={handleDropzoneKeyDown}
+              className={[
+                'rounded-2xl border border-dashed px-4 py-5 text-sm outline-none transition-colors',
+                isDragActive
+                  ? 'border-primary bg-primary/10 text-text'
+                  : 'border-border/60 bg-surface/70 text-text-muted',
+              ].join(' ')}
+            >
+              <p className="font-medium text-text">Paste or drop screenshots here</p>
+              <p className="mt-1">
+                Use <span className="font-medium text-text">Ctrl+V</span> after a screenshot, drag files in,
+                or use the picker below.
+              </p>
+              {file ? (
+                <p className="mt-3 text-text">
+                  Ready to upload: <span className="font-medium">{file.name}</span>
+                </p>
+              ) : null}
+            </div>
             <div>
               <Label htmlFor="document-file">File</Label>
               <Input
@@ -88,7 +172,7 @@ export function HouseholdDocumentCenter({
                 ref={inputRef}
                 type="file"
                 accept=".pdf,.csv,.ofx,.qfx,.png,.jpg,.jpeg,.heic,.webp,.txt,.json,image/*,application/pdf,text/plain,text/csv"
-                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                onChange={(event) => stageIncomingFile(event.target.files?.[0] ?? null)}
               />
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
