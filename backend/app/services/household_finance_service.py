@@ -847,24 +847,33 @@ class HouseholdFinanceService:
         document_status = "parsed" if review_status == "complete" else "needs_review"
         structured_data = reviewed.get("structured_data") or {}
         extracted_text = reviewed.get("extracted_text")
+        resolved_source_type = str(reviewed.get("source_type") or document.source_type)
+        resolved_document_type = str(reviewed.get("document_type") or document.document_type)
+        account_hint = structured_data.get("account_hint")
 
         with self.storage.connection() as conn:
             conn.execute(
                 """
                 UPDATE household_documents
-                SET status = %s,
+                SET source_type = %s,
+                    document_type = %s,
+                    status = %s,
                     review_status = %s,
                     review_summary = %s,
                     review_confidence = %s,
+                    account_label = COALESCE(%s, account_label),
                     parsed_at = %s,
                     metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
                 WHERE id = %s
                 """,
                 [
+                    resolved_source_type,
+                    resolved_document_type,
                     document_status,
                     review_status,
                     reviewed.get("summary"),
                     review_confidence,
+                    str(account_hint) if account_hint is not None else None,
                     now,
                     json.dumps({"structured_data": structured_data}),
                     document.id,

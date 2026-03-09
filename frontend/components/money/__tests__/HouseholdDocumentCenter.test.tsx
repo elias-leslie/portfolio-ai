@@ -39,8 +39,6 @@ describe('HouseholdDocumentCenter', () => {
     expect(mutate).toHaveBeenCalledWith(
       expect.objectContaining({
         file: screenshot,
-        sourceType: 'receipt',
-        documentType: 'receipt',
       }),
       expect.any(Object),
     )

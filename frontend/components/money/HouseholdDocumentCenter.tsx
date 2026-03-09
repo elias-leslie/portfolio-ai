@@ -7,32 +7,8 @@ import { SectionCard } from '@/components/shared/SectionCard'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { useUploadHouseholdDocument } from '@/lib/hooks/useHousehold'
 import { formatFileSize } from './formatters'
-
-const SOURCE_OPTIONS = [
-  { value: 'bank', label: 'Bank' },
-  { value: 'credit_card', label: 'Credit card' },
-  { value: 'brokerage', label: 'Brokerage' },
-  { value: 'retirement', label: 'Retirement' },
-  { value: 'receipt', label: 'Receipt' },
-  { value: 'billing', label: 'Invoice or bill' },
-]
-
-const DOCUMENT_OPTIONS = [
-  { value: 'statement', label: 'Statement' },
-  { value: 'brokerage_statement', label: 'Brokerage statement' },
-  { value: 'retirement_statement', label: 'Retirement statement' },
-  { value: 'receipt', label: 'Receipt' },
-  { value: 'invoice', label: 'Invoice' },
-]
 
 export function HouseholdDocumentCenter({
   documents,
@@ -42,16 +18,10 @@ export function HouseholdDocumentCenter({
   const upload = useUploadHouseholdDocument()
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [file, setFile] = useState<File | null>(null)
-  const [sourceType, setSourceType] = useState('')
-  const [documentType, setDocumentType] = useState('')
-  const [accountLabel, setAccountLabel] = useState('')
   const [isDragActive, setIsDragActive] = useState(false)
 
   const resetComposer = () => {
     setFile(null)
-    setSourceType('')
-    setDocumentType('')
-    setAccountLabel('')
     setIsDragActive(false)
     if (inputRef.current) {
       inputRef.current.value = ''
@@ -70,10 +40,6 @@ export function HouseholdDocumentCenter({
       return
     }
     setFile(incoming)
-    if (!sourceType && incoming.type.startsWith('image/')) {
-      setSourceType('receipt')
-      setDocumentType('receipt')
-    }
   }
 
   const handlePaste = (event: ClipboardEvent<HTMLDivElement>) => {
@@ -117,9 +83,6 @@ export function HouseholdDocumentCenter({
     upload.mutate(
       {
         file,
-        sourceType: sourceType || undefined,
-        documentType: documentType || undefined,
-        accountLabel: accountLabel.trim() || undefined,
       },
       {
         onSuccess: () => {
@@ -133,7 +96,7 @@ export function HouseholdDocumentCenter({
     <SectionCard
       variant="surface"
       title="Document Intake"
-      description="Upload statements, receipts, screenshots, invoices, and exports here. Jenny reviews each file, infers what she can, and asks only for the gaps."
+      description="Upload statements, receipts, screenshots, invoices, and exports here. Jenny should figure out the document type, source, and likely account on her own, then ask only for the gaps."
     >
       <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
         <div className="rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-5">
@@ -175,46 +138,9 @@ export function HouseholdDocumentCenter({
                 onChange={(event) => stageIncomingFile(event.target.files?.[0] ?? null)}
               />
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <Label htmlFor="source-type">Source type</Label>
-                <Select value={sourceType} onValueChange={setSourceType}>
-                  <SelectTrigger id="source-type" className="mt-2">
-                    <SelectValue placeholder="Auto-detect if blank" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SOURCE_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="document-type">Document type</Label>
-                <Select value={documentType} onValueChange={setDocumentType}>
-                  <SelectTrigger id="document-type" className="mt-2">
-                    <SelectValue placeholder="Auto-detect if blank" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DOCUMENT_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="account-label">Account label</Label>
-              <Input
-                id="account-label"
-                value={accountLabel}
-                onChange={(event) => setAccountLabel(event.target.value)}
-                placeholder="Amex Gold, Joint Checking, Fidelity Roth IRA..."
-              />
+            <div className="rounded-2xl border border-border/50 bg-surface-muted/20 p-4 text-sm text-text-muted">
+              Jenny will infer the source, document type, and likely account label from the file contents, filename, and screenshot evidence.
+              If anything is ambiguous, she will open a short follow-up question in the household plan queue.
             </div>
             <Button onClick={handleUpload} disabled={!file || upload.isPending}>
               {upload.isPending ? 'Uploading...' : 'Stage Document'}

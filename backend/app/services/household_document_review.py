@@ -49,7 +49,8 @@ Schema:
   ]
 }
 
-Only infer values if the evidence is strong. Ask targeted questions for ambiguity.
+Only infer values if the evidence is strong. Infer source_type, document_type, and account_hint from the file whenever possible.
+If account identity, institution, or document role is ambiguous, ask targeted questions instead of guessing.
 """
 
 
@@ -214,6 +215,15 @@ class HouseholdDocumentReviewService:
                 "rationale": "Jenny could not confidently infer the full financial meaning from the file alone.",
             }
         ]
+        if payload["source_type"] == "other" or payload["document_type"] == "other":
+            questions.append(
+                {
+                    "field_name": None,
+                    "question": "What kind of document is this and which account or merchant is it tied to?",
+                    "priority": "high",
+                    "rationale": "Jenny could not confidently identify the institution, account, or document class from the file alone.",
+                }
+            )
         if payload["source_type"] in {"bank", "credit_card"}:
             questions.append(
                 {
@@ -232,8 +242,11 @@ class HouseholdDocumentReviewService:
                     "rationale": "Jenny needs to know whether the account is part of the retirement plan or general savings.",
                 }
             )
+        summary_bits = [summary]
+        if extracted_text:
+            summary_bits.append("Jenny extracted text and will keep refining classification as more documents arrive.")
         return {
-            "summary": summary,
+            "summary": " ".join(summary_bits),
             "document_type": payload["document_type"],
             "source_type": payload["source_type"],
             "confidence": 0.45,

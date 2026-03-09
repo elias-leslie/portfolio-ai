@@ -66,7 +66,10 @@ def test_household_document_upload_persists_metadata(
                 "document_type": "statement",
                 "source_type": "credit_card",
                 "confidence": 0.91,
-                "structured_data": {"merchant": "American Express"},
+                "structured_data": {
+                    "merchant": "American Express",
+                    "account_hint": "Amex Gold",
+                },
                 "inferred_values": [
                     {
                         "field_name": "monthly_essential_target",
@@ -101,6 +104,14 @@ def test_household_document_upload_persists_metadata(
     assert document["account_label"] == "Amex Gold"
     assert document["review_status"] is None
     assert document["metadata"]["stored_path"].endswith(".pdf")
+
+    documents_response = client.get("/api/household/documents")
+    assert documents_response.status_code == 200
+    reviewed_document = documents_response.json()["items"][0]
+    assert reviewed_document["source_type"] == "credit_card"
+    assert reviewed_document["document_type"] == "statement"
+    assert reviewed_document["account_label"] == "Amex Gold"
+    assert reviewed_document["review_status"] == "complete"
 
 
 def test_household_dashboard_uses_profile_documents_and_portfolio(
