@@ -7,9 +7,8 @@ import json
 import re
 import uuid
 from csv import DictReader
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
-from itertools import pairwise
 from pathlib import Path
 from typing import Any, cast
 
@@ -42,6 +41,7 @@ from app.services.household_review_agent_service import (
     HOUSEHOLD_REVIEW_MEMORY_TAGS,
     HouseholdReviewAgentService,
 )
+from app.services.household_transaction_service import HouseholdTransactionService
 from app.storage import get_storage
 
 RETIREMENT_ACCOUNT_TYPES = {"IRA", "401k", "Roth", "HSA"}
@@ -69,6 +69,7 @@ class HouseholdFinanceService:
         self.review_service = HouseholdDocumentReviewService(
             agent_service=self.review_agent_service
         )
+        self.transaction_service = HouseholdTransactionService()
 
     def get_dashboard(self) -> HouseholdFinanceDashboard:
         profile = self.get_profile()
@@ -206,17 +207,18 @@ class HouseholdFinanceService:
             taxable_assets=taxable_assets,
             retirement_assets=retirement_assets,
         )
+        reports = self.transaction_service.build_reports()
 
         jenny_brief = JennyMoneyBrief(
-            headline="Jenny should run your household money system, not just your portfolio.",
+            headline="Jenny can now see actual merchant flows, not just document summaries.",
             body=(
-                "The household profile, documents, and investment accounts now share one surface. "
-                "That gives Jenny enough structure to coach budgeting, savings, and retirement preparedness off the same data foundation."
+                "The household profile, documents, investment accounts, and transaction ledger now share one surface. "
+                "That lets Jenny move from document review into real cash-flow analysis, merchant normalization, and budget coaching."
             ),
             prompts=[
-                "Show me what would break our budget this month.",
-                "What retirement assumptions are still missing?",
-                "Which uploaded documents still need categorization or review?",
+                "Show me the executive household cash-flow report.",
+                "Which merchants are driving our essentials spend?",
+                "Where is our money leaking month to month?",
             ],
         )
 
@@ -228,6 +230,7 @@ class HouseholdFinanceService:
             budget_readiness=budget_readiness,
             retirement_preparedness=retirement_preparedness,
             opportunities=opportunities,
+            reports=reports,
             import_center=import_center,
             questions=questions,
             jenny_brief=jenny_brief,
@@ -1228,6 +1231,7 @@ class HouseholdFinanceService:
         )
         self._upsert_document_signatures(document=document, reviewed=reviewed)
         self._import_document_rows(document=document, reviewed=reviewed)
+        self.transaction_service.import_document_transactions(document=document, reviewed=reviewed)
 
     def _row_to_profile(self, row: tuple[Any, ...]) -> HouseholdProfile:
         return HouseholdProfile(
@@ -1640,7 +1644,7 @@ class HouseholdFinanceService:
         if not isinstance(merchant, str) or not merchant.strip():
             return None
 
-        cadence = self._infer_merchant_cadence(conn=conn, merchant=merchant)
+        cadence = self.transaction_service.infer_merchant_cadence(merchant=merchant)
         if cadence is None:
             return None
 
@@ -1650,215 +1654,6 @@ class HouseholdFinanceService:
             "inferred_confidence": cadence["confidence"],
             "inferred_rationale": cadence["rationale"],
         }
-
-    def _infer_merchant_cadence(
-        self,
-        *,
-        conn: Any,
-        merchant: str,
-    ) -> dict[str, object] | None:
-        normalized_root = self._merchant_root(merchant)
-        if not normalized_root:
-            return None
-
-        observed_dates: set[date] = set()
-        merchant_aliases = self._merchant_aliases(merchant)
-
-        document_rows = conn.execute(
-            """
-            SELECT
-                COALESCE(d.metadata->'structured_data'->>'statement_period', ''),
-                COALESCE(r.extracted_text, '')
-            FROM household_documents d
-            LEFT JOIN LATERAL (
-                SELECT extracted_text
-                FROM household_document_reviews
-                WHERE document_id = d.id
-                ORDER BY created_at DESC
-                LIMIT 1
-            ) r ON TRUE
-            """,
-        ).fetchall()
-        for row in document_rows:
-            for raw_value in row:
-                if raw_value is None:
-                    continue
-                observed_dates.update(self._extract_dates_from_text(str(raw_value)))
-            extracted_text = str(row[1]) if len(row) > 1 and row[1] is not None else ""
-            observed_dates.update(
-                self._extract_statement_merchant_dates(
-                    extracted_text=extracted_text,
-                    merchant_aliases=merchant_aliases,
-                )
-            )
-
-        import_rows = conn.execute(
-            """
-            SELECT row_date
-            FROM household_import_rows
-            WHERE lower(COALESCE(merchant, '')) LIKE %s
-            """,
-            [f"%{normalized_root}%"],
-        ).fetchall()
-        for row in import_rows:
-            row_date = row[0]
-            if isinstance(row_date, datetime):
-                observed_dates.add(row_date.date())
-
-        ordered_dates = sorted(observed_dates)
-        if len(ordered_dates) < 3:
-            return None
-
-        intervals = [
-            (later - earlier).days
-            for earlier, later in pairwise(ordered_dates)
-            if (later - earlier).days > 0
-        ]
-        if len(intervals) < 2:
-            return None
-
-        median_interval = sorted(intervals)[len(intervals) // 2]
-        if median_interval <= 10:
-            label = "likely weekly"
-        elif median_interval <= 20:
-            label = "likely bi-weekly"
-        elif median_interval <= 45:
-            label = "likely monthly"
-        else:
-            label = "less frequent"
-
-        confidence = 0.72 if len(ordered_dates) == 3 else 0.82
-        rationale = (
-            f"Jenny found {len(ordered_dates)} dated {merchant} events across uploaded evidence, "
-            f"with a median gap of {median_interval} days."
-        )
-        return {
-            "label": label,
-            "confidence": confidence,
-            "rationale": rationale,
-        }
-
-    def _merchant_root(self, merchant: str) -> str:
-        normalized = merchant.strip().lower()
-        normalized = re.sub(r"\([^)]*\)", "", normalized)
-        normalized = re.sub(r"[^a-z0-9]+", " ", normalized)
-        normalized = re.sub(r"\s+", " ", normalized).strip()
-        return normalized
-
-    def _merchant_aliases(self, merchant: str) -> set[str]:
-        root = self._merchant_root(merchant)
-        if not root:
-            return set()
-
-        aliases = {root}
-        collapsed = root.replace(" ", "")
-        if collapsed:
-            aliases.add(collapsed)
-
-        if "walmart" in collapsed:
-            aliases.update(
-                {
-                    "wal mart",
-                    "wm supercenter",
-                    "wmsupercenter",
-                    "walmart supercenter",
-                    "wal martsupercenter",
-                }
-            )
-        return {alias for alias in aliases if alias}
-
-    def _extract_statement_merchant_dates(
-        self,
-        *,
-        extracted_text: str,
-        merchant_aliases: set[str],
-    ) -> set[date]:
-        candidates: set[date] = set()
-        if not extracted_text or not merchant_aliases:
-            return candidates
-
-        for raw_line in extracted_text.splitlines():
-            line = raw_line.strip()
-            if not line:
-                continue
-            normalized_line = re.sub(r"[^a-z0-9]+", " ", line.lower())
-            normalized_line = re.sub(r"\s+", " ", normalized_line).strip()
-            if not any(alias in normalized_line for alias in merchant_aliases):
-                continue
-            date_match = re.match(r"^(\d{2}/\d{2})\b", line)
-            if not date_match:
-                continue
-            raw_date = date_match.group(1)
-            parsed = self._parse_statement_transaction_date(
-                raw_date=raw_date,
-                extracted_text=extracted_text,
-            )
-            if parsed is not None:
-                candidates.add(parsed)
-        return candidates
-
-    def _parse_statement_transaction_date(
-        self,
-        *,
-        raw_date: str,
-        extracted_text: str,
-    ) -> date | None:
-        statement_date = self._extract_statement_date(extracted_text)
-        if statement_date is None:
-            return None
-        month_text, day_text = raw_date.split("/", maxsplit=1)
-        month = int(month_text)
-        day = int(day_text)
-        year = statement_date.year - 1 if month > statement_date.month else statement_date.year
-        try:
-            return date(year, month, day)
-        except ValueError:
-            return None
-
-    def _extract_statement_date(self, extracted_text: str) -> date | None:
-        match = re.search(r"Statement Date:\s*\d{2}/\d{2}/(\d{2,4})", extracted_text, flags=re.IGNORECASE)
-        if match:
-            full_match = re.search(
-                r"Statement Date:\s*(\d{2}/\d{2}/\d{2,4})",
-                extracted_text,
-                flags=re.IGNORECASE,
-            )
-            if full_match:
-                parsed = self._parse_date_candidate(full_match.group(1))
-                if parsed is not None:
-                    return parsed
-
-        date_match = re.search(r"\b(\d{2})/(\d{2})/(\d{2})\b", extracted_text)
-        if date_match:
-            return self._parse_date_candidate(date_match.group(0))
-        return None
-
-    def _extract_dates_from_text(self, value: str) -> set[date]:
-        candidates: set[date] = set()
-        if not value:
-            return candidates
-
-        patterns = [
-            r"\b(\d{4}-\d{2}-\d{2})\b",
-            r"\b(\d{1,2}/\d{1,2}/\d{4})\b",
-            r"\b(\d{2}/\d{2}/\d{2})\b",
-            r"\b([A-Z][a-z]+ \d{1,2}, \d{4})\b",
-        ]
-        for pattern in patterns:
-            for match in re.findall(pattern, value):
-                parsed = self._parse_date_candidate(match)
-                if parsed is not None:
-                    candidates.add(parsed)
-        return candidates
-
-    def _parse_date_candidate(self, raw_value: str) -> date | None:
-        value = raw_value.strip()
-        for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y", "%B %d, %Y"):
-            try:
-                return datetime.strptime(value, fmt).date()
-            except ValueError:
-                continue
-        return None
 
     def _clean_source_value(self, value: object) -> str | None:
         if not isinstance(value, str):

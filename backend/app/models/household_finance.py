@@ -83,6 +83,58 @@ class HouseholdOpportunity(BaseModel):
     next_step: str
 
 
+class HouseholdExecutiveReport(BaseModel):
+    headline: str
+    summary: str
+    average_monthly_spend: float
+    average_monthly_essentials: float
+    average_monthly_discretionary: float
+    recent_30_day_spend: float
+    recurring_merchant_count: int
+    tracked_expense_count: int
+    coverage_months: int
+
+
+class HouseholdCategoryBreakdown(BaseModel):
+    category: str
+    amount: float
+    share: float
+    essentiality: str
+
+
+class HouseholdMerchantInsight(BaseModel):
+    canonical_name: str
+    amount: float
+    transaction_count: int
+    cadence: str
+    category: str
+    recommendation: str
+
+
+class HouseholdMonthlyTrendPoint(BaseModel):
+    month: str
+    amount: float
+    transaction_count: int
+
+
+class HouseholdRecentTransaction(BaseModel):
+    transaction_date: str
+    merchant: str
+    description: str
+    amount: float
+    category: str
+    account_label: str | None = None
+    source_document_id: str | None = None
+
+
+class HouseholdReports(BaseModel):
+    executive: HouseholdExecutiveReport
+    category_breakdown: list[HouseholdCategoryBreakdown] = Field(default_factory=list)
+    merchant_highlights: list[HouseholdMerchantInsight] = Field(default_factory=list)
+    monthly_spend_trend: list[HouseholdMonthlyTrendPoint] = Field(default_factory=list)
+    recent_transactions: list[HouseholdRecentTransaction] = Field(default_factory=list)
+
+
 class ImportFormat(BaseModel):
     label: str
     formats: list[str] = Field(default_factory=list)
@@ -171,6 +223,7 @@ class HouseholdFinanceDashboard(BaseModel):
     budget_readiness: BudgetReadiness
     retirement_preparedness: RetirementPreparedness
     opportunities: list[HouseholdOpportunity] = Field(default_factory=list)
+    reports: HouseholdReports
     import_center: ImportCenter
     questions: list[HouseholdQuestion] = Field(default_factory=list)
     jenny_brief: JennyMoneyBrief

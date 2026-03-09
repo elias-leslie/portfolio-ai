@@ -67,6 +67,60 @@ export interface HouseholdOpportunity {
   nextStep: string
 }
 
+export interface HouseholdExecutiveReport {
+  headline: string
+  summary: string
+  averageMonthlySpend: number
+  averageMonthlyEssentials: number
+  averageMonthlyDiscretionary: number
+  recent30DaySpend: number
+  recurringMerchantCount: number
+  trackedExpenseCount: number
+  coverageMonths: number
+}
+
+export interface HouseholdCategoryBreakdown {
+  category: string
+  essentiality: string
+  monthlyAverage: number
+  shareOfSpend: number
+  totalSpend: number
+}
+
+export interface HouseholdMerchantInsight {
+  merchant: string
+  category: string
+  totalSpend: number
+  averageTicket: number
+  transactionCount: number
+  cadence: string
+  recommendation: string
+}
+
+export interface HouseholdMonthlyTrendPoint {
+  month: string
+  totalSpend: number
+  transactionCount: number
+}
+
+export interface HouseholdRecentTransaction {
+  date: string
+  merchant: string
+  description: string
+  amount: number
+  category: string
+  essentiality: string
+  accountLabel: string | null
+}
+
+export interface HouseholdReports {
+  executive: HouseholdExecutiveReport
+  categoryBreakdown: HouseholdCategoryBreakdown[]
+  merchantHighlights: HouseholdMerchantInsight[]
+  monthlySpendTrend: HouseholdMonthlyTrendPoint[]
+  recentTransactions: HouseholdRecentTransaction[]
+}
+
 export interface ImportFormat {
   label: string
   formats: string[]
@@ -142,6 +196,7 @@ export interface HouseholdFinanceDashboard {
   importCenter: ImportCenter
   questions: HouseholdQuestion[]
   jennyBrief: JennyMoneyBrief
+  reports: HouseholdReports
 }
 
 export interface HouseholdProfileUpdate {

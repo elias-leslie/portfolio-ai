@@ -5,6 +5,7 @@ import { HouseholdDocumentCenter } from '@/components/money/HouseholdDocumentCen
 import { HouseholdOverviewGrid } from '@/components/money/HouseholdOverviewGrid'
 import { HouseholdPlanningPanels } from '@/components/money/HouseholdPlanningPanels'
 import { HouseholdProfileCard } from '@/components/money/HouseholdProfileCard'
+import { HouseholdReportsPanel } from '@/components/money/HouseholdReportsPanel'
 import { JennyMoneyBoard } from '@/components/money/JennyMoneyBoard'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -62,6 +63,7 @@ export default function MoneyPage() {
       />
 
       <HouseholdOverviewGrid dashboard={dashboard} />
+      <HouseholdReportsPanel dashboard={dashboard} />
       <HouseholdDocumentCenter documents={documents?.items ?? []} />
       <HouseholdProfileCard
         profile={dashboard.profile}

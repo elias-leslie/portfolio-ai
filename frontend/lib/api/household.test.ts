@@ -77,6 +77,23 @@ describe('household api', () => {
           body: 'Body',
           prompts: [],
         },
+        reports: {
+          executive: {
+            headline: 'Ledger ready',
+            summary: 'Summary',
+            average_monthly_spend: 0,
+            average_monthly_essentials: 0,
+            average_monthly_discretionary: 0,
+            recent_30_day_spend: 0,
+            recurring_merchant_count: 0,
+            tracked_expense_count: 0,
+            coverage_months: 0,
+          },
+          category_breakdown: [],
+          merchant_highlights: [],
+          monthly_spend_trend: [],
+          recent_transactions: [],
+        },
       }),
     }) as unknown as typeof fetch
 

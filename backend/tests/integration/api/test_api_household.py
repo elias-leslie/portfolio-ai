@@ -209,6 +209,76 @@ def test_household_dashboard_uses_profile_documents_and_portfolio(
     assert dashboard["budget_readiness"]["status"] == "ready_for_budgeting"
     assert dashboard["retirement_preparedness"]["status"] == "scenario_ready"
     assert dashboard["import_center"]["tracked_documents"] == 1
+    assert dashboard["reports"]["executive"]["tracked_expense_count"] == 0
+
+
+def test_household_dashboard_includes_transaction_reports_from_documents(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    chase_review = {
+        "summary": "Chase Amazon credit-card statement with monthly household spending.",
+        "document_type": "statement",
+        "source_type": "credit_card",
+        "confidence": 0.91,
+        "structured_data": {"account_hint": "Chase Amazon card"},
+        "inferred_values": [],
+        "questions": [],
+        "extracted_text": (
+            "ELIAS B LESLIE Page 2 of 4 Statement Date: 01/11/26\n"
+            "Date of Transaction Merchant Name or Transaction Description $ Amount\n"
+            "12/11 & WAL-MART #5831 LARGO FL 149.21\n"
+            "12/12 & WM SUPERCENTER #5831 LARGO FL 30.00\n"
+            "12/14 & PUBLIX #1309 BELLEAIR BLUF FL 27.50\n"
+            "12/23 & Payment Thank You-Mobile -5757.53\n"
+        ),
+    }
+    receipt_review = {
+        "summary": "Walmart grocery receipt with produce and pantry staples.",
+        "document_type": "receipt",
+        "source_type": "receipt",
+        "confidence": 0.95,
+        "structured_data": {
+            "merchant": "Walmart (Store #5831, Largo, FL)",
+            "account_hint": "Visa Credit ****4635",
+            "total_amount": "164.14",
+            "statement_period": "2025-12-22",
+        },
+        "inferred_values": [],
+        "questions": [],
+        "extracted_text": "12/22/2025 TOTAL 164.14 WAL-MART #5831",
+    }
+
+    with (
+        patch(
+            "app.services.household_finance_service.HouseholdFinanceService._upload_root",
+            return_value=tmp_path,
+        ),
+        patch(
+            "app.services.household_document_review.HouseholdDocumentReviewService.review",
+            side_effect=[chase_review, receipt_review],
+        ),
+    ):
+        first = client.post(
+            "/api/household/documents",
+            files={"file": ("20260111-statements-5313-.pdf", b"statement bytes", "application/pdf")},
+        )
+        second = client.post(
+            "/api/household/documents",
+            files={"file": ("2Order details - Walmart.com.pdf", b"receipt bytes", "application/pdf")},
+        )
+        dashboard_response = client.get("/api/household/dashboard")
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert dashboard_response.status_code == 200
+
+    dashboard = dashboard_response.json()
+    assert dashboard["reports"]["executive"]["tracked_expense_count"] >= 4
+    assert dashboard["reports"]["executive"]["average_monthly_spend"] > 0
+    assert dashboard["reports"]["category_breakdown"][0]["category"] in {"Groceries", "Retail"}
+    assert dashboard["reports"]["merchant_highlights"][0]["canonical_name"].startswith("Walmart")
+    assert dashboard["reports"]["recent_transactions"][0]["merchant"]
 
 
 def test_household_questions_can_be_answered_and_confirm_profile_value(
