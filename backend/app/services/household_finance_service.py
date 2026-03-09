@@ -1662,6 +1662,7 @@ class HouseholdFinanceService:
             return None
 
         observed_dates: set[date] = set()
+        merchant_aliases = self._merchant_aliases(merchant)
 
         document_rows = conn.execute(
             """
@@ -1676,15 +1677,20 @@ class HouseholdFinanceService:
                 ORDER BY created_at DESC
                 LIMIT 1
             ) r ON TRUE
-            WHERE lower(COALESCE(d.metadata->'structured_data'->>'merchant', '')) LIKE %s
             """,
-            [f"%{normalized_root}%"],
         ).fetchall()
         for row in document_rows:
             for raw_value in row:
                 if raw_value is None:
                     continue
                 observed_dates.update(self._extract_dates_from_text(str(raw_value)))
+            extracted_text = str(row[1]) if len(row) > 1 and row[1] is not None else ""
+            observed_dates.update(
+                self._extract_statement_merchant_dates(
+                    extracted_text=extracted_text,
+                    merchant_aliases=merchant_aliases,
+                )
+            )
 
         import_rows = conn.execute(
             """
@@ -1738,6 +1744,94 @@ class HouseholdFinanceService:
         normalized = re.sub(r"[^a-z0-9]+", " ", normalized)
         normalized = re.sub(r"\s+", " ", normalized).strip()
         return normalized
+
+    def _merchant_aliases(self, merchant: str) -> set[str]:
+        root = self._merchant_root(merchant)
+        if not root:
+            return set()
+
+        aliases = {root}
+        collapsed = root.replace(" ", "")
+        if collapsed:
+            aliases.add(collapsed)
+
+        if "walmart" in collapsed:
+            aliases.update(
+                {
+                    "wal mart",
+                    "wm supercenter",
+                    "wmsupercenter",
+                    "walmart supercenter",
+                    "wal martsupercenter",
+                }
+            )
+        return {alias for alias in aliases if alias}
+
+    def _extract_statement_merchant_dates(
+        self,
+        *,
+        extracted_text: str,
+        merchant_aliases: set[str],
+    ) -> set[date]:
+        candidates: set[date] = set()
+        if not extracted_text or not merchant_aliases:
+            return candidates
+
+        for raw_line in extracted_text.splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+            normalized_line = re.sub(r"[^a-z0-9]+", " ", line.lower())
+            normalized_line = re.sub(r"\s+", " ", normalized_line).strip()
+            if not any(alias in normalized_line for alias in merchant_aliases):
+                continue
+            date_match = re.match(r"^(\d{2}/\d{2})\b", line)
+            if not date_match:
+                continue
+            raw_date = date_match.group(1)
+            parsed = self._parse_statement_transaction_date(
+                raw_date=raw_date,
+                extracted_text=extracted_text,
+            )
+            if parsed is not None:
+                candidates.add(parsed)
+        return candidates
+
+    def _parse_statement_transaction_date(
+        self,
+        *,
+        raw_date: str,
+        extracted_text: str,
+    ) -> date | None:
+        statement_date = self._extract_statement_date(extracted_text)
+        if statement_date is None:
+            return None
+        month_text, day_text = raw_date.split("/", maxsplit=1)
+        month = int(month_text)
+        day = int(day_text)
+        year = statement_date.year - 1 if month > statement_date.month else statement_date.year
+        try:
+            return date(year, month, day)
+        except ValueError:
+            return None
+
+    def _extract_statement_date(self, extracted_text: str) -> date | None:
+        match = re.search(r"Statement Date:\s*\d{2}/\d{2}/(\d{2,4})", extracted_text, flags=re.IGNORECASE)
+        if match:
+            full_match = re.search(
+                r"Statement Date:\s*(\d{2}/\d{2}/\d{2,4})",
+                extracted_text,
+                flags=re.IGNORECASE,
+            )
+            if full_match:
+                parsed = self._parse_date_candidate(full_match.group(1))
+                if parsed is not None:
+                    return parsed
+
+        date_match = re.search(r"\b(\d{2})/(\d{2})/(\d{2})\b", extracted_text)
+        if date_match:
+            return self._parse_date_candidate(date_match.group(0))
+        return None
 
     def _extract_dates_from_text(self, value: str) -> set[date]:
         candidates: set[date] = set()

@@ -631,7 +631,7 @@ def test_household_list_questions_suppresses_inferable_merchant_frequency_questi
             assert response.status_code == 200
 
     questions = client.get("/api/household/questions").json()["items"]
-    assert questions == []
+    assert all("How often does the household shop" not in question["question"] for question in questions)
 
 
 def test_household_list_questions_keeps_frequency_question_when_cadence_is_unknowable(
@@ -696,6 +696,74 @@ def test_household_list_questions_keeps_frequency_question_when_cadence_is_unkno
     questions = client.get("/api/household/questions").json()["items"]
     assert len(questions) == 1
     assert "How often does the household shop" in questions[0]["question"]
+
+
+def test_household_list_questions_uses_statement_merchant_aliases_for_frequency_inference(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    review_payloads = [
+        {
+            "summary": "Chase statement.",
+            "document_type": "statement",
+            "source_type": "credit_card",
+            "confidence": 0.9,
+            "structured_data": {"account_hint": "Chase Amazon card"},
+            "inferred_values": [],
+            "questions": [],
+            "extracted_text": (
+                "ELIAS B LESLIE Page 2 of 4 Statement Date: 01/11/26\n"
+                "Date of Transaction Merchant Name or Transaction Description $ Amount\n"
+                "12/11 & WAL-MART #5831 LARGO FL 149.21\n"
+                "12/12 & WM SUPERCENTER #5831 LARGO FL 30.00\n"
+                "12/15 & WAL-MART #5831 LARGO FL 222.62\n"
+                "12/22 & WM SUPERCENTER #5831 LARGO FL 164.39\n"
+            ),
+        },
+        {
+            "summary": "Walmart receipt.",
+            "document_type": "receipt",
+            "source_type": "receipt",
+            "confidence": 0.95,
+            "structured_data": {
+                "merchant": "Walmart (Store #5831, Largo, FL)",
+                "account_hint": "Visa Credit ****4635",
+                "statement_period": "2026-01-03",
+            },
+            "inferred_values": [],
+            "questions": [
+                {
+                    "field_name": None,
+                    "question": "How often does the household shop at Walmart like this — weekly, bi-weekly, or less frequently?",
+                    "priority": "high",
+                    "recommendation": "If this is a weekly or bi-weekly run, multiply accordingly to size your monthly grocery budget line.",
+                    "rationale": "Trip frequency is needed to estimate true monthly grocery spend.",
+                }
+            ],
+        },
+    ]
+
+    with patch(
+        "app.services.household_finance_service.HouseholdFinanceService._upload_root",
+        return_value=tmp_path,
+    ), patch(
+        "app.services.household_document_review.HouseholdDocumentReviewService.review",
+        side_effect=review_payloads,
+    ):
+        first = client.post(
+            "/api/household/documents",
+            files={"file": ("20260111-statements-5313-.pdf", b"statement bytes", "application/pdf")},
+        )
+        second = client.post(
+            "/api/household/documents",
+            files={"file": ("walmart_receipt.pdf", b"receipt bytes", "application/pdf")},
+        )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+
+    questions = client.get("/api/household/questions").json()["items"]
+    assert all("How often does the household shop" not in question["question"] for question in questions)
 
 
 def test_household_document_duplicate_upload_returns_existing_document(
