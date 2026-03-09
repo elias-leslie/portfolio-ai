@@ -8,6 +8,7 @@ import re
 import uuid
 from csv import DictReader
 from datetime import UTC, datetime
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, cast
 
@@ -304,7 +305,8 @@ class HouseholdFinanceService:
             return None
 
         row_question = self._row_to_question(question)
-        self._apply_answer_to_profile(row_question, payload.answer_text)
+        cleaned_answer = payload.answer_text.strip()
+        self._apply_answer_to_profile(row_question, cleaned_answer)
 
         now = datetime.now(UTC).isoformat()
         with self.storage.connection() as conn:
@@ -314,7 +316,7 @@ class HouseholdFinanceService:
                 SET status = 'answered', answer_text = %s, answered_at = %s
                 WHERE id = %s
                 """,
-                [payload.answer_text.strip(), now, question_id],
+                [cleaned_answer, now, question_id],
             )
             if row_question.field_name:
                 conn.execute(
@@ -325,9 +327,15 @@ class HouseholdFinanceService:
                     """,
                     [now, row_question.field_name],
                 )
+            self._resolve_related_open_questions(
+                conn=conn,
+                question=row_question,
+                answer_text=cleaned_answer,
+                answered_at=now,
+            )
             conn.commit()
 
-        self._store_confirmed_question_learning(row_question, payload.answer_text.strip())
+        self._store_confirmed_question_learning(row_question, cleaned_answer)
 
         answered = self._get_question_row(question_id)
         return self._row_to_question(answered) if answered is not None else None
@@ -897,6 +905,16 @@ class HouseholdFinanceService:
         with self.storage.connection() as conn:
             conn.execute(
                 """
+                UPDATE household_questions
+                SET status = 'dismissed',
+                    answered_at = %s
+                WHERE source_document_id = %s
+                  AND status = 'open'
+                """,
+                [now, document.id],
+            )
+            conn.execute(
+                """
                 UPDATE household_documents
                 SET source_type = %s,
                     document_type = %s,
@@ -1186,6 +1204,222 @@ class HouseholdFinanceService:
             context="household_question_confirmation",
         )
 
+    def _resolve_related_open_questions(
+        self,
+        *,
+        conn: Any,
+        question: HouseholdQuestion,
+        answer_text: str,
+        answered_at: str,
+    ) -> None:
+        source_document = question.metadata.get("source_document")
+        if not isinstance(source_document, dict):
+            return
+
+        question_family = self._question_family(question.question, question.field_name)
+        source_document_id = question.source_document_id
+        account_label = self._clean_source_value(source_document.get("account_label"))
+        account_hint = self._clean_source_value(source_document.get("account_hint"))
+        merchant = self._clean_source_value(source_document.get("merchant"))
+
+        if source_document_id is None and not any(
+            isinstance(value, str) and value.strip()
+            for value in [account_label, account_hint, merchant]
+        ):
+            return
+
+        conn.execute(
+            """
+            UPDATE household_questions AS q
+            SET status = 'answered',
+                answer_text = %s,
+                answered_at = %s
+            FROM household_documents AS d
+            WHERE q.source_document_id = d.id
+              AND q.status = 'open'
+              AND q.id <> %s
+              AND q.question = %s
+              AND COALESCE(q.field_name, '') = COALESCE(%s, '')
+              AND (
+                    q.source_document_id = %s
+                    OR (
+                        %s IS NOT NULL
+                        AND d.account_label = %s
+                    )
+                    OR (
+                        %s IS NOT NULL
+                        AND d.metadata->'structured_data'->>'account_hint' = %s
+                    )
+                    OR (
+                        %s IS NOT NULL
+                        AND d.metadata->'structured_data'->>'merchant' = %s
+                    )
+                  )
+            """,
+            [
+                answer_text,
+                answered_at,
+                question.id,
+                question.question,
+                question.field_name,
+                source_document_id,
+                account_label if isinstance(account_label, str) and account_label else None,
+                account_label if isinstance(account_label, str) and account_label else None,
+                account_hint if isinstance(account_hint, str) and account_hint else None,
+                account_hint if isinstance(account_hint, str) and account_hint else None,
+                merchant if isinstance(merchant, str) and merchant else None,
+                merchant if isinstance(merchant, str) and merchant else None,
+            ],
+        )
+
+        related_rows = conn.execute(
+            """
+            SELECT
+                q.id, q.field_name, q.status, q.priority, q.question, q.rationale,
+                q.answer_text, q.source_document_id, q.metadata, q.created_at, q.answered_at,
+                d.filename, d.source_type, d.document_type, d.account_label, d.review_summary, d.metadata
+            FROM household_questions q
+            LEFT JOIN household_documents d ON d.id = q.source_document_id
+            WHERE q.status = 'open'
+              AND q.id <> %s
+            ORDER BY q.created_at ASC
+            """,
+            [question.id],
+        ).fetchall()
+
+        for row in related_rows:
+            candidate = self._row_to_question(row)
+            if not self._question_is_answered_by_context(
+                answered_question=question,
+                candidate_question=candidate,
+                answer_text=answer_text,
+                answered_family=question_family,
+            ):
+                continue
+
+            conn.execute(
+                """
+                UPDATE household_questions
+                SET status = 'answered',
+                    answer_text = %s,
+                    answered_at = %s,
+                    metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
+                WHERE id = %s
+                  AND status = 'open'
+                """,
+                [
+                    answer_text,
+                    answered_at,
+                    json.dumps(
+                        {
+                            "reconciled_from_question_id": question.id,
+                            "reconciliation_reason": "answered_by_existing_context",
+                        }
+                    ),
+                    candidate.id,
+                ],
+            )
+
+    def _question_is_answered_by_context(
+        self,
+        *,
+        answered_question: HouseholdQuestion,
+        candidate_question: HouseholdQuestion,
+        answer_text: str,
+        answered_family: str,
+    ) -> bool:
+        shares_context = self._questions_share_source_context(answered_question, candidate_question)
+        candidate_family = self._question_family(
+            candidate_question.question,
+            candidate_question.field_name,
+        )
+        normalized_answer = answer_text.strip().lower()
+        is_covered = False
+        family_tokens = {
+            "core_spending": [
+                "yes",
+                "main household",
+                "primary account",
+                "regular bills",
+                "core household",
+                "everyday spending",
+                "cash flow",
+            ],
+            "shopping_channel": [
+                "yes",
+                "recurring",
+                "regular household",
+                "grocer",
+                "consumable",
+                "home goods",
+                "weekly",
+                "monthly",
+            ],
+        }
+        if (
+            shares_context
+            and candidate_family != "unknown"
+            and answered_family != "unknown"
+            and candidate_family == answered_family
+            and len(normalized_answer) >= 3
+        ):
+            if answered_family == "retirement_target":
+                is_covered = True
+            elif answered_family == "document_role":
+                is_covered = len(normalized_answer) >= 8
+            else:
+                tokens = family_tokens.get(answered_family, [])
+                is_covered = any(token in normalized_answer for token in tokens)
+        return is_covered
+
+    def _questions_share_source_context(
+        self,
+        first: HouseholdQuestion,
+        second: HouseholdQuestion,
+    ) -> bool:
+        if first.source_document_id is not None and first.source_document_id == second.source_document_id:
+            return True
+
+        first_source = first.metadata.get("source_document")
+        second_source = second.metadata.get("source_document")
+        if not isinstance(first_source, dict) or not isinstance(second_source, dict):
+            return False
+
+        for key in ["account_label", "account_hint", "merchant"]:
+            first_value = self._clean_source_value(first_source.get(key))
+            second_value = self._clean_source_value(second_source.get(key))
+            if first_value and second_value and first_value == second_value:
+                return True
+        return False
+
+    def _question_family(self, question_text: str, field_name: str | None) -> str:
+        normalized = question_text.lower()
+        if field_name == "monthly_essential_target" and any(
+            phrase in normalized
+            for phrase in [
+                "primary account",
+                "monthly bills",
+                "budget tracking",
+                "core monthly household spending",
+                "core household spending",
+                "budget-driving",
+            ]
+        ):
+            return "core_spending"
+        if "regular household spending" in normalized or "recurring household shopping channel" in normalized:
+            return "shopping_channel"
+        if field_name in {"target_retirement_age", "target_retirement_spend"}:
+            return "retirement_target"
+        if "what role should this document play" in normalized:
+            return "document_role"
+        return "unknown"
+
+    def _clean_source_value(self, value: object) -> str | None:
+        if not isinstance(value, str):
+            return None
+        cleaned = value.strip().lower()
+        return cleaned or None
+
     def _store_document_learning(
         self,
         *,
@@ -1333,7 +1567,16 @@ class HouseholdFinanceService:
                             row_date, merchant, description, amount, currency, row_metadata,
                             created_at, updated_at
                         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
-                        ON CONFLICT (row_hash) DO NOTHING
+                        ON CONFLICT (row_hash) DO UPDATE SET
+                            document_id = EXCLUDED.document_id,
+                            external_row_id = COALESCE(EXCLUDED.external_row_id, household_import_rows.external_row_id),
+                            row_date = COALESCE(EXCLUDED.row_date, household_import_rows.row_date),
+                            merchant = COALESCE(EXCLUDED.merchant, household_import_rows.merchant),
+                            description = COALESCE(EXCLUDED.description, household_import_rows.description),
+                            amount = COALESCE(EXCLUDED.amount, household_import_rows.amount),
+                            currency = COALESCE(EXCLUDED.currency, household_import_rows.currency),
+                            row_metadata = household_import_rows.row_metadata || EXCLUDED.row_metadata,
+                            updated_at = EXCLUDED.updated_at
                         RETURNING id
                         """,
                         [
@@ -1344,8 +1587,12 @@ class HouseholdFinanceService:
                             row.get("Order ID"),
                             row_date,
                             "Amazon",
-                            row.get("ASIN"),
-                            None,
+                            row.get("Product Name") or row.get("ASIN"),
+                            self._parse_decimal(
+                                row.get("Total Amount")
+                                or row.get("Shipment Item Subtotal")
+                                or row.get("Unit Price")
+                            ),
                             row.get("Currency"),
                             json.dumps(row),
                             now,
@@ -1422,6 +1669,21 @@ class HouseholdFinanceService:
         try:
             return datetime.fromisoformat(normalized).isoformat()
         except ValueError:
+            return None
+
+    def _parse_decimal(self, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().replace(",", "").replace("$", "")
+        if not normalized or normalized.lower() in {"not available", "not applicable"}:
+            return None
+        if normalized.startswith("'") and normalized.endswith("'"):
+            normalized = normalized[1:-1]
+        if normalized.startswith("(") and normalized.endswith(")"):
+            normalized = f"-{normalized[1:-1]}"
+        try:
+            return str(Decimal(normalized))
+        except InvalidOperation:
             return None
 
     def _row_to_document(self, row: tuple[Any, ...]) -> HouseholdDocument:

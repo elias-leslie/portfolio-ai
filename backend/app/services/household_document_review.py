@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import csv
+import hashlib
 import json
 import re
 from datetime import UTC, datetime
@@ -305,7 +306,7 @@ class HouseholdDocumentReviewService:
         with stored_path.open("r", encoding="utf-8", errors="ignore", newline="") as handle:
             reader = csv.reader(handle)
             for idx, row in enumerate(reader):
-                rows.append(", ".join(cell.strip() for cell in row[:12]))
+                rows.append(", ".join(cell.strip() for cell in row[:32]))
                 if idx >= 20:
                     break
         return "\n".join(rows)
@@ -355,9 +356,12 @@ class HouseholdDocumentReviewService:
         ):
             inferred_source = "receipt"
             inferred_document = "receipt"
-            confidence = 0.82
+            confidence = 0.9
             structured_data["merchant"] = "Amazon"
-            summary = "Amazon order history export covering household purchases over time."
+            if "total amount" in text_lower or "unit price" in text_lower or "shipping charge" in text_lower:
+                summary = "Amazon order history export with order pricing, shipping, and item-level purchase detail."
+            else:
+                summary = "Amazon order history export covering household purchases over time."
         elif "walmart.com" in text_lower or "order details - walmart.com" in text_lower or "walmart" in filename_lower:
             inferred_source = "receipt"
             inferred_document = "receipt"
@@ -443,10 +447,11 @@ class HouseholdDocumentReviewService:
                     for cell in first_line.split(",")[:20]
                 )
                 if normalized:
+                    digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:24]
                     candidates.append(
                         (
                             "csv_header",
-                            f"csv_header::{normalized}",
+                            f"csv_header::{digest}",
                             {"normalized_headers": normalized},
                         )
                     )

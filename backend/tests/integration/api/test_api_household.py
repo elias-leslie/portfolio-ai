@@ -282,6 +282,138 @@ def test_household_questions_can_be_answered_and_confirm_profile_value(
     assert retirement_value["source"] == "manual"
 
 
+def test_household_answering_question_closes_matching_sibling_questions(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    review_payload = {
+        "summary": "Checking statement covering recurring deposits and baseline spending.",
+        "document_type": "statement",
+        "source_type": "bank",
+        "confidence": 0.89,
+        "structured_data": {"account_hint": "Wells Fargo Everyday Checking"},
+        "inferred_values": [],
+        "questions": [
+            {
+                "field_name": "monthly_essential_target",
+                "question": "Is Wells Fargo Everyday Checking your primary account for monthly bills, deposits, and budget tracking?",
+                "priority": "high",
+                "recommendation": "Answer 'yes' if most paycheck deposits, bill payments, and core household cash flow pass through this account.",
+                "rationale": "Primary checking accounts anchor the household cash-flow model.",
+            }
+        ],
+    }
+
+    with (
+        patch(
+            "app.services.household_finance_service.HouseholdFinanceService._upload_root",
+            return_value=tmp_path,
+        ),
+        patch(
+            "app.services.household_document_review.HouseholdDocumentReviewService.review",
+            return_value=review_payload,
+        ),
+    ):
+        first = client.post(
+            "/api/household/documents",
+            files={"file": ("022726 WellsFargo.pdf", b"bank bytes 1", "application/pdf")},
+        )
+        second = client.post(
+            "/api/household/documents",
+            files={"file": ("012726 WellsFargo.pdf", b"bank bytes 2", "application/pdf")},
+        )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+
+    questions_response = client.get("/api/household/questions")
+    questions = questions_response.json()["items"]
+    assert len(questions) == 2
+
+    answer_response = client.post(
+        f"/api/household/questions/{questions[0]['id']}/answer",
+        json={"answer_text": "yes"},
+    )
+    assert answer_response.status_code == 200
+
+    refreshed_questions = client.get("/api/household/questions").json()["items"]
+    assert refreshed_questions == []
+
+
+def test_household_answer_reconciles_related_open_questions_with_different_wording(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    first_review_payload = {
+        "summary": "Checking statement covering recurring deposits and baseline spending.",
+        "document_type": "statement",
+        "source_type": "bank",
+        "confidence": 0.89,
+        "structured_data": {"account_hint": "Wells Fargo Everyday Checking"},
+        "inferred_values": [],
+        "questions": [
+            {
+                "field_name": "monthly_essential_target",
+                "question": "Is Wells Fargo Everyday Checking your primary account for monthly bills, deposits, and budget tracking?",
+                "priority": "high",
+                "recommendation": "Answer 'yes' if most paycheck deposits, bill payments, and core household cash flow pass through this account.",
+                "rationale": "Primary checking accounts anchor the household cash-flow model.",
+            }
+        ],
+    }
+    second_review_payload = {
+        "summary": "Checking account with cash-flow activity.",
+        "document_type": "statement",
+        "source_type": "bank",
+        "confidence": 0.87,
+        "structured_data": {"account_hint": "Wells Fargo Everyday Checking"},
+        "inferred_values": [],
+        "questions": [
+            {
+                "field_name": "monthly_essential_target",
+                "question": "Is this account part of your core monthly household spending?",
+                "priority": "high",
+                "recommendation": "Confirm if this account covers regular household bills, groceries, or everyday spending.",
+                "rationale": "This determines whether Jenny should treat the spend as budget-driving data.",
+            }
+        ],
+    }
+
+    with patch(
+        "app.services.household_finance_service.HouseholdFinanceService._upload_root",
+        return_value=tmp_path,
+    ):
+        with patch(
+            "app.services.household_document_review.HouseholdDocumentReviewService.review",
+            side_effect=[first_review_payload, second_review_payload],
+        ):
+            first = client.post(
+                "/api/household/documents",
+                files={"file": ("022726 WellsFargo.pdf", b"bank bytes 1", "application/pdf")},
+            )
+            second = client.post(
+                "/api/household/documents",
+                files={"file": ("012726 WellsFargo.pdf", b"bank bytes 2", "application/pdf")},
+            )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+
+    questions = client.get("/api/household/questions").json()["items"]
+    assert len(questions) == 2
+
+    answer_response = client.post(
+        f"/api/household/questions/{questions[0]['id']}/answer",
+        json={
+            "answer_text": "yes, this is one of our main household checking accounts and it covers regular bills and cash flow",
+        },
+    )
+    assert answer_response.status_code == 200
+
+    refreshed_questions = client.get("/api/household/questions").json()["items"]
+    assert refreshed_questions == []
+
+
 def test_household_document_duplicate_upload_returns_existing_document(
     client: TestClient,
     tmp_path: Path,
@@ -343,21 +475,21 @@ def test_household_order_history_reupload_dedupes_import_rows(
         "inferred_values": [],
         "questions": [],
         "extracted_text": (
-            "ASIN,Order Date,Order ID,Payment Instrument Type,Original Quantity\n"
-            "B001,2026-03-01T00:00:00Z,111-1111111-1111111,VISA,1"
+            "ASIN,Order Date,Order ID,Payment Instrument Type,Original Quantity,Shipping Charge,Total Amount,Unit Price\n"
+            "B001,2026-03-01T00:00:00Z,111-1111111-1111111,VISA,1,0,10.00,10.00"
         ),
     }
 
     first_csv = (
-        "ASIN,Order Date,Order ID,Payment Instrument Type,Original Quantity,Currency\n"
-        "B001,2026-03-01T00:00:00Z,111-1111111-1111111,VISA,1,USD\n"
-        "B002,2026-03-02T00:00:00Z,222-2222222-2222222,VISA,1,USD\n"
+        "ASIN,Order Date,Order ID,Payment Instrument Type,Original Quantity,Currency,Shipping Charge,Total Amount,Unit Price\n"
+        "B001,2026-03-01T00:00:00Z,111-1111111-1111111,VISA,1,USD,0,10.00,10.00\n"
+        "B002,2026-03-02T00:00:00Z,222-2222222-2222222,VISA,1,USD,1.50,25.50,24.00\n"
     )
     second_csv = (
-        "ASIN,Order Date,Order ID,Payment Instrument Type,Original Quantity,Currency\n"
-        "B001,2026-03-01T00:00:00Z,111-1111111-1111111,VISA,1,USD\n"
-        "B002,2026-03-02T00:00:00Z,222-2222222-2222222,VISA,1,USD\n"
-        "B003,2026-03-03T00:00:00Z,333-3333333-3333333,VISA,2,USD\n"
+        "ASIN,Order Date,Order ID,Payment Instrument Type,Original Quantity,Currency,Shipping Charge,Total Amount,Unit Price\n"
+        "B001,2026-03-01T00:00:00Z,111-1111111-1111111,VISA,1,USD,0,10.00,10.00\n"
+        "B002,2026-03-02T00:00:00Z,222-2222222-2222222,VISA,1,USD,1.50,25.50,24.00\n"
+        "B003,2026-03-03T00:00:00Z,333-3333333-3333333,VISA,2,USD,0,30.00,15.00\n"
     )
 
     with (
@@ -389,6 +521,83 @@ def test_household_order_history_reupload_dedupes_import_rows(
     with test_storage.connection() as conn:
         import_rows = conn.execute("SELECT COUNT(*) FROM household_import_rows").fetchone()[0]
         signatures = conn.execute("SELECT COUNT(*) FROM household_document_signatures").fetchone()[0]
+        imported_amount = conn.execute(
+            """
+            SELECT amount
+            FROM household_import_rows
+            WHERE external_row_id = '222-2222222-2222222'
+            """
+        ).fetchone()[0]
 
     assert import_rows == 3
     assert signatures >= 1
+    assert float(imported_amount) == 25.50
+
+
+def test_household_order_history_reupload_backfills_amounts(
+    client: TestClient,
+    tmp_path: Path,
+    test_storage,
+) -> None:
+    review_payload = {
+        "summary": "Amazon order history export with pricing.",
+        "document_type": "receipt",
+        "source_type": "receipt",
+        "confidence": 0.93,
+        "structured_data": {
+            "merchant": "Amazon",
+            "account_hint": "Amazon account",
+        },
+        "inferred_values": [],
+        "questions": [],
+        "extracted_text": (
+            "ASIN,Order Date,Order ID,Original Quantity,Shipping Charge,Total Amount,Unit Price\n"
+            "B001,2026-03-01T00:00:00Z,111-1111111-1111111,1,0,10.00,10.00"
+        ),
+    }
+
+    first_csv = (
+        "ASIN,Order Date,Order ID,Original Quantity,Currency\n"
+        "B001,2026-03-01T00:00:00Z,111-1111111-1111111,1,USD\n"
+    )
+    second_csv = (
+        "ASIN,Order Date,Order ID,Original Quantity,Currency,Shipping Charge,Total Amount,Unit Price\n"
+        "B001,2026-03-01T00:00:00Z,111-1111111-1111111,1,USD,0,10.00,10.00\n"
+    )
+
+    with (
+        patch(
+            "app.services.household_finance_service.HouseholdFinanceService._upload_root",
+            return_value=tmp_path,
+        ),
+        patch(
+            "app.services.household_document_review.HouseholdDocumentReviewService.review",
+            return_value=review_payload,
+        ),
+        patch(
+            "app.services.household_review_agent_service.HouseholdReviewAgentService.save_learning",
+            return_value="memory-1",
+        ),
+    ):
+        first = client.post(
+            "/api/household/documents",
+            files={"file": ("Order History.csv", first_csv.encode("utf-8"), "text/csv")},
+        )
+        second = client.post(
+            "/api/household/documents",
+            files={"file": ("Order History.csv", second_csv.encode("utf-8"), "text/csv")},
+        )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+
+    with test_storage.connection() as conn:
+        imported_amount = conn.execute(
+            """
+            SELECT amount
+            FROM household_import_rows
+            WHERE external_row_id = '111-1111111-1111111'
+            """
+        ).fetchone()[0]
+
+    assert float(imported_amount) == 10.00

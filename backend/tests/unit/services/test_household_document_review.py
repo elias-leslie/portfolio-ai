@@ -77,6 +77,25 @@ def test_baseline_review_detects_amazon_order_history_csv() -> None:
     assert payload["structured_data"]["merchant"] == "Amazon"
 
 
+def test_extract_csv_text_preserves_amazon_price_columns(tmp_path: Path) -> None:
+    service = HouseholdDocumentReviewService()
+    csv_path = tmp_path / "Order History.csv"
+    csv_path.write_text(
+        (
+            "ASIN,Order Date,Order ID,Original Quantity,Shipping Charge,Total Amount,Unit Price\n"
+            "B001,2026-03-01T00:00:00Z,111-1111111-1111111,1,0,40.93,20.99\n"
+        ),
+        encoding="utf-8",
+    )
+
+    extracted = service._extract_csv_text(csv_path)
+
+    assert "Shipping Charge" in extracted
+    assert "Total Amount" in extracted
+    assert "Unit Price" in extracted
+    assert "40.93" in extracted
+
+
 def test_baseline_review_detects_wells_fargo_checking_statement() -> None:
     service = HouseholdDocumentReviewService()
 
