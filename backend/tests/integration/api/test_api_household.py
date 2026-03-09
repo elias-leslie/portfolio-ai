@@ -382,19 +382,18 @@ def test_household_answer_reconciles_related_open_questions_with_different_wordi
     with patch(
         "app.services.household_finance_service.HouseholdFinanceService._upload_root",
         return_value=tmp_path,
+    ), patch(
+        "app.services.household_document_review.HouseholdDocumentReviewService.review",
+        side_effect=[first_review_payload, second_review_payload],
     ):
-        with patch(
-            "app.services.household_document_review.HouseholdDocumentReviewService.review",
-            side_effect=[first_review_payload, second_review_payload],
-        ):
-            first = client.post(
-                "/api/household/documents",
-                files={"file": ("022726 WellsFargo.pdf", b"bank bytes 1", "application/pdf")},
-            )
-            second = client.post(
-                "/api/household/documents",
-                files={"file": ("012726 WellsFargo.pdf", b"bank bytes 2", "application/pdf")},
-            )
+        first = client.post(
+            "/api/household/documents",
+            files={"file": ("022726 WellsFargo.pdf", b"bank bytes 1", "application/pdf")},
+        )
+        second = client.post(
+            "/api/household/documents",
+            files={"file": ("012726 WellsFargo.pdf", b"bank bytes 2", "application/pdf")},
+        )
 
     assert first.status_code == 200
     assert second.status_code == 200
