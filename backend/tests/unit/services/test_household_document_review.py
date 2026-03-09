@@ -96,6 +96,30 @@ def test_extract_csv_text_preserves_amazon_price_columns(tmp_path: Path) -> None
     assert "40.93" in extracted
 
 
+@patch.object(HouseholdDocumentReviewService, "_extract_pdf_image_text")
+@patch("app.services.household_document_review.PdfReader")
+def test_extract_pdf_text_uses_ocr_fallback_for_low_signal_pages(
+    mock_pdf_reader: MagicMock,
+    pdf_image_text: MagicMock,
+    tmp_path: Path,
+) -> None:
+    service = HouseholdDocumentReviewService()
+    pdf_path = tmp_path / "walmart.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 fake")
+
+    mock_page = MagicMock()
+    mock_page.extract_text.return_value = "Order details - Walmart.com"
+    mock_pdf_reader.return_value.pages = [mock_page]
+    pdf_image_text.return_value = "Fresh Whole Brussels Sprouts\nOrder total $83.21"
+
+    extracted = service._extract_pdf_text(pdf_path)
+
+    pdf_image_text.assert_called_once_with(pdf_path)
+    assert extracted is not None
+    assert "Order details - Walmart.com" in extracted
+    assert "Order total $83.21" in extracted
+
+
 @patch.object(HouseholdDocumentReviewService, "_extract_image_text")
 def test_extract_text_uses_image_ocr(image_ocr: MagicMock, tmp_path: Path) -> None:
     service = HouseholdDocumentReviewService()
@@ -134,6 +158,36 @@ def test_build_signature_candidates_includes_filename_pattern() -> None:
 
     signature_keys = {candidate[1] for candidate in candidates}
     assert "filename_pattern::######_wellsfargo" in signature_keys
+
+
+@patch.object(HouseholdDocumentReviewService, "_touch_signature")
+@patch.object(HouseholdDocumentReviewService, "_find_signature")
+def test_signature_review_enriches_summary_and_amount(
+    find_signature: MagicMock,
+    touch_signature: MagicMock,
+) -> None:
+    service = HouseholdDocumentReviewService()
+    find_signature.return_value = {
+        "id": "sig-1",
+        "signature_type": "filename_pattern",
+        "source_type": "receipt",
+        "document_type": "receipt",
+        "merchant": "Walmart (Store #5831, Largo, FL)",
+        "account_hint": "Visa Credit ****4635",
+        "confidence": 0.95,
+    }
+
+    payload = service._signature_review(
+        filename="1Order details - Walmart.com.pdf",
+        extracted_text="09/03/2026\nTOTAL\n11.40\nVISA\n4635",
+    )
+
+    assert payload is not None
+    assert payload["structured_data"]["merchant"] == "Walmart (Store #5831, Largo, FL)"
+    assert payload["structured_data"]["total_amount"] == "11.40"
+    assert "Walmart" in payload["summary"]
+    assert "11.40" in payload["summary"]
+    touch_signature.assert_called_once_with("sig-1")
 
 
 @patch.object(HouseholdDocumentReviewService, "_pdf_image_blocks")

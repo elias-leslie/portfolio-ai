@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import csv
 import hashlib
+import io
 import json
 import re
 from datetime import UTC, datetime
@@ -328,10 +329,75 @@ class HouseholdDocumentReviewService:
                 if text.strip():
                     chunks.append(text.strip())
             merged = "\n\n".join(chunks).strip()
+            if self._needs_pdf_ocr_fallback(merged):
+                ocr_text = self._extract_pdf_image_text(stored_path)
+                merged = self._merge_extracted_fragments(merged, ocr_text)
             return merged[:12000] if merged else None
         except Exception as exc:
             logger.warning("household_pdf_extract_failed", path=str(stored_path), error=str(exc))
             return None
+
+    def _needs_pdf_ocr_fallback(self, extracted_text: str | None) -> bool:
+        if not extracted_text:
+            return True
+        normalized = extracted_text.strip()
+        if len(normalized) < 180:
+            return True
+        signal_terms = [
+            "$",
+            "order total",
+            "total",
+            "subtotal",
+            "amount due",
+            "item",
+            "qty",
+            "payment",
+            "transaction",
+        ]
+        lowered = normalized.lower()
+        return not any(term in lowered for term in signal_terms)
+
+    def _extract_pdf_image_text(self, stored_path: Path) -> str | None:
+        try:
+            ocr_chunks: list[str] = []
+            with fitz.open(stored_path) as pdf:
+                for page_index in range(min(len(pdf), 3)):
+                    page = pdf.load_page(page_index)
+                    pixmap = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
+                    image = Image.open(io.BytesIO(pixmap.tobytes("png")))
+                    processed = self._prepare_image_for_ocr(image)
+                    result, _ = self._image_ocr_engine()(np.array(processed))
+                    if not result:
+                        continue
+                    page_text = "\n".join(
+                        line[1]
+                        for line in result
+                        if isinstance(line, (list, tuple))
+                        and len(line) > 1
+                        and isinstance(line[1], str)
+                    ).strip()
+                    if page_text:
+                        ocr_chunks.append(page_text)
+            merged = "\n\n".join(ocr_chunks).strip()
+            return merged[:12000] if merged else None
+        except Exception as exc:
+            logger.warning("household_pdf_ocr_failed", path=str(stored_path), error=str(exc))
+            return None
+
+    def _merge_extracted_fragments(self, primary: str | None, secondary: str | None) -> str:
+        merged_lines: list[str] = []
+        seen: set[str] = set()
+        for fragment in [primary or "", secondary or ""]:
+            for line in fragment.splitlines():
+                cleaned = line.strip()
+                if not cleaned:
+                    continue
+                key = re.sub(r"\s+", " ", cleaned).lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                merged_lines.append(cleaned)
+        return "\n".join(merged_lines).strip()
 
     def _extract_image_text(self, stored_path: Path) -> str | None:
         try:
@@ -540,19 +606,27 @@ class HouseholdDocumentReviewService:
             "account_hint": signature["account_hint"],
             "text_preview": extracted_text[:500] if extracted_text else None,
         }
+        statement_period = self._extract_statement_period(extracted_text)
+        if statement_period:
+            structured_data["statement_period"] = statement_period
+        total_amount = self._extract_total_amount(extracted_text)
+        if total_amount:
+            structured_data["total_amount"] = total_amount
         questions = self._build_questions(
             source_type=signature["source_type"],
             document_type=signature["document_type"],
-            summary="Matched a previously learned document signature for this household.",
+            summary=self._signature_summary(
+                signature=signature,
+                structured_data=structured_data,
+            ),
             merchant=signature["merchant"],
             account_hint=signature["account_hint"],
         )
         self._touch_signature(signature["id"])
         return {
-            "summary": (
-                f"Matched learned {signature['signature_type'].replace('_', ' ')} signature "
-                f"for {signature['document_type'].replace('_', ' ')} from "
-                f"{signature['source_type'].replace('_', ' ')}."
+            "summary": self._signature_summary(
+                signature=signature,
+                structured_data=structured_data,
             ),
             "document_type": signature["document_type"],
             "source_type": signature["source_type"],
@@ -566,6 +640,25 @@ class HouseholdDocumentReviewService:
         if signature_type == "filename_pattern":
             return 0.94
         return 0.9
+
+    def _signature_summary(
+        self,
+        *,
+        signature: dict[str, Any],
+        structured_data: dict[str, Any],
+    ) -> str:
+        subject = structured_data.get("merchant") or structured_data.get("account_hint")
+        base = (
+            f"Matched learned {signature['signature_type'].replace('_', ' ')} signature "
+            f"for {signature['document_type'].replace('_', ' ')} from "
+            f"{signature['source_type'].replace('_', ' ')}."
+        )
+        if isinstance(subject, str) and subject:
+            base = f"{subject} matched a learned household document pattern."
+        total_amount = structured_data.get("total_amount")
+        if isinstance(total_amount, str) and total_amount:
+            base = f"{base} Detected total amount {total_amount}."
+        return base
 
     def _find_signature(self, signature_keys: list[str]) -> dict[str, Any] | None:
         if not signature_keys:

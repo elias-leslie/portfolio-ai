@@ -379,6 +379,42 @@ class HouseholdFinanceService:
                     candidate_question.answered_at = answered_at
                     updated = True
 
+            ranked_open_questions = sorted(open_questions, key=self._question_sort_key)
+            for index, primary_question in enumerate(ranked_open_questions):
+                if primary_question.status != "open":
+                    continue
+                for duplicate_question in ranked_open_questions[index + 1 :]:
+                    if duplicate_question.status != "open":
+                        continue
+                    if not self._questions_are_semantic_duplicates(
+                        primary_question,
+                        duplicate_question,
+                    ):
+                        continue
+
+                    conn.execute(
+                        """
+                        UPDATE household_questions
+                        SET status = 'dismissed',
+                            answered_at = %s,
+                            metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
+                        WHERE id = %s
+                          AND status = 'open'
+                        """,
+                        [
+                            datetime.now(UTC).isoformat(),
+                            json.dumps(
+                                {
+                                    "duplicate_of_question_id": primary_question.id,
+                                    "reconciliation_reason": "duplicate_open_question",
+                                }
+                            ),
+                            duplicate_question.id,
+                        ],
+                    )
+                    duplicate_question.status = "dismissed"
+                    updated = True
+
             if updated:
                 conn.commit()
 
@@ -1458,6 +1494,28 @@ class HouseholdFinanceService:
                 tokens = family_tokens.get(answered_family, [])
                 is_covered = any(token in normalized_answer for token in tokens)
         return is_covered
+
+    def _questions_are_semantic_duplicates(
+        self,
+        first: HouseholdQuestion,
+        second: HouseholdQuestion,
+    ) -> bool:
+        if not self._questions_share_source_context(first, second):
+            return False
+
+        first_family = self._question_family(first.question, first.field_name)
+        second_family = self._question_family(second.question, second.field_name)
+        if first_family == "unknown" or second_family == "unknown":
+            return False
+        if first_family != second_family:
+            return False
+        if first.question == second.question and first.field_name == second.field_name:
+            return True
+        return first_family in {"core_spending", "shopping_channel", "document_role"}
+
+    def _question_sort_key(self, question: HouseholdQuestion) -> tuple[int, str]:
+        priority_rank = {"high": 0, "medium": 1, "low": 2}.get(question.priority, 3)
+        return (priority_rank, question.created_at)
 
     def _questions_share_source_context(
         self,

@@ -328,7 +328,7 @@ def test_household_answering_question_closes_matching_sibling_questions(
 
     questions_response = client.get("/api/household/questions")
     questions = questions_response.json()["items"]
-    assert len(questions) == 2
+    assert len(questions) == 1
 
     answer_response = client.post(
         f"/api/household/questions/{questions[0]['id']}/answer",
@@ -399,7 +399,7 @@ def test_household_answer_reconciles_related_open_questions_with_different_wordi
     assert second.status_code == 200
 
     questions = client.get("/api/household/questions").json()["items"]
-    assert len(questions) == 2
+    assert len(questions) == 1
 
     answer_response = client.post(
         f"/api/household/questions/{questions[0]['id']}/answer",
@@ -459,7 +459,7 @@ def test_household_list_questions_reconciles_stale_open_duplicates(
     assert second.status_code == 200
 
     questions = client.get("/api/household/questions").json()["items"]
-    assert len(questions) == 2
+    assert len(questions) == 1
 
     answer_response = client.post(
         f"/api/household/questions/{questions[0]['id']}/answer",
@@ -467,8 +467,17 @@ def test_household_list_questions_reconciles_stale_open_duplicates(
     )
     assert answer_response.status_code == 200
 
-    sibling_id = questions[1]["id"]
     with test_storage.connection() as conn:
+        sibling_id = conn.execute(
+            """
+            SELECT id
+            FROM household_questions
+            WHERE source_document_id <> %s
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            [questions[0]["source_document_id"]],
+        ).fetchone()[0]
         conn.execute(
             """
             UPDATE household_questions
@@ -484,6 +493,69 @@ def test_household_list_questions_reconciles_stale_open_duplicates(
 
     refreshed_questions = client.get("/api/household/questions").json()["items"]
     assert refreshed_questions == []
+
+
+def test_household_list_questions_collapses_semantic_shopping_channel_duplicates(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    first_review_payload = {
+        "summary": "Walmart order details with household shopping line items.",
+        "document_type": "receipt",
+        "source_type": "receipt",
+        "confidence": 0.9,
+        "structured_data": {"merchant": "Walmart"},
+        "inferred_values": [],
+        "questions": [
+            {
+                "field_name": None,
+                "question": "Should Jenny treat Walmart orders like this as part of regular household spending?",
+                "priority": "medium",
+                "recommendation": "Answer 'yes' if Walmart is a recurring household shopping channel for groceries, consumables, or home goods.",
+                "rationale": "This helps Jenny separate recurring household shopping from one-off discretionary purchases.",
+            }
+        ],
+    }
+    second_review_payload = {
+        "summary": "Walmart order details with household shopping line items.",
+        "document_type": "receipt",
+        "source_type": "receipt",
+        "confidence": 0.76,
+        "structured_data": {"merchant": "Walmart"},
+        "inferred_values": [],
+        "questions": [
+            {
+                "field_name": None,
+                "question": "Is Walmart a recurring household shopping channel for Jenny (weekly or monthly)?",
+                "priority": "low",
+                "recommendation": "Answer 'yes' if Walmart is a primary grocery or household goods source.",
+                "rationale": "This helps Jenny benchmark essential shopping behavior.",
+            }
+        ],
+    }
+
+    with patch(
+        "app.services.household_finance_service.HouseholdFinanceService._upload_root",
+        return_value=tmp_path,
+    ), patch(
+        "app.services.household_document_review.HouseholdDocumentReviewService.review",
+        side_effect=[first_review_payload, second_review_payload],
+    ):
+        first = client.post(
+            "/api/household/documents",
+            files={"file": ("1Order details - Walmart.com.pdf", b"pdf bytes 1", "application/pdf")},
+        )
+        second = client.post(
+            "/api/household/documents",
+            files={"file": ("2Order details - Walmart.com.pdf", b"pdf bytes 2", "application/pdf")},
+        )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+
+    questions = client.get("/api/household/questions").json()["items"]
+    assert len(questions) == 1
+    assert "Walmart" in questions[0]["question"]
 
 
 def test_household_document_duplicate_upload_returns_existing_document(
