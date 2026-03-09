@@ -83,4 +83,36 @@ describe('HouseholdDocumentCenter', () => {
       )
     })
   })
+
+  it('renders documents with missing classification fields without crashing', () => {
+    render(
+      <HouseholdDocumentCenter
+        documents={[
+          {
+            id: 'doc-1',
+            filename: 'legacy-upload.pdf',
+            sourceType: null,
+            documentType: null,
+            status: null,
+            accountLabel: null,
+            fileSizeBytes: 1024,
+            contentType: 'application/pdf',
+            classificationConfidence: null,
+            reviewStatus: null,
+            reviewSummary: 'Older document awaiting re-review.',
+            reviewConfidence: null,
+            statementStart: null,
+            statementEnd: null,
+            uploadedAt: '2026-03-09T00:00:00Z',
+            parsedAt: null,
+            metadata: {},
+          },
+        ]}
+      />,
+    )
+
+    expect(screen.getByText(/source pending · type pending/i)).toBeInTheDocument()
+    expect(screen.getByText(/^staged$/i)).toBeInTheDocument()
+    expect(screen.getByText(/older document awaiting re-review/i)).toBeInTheDocument()
+  })
 })

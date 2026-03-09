@@ -139,9 +139,9 @@ export interface ImportCenter {
 export interface HouseholdDocument {
   id: string
   filename: string
-  sourceType: string
-  documentType: string
-  status: string
+  sourceType: string | null
+  documentType: string | null
+  status: string | null
   accountLabel: string | null
   fileSizeBytes: number
   contentType: string | null

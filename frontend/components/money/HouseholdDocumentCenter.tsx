@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useUploadHouseholdDocument } from '@/lib/hooks/useHousehold'
-import { formatFileSize } from './formatters'
+import { formatEnumLabel, formatFileSize } from './formatters'
 
 export function HouseholdDocumentCenter({
   documents,
@@ -200,8 +200,8 @@ export function HouseholdDocumentCenter({
                   <div>
                     <p className="text-sm font-semibold text-text">{document.filename}</p>
                     <p className="mt-1 text-sm text-text-muted">
-                      {document.sourceType.replaceAll('_', ' ')} ·{' '}
-                      {document.documentType.replaceAll('_', ' ')}
+                      {formatEnumLabel(document.sourceType, 'Source pending')} ·{' '}
+                      {formatEnumLabel(document.documentType, 'Type pending')}
                     </p>
                     {document.accountLabel ? (
                       <p className="mt-1 text-sm text-text-muted">{document.accountLabel}</p>
@@ -211,10 +211,10 @@ export function HouseholdDocumentCenter({
                     ) : null}
                   </div>
                   <div className="text-right text-xs text-text-muted">
-                    <p>{document.status.replaceAll('_', ' ')}</p>
+                    <p>{formatEnumLabel(document.status, 'staged')}</p>
                     {document.reviewStatus ? (
                       <p className="mt-1">
-                        Jenny: {document.reviewStatus.replaceAll('_', ' ')}
+                        Jenny: {formatEnumLabel(document.reviewStatus)}
                         {document.reviewConfidence != null
                           ? ` (${Math.round(document.reviewConfidence * 100)}%)`
                           : ''}

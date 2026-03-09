@@ -10,6 +10,16 @@ export function formatCurrency(value: number | null | undefined): string {
   }).format(value)
 }
 
+export function formatEnumLabel(
+  value: string | null | undefined,
+  fallback = 'Awaiting review',
+): string {
+  if (!value) {
+    return fallback
+  }
+  return value.replaceAll('_', ' ')
+}
+
 export function formatPercent(value: number | null | undefined): string {
   if (value == null) {
     return 'Not set'

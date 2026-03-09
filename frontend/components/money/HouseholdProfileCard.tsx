@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useAnswerHouseholdQuestion, useUpdateHouseholdProfile } from '@/lib/hooks/useHousehold'
-import { formatCurrency } from './formatters'
+import { formatCurrency, formatEnumLabel } from './formatters'
 
 type QuestionSourceDocument = {
   id?: string | null
@@ -170,9 +170,7 @@ export function HouseholdProfileCard({
                     {formatResolvedValue(value)}
                   </p>
                 </div>
-                <Badge variant={badgeVariantForStatus(value.status)}>
-                  {value.status.replaceAll('_', ' ')}
-                </Badge>
+                <Badge variant={badgeVariantForStatus(value.status)}>{formatEnumLabel(value.status)}</Badge>
               </div>
               <div className="mt-3 space-y-2 text-sm text-text-muted">
                 <p>

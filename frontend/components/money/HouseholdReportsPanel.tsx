@@ -2,7 +2,7 @@
 
 import type { HouseholdFinanceDashboard } from '@/lib/api/household'
 import { SectionCard } from '@/components/shared/SectionCard'
-import { formatCurrency } from './formatters'
+import { formatCurrency, formatEnumLabel } from './formatters'
 
 function formatMonthLabel(month: string): string {
   const [year, value] = month.split('-')
@@ -118,7 +118,9 @@ export function HouseholdReportsPanel({
                     <div className="flex items-center justify-between gap-3 text-sm">
                       <div>
                         <p className="font-semibold text-text">{item.category}</p>
-                        <p className="text-text-muted">{item.essentiality.replaceAll('_', ' ')}</p>
+                        <p className="text-text-muted">
+                          {formatEnumLabel(item.essentiality, 'mixed')}
+                        </p>
                       </div>
                       <div className="text-right">
                         <p className="font-semibold text-text">
@@ -244,7 +246,7 @@ export function HouseholdReportsPanel({
                       <p className="text-sm font-semibold text-text">{transaction.merchant}</p>
                       <p className="mt-1 text-sm text-text-muted">{transaction.description}</p>
                       <p className="mt-1 text-xs uppercase tracking-wide text-text-muted">
-                        {transaction.category} · {transaction.essentiality.replaceAll('_', ' ')}
+                        {transaction.category} · {formatEnumLabel(transaction.essentiality, 'mixed')}
                         {transaction.accountLabel ? ` · ${transaction.accountLabel}` : ''}
                       </p>
                     </div>
