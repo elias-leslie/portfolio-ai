@@ -25,7 +25,7 @@ dependencies = [
     "feedparser==6.0.12",
     "httpx==0.28.1",
     "python-multipart>=0.0.20",
-    "agent-hub-client @ file:///home/kasadis/agent-hub/packages/agent-hub-client",
+    "agent-hub-client @ git+https://github.com/agent-hub/agent-hub.git@main#subdirectory=packages/agent-hub-client",
 
     # Caching & message broker
     "redis==7.1.0",
@@ -151,7 +151,6 @@ known-first-party = ["app"]
 invalid-argument-type = "ignore"
 unknown-argument = "ignore"
 unresolved-import = "ignore"
-call-non-callable = "ignore"      # .isoformat()/.date() on raw SQL result objects
 no-matching-overload = "ignore"   # dict.get() with non-matching default types
 unresolved-attribute = "ignore"   # polars pl.DataFrame, Callable.__name__
 unsupported-operator = "ignore"   # rowcount comparisons on cursor results

@@ -175,9 +175,9 @@ def get_db_pool_stats(conn: Connection) -> PoolStatsDict:
         raise ValueError("Connection object does not have accessible engine")
 
     # Get pool statistics
-    pool_size = pool.size()  # type: ignore[attr-defined]
-    checked_out = pool.checkedout()  # type: ignore[attr-defined]
-    overflow = pool.overflow()  # type: ignore[attr-defined]
+    pool_size = pool.size()
+    checked_out = pool.checkedout()
+    overflow = pool.overflow()
 
     # Calculate percentage
     if pool_size > 0:

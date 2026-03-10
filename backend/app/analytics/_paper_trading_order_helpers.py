@@ -83,7 +83,7 @@ def build_strategy_trade_dict(
 ) -> PaperTradeDict:
     """Build the PaperTradeDict for a strategy-signal-based trade."""
     now = datetime.now(UTC)
-    return {  # type: ignore[return-value]
+    return {
         "idea_id": idea_id,
         "agent_run_id": f"strategy:{strategy_id}",
         "symbol": symbol,
@@ -145,7 +145,7 @@ def insert_strategy_trade_records(
             "created_at": now.isoformat(),
         },
     )
-    storage.insert_dict("idea_outcomes", dict(insert_data))  # type: ignore[arg-type]
+    storage.insert_dict("idea_outcomes", dict(insert_data))
 
 
 def acquire_position(

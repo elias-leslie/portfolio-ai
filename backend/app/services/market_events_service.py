@@ -71,7 +71,7 @@ def get_market_events(
         LIMIT %(limit)s
     """
 
-    df = storage.query(query, params)  # type: ignore[arg-type]
+    df = storage.query(query, params)
 
     events = []
     for row in df.iter_rows(named=True):
@@ -127,7 +127,7 @@ def get_events_for_chart(
         ORDER BY event_date ASC, event_time ASC NULLS LAST
     """
 
-    df = storage.query(query, {"start_date": start_date, "end_date": end_date})  # type: ignore[arg-type]
+    df = storage.query(query, {"start_date": start_date, "end_date": end_date})
 
     events = []
     for row in df.iter_rows(named=True):
@@ -203,7 +203,7 @@ def create_market_event(event: MarketEventCreate) -> MarketEvent:
         "source": event.source,
     }
 
-    result = storage.query(query, params)  # type: ignore[arg-type]
+    result = storage.query(query, params)
     row = result.row(0, named=True)
 
     logger.info(
@@ -275,7 +275,7 @@ def update_market_event(event_id: int, update: MarketEventUpdate) -> MarketEvent
         RETURNING *
     """
 
-    result = storage.query(query, params)  # type: ignore[arg-type]
+    result = storage.query(query, params)
     if result.is_empty():
         return None
 

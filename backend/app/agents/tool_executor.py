@@ -158,7 +158,7 @@ class ToolExecutorMixin:
         assistant_content = []
         tool_results = []
 
-        for block in response.content:  # type: ignore[attr-defined]
+        for block in response.content:
             assistant_content.append(block)
 
             if block.type == "tool_use":

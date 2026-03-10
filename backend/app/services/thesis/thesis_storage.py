@@ -243,8 +243,9 @@ class ThesisStorageManager:
 
                 # Handle datetime conversion
                 created_at_val = row[5]
-                if created_at_val is not None and hasattr(created_at_val, "isoformat"):
-                    created_at_str = created_at_val.isoformat()
+                created_at_iso = getattr(created_at_val, "isoformat", None)
+                if callable(created_at_iso):
+                    created_at_str = created_at_iso()
                 else:
                     created_at_str = str(created_at_val) if created_at_val else ""
 

@@ -341,7 +341,7 @@ def _fetch_ohlcv_data(
         params = [symbol, str(as_of_date), lookback_days]
 
     # Execute query - PortfolioStorage.query() returns Polars DataFrame
-    result_df = storage.query(query, params)  # type: ignore[arg-type]
+    result_df = storage.query(query, params)
 
     if result_df.is_empty():
         logger.warning(f"No OHLCV data found for symbol {symbol}")

@@ -17,6 +17,7 @@ import json
 import time
 import urllib.request
 from typing import TYPE_CHECKING, Any
+from urllib.error import URLError
 
 from ..logging_config import get_logger
 from .source_metrics_manager import SourceMetricsManager
@@ -214,7 +215,7 @@ class CBOEMostActiveSource:
             logger.info("cboe_most_active_contracts_fetched", count=len(contracts))
             return contracts
 
-        except urllib.error.URLError as e:
+        except URLError as e:
             raise RuntimeError(f"Failed to fetch from CBOE API: {e}") from e
         except json.JSONDecodeError as e:
             raise RuntimeError(f"Invalid JSON response from CBOE API: {e}") from e

@@ -298,7 +298,7 @@ class LLMFlowMixin:
 
         for iteration in range(max_iterations):
             # Generate with tools
-            response = self.llm_client.generate_with_tools(  # type: ignore[union-attr]
+            response = self.llm_client.generate_with_tools(
                 prompt=current_prompt,
                 tools=self.get_tools(),
                 system=self.get_system_prompt(),

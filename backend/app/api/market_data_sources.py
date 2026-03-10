@@ -307,13 +307,14 @@ def get_options_activity_metrics(
                     ]
 
                     # Ensure source_timestamp has isoformat method
-                    if hasattr(source_timestamp_val, "isoformat"):
+                    source_timestamp_iso = getattr(source_timestamp_val, "isoformat", None)
+                    if callable(source_timestamp_iso):
                         return {
                             "near_term_pct": near_term_pct,
                             "near_term_signal": near_term_signal,
                             "concentration_pct": concentration_pct,
                             "concentration_signal": concentration_signal,
                             "top_sectors": top_sectors,
-                            "last_updated": source_timestamp_val.isoformat(),
+                            "last_updated": source_timestamp_iso(),
                         }
     return None

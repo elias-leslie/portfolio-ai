@@ -113,8 +113,9 @@ def safe_str(val: str | int | float | bool | None) -> str | None:
 
 def safe_date_str(val: object) -> str | None:
     """Convert DatabaseValue date to ISO string."""
-    if val is not None and hasattr(val, "isoformat"):
-        return str(val.isoformat())
+    isoformat = getattr(val, "isoformat", None)
+    if callable(isoformat):
+        return str(isoformat())
     return None
 
 

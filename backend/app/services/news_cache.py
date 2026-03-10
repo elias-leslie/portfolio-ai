@@ -355,6 +355,6 @@ class NewsCacheManager:
                         quality_prediction = EXCLUDED.quality_prediction,
                         quality_confidence = EXCLUDED.quality_confidence
                     """,
-                    dict(row),  # type: ignore[arg-type]  # Dict for named placeholders %(name)s
+                    dict(row),  # Dict for named placeholders %(name)s
                 )
             conn.commit()

@@ -22,7 +22,7 @@ def extract_final_response(response: object) -> str:
         Extracted text content
     """
     final_text = ""
-    for block in response.content:  # type: ignore[attr-defined]
+    for block in response.content:
         if block.type == "text":
             final_text += block.text
     return final_text

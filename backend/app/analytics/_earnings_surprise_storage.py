@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from app.logging_config import get_logger
 
@@ -38,10 +38,10 @@ _UPSERT_EARNINGS_SQL = """
 """
 
 
-def _save_one(conn: object, surprise: EarningsSurprise) -> None:  # type: ignore[type-arg]
+def _save_one(conn: Any, surprise: EarningsSurprise) -> None:
     """Persist a single EarningsSurprise row via upsert."""
-    conn.execute(_UPSERT_SYMBOL_SQL, [surprise.symbol])  # type: ignore[union-attr]
-    conn.execute(  # type: ignore[union-attr]
+    conn.execute(_UPSERT_SYMBOL_SQL, [surprise.symbol])
+    conn.execute(
         _UPSERT_EARNINGS_SQL,
         [
             surprise.symbol,

@@ -45,7 +45,7 @@ def _determine_direction(surprise_pct: float | None, eps_estimate: float | None,
     return surprise_pct, direction
 
 
-def _parse_item(symbol: str, item: dict) -> EarningsSurprise | None:  # type: ignore[type-arg]
+def _parse_item(symbol: str, item: dict[str, object]) -> EarningsSurprise | None:
     """Parse a single Finnhub earnings item into an EarningsSurprise. Returns None if no actual."""
     if item.get("actual") is None:
         return None

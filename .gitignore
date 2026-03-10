@@ -46,6 +46,7 @@ Thumbs.db
 
 # Logs
 *.log
+backend/logs/*.log*
 backend.log
 pytestdebug.log
 
@@ -104,6 +105,7 @@ app/references/
 # Project-specific
 .validation-state.json
 backend/models/
+backend/celerybeat-schedule*
 .beads/beads.db
 .beads/bd.sock
 certs/

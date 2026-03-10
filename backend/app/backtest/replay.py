@@ -125,8 +125,8 @@ class Strategy(Protocol):
         self,
         symbol: str,
         backtest_date: date,
-        indicators: dict,  # type: ignore[type-arg]
-        ohlcv: dict,  # type: ignore[type-arg]
+        indicators: dict,
+        ohlcv: dict,
     ) -> bool:
         """Determine if strategy should enter position."""
         ...
@@ -135,8 +135,8 @@ class Strategy(Protocol):
         self,
         position: Position,
         backtest_date: date,
-        indicators: dict,  # type: ignore[type-arg]
-        ohlcv: dict,  # type: ignore[type-arg]
+        indicators: dict,
+        ohlcv: dict,
     ) -> tuple[bool, str]:
         """Determine if strategy should exit position.
 
@@ -182,7 +182,7 @@ def get_trading_days(
     return [row["date"] for row in result_df.to_dicts()]
 
 
-def get_ohlcv(storage: PortfolioStorage, symbol: str, backtest_date: date) -> dict | None:  # type: ignore[type-arg]
+def get_ohlcv(storage: PortfolioStorage, symbol: str, backtest_date: date) -> dict | None:
     """Fetch OHLCV data for symbol on specific date.
 
     Args:
@@ -329,7 +329,7 @@ def exit_trade(
         shares=position.shares,
         pnl=pnl,
         pnl_pct=pnl_pct,
-        exit_reason=exit_reason,  # type: ignore[arg-type]  # Literal type is correct at runtime
+        exit_reason=exit_reason,  # Literal type is correct at runtime
         max_favorable_pct=position.max_favorable_pct,
         max_adverse_pct=position.max_adverse_pct,
         created_at=datetime.now(UTC),  # Will be overridden by DB

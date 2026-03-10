@@ -38,7 +38,9 @@ class Settings(BaseSettings):
     # Redis
     redis_url: str = "redis://localhost:6379"
 
-    # CORS (defaults in main.py are host-specific, not managed here)
+    # Frontend / CORS
+    frontend_host: str | None = None
+    frontend_extra_origins: str = ""
 
     # Cache configuration
     cache_enabled: bool = True

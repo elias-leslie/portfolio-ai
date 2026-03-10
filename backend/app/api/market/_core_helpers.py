@@ -80,12 +80,12 @@ class CoreMarketData:
 
 def _extract_price(data: object | None) -> float | None:
     """Extract price from PriceData object, returning None if data is None."""
-    return data.price if data else None  # type: ignore[union-attr]
+    return data.price if data else None
 
 
 def _extract_price_timestamp(data: object | None) -> str | None:
     """Extract timestamp from PriceData object, returning None if data is None."""
-    return data.cached_at.isoformat() if data else None  # type: ignore[union-attr]
+    return data.cached_at.isoformat() if data else None
 
 
 def fetch_core_market_data() -> CoreMarketData:
@@ -102,7 +102,7 @@ def fetch_core_market_data() -> CoreMarketData:
     dxy_data = price_data.get("DX-Y.NYB")
 
     current_timestamp = (
-        sp500_data.cached_at.isoformat() if sp500_data else datetime.now(UTC).isoformat()  # type: ignore[union-attr]
+        sp500_data.cached_at.isoformat() if sp500_data else datetime.now(UTC).isoformat()
     )
 
     sector_symbols = get_sector_symbols()
@@ -122,9 +122,9 @@ def fetch_core_market_data() -> CoreMarketData:
 def build_market_health_response(health_score_data: object) -> MarketHealthScoreResponse:
     """Build MarketHealthScoreResponse from health score data."""
     return MarketHealthScoreResponse(
-        overall_score=health_score_data.overall_score,  # type: ignore[union-attr]
-        overall_label=health_score_data.overall_label,  # type: ignore[union-attr]
-        last_updated=health_score_data.last_updated,  # type: ignore[union-attr]
+        overall_score=health_score_data.overall_score,
+        overall_label=health_score_data.overall_label,
+        last_updated=health_score_data.last_updated,
         trend=None,
         trend_change=None,
     )
@@ -133,15 +133,15 @@ def build_market_health_response(health_score_data: object) -> MarketHealthScore
 def build_fear_greed_response(fg_reading: object) -> FearGreedScore:
     """Build FearGreedScore response from fear/greed reading."""
     return FearGreedScore(
-        score=int(fg_reading.score),  # type: ignore[union-attr]
-        label=fg_reading.label,  # type: ignore[union-attr]
-        score_change=fg_reading.score_change,  # type: ignore[union-attr]
-        signal_count=fg_reading.signal_count,  # type: ignore[union-attr]
-        last_updated=fg_reading.date,  # type: ignore[union-attr]
-        is_stale=fg_reading.is_stale,  # type: ignore[union-attr]
-        age_days=fg_reading.age_days,  # type: ignore[union-attr]
-        trend=fg_reading.trend,  # type: ignore[union-attr]
-        trend_change=fg_reading.trend_change,  # type: ignore[union-attr]
+        score=int(fg_reading.score),
+        label=fg_reading.label,
+        score_change=fg_reading.score_change,
+        signal_count=fg_reading.signal_count,
+        last_updated=fg_reading.date,
+        is_stale=fg_reading.is_stale,
+        age_days=fg_reading.age_days,
+        trend=fg_reading.trend,
+        trend_change=fg_reading.trend_change,
     )
 
 

@@ -112,10 +112,12 @@ def detect_date_range(
 
                 if min_date is not None and max_date is not None:
                     # Convert to date if timestamp
-                    if hasattr(min_date, "date"):
-                        min_date = min_date.date()
-                    if hasattr(max_date, "date"):
-                        max_date = max_date.date()
+                    min_date_fn = getattr(min_date, "date", None)
+                    if callable(min_date_fn):
+                        min_date = min_date_fn()
+                    max_date_fn = getattr(max_date, "date", None)
+                    if callable(max_date_fn):
+                        max_date = max_date_fn()
 
                     return min_date, max_date
 

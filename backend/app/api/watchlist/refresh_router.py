@@ -172,7 +172,7 @@ async def refresh_watchlist_scores(data: RefreshRequest) -> RefreshResponse:
 
     # Return with appropriate status code
     if status_code == 200:
-        return RefreshResponse(**response_data)  # type: ignore[arg-type]
+        return RefreshResponse(**response_data)
 
     # 207 Multi-Status for partial success
     return JSONResponse(status_code=status_code, content=response_data)  # type: ignore[return-value]

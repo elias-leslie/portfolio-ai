@@ -169,7 +169,7 @@ def _resolve_by_voting(
 
         # Get majority vote
         if vote_counts:
-            majority_vote = max(vote_counts, key=vote_counts.get)  # type: ignore
+            majority_vote = max(vote_counts, key=vote_counts.get)
             return {
                 "status": "resolved",
                 "method": "voting",
@@ -197,7 +197,7 @@ def _resolve_by_majority(conflicting_outputs: dict[str, object]) -> dict[str, ob
         output_counts[output_str] = output_counts.get(output_str, 0) + 1
         output_map[output_str] = output
 
-    majority_output_str = max(output_counts, key=output_counts.get)  # type: ignore
+    majority_output_str = max(output_counts, key=output_counts.get)
     return {
         "status": "resolved",
         "method": "majority",

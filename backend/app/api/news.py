@@ -127,37 +127,37 @@ class NewsHealthResponse(BaseModel):
 
 def _serialize_sentiment(payload: object) -> SentimentScoreResponse:
     return SentimentScoreResponse(
-        score=payload.score,  # type: ignore
-        label=payload.label,  # type: ignore
-        confidence=payload.confidence,  # type: ignore
-        model=payload.model,  # type: ignore
-        probabilities=payload.probabilities or None,  # type: ignore
+        score=payload.score,
+        label=payload.label,
+        confidence=payload.confidence,
+        model=payload.model,
+        probabilities=payload.probabilities or None,
     )
 
 
 def _serialize_article(article: object) -> NewsArticleResponse:
     published_at = (
-        article.published_at.isoformat().replace("+00:00", "Z")  # type: ignore
+        article.published_at.isoformat().replace("+00:00", "Z")
         if getattr(article, "published_at", None)
         else None
     )
     fetched_at = (
-        article.fetched_at.isoformat().replace("+00:00", "Z")  # type: ignore
+        article.fetched_at.isoformat().replace("+00:00", "Z")
         if getattr(article, "fetched_at", None)
         else ""
     )
 
     return NewsArticleResponse(
-        symbol=article.symbol,  # type: ignore
-        headline=article.headline,  # type: ignore
-        url=article.url,  # type: ignore
-        summary=article.summary,  # type: ignore
-        source=article.source,  # type: ignore
-        author=article.author,  # type: ignore
-        image_url=article.image_url,  # type: ignore
+        symbol=article.symbol,
+        headline=article.headline,
+        url=article.url,
+        summary=article.summary,
+        source=article.source,
+        author=article.author,
+        image_url=article.image_url,
         published_at=published_at,
         fetched_at=fetched_at or "",
-        sentiment=_serialize_sentiment(article.sentiment),  # type: ignore
+        sentiment=_serialize_sentiment(article.sentiment),
         vendor=getattr(article, "vendor", None),
         # AI-generated insights
         impact_summary=getattr(article, "impact_summary", None),
@@ -174,34 +174,34 @@ def _serialize_article(article: object) -> NewsArticleResponse:
 
 def _serialize_summary(summary: object) -> NewsSummaryResponse:
     latest_published_at = (
-        summary.latest_published_at.isoformat().replace("+00:00", "Z")  # type: ignore
+        summary.latest_published_at.isoformat().replace("+00:00", "Z")
         if getattr(summary, "latest_published_at", None)
         else None
     )
     return NewsSummaryResponse(
-        symbol=summary.symbol,  # type: ignore
-        score=summary.score,  # type: ignore
-        score_change=summary.score_change,  # type: ignore
-        positive_count=summary.positive_count,  # type: ignore
-        neutral_count=summary.neutral_count,  # type: ignore
-        negative_count=summary.negative_count,  # type: ignore
-        article_count=summary.article_count,  # type: ignore
+        symbol=summary.symbol,
+        score=summary.score,
+        score_change=summary.score_change,
+        positive_count=summary.positive_count,
+        neutral_count=summary.neutral_count,
+        negative_count=summary.negative_count,
+        article_count=summary.article_count,
         latest_published_at=latest_published_at,
-        top_positive=_serialize_article(summary.top_positive)  # type: ignore
+        top_positive=_serialize_article(summary.top_positive)
         if getattr(summary, "top_positive", None)
         else None,
-        top_negative=_serialize_article(summary.top_negative)  # type: ignore
+        top_negative=_serialize_article(summary.top_negative)
         if getattr(summary, "top_negative", None)
         else None,
-        model_breakdown=summary.model_breakdown or {},  # type: ignore
+        model_breakdown=summary.model_breakdown or {},
     )
 
 
 def _serialize_bundle(bundle: object, *, limit: int) -> NewsBundleResponse:
-    articles = [_serialize_article(article) for article in bundle.articles[:limit]]  # type: ignore
+    articles = [_serialize_article(article) for article in bundle.articles[:limit]]
     return NewsBundleResponse(
-        symbol=bundle.symbol,  # type: ignore
-        summary=_serialize_summary(bundle.summary),  # type: ignore
+        symbol=bundle.symbol,
+        summary=_serialize_summary(bundle.summary),
         articles=articles,
     )
 

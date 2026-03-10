@@ -93,7 +93,7 @@ def calculate_piotroski_f_score(
 
         # Helper to safely get values
         def get_val(series: object, key: str, default: float = 0) -> float:
-            return series.get(key, default) or default  # type: ignore[attr-defined]
+            return series.get(key, default) or default
 
         # Calculate metrics
         total_assets_curr = get_val(curr_bs, "Total Assets", 1)
@@ -212,7 +212,7 @@ def calculate_altman_z_score(symbol: str) -> tuple[float | None, str | None, str
 
         # Helper to safely get values
         def get_val(series: object, key: str, default: float = 0) -> float:
-            return series.get(key, default) or default  # type: ignore[attr-defined]
+            return series.get(key, default) or default
 
         # Extract required values
         total_assets = get_val(curr_bs, "Total Assets")

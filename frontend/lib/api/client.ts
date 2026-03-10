@@ -77,8 +77,8 @@ export async function apiRequest<T>(
     headers.set('Content-Type', 'application/json')
   }
 
-  // TODO: Add auth interceptor here when authentication is implemented
-  // Example: headers["Authorization"] = `Bearer ${getAuthToken()}`;
+  // Production requests stay same-origin behind Cloudflare Access, so this
+  // client intentionally avoids app-level auth headers.
 
   let lastError: Error | null = null
 

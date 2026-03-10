@@ -34,6 +34,8 @@ from app.api import (
     watchlist,
 )
 from app.api.market import router as market_router
+from app.config import settings
+from app.config.cors import build_cors_origins
 
 # vision_content_router, vision_goals_router removed - migrated to SummitFlow (portfolio-ai-5rz)
 from app.logging_config import SyslogPrefixFormatter, configure_logging, get_logger
@@ -119,24 +121,13 @@ app = FastAPI(
     redirect_slashes=False,
 )
 
-# Network configuration (from environment or fallback to defaults)
-_NETWORK_HOST = os.getenv("FRONTEND_HOST", "192.168.8.233")
-_TAILSCALE_HOST = os.getenv("TAILSCALE_HOST", "100.123.190.81")
-
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",  # Next.js dev server
-        "http://127.0.0.1:3000",
-        f"http://{_NETWORK_HOST}:3000",  # Network access
-        f"http://{_TAILSCALE_HOST}:3000",  # Tailscale access
-        "https://localhost:3000",  # HTTPS dev server
-        "https://127.0.0.1:3000",
-        f"https://{_NETWORK_HOST}:3000",  # HTTPS network access
-        f"https://{_NETWORK_HOST}",  # HTTPS port 443
-        "https://port.summitflow.dev",  # Production (CF Access)
-    ],
+    allow_origins=build_cors_origins(
+        frontend_host=settings.frontend_host or os.getenv("FRONTEND_HOST"),
+        extra_origins=settings.frontend_extra_origins,
+    ),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

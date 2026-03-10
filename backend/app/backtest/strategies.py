@@ -117,7 +117,7 @@ class SignalStrategy:
         }
 
         # Classify signal using existing logic
-        signal = classify_signal(signal_inputs)  # type: ignore[arg-type]
+        signal = classify_signal(signal_inputs)
 
         # Entry criteria: BUY signal with sufficient strength
         if (
@@ -193,7 +193,7 @@ class SignalStrategy:
             "earnings_days_away": None,
         }
 
-        signal = classify_signal(signal_inputs)  # type: ignore[arg-type]
+        signal = classify_signal(signal_inputs)
 
         if signal.signal_type == SignalType.AVOID:
             logger.debug(

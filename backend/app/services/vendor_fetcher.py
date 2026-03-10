@@ -23,7 +23,7 @@ def _build_vendor_buckets(
     """Group normalized rows by vendor, preserving insertion order."""
     vendor_counts: Counter[str] = Counter()
     vendor_buckets: dict[str, deque[VendorRow]] = {}
-    for row in dataframe.to_dicts():  # type: ignore[union-attr]
+    for row in dataframe.to_dicts():
         vendor_name = str(row.get("source") or "").strip() or "unknown"
         normalized = normalize_vendor_row(
             row, vendor_name=vendor_name, default_symbol=symbol
