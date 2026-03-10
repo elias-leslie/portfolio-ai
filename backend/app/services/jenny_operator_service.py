@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from app.agents.clients.agent_hub_client import AGENT_HUB_ENABLED
+from app.agents.clients.agent_hub_client import AGENT_HUB_ENABLED, AgentHubAPIClient
 from app.agents.workflow_orchestrator import WorkflowOrchestrator
 from app.logging_config import get_logger
 from app.models.jenny import (
@@ -130,6 +130,23 @@ class JennyOperatorService:
         self.review_engine = JennyReviewEngine()
         self.routine_coordinator = JennyRoutineCoordinator()
 
+    def _review_engine(self) -> JennyReviewEngine:
+        engine = getattr(self, "review_engine", None)
+        if engine is None:
+            engine = JennyReviewEngine()
+            self.review_engine = engine
+        return engine
+
+    def _routine_coordinator(self) -> JennyRoutineCoordinator:
+        coordinator = getattr(self, "routine_coordinator", None)
+        if coordinator is None:
+            coordinator = JennyRoutineCoordinator()
+            self.routine_coordinator = coordinator
+        return coordinator
+
+    def _agent_hub_client_class(self):
+        return AgentHubAPIClient
+
     def get_dashboard(self) -> JennyDashboard:
         """Return Jenny dashboard data."""
         self._fail_stale_routines()
@@ -158,20 +175,20 @@ class JennyOperatorService:
 
     def run_daily_operator(self, triggered_by: str = "manual") -> JennyRunResponse:
         """Run the daily Jenny operator routine."""
-        return self.routine_coordinator.run_daily_operator(self, triggered_by)
+        return self._routine_coordinator().run_daily_operator(self, triggered_by)
 
     def run_weekly_learning(self, triggered_by: str = "system") -> JennyRunResponse:
         """Run Jenny's weekly trade review and scorecard update."""
-        return self.routine_coordinator.run_weekly_learning(self, triggered_by)
+        return self._routine_coordinator().run_weekly_learning(self, triggered_by)
 
     def _create_routine(self, routine_type: str, triggered_by: str) -> tuple[str, str]:
-        return self.routine_coordinator.create_routine(self, routine_type, triggered_by)
+        return self._routine_coordinator().create_routine(self, routine_type, triggered_by)
 
     def _get_active_routine(self, routine_type: str) -> JennyRoutine | None:
-        return self.routine_coordinator.get_active_routine(self, routine_type)
+        return self._routine_coordinator().get_active_routine(self, routine_type)
 
     def _fail_stale_routines(self, routine_type: str | None = None) -> int:
-        return self.routine_coordinator.fail_stale_routines(self, routine_type)
+        return self._routine_coordinator().fail_stale_routines(self, routine_type)
 
     def _complete_routine(
         self,
@@ -181,7 +198,7 @@ class JennyOperatorService:
         symbols_scanned: int,
         notifications_created: int,
     ) -> None:
-        self.routine_coordinator.complete_routine(
+        self._routine_coordinator().complete_routine(
             self,
             routine_id,
             status,
@@ -269,7 +286,7 @@ class JennyOperatorService:
         workflow_id: str,
         symbol_profile: dict[str, Any],
     ) -> list[dict[str, Any]]:
-        return self.review_engine.evaluate_symbol(
+        return self._review_engine().evaluate_symbol(
             self,
             symbol=symbol,
             thesis=thesis,
@@ -284,7 +301,7 @@ class JennyOperatorService:
         thesis: Thesis | None,
         symbol_profile: dict[str, Any],
     ) -> bool:
-        return self.review_engine.should_use_insufficient_evidence_fallback(
+        return self._review_engine().should_use_insufficient_evidence_fallback(
             thesis,
             symbol_profile,
             self,
@@ -297,7 +314,7 @@ class JennyOperatorService:
         price_data: Any,
         symbol_profile: dict[str, Any],
     ) -> dict[str, Any]:
-        return self.review_engine.build_symbol_context(
+        return self._review_engine().build_symbol_context(
             self,
             symbol,
             thesis,
@@ -306,19 +323,19 @@ class JennyOperatorService:
         )
 
     def _run_agent_review(self, spec: JennyAgentSpec, payload: dict[str, Any]) -> dict[str, Any]:
-        return self.review_engine.run_agent_review(self, spec, payload)
+        return self._review_engine().run_agent_review(self, spec, payload)
 
     def _build_agent_prompt(self, mode: str, payload: dict[str, Any]) -> str:
-        return self.review_engine.build_agent_prompt(mode, payload)
+        return self._review_engine().build_agent_prompt(mode, payload)
 
     def _normalize_confidence(self, raw_confidence: Any) -> float | None:
-        return self.review_engine.normalize_confidence(raw_confidence)
+        return self._review_engine().normalize_confidence(raw_confidence)
 
     def _normalize_verdict(self, raw_verdict: Any) -> str:
-        return self.review_engine.normalize_verdict(raw_verdict)
+        return self._review_engine().normalize_verdict(raw_verdict)
 
     def _parse_agent_response(self, content: str, agent_name: str) -> dict[str, Any]:
-        return self.review_engine.parse_agent_response(content, agent_name)
+        return self._review_engine().parse_agent_response(content, agent_name)
 
     def _fallback_evaluation(
         self,
@@ -327,7 +344,7 @@ class JennyOperatorService:
         agent_name: str = "fallback_operator",
         symbol_profile: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        return self.review_engine.fallback_evaluation(
+        return self._review_engine().fallback_evaluation(
             symbol,
             thesis,
             service=self,
@@ -382,7 +399,7 @@ class JennyOperatorService:
         live_symbols: set[str],
         evaluations_by_symbol: dict[str, list[dict[str, Any]]],
     ) -> int:
-        return self.review_engine.create_notifications(
+        return self._review_engine().create_notifications(
             self,
             routine_id=routine_id,
             live_symbols=live_symbols,
@@ -390,10 +407,10 @@ class JennyOperatorService:
         )
 
     def _extract_symbol_profile(self, evaluations: list[dict[str, Any]]) -> dict[str, Any]:
-        return self.review_engine.extract_symbol_profile(evaluations)
+        return self._review_engine().extract_symbol_profile(evaluations)
 
     def _extract_invalidation_triggers(self, evaluations: list[dict[str, Any]]) -> list[str]:
-        return self.review_engine.extract_invalidation_triggers(evaluations)
+        return self._review_engine().extract_invalidation_triggers(evaluations)
 
     def _upsert_notification(
         self,
@@ -405,7 +422,7 @@ class JennyOperatorService:
         detail: str,
         recommendation: str | None,
     ) -> None:
-        self.review_engine.upsert_notification(
+        self._review_engine().upsert_notification(
             self,
             routine_id,
             symbol,
@@ -829,7 +846,7 @@ class JennyOperatorService:
         self,
         review_map: dict[str, JennySymbolReview],
     ) -> dict[str, dict[str, Any]]:
-        return self.review_engine.build_position_action_map(self, review_map)
+        return self._review_engine().build_position_action_map(self, review_map)
 
     def _get_position_action(
         self,
@@ -840,7 +857,7 @@ class JennyOperatorService:
         invalidation_triggers: list[str],
         aggregated_review: Any,
     ) -> dict[str, Any]:
-        return self.review_engine.get_position_action(
+        return self._review_engine().get_position_action(
             self,
             symbol=symbol,
             gain_pct=gain_pct,

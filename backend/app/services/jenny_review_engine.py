@@ -99,7 +99,10 @@ class JennyReviewEngine:
     def run_agent_review(self, service: Any, spec: Any, payload: dict[str, Any]) -> dict[str, Any]:
         run_id = str(uuid.uuid4())
         started_at = datetime.now(UTC)
-        client = AgentHubAPIClient(
+        client_cls = (
+            service._agent_hub_client_class() if hasattr(service, "_agent_hub_client_class") else AgentHubAPIClient
+        )
+        client = client_cls(
             agent_slug=spec.agent_slug,
             timeout=service.JENNY_AGENT_TIMEOUT_SECONDS,
         )

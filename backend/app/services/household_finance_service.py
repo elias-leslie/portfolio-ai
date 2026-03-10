@@ -93,8 +93,15 @@ class HouseholdFinanceService:
         self.transaction_service = HouseholdTransactionService()
         self.dashboard_composer = HouseholdDashboardComposer()
 
+    def _dashboard_builder(self) -> HouseholdDashboardComposer:
+        composer = getattr(self, "dashboard_composer", None)
+        if composer is None:
+            composer = HouseholdDashboardComposer()
+            self.dashboard_composer = composer
+        return composer
+
     def get_dashboard(self) -> HouseholdFinanceDashboard:
-        return self.dashboard_composer.build_dashboard(self)
+        return self._dashboard_builder().build_dashboard(self)
 
     def _build_budget_snapshot(
         self,
@@ -102,7 +109,7 @@ class HouseholdFinanceService:
         profile: HouseholdProfile,
         reports: Any,
     ) -> HouseholdBudgetSnapshot:
-        return self.dashboard_composer.build_budget_snapshot(self, profile=profile, reports=reports)
+        return self._dashboard_builder().build_budget_snapshot(self, profile=profile, reports=reports)
 
     def _build_action_items(
         self,
@@ -114,7 +121,7 @@ class HouseholdFinanceService:
         budget_readiness: BudgetReadiness,
         categorization_queue: list[HouseholdCategorizationCandidate] | None = None,
     ) -> list[HouseholdActionItem]:
-        return self.dashboard_composer.build_action_items(
+        return self._dashboard_builder().build_action_items(
             questions=questions,
             opportunities=opportunities,
             next_best_action=next_best_action,
@@ -124,17 +131,17 @@ class HouseholdFinanceService:
         )
 
     def _build_categorization_queue(self, limit: int = 6) -> list[HouseholdCategorizationCandidate]:
-        return self.dashboard_composer.build_categorization_queue(self, limit=limit)
+        return self._dashboard_builder().build_categorization_queue(self, limit=limit)
 
     def _build_recurring_commitments(self, limit: int = 6) -> list[HouseholdRecurringCommitment]:
-        return self.dashboard_composer.build_recurring_commitments(self, limit=limit)
+        return self._dashboard_builder().build_recurring_commitments(self, limit=limit)
 
     def _build_sinking_funds(
         self,
         *,
         recurring_commitments: list[HouseholdRecurringCommitment],
     ) -> list[HouseholdSinkingFund]:
-        return self.dashboard_composer.build_sinking_funds(
+        return self._dashboard_builder().build_sinking_funds(
             recurring_commitments=recurring_commitments
         )
 
@@ -144,7 +151,7 @@ class HouseholdFinanceService:
         profile: HouseholdProfile,
         estimated_monthly_contributions: float,
     ) -> HouseholdRetirementContributionTracker:
-        return self.dashboard_composer.build_retirement_contribution_tracker(
+        return self._dashboard_builder().build_retirement_contribution_tracker(
             profile=profile,
             estimated_monthly_contributions=estimated_monthly_contributions,
         )
@@ -156,23 +163,23 @@ class HouseholdFinanceService:
         target_retirement_spend: float | None,
         baseline_monthly_spend: float,
     ) -> list[HouseholdRetirementScenario]:
-        return self.dashboard_composer.build_retirement_scenarios(
+        return self._dashboard_builder().build_retirement_scenarios(
             retirement_assets=retirement_assets,
             target_retirement_spend=target_retirement_spend,
             baseline_monthly_spend=baseline_monthly_spend,
         )
 
     def _estimate_monthly_retirement_contributions(self) -> float:
-        return self.dashboard_composer.estimate_monthly_retirement_contributions(self)
+        return self._dashboard_builder().estimate_monthly_retirement_contributions(self)
 
     def _estimate_next_commitment_date(self, last_seen: datetime, cadence: str) -> str | None:
-        return self.dashboard_composer.estimate_next_commitment_date(last_seen, cadence)
+        return self._dashboard_builder().estimate_next_commitment_date(last_seen, cadence)
 
     def _suggest_category(self, merchant: str, description: str) -> str:
-        return self.dashboard_composer.suggest_category(merchant, description)
+        return self._dashboard_builder().suggest_category(merchant, description)
 
     def _suggest_essentiality(self, merchant: str, description: str) -> str:
-        return self.dashboard_composer.suggest_essentiality(merchant, description)
+        return self._dashboard_builder().suggest_essentiality(merchant, description)
 
     def update_transaction_category(
         self,
@@ -256,7 +263,7 @@ class HouseholdFinanceService:
         return row is not None
 
     def _current_month_spend(self) -> float:
-        return self.dashboard_composer.current_month_spend(self)
+        return self._dashboard_builder().current_month_spend(self)
 
     def get_profile(self) -> HouseholdProfile:
         row = self._get_profile_row()
