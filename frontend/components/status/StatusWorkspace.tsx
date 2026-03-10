@@ -64,6 +64,38 @@ function formatHours(value: number | null | undefined) {
   return `${value.toFixed(1)}h`
 }
 
+function formatLabel(value: string) {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[-_]+/g, ' ')
+    .trim()
+}
+
+function formatServiceName(name: string, serviceName?: string) {
+  return formatLabel(serviceName ?? name)
+}
+
+function isServiceActive(service: { active?: boolean; status?: string }) {
+  if (typeof service.active === 'boolean') return service.active
+  return service.status === 'running'
+}
+
+function getCheckLatencyMs(check: { responseTimeMs?: number | null; latencyMs?: number | null }) {
+  return check.responseTimeMs ?? check.latencyMs ?? null
+}
+
+function getWorkflowCount(
+  workflowHealth:
+    | {
+        totalWorkflows24h?: number
+        totalWorkflows24H?: number
+      }
+    | null
+    | undefined,
+) {
+  return workflowHealth?.totalWorkflows24h ?? workflowHealth?.totalWorkflows24H ?? null
+}
+
 function SummaryStat({
   label,
   value,
@@ -87,10 +119,18 @@ export function StatusWorkspace() {
   const marketQuery = useMarketStatus()
   const newsHealthQuery = useNewsHealth()
 
+  const failedSections = [
+    healthQuery.error ? 'system health' : null,
+    marketQuery.error ? 'market timing' : null,
+    newsHealthQuery.error ? 'news pipeline' : null,
+  ].filter((value): value is string => Boolean(value))
+
   const isLoading =
-    healthQuery.isLoading || marketQuery.isLoading || newsHealthQuery.isLoading
-  const hasError =
-    healthQuery.error || marketQuery.error || newsHealthQuery.error
+    (!healthQuery.data && healthQuery.isLoading) ||
+    (!marketQuery.data && marketQuery.isLoading) ||
+    (!newsHealthQuery.data && newsHealthQuery.isLoading)
+  const hasFatalError = failedSections.length === 3
+  const hasPartialError = failedSections.length > 0 && !hasFatalError
 
   const sourceRows = useMemo(
     () =>
@@ -153,7 +193,7 @@ export function StatusWorkspace() {
         </SectionCard>
       ) : null}
 
-      {!isLoading && hasError ? (
+      {!isLoading && hasFatalError ? (
         <SectionCard variant="surface">
           <div className="rounded-2xl border border-loss/30 bg-loss/10 p-5 text-sm text-loss">
             <div className="flex items-center gap-2 font-medium">
@@ -167,7 +207,22 @@ export function StatusWorkspace() {
         </SectionCard>
       ) : null}
 
-      {!isLoading && !hasError ? (
+      {!isLoading && hasPartialError ? (
+        <SectionCard variant="surface">
+          <div className="rounded-2xl border border-warning/30 bg-warning/10 p-5 text-sm text-warning-foreground">
+            <div className="flex items-center gap-2 font-medium">
+              <AlertCircle className="h-4 w-4" />
+              Partial snapshot
+            </div>
+            <p className="mt-2">
+              We could not refresh {failedSections.join(', ')}. The rest of the operating signals
+              are still shown below.
+            </p>
+          </div>
+        </SectionCard>
+      ) : null}
+
+      {!isLoading && !hasFatalError ? (
         <>
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <SummaryStat
@@ -211,14 +266,16 @@ export function StatusWorkspace() {
                     <div>
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-semibold capitalize text-text">
-                          {name.replaceAll('_', ' ')}
+                          {formatLabel(name)}
                         </p>
                         <Badge variant={checkVariant(check.status)}>{check.status}</Badge>
                       </div>
-                      <p className="mt-2 text-sm text-text-muted">{check.message}</p>
+                      <p className="mt-2 text-sm text-text-muted">
+                        {check.message || 'No additional detail provided'}
+                      </p>
                     </div>
                     <div className="text-sm text-text-muted">
-                      {check.responseTimeMs ? `${check.responseTimeMs}ms` : '—'}
+                      {getCheckLatencyMs(check) ? `${getCheckLatencyMs(check)}ms` : '—'}
                     </div>
                   </div>
                 ))}
@@ -239,14 +296,14 @@ export function StatusWorkspace() {
                     >
                       <div>
                         <p className="text-sm font-semibold capitalize text-text">
-                          {name.replaceAll('_', ' ')}
+                          {formatServiceName(name, service.serviceName)}
                         </p>
                         <p className="mt-1 text-sm text-text-muted">
-                          {service.message ?? service.status ?? 'No service detail provided'}
+                          {service.message || service.status || 'No service detail provided'}
                         </p>
                       </div>
-                      <Badge variant={service.active ? 'success' : 'warning'}>
-                        {service.active ? 'active' : 'inactive'}
+                      <Badge variant={isServiceActive(service) ? 'success' : 'warning'}>
+                        {isServiceActive(service) ? 'active' : 'inactive'}
                       </Badge>
                     </div>
                   ))}
@@ -292,8 +349,8 @@ export function StatusWorkspace() {
                   </div>
                   <p className="mt-2 text-sm text-text-muted">
                     {formatPercent(healthQuery.data?.workflowHealth?.successRate)} success rate over{' '}
-                    {formatInteger(healthQuery.data?.workflowHealth?.totalWorkflows24h)} workflows
-                    in the last 24h.
+                    {formatInteger(getWorkflowCount(healthQuery.data?.workflowHealth))} workflows in
+                    the last 24h.
                   </p>
                   <p className="mt-2 text-sm text-text-muted">
                     Last success{' '}
@@ -317,7 +374,7 @@ export function StatusWorkspace() {
                     className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-text">{name}</p>
+                      <p className="text-sm font-semibold text-text">{formatLabel(name)}</p>
                       <Badge variant={checkVariant(source.status)}>{source.status}</Badge>
                     </div>
                     <div className="mt-3 grid gap-2 text-sm text-text-muted md:grid-cols-3">
@@ -343,7 +400,7 @@ export function StatusWorkspace() {
                   >
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm font-semibold uppercase tracking-wide text-text">
-                        {name}
+                        {formatLabel(name)}
                       </p>
                       <Badge variant={vendorVariant(vendor)}>
                         {vendor.active ? 'active' : vendor.enabled ? 'idle' : 'disabled'}

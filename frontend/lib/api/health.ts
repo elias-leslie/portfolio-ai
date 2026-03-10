@@ -5,8 +5,9 @@ export type CheckStatus = 'ok' | 'degraded' | 'down'
 
 export interface HealthCheckResult {
   status: CheckStatus
-  message: string
+  message: string | null
   responseTimeMs?: number | null
+  latencyMs?: number | null
   details?: Record<string, unknown> | null
 }
 
@@ -70,6 +71,7 @@ export interface CacheStats {
 
 export interface HealthServiceStatus {
   active?: boolean
+  serviceName?: string
   status?: string
   message?: string
   pid?: number | null
