@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { StatusWorkspace } from '../StatusWorkspace'
 
 const useDetailedHealthMock = vi.fn()
@@ -30,6 +30,164 @@ function createQueryResult<T>(overrides: Partial<Record<string, unknown>> & { da
 }
 
 describe('StatusWorkspace', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.useRealTimers()
+  })
+
+  it('shows empty-state copy for cards with no live rows and keeps zero latency visible', () => {
+    useDetailedHealthMock.mockReturnValue(
+      createQueryResult({
+        data: {
+          status: 'healthy',
+          timestamp: '2026-03-10T23:26:56.894882+00:00',
+          checks: {
+            database: {
+              status: 'ok',
+              message: null,
+              latencyMs: 0,
+            },
+          },
+          sources: {},
+          services: {},
+          apiQuotas: [],
+          recentRemediations: [],
+          workflowHealth: {
+            status: 'healthy',
+            successRate: 100,
+            totalWorkflows24H: 1,
+            lastSuccessfulWorkflow: '2026-03-10T22:18:27.574496Z',
+          },
+          dataFreshnessStatus: {
+            status: 'success',
+            lastCheck: '2026-03-10T22:00:00.000000Z',
+            fresh: 4,
+            stale: 0,
+            critical: 0,
+          },
+          watchlistStats: {
+            itemsWithScores: 5,
+            lastRefresh: '2026-03-10T23:14:01.484006Z',
+          },
+        },
+      }),
+    )
+
+    useMarketStatusMock.mockReturnValue(
+      createQueryResult({
+        data: {
+          status: 'closed',
+          currentTimeEt: '6:00 PM ET',
+          expectedDataDate: '2026-03-10',
+          lastTradingDay: '2026-03-10',
+          nextTradingDay: '2026-03-11',
+          isHoliday: false,
+          isEarlyClose: false,
+        },
+      }),
+    )
+
+    useNewsHealthMock.mockReturnValue(
+      createQueryResult({
+        data: {
+          headlines24H: 0,
+          fallbackRate24H: 0,
+          vendors: {},
+          marketLastRefreshedAt: null,
+        },
+      }),
+    )
+
+    render(<StatusWorkspace />)
+
+    expect(screen.getByText('0ms')).toBeInTheDocument()
+    expect(screen.getByText('No service status entries are available right now.')).toBeInTheDocument()
+    expect(screen.getByText('No source health signals are available right now.')).toBeInTheDocument()
+    expect(screen.getByText('No news vendor diagnostics are available right now.')).toBeInTheDocument()
+    expect(screen.getByText('No API quota configuration is available right now.')).toBeInTheDocument()
+  })
+
+  it('shows recent vendor activity when runtime success timestamps are unavailable', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-03-10T23:30:00.000Z'))
+
+    useDetailedHealthMock.mockReturnValue(
+      createQueryResult({
+        data: {
+          status: 'healthy',
+          timestamp: '2026-03-10T23:26:56.894882+00:00',
+          checks: {},
+          sources: {},
+          services: {},
+          apiQuotas: [],
+          recentRemediations: [],
+          workflowHealth: {
+            status: 'healthy',
+            successRate: 100,
+            totalWorkflows24H: 1,
+            lastSuccessfulWorkflow: '2026-03-10T22:18:27.574496Z',
+          },
+          dataFreshnessStatus: {
+            status: 'success',
+            lastCheck: '2026-03-10T22:00:00.000000Z',
+            fresh: 4,
+            stale: 0,
+            critical: 0,
+          },
+          watchlistStats: {
+            itemsWithScores: 5,
+            lastRefresh: '2026-03-10T23:14:01.484006Z',
+          },
+        },
+      }),
+    )
+
+    useMarketStatusMock.mockReturnValue(
+      createQueryResult({
+        data: {
+          status: 'after_hours',
+          currentTimeEt: '6:30 PM ET',
+          expectedDataDate: '2026-03-10',
+          lastTradingDay: '2026-03-10',
+          nextTradingDay: '2026-03-11',
+          isHoliday: false,
+          isEarlyClose: false,
+        },
+      }),
+    )
+
+    useNewsHealthMock.mockReturnValue(
+      createQueryResult({
+        data: {
+          headlines24H: 1916,
+          fallbackRate24H: 0,
+          marketLastRefreshedAt: '2026-03-10T23:25:00.160242Z',
+          vendors: {
+            polygon: {
+              configured: true,
+              enabled: true,
+              active: true,
+              lastAttemptAt: '2026-03-10T23:25:00.160242Z',
+              lastSuccessAt: null,
+              lastErrorAt: null,
+              lastError: null,
+              articlesLastFetch: 5,
+              articlesLast24H: 1106,
+              lastArticleAt: '2026-03-10T23:24:00.000Z',
+              notes: null,
+              reason: null,
+            },
+          },
+        },
+      }),
+    )
+
+    render(<StatusWorkspace />)
+
+    expect(screen.getByText('Last activity: 6m ago')).toBeInTheDocument()
+    expect(screen.queryByText('Last success: Never')).not.toBeInTheDocument()
+  })
+
   it('keeps the workspace visible when one live signal fails', () => {
     useDetailedHealthMock.mockReturnValue(
       createQueryResult({

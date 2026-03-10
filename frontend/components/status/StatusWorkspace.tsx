@@ -49,6 +49,10 @@ function vendorVariant(vendor: NewsHealthResponse['vendors'][string]) {
   return vendor.lastErrorAt ? 'warning' : 'secondary'
 }
 
+function getVendorActivityTimestamp(vendor: NewsHealthResponse['vendors'][string]) {
+  return vendor.lastSuccessAt ?? vendor.lastArticleAt ?? vendor.lastAttemptAt ?? null
+}
+
 function formatPercent(value: number | null | undefined) {
   if (value === null || value === undefined) return '—'
   return `${value.toFixed(1)}%`
@@ -114,6 +118,14 @@ function SummaryStat({
   )
 }
 
+function EmptyPanelMessage({ message }: { message: string }) {
+  return (
+    <div className="rounded-2xl border border-dashed border-border/50 bg-surface-muted/10 p-4 text-sm text-text-muted">
+      {message}
+    </div>
+  )
+}
+
 export function StatusWorkspace() {
   const healthQuery = useDetailedHealth()
   const marketQuery = useMarketStatus()
@@ -138,6 +150,14 @@ export function StatusWorkspace() {
         a[0].localeCompare(b[0]),
       ),
     [healthQuery.data?.sources],
+  )
+
+  const checkRows = useMemo(
+    () =>
+      Object.entries(healthQuery.data?.checks ?? {}).sort((a, b) =>
+        a[0].localeCompare(b[0]),
+      ),
+    [healthQuery.data?.checks],
   )
 
   const serviceRows = useMemo(
@@ -258,27 +278,35 @@ export function StatusWorkspace() {
               description="Backend dependencies and service posture from the detailed health endpoint."
             >
               <div className="grid gap-3">
-                {Object.entries(healthQuery.data?.checks ?? {}).map(([name, check]) => (
-                  <div
-                    key={name}
-                    className="flex flex-col gap-3 rounded-2xl border border-border/40 bg-surface-muted/20 p-4 md:flex-row md:items-start md:justify-between"
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-semibold capitalize text-text">
-                          {formatLabel(name)}
-                        </p>
-                        <Badge variant={checkVariant(check.status)}>{check.status}</Badge>
+                {checkRows.length === 0 ? (
+                  <EmptyPanelMessage message="No dependency checks are available right now." />
+                ) : (
+                  checkRows.map(([name, check]) => {
+                    const latencyMs = getCheckLatencyMs(check)
+
+                    return (
+                      <div
+                        key={name}
+                        className="flex flex-col gap-3 rounded-2xl border border-border/40 bg-surface-muted/20 p-4 md:flex-row md:items-start md:justify-between"
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold capitalize text-text">
+                              {formatLabel(name)}
+                            </p>
+                            <Badge variant={checkVariant(check.status)}>{check.status}</Badge>
+                          </div>
+                          <p className="mt-2 text-sm text-text-muted">
+                            {check.message || 'No additional detail provided'}
+                          </p>
+                        </div>
+                        <div className="text-sm text-text-muted">
+                          {latencyMs === null || latencyMs === undefined ? '—' : `${latencyMs}ms`}
+                        </div>
                       </div>
-                      <p className="mt-2 text-sm text-text-muted">
-                        {check.message || 'No additional detail provided'}
-                      </p>
-                    </div>
-                    <div className="text-sm text-text-muted">
-                      {getCheckLatencyMs(check) ? `${getCheckLatencyMs(check)}ms` : '—'}
-                    </div>
-                  </div>
-                ))}
+                    )
+                  })
+                )}
               </div>
             </SectionCard>
 
@@ -289,24 +317,28 @@ export function StatusWorkspace() {
             >
               <div className="space-y-4">
                 <div className="grid gap-3">
-                  {serviceRows.map(([name, service]) => (
-                    <div
-                      key={name}
-                      className="flex items-center justify-between gap-3 rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
-                    >
-                      <div>
-                        <p className="text-sm font-semibold capitalize text-text">
-                          {formatServiceName(name, service.serviceName)}
-                        </p>
-                        <p className="mt-1 text-sm text-text-muted">
-                          {service.message || service.status || 'No service detail provided'}
-                        </p>
+                  {serviceRows.length === 0 ? (
+                    <EmptyPanelMessage message="No service status entries are available right now." />
+                  ) : (
+                    serviceRows.map(([name, service]) => (
+                      <div
+                        key={name}
+                        className="flex items-center justify-between gap-3 rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
+                      >
+                        <div>
+                          <p className="text-sm font-semibold capitalize text-text">
+                            {formatServiceName(name, service.serviceName)}
+                          </p>
+                          <p className="mt-1 text-sm text-text-muted">
+                            {service.message || service.status || 'No service detail provided'}
+                          </p>
+                        </div>
+                        <Badge variant={isServiceActive(service) ? 'success' : 'warning'}>
+                          {isServiceActive(service) ? 'active' : 'inactive'}
+                        </Badge>
                       </div>
-                      <Badge variant={isServiceActive(service) ? 'success' : 'warning'}>
-                        {isServiceActive(service) ? 'active' : 'inactive'}
-                      </Badge>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
 
                 <div className="rounded-2xl border border-border/40 bg-surface/60 p-4">
@@ -368,22 +400,26 @@ export function StatusWorkspace() {
               description="How the upstream market and reference sources are behaving."
             >
               <div className="grid gap-3">
-                {sourceRows.map(([name, source]) => (
-                  <div
-                    key={name}
-                    className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-text">{formatLabel(name)}</p>
-                      <Badge variant={checkVariant(source.status)}>{source.status}</Badge>
+                {sourceRows.length === 0 ? (
+                  <EmptyPanelMessage message="No source health signals are available right now." />
+                ) : (
+                  sourceRows.map(([name, source]) => (
+                    <div
+                      key={name}
+                      className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-semibold text-text">{formatLabel(name)}</p>
+                        <Badge variant={checkVariant(source.status)}>{source.status}</Badge>
+                      </div>
+                      <div className="mt-3 grid gap-2 text-sm text-text-muted md:grid-cols-3">
+                        <p>Success rate: {formatPercent(source.successRate)}</p>
+                        <p>Latency: {formatInteger(source.avgLatencyMs)}ms</p>
+                        <p>Last success: {formatRelativeTime(source.lastSuccess)}</p>
+                      </div>
                     </div>
-                    <div className="mt-3 grid gap-2 text-sm text-text-muted md:grid-cols-3">
-                      <p>Success rate: {formatPercent(source.successRate)}</p>
-                      <p>Latency: {formatInteger(source.avgLatencyMs)}ms</p>
-                      <p>Last success: {formatRelativeTime(source.lastSuccess)}</p>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </SectionCard>
 
@@ -393,30 +429,34 @@ export function StatusWorkspace() {
               description="Configuration, freshness, and fallback posture for the current news stack."
             >
               <div className="grid gap-3">
-                {vendorRows.map(([name, vendor]) => (
-                  <div
-                    key={name}
-                    className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold uppercase tracking-wide text-text">
-                        {formatLabel(name)}
-                      </p>
-                      <Badge variant={vendorVariant(vendor)}>
-                        {vendor.active ? 'active' : vendor.enabled ? 'idle' : 'disabled'}
-                      </Badge>
+                {vendorRows.length === 0 ? (
+                  <EmptyPanelMessage message="No news vendor diagnostics are available right now." />
+                ) : (
+                  vendorRows.map(([name, vendor]) => (
+                    <div
+                      key={name}
+                      className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-semibold uppercase tracking-wide text-text">
+                          {formatLabel(name)}
+                        </p>
+                        <Badge variant={vendorVariant(vendor)}>
+                          {vendor.active ? 'active' : vendor.enabled ? 'idle' : 'disabled'}
+                        </Badge>
+                      </div>
+                      <div className="mt-3 grid gap-2 text-sm text-text-muted">
+                        <p>Configured: {vendor.configured ? 'Yes' : 'No'}</p>
+                        <p>Last activity: {formatRelativeTime(getVendorActivityTimestamp(vendor))}</p>
+                        <p>Articles 24h: {formatInteger(vendor.articlesLast24H)}</p>
+                        <p>
+                          Last error:{' '}
+                          {vendor.lastError ? vendor.lastError : vendor.reason ?? 'No recent error'}
+                        </p>
+                      </div>
                     </div>
-                    <div className="mt-3 grid gap-2 text-sm text-text-muted">
-                      <p>Configured: {vendor.configured ? 'Yes' : 'No'}</p>
-                      <p>Last success: {formatRelativeTime(vendor.lastSuccessAt)}</p>
-                      <p>Articles 24h: {formatInteger(vendor.articlesLast24H)}</p>
-                      <p>
-                        Last error:{' '}
-                        {vendor.lastError ? vendor.lastError : vendor.reason ?? 'No recent error'}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </SectionCard>
           </div>
@@ -428,23 +468,27 @@ export function StatusWorkspace() {
               description="Configured providers and their expected request ceilings."
             >
               <div className="grid gap-3">
-                {(healthQuery.data?.apiQuotas ?? []).map((quota) => (
-                  <div
-                    key={quota.sourceName}
-                    className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-text">{quota.sourceName}</p>
-                      <Badge variant={quota.configured ? 'success' : 'secondary'}>
-                        {quota.configured ? 'configured' : 'missing key'}
-                      </Badge>
+                {(healthQuery.data?.apiQuotas ?? []).length === 0 ? (
+                  <EmptyPanelMessage message="No API quota configuration is available right now." />
+                ) : (
+                  (healthQuery.data?.apiQuotas ?? []).map((quota) => (
+                    <div
+                      key={quota.sourceName}
+                      className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-semibold text-text">{quota.sourceName}</p>
+                        <Badge variant={quota.configured ? 'success' : 'secondary'}>
+                          {quota.configured ? 'configured' : 'missing key'}
+                        </Badge>
+                      </div>
+                      <p className="mt-2 text-sm text-text-muted">
+                        Rate limit {quota.rateLimit ?? '—'} · Daily {quota.dailyLimit ?? '—'} ·
+                        Capacity {formatInteger(quota.estimatedCapacity)}
+                      </p>
                     </div>
-                    <p className="mt-2 text-sm text-text-muted">
-                      Rate limit {quota.rateLimit ?? '—'} · Daily {quota.dailyLimit ?? '—'} ·
-                      Capacity {formatInteger(quota.estimatedCapacity)}
-                    </p>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </SectionCard>
 
