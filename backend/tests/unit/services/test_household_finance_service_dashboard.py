@@ -20,8 +20,12 @@ from app.models.household_finance import (
 from app.services.household_finance_service import HouseholdFinanceService
 
 
+def _service() -> HouseholdFinanceService:
+    return HouseholdFinanceService()
+
+
 def test_build_budget_snapshot_uses_targets_and_actuals() -> None:
-    service = object.__new__(HouseholdFinanceService)
+    service = _service()
     service._current_month_spend = lambda: 2800.0
     profile = HouseholdProfile(
         id="profile-1",
@@ -56,7 +60,7 @@ def test_build_budget_snapshot_uses_targets_and_actuals() -> None:
 
 
 def test_build_action_items_prioritizes_questions_and_budget_gaps() -> None:
-    service = object.__new__(HouseholdFinanceService)
+    service = _service()
     questions = [
         HouseholdQuestion(
             id="question-1",
@@ -109,7 +113,7 @@ def test_build_action_items_prioritizes_questions_and_budget_gaps() -> None:
 
 
 def test_build_retirement_contribution_tracker_highlights_gap_to_target() -> None:
-    service = object.__new__(HouseholdFinanceService)
+    service = _service()
     profile = HouseholdProfile(
         id="profile-1",
         household_name="Household",
@@ -136,7 +140,7 @@ def test_build_retirement_contribution_tracker_highlights_gap_to_target() -> Non
 
 
 def test_build_retirement_scenarios_uses_assets_and_target_spend() -> None:
-    service = object.__new__(HouseholdFinanceService)
+    service = _service()
 
     scenarios = service._build_retirement_scenarios(
         retirement_assets=600000,
@@ -152,7 +156,7 @@ def test_build_retirement_scenarios_uses_assets_and_target_spend() -> None:
 
 
 def test_get_dashboard_returns_composed_household_view() -> None:
-    service = object.__new__(HouseholdFinanceService)
+    service = _service()
     profile = HouseholdProfile(
         id="profile-1",
         household_name="Household",

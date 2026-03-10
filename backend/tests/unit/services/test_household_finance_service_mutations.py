@@ -9,7 +9,7 @@ from app.services.household_finance_service import HouseholdFinanceService
 
 
 def test_update_transaction_category_can_apply_rule_to_merchant() -> None:
-    service = object.__new__(HouseholdFinanceService)
+    service = HouseholdFinanceService()
     service.storage = MagicMock()
     conn = service.storage.connection.return_value.__enter__.return_value
     select_target = MagicMock()

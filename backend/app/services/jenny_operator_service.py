@@ -8,12 +8,11 @@ from __future__ import annotations
 
 import json
 import uuid
-from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from app.agents.clients.agent_hub_client import AGENT_HUB_ENABLED, AgentHubAPIClient
+from app.agents.clients.agent_hub_client import AgentHubAPIClient
 from app.agents.workflow_orchestrator import WorkflowOrchestrator
 from app.logging_config import get_logger
 from app.models.jenny import (
@@ -32,18 +31,12 @@ from app.portfolio.price_fetcher import PriceDataFetcher
 from app.portfolio.sector_labels import FUND_CATEGORY_LABELS
 from app.repositories.agent_repository import AgentRunRepository
 from app.services._jenny_scoring import aggregate_symbol_review, build_scorecard
+from app.services.jenny_dashboard_reader import JennyDashboardReader
 from app.services.jenny_review_engine import JennyReviewEngine
 from app.services.jenny_routine_coordinator import JennyRoutineCoordinator
-from app.services.jenny_row_parsers import (
-    row_to_evaluation,
-    row_to_notification,
-    row_to_routine,
-    row_to_scorecard,
-    row_to_trade_review,
-)
+from app.services.jenny_symbol_profile_service import JennySymbolProfileService
 from app.services.thesis_service import ThesisService
 from app.storage import get_storage
-from app.watchlist.data_quality import calculate_data_quality, get_security_type
 from app.watchlist.trading_style import INDEX_ETFS
 from app.watchlist.watchlist_service import WatchlistService
 
@@ -129,6 +122,8 @@ class JennyOperatorService:
         self.workflow_orchestrator = WorkflowOrchestrator(self.storage)
         self.review_engine = JennyReviewEngine()
         self.routine_coordinator = JennyRoutineCoordinator()
+        self.symbol_profile_service = JennySymbolProfileService()
+        self.dashboard_reader = JennyDashboardReader()
 
     def _review_engine(self) -> JennyReviewEngine:
         engine = getattr(self, "review_engine", None)
@@ -143,6 +138,20 @@ class JennyOperatorService:
             coordinator = JennyRoutineCoordinator()
             self.routine_coordinator = coordinator
         return coordinator
+
+    def _symbol_profile_service(self) -> JennySymbolProfileService:
+        helper = getattr(self, "symbol_profile_service", None)
+        if helper is None:
+            helper = JennySymbolProfileService()
+            self.symbol_profile_service = helper
+        return helper
+
+    def _dashboard_reader(self) -> JennyDashboardReader:
+        reader = getattr(self, "dashboard_reader", None)
+        if reader is None:
+            reader = JennyDashboardReader()
+            self.dashboard_reader = reader
+        return reader
 
     def _agent_hub_client_class(self):
         return AgentHubAPIClient
@@ -222,60 +231,28 @@ class JennyOperatorService:
         return list(dict.fromkeys(symbols + candidate_symbols))
 
     def _default_symbol_profile(self, symbol: str) -> dict[str, Any]:
-        security_type = self._normalize_security_type(symbol, None)
-        return {
-            "security_type": security_type,
-            "is_passive_fund": security_type == "etf",
-            "is_live_position": False,
-            "data_quality_pct": None,
-        }
+        return self._symbol_profile_service().default_symbol_profile(self, symbol)
 
     def _normalize_security_type(self, symbol: str, stored_security_type: str | None) -> str:
-        normalized_symbol = symbol.upper()
-        normalized_type = (stored_security_type or "").strip().lower()
-        if normalized_type == "etf" or normalized_symbol in PASSIVE_FUND_SYMBOLS:
-            return "etf"
-        if normalized_type in {"equity", "index", "other"}:
-            return normalized_type
-        return "equity"
+        return self._symbol_profile_service().normalize_security_type(
+            self,
+            symbol,
+            stored_security_type,
+        )
 
     def _build_symbol_profiles(
         self,
         symbols: list[str],
         live_symbols: set[str] | None = None,
     ) -> dict[str, dict[str, Any]]:
-        if not symbols:
-            return {}
-        live_symbols = live_symbols or set()
-        quality_map = calculate_data_quality(self.storage, symbols)
-        profiles: dict[str, dict[str, Any]] = {}
-        for symbol in symbols:
-            security_type = self._normalize_security_type(symbol, get_security_type(self.storage, symbol))
-            quality = quality_map.get(symbol)
-            profiles[symbol] = {
-                "security_type": security_type,
-                "is_passive_fund": security_type == "etf",
-                "is_live_position": symbol in live_symbols,
-                "data_quality_pct": quality.overall_pct if quality else None,
-            }
-        return profiles
+        return self._symbol_profile_service().build_symbol_profiles(
+            self,
+            symbols,
+            live_symbols,
+        )
 
     def _ensure_thesis(self, symbol: str, symbol_profile: dict[str, Any]) -> Thesis | None:
-        thesis = self.thesis_service.get_thesis(symbol)
-        if thesis is not None:
-            return thesis
-        if symbol_profile.get("is_passive_fund"):
-            return None
-        data_quality_pct = symbol_profile.get("data_quality_pct")
-        if data_quality_pct is not None and data_quality_pct < MIN_AGENT_REVIEW_DATA_QUALITY_PCT:
-            return None
-        if not AGENT_HUB_ENABLED:
-            return None
-        try:
-            return self.thesis_service.generate_thesis(symbol, force=False)
-        except Exception as exc:
-            logger.warning("jenny_thesis_generation_skipped", symbol=symbol, error=str(exc))
-            return None
+        return self._symbol_profile_service().ensure_thesis(self, symbol, symbol_profile)
 
     def _evaluate_symbol(
         self,
@@ -490,13 +467,13 @@ class JennyOperatorService:
     def _refresh_scorecards(self) -> int:
         evaluations = self._fetch_all_evaluations()
         reviews = self._get_recent_trade_reviews(limit=200)
-        reviews_by_symbol = defaultdict(list)
+        reviews_by_symbol: dict[str, list[JennyTradeReview]] = {}
         for review in reviews:
-            reviews_by_symbol[review.symbol].append(review)
+            reviews_by_symbol.setdefault(review.symbol, []).append(review)
 
-        grouped: dict[str, list[JennyAgentEvaluation]] = defaultdict(list)
+        grouped: dict[str, list[JennyAgentEvaluation]] = {}
         for evaluation in evaluations:
-            grouped[evaluation.agent_name].append(evaluation)
+            grouped.setdefault(evaluation.agent_name, []).append(evaluation)
 
         updated = 0
         for agent_name, agent_evaluations in grouped.items():
@@ -582,30 +559,7 @@ class JennyOperatorService:
             conn.commit()
 
     def _build_review_consensus(self, symbol: str) -> dict[str, Any]:
-        latest_review = next(
-            (
-                review
-                for review in self._get_latest_symbol_reviews(limit=20)
-                if review.symbol == symbol
-            ),
-            None,
-        )
-        if latest_review is None:
-            return {}
-        return {
-            "final_verdict": latest_review.final_verdict,
-            "average_confidence": latest_review.average_confidence,
-            "agents": [evaluation.agent_name for evaluation in latest_review.evaluations],
-            "agent_verdicts": {
-                evaluation.agent_name: evaluation.verdict
-                for evaluation in latest_review.evaluations
-            },
-            "agent_confidences": {
-                evaluation.agent_name: evaluation.confidence
-                for evaluation in latest_review.evaluations
-                if evaluation.confidence is not None
-            },
-        }
+        return self._dashboard_reader().build_review_consensus(self, symbol)
 
     def _build_scorecard(
         self,
@@ -673,116 +627,19 @@ class JennyOperatorService:
             conn.commit()
 
     def _get_recent_routines(self, limit: int = 6) -> list[JennyRoutine]:
-        with self.storage.connection() as conn:
-            rows = conn.execute(
-                """
-                SELECT id, routine_type, status, triggered_by, summary, agents_used, symbols_scanned,
-                       notifications_created, started_at, completed_at, metadata
-                FROM jenny_routines
-                ORDER BY started_at DESC
-                LIMIT %s
-                """,
-                [limit],
-            ).fetchall()
-        return [row_to_routine(row) for row in rows]
+        return self._dashboard_reader().get_recent_routines(self, limit)
 
     def _get_routine(self, routine_id: str) -> JennyRoutine:
-        with self.storage.connection() as conn:
-            row = conn.execute(
-                """
-                SELECT id, routine_type, status, triggered_by, summary, agents_used, symbols_scanned,
-                       notifications_created, started_at, completed_at, metadata
-                FROM jenny_routines
-                WHERE id = %s
-                """,
-                [routine_id],
-            ).fetchone()
-        if row is None:
-            raise RuntimeError(f"Jenny routine {routine_id} not found")
-        return row_to_routine(row)
+        return self._dashboard_reader().get_routine(self, routine_id)
 
     def _get_open_notifications(self, limit: int = 12) -> list[JennyNotification]:
-        with self.storage.connection() as conn:
-            rows = conn.execute(
-                """
-                SELECT id, routine_id, symbol, category, severity, status, title, detail,
-                       recommendation, created_at, acknowledged_at, metadata
-                FROM jenny_notifications
-                WHERE status = 'open'
-                ORDER BY
-                    CASE severity
-                        WHEN 'critical' THEN 0
-                        WHEN 'warning' THEN 1
-                        ELSE 2
-                    END,
-                    created_at DESC
-                LIMIT %s
-                """,
-                [limit],
-            ).fetchall()
-        return [row_to_notification(row) for row in rows]
+        return self._dashboard_reader().get_open_notifications(self, limit)
 
     def _get_notification(self, notification_id: str) -> JennyNotification | None:
-        with self.storage.connection() as conn:
-            row = conn.execute(
-                """
-                SELECT id, routine_id, symbol, category, severity, status, title, detail,
-                       recommendation, created_at, acknowledged_at, metadata
-                FROM jenny_notifications
-                WHERE id = %s
-                """,
-                [notification_id],
-            ).fetchone()
-        return row_to_notification(row) if row else None
+        return self._dashboard_reader().get_notification(self, notification_id)
 
     def _get_latest_symbol_reviews(self, limit: int = 8) -> list[JennySymbolReview]:
-        with self.storage.connection() as conn:
-            rows = conn.execute(
-                """
-                WITH latest_symbol_routines AS (
-                    SELECT DISTINCT ON (symbol)
-                        symbol,
-                        routine_id,
-                        created_at
-                    FROM jenny_agent_evaluations
-                    WHERE created_at >= NOW() - INTERVAL '7 days'
-                    ORDER BY symbol, created_at DESC
-                )
-                SELECT e.id, e.routine_id, e.symbol, e.agent_name, e.provider, e.model, e.verdict, e.confidence,
-                       e.rationale, e.recommendation, e.strengths, e.weaknesses, e.metadata, e.thesis_id,
-                       e.agent_run_id, e.created_at
-                FROM jenny_agent_evaluations e
-                JOIN latest_symbol_routines lsr
-                  ON lsr.symbol = e.symbol
-                 AND lsr.routine_id = e.routine_id
-                ORDER BY lsr.created_at DESC, e.created_at DESC
-                LIMIT %s
-                """,
-                [limit * len(AGENT_SPECS) * 2],
-            ).fetchall()
-        evaluations = [row_to_evaluation(row) for row in rows]
-        latest_routine_by_symbol: dict[str, str] = {}
-        for evaluation in evaluations:
-            latest_routine_by_symbol.setdefault(evaluation.symbol, evaluation.routine_id)
-
-        grouped: dict[str, list[JennyAgentEvaluation]] = defaultdict(list)
-        for evaluation in evaluations:
-            if latest_routine_by_symbol.get(evaluation.symbol) != evaluation.routine_id:
-                continue
-            grouped[evaluation.symbol].append(evaluation)
-        reviews = [
-            self._aggregate_symbol_review(symbol, symbol_evaluations, self.thesis_service.get_thesis(symbol))
-            for symbol, symbol_evaluations in grouped.items()
-        ]
-        action_map = self._build_position_action_map({review.symbol: review for review in reviews})
-        for review in reviews:
-            action = action_map.get(review.symbol)
-            if action:
-                review.management_action = action["action"]
-                review.management_detail = action["detail"]
-                review.position_gain_pct = action.get("gain_pct")
-                review.position_weight_pct = action.get("weight_pct")
-        return reviews[:limit]
+        return self._dashboard_reader().get_latest_symbol_reviews(self, limit)
 
     def _aggregate_symbol_review(
         self,
@@ -799,48 +656,13 @@ class JennyOperatorService:
         )
 
     def _get_recent_trade_reviews(self, limit: int = 12) -> list[JennyTradeReview]:
-        with self.storage.connection() as conn:
-            rows = conn.execute(
-                """
-                SELECT id, symbol, thesis_id, idea_id, review_source, outcome_label,
-                       return_pct, lesson, what_worked, what_failed, next_time,
-                       created_at, updated_at, agent_consensus, metadata
-                FROM jenny_trade_reviews
-                ORDER BY created_at DESC
-                LIMIT %s
-                """,
-                [limit],
-            ).fetchall()
-        return [row_to_trade_review(row) for row in rows]
+        return self._dashboard_reader().get_recent_trade_reviews(self, limit)
 
     def _get_scorecards(self) -> list[JennyAgentScorecard]:
-        with self.storage.connection() as conn:
-            rows = conn.execute(
-                """
-                SELECT agent_name, total_evaluations, completed_reviews, positive_verdicts,
-                       win_rate, avg_return_pct, agreement_rate, calibration_score,
-                       entry_quality_score, risk_judgment_score, exit_timing_score, alert_discipline_score,
-                       strengths, weaknesses, last_evaluation_at, updated_at
-                FROM jenny_agent_scorecards
-                ORDER BY
-                    COALESCE(entry_quality_score, win_rate * 100, 0) DESC,
-                    COALESCE(avg_return_pct, 0) DESC
-                """
-            ).fetchall()
-        return [row_to_scorecard(row) for row in rows]
+        return self._dashboard_reader().get_scorecards(self)
 
     def _fetch_all_evaluations(self) -> list[JennyAgentEvaluation]:
-        with self.storage.connection() as conn:
-            rows = conn.execute(
-                """
-                SELECT id, routine_id, symbol, agent_name, provider, model, verdict, confidence,
-                       rationale, recommendation, strengths, weaknesses, metadata, thesis_id,
-                       agent_run_id, created_at
-                FROM jenny_agent_evaluations
-                ORDER BY created_at DESC
-                """
-            ).fetchall()
-        return [row_to_evaluation(row) for row in rows]
+        return self._dashboard_reader().fetch_all_evaluations(self)
 
     def _build_position_action_map(
         self,

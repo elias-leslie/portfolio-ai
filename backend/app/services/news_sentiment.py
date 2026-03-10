@@ -31,6 +31,10 @@ def _load_finbert_dependencies() -> tuple[Any | None, Any | None, Any | None]:
         torch = import_module("torch")
         transformers = import_module("transformers")
     except Exception:  # pragma: no cover - handled via availability checks
+        logger.info(
+            "FinBERT optional dependencies missing; install backend with the ml extra to enable it",
+            install_hint='pip install -e ".[dev,ml]"',
+        )
         return None, None, None
 
     return (
@@ -80,7 +84,9 @@ class FinBertSentimentAnalyzer:
 
             torch, auto_tokenizer, auto_model = _load_finbert_dependencies()
             if auto_tokenizer is None or auto_model is None or torch is None:
-                raise FinBertUnavailableError("transformers/torch not available")
+                raise FinBertUnavailableError(
+                    'transformers/torch not available; install backend with the "ml" extra'
+                )
 
             logger.info(
                 "Loading FinBERT sentiment model", model_name=self.model_name, device=self.device

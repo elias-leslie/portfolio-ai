@@ -12,7 +12,7 @@ from app.services.jenny_operator_service import JennyOperatorService
 
 
 def _service() -> JennyOperatorService:
-    return object.__new__(JennyOperatorService)
+    return JennyOperatorService()
 
 
 def test_build_scorecard_tracks_win_rate_and_strengths() -> None:

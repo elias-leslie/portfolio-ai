@@ -101,6 +101,7 @@ cd backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
+pip install -e ".[dev,ml]"  # Optional: enable FinBERT/news ML features
 
 # Run migrations
 alembic upgrade head
