@@ -59,8 +59,8 @@ def _validate_event_type(event_type: str) -> MarketEventType:
 # API endpoints
 @router.get("/events")
 async def get_market_events(
-    start_date: str | None = Query(None, description="Start date (YYYY-MM-DD)"),
-    end_date: str | None = Query(None, description="End date (YYYY-MM-DD)"),
+    start_date: date | None = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: date | None = Query(None, description="End date (YYYY-MM-DD)"),
     event_types: str | None = Query(None, description="Comma-separated event types"),
     limit: int = Query(100, ge=1, le=500),
 ) -> dict[str, Any]:
@@ -75,10 +75,6 @@ async def get_market_events(
     Returns:
         MarketEventsResponse with list of events
     """
-    # Parse dates
-    start = date.fromisoformat(start_date) if start_date else None
-    end = date.fromisoformat(end_date) if end_date else None
-
     # Parse and validate event types
     types_list: list[MarketEventType] | None = None
     if event_types:
@@ -87,8 +83,8 @@ async def get_market_events(
         types_list = [_validate_event_type(t) for t in parsed_types]
 
     response = svc_get_events(
-        start_date=start,
-        end_date=end,
+        start_date=start_date,
+        end_date=end_date,
         event_types=types_list,
         limit=limit,
     )
@@ -161,7 +157,7 @@ async def get_upcoming_market_events(
 @router.post("/events")
 async def create_market_event(
     event_type: str = Query(..., description="Event type"),
-    event_date: str = Query(..., description="Event date (YYYY-MM-DD)"),
+    event_date: date = Query(..., description="Event date (YYYY-MM-DD)"),
     title: str = Query(..., description="Event title"),
     event_time: str | None = Query(None, description="Event time (HH:MM:SS)"),
     description: str | None = Query(None, description="Event description"),
@@ -181,7 +177,7 @@ async def create_market_event(
 
     event = MarketEventCreate(
         event_type=validated_type,
-        event_date=event_date,
+        event_date=event_date.isoformat(),
         event_time=event_time,
         title=title,
         description=description,

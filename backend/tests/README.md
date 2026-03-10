@@ -101,44 +101,43 @@ def test_get_rvol_success(client: TestClient):
 ## 🚀 Running Tests
 
 ### Recommended Workflow
-- `pytest` &mdash; runs the fast suite (slow integration + watchlist suites are skipped automatically).
-- `pytest --runslow` &mdash; runs everything, including slow suites.
-- `pytest -m slow --runslow` &mdash; runs only the slow suites (useful before releases/infra changes).
+- `dt --check` &mdash; full repo gate for backend + frontend with the default fast backend suite.
+- `dt pytest backend/tests --runslow` &mdash; backend release-grade pass including slow integration and watchlist suites.
+- `bash ~/portfolio-ai/scripts/test-all.sh --slow` &mdash; one command for the full standard gate plus the slow backend suite.
 
 Slow suites currently include everything under `tests/integration/` and `tests/watchlist/`. These folders are automatically marked with `@pytest.mark.slow` so they are skipped unless you pass `--runslow`.
 
 ### All Tests
 ```bash
-cd ~/portfolio-ai/backend
-source .venv/bin/activate
-pytest tests/ -v --runslow
+dt pytest backend/tests --runslow
 ```
 
 ### Only Unit Tests (Fast)
 ```bash
-pytest tests/unit/ -v
+dt pytest backend/tests/unit
 ```
 
 ### Only Integration Tests
 ```bash
-pytest tests/integration/ -v --runslow
+dt pytest backend/tests/integration --runslow
 ```
 
 ### Specific Module
 ```bash
 # Test specific feature
-pytest tests/unit/portfolio/ -v
+dt pytest backend/tests/unit/portfolio
 
 # Test specific file
-pytest tests/unit/sources/test_alphavantage_source.py -v
+dt pytest backend/tests/unit/sources/test_alphavantage_source.py
 
 # Test specific function
-pytest tests/unit/sources/test_alphavantage_source.py::test_parse_response -v
+dt pytest backend/tests/unit/sources/test_alphavantage_source.py::test_parse_response
 ```
 
 ### With Coverage
 ```bash
-pytest tests/ --cov=app --cov-report=html
+dt --check
+dt pytest backend/tests --runslow
 ```
 
 ### Parallel Execution (Recommended for Speed)

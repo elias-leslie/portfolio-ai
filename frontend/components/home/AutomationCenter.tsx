@@ -153,7 +153,7 @@ export function AutomationCenter() {
                 <div className="mt-3 flex items-center gap-3 text-xs text-text-muted">
                   <span className="inline-flex items-center gap-1">
                     <Clock3 className="h-3.5 w-3.5" />
-                    {formatTimestamp(run.completedAt ?? run.startedAt)}
+                    {formatTimestamp(run.completedAt)}
                   </span>
                   <span>{run.triggeredBy}</span>
                 </div>

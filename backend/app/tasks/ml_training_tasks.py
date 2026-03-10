@@ -68,7 +68,16 @@ def _load_training_data(training_data_path: Path) -> tuple[list[dict[str, Any]],
     """Load existing training data and build hash set of labeled articles (Step 1)."""
     if training_data_path.exists():
         with training_data_path.open() as f:
-            existing_data = json.load(f)
+            raw_existing_data = json.load(f)
+        existing_data = []
+        for article in raw_existing_data:
+            symbol = article.get("symbol") or article.get("ticker") or ""
+            existing_data.append(
+                {
+                    **article,
+                    "symbol": symbol,
+                }
+            )
         print(f"\n📖 Loaded {len(existing_data)} existing training samples")
 
         labeled_hashes = set()

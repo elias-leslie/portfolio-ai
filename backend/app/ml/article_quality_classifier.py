@@ -5,16 +5,20 @@ Uses scikit-learn to train a binary classifier on AI-labeled training data.
 """
 
 import re
+import warnings
 from pathlib import Path
 from typing import Any, TypedDict
 
 import joblib
 import numpy as np
 import numpy.typing as npt
+import sklearn
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics import accuracy_score, classification_report, precision_recall_fscore_support
 from sklearn.model_selection import train_test_split
+
+CURRENT_SKLEARN_VERSION = sklearn.__version__
 
 
 class ArticleFeatures(TypedDict):
@@ -32,6 +36,15 @@ class QualityPrediction(TypedDict):
     is_useful: bool
     confidence: float  # 0.0-1.0 probability
     predicted_label: str  # "useful" or "not_useful"
+
+
+class IncompatibleModelArtifactError(RuntimeError):
+    """Raised when a persisted model artifact does not match the runtime."""
+
+
+def _extract_saved_sklearn_version(message: str) -> str | None:
+    match = re.search(r"version ([^ ]+) when using version ([^ ]+)", message)
+    return match.group(1) if match else None
 
 
 def extract_text_features(headline: str, summary: str) -> dict[str, float | int]:
@@ -238,7 +251,12 @@ class ArticleQualityClassifier:
         model_path.parent.mkdir(parents=True, exist_ok=True)
 
         joblib.dump(
-            {"vectorizer": self.vectorizer, "model": self.model, "is_trained": self.is_trained},
+            {
+                "vectorizer": self.vectorizer,
+                "model": self.model,
+                "is_trained": self.is_trained,
+                "sklearn_version": CURRENT_SKLEARN_VERSION,
+            },
             model_path,
         )
 
@@ -252,7 +270,34 @@ class ArticleQualityClassifier:
         if not model_path.exists():
             raise FileNotFoundError(f"Model not found: {model_path}")
 
-        data = joblib.load(model_path)
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            warnings.simplefilter("always")
+            data = joblib.load(model_path)
+
+        saved_version = data.get("sklearn_version")
+        incompatible_warning = next(
+            (
+                warning
+                for warning in caught_warnings
+                if warning.category.__name__ == "InconsistentVersionWarning"
+            ),
+            None,
+        )
+        inferred_saved_version = (
+            _extract_saved_sklearn_version(str(incompatible_warning.message))
+            if incompatible_warning
+            else None
+        )
+        artifact_version = saved_version or inferred_saved_version
+
+        if incompatible_warning or (
+            artifact_version is not None and artifact_version != CURRENT_SKLEARN_VERSION
+        ):
+            raise IncompatibleModelArtifactError(
+                "Article quality model artifact is incompatible with the current sklearn "
+                f"runtime (artifact={artifact_version or 'unknown'}, "
+                f"runtime={CURRENT_SKLEARN_VERSION}). Retrain and republish the model."
+            )
 
         classifier = cls()
         classifier.vectorizer = data["vectorizer"]
