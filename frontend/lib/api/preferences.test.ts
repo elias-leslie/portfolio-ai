@@ -32,6 +32,9 @@ describe('preferences api', () => {
         watchlist_technical_weight: 50,
         display_timezone: 'America/New_York',
         watchlist_show_news: true,
+        thesis_generation_enabled: false,
+        auto_remove_on_invalidation: true,
+        auto_trim_enabled: true,
       }),
     } as unknown as Response)
 
@@ -52,16 +55,27 @@ describe('preferences api', () => {
       headers: new Headers({ 'content-type': 'application/json' }),
       json: vi.fn().mockResolvedValue({
         risk_tolerance: 7,
+        thesis_generation_enabled: true,
+        auto_remove_on_invalidation: false,
+        auto_trim_enabled: true,
       }),
     } as unknown as Response)
 
-    await updatePreferences({ riskTolerance: 7 })
+    await updatePreferences({
+      riskTolerance: 7,
+      thesisGenerationEnabled: true,
+      autoRemoveOnInvalidation: false,
+    })
 
     expect(global.fetch).toHaveBeenCalledWith(
       'http://localhost:8000/api/preferences',
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ risk_tolerance: 7 }),
+        body: JSON.stringify({
+          risk_tolerance: 7,
+          thesis_generation_enabled: true,
+          auto_remove_on_invalidation: false,
+        }),
       }),
     )
   })

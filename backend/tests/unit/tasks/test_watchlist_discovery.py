@@ -908,10 +908,12 @@ class TestTrimUnderperformingWatchlistTask:
         assert result["candidates_found"] == 2
         assert len(result["removed"]) == 2
 
+    @patch("app.tasks.watchlist_discovery.trimming.get_automation_preferences")
     @patch("app.tasks.watchlist_discovery.trimming.get_rules")
     def test_skips_when_auto_trim_disabled(
         self,
         mock_get_rules: MagicMock,
+        mock_get_automation_preferences: MagicMock,
         mock_rules: WatchlistManagementRules,
     ) -> None:
         """Test skips trimming when auto_trim_enabled is False."""
@@ -930,6 +932,9 @@ class TestTrimUnderperformingWatchlistTask:
             exclude_portfolio_holdings=True,
         )
         mock_get_rules.return_value.watchlist_management = mock_rules
+        mock_get_automation_preferences.return_value = {
+            "auto_trim_enabled": {"enabled": False, "source": "preferences"}
+        }
 
         result = trim_underperforming_watchlist_task()
 

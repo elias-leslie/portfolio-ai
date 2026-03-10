@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from app.models.automation_center import AutomationCenter, AutomationGuardrail, AutomationRecentRun
-from app.rules.loader import get_rules
+from app.services.preferences_service import get_automation_preferences, get_or_create_preferences
 from app.storage import get_storage
 
 
@@ -16,7 +16,8 @@ class AutomationCenterService:
         self.storage = get_storage()
 
     def get_center(self) -> dict[str, object]:
-        rules = get_rules()
+        preferences = get_or_create_preferences()
+        automation = get_automation_preferences(preferences)
         recent_runs = self._recent_runs()
         warnings = self._warnings()
         center = AutomationCenter(
@@ -25,19 +26,25 @@ class AutomationCenterService:
                 AutomationGuardrail(
                     key="thesis_generation_enabled",
                     label="Thesis generation",
-                    value="Enabled" if rules.thesis_management.thesis_generation_enabled else "Disabled",
-                    detail="Controls whether Jenny can auto-generate missing theses.",
+                    value="Enabled" if automation["thesis_generation_enabled"]["enabled"] else "Disabled",
+                    enabled=bool(automation["thesis_generation_enabled"]["enabled"]),
+                    source=str(automation["thesis_generation_enabled"]["source"]),
+                    detail="Controls whether Jenny can auto-generate missing theses and run thesis-refresh workloads.",
                 ),
                 AutomationGuardrail(
                     key="auto_remove_on_invalidation",
                     label="Auto-remove invalidated theses",
-                    value="Enabled" if rules.thesis_management.auto_remove_on_invalidation else "Disabled",
+                    value="Enabled" if automation["auto_remove_on_invalidation"]["enabled"] else "Disabled",
+                    enabled=bool(automation["auto_remove_on_invalidation"]["enabled"]),
+                    source=str(automation["auto_remove_on_invalidation"]["source"]),
                     detail="Keeps broken theses from lingering in the active loop.",
                 ),
                 AutomationGuardrail(
                     key="auto_trim_enabled",
                     label="Watchlist auto-trim",
-                    value="Enabled" if rules.watchlist_management.auto_trim_enabled else "Disabled",
+                    value="Enabled" if automation["auto_trim_enabled"]["enabled"] else "Disabled",
+                    enabled=bool(automation["auto_trim_enabled"]["enabled"]),
+                    source=str(automation["auto_trim_enabled"]["source"]),
                     detail="Controls whether weak watchlist names can be trimmed automatically.",
                 ),
             ],

@@ -279,12 +279,7 @@ export function WatchlistTableRow({
         </TableCell>
         <TableCell data-slot="table-cell">
           {hasScore ? (
-            <SparklineWithHistory
-              itemId={item.id}
-              width={80}
-              height={24}
-              recommendedStyle={item.recommendedStyle}
-            />
+            <SparklineWithHistory itemId={item.id} width={80} height={24} />
           ) : (
             <span className="text-text-muted">—</span>
           )}

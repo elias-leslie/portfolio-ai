@@ -65,6 +65,8 @@ def test_get_home_automation_center_returns_guardrails_and_runs(mocker) -> None:
                     "key": "thesis_generation_enabled",
                     "label": "Thesis generation",
                     "value": "Enabled",
+                    "enabled": True,
+                    "source": "preferences",
                     "detail": "Controlled by trading rules.",
                 }
             ],
@@ -88,4 +90,35 @@ def test_get_home_automation_center_returns_guardrails_and_runs(mocker) -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["guardrails"][0]["key"] == "thesis_generation_enabled"
+    assert payload["guardrails"][0]["enabled"] is True
     assert payload["recent_runs"][0]["status"] == "completed"
+
+
+def test_record_symbol_workflow_outcome_returns_updated_state(mocker) -> None:
+    mocked = mocker.patch(
+        "app.api.symbols.router.workflow_service.record_outcome",
+        return_value={
+            "symbol": "VTI",
+            "stage": "review_due",
+            "summary": "A portfolio review is due before the next decision.",
+            "last_transition_at": "2026-03-10T15:00:00+00:00",
+            "updated_by": "user",
+            "notes": "Trimmed after Jenny flagged sizing.",
+            "available_transitions": ["live", "exited"],
+            "history": [],
+        },
+    )
+
+    response = client.post(
+        "/api/symbols/VTI/workflow/outcome",
+        json={
+            "action": "trim",
+            "note": "Trimmed after Jenny flagged sizing.",
+            "jenny_verdict": "trim",
+            "management_action": "reduce size",
+        },
+    )
+
+    assert response.status_code == 200
+    mocked.assert_called_once()
+    assert response.json()["stage"] == "review_due"

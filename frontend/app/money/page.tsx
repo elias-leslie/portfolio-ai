@@ -10,6 +10,7 @@ import { HouseholdReportsPanel } from '@/components/money/HouseholdReportsPanel'
 import { JennyMoneyBoard } from '@/components/money/JennyMoneyBoard'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs'
 import { useHouseholdDashboard, useHouseholdDocuments } from '@/lib/hooks/useHousehold'
 
 function LoadingState() {
@@ -64,16 +65,49 @@ export default function MoneyPage() {
       />
 
       <HouseholdOverviewGrid dashboard={dashboard} />
-      <HouseholdOperationsPanel dashboard={dashboard} />
-      <HouseholdReportsPanel dashboard={dashboard} />
-      <HouseholdDocumentCenter documents={documents?.items ?? []} />
-      <HouseholdProfileCard
-        profile={dashboard.profile}
-        resolvedValues={dashboard.resolvedValues}
-        questions={dashboard.questions}
+      <WorkspaceTabs
+        defaultValue="operate"
+        tabs={[
+          {
+            value: 'operate',
+            label: 'Operate',
+            description: 'Handle active questions, categorization review, bills, and budget pacing first.',
+            content: <HouseholdOperationsPanel dashboard={dashboard} />,
+          },
+          {
+            value: 'analysis',
+            label: 'Analysis',
+            description: 'Review the transaction reports and Jenny’s synthesized money brief together.',
+            content: (
+              <div className="space-y-6">
+                <HouseholdReportsPanel dashboard={dashboard} />
+                <JennyMoneyBoard dashboard={dashboard} />
+              </div>
+            ),
+          },
+          {
+            value: 'planning',
+            label: 'Planning',
+            description: 'Keep profile assumptions and long-range planning in one place.',
+            content: (
+              <div className="space-y-6">
+                <HouseholdProfileCard
+                  profile={dashboard.profile}
+                  resolvedValues={dashboard.resolvedValues}
+                  questions={dashboard.questions}
+                />
+                <HouseholdPlanningPanels dashboard={dashboard} />
+              </div>
+            ),
+          },
+          {
+            value: 'intake',
+            label: 'Intake',
+            description: 'Upload and audit source documents without forcing the rest of the page to grow.',
+            content: <HouseholdDocumentCenter documents={documents?.items ?? []} />,
+          },
+        ]}
       />
-      <HouseholdPlanningPanels dashboard={dashboard} />
-      <JennyMoneyBoard dashboard={dashboard} />
     </PageContainer>
   )
 }

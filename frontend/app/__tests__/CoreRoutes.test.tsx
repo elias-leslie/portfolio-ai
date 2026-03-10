@@ -94,6 +94,10 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
         actualMonthlySpend: 5200,
         actualEssentialMonthlySpend: 3400,
         actualDiscretionaryMonthlySpend: 1800,
+        monthToDateSpend: 2400,
+        monthToDatePlan: 2500,
+        paceStatus: 'on_track',
+        paceDetail: 'Month-to-date spend is tracking close to the plan.',
         remainingCashAfterPlan: 2500,
         discretionaryHeadroom: -300,
       },
@@ -206,7 +210,7 @@ describe('core product routes', () => {
 
     expect(screen.getByText('Money System')).toBeInTheDocument()
     expect(screen.getByText('Operational Queue')).toBeInTheDocument()
-    expect(screen.getByText('Retirement Preparedness')).toBeInTheDocument()
+    expect(screen.getByText('Planning')).toBeInTheDocument()
   })
 
   it('renders the symbol route shell', async () => {

@@ -158,6 +158,10 @@ class HouseholdBudgetSnapshot(BaseModel):
     actual_monthly_spend: float = 0.0
     actual_essential_monthly_spend: float = 0.0
     actual_discretionary_monthly_spend: float = 0.0
+    month_to_date_spend: float = 0.0
+    month_to_date_plan: float | None = None
+    pace_status: str = "unknown"
+    pace_detail: str
     remaining_cash_after_plan: float | None = None
     discretionary_headroom: float | None = None
 
@@ -173,6 +177,7 @@ class HouseholdCategorizationCandidate(BaseModel):
     suggested_category: str
     suggested_essentiality: str
     confidence: float
+    similar_transaction_count: int = 0
     reason: str
 
 
@@ -184,6 +189,9 @@ class HouseholdRecurringCommitment(BaseModel):
     annualized_cost: float
     last_seen: str
     next_expected: str | None = None
+    days_until_due: int | None = None
+    due_status: str = "unknown"
+    due_confidence: float = 0.0
     commitment_type: str
 
 
@@ -315,3 +323,4 @@ class HouseholdFinanceDashboard(BaseModel):
 class HouseholdTransactionCategoryUpdate(BaseModel):
     category: str
     essentiality: str
+    apply_to_merchant: bool = False

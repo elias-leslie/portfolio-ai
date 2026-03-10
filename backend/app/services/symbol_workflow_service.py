@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from app.models.symbol_workflow import SymbolWorkflow, SymbolWorkflowEvent
+from app.models.symbol_workflow import (
+    SymbolWorkflow,
+    SymbolWorkflowEvent,
+    SymbolWorkflowOutcomeSnapshot,
+    SymbolWorkflowPositionContext,
+)
+from app.portfolio.totals import get_live_portfolio_totals
 from app.services.thesis_service import ThesisService
 from app.storage import get_storage
 
@@ -40,6 +47,13 @@ WORKFLOW_TRANSITIONS = {
     "exited": ["discover", "review_due"],
 }
 
+OUTCOME_ACTION_STAGE_MAP = {
+    "hold": "live",
+    "trim": "review_due",
+    "exit": "exited",
+    "invalidate": "invalidated",
+}
+
 
 def derive_default_stage(
     *,
@@ -61,6 +75,13 @@ def derive_default_stage(
 
 def available_transitions_for_stage(stage: str) -> list[str]:
     return WORKFLOW_TRANSITIONS.get(stage, ["discover"])
+
+
+def stage_for_outcome_action(action: str) -> str:
+    normalized = action.strip().lower()
+    if normalized not in OUTCOME_ACTION_STAGE_MAP:
+        raise ValueError(f"Unsupported outcome action: {action}")
+    return OUTCOME_ACTION_STAGE_MAP[normalized]
 
 
 class SymbolWorkflowService:
@@ -99,6 +120,8 @@ class SymbolWorkflowService:
             notes=notes,
             next_review_at=next_review_at,
             available_transitions=available_transitions_for_stage(stage),
+            position=self._position_context(symbol),
+            latest_outcome=self._latest_outcome(symbol),
             history=self._fetch_history(symbol),
         )
         return workflow.model_dump(mode="json")
@@ -113,6 +136,67 @@ class SymbolWorkflowService:
         now = datetime.now(UTC)
         note_text = self._normalize_transition_note(note)
         self._apply_stage_side_effect(symbol, stage, note_text)
+        self._persist_transition(
+            symbol=symbol,
+            from_stage=from_stage,
+            stage=stage,
+            note_text=note_text,
+            updated_by=updated_by,
+            now=now,
+            metadata={},
+        )
+
+        return self.get_workflow(symbol)
+
+    def record_outcome(
+        self,
+        symbol: str,
+        action: str,
+        note: str | None,
+        *,
+        jenny_verdict: str | None = None,
+        management_action: str | None = None,
+        updated_by: str = "user",
+    ) -> dict[str, Any]:
+        symbol = symbol.upper()
+        stage = stage_for_outcome_action(action)
+        current = self.get_workflow(symbol)
+        from_stage = current["stage"]
+        now = datetime.now(UTC)
+        note_text = self._normalize_transition_note(note)
+        self._apply_stage_side_effect(symbol, stage, note_text)
+        position = self._position_context(symbol)
+        self._persist_transition(
+            symbol=symbol,
+            from_stage=from_stage,
+            stage=stage,
+            note_text=note_text,
+            updated_by=updated_by,
+            now=now,
+            metadata={
+                "kind": "outcome_capture",
+                "action": action,
+                "position": position.model_dump(mode="json") if position is not None else None,
+                "jenny": {
+                    "verdict": jenny_verdict,
+                    "management_action": management_action,
+                },
+            },
+        )
+
+        return self.get_workflow(symbol)
+
+    def _persist_transition(
+        self,
+        *,
+        symbol: str,
+        from_stage: str,
+        stage: str,
+        note_text: str,
+        updated_by: str,
+        now: datetime,
+        metadata: dict[str, Any],
+    ) -> None:
 
         with self.storage.connection() as conn:
             conn.execute(
@@ -144,7 +228,7 @@ class SymbolWorkflowService:
                 """
                 INSERT INTO symbol_workflow_events (
                     id, symbol, from_stage, to_stage, note, created_by, created_at, metadata
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, '{}'::jsonb)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb)
                 """,
                 [
                     str(uuid.uuid4()),
@@ -154,11 +238,10 @@ class SymbolWorkflowService:
                     note_text,
                     updated_by,
                     now,
+                    json.dumps(metadata),
                 ],
             )
             conn.commit()
-
-        return self.get_workflow(symbol)
 
     def list_priority_workflows(self, limit: int = 3) -> list[dict[str, Any]]:
         with self.storage.connection() as conn:
@@ -210,7 +293,7 @@ class SymbolWorkflowService:
         with self.storage.connection() as conn:
             rows = conn.execute(
                 """
-                SELECT id, symbol, from_stage, to_stage, note, created_by, created_at
+                SELECT id, symbol, from_stage, to_stage, note, created_by, created_at, metadata
                 FROM symbol_workflow_events
                 WHERE symbol = %s
                 ORDER BY created_at DESC
@@ -227,6 +310,7 @@ class SymbolWorkflowService:
                 note=str(row[4]),
                 created_by=str(row[5]),
                 created_at=row[6].isoformat(),
+                metadata=row[7] if isinstance(row[7], dict) else {},
             )
             for row in rows
         ]
@@ -278,4 +362,73 @@ class SymbolWorkflowService:
             return now + timedelta(days=7)
         if stage == "review_due":
             return now + timedelta(days=3)
+        return None
+
+    def _position_context(self, symbol: str) -> SymbolWorkflowPositionContext | None:
+        with self.storage.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT COALESCE(SUM(shares), 0), COALESCE(SUM(shares * cost_basis), 0)
+                FROM portfolio_positions
+                WHERE symbol = %s
+                  AND position_type != 'paper'
+                """,
+                [symbol],
+            ).fetchone()
+        if row is None or float(row[0] or 0.0) <= 0:
+            return None
+
+        shares = float(row[0] or 0.0)
+        total_cost = float(row[1] or 0.0)
+        current_price = self.storage.get_current_price(symbol)
+        market_value = round(shares * current_price, 2) if current_price is not None else None
+        gain_pct = (
+            round(((market_value - total_cost) / total_cost) * 100, 2)
+            if market_value is not None and total_cost > 0
+            else None
+        )
+        weight_pct: float | None = None
+        try:
+            totals = get_live_portfolio_totals(self.storage, include_paper=False)
+            if market_value is not None and totals.cash_inclusive_total_value > 0:
+                weight_pct = round((market_value / totals.cash_inclusive_total_value) * 100, 2)
+        except Exception:
+            weight_pct = None
+
+        return SymbolWorkflowPositionContext(
+            shares=shares,
+            cost_basis=round(total_cost / shares, 2) if shares > 0 else 0.0,
+            market_value=market_value,
+            gain_pct=gain_pct,
+            weight_pct=weight_pct,
+        )
+
+    def _latest_outcome(self, symbol: str) -> SymbolWorkflowOutcomeSnapshot | None:
+        for event in self._fetch_history(symbol):
+            if event.metadata.get("kind") != "outcome_capture":
+                continue
+            position_payload = event.metadata.get("position")
+            jenny_payload = event.metadata.get("jenny")
+            position = (
+                SymbolWorkflowPositionContext.model_validate(position_payload)
+                if isinstance(position_payload, dict)
+                else None
+            )
+            return SymbolWorkflowOutcomeSnapshot(
+                action=str(event.metadata.get("action") or "review"),
+                stage=event.to_stage,
+                note=event.note,
+                created_at=event.created_at,
+                jenny_verdict=(
+                    str(jenny_payload.get("verdict"))
+                    if isinstance(jenny_payload, dict) and jenny_payload.get("verdict")
+                    else None
+                ),
+                management_action=(
+                    str(jenny_payload.get("management_action"))
+                    if isinstance(jenny_payload, dict) and jenny_payload.get("management_action")
+                    else None
+                ),
+                position=position,
+            )
         return None

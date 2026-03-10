@@ -9,6 +9,7 @@ import { TodayIdeasSection } from '@/components/recommendations/TodayIdeasSectio
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { UnifiedNewsIntelligenceCard } from '@/components/shared/UnifiedNewsIntelligenceCard'
+import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs'
 import { useNewsIntelligence } from '@/lib/hooks/useNews'
 import { PortfolioOverview } from '@/components/portfolio/PortfolioOverview'
 import { SectionCard } from '@/components/shared/SectionCard'
@@ -140,31 +141,58 @@ export default function Dashboard() {
         description="What matters today: a short list of ideas, market context, and portfolio checks."
       />
 
-      <HomeActionQueue />
-
-      <AutomationCenter />
-
-      <TodayIdeasSection />
-
-      <Suspense
-        fallback={
-          <SectionLoadingState label="Loading market intelligence" rows={5} />
-        }
-      >
-        <MarketIntelligence />
-      </Suspense>
-
-      <MarketNewsSection />
-
-      <SectionCard
-        variant="surface"
-        title="Portfolio Coach"
-        description="A plain-English check on size, concentration, and recent performance."
-      >
-        <Suspense fallback={<SectionLoadingState label="Loading portfolio overview" rows={4} />}>
-          <PortfolioOverview />
-        </Suspense>
-      </SectionCard>
+      <WorkspaceTabs
+        defaultValue="operate"
+        tabs={[
+          {
+            value: 'operate',
+            label: 'Operate',
+            description: 'Start with the action queue, automation controls, and today’s ideas.',
+            content: (
+              <div className="space-y-6">
+                <HomeActionQueue />
+                <AutomationCenter />
+                <TodayIdeasSection />
+              </div>
+            ),
+          },
+          {
+            value: 'market',
+            label: 'Market',
+            description: 'Keep the market context and latest headlines together instead of buried lower on the page.',
+            content: (
+              <div className="space-y-6">
+                <Suspense
+                  fallback={
+                    <SectionLoadingState label="Loading market intelligence" rows={5} />
+                  }
+                >
+                  <MarketIntelligence />
+                </Suspense>
+                <MarketNewsSection />
+              </div>
+            ),
+          },
+          {
+            value: 'portfolio',
+            label: 'Portfolio',
+            description: 'Use the portfolio coach when you need a concentration and sizing check.',
+            content: (
+              <SectionCard
+                variant="surface"
+                title="Portfolio Coach"
+                description="A plain-English check on size, concentration, and recent performance."
+              >
+                <Suspense
+                  fallback={<SectionLoadingState label="Loading portfolio overview" rows={4} />}
+                >
+                  <PortfolioOverview />
+                </Suspense>
+              </SectionCard>
+            ),
+          },
+        ]}
+      />
     </PageContainer>
   )
 }

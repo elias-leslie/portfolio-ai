@@ -15,6 +15,7 @@ from app.services.household_finance_service import HouseholdFinanceService
 
 def test_build_budget_snapshot_uses_targets_and_actuals() -> None:
     service = object.__new__(HouseholdFinanceService)
+    service._current_month_spend = lambda: 2800.0
     profile = HouseholdProfile(
         id="profile-1",
         household_name="Household",
@@ -42,6 +43,9 @@ def test_build_budget_snapshot_uses_targets_and_actuals() -> None:
     assert snapshot.remaining_cash_after_plan == 2900
     assert snapshot.discretionary_headroom == 1646
     assert snapshot.status == "on_track"
+    assert snapshot.month_to_date_spend == 2800.0
+    assert snapshot.month_to_date_plan is not None
+    assert snapshot.pace_status in {"on_track", "running_hot", "under_plan"}
 
 
 def test_build_action_items_prioritizes_questions_and_budget_gaps() -> None:

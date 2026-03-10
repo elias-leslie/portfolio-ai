@@ -6,6 +6,7 @@ from app.services.symbol_workflow_service import (
     SymbolWorkflowService,
     available_transitions_for_stage,
     derive_default_stage,
+    stage_for_outcome_action,
 )
 
 
@@ -46,3 +47,9 @@ def test_normalize_transition_note_trims_and_defaults_empty_notes() -> None:
         "Thesis confirmed after review."
     )
     assert service._normalize_transition_note("   ") == "Workflow updated from product UI."
+
+
+def test_stage_for_outcome_action_maps_live_decisions_into_workflow() -> None:
+    assert stage_for_outcome_action("hold") == "live"
+    assert stage_for_outcome_action("trim") == "review_due"
+    assert stage_for_outcome_action("exit") == "exited"

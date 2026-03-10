@@ -104,12 +104,18 @@ export function useCategorizeHouseholdTransaction() {
       transactionId,
       category,
       essentiality,
+      applyToMerchant,
     }: {
       transactionId: string
       category: string
       essentiality: string
+      applyToMerchant?: boolean
     }) =>
-      categorizeHouseholdTransaction(transactionId, { category, essentiality }),
+      categorizeHouseholdTransaction(transactionId, {
+        category,
+        essentiality,
+        applyToMerchant,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['household'], refetchType: 'active' })
       toast.success('Household category confirmed.')

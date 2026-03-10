@@ -41,6 +41,8 @@ class AutomationGuardrailResponse(BaseModel):
     key: str
     label: str
     value: str
+    enabled: bool
+    source: str
     detail: str
 
 

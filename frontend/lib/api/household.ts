@@ -142,6 +142,10 @@ export interface HouseholdBudgetSnapshot {
   actualMonthlySpend: number
   actualEssentialMonthlySpend: number
   actualDiscretionaryMonthlySpend: number
+  monthToDateSpend: number
+  monthToDatePlan: number | null
+  paceStatus: string
+  paceDetail: string
   remainingCashAfterPlan: number | null
   discretionaryHeadroom: number | null
 }
@@ -157,6 +161,7 @@ export interface HouseholdCategorizationCandidate {
   suggestedCategory: string
   suggestedEssentiality: string
   confidence: number
+  similarTransactionCount: number
   reason: string
 }
 
@@ -168,6 +173,9 @@ export interface HouseholdRecurringCommitment {
   annualizedCost: number
   lastSeen: string
   nextExpected: string | null
+  daysUntilDue: number | null
+  dueStatus: string
+  dueConfidence: number
   commitmentType: string
 }
 
@@ -305,6 +313,7 @@ export interface HouseholdQuestionAnswer {
 export interface HouseholdTransactionCategoryUpdate {
   category: string
   essentiality: string
+  applyToMerchant?: boolean
 }
 
 export async function fetchHouseholdDashboard(): Promise<HouseholdFinanceDashboard> {

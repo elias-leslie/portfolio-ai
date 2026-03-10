@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import calendar
 import hashlib
 import json
 import re
@@ -318,6 +319,31 @@ class HouseholdFinanceService:
             if profile.monthly_discretionary_target is not None
             else None
         )
+        month_to_date_spend = self._current_month_spend()
+        month_to_date_plan = None
+        pace_status = "unknown"
+        pace_detail = "Jenny needs a monthly plan before it can judge pacing."
+        if has_plan and monthly_plan_total is not None:
+            today = datetime.now(UTC).date()
+            days_in_month = calendar.monthrange(today.year, today.month)[1]
+            month_progress = today.day / days_in_month
+            month_to_date_plan = round(monthly_plan_total * month_progress, 2)
+            pace_delta = month_to_date_spend - month_to_date_plan
+            if abs(pace_delta) <= max(month_to_date_plan * 0.05, 100):
+                pace_status = "on_track"
+                pace_detail = "Month-to-date spend is tracking close to the plan."
+            elif pace_delta > 0:
+                pace_status = "running_hot"
+                pace_detail = (
+                    f"Month-to-date spend is ahead of plan by ${pace_delta:,.0f}. "
+                    "Review discretionary and recurring categories before the month hardens."
+                )
+            else:
+                pace_status = "under_plan"
+                pace_detail = (
+                    f"Month-to-date spend is ${abs(pace_delta):,.0f} below plan. "
+                    "The plan still has room for remaining bills and savings."
+                )
         if not has_plan:
             status = "setup_needed"
             summary = "Set the core monthly plan so Jenny can judge whether current spending is on pace."
@@ -348,6 +374,10 @@ class HouseholdFinanceService:
             actual_monthly_spend=reports.executive.average_monthly_spend,
             actual_essential_monthly_spend=reports.executive.average_monthly_essentials,
             actual_discretionary_monthly_spend=reports.executive.average_monthly_discretionary,
+            month_to_date_spend=month_to_date_spend,
+            month_to_date_plan=month_to_date_plan,
+            pace_status=pace_status,
+            pace_detail=pace_detail,
             remaining_cash_after_plan=remaining_cash_after_plan,
             discretionary_headroom=discretionary_headroom,
         )
@@ -457,22 +487,29 @@ class HouseholdFinanceService:
             rows = conn.execute(
                 """
                 SELECT
-                    id,
-                    COALESCE(raw_merchant, description) AS merchant,
-                    description,
-                    amount,
-                    transaction_date,
-                    category,
-                    essentiality,
-                    confidence
-                FROM household_transactions
-                WHERE flow_type = 'expense'
+                    t.id,
+                    COALESCE(t.raw_merchant, t.description) AS merchant,
+                    t.description,
+                    t.amount,
+                    t.transaction_date,
+                    t.category,
+                    t.essentiality,
+                    t.confidence,
+                    COALESCE(similar_txns.similar_count, 0) AS similar_count
+                FROM household_transactions t
+                LEFT JOIN (
+                    SELECT merchant_id, COUNT(*) AS similar_count
+                    FROM household_transactions
+                    WHERE flow_type = 'expense'
+                    GROUP BY merchant_id
+                ) similar_txns ON similar_txns.merchant_id = t.merchant_id
+                WHERE t.flow_type = 'expense'
                   AND (
-                    COALESCE(category, 'Household') = 'Household'
-                    OR COALESCE(essentiality, 'mixed') = 'mixed'
-                    OR COALESCE(confidence, 0) < 0.85
+                    COALESCE(t.category, 'Household') = 'Household'
+                    OR COALESCE(t.essentiality, 'mixed') = 'mixed'
+                    OR COALESCE(t.confidence, 0) < 0.85
                   )
-                ORDER BY COALESCE(confidence, 0) ASC, transaction_date DESC
+                ORDER BY COALESCE(t.confidence, 0) ASC, t.transaction_date DESC
                 LIMIT %s
                 """,
                 [limit],
@@ -490,6 +527,7 @@ class HouseholdFinanceService:
                 suggested_category=self._suggest_category(str(row[1]), str(row[2])),
                 suggested_essentiality=self._suggest_essentiality(str(row[1]), str(row[2])),
                 confidence=float(row[7] or 0.0),
+                similar_transaction_count=max(int(row[8] or 0) - 1, 0),
                 reason="Low-confidence or mixed classification needs a human pass before Jenny hardens the budget lane.",
             )
             for row in rows
@@ -497,6 +535,7 @@ class HouseholdFinanceService:
 
     def _build_recurring_commitments(self, limit: int = 6) -> list[HouseholdRecurringCommitment]:
         commitments: list[HouseholdRecurringCommitment] = []
+        today = datetime.now(UTC).date()
         with self.storage.connection() as conn:
             rows = conn.execute(
                 """
@@ -539,6 +578,22 @@ class HouseholdFinanceService:
                 else "bill"
             )
             next_expected = self._estimate_next_commitment_date(last_seen, cadence)
+            next_expected_date = (
+                datetime.fromisoformat(next_expected).date()
+                if next_expected is not None
+                else None
+            )
+            days_until_due = (
+                (next_expected_date - today).days if next_expected_date is not None else None
+            )
+            if days_until_due is None:
+                due_status = "unknown"
+            elif days_until_due < 0:
+                due_status = "overdue"
+            elif days_until_due <= 3:
+                due_status = "due_soon"
+            else:
+                due_status = "upcoming"
             commitments.append(
                 HouseholdRecurringCommitment(
                     merchant=merchant,
@@ -548,6 +603,9 @@ class HouseholdFinanceService:
                     annualized_cost=round(annualized_cost, 2),
                     last_seen=last_seen.isoformat(),
                     next_expected=next_expected,
+                    days_until_due=days_until_due,
+                    due_status=due_status,
+                    due_confidence=float(cadence_info.get("confidence") or 0.0),
                     commitment_type=commitment_type,
                 )
             )
@@ -694,6 +752,19 @@ class HouseholdFinanceService:
         payload: HouseholdTransactionCategoryUpdate,
     ) -> bool:
         with self.storage.connection() as conn:
+            target = conn.execute(
+                """
+                SELECT id, merchant_id
+                FROM household_transactions
+                WHERE id = %s
+                """,
+                [transaction_id],
+            ).fetchone()
+            if target is None:
+                return False
+
+            merchant_id = str(target[1]) if target[1] is not None else None
+            updated_at = datetime.now(UTC)
             row = conn.execute(
                 """
                 UPDATE household_transactions
@@ -707,12 +778,66 @@ class HouseholdFinanceService:
                 [
                     payload.category,
                     payload.essentiality,
-                    datetime.now(UTC),
+                    updated_at,
                     transaction_id,
                 ],
             ).fetchone()
+            if payload.apply_to_merchant and merchant_id is not None:
+                conn.execute(
+                    """
+                    UPDATE household_transactions
+                    SET category = %s,
+                        essentiality = %s,
+                        confidence = GREATEST(COALESCE(confidence, 0), 0.97),
+                        updated_at = %s
+                    WHERE merchant_id = %s
+                    """,
+                    [
+                        payload.category,
+                        payload.essentiality,
+                        updated_at,
+                        merchant_id,
+                    ],
+                )
+                conn.execute(
+                    """
+                    UPDATE household_merchants
+                    SET primary_category = %s,
+                        essentiality = %s,
+                        metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb,
+                        updated_at = %s
+                    WHERE id = %s
+                    """,
+                    [
+                        payload.category,
+                        payload.essentiality,
+                        json.dumps(
+                            {
+                                "manual_rule": {
+                                    "category": payload.category,
+                                    "essentiality": payload.essentiality,
+                                    "updated_at": updated_at.isoformat(),
+                                }
+                            }
+                        ),
+                        updated_at,
+                        merchant_id,
+                    ],
+                )
             conn.commit()
         return row is not None
+
+    def _current_month_spend(self) -> float:
+        with self.storage.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT COALESCE(SUM(CAST(amount AS DOUBLE PRECISION)), 0)
+                FROM household_transactions
+                WHERE flow_type = 'expense'
+                  AND transaction_date >= date_trunc('month', CURRENT_DATE)
+                """
+            ).fetchone()
+        return round(float(row[0] or 0.0), 2) if row is not None else 0.0
 
     def get_profile(self) -> HouseholdProfile:
         row = self._get_profile_row()

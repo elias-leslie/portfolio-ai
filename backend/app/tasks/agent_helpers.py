@@ -15,6 +15,7 @@ from app.portfolio.analytics import PortfolioAnalytics
 from app.portfolio.manager import PortfolioManager
 from app.portfolio.price_fetcher import PriceDataFetcher
 from app.services import NewsService
+from app.services.preferences_service import get_automation_preferences
 from app.sources.fred import FREDSource
 from app.storage import get_storage
 from app.storage.credential_loader import load_credentials_from_database
@@ -96,10 +97,8 @@ def run_agent_task(
     Returns:
         Run ID of the agent execution, or "skipped:..." prefix on skip.
     """
-    from app.rules.loader import get_rules
-
-    rules = get_rules()
-    if not rules.thesis_management.thesis_generation_enabled:
+    automation = get_automation_preferences()
+    if not bool(automation["thesis_generation_enabled"]["enabled"]):
         logger.info("agent_task_skipped", task_name=task_name, reason="thesis_generation_disabled")
         return "skipped:thesis_generation_disabled"
 

@@ -18,6 +18,7 @@ from typing import Any
 
 from ..logging_config import get_logger
 from ..rules.loader import get_rules
+from ..services.preferences_service import get_automation_preferences
 from ..services.thesis_service import ThesisService
 from ..storage import PortfolioStorage
 from ..storage.connection import get_connection_manager
@@ -52,8 +53,8 @@ def monitor_thesis_health_task() -> dict[str, Any]:
     Returns:
         Dict with status, theses_checked, triggers_found, invalidated counts
     """
-    rules = get_rules()
-    if not rules.thesis_management.thesis_generation_enabled:
+    automation = get_automation_preferences()
+    if not bool(automation["thesis_generation_enabled"]["enabled"]):
         logger.info("thesis_health_check_skipped", reason="thesis_generation_disabled")
         return {"status": "skipped", "reason": "thesis_generation_disabled"}
 
@@ -102,7 +103,8 @@ def process_invalidated_theses_task() -> dict[str, Any]:
         Dict with status, processed count, removed/skipped details
     """
     rules = get_rules()
-    auto_remove = rules.thesis_management.auto_remove_on_invalidation
+    automation = get_automation_preferences()
+    auto_remove = bool(automation["auto_remove_on_invalidation"]["enabled"])
     exclude_portfolio = rules.watchlist_management.exclude_portfolio_holdings
     max_removals = rules.watchlist_management.max_daily_removals
     storage = PortfolioStorage()

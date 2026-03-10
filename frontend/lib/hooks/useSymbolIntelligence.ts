@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import {
   fetchSymbolIntelligence,
   fetchSymbolWorkflow,
+  recordSymbolWorkflowOutcome,
   transitionSymbolWorkflow,
 } from '@/lib/api/symbols'
 
@@ -44,6 +45,37 @@ export function useTransitionSymbolWorkflow(defaultSymbol?: string) {
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Failed to update workflow')
+    },
+  })
+}
+
+export function useRecordSymbolWorkflowOutcome(defaultSymbol?: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (payload: {
+      symbol?: string
+      action: string
+      note?: string
+      jennyVerdict?: string | null
+      managementAction?: string | null
+    }) =>
+      recordSymbolWorkflowOutcome(payload.symbol ?? defaultSymbol ?? '', {
+        action: payload.action,
+        note: payload.note,
+        jennyVerdict: payload.jennyVerdict,
+        managementAction: payload.managementAction,
+      }),
+    onSuccess: (_result, variables) => {
+      const symbol = variables.symbol ?? defaultSymbol ?? ''
+      queryClient.invalidateQueries({ queryKey: ['symbol-workflow', symbol] })
+      queryClient.invalidateQueries({ queryKey: ['symbol-intelligence', symbol] })
+      queryClient.invalidateQueries({ queryKey: ['portfolio', 'jenny'] })
+      queryClient.invalidateQueries({ queryKey: ['home'] })
+      toast.success('Outcome captured.')
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Failed to capture outcome')
     },
   })
 }

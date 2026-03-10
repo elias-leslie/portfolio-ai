@@ -1,9 +1,12 @@
 'use client'
 
+import { useState } from 'react'
 import { ArrowRight, GitBranch, RotateCcw } from 'lucide-react'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import {
+  useRecordSymbolWorkflowOutcome,
   useSymbolWorkflow,
   useTransitionSymbolWorkflow,
 } from '@/lib/hooks/useSymbolIntelligence'
@@ -24,9 +27,20 @@ function formatTimestamp(value: string | null | undefined) {
   })
 }
 
-export function SymbolWorkflowPanel({ symbol }: { symbol: string }) {
+export function SymbolWorkflowPanel({
+  symbol,
+  latestReview,
+}: {
+  symbol: string
+  latestReview?: {
+    finalVerdict?: string | null
+    managementAction?: string | null
+  } | null
+}) {
   const { data, isLoading, error } = useSymbolWorkflow(symbol)
   const transitionWorkflow = useTransitionSymbolWorkflow(symbol)
+  const recordOutcome = useRecordSymbolWorkflowOutcome(symbol)
+  const [outcomeNote, setOutcomeNote] = useState('')
 
   return (
     <SectionCard
@@ -68,6 +82,24 @@ export function SymbolWorkflowPanel({ symbol }: { symbol: string }) {
                   Review target {formatTimestamp(data.nextReviewAt)}
                 </p>
               ) : null}
+              {data.position ? (
+                <div className="mt-4 rounded-xl border border-border/40 bg-surface/70 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+                    Live position
+                  </p>
+                  <p className="mt-2 text-sm text-text">
+                    {data.position.shares.toFixed(2)} shares · basis ${data.position.costBasis.toFixed(2)}
+                  </p>
+                  <p className="mt-1 text-sm text-text-muted">
+                    {data.position.marketValue !== null
+                      ? `$${data.position.marketValue.toFixed(0)} market value`
+                      : 'Market value unavailable'}
+                    {data.position.gainPct !== null
+                      ? ` · ${data.position.gainPct >= 0 ? '+' : ''}${data.position.gainPct.toFixed(1)}%`
+                      : ''}
+                  </p>
+                </div>
+              ) : null}
             </div>
 
             <div className="rounded-2xl border border-border/40 bg-surface/70 p-4">
@@ -91,6 +123,54 @@ export function SymbolWorkflowPanel({ symbol }: { symbol: string }) {
                 ))}
               </div>
             </div>
+          </div>
+
+          <div className="rounded-2xl border border-border/40 bg-surface/70 p-4">
+            <p className="text-sm font-semibold text-text">Outcome capture</p>
+            <p className="mt-2 text-sm text-text-muted">
+              Record the real decision on the live position so future reviews remember the context.
+            </p>
+            <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto]">
+              <Input
+                value={outcomeNote}
+                onChange={(event) => setOutcomeNote(event.target.value)}
+                placeholder="Optional note: why did you hold, trim, exit, or invalidate?"
+              />
+              <div className="flex flex-wrap gap-2">
+                {['hold', 'trim', 'exit', 'invalidate'].map((action) => (
+                  <Button
+                    key={action}
+                    size="sm"
+                    variant={action === 'invalidate' ? 'destructive' : 'outline'}
+                    onClick={() =>
+                      recordOutcome.mutate({
+                        action,
+                        note: outcomeNote || `Recorded ${action} decision from symbol workspace.`,
+                        jennyVerdict: latestReview?.finalVerdict ?? null,
+                        managementAction: latestReview?.managementAction ?? null,
+                      })
+                    }
+                    disabled={recordOutcome.isPending}
+                  >
+                    {action === 'exit' ? 'Record exit' : action === 'hold' ? 'Record hold' : action === 'trim' ? 'Record trim' : 'Invalidate'}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            {data.latestOutcome ? (
+              <div className="mt-4 rounded-2xl border border-border/40 bg-surface-muted/20 p-4">
+                <p className="text-sm font-semibold text-text">
+                  Latest recorded outcome: {data.latestOutcome.action}
+                </p>
+                <p className="mt-2 text-sm text-text-muted">{data.latestOutcome.note}</p>
+                <p className="mt-2 text-xs text-text-muted">
+                  {formatTimestamp(data.latestOutcome.createdAt)}
+                  {data.latestOutcome.jennyVerdict
+                    ? ` · Jenny ${data.latestOutcome.jennyVerdict}`
+                    : ''}
+                </p>
+              </div>
+            ) : null}
           </div>
 
           <div className="space-y-3">

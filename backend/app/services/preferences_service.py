@@ -13,13 +13,93 @@ from app.models.preferences import (
     PreferencesUpdate,
     ScoringWeightsUpdate,
 )
+from app.rules.loader import get_rules
 from app.storage import get_storage
 
 storage = get_storage()
 
+AUTOMATION_PREFERENCE_KEYS = (
+    "thesis_generation_enabled",
+    "auto_remove_on_invalidation",
+    "auto_trim_enabled",
+)
+
+
+def get_automation_defaults() -> dict[str, bool]:
+    """Return automation defaults from trading rules."""
+    rules = get_rules()
+    return {
+        "thesis_generation_enabled": rules.thesis_management.thesis_generation_enabled,
+        "auto_remove_on_invalidation": rules.thesis_management.auto_remove_on_invalidation,
+        "auto_trim_enabled": rules.watchlist_management.auto_trim_enabled,
+    }
+
+
+def get_automation_preferences(
+    prefs: dict[str, Any] | None = None,
+) -> dict[str, dict[str, bool | str]]:
+    """Resolve runtime automation settings from preferences with rule fallbacks."""
+    defaults = get_automation_defaults()
+    current = get_or_create_automation_preferences()
+    if prefs is not None:
+        for key in AUTOMATION_PREFERENCE_KEYS:
+            if key in prefs:
+                current[key] = prefs.get(key)
+    resolved: dict[str, dict[str, bool | str]] = {}
+    for key, default_value in defaults.items():
+        stored_value = current.get(key)
+        resolved[key] = {
+            "enabled": bool(stored_value) if stored_value is not None else default_value,
+            "source": "preferences" if stored_value is not None else "rules_default",
+        }
+    return resolved
+
+
+def get_or_create_automation_preferences() -> dict[str, Any]:
+    """Get or create runtime automation override settings."""
+    row: dict[str, Any] | None = None
+
+    with storage.connection() as conn:
+        result_df = conn.execute(
+            "SELECT * FROM automation_preferences WHERE id = %s",
+            ["default"],
+        ).fetchdf()
+        if not result_df.is_empty():
+            row = cast(dict[str, Any], result_df.row(0, named=True))
+
+    if row is not None:
+        return dict(row)
+
+    now = datetime.now(UTC)
+    with storage.connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO automation_preferences (
+                id,
+                thesis_generation_enabled,
+                auto_remove_on_invalidation,
+                auto_trim_enabled,
+                created_at,
+                updated_at
+            ) VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            ["default", None, None, None, now, now],
+        )
+        conn.commit()
+
+    return {
+        "id": "default",
+        "thesis_generation_enabled": None,
+        "auto_remove_on_invalidation": None,
+        "auto_trim_enabled": None,
+        "created_at": now,
+        "updated_at": now,
+    }
+
 
 def dict_to_preferences_response(prefs: dict[str, Any]) -> PreferencesResponse:
     """Convert preferences dict to PreferencesResponse with proper defaults."""
+    automation = get_automation_preferences(prefs)
     return PreferencesResponse(
         risk_tolerance=int(prefs.get("risk_tolerance") or 5),
         allow_long=bool(prefs.get("allow_long")) if prefs.get("allow_long") is not None else True,
@@ -53,6 +133,9 @@ def dict_to_preferences_response(prefs: dict[str, Any]) -> PreferencesResponse:
         watchlist_show_news=bool(prefs.get("watchlist_show_news"))
         if prefs.get("watchlist_show_news") is not None
         else True,
+        thesis_generation_enabled=bool(automation["thesis_generation_enabled"]["enabled"]),
+        auto_remove_on_invalidation=bool(automation["auto_remove_on_invalidation"]["enabled"]),
+        auto_trim_enabled=bool(automation["auto_trim_enabled"]["enabled"]),
     )
 
 
@@ -146,6 +229,7 @@ def get_or_create_preferences() -> dict[str, str | int | float | bool | datetime
 def update_preferences(update: PreferencesUpdate) -> dict[str, Any]:
     """Update user preferences and return updated dict."""
     current = get_or_create_preferences()
+    automation_updates: dict[str, bool] = {}
 
     # Update fields
     if update.risk_tolerance is not None:
@@ -188,6 +272,15 @@ def update_preferences(update: PreferencesUpdate) -> dict[str, Any]:
         current["display_timezone"] = update.display_timezone
     if update.watchlist_show_news is not None:
         current["watchlist_show_news"] = update.watchlist_show_news
+    if update.thesis_generation_enabled is not None:
+        current["thesis_generation_enabled"] = update.thesis_generation_enabled
+        automation_updates["thesis_generation_enabled"] = update.thesis_generation_enabled
+    if update.auto_remove_on_invalidation is not None:
+        current["auto_remove_on_invalidation"] = update.auto_remove_on_invalidation
+        automation_updates["auto_remove_on_invalidation"] = update.auto_remove_on_invalidation
+    if update.auto_trim_enabled is not None:
+        current["auto_trim_enabled"] = update.auto_trim_enabled
+        automation_updates["auto_trim_enabled"] = update.auto_trim_enabled
 
     # Save to database
     with storage.connection() as conn:
@@ -244,7 +337,34 @@ def update_preferences(update: PreferencesUpdate) -> dict[str, Any]:
         )
         conn.commit()
 
+    if automation_updates:
+        _update_automation_preferences(automation_updates)
+
     return current
+
+
+def _update_automation_preferences(updates: dict[str, bool]) -> None:
+    current = get_or_create_automation_preferences()
+    current.update(updates)
+    with storage.connection() as conn:
+        conn.execute(
+            """
+            UPDATE automation_preferences
+            SET thesis_generation_enabled = %s,
+                auto_remove_on_invalidation = %s,
+                auto_trim_enabled = %s,
+                updated_at = %s
+            WHERE id = %s
+            """,
+            [
+                current.get("thesis_generation_enabled"),
+                current.get("auto_remove_on_invalidation"),
+                current.get("auto_trim_enabled"),
+                datetime.now(UTC),
+                current["id"],
+            ],
+        )
+        conn.commit()
 
 
 def get_scoring_weights() -> ScoringWeightsUpdate:

@@ -10,6 +10,7 @@ from typing import Any
 
 from ...logging_config import get_logger
 from ...rules.loader import get_rules
+from ...services.preferences_service import get_automation_preferences
 from ...storage import PortfolioStorage
 
 logger = get_logger(__name__)
@@ -112,7 +113,8 @@ def trim_underperforming_watchlist_task() -> dict[str, Any]:
     rules = get_rules()
     wm = rules.watchlist_management
 
-    if not wm.auto_trim_enabled:
+    automation = get_automation_preferences()
+    if not bool(automation["auto_trim_enabled"]["enabled"]):
         logger.info("watchlist_trim_skipped", reason="auto_trim_disabled")
         return {"status": "skipped", "reason": "auto_trim_disabled"}
 

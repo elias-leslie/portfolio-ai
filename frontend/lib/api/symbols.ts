@@ -129,6 +129,25 @@ export interface SymbolWorkflowEvent {
   note: string
   createdBy: string
   createdAt: string
+  metadata?: Record<string, unknown>
+}
+
+export interface SymbolWorkflowPositionContext {
+  shares: number
+  costBasis: number
+  marketValue: number | null
+  gainPct: number | null
+  weightPct: number | null
+}
+
+export interface SymbolWorkflowOutcomeSnapshot {
+  action: string
+  stage: string
+  note: string
+  createdAt: string
+  jennyVerdict: string | null
+  managementAction: string | null
+  position: SymbolWorkflowPositionContext | null
 }
 
 export interface SymbolWorkflow {
@@ -140,6 +159,8 @@ export interface SymbolWorkflow {
   notes?: string | null
   nextReviewAt?: string | null
   availableTransitions: string[]
+  position: SymbolWorkflowPositionContext | null
+  latestOutcome: SymbolWorkflowOutcomeSnapshot | null
   history: SymbolWorkflowEvent[]
 }
 
@@ -158,4 +179,16 @@ export async function transitionSymbolWorkflow(
   payload: { stage: string; note?: string },
 ): Promise<SymbolWorkflow> {
   return post<SymbolWorkflow>(`/api/symbols/${symbol}/workflow/transition`, payload)
+}
+
+export async function recordSymbolWorkflowOutcome(
+  symbol: string,
+  payload: {
+    action: string
+    note?: string
+    jennyVerdict?: string | null
+    managementAction?: string | null
+  },
+): Promise<SymbolWorkflow> {
+  return post<SymbolWorkflow>(`/api/symbols/${symbol}/workflow/outcome`, payload)
 }

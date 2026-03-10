@@ -93,6 +93,7 @@ def test_ensure_schema_creates_all_tables(schema_mgr: SchemaManager) -> None:
             "endpoint_catalog",
             "portfolio_accounts",
             "portfolio_positions",
+            "automation_preferences",
             "user_preferences",
             "reference_cache",
             "price_cache",

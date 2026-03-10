@@ -3,8 +3,16 @@
 import { Bot, Clock3, ShieldCheck, TriangleAlert } from 'lucide-react'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import { useRunJennyRoutine } from '@/lib/hooks/usePortfolio'
 import { useAutomationCenter } from '@/lib/hooks/useHomeActionQueue'
+import { useUpdatePreferences } from '@/lib/hooks/usePreferences'
+
+const GUARDRAIL_TO_PREFERENCE_FIELD = {
+  thesis_generation_enabled: 'thesisGenerationEnabled',
+  auto_remove_on_invalidation: 'autoRemoveOnInvalidation',
+  auto_trim_enabled: 'autoTrimEnabled',
+} as const
 
 function formatTimestamp(value: string | null) {
   if (!value) {
@@ -21,6 +29,7 @@ function formatTimestamp(value: string | null) {
 export function AutomationCenter() {
   const { data, isLoading, error } = useAutomationCenter()
   const runJennyRoutine = useRunJennyRoutine()
+  const updatePreferences = useUpdatePreferences()
 
   return (
     <SectionCard
@@ -75,13 +84,34 @@ export function AutomationCenter() {
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <ShieldCheck className="h-4 w-4 text-primary" />
-                    <p className="text-sm font-semibold text-text">{guardrail.label}</p>
+                    <div>
+                      <p className="text-sm font-semibold text-text">{guardrail.label}</p>
+                      <p className="text-xs text-text-muted">
+                        {guardrail.source === 'preferences'
+                          ? 'Runtime override'
+                          : 'Using rules default'}
+                      </p>
+                    </div>
                   </div>
-                  <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-primary">
-                    {guardrail.value}
-                  </span>
+                  <Switch
+                    checked={guardrail.enabled}
+                    aria-label={`Toggle ${guardrail.label}`}
+                    disabled={updatePreferences.isPending}
+                    onCheckedChange={(checked) =>
+                      updatePreferences.mutate({
+                        [
+                          GUARDRAIL_TO_PREFERENCE_FIELD[
+                            guardrail.key as keyof typeof GUARDRAIL_TO_PREFERENCE_FIELD
+                          ]
+                        ]: checked,
+                      })
+                    }
+                  />
                 </div>
                 <p className="mt-2 text-sm text-text-muted">{guardrail.detail}</p>
+                <div className="mt-3 inline-flex rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-primary">
+                  {guardrail.value}
+                </div>
               </div>
             ))}
 

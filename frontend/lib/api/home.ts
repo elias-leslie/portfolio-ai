@@ -31,6 +31,8 @@ export interface AutomationGuardrail {
   key: string
   label: string
   value: string
+  enabled: boolean
+  source: string
   detail: string
 }
 

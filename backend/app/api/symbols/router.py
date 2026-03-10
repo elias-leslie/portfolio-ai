@@ -11,7 +11,11 @@ from fastapi import APIRouter
 from fastapi.concurrency import run_in_threadpool
 
 from app.logging_config import get_logger
-from app.models.symbol_workflow import SymbolWorkflow, SymbolWorkflowTransitionRequest
+from app.models.symbol_workflow import (
+    SymbolWorkflow,
+    SymbolWorkflowOutcomeRequest,
+    SymbolWorkflowTransitionRequest,
+)
 from app.services.symbol_workflow_service import SymbolWorkflowService
 from app.storage import get_storage
 from app.watchlist.watchlist_service import WatchlistService
@@ -139,5 +143,23 @@ async def transition_symbol_workflow(
         symbol,
         payload.stage,
         payload.note,
+    )
+    return SymbolWorkflow.model_validate(result)
+
+
+@router.post("/{symbol}/workflow/outcome", response_model=SymbolWorkflow)
+async def record_symbol_workflow_outcome(
+    symbol: str,
+    payload: SymbolWorkflowOutcomeRequest,
+) -> SymbolWorkflow:
+    """Capture a live position decision with linked Jenny context."""
+    result = await run_in_threadpool(
+        lambda: workflow_service.record_outcome(
+            symbol,
+            payload.action,
+            payload.note,
+            jenny_verdict=payload.jenny_verdict,
+            management_action=payload.management_action,
+        )
     )
     return SymbolWorkflow.model_validate(result)

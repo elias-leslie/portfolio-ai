@@ -52,6 +52,9 @@ export interface PreferencesResponse {
   watchlistTechnicalWeight: number
   displayTimezone: string
   watchlistShowNews: boolean
+  thesisGenerationEnabled: boolean
+  autoRemoveOnInvalidation: boolean
+  autoTrimEnabled: boolean
   // New weight configuration fields (migration 019)
   watchlistScoreWeights?: ScoreWeights
   priceSubWeights?: PriceSubWeights
@@ -82,6 +85,9 @@ export interface PreferencesUpdate {
   watchlistTechnicalWeight?: number
   displayTimezone?: string
   watchlistShowNews?: boolean
+  thesisGenerationEnabled?: boolean
+  autoRemoveOnInvalidation?: boolean
+  autoTrimEnabled?: boolean
   // New weight configuration fields (migration 019)
   watchlistScoreWeights?: ScoreWeights
   priceSubWeights?: PriceSubWeights

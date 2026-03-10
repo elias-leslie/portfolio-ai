@@ -34,6 +34,9 @@ DEFAULT_PREFERENCES = {
     "watchlist_technical_weight": 50.0,
     "watchlist_show_news": True,
     "display_timezone": "America/New_York",
+    "thesis_generation_enabled": None,
+    "auto_remove_on_invalidation": None,
+    "auto_trim_enabled": None,
 }
 
 
@@ -74,6 +77,15 @@ class PreferencesResponse(BaseModel):
     )
     display_timezone: str = Field(..., description="User's preferred display timezone")
     watchlist_show_news: bool = Field(..., description="Show news sentiment in watchlist UI")
+    thesis_generation_enabled: bool = Field(
+        ..., description="Allow Jenny and related tasks to auto-generate or refresh theses"
+    )
+    auto_remove_on_invalidation: bool = Field(
+        ..., description="Auto-remove invalidated theses from the active loop"
+    )
+    auto_trim_enabled: bool = Field(
+        ..., description="Allow automatic watchlist trimming for weak names"
+    )
 
 
 class PreferencesUpdate(BaseModel):
@@ -135,6 +147,15 @@ class PreferencesUpdate(BaseModel):
     )
     watchlist_show_news: bool | None = Field(
         None, description="Show news sentiment and headlines within the watchlist UI"
+    )
+    thesis_generation_enabled: bool | None = Field(
+        None, description="Allow Jenny and related tasks to auto-generate or refresh theses"
+    )
+    auto_remove_on_invalidation: bool | None = Field(
+        None, description="Auto-remove invalidated theses from the active loop"
+    )
+    auto_trim_enabled: bool | None = Field(
+        None, description="Allow automatic watchlist trimming for weak names"
     )
 
     @field_validator("display_timezone")

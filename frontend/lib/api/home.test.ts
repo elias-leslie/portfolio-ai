@@ -39,7 +39,16 @@ describe('home api', () => {
       headers: new Headers({ 'content-type': 'application/json' }),
       json: vi.fn().mockResolvedValue({
         generated_at: '2026-03-10T00:00:00Z',
-        guardrails: [],
+        guardrails: [
+          {
+            key: 'thesis_generation_enabled',
+            label: 'Thesis generation',
+            value: 'Enabled',
+            enabled: true,
+            source: 'preferences',
+            detail: 'Controls whether Jenny can auto-generate missing theses.',
+          },
+        ],
         recent_runs: [],
         warnings: [],
       }),

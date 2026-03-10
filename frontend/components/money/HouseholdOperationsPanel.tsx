@@ -9,6 +9,27 @@ import {
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+
+const HOUSEHOLD_CATEGORY_OPTIONS = [
+  'Bills',
+  'Dining',
+  'Gas',
+  'Groceries',
+  'Household',
+  'Income',
+  'Retail',
+  'Subscriptions',
+  'Transfers',
+] as const
+
+const ESSENTIALITY_OPTIONS = ['essential', 'discretionary', 'mixed'] as const
 
 function formatCurrency(value: number | null | undefined) {
   if (value === null || value === undefined) {
@@ -29,6 +50,16 @@ export function HouseholdOperationsPanel({
   const answerQuestion = useAnswerHouseholdQuestion()
   const categorizeTransaction = useCategorizeHouseholdTransaction()
   const [drafts, setDrafts] = useState<Record<string, string>>({})
+  const [categorizationDrafts, setCategorizationDrafts] = useState<
+    Record<string, { category: string; essentiality: string }>
+  >({})
+
+  const paceTone =
+    dashboard.budgetSnapshot.paceStatus === 'running_hot'
+      ? 'border-warning/30 bg-warning/10'
+      : dashboard.budgetSnapshot.paceStatus === 'under_plan'
+        ? 'border-gain/30 bg-gain/10'
+        : 'border-border/40 bg-surface-muted/20'
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
@@ -132,20 +163,109 @@ export function HouseholdOperationsPanel({
                     {candidate.suggestedCategory} / {candidate.suggestedEssentiality}
                   </p>
                   <p className="mt-2 text-sm text-text-muted">{candidate.reason}</p>
-                  <div className="mt-3 flex items-center gap-2">
+                  {candidate.similarTransactionCount > 0 ? (
+                    <p className="mt-2 text-xs text-text-muted">
+                      {candidate.similarTransactionCount} similar transaction
+                      {candidate.similarTransactionCount === 1 ? '' : 's'} can be updated with the same rule.
+                    </p>
+                  ) : null}
+                  <div className="mt-3 grid gap-2 md:grid-cols-2">
+                    <Select
+                      value={
+                        categorizationDrafts[candidate.id]?.category ??
+                        candidate.suggestedCategory
+                      }
+                      onValueChange={(value) =>
+                        setCategorizationDrafts((current) => ({
+                          ...current,
+                          [candidate.id]: {
+                            category: value,
+                            essentiality:
+                              current[candidate.id]?.essentiality ??
+                              candidate.suggestedEssentiality,
+                          },
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {HOUSEHOLD_CATEGORY_OPTIONS.map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={
+                        categorizationDrafts[candidate.id]?.essentiality ??
+                        candidate.suggestedEssentiality
+                      }
+                      onValueChange={(value) =>
+                        setCategorizationDrafts((current) => ({
+                          ...current,
+                          [candidate.id]: {
+                            category:
+                              current[candidate.id]?.category ??
+                              candidate.suggestedCategory,
+                            essentiality: value,
+                          },
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Essentiality" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ESSENTIALITY_OPTIONS.map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
                     <Button
                       size="sm"
                       onClick={() =>
                         categorizeTransaction.mutate({
                           transactionId: candidate.id,
-                          category: candidate.suggestedCategory,
-                          essentiality: candidate.suggestedEssentiality,
+                          category:
+                            categorizationDrafts[candidate.id]?.category ??
+                            candidate.suggestedCategory,
+                          essentiality:
+                            categorizationDrafts[candidate.id]?.essentiality ??
+                            candidate.suggestedEssentiality,
                         })
                       }
                       disabled={categorizeTransaction.isPending}
                     >
-                      Accept suggestion
+                      Save this row
                     </Button>
+                    {candidate.similarTransactionCount > 0 ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          categorizeTransaction.mutate({
+                            transactionId: candidate.id,
+                            category:
+                              categorizationDrafts[candidate.id]?.category ??
+                              candidate.suggestedCategory,
+                            essentiality:
+                              categorizationDrafts[candidate.id]?.essentiality ??
+                              candidate.suggestedEssentiality,
+                            applyToMerchant: true,
+                          })
+                        }
+                        disabled={categorizeTransaction.isPending}
+                      >
+                        Apply to similar
+                      </Button>
+                    ) : null}
                     <span className="text-xs text-text-muted">
                       {(candidate.confidence * 100).toFixed(0)}% confidence
                     </span>
@@ -162,6 +282,17 @@ export function HouseholdOperationsPanel({
         title="Budget Tracker"
         description={dashboard.budgetSnapshot.summary}
       >
+        <div className={`rounded-2xl border p-4 ${paceTone}`}>
+          <p className="text-sm font-semibold text-text">Mid-month pacing</p>
+          <p className="mt-2 text-sm text-text-muted">{dashboard.budgetSnapshot.paceDetail}</p>
+          <p className="mt-3 text-xs uppercase tracking-wide text-text-muted">
+            {formatCurrency(dashboard.budgetSnapshot.monthToDateSpend)} spent so far
+            {dashboard.budgetSnapshot.monthToDatePlan
+              ? ` · pace target ${formatCurrency(dashboard.budgetSnapshot.monthToDatePlan)}`
+              : ''}
+          </p>
+        </div>
+
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
@@ -226,6 +357,10 @@ export function HouseholdOperationsPanel({
                     <p className="mt-1 text-sm text-text-muted">
                       {commitment.category} · {commitment.cadence}
                     </p>
+                    <p className="mt-2 text-xs uppercase tracking-wide text-text-muted">
+                      {commitment.dueStatus.replaceAll('_', ' ')} ·{' '}
+                      {(commitment.dueConfidence * 100).toFixed(0)}% confidence
+                    </p>
                   </div>
                   <div className="text-right text-sm">
                     <p className="font-semibold text-text">
@@ -234,6 +369,13 @@ export function HouseholdOperationsPanel({
                     <p className="text-text-muted">
                       {formatCurrency(commitment.annualizedCost)} / year
                     </p>
+                    {commitment.daysUntilDue !== null ? (
+                      <p className="text-text-muted">
+                        {commitment.daysUntilDue < 0
+                          ? `${Math.abs(commitment.daysUntilDue)} days overdue`
+                          : `Due in ${commitment.daysUntilDue} days`}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
               </div>
