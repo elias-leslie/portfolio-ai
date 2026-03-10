@@ -56,10 +56,7 @@ htmlcov/
 .pytest_cache/
 /.mypy_cache/
 /.ruff_cache/
-.playwright-mcp/
-playwright-report/
 test-results/
-frontend/playwright-report/
 frontend/test-results/
 
 # Secrets
