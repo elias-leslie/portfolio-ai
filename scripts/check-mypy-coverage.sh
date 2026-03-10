@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Check ty type coverage meets minimum threshold
+# Check ty type coverage meets minimum threshold.
 #
-# Purpose: Enforce type coverage across the codebase using ty
+# Legacy filename retained for existing automation entrypoints.
+# Purpose: Enforce type coverage across the codebase using ty.
 # Usage: ./scripts/check-mypy-coverage.sh
 # Threshold: 98% (max 2% of files can have type errors)
 #

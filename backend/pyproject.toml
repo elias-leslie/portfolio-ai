@@ -52,9 +52,7 @@ dependencies = [
     "pandas-ta==0.4.71b0",
 
     # NLP / Sentiment
-    "transformers==4.57.3",
-    "torch==2.9.1",
-    "huggingface-hub==0.34.0",
+    "vaderSentiment>=3.3.2",
 ]
 
 [project.optional-dependencies]
@@ -84,6 +82,11 @@ dev = [
     "pip-audit==2.10.0",
 
     # Pre-commit
+]
+ml = [
+    "transformers==4.57.3",
+    "torch==2.9.1",
+    "huggingface-hub==0.34.0",
 ]
 
 [build-system]
