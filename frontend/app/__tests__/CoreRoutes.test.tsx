@@ -188,6 +188,10 @@ vi.mock('@/components/symbol/SymbolWorkspace', () => ({
   SymbolWorkspace: ({ symbol }: { symbol: string }) => <div>Symbol Workspace {symbol}</div>,
 }))
 
+vi.mock('@/components/status/StatusWorkspace', () => ({
+  StatusWorkspace: () => <div>Status Workspace</div>,
+}))
+
 vi.mock('next/navigation', () => ({
   useParams: () => ({ symbol: 'VTI' }),
 }))
@@ -219,5 +223,13 @@ describe('core product routes', () => {
     render(<SymbolPage />)
 
     expect(screen.getByText(/Symbol Workspace VTI/i)).toBeInTheDocument()
+  })
+
+  it('renders the status route shell', async () => {
+    const { default: StatusPage } = await import('../status/page')
+
+    render(<StatusPage />)
+
+    expect(screen.getByText('Status Workspace')).toBeInTheDocument()
   })
 })

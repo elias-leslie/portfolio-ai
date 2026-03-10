@@ -1,5 +1,5 @@
 export type MainRoute = {
-  href: '/' | '/watchlist' | '/portfolio' | '/money'
+  href: '/' | '/watchlist' | '/portfolio' | '/money' | '/status'
   label: string
 }
 
@@ -11,4 +11,5 @@ export const MAIN_PRODUCT_ROUTES: MainRoute[] = [
   { href: '/watchlist', label: 'Watchlist' },
   { href: '/portfolio', label: 'Portfolio Coach' },
   { href: '/money', label: 'Money System' },
+  { href: '/status', label: 'Status' },
 ]

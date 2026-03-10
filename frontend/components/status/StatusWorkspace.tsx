@@ -1,0 +1,470 @@
+'use client'
+
+import { AlertCircle, Loader2, RefreshCw } from 'lucide-react'
+import { useMemo } from 'react'
+import type { NewsHealthResponse } from '@/lib/api/news'
+import type { CheckStatus } from '@/lib/api/health'
+import type { MarketStatusResponse } from '@/lib/api/market'
+import { useDetailedHealth } from '@/lib/hooks/useHealth'
+import { useMarketStatus } from '@/lib/hooks/useMarketIntelligence'
+import { useNewsHealth } from '@/lib/hooks/useNewsHealth'
+import { formatDateTime, formatRelativeTime } from '@/lib/utils'
+import { PageContainer } from '@/components/shared/PageContainer'
+import { PageHeader } from '@/components/shared/PageHeader'
+import { SectionCard } from '@/components/shared/SectionCard'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+
+function checkVariant(status: CheckStatus | undefined) {
+  switch (status) {
+    case 'ok':
+      return 'success'
+    case 'degraded':
+      return 'warning'
+    case 'down':
+      return 'error'
+    default:
+      return 'secondary'
+  }
+}
+
+function marketLabel(status: MarketStatusResponse['status'] | undefined) {
+  switch (status) {
+    case 'open':
+      return 'Market Open'
+    case 'pre_market':
+      return 'Pre-Market'
+    case 'after_hours':
+      return 'After Hours'
+    case 'closed':
+      return 'Market Closed'
+    default:
+      return 'Unknown'
+  }
+}
+
+function vendorVariant(vendor: NewsHealthResponse['vendors'][string]) {
+  if (!vendor.enabled || !vendor.configured) return 'secondary'
+  if (vendor.active) return 'success'
+  return vendor.lastErrorAt ? 'warning' : 'secondary'
+}
+
+function formatPercent(value: number | null | undefined) {
+  if (value === null || value === undefined) return '—'
+  return `${value.toFixed(1)}%`
+}
+
+function formatInteger(value: number | null | undefined) {
+  if (value === null || value === undefined) return '—'
+  return value.toLocaleString()
+}
+
+function formatHours(value: number | null | undefined) {
+  if (value === null || value === undefined) return '—'
+  return `${value.toFixed(1)}h`
+}
+
+function SummaryStat({
+  label,
+  value,
+  detail,
+}: {
+  label: string
+  value: string
+  detail: string
+}) {
+  return (
+    <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">{label}</p>
+      <p className="mt-3 text-2xl font-semibold text-text">{value}</p>
+      <p className="mt-2 text-sm text-text-muted">{detail}</p>
+    </div>
+  )
+}
+
+export function StatusWorkspace() {
+  const healthQuery = useDetailedHealth()
+  const marketQuery = useMarketStatus()
+  const newsHealthQuery = useNewsHealth()
+
+  const isLoading =
+    healthQuery.isLoading || marketQuery.isLoading || newsHealthQuery.isLoading
+  const hasError =
+    healthQuery.error || marketQuery.error || newsHealthQuery.error
+
+  const sourceRows = useMemo(
+    () =>
+      Object.entries(healthQuery.data?.sources ?? {}).sort((a, b) =>
+        a[0].localeCompare(b[0]),
+      ),
+    [healthQuery.data?.sources],
+  )
+
+  const serviceRows = useMemo(
+    () =>
+      Object.entries(healthQuery.data?.services ?? {}).sort((a, b) =>
+        a[0].localeCompare(b[0]),
+      ),
+    [healthQuery.data?.services],
+  )
+
+  const vendorRows = useMemo(
+    () =>
+      Object.entries(newsHealthQuery.data?.vendors ?? {}).sort((a, b) =>
+        a[0].localeCompare(b[0]),
+      ) as [string, NewsHealthResponse['vendors'][string]][],
+    [newsHealthQuery.data?.vendors],
+  )
+
+  return (
+    <PageContainer className="space-y-10 py-10">
+      <PageHeader
+        eyebrow="Operations"
+        title="Status"
+        description="Check market hours, system health, data freshness, and news pipeline posture without leaving the app."
+        actions={
+          <Button
+            variant="outline"
+            onClick={() => {
+              void healthQuery.refetch()
+              void marketQuery.refetch()
+              void newsHealthQuery.refetch()
+            }}
+            disabled={healthQuery.isFetching || marketQuery.isFetching || newsHealthQuery.isFetching}
+          >
+            <RefreshCw
+              className={`mr-2 h-4 w-4 ${
+                healthQuery.isFetching || marketQuery.isFetching || newsHealthQuery.isFetching
+                  ? 'animate-spin'
+                  : ''
+              }`}
+            />
+            Refresh
+          </Button>
+        }
+      />
+
+      {isLoading ? (
+        <SectionCard variant="surface">
+          <div className="flex min-h-72 items-center justify-center gap-3 text-sm text-text-muted">
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            Collecting live operating signals...
+          </div>
+        </SectionCard>
+      ) : null}
+
+      {!isLoading && hasError ? (
+        <SectionCard variant="surface">
+          <div className="rounded-2xl border border-loss/30 bg-loss/10 p-5 text-sm text-loss">
+            <div className="flex items-center gap-2 font-medium">
+              <AlertCircle className="h-4 w-4" />
+              Failed to load the operations snapshot.
+            </div>
+            <p className="mt-2 text-loss/90">
+              Check backend availability and try the refresh action again.
+            </p>
+          </div>
+        </SectionCard>
+      ) : null}
+
+      {!isLoading && !hasError ? (
+        <>
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <SummaryStat
+              label="System"
+              value={healthQuery.data?.status ?? 'unknown'}
+              detail={`Updated ${formatRelativeTime(healthQuery.data?.timestamp)}`}
+            />
+            <SummaryStat
+              label="Market"
+              value={marketLabel(marketQuery.data?.status)}
+              detail={marketQuery.data?.currentTimeEt ?? 'No market clock available'}
+            />
+            <SummaryStat
+              label="Watchlist"
+              value={formatInteger(healthQuery.data?.watchlistStats?.itemsWithScores)}
+              detail={
+                healthQuery.data?.watchlistStats?.lastRefresh
+                  ? `Last refresh ${formatRelativeTime(healthQuery.data.watchlistStats.lastRefresh)}`
+                  : 'No refresh timestamp yet'
+              }
+            />
+            <SummaryStat
+              label="News Pipeline"
+              value={formatInteger(newsHealthQuery.data?.headlines24H)}
+              detail={`Fallback rate ${formatPercent(newsHealthQuery.data?.fallbackRate24H)}`}
+            />
+          </section>
+
+          <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+            <SectionCard
+              variant="surface"
+              title="System Checks"
+              description="Backend dependencies and service posture from the detailed health endpoint."
+            >
+              <div className="grid gap-3">
+                {Object.entries(healthQuery.data?.checks ?? {}).map(([name, check]) => (
+                  <div
+                    key={name}
+                    className="flex flex-col gap-3 rounded-2xl border border-border/40 bg-surface-muted/20 p-4 md:flex-row md:items-start md:justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold capitalize text-text">
+                          {name.replaceAll('_', ' ')}
+                        </p>
+                        <Badge variant={checkVariant(check.status)}>{check.status}</Badge>
+                      </div>
+                      <p className="mt-2 text-sm text-text-muted">{check.message}</p>
+                    </div>
+                    <div className="text-sm text-text-muted">
+                      {check.responseTimeMs ? `${check.responseTimeMs}ms` : '—'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
+
+            <SectionCard
+              variant="surface"
+              title="Service Pulse"
+              description="Service activity, data freshness, and workflow posture."
+            >
+              <div className="space-y-4">
+                <div className="grid gap-3">
+                  {serviceRows.map(([name, service]) => (
+                    <div
+                      key={name}
+                      className="flex items-center justify-between gap-3 rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold capitalize text-text">
+                          {name.replaceAll('_', ' ')}
+                        </p>
+                        <p className="mt-1 text-sm text-text-muted">
+                          {service.message ?? service.status ?? 'No service detail provided'}
+                        </p>
+                      </div>
+                      <Badge variant={service.active ? 'success' : 'warning'}>
+                        {service.active ? 'active' : 'inactive'}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="rounded-2xl border border-border/40 bg-surface/60 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-text">Data freshness</p>
+                    <Badge
+                      variant={
+                        healthQuery.data?.dataFreshnessStatus?.status === 'success'
+                          ? 'success'
+                          : 'warning'
+                      }
+                    >
+                      {healthQuery.data?.dataFreshnessStatus?.status ?? 'unknown'}
+                    </Badge>
+                  </div>
+                  <p className="mt-2 text-sm text-text-muted">
+                    Last check {formatRelativeTime(healthQuery.data?.dataFreshnessStatus?.lastCheck)}
+                  </p>
+                  <p className="mt-2 text-sm text-text-muted">
+                    {formatInteger(healthQuery.data?.dataFreshnessStatus?.fresh)} fresh,{' '}
+                    {formatInteger(healthQuery.data?.dataFreshnessStatus?.stale)} stale,{' '}
+                    {formatInteger(healthQuery.data?.dataFreshnessStatus?.critical)} critical
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-border/40 bg-surface/60 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-text">Workflow health</p>
+                    <Badge
+                      variant={
+                        healthQuery.data?.workflowHealth?.status === 'healthy'
+                          ? 'success'
+                          : healthQuery.data?.workflowHealth?.status === 'critical'
+                            ? 'error'
+                            : 'warning'
+                      }
+                    >
+                      {healthQuery.data?.workflowHealth?.status ?? 'unknown'}
+                    </Badge>
+                  </div>
+                  <p className="mt-2 text-sm text-text-muted">
+                    {formatPercent(healthQuery.data?.workflowHealth?.successRate)} success rate over{' '}
+                    {formatInteger(healthQuery.data?.workflowHealth?.totalWorkflows24h)} workflows
+                    in the last 24h.
+                  </p>
+                  <p className="mt-2 text-sm text-text-muted">
+                    Last success{' '}
+                    {formatRelativeTime(healthQuery.data?.workflowHealth?.lastSuccessfulWorkflow)}
+                  </p>
+                </div>
+              </div>
+            </SectionCard>
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+            <SectionCard
+              variant="surface"
+              title="Source Health"
+              description="How the upstream market and reference sources are behaving."
+            >
+              <div className="grid gap-3">
+                {sourceRows.map(([name, source]) => (
+                  <div
+                    key={name}
+                    className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-semibold text-text">{name}</p>
+                      <Badge variant={checkVariant(source.status)}>{source.status}</Badge>
+                    </div>
+                    <div className="mt-3 grid gap-2 text-sm text-text-muted md:grid-cols-3">
+                      <p>Success rate: {formatPercent(source.successRate)}</p>
+                      <p>Latency: {formatInteger(source.avgLatencyMs)}ms</p>
+                      <p>Last success: {formatRelativeTime(source.lastSuccess)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
+
+            <SectionCard
+              variant="surface"
+              title="News Vendors"
+              description="Configuration, freshness, and fallback posture for the current news stack."
+            >
+              <div className="grid gap-3">
+                {vendorRows.map(([name, vendor]) => (
+                  <div
+                    key={name}
+                    className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-semibold uppercase tracking-wide text-text">
+                        {name}
+                      </p>
+                      <Badge variant={vendorVariant(vendor)}>
+                        {vendor.active ? 'active' : vendor.enabled ? 'idle' : 'disabled'}
+                      </Badge>
+                    </div>
+                    <div className="mt-3 grid gap-2 text-sm text-text-muted">
+                      <p>Configured: {vendor.configured ? 'Yes' : 'No'}</p>
+                      <p>Last success: {formatRelativeTime(vendor.lastSuccessAt)}</p>
+                      <p>Articles 24h: {formatInteger(vendor.articlesLast24H)}</p>
+                      <p>
+                        Last error:{' '}
+                        {vendor.lastError ? vendor.lastError : vendor.reason ?? 'No recent error'}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+            <SectionCard
+              variant="surface"
+              title="Quota Coverage"
+              description="Configured providers and their expected request ceilings."
+            >
+              <div className="grid gap-3">
+                {(healthQuery.data?.apiQuotas ?? []).map((quota) => (
+                  <div
+                    key={quota.sourceName}
+                    className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-semibold text-text">{quota.sourceName}</p>
+                      <Badge variant={quota.configured ? 'success' : 'secondary'}>
+                        {quota.configured ? 'configured' : 'missing key'}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-sm text-text-muted">
+                      Rate limit {quota.rateLimit ?? '—'} · Daily {quota.dailyLimit ?? '—'} ·
+                      Capacity {formatInteger(quota.estimatedCapacity)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
+
+            <SectionCard
+              variant="surface"
+              title="Recent Remediations"
+              description="Auto-remediation history from the last 24 hours."
+            >
+              <div className="grid gap-3">
+                {(healthQuery.data?.recentRemediations ?? []).length === 0 ? (
+                  <div className="rounded-2xl border border-gain/30 bg-gain/10 p-4 text-sm text-text-muted">
+                    No remediation actions were recorded in the last 24 hours.
+                  </div>
+                ) : (
+                  healthQuery.data?.recentRemediations.map((event) => (
+                    <div
+                      key={`${event.tableName}-${event.triggeredAt ?? 'unknown'}`}
+                      className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-semibold text-text">{event.tableName}</p>
+                        <Badge variant={event.status === 'success' ? 'success' : 'warning'}>
+                          {event.status}
+                        </Badge>
+                      </div>
+                      <p className="mt-2 text-sm text-text-muted">
+                        Triggered {formatDateTime(event.triggeredAt)} · Age{' '}
+                        {formatHours(event.ageHours)} / threshold {formatHours(event.thresholdHours)}
+                      </p>
+                      <p className="mt-2 text-sm text-text-muted">
+                        {event.reason ?? event.errorMessage ?? 'No additional detail'}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </SectionCard>
+          </div>
+
+          <SectionCard
+            variant="surface"
+            title="Market Timing"
+            description="Useful when stale data warnings show up or when deciding whether today’s signals are actionable."
+          >
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <SummaryStat
+                label="Current Session"
+                value={marketLabel(marketQuery.data?.status)}
+                detail={
+                  marketQuery.data?.isHoliday
+                    ? marketQuery.data.holidayName ?? 'Holiday session'
+                    : 'Regular session'
+                }
+              />
+              <SummaryStat
+                label="Expected Data Date"
+                value={marketQuery.data?.expectedDataDate ?? '—'}
+                detail={`Last trading day ${marketQuery.data?.lastTradingDay ?? '—'}`}
+              />
+              <SummaryStat
+                label="Next Trading Day"
+                value={marketQuery.data?.nextTradingDay ?? '—'}
+                detail={
+                  marketQuery.data?.isEarlyClose
+                    ? marketQuery.data.earlyCloseName ?? 'Early close'
+                    : 'Standard close schedule'
+                }
+              />
+              <SummaryStat
+                label="News Refresh"
+                value={newsHealthQuery.data?.marketLastRefreshedAt ? 'live' : 'idle'}
+                detail={`Market feed last refreshed ${formatRelativeTime(newsHealthQuery.data?.marketLastRefreshedAt)}`}
+              />
+            </div>
+          </SectionCard>
+        </>
+      ) : null}
+    </PageContainer>
+  )
+}
