@@ -112,6 +112,7 @@ class NewsHealthResponse(BaseModel):
     """Health metrics for news ingestion and sentiment pipeline."""
 
     finbert_available: bool
+    finbert_install_hint: str | None = None
     market_last_refreshed_at: str | None = None
     watchlist_last_refreshed_at: str | None = None
     fallback_headlines_24h: int

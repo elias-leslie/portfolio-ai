@@ -29,9 +29,30 @@ class HomeActionService:
 
     def __init__(self) -> None:
         self.storage = get_storage()
-        self.household_service = HouseholdFinanceService()
-        self.jenny_service = JennyOperatorService()
-        self.workflow_service = SymbolWorkflowService()
+        self.household_service: HouseholdFinanceService | None = None
+        self.jenny_service: JennyOperatorService | None = None
+        self.workflow_service: SymbolWorkflowService | None = None
+
+    def _household_service(self) -> HouseholdFinanceService:
+        service = getattr(self, "household_service", None)
+        if service is None:
+            service = HouseholdFinanceService()
+            self.household_service = service
+        return service
+
+    def _jenny_service(self) -> JennyOperatorService:
+        service = getattr(self, "jenny_service", None)
+        if service is None:
+            service = JennyOperatorService()
+            self.jenny_service = service
+        return service
+
+    def _workflow_service(self) -> SymbolWorkflowService:
+        service = getattr(self, "workflow_service", None)
+        if service is None:
+            service = SymbolWorkflowService()
+            self.workflow_service = service
+        return service
 
     def get_action_queue(self) -> dict[str, object]:
         actions: list[dict[str, object]] = []
@@ -134,7 +155,7 @@ class HomeActionService:
 
     def _jenny_actions(self) -> list[dict[str, object]]:
         try:
-            dashboard = self.jenny_service.get_dashboard()
+            dashboard = self._jenny_service().get_dashboard()
         except Exception as exc:
             logger.warning("home_action_jenny_failed", error=str(exc))
             return []
@@ -187,9 +208,7 @@ class HomeActionService:
         return actions
 
     def _workflow_actions(self) -> list[dict[str, object]]:
-        workflow_service = getattr(self, "workflow_service", None)
-        if workflow_service is None:
-            return []
+        workflow_service = self._workflow_service()
 
         actions: list[dict[str, object]] = []
         for workflow in workflow_service.list_priority_workflows(limit=3):
@@ -239,7 +258,7 @@ class HomeActionService:
 
     def _household_actions(self) -> list[dict[str, object]]:
         try:
-            dashboard = self.household_service.get_dashboard()
+            dashboard = self._household_service().get_dashboard()
         except Exception as exc:
             logger.warning("home_action_household_failed", error=str(exc))
             return []

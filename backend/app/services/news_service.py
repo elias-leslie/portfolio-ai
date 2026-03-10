@@ -380,6 +380,7 @@ class NewsService:
 
         return {
             "finbert_available": finbert_available,
+            "finbert_install_hint": None if finbert_available else 'pip install -e ".[dev,ml]"',
             "market_last_refreshed_at": self.health_metrics.to_iso(market_last),
             "watchlist_last_refreshed_at": self.health_metrics.to_iso(watchlist_last),
             "fallback_headlines_24h": fallback_metrics["fallback_count"],

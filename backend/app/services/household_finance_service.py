@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import json
-import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -50,13 +48,15 @@ from app.services.household_document_pipeline import HouseholdDocumentPipeline
 from app.services.household_document_review import HouseholdDocumentReviewService
 from app.services.household_finance_rows import (
     row_to_document,
-    row_to_profile,
     row_to_question,
 )
+from app.services.household_profile_service import HouseholdProfileService
+from app.services.household_question_command_service import HouseholdQuestionCommandService
 from app.services.household_question_reconciler import HouseholdQuestionReconciler
 from app.services.household_review_agent_service import (
     HouseholdReviewAgentService,
 )
+from app.services.household_transaction_rule_service import HouseholdTransactionRuleService
 from app.services.household_transaction_service import HouseholdTransactionService
 from app.storage import get_storage
 
@@ -81,6 +81,7 @@ class HouseholdFinanceService:
     TAXABLE_ACCOUNT_TYPES = TAXABLE_ACCOUNT_TYPES
     FIELD_LABELS = FIELD_LABELS
     logger = logger
+    DEFAULT_HOUSEHOLD_NAME = DEFAULT_HOUSEHOLD_NAME
 
     def __init__(self) -> None:
         self.storage = get_storage()
@@ -94,6 +95,9 @@ class HouseholdFinanceService:
         self.dashboard_composer = HouseholdDashboardComposer()
         self.document_pipeline = HouseholdDocumentPipeline()
         self.question_reconciler = HouseholdQuestionReconciler()
+        self.profile_service = HouseholdProfileService()
+        self.question_command_service = HouseholdQuestionCommandService()
+        self.transaction_rule_service = HouseholdTransactionRuleService()
 
     def _dashboard_builder(self) -> HouseholdDashboardComposer:
         composer = getattr(self, "dashboard_composer", None)
@@ -115,6 +119,27 @@ class HouseholdFinanceService:
             reconciler = HouseholdQuestionReconciler()
             self.question_reconciler = reconciler
         return reconciler
+
+    def _profile_service(self) -> HouseholdProfileService:
+        helper = getattr(self, "profile_service", None)
+        if helper is None:
+            helper = HouseholdProfileService()
+            self.profile_service = helper
+        return helper
+
+    def _question_command_service(self) -> HouseholdQuestionCommandService:
+        helper = getattr(self, "question_command_service", None)
+        if helper is None:
+            helper = HouseholdQuestionCommandService()
+            self.question_command_service = helper
+        return helper
+
+    def _transaction_rule_service(self) -> HouseholdTransactionRuleService:
+        helper = getattr(self, "transaction_rule_service", None)
+        if helper is None:
+            helper = HouseholdTransactionRuleService()
+            self.transaction_rule_service = helper
+        return helper
 
     def get_dashboard(self) -> HouseholdFinanceDashboard:
         return self._dashboard_builder().build_dashboard(self)
@@ -202,127 +227,20 @@ class HouseholdFinanceService:
         transaction_id: str,
         payload: HouseholdTransactionCategoryUpdate,
     ) -> bool:
-        with self.storage.connection() as conn:
-            target = conn.execute(
-                """
-                SELECT id, merchant_id
-                FROM household_transactions
-                WHERE id = %s
-                """,
-                [transaction_id],
-            ).fetchone()
-            if target is None:
-                return False
-
-            merchant_id = str(target[1]) if target[1] is not None else None
-            updated_at = datetime.now(UTC)
-            row = conn.execute(
-                """
-                UPDATE household_transactions
-                SET category = %s,
-                    essentiality = %s,
-                    confidence = GREATEST(COALESCE(confidence, 0), 0.97),
-                    updated_at = %s
-                WHERE id = %s
-                RETURNING id
-                """,
-                [
-                    payload.category,
-                    payload.essentiality,
-                    updated_at,
-                    transaction_id,
-                ],
-            ).fetchone()
-            if payload.apply_to_merchant and merchant_id is not None:
-                conn.execute(
-                    """
-                    UPDATE household_transactions
-                    SET category = %s,
-                        essentiality = %s,
-                        confidence = GREATEST(COALESCE(confidence, 0), 0.97),
-                        updated_at = %s
-                    WHERE merchant_id = %s
-                    """,
-                    [
-                        payload.category,
-                        payload.essentiality,
-                        updated_at,
-                        merchant_id,
-                    ],
-                )
-                conn.execute(
-                    """
-                    UPDATE household_merchants
-                    SET primary_category = %s,
-                        essentiality = %s,
-                        metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb,
-                        updated_at = %s
-                    WHERE id = %s
-                    """,
-                    [
-                        payload.category,
-                        payload.essentiality,
-                        json.dumps(
-                            {
-                                "manual_rule": {
-                                    "category": payload.category,
-                                    "essentiality": payload.essentiality,
-                                    "updated_at": updated_at.isoformat(),
-                                }
-                            }
-                        ),
-                        updated_at,
-                        merchant_id,
-                    ],
-                )
-            conn.commit()
-        return row is not None
+        return self._transaction_rule_service().update_transaction_category(
+            self,
+            transaction_id,
+            payload,
+        )
 
     def _current_month_spend(self) -> float:
         return self._dashboard_builder().current_month_spend(self)
 
     def get_profile(self) -> HouseholdProfile:
-        row = self._get_profile_row()
-        if row is None:
-            now = datetime.now(UTC).isoformat()
-            profile_id = str(uuid.uuid4())
-            with self.storage.connection() as conn:
-                conn.execute(
-                    """
-                    INSERT INTO household_profiles (
-                        id, household_name, created_at, updated_at
-                    ) VALUES (%s, %s, %s, %s)
-                    """,
-                    [profile_id, DEFAULT_HOUSEHOLD_NAME, now, now],
-                )
-                conn.commit()
-            row = self._get_profile_row()
-            if row is None:
-                raise RuntimeError("Failed to create household profile")
-        return row_to_profile(row, to_float=self._to_float, to_int=self._to_int, iso=self._iso)
+        return self._profile_service().get_profile(self)
 
     def update_profile(self, payload: HouseholdProfileUpdate) -> HouseholdProfile:
-        profile = self.get_profile()
-        updates = payload.model_dump(exclude_unset=True)
-        if not updates:
-            return profile
-
-        set_clauses = ", ".join(f"{field} = %s" for field in updates)
-        params: list[Any] = list(updates.values())
-        params.extend([datetime.now(UTC).isoformat(), profile.id])
-
-        with self.storage.connection() as conn:
-            conn.execute(
-                f"""
-                UPDATE household_profiles
-                SET {set_clauses}, updated_at = %s
-                WHERE id = %s
-                """,
-                params,
-            )
-            conn.commit()
-
-        return self.get_profile()
+        return self._profile_service().update_profile(self, payload)
 
     def list_questions(self, limit: int = 20) -> HouseholdQuestionList:
         self._reconcile_open_questions()
@@ -355,47 +273,7 @@ class HouseholdFinanceService:
         self._question_reconciler().reconcile_open_questions(self)
 
     def answer_question(self, question_id: str, payload: HouseholdQuestionAnswer) -> HouseholdQuestion | None:
-        question = self._get_question_row(question_id)
-        if question is None:
-            return None
-
-        row_question = row_to_question(question, iso=self._iso, iso_or_none=self._iso_or_none)
-        cleaned_answer = payload.answer_text.strip()
-        self._apply_answer_to_profile(row_question, cleaned_answer)
-
-        now = datetime.now(UTC).isoformat()
-        with self.storage.connection() as conn:
-            conn.execute(
-                """
-                UPDATE household_questions
-                SET status = 'answered', answer_text = %s, answered_at = %s
-                WHERE id = %s
-                """,
-                [cleaned_answer, now, question_id],
-            )
-            if row_question.field_name:
-                conn.execute(
-                    """
-                    UPDATE household_inferred_values
-                    SET status = 'confirmed', updated_at = %s
-                    WHERE field_name = %s
-                    """,
-                    [now, row_question.field_name],
-                )
-            self._resolve_related_open_questions(
-                conn=conn,
-                question=row_question,
-                answer_text=cleaned_answer,
-                answered_at=now,
-            )
-            conn.commit()
-
-        answered = self._get_question_row(question_id)
-        return (
-            row_to_question(answered, iso=self._iso, iso_or_none=self._iso_or_none)
-            if answered is not None
-            else None
-        )
+        return self._question_command_service().answer_question(self, question_id, payload)
 
     async def ingest_document(
         self,
