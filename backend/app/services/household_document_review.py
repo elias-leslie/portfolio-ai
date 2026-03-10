@@ -172,17 +172,21 @@ def _extract_image_text(stored_path: Path) -> str | None:
         return None
 
 
+def _extract_csv_text(stored_path: Path) -> str:
+    with stored_path.open("r", encoding="utf-8", errors="ignore", newline="") as handle:
+        reader = csv.reader(handle)
+        rows = [
+            ", ".join(cell.strip() for cell in row[:32])
+            for idx, row in enumerate(reader)
+            if idx <= 20
+        ]
+    return "\n".join(rows)
+
+
 def _extract_text(stored_path: Path, content_type: str | None) -> str | None:
     suffix = stored_path.suffix.lower()
     if suffix == ".csv":
-        with stored_path.open("r", encoding="utf-8", errors="ignore", newline="") as handle:
-            reader = csv.reader(handle)
-            rows = [
-                ", ".join(cell.strip() for cell in row[:32])
-                for idx, row in enumerate(reader)
-                if idx <= 20
-            ]
-        return "\n".join(rows)
+        return _extract_csv_text(stored_path)
     if suffix == ".pdf" or content_type == "application/pdf":
         return _extract_pdf_text(stored_path)
     if (content_type and content_type.startswith("image/")) or suffix in {".png", ".jpg", ".jpeg", ".webp", ".bmp"}:
@@ -490,6 +494,109 @@ class HouseholdDocumentReviewService:
         self.agent_service = agent_service or HouseholdReviewAgentService()
         self.storage = get_storage()
 
+    def _extract_csv_text(self, stored_path: Path) -> str:
+        return _extract_csv_text(stored_path)
+
+    def _extract_pdf_image_text(self, stored_path: Path) -> str | None:
+        return _extract_pdf_image_text(stored_path)
+
+    def _extract_pdf_text(self, stored_path: Path) -> str | None:
+        try:
+            reader = PdfReader(str(stored_path))
+            chunks: list[str] = []
+            for page in reader.pages[:4]:
+                text = page.extract_text() or ""
+                if text.strip():
+                    chunks.append(text.strip())
+            merged = "\n\n".join(chunks).strip()
+            needs_ocr = not merged or len(merged) < 180 or not any(
+                t in merged.lower() for t in _FINANCIAL_SIGNAL_TERMS
+            )
+            if needs_ocr:
+                ocr_text = self._extract_pdf_image_text(stored_path)
+                if ocr_text:
+                    merged = _merge_text_fragments(merged, ocr_text)
+            return merged[:12000] if merged else None
+        except Exception as exc:
+            logger.warning("household_pdf_extract_failed", path=str(stored_path), error=str(exc))
+            return None
+
+    def _extract_image_text(self, stored_path: Path) -> str | None:
+        return _extract_image_text(stored_path)
+
+    def _extract_text(self, stored_path: Path, content_type: str | None) -> str | None:
+        suffix = stored_path.suffix.lower()
+        if suffix == ".csv":
+            return self._extract_csv_text(stored_path)
+        if suffix == ".pdf" or content_type == "application/pdf":
+            return self._extract_pdf_text(stored_path)
+        if (content_type and content_type.startswith("image/")) or suffix in {
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".webp",
+            ".bmp",
+        }:
+            return self._extract_image_text(stored_path)
+        if suffix in {".txt", ".json"}:
+            return stored_path.read_text(encoding="utf-8", errors="ignore")[:12000]
+        return None
+
+    def _pdf_image_blocks(self, stored_path: Path) -> list[ImageContent]:
+        return _pdf_image_blocks(stored_path)
+
+    def _build_messages(
+        self,
+        *,
+        payload: dict[str, Any],
+        stored_path: Path,
+        content_type: str | None,
+        extracted_text: str | None,
+        baseline_review: dict[str, Any],
+    ) -> list[MessageInput]:
+        content_blocks: list[Any] = [
+            TextContent(
+                text=(
+                    f"{JSON_REVIEW_INSTRUCTIONS}\n\n"
+                    "Document metadata:\n"
+                    f"{json.dumps(payload, indent=2)}\n\n"
+                    "Deterministic reviewer baseline:\n"
+                    f"{json.dumps(baseline_review, indent=2)}\n\n"
+                    "Use any extracted text and visual evidence to infer likely household planning values."
+                )
+            )
+        ]
+        if extracted_text:
+            content_blocks.append(TextContent(text=f"Extracted text preview:\n{extracted_text[:12000]}"))
+        if stored_path.suffix.lower() == ".pdf" or content_type == "application/pdf":
+            content_blocks.extend(self._pdf_image_blocks(stored_path))
+        if content_type and content_type.startswith("image/"):
+            content_blocks.append(
+                ImageContent.from_base64(
+                    base64.b64encode(stored_path.read_bytes()).decode("utf-8"),
+                    media_type=content_type,
+                )
+            )
+        return [MessageInput(role="user", content=content_blocks)]
+
+    def _parse_review_payload(self, content: Any) -> dict[str, Any]:
+        return _parse_review_payload(content)
+
+    def _baseline_review(
+        self,
+        *,
+        filename: str,
+        source_type: str,
+        document_type: str,
+        extracted_text: str | None,
+    ) -> dict[str, Any]:
+        return _baseline_review(
+            filename=filename,
+            source_type=source_type,
+            document_type=document_type,
+            extracted_text=extracted_text,
+        )
+
     def review(
         self,
         *,
@@ -500,8 +607,8 @@ class HouseholdDocumentReviewService:
         source_type: str,
         document_type: str,
     ) -> dict[str, Any]:
-        extracted_text = _extract_text(stored_path, content_type)
-        baseline_review = _baseline_review(
+        extracted_text = self._extract_text(stored_path, content_type)
+        baseline_review = self._baseline_review(
             filename=filename,
             source_type=source_type,
             document_type=document_type,
@@ -569,7 +676,7 @@ class HouseholdDocumentReviewService:
         try:
             self.agent_service.ensure_agent()
             client = AgentHubAPIClient(agent_slug=HOUSEHOLD_REVIEW_AGENT_SLUG, use_memory=True)
-            messages = _build_messages(
+            messages = self._build_messages(
                 payload=payload,
                 stored_path=stored_path,
                 content_type=content_type,
@@ -586,7 +693,7 @@ class HouseholdDocumentReviewService:
                 use_memory=True,
                 thinking_level="low",
             )
-            return _parse_review_payload(response.content)
+            return self._parse_review_payload(response.content)
         except Exception as exc:
             logger.warning("household_document_review_llm_failed", error=str(exc))
             return None

@@ -1507,6 +1507,25 @@ class HouseholdFinanceService:
                 "monthly",
             ],
         }
+        negative_tokens = {
+            "core_spending": [
+                "no",
+                "side account",
+                "occasional transfers",
+                "occasional transfer",
+                "secondary account",
+                "not primary",
+                "not our main",
+            ],
+            "shopping_channel": [
+                "no",
+                "one-off",
+                "one off",
+                "rarely",
+                "occasional",
+                "not regular",
+            ],
+        }
         if (
             shares_context
             and candidate_family != "unknown"
@@ -1520,7 +1539,16 @@ class HouseholdFinanceService:
                 is_covered = len(normalized_answer) >= 8
             else:
                 tokens = family_tokens.get(answered_family, [])
-                is_covered = any(token in normalized_answer for token in tokens)
+                negatives = negative_tokens.get(answered_family, [])
+                has_negative_signal = any(
+                    token == normalized_answer
+                    or normalized_answer.startswith(f"{token} ")
+                    or normalized_answer.startswith(f"{token},")
+                    or f" {token} " in normalized_answer
+                    or normalized_answer.endswith(f" {token}")
+                    for token in negatives
+                )
+                is_covered = has_negative_signal or any(token in normalized_answer for token in tokens)
         return is_covered
 
     def _questions_are_semantic_duplicates(

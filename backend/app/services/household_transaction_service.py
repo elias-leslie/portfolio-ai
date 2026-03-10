@@ -14,13 +14,9 @@ from typing import Any
 
 from app.logging_config import get_logger
 from app.models.household_finance import (
-    HouseholdCategoryBreakdown,
-    HouseholdExecutiveReport,
-    HouseholdMerchantInsight,
-    HouseholdMonthlyTrendPoint,
-    HouseholdRecentTransaction,
     HouseholdReports,
 )
+from app.services._household_report_builder import build_household_reports
 from app.storage import get_storage
 
 logger = get_logger(__name__)
@@ -319,9 +315,12 @@ class HouseholdTransactionService:
                     t.essentiality,
                     t.account_label,
                     t.document_id,
-                    COALESCE(m.canonical_name, t.raw_merchant, t.description) AS canonical_name
+                    COALESCE(m.canonical_name, t.raw_merchant, t.description) AS canonical_name,
+                    d.document_type,
+                    d.source_type
                 FROM household_transactions t
                 LEFT JOIN household_merchants m ON m.id = t.merchant_id
+                LEFT JOIN household_documents d ON d.id = t.document_id
                 WHERE t.flow_type = 'expense'
                 ORDER BY t.transaction_date DESC
                 """
@@ -362,6 +361,9 @@ class HouseholdTransactionService:
                     "essentiality": str(row[5] or "mixed"),
                     "account_label": str(row[6]) if row[6] is not None else None,
                     "document_id": str(row[7]),
+                    "document_type": str(row[9] or ""),
+                    "source_type": str(row[10] or ""),
+                    "source_kind": "transaction",
                 }
             )
 
@@ -375,148 +377,25 @@ class HouseholdTransactionService:
                 amount = None
             if amount is None:
                 continue
-            report_rows.append(
-                {
-                    "date": row_date.date(),
-                    "merchant": str(row[1]),
-                    "description": str(row[2]),
-                    "amount": amount,
-                    "category": "Household shopping",
-                    "essentiality": "mixed",
-                    "account_label": None,
-                    "document_id": str(row[5]),
-                }
-            )
+            candidate_row = {
+                "date": row_date.date(),
+                "merchant": str(row[1]),
+                "description": str(row[2]),
+                "amount": amount,
+                "category": "Household shopping",
+                "essentiality": "mixed",
+                "account_label": None,
+                "document_id": str(row[5]),
+                "document_type": "import",
+                "source_type": str(row[4] or "import"),
+                "source_kind": "import",
+            }
+            report_rows.append(candidate_row)
 
-        expense_only = [row for row in report_rows if row["amount"] > 0]
-        if not expense_only:
-            return HouseholdReports(
-                executive=HouseholdExecutiveReport(
-                    headline="Jenny needs more transaction evidence to build a cash-flow report.",
-                    summary="Upload recent statements and receipts so the transaction ledger can estimate real household spending.",
-                    average_monthly_spend=0.0,
-                    average_monthly_essentials=0.0,
-                    average_monthly_discretionary=0.0,
-                    recent_30_day_spend=0.0,
-                    recurring_merchant_count=0,
-                    tracked_expense_count=0,
-                    coverage_months=0,
-                )
-            )
-
-        monthly_totals: dict[str, float] = {}
-        monthly_counts: dict[str, int] = {}
-        category_totals: dict[tuple[str, str], float] = {}
-        merchant_totals: dict[str, dict[str, Any]] = {}
-        latest_date = max(row["date"] for row in expense_only)
-        recent_cutoff = latest_date.toordinal() - 30
-
-        for row in expense_only:
-            month_key = row["date"].strftime("%Y-%m")
-            monthly_totals[month_key] = monthly_totals.get(month_key, 0.0) + row["amount"]
-            monthly_counts[month_key] = monthly_counts.get(month_key, 0) + 1
-            category_key = (row["category"], row["essentiality"])
-            category_totals[category_key] = category_totals.get(category_key, 0.0) + row["amount"]
-            merchant_state = merchant_totals.setdefault(
-                row["merchant"],
-                {"amount": 0.0, "count": 0, "category": row["category"], "dates": []},
-            )
-            merchant_state["amount"] += row["amount"]
-            merchant_state["count"] += 1
-            merchant_state["dates"].append(row["date"])
-
-        coverage_months = max(len(monthly_totals), 1)
-        total_spend = sum(monthly_totals.values())
-        essential_spend = sum(
-            amount for (_, essentiality), amount in category_totals.items() if essentiality == "essential"
-        )
-        discretionary_spend = sum(
-            amount for (_, essentiality), amount in category_totals.items() if essentiality == "discretionary"
-        )
-        recent_30_day_spend = sum(
-            row["amount"] for row in expense_only if row["date"].toordinal() >= recent_cutoff
-        )
-        recurring_merchant_count = sum(
-            1
-            for state in merchant_totals.values()
-            if (self._dates_to_cadence(state["dates"]) or {}).get("label", "one-off") != "one-off"
-        )
-
-        executive = HouseholdExecutiveReport(
-            headline="Jenny now has a real household spending ledger to work from.",
-            summary=(
-                f"Average monthly spend is ${total_spend / coverage_months:,.0f} across "
-                f"{coverage_months} tracked month{'s' if coverage_months != 1 else ''}, "
-                f"with {recurring_merchant_count} recurring merchant patterns already visible."
-            ),
-            average_monthly_spend=round(total_spend / coverage_months, 2),
-            average_monthly_essentials=round(essential_spend / coverage_months, 2),
-            average_monthly_discretionary=round(discretionary_spend / coverage_months, 2),
-            recent_30_day_spend=round(recent_30_day_spend, 2),
-            recurring_merchant_count=recurring_merchant_count,
-            tracked_expense_count=len(expense_only),
-            coverage_months=coverage_months,
-        )
-
-        category_breakdown = [
-            HouseholdCategoryBreakdown(
-                category=category,
-                amount=round(amount, 2),
-                share=round(amount / total_spend if total_spend > 0 else 0.0, 4),
-                essentiality=essentiality,
-            )
-            for (category, essentiality), amount in sorted(
-                category_totals.items(), key=lambda item: item[1], reverse=True
-            )[:6]
-        ]
-
-        merchant_highlights = []
-        for merchant, state in sorted(merchant_totals.items(), key=lambda item: item[1]["amount"], reverse=True)[:6]:
-            cad = self._dates_to_cadence(state["dates"])
-            cadence = str(cad["label"]) if cad else "one-off"
-            merchant_highlights.append(
-                HouseholdMerchantInsight(
-                    canonical_name=merchant,
-                    amount=round(state["amount"], 2),
-                    transaction_count=state["count"],
-                    cadence=cadence,
-                    category=str(state["category"]),
-                    recommendation=self._merchant_recommendation(
-                        merchant=merchant,
-                        category=str(state["category"]),
-                        cadence=cadence,
-                    ),
-                )
-            )
-
-        monthly_spend_trend = [
-            HouseholdMonthlyTrendPoint(
-                month=month,
-                amount=round(monthly_totals[month], 2),
-                transaction_count=monthly_counts[month],
-            )
-            for month in sorted(monthly_totals.keys())[-6:]
-        ]
-
-        recent_transactions = [
-            HouseholdRecentTransaction(
-                transaction_date=row["date"].isoformat(),
-                merchant=row["merchant"],
-                description=row["description"],
-                amount=round(row["amount"], 2),
-                category=row["category"],
-                account_label=row["account_label"],
-                source_document_id=row["document_id"],
-            )
-            for row in sorted(expense_only, key=lambda item: item["date"], reverse=True)[:10]
-        ]
-
-        return HouseholdReports(
-            executive=executive,
-            category_breakdown=category_breakdown,
-            merchant_highlights=merchant_highlights,
-            monthly_spend_trend=monthly_spend_trend,
-            recent_transactions=recent_transactions,
+        return build_household_reports(
+            report_rows=report_rows,
+            cadence_for_dates=self._dates_to_cadence,
+            merchant_recommendation=self._merchant_recommendation,
         )
 
     def infer_merchant_cadence(self, *, merchant: str) -> dict[str, object] | None:

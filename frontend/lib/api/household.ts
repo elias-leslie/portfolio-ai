@@ -111,6 +111,7 @@ export interface HouseholdRecentTransaction {
   category: string
   essentiality: string
   accountLabel: string | null
+  sourceDocumentId?: string | null
 }
 
 export interface HouseholdReports {

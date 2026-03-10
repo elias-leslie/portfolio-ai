@@ -97,14 +97,16 @@ class HouseholdExecutiveReport(BaseModel):
 
 class HouseholdCategoryBreakdown(BaseModel):
     category: str
-    amount: float
-    share: float
     essentiality: str
+    monthly_average: float
+    share_of_spend: float
+    total_spend: float
 
 
 class HouseholdMerchantInsight(BaseModel):
-    canonical_name: str
-    amount: float
+    merchant: str
+    total_spend: float
+    average_ticket: float
     transaction_count: int
     cadence: str
     category: str
@@ -113,16 +115,17 @@ class HouseholdMerchantInsight(BaseModel):
 
 class HouseholdMonthlyTrendPoint(BaseModel):
     month: str
-    amount: float
+    total_spend: float
     transaction_count: int
 
 
 class HouseholdRecentTransaction(BaseModel):
-    transaction_date: str
+    date: str
     merchant: str
     description: str
     amount: float
     category: str
+    essentiality: str
     account_label: str | None = None
     source_document_id: str | None = None
 

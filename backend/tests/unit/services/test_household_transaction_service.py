@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from app.services.household_transaction_service import HouseholdTransactionService
+from app.services.household_transaction_service import (
+    HouseholdTransactionService,
+    _merchant_aliases,
+)
 
 
 def test_parse_chase_statement_extracts_walmart_activity_lines() -> None:
@@ -50,9 +53,7 @@ def test_parse_wells_fargo_statement_extracts_payroll_and_spotify() -> None:
 
 
 def test_merchant_aliases_collapse_walmart_variants() -> None:
-    service = HouseholdTransactionService()
-
-    aliases = service._merchant_aliases("WM SUPERCENTER #5831 LARGO FL")
+    aliases = _merchant_aliases("WM SUPERCENTER #5831 LARGO FL")
 
     assert "walmart" in aliases
     assert "wm supercenter" in aliases

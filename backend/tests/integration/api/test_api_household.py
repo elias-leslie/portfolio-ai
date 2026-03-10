@@ -276,9 +276,78 @@ def test_household_dashboard_includes_transaction_reports_from_documents(
     dashboard = dashboard_response.json()
     assert dashboard["reports"]["executive"]["tracked_expense_count"] >= 4
     assert dashboard["reports"]["executive"]["average_monthly_spend"] > 0
+    assert dashboard["reports"]["executive"]["recent_30_day_spend"] == 0
     assert dashboard["reports"]["category_breakdown"][0]["category"] in {"Groceries", "Retail"}
-    assert dashboard["reports"]["merchant_highlights"][0]["canonical_name"].startswith("Walmart")
+    assert dashboard["reports"]["category_breakdown"][0]["total_spend"] > 0
+    assert dashboard["reports"]["merchant_highlights"][0]["merchant"].startswith("Walmart")
+    assert dashboard["reports"]["merchant_highlights"][0]["average_ticket"] > 0
     assert dashboard["reports"]["recent_transactions"][0]["merchant"]
+    assert dashboard["reports"]["recent_transactions"][0]["essentiality"] in {"essential", "discretionary", "mixed"}
+
+
+def test_household_dashboard_dedupes_overlapping_transaction_and_import_rows(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    statement_review = {
+        "summary": "Chase statement with one Walmart purchase.",
+        "document_type": "statement",
+        "source_type": "credit_card",
+        "confidence": 0.91,
+        "structured_data": {"account_hint": "Chase Amazon card"},
+        "inferred_values": [],
+        "questions": [],
+        "extracted_text": (
+            "ELIAS B LESLIE Page 2 of 4 Statement Date: 01/11/26\n"
+            "Date of Transaction Merchant Name or Transaction Description $ Amount\n"
+            "12/22 & WAL-MART #5831 LARGO FL 164.14\n"
+        ),
+    }
+    receipt_review = {
+        "summary": "Walmart receipt for the same purchase already visible on the card statement.",
+        "document_type": "receipt",
+        "source_type": "receipt",
+        "confidence": 0.95,
+        "structured_data": {
+            "merchant": "Walmart (Store #5831, Largo, FL)",
+            "account_hint": "Visa Credit ****4635",
+            "total_amount": "164.14",
+            "statement_period": "2025-12-22",
+        },
+        "inferred_values": [],
+        "questions": [],
+        "extracted_text": "12/22/2025 TOTAL 164.14 WAL-MART #5831",
+    }
+
+    with (
+        patch(
+            "app.services.household_finance_service.HouseholdFinanceService._upload_root",
+            return_value=tmp_path,
+        ),
+        patch(
+            "app.services.household_document_review.HouseholdDocumentReviewService.review",
+            side_effect=[statement_review, receipt_review],
+        ),
+    ):
+        statement = client.post(
+            "/api/household/documents",
+            files={"file": ("20260111-statements-5313-.pdf", b"statement bytes", "application/pdf")},
+        )
+        receipt = client.post(
+            "/api/household/documents",
+            files={"file": ("walmart_receipt.pdf", b"receipt bytes", "application/pdf")},
+        )
+        dashboard_response = client.get("/api/household/dashboard")
+
+    assert statement.status_code == 200
+    assert receipt.status_code == 200
+    assert dashboard_response.status_code == 200
+
+    dashboard = dashboard_response.json()
+    assert dashboard["reports"]["executive"]["tracked_expense_count"] == 1
+    assert dashboard["reports"]["merchant_highlights"][0]["total_spend"] == 164.14
+    assert dashboard["reports"]["merchant_highlights"][0]["average_ticket"] == 164.14
+    assert dashboard["reports"]["recent_transactions"][0]["amount"] == 164.14
 
 
 def test_household_questions_can_be_answered_and_confirm_profile_value(
@@ -403,6 +472,79 @@ def test_household_answering_question_closes_matching_sibling_questions(
     answer_response = client.post(
         f"/api/household/questions/{questions[0]['id']}/answer",
         json={"answer_text": "yes"},
+    )
+    assert answer_response.status_code == 200
+
+    refreshed_questions = client.get("/api/household/questions").json()["items"]
+    assert refreshed_questions == []
+
+
+def test_household_questions_reconcile_related_duplicates_after_negative_answer(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    first_review_payload = {
+        "summary": "Checking account with recurring deposits and cash-flow activity.",
+        "document_type": "statement",
+        "source_type": "bank",
+        "confidence": 0.89,
+        "structured_data": {"account_hint": "Wells Fargo Everyday Checking"},
+        "inferred_values": [],
+        "questions": [
+            {
+                "field_name": "monthly_essential_target",
+                "question": "Is this your primary household checking account for monthly bills and deposits?",
+                "priority": "high",
+                "recommendation": "Answer yes only if this account carries most recurring household cash flow.",
+                "rationale": "Primary checking accounts anchor the household cash-flow model.",
+            }
+        ],
+    }
+    second_review_payload = {
+        "summary": "Checking account with light transfer activity.",
+        "document_type": "statement",
+        "source_type": "bank",
+        "confidence": 0.87,
+        "structured_data": {"account_hint": "Wells Fargo Everyday Checking"},
+        "inferred_values": [],
+        "questions": [
+            {
+                "field_name": "monthly_essential_target",
+                "question": "Is this account part of your core monthly household spending?",
+                "priority": "high",
+                "recommendation": "Confirm if this account covers regular household bills, groceries, or everyday spending.",
+                "rationale": "This determines whether Jenny should treat the spend as budget-driving data.",
+            }
+        ],
+    }
+
+    with patch(
+        "app.services.household_finance_service.HouseholdFinanceService._upload_root",
+        return_value=tmp_path,
+    ), patch(
+        "app.services.household_document_review.HouseholdDocumentReviewService.review",
+        side_effect=[first_review_payload, second_review_payload],
+    ):
+        first = client.post(
+            "/api/household/documents",
+            files={"file": ("022726 WellsFargo.pdf", b"bank bytes 1", "application/pdf")},
+        )
+        second = client.post(
+            "/api/household/documents",
+            files={"file": ("012726 WellsFargo.pdf", b"bank bytes 2", "application/pdf")},
+        )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+
+    questions = client.get("/api/household/questions").json()["items"]
+    assert len(questions) == 1
+
+    answer_response = client.post(
+        f"/api/household/questions/{questions[0]['id']}/answer",
+        json={
+            "answer_text": "no, this is only a side account for occasional transfers",
+        },
     )
     assert answer_response.status_code == 200
 
