@@ -198,20 +198,20 @@ class HouseholdDashboardComposer:
             retirement_assets=retirement_assets,
         )
         reports = service.transaction_service.build_reports()
-        budget_snapshot = self.build_budget_snapshot(service, profile=profile, reports=reports)
-        categorization_queue = self.build_categorization_queue(service)
-        recurring_commitments = self.build_recurring_commitments(service)
-        sinking_funds = self.build_sinking_funds(recurring_commitments=recurring_commitments)
-        retirement_contribution_tracker = self.build_retirement_contribution_tracker(
+        budget_snapshot = service._build_budget_snapshot(profile=profile, reports=reports)
+        categorization_queue = service._build_categorization_queue()
+        recurring_commitments = service._build_recurring_commitments()
+        sinking_funds = service._build_sinking_funds(recurring_commitments=recurring_commitments)
+        retirement_contribution_tracker = service._build_retirement_contribution_tracker(
             profile=profile,
-            estimated_monthly_contributions=self.estimate_monthly_retirement_contributions(service),
+            estimated_monthly_contributions=service._estimate_monthly_retirement_contributions(),
         )
-        retirement_scenarios = self.build_retirement_scenarios(
+        retirement_scenarios = service._build_retirement_scenarios(
             retirement_assets=retirement_assets,
             target_retirement_spend=profile.target_retirement_spend,
             baseline_monthly_spend=reports.executive.average_monthly_spend,
         )
-        action_items = self.build_action_items(
+        action_items = service._build_action_items(
             questions=questions,
             opportunities=opportunities,
             next_best_action=overview.next_best_action,
@@ -288,7 +288,7 @@ class HouseholdDashboardComposer:
             if profile.monthly_discretionary_target is not None
             else None
         )
-        month_to_date_spend = self.current_month_spend(service)
+        month_to_date_spend = service._current_month_spend()
         month_to_date_plan = None
         pace_status = "unknown"
         pace_detail = "Jenny needs a monthly plan before it can judge pacing."

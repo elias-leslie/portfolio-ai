@@ -359,15 +359,14 @@ class JennyReviewEngine:
             )
             for symbol, evaluations in evaluations_by_symbol.items()
         }
-        position_actions = self.build_position_action_map(
-            service, {symbol: review for symbol, review in review_map.items() if symbol in live_symbols}
+        position_actions = service._build_position_action_map(
+            {symbol: review for symbol, review in review_map.items() if symbol in live_symbols}
         )
         for symbol, review in review_map.items():
             position_action = position_actions.get(symbol)
             evaluations = evaluations_by_symbol.get(symbol, [])
             if symbol in live_symbols and position_action and position_action["action"] != "hold":
-                self.upsert_notification(
-                    service,
+                service._upsert_notification(
                     routine_id,
                     symbol,
                     category=f"position_{position_action['action']}",
@@ -378,8 +377,7 @@ class JennyReviewEngine:
                 )
                 count += 1
             elif symbol in live_symbols and review.final_verdict in {"exit", "trim", "review"}:
-                self.upsert_notification(
-                    service,
+                service._upsert_notification(
                     routine_id,
                     symbol,
                     category=f"position_{review.final_verdict}",
@@ -395,8 +393,7 @@ class JennyReviewEngine:
                 and review.final_verdict == "buy"
                 and (review.average_confidence or 0) >= 0.7
             ):
-                self.upsert_notification(
-                    service,
+                service._upsert_notification(
                     routine_id,
                     symbol,
                     category="watchlist_buy_candidate",
@@ -409,11 +406,10 @@ class JennyReviewEngine:
                 count += 1
 
             thesis = service.thesis_service.get_thesis(symbol)
-            invalidation_triggers = self.extract_invalidation_triggers(evaluations)
-            profile = self.extract_symbol_profile(evaluations)
+            invalidation_triggers = service._extract_invalidation_triggers(evaluations)
+            profile = service._extract_symbol_profile(evaluations)
             if invalidation_triggers and not (position_action and position_action["action"] == "exit"):
-                self.upsert_notification(
-                    service,
+                service._upsert_notification(
                     routine_id,
                     symbol,
                     category="thesis_invalidation",
@@ -424,8 +420,7 @@ class JennyReviewEngine:
                 )
                 count += 1
             if thesis is None and not profile.get("is_passive_fund"):
-                self.upsert_notification(
-                    service,
+                service._upsert_notification(
                     routine_id,
                     symbol,
                     category="missing_thesis",

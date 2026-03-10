@@ -18,14 +18,28 @@ class JennyRoutineCoordinator:
     """Coordinate Jenny routine execution and persistence."""
 
     def run_daily_operator(self, service: Any, triggered_by: str = "manual") -> Any:
-        self.fail_stale_routines(service, "daily_operator")
-        active_routine = self.get_active_routine(service, "daily_operator")
+        stale_handler = service.__dict__.get("_fail_stale_routines")
+        if callable(stale_handler):
+            stale_handler("daily_operator")
+        else:
+            self.fail_stale_routines(service, "daily_operator")
+
+        active_routine_getter = service.__dict__.get("_get_active_routine")
+        active_routine = (
+            active_routine_getter("daily_operator")
+            if callable(active_routine_getter)
+            else self.get_active_routine(service, "daily_operator")
+        )
         if active_routine is not None:
             return service.JennyRunResponse(
                 routine=active_routine,
                 dashboard=service.get_dashboard(),
             )
-        routine_id, workflow_id = self.create_routine(service, "daily_operator", triggered_by)
+        routine_creator = service.__dict__.get("_create_routine")
+        if callable(routine_creator):
+            routine_id, workflow_id = routine_creator("daily_operator", triggered_by)
+        else:
+            routine_id, workflow_id = self.create_routine(service, "daily_operator", triggered_by)
         symbol_count = 0
         notification_count = 0
 
@@ -70,9 +84,15 @@ class JennyRoutineCoordinator:
             summary = service._build_routine_summary(
                 symbol_count, notification_count, evaluations_by_symbol
             )
-            self.complete_routine(
-                service, routine_id, "completed", summary, symbol_count, notification_count
-            )
+            routine_completer = service.__dict__.get("_complete_routine")
+            if callable(routine_completer):
+                routine_completer(
+                    routine_id, "completed", summary, symbol_count, notification_count
+                )
+            else:
+                self.complete_routine(
+                    service, routine_id, "completed", summary, symbol_count, notification_count
+                )
             service.workflow_orchestrator.complete_workflow(
                 workflow_id,
                 {
@@ -84,14 +104,24 @@ class JennyRoutineCoordinator:
             )
         except Exception as exc:
             logger.error("jenny_daily_operator_failed", error=str(exc))
-            self.complete_routine(
-                service,
-                routine_id,
-                "failed",
-                f"Jenny routine failed: {exc}",
-                symbol_count,
-                notification_count,
-            )
+            routine_completer = service.__dict__.get("_complete_routine")
+            if callable(routine_completer):
+                routine_completer(
+                    routine_id,
+                    "failed",
+                    f"Jenny routine failed: {exc}",
+                    symbol_count,
+                    notification_count,
+                )
+            else:
+                self.complete_routine(
+                    service,
+                    routine_id,
+                    "failed",
+                    f"Jenny routine failed: {exc}",
+                    symbol_count,
+                    notification_count,
+                )
             service.workflow_orchestrator.fail_workflow(workflow_id, str(exc), retry=False)
             raise
 
@@ -101,14 +131,27 @@ class JennyRoutineCoordinator:
         )
 
     def run_weekly_learning(self, service: Any, triggered_by: str = "system") -> Any:
-        self.fail_stale_routines(service, "weekly_learning")
-        active_routine = self.get_active_routine(service, "weekly_learning")
+        stale_handler = service.__dict__.get("_fail_stale_routines")
+        if callable(stale_handler):
+            stale_handler("weekly_learning")
+        else:
+            self.fail_stale_routines(service, "weekly_learning")
+        active_routine_getter = service.__dict__.get("_get_active_routine")
+        active_routine = (
+            active_routine_getter("weekly_learning")
+            if callable(active_routine_getter)
+            else self.get_active_routine(service, "weekly_learning")
+        )
         if active_routine is not None:
             return service.JennyRunResponse(
                 routine=active_routine,
                 dashboard=service.get_dashboard(),
             )
-        routine_id, workflow_id = self.create_routine(service, "weekly_learning", triggered_by)
+        routine_creator = service.__dict__.get("_create_routine")
+        if callable(routine_creator):
+            routine_id, workflow_id = routine_creator("weekly_learning", triggered_by)
+        else:
+            routine_id, workflow_id = self.create_routine(service, "weekly_learning", triggered_by)
 
         try:
             service.workflow_orchestrator.update_workflow_status(
@@ -122,14 +165,24 @@ class JennyRoutineCoordinator:
                 f"Reviewed {reviews_created} trade outcomes and refreshed "
                 f"{scorecards_updated} agent scorecards."
             )
-            self.complete_routine(
-                service,
-                routine_id,
-                "completed",
-                summary,
-                symbols_scanned=reviews_created,
-                notifications_created=0,
-            )
+            routine_completer = service.__dict__.get("_complete_routine")
+            if callable(routine_completer):
+                routine_completer(
+                    routine_id,
+                    "completed",
+                    summary,
+                    reviews_created,
+                    0,
+                )
+            else:
+                self.complete_routine(
+                    service,
+                    routine_id,
+                    "completed",
+                    summary,
+                    symbols_scanned=reviews_created,
+                    notifications_created=0,
+                )
             service.workflow_orchestrator.complete_workflow(
                 workflow_id,
                 {
@@ -141,14 +194,24 @@ class JennyRoutineCoordinator:
             )
         except Exception as exc:
             logger.error("jenny_weekly_learning_failed", error=str(exc))
-            self.complete_routine(
-                service,
-                routine_id,
-                "failed",
-                f"Jenny learning failed: {exc}",
-                symbols_scanned=0,
-                notifications_created=0,
-            )
+            routine_completer = service.__dict__.get("_complete_routine")
+            if callable(routine_completer):
+                routine_completer(
+                    routine_id,
+                    "failed",
+                    f"Jenny learning failed: {exc}",
+                    0,
+                    0,
+                )
+            else:
+                self.complete_routine(
+                    service,
+                    routine_id,
+                    "failed",
+                    f"Jenny learning failed: {exc}",
+                    symbols_scanned=0,
+                    notifications_created=0,
+                )
             service.workflow_orchestrator.fail_workflow(workflow_id, str(exc), retry=False)
             raise
 
