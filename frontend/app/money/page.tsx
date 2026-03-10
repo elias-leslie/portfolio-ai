@@ -2,6 +2,7 @@
 
 import { Loader2 } from 'lucide-react'
 import { HouseholdDocumentCenter } from '@/components/money/HouseholdDocumentCenter'
+import { HouseholdOperationsPanel } from '@/components/money/HouseholdOperationsPanel'
 import { HouseholdOverviewGrid } from '@/components/money/HouseholdOverviewGrid'
 import { HouseholdPlanningPanels } from '@/components/money/HouseholdPlanningPanels'
 import { HouseholdProfileCard } from '@/components/money/HouseholdProfileCard'
@@ -63,6 +64,7 @@ export default function MoneyPage() {
       />
 
       <HouseholdOverviewGrid dashboard={dashboard} />
+      <HouseholdOperationsPanel dashboard={dashboard} />
       <HouseholdReportsPanel dashboard={dashboard} />
       <HouseholdDocumentCenter documents={documents?.items ?? []} />
       <HouseholdProfileCard

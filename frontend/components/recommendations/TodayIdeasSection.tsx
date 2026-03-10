@@ -1,8 +1,10 @@
 'use client'
 
 import { AlertCircle, Loader2 } from 'lucide-react'
+import Link from 'next/link'
 import { useState } from 'react'
 import { SectionCard } from '@/components/shared/SectionCard'
+import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
 import type { TradeRecommendation } from '@/lib/api/recommendations'
 import { useRecommendations, useTrackInPortfolio } from '@/lib/hooks/useRecommendations'
@@ -88,9 +90,19 @@ export function TodayIdeasSection() {
         )}
 
         {!isLoading && !error && recommendations.length === 0 && (
-          <div className="rounded-xl border border-border/60 bg-surface-muted/30 p-5 text-sm text-text-muted">
-            No clear ideas right now. The app is holding back because it does not have enough
-            evidence to show a clean setup.
+          <div className="rounded-xl border border-border/60 bg-surface-muted/30 p-5">
+            <p className="text-sm text-text-muted">
+              No clear ideas right now. That usually means the best move is to review the action
+              queue, check existing holdings, or tighten the watchlist instead of forcing a trade.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button asChild variant="outline">
+                <Link href="/watchlist">Review Watchlist</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/portfolio">Open Portfolio Coach</Link>
+              </Button>
+            </div>
           </div>
         )}
 

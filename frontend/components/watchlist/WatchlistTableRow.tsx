@@ -8,6 +8,7 @@ import {
   Loader2,
   Trash2,
 } from 'lucide-react'
+import Link from 'next/link'
 import { Fragment } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -105,7 +106,13 @@ export function WatchlistTableRow({
         </TableCell>
         <TableCell className="font-medium" data-slot="table-cell">
           <div className="flex items-center gap-2">
-            <span>{item.symbol}</span>
+            <Link
+              href={`/symbols/${item.symbol}`}
+              className="rounded-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              onClick={(event) => event.stopPropagation()}
+            >
+              {item.symbol}
+            </Link>
             {portfolioSymbols.has(item.symbol.toUpperCase()) && (
               <Badge
                 variant="outline"

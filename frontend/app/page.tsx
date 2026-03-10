@@ -3,6 +3,7 @@
 import { Loader2 } from 'lucide-react'
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { MarketIntelligence } from '@/components/market/MarketIntelligence'
+import { HomeActionQueue } from '@/components/home/HomeActionQueue'
 import { TodayIdeasSection } from '@/components/recommendations/TodayIdeasSection'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -137,6 +138,8 @@ export default function Dashboard() {
         title="Today"
         description="What matters today: a short list of ideas, market context, and portfolio checks."
       />
+
+      <HomeActionQueue />
 
       <TodayIdeasSection />
 

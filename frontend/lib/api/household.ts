@@ -67,6 +67,15 @@ export interface HouseholdOpportunity {
   nextStep: string
 }
 
+export interface HouseholdActionItem {
+  title: string
+  detail: string
+  actionLabel: string
+  href: string
+  priority: string
+  source: string
+}
+
 export interface HouseholdExecutiveReport {
   headline: string
   summary: string
@@ -120,6 +129,21 @@ export interface HouseholdReports {
   merchantHighlights: HouseholdMerchantInsight[]
   monthlySpendTrend: HouseholdMonthlyTrendPoint[]
   recentTransactions: HouseholdRecentTransaction[]
+}
+
+export interface HouseholdBudgetSnapshot {
+  status: string
+  summary: string
+  monthlyIncomeTarget: number | null
+  monthlyPlanTotal: number | null
+  essentialTarget: number | null
+  discretionaryTarget: number | null
+  savingsTarget: number | null
+  actualMonthlySpend: number
+  actualEssentialMonthlySpend: number
+  actualDiscretionaryMonthlySpend: number
+  remainingCashAfterPlan: number | null
+  discretionaryHeadroom: number | null
 }
 
 export interface ImportFormat {
@@ -192,7 +216,9 @@ export interface HouseholdFinanceDashboard {
   profile: HouseholdProfile
   resolvedValues: HouseholdResolvedValue[]
   budgetReadiness: BudgetReadiness
+  budgetSnapshot: HouseholdBudgetSnapshot
   retirementPreparedness: RetirementPreparedness
+  actionItems: HouseholdActionItem[]
   opportunities: HouseholdOpportunity[]
   importCenter: ImportCenter
   questions: HouseholdQuestion[]

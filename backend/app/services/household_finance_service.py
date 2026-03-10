@@ -18,6 +18,8 @@ from app.logging_config import get_logger
 from app.models.household_finance import (
     BudgetLane,
     BudgetReadiness,
+    HouseholdActionItem,
+    HouseholdBudgetSnapshot,
     HouseholdDocument,
     HouseholdDocumentList,
     HouseholdFinanceDashboard,
@@ -218,6 +220,17 @@ class HouseholdFinanceService:
             retirement_assets=retirement_assets,
         )
         reports = self.transaction_service.build_reports()
+        budget_snapshot = self._build_budget_snapshot(
+            profile=profile,
+            reports=reports,
+        )
+        action_items = self._build_action_items(
+            questions=questions,
+            opportunities=opportunities,
+            next_best_action=overview.next_best_action,
+            reports=reports,
+            budget_readiness=budget_readiness,
+        )
 
         jenny_brief = JennyMoneyBrief(
             headline="Jenny can now see actual merchant flows, not just document summaries.",
@@ -238,13 +251,168 @@ class HouseholdFinanceService:
             profile=profile,
             resolved_values=resolved_values,
             budget_readiness=budget_readiness,
+            budget_snapshot=budget_snapshot,
             retirement_preparedness=retirement_preparedness,
+            action_items=action_items,
             opportunities=opportunities,
             reports=reports,
             import_center=import_center,
             questions=questions,
             jenny_brief=jenny_brief,
         )
+
+    def _build_budget_snapshot(
+        self,
+        *,
+        profile: HouseholdProfile,
+        reports: Any,
+    ) -> HouseholdBudgetSnapshot:
+        monthly_plan_total = sum(
+            value
+            for value in (
+                profile.monthly_essential_target,
+                profile.monthly_discretionary_target,
+                profile.monthly_savings_target,
+            )
+            if value is not None
+        )
+        has_plan = any(
+            value is not None
+            for value in (
+                profile.monthly_essential_target,
+                profile.monthly_discretionary_target,
+                profile.monthly_savings_target,
+            )
+        )
+        remaining_cash_after_plan = (
+            profile.monthly_net_income_target - monthly_plan_total
+            if profile.monthly_net_income_target is not None and has_plan
+            else None
+        )
+        discretionary_headroom = (
+            profile.monthly_discretionary_target - reports.executive.average_monthly_discretionary
+            if profile.monthly_discretionary_target is not None
+            else None
+        )
+        if not has_plan:
+            status = "setup_needed"
+            summary = "Set the core monthly plan so Jenny can judge whether current spending is on pace."
+        elif (
+            profile.monthly_essential_target is not None
+            and reports.executive.average_monthly_essentials > profile.monthly_essential_target
+        ):
+            status = "essentials_above_plan"
+            summary = "Essential spending is running above the current target and needs review."
+        elif (
+            profile.monthly_discretionary_target is not None
+            and reports.executive.average_monthly_discretionary > profile.monthly_discretionary_target
+        ):
+            status = "discretionary_above_plan"
+            summary = "Discretionary spending is running above the current cap."
+        else:
+            status = "on_track"
+            summary = "The current monthly spending profile is inside the available budget guardrails."
+
+        return HouseholdBudgetSnapshot(
+            status=status,
+            summary=summary,
+            monthly_income_target=profile.monthly_net_income_target,
+            monthly_plan_total=monthly_plan_total if has_plan else None,
+            essential_target=profile.monthly_essential_target,
+            discretionary_target=profile.monthly_discretionary_target,
+            savings_target=profile.monthly_savings_target,
+            actual_monthly_spend=reports.executive.average_monthly_spend,
+            actual_essential_monthly_spend=reports.executive.average_monthly_essentials,
+            actual_discretionary_monthly_spend=reports.executive.average_monthly_discretionary,
+            remaining_cash_after_plan=remaining_cash_after_plan,
+            discretionary_headroom=discretionary_headroom,
+        )
+
+    def _build_action_items(
+        self,
+        *,
+        questions: list[HouseholdQuestion],
+        opportunities: list[HouseholdOpportunity],
+        next_best_action: str,
+        reports: Any,
+        budget_readiness: BudgetReadiness,
+    ) -> list[HouseholdActionItem]:
+        items: list[HouseholdActionItem] = []
+
+        for question in questions[:3]:
+            items.append(
+                HouseholdActionItem(
+                    title="Answer Jenny follow-up",
+                    detail=question.question,
+                    action_label="Answer in Money System",
+                    href="/money",
+                    priority=question.priority,
+                    source="question",
+                )
+            )
+
+        for missing_input in budget_readiness.missing_inputs[:2]:
+            items.append(
+                HouseholdActionItem(
+                    title="Finish the monthly plan",
+                    detail=missing_input,
+                    action_label="Update plan",
+                    href="/money",
+                    priority="high",
+                    source="budget_readiness",
+                )
+            )
+
+        for opportunity in opportunities[:2]:
+            items.append(
+                HouseholdActionItem(
+                    title=opportunity.title,
+                    detail=opportunity.detail,
+                    action_label="Review in Money System",
+                    href="/money",
+                    priority="medium",
+                    source=opportunity.category,
+                )
+            )
+
+        if reports.executive.tracked_expense_count == 0:
+            items.append(
+                HouseholdActionItem(
+                    title="Feed the household ledger",
+                    detail="Upload a recent checking or credit-card statement so the budget view is based on real transactions.",
+                    action_label="Upload documents",
+                    href="/money",
+                    priority="high",
+                    source="documents",
+                )
+            )
+
+        if not items:
+            items.append(
+                HouseholdActionItem(
+                    title="Next best household step",
+                    detail=next_best_action,
+                    action_label="Open Money System",
+                    href="/money",
+                    priority="medium",
+                    source="overview",
+                )
+            )
+
+        priority_rank = {"high": 0, "medium": 1, "low": 2}
+        deduped: list[HouseholdActionItem] = []
+        seen: set[tuple[str, str]] = set()
+        for item in items:
+            key = (item.title, item.detail)
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(item)
+
+        return sorted(
+            deduped,
+            key=lambda item: (priority_rank.get(item.priority, 3), item.title),
+        )[:6]
 
     def get_profile(self) -> HouseholdProfile:
         row = self._get_profile_row()

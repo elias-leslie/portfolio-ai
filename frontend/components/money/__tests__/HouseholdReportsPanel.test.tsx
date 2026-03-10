@@ -39,6 +39,20 @@ describe('HouseholdReportsPanel', () => {
             missingInputs: [],
             starterLanes: [],
           },
+          budgetSnapshot: {
+            status: 'on_track',
+            summary: 'On track',
+            monthlyIncomeTarget: null,
+            monthlyPlanTotal: null,
+            essentialTarget: null,
+            discretionaryTarget: null,
+            savingsTarget: null,
+            actualMonthlySpend: 4250,
+            actualEssentialMonthlySpend: 2600,
+            actualDiscretionaryMonthlySpend: 1650,
+            remainingCashAfterPlan: null,
+            discretionaryHeadroom: null,
+          },
           retirementPreparedness: {
             status: 'baseline_visible',
             summary: 'Ready',
@@ -47,6 +61,7 @@ describe('HouseholdReportsPanel', () => {
             blockers: [],
             nextSteps: [],
           },
+          actionItems: [],
           opportunities: [],
           importCenter: {
             headline: 'Import',

@@ -83,6 +83,15 @@ class HouseholdOpportunity(BaseModel):
     next_step: str
 
 
+class HouseholdActionItem(BaseModel):
+    title: str
+    detail: str
+    action_label: str
+    href: str
+    priority: str
+    source: str
+
+
 class HouseholdExecutiveReport(BaseModel):
     headline: str
     summary: str
@@ -136,6 +145,21 @@ class HouseholdReports(BaseModel):
     merchant_highlights: list[HouseholdMerchantInsight] = Field(default_factory=list)
     monthly_spend_trend: list[HouseholdMonthlyTrendPoint] = Field(default_factory=list)
     recent_transactions: list[HouseholdRecentTransaction] = Field(default_factory=list)
+
+
+class HouseholdBudgetSnapshot(BaseModel):
+    status: str
+    summary: str
+    monthly_income_target: float | None = None
+    monthly_plan_total: float | None = None
+    essential_target: float | None = None
+    discretionary_target: float | None = None
+    savings_target: float | None = None
+    actual_monthly_spend: float = 0.0
+    actual_essential_monthly_spend: float = 0.0
+    actual_discretionary_monthly_spend: float = 0.0
+    remaining_cash_after_plan: float | None = None
+    discretionary_headroom: float | None = None
 
 
 class ImportFormat(BaseModel):
@@ -224,7 +248,9 @@ class HouseholdFinanceDashboard(BaseModel):
     profile: HouseholdProfile
     resolved_values: list[HouseholdResolvedValue] = Field(default_factory=list)
     budget_readiness: BudgetReadiness
+    budget_snapshot: HouseholdBudgetSnapshot
     retirement_preparedness: RetirementPreparedness
+    action_items: list[HouseholdActionItem] = Field(default_factory=list)
     opportunities: list[HouseholdOpportunity] = Field(default_factory=list)
     reports: HouseholdReports
     import_center: ImportCenter

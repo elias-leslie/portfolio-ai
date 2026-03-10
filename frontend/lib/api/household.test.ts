@@ -54,6 +54,20 @@ describe('household api', () => {
           missing_inputs: [],
           starter_lanes: [],
         },
+        budget_snapshot: {
+          status: 'setup_needed',
+          summary: 'Set the core monthly plan.',
+          monthly_income_target: null,
+          monthly_plan_total: null,
+          essential_target: null,
+          discretionary_target: null,
+          savings_target: null,
+          actual_monthly_spend: 0,
+          actual_essential_monthly_spend: 0,
+          actual_discretionary_monthly_spend: 0,
+          remaining_cash_after_plan: null,
+          discretionary_headroom: null,
+        },
         retirement_preparedness: {
           status: 'baseline_visible',
           summary: 'Needs more data',
@@ -62,6 +76,7 @@ describe('household api', () => {
           blockers: [],
           next_steps: [],
         },
+        action_items: [],
         opportunities: [],
         import_center: {
           headline: 'Import things',

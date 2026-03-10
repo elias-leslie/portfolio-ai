@@ -1,6 +1,7 @@
 'use client'
 
 import { ShieldAlert, Target, Wallet } from 'lucide-react'
+import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -104,6 +105,9 @@ export function DecisionMemoCard({
 
         <Button onClick={onTrackInPortfolio}>
           Track in Portfolio
+        </Button>
+        <Button asChild variant="outline">
+          <Link href={`/symbols/${recommendation.symbol}`}>Open Symbol Workspace</Link>
         </Button>
       </CardContent>
     </Card>

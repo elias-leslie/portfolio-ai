@@ -1,6 +1,7 @@
 'use client'
 
 import { Brain, CheckCircle2, RefreshCw, Siren, TrendingUp } from 'lucide-react'
+import Link from 'next/link'
 import { Card } from '@/components/ui/card'
 import type {
   JennyAgentScorecard,
@@ -234,7 +235,9 @@ export function JennyOperatorPanel() {
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-sm font-semibold text-text">
-                          {review.symbol}
+                          <Link href={`/symbols/${review.symbol}`} className="hover:underline">
+                            {review.symbol}
+                          </Link>
                         </p>
                         <p className="mt-1 text-sm text-text-muted">
                           {reviewSubtitle(review)}

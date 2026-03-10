@@ -19,6 +19,7 @@ from app.api import (
     # files removed - use SummitFlow for file browsing
     # gaps removed - migrated to [DEBT] subtasks on features
     health,
+    home,
     household,
     # ideas removed - deprecated in favor of strategy-seeds (FEAT-218)
     news,
@@ -139,6 +140,7 @@ app.add_middleware(RequestIDMiddleware)
 
 # Register routers
 app.include_router(health.router)
+app.include_router(home.router)
 app.include_router(household.router)
 app.include_router(portfolio.router)
 # ideas.router removed - deprecated in favor of strategy-seeds (FEAT-218)
