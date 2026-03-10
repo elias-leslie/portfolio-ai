@@ -11,6 +11,8 @@ from fastapi import APIRouter
 from fastapi.concurrency import run_in_threadpool
 
 from app.logging_config import get_logger
+from app.models.symbol_workflow import SymbolWorkflow, SymbolWorkflowTransitionRequest
+from app.services.symbol_workflow_service import SymbolWorkflowService
 from app.storage import get_storage
 from app.watchlist.watchlist_service import WatchlistService
 
@@ -36,6 +38,7 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/api/symbols", tags=["symbols"])
 storage = get_storage()
 watchlist_service = WatchlistService(storage)
+workflow_service = SymbolWorkflowService()
 
 
 def _build_response(
@@ -116,3 +119,25 @@ async def get_symbol_intelligence(
         return SymbolIntelligenceResponse(
             symbol=symbol.upper(), generated_at=datetime.now(UTC), error=str(e)
         )
+
+
+@router.get("/{symbol}/workflow", response_model=SymbolWorkflow)
+async def get_symbol_workflow(symbol: str) -> SymbolWorkflow:
+    """Return the persisted operating workflow for a symbol."""
+    payload = await run_in_threadpool(workflow_service.get_workflow, symbol)
+    return SymbolWorkflow.model_validate(payload)
+
+
+@router.post("/{symbol}/workflow/transition", response_model=SymbolWorkflow)
+async def transition_symbol_workflow(
+    symbol: str,
+    payload: SymbolWorkflowTransitionRequest,
+) -> SymbolWorkflow:
+    """Advance or reset a symbol inside the investing workflow loop."""
+    result = await run_in_threadpool(
+        workflow_service.transition,
+        symbol,
+        payload.stage,
+        payload.note,
+    )
+    return SymbolWorkflow.model_validate(result)

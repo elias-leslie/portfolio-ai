@@ -10,6 +10,7 @@ from app.logging_config import get_logger
 from app.portfolio.totals import get_live_portfolio_totals
 from app.services.household_finance_service import HouseholdFinanceService
 from app.services.jenny_operator_service import JennyOperatorService
+from app.services.symbol_workflow_service import SymbolWorkflowService
 from app.storage import get_storage
 
 logger = get_logger(__name__)
@@ -30,11 +31,13 @@ class HomeActionService:
         self.storage = get_storage()
         self.household_service = HouseholdFinanceService()
         self.jenny_service = JennyOperatorService()
+        self.workflow_service = SymbolWorkflowService()
 
     def get_action_queue(self) -> dict[str, object]:
         actions: list[dict[str, object]] = []
         actions.extend(self._recommendation_actions())
         actions.extend(self._jenny_actions())
+        actions.extend(self._workflow_actions())
         actions.extend(self._household_actions())
 
         if not actions:
@@ -120,6 +123,11 @@ class HomeActionService:
                     "href": f"/symbols/{recommendation.symbol}",
                     "symbol": recommendation.symbol,
                     "badge": confidence_badge,
+                    "execution": {
+                        "kind": "workflow_transition",
+                        "symbol": recommendation.symbol,
+                        "stage": "thesis_ready",
+                    },
                 }
             )
         return actions
@@ -153,6 +161,10 @@ class HomeActionService:
                     "href": href,
                     "symbol": notification.symbol,
                     "badge": notification.severity.title(),
+                    "execution": {
+                        "kind": "acknowledge_notification",
+                        "notification_id": notification.id,
+                    },
                 }
             )
 
@@ -172,6 +184,57 @@ class HomeActionService:
                 }
             )
 
+        return actions
+
+    def _workflow_actions(self) -> list[dict[str, object]]:
+        workflow_service = getattr(self, "workflow_service", None)
+        if workflow_service is None:
+            return []
+
+        actions: list[dict[str, object]] = []
+        for workflow in workflow_service.list_priority_workflows(limit=3):
+            stage = str(workflow["stage"])
+            symbol = str(workflow["symbol"])
+            if stage == "review_due":
+                actions.append(
+                    {
+                        "id": f"workflow-review-{symbol}",
+                        "source": "workflow",
+                        "category": "learning",
+                        "priority": "medium",
+                        "title": f"Close the loop on {symbol}",
+                        "detail": "A review is due before this symbol keeps moving through the workflow.",
+                        "action_label": "Mark reviewed",
+                        "href": f"/symbols/{symbol}",
+                        "symbol": symbol,
+                        "badge": "Review due",
+                        "execution": {
+                            "kind": "workflow_transition",
+                            "symbol": symbol,
+                            "stage": "tracked",
+                        },
+                    }
+                )
+            elif stage == "invalidated":
+                actions.append(
+                    {
+                        "id": f"workflow-invalidated-{symbol}",
+                        "source": "workflow",
+                        "category": "investing",
+                        "priority": "warning",
+                        "title": f"Reset {symbol} after invalidation",
+                        "detail": "Keep this name out of the active loop unless the thesis is rebuilt.",
+                        "action_label": "Restart discovery",
+                        "href": f"/symbols/{symbol}",
+                        "symbol": symbol,
+                        "badge": "Invalidated",
+                        "execution": {
+                            "kind": "workflow_transition",
+                            "symbol": symbol,
+                            "stage": "discover",
+                        },
+                    }
+                )
         return actions
 
     def _household_actions(self) -> list[dict[str, object]]:

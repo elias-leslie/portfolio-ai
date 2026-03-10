@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fetchHomeActionQueue } from './home'
+import { fetchAutomationCenter, fetchHomeActionQueue } from './home'
 
 describe('home api', () => {
   const originalFetch = global.fetch
@@ -28,6 +28,27 @@ describe('home api', () => {
 
     expect(global.fetch).toHaveBeenCalledWith(
       'http://localhost:8000/api/home/action-queue',
+      expect.objectContaining({ method: 'GET' }),
+    )
+  })
+
+  it('requests the automation center endpoint', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: vi.fn().mockResolvedValue({
+        generated_at: '2026-03-10T00:00:00Z',
+        guardrails: [],
+        recent_runs: [],
+        warnings: [],
+      }),
+    }) as unknown as typeof fetch
+
+    await fetchAutomationCenter()
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://localhost:8000/api/home/automation-center',
       expect.objectContaining({ method: 'GET' }),
     )
   })

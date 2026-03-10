@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
   answerHouseholdQuestion,
+  categorizeHouseholdTransaction,
   type HouseholdDocumentUpload,
   type HouseholdProfileUpdate,
   fetchHouseholdDashboard,
@@ -91,6 +92,30 @@ export function useAnswerHouseholdQuestion() {
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Failed to answer Jenny question')
+    },
+  })
+}
+
+export function useCategorizeHouseholdTransaction() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      transactionId,
+      category,
+      essentiality,
+    }: {
+      transactionId: string
+      category: string
+      essentiality: string
+    }) =>
+      categorizeHouseholdTransaction(transactionId, { category, essentiality }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['household'], refetchType: 'active' })
+      toast.success('Household category confirmed.')
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Failed to categorize transaction')
     },
   })
 }

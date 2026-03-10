@@ -2,6 +2,7 @@
 
 import { Loader2 } from 'lucide-react'
 import { Suspense, useEffect, useRef, useState } from 'react'
+import { AutomationCenter } from '@/components/home/AutomationCenter'
 import { MarketIntelligence } from '@/components/market/MarketIntelligence'
 import { HomeActionQueue } from '@/components/home/HomeActionQueue'
 import { TodayIdeasSection } from '@/components/recommendations/TodayIdeasSection'
@@ -140,6 +141,8 @@ export default function Dashboard() {
       />
 
       <HomeActionQueue />
+
+      <AutomationCenter />
 
       <TodayIdeasSection />
 

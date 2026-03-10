@@ -95,3 +95,46 @@ def test_build_action_items_prioritizes_questions_and_budget_gaps() -> None:
     assert items[0].title == "Answer Jenny follow-up"
     assert items[0].priority == "high"
     assert any(item.title == "Tighten grocery baseline" for item in items)
+
+
+def test_build_retirement_contribution_tracker_highlights_gap_to_target() -> None:
+    service = object.__new__(HouseholdFinanceService)
+    profile = HouseholdProfile(
+        id="profile-1",
+        household_name="Household",
+        monthly_net_income_target=12000,
+        monthly_essential_target=5200,
+        monthly_discretionary_target=1800,
+        monthly_savings_target=2500,
+        target_retirement_age=60,
+        target_retirement_spend=5500,
+        notes=None,
+        created_at="2026-03-10T00:00:00Z",
+        updated_at="2026-03-10T00:00:00Z",
+    )
+
+    tracker = service._build_retirement_contribution_tracker(
+        profile=profile,
+        estimated_monthly_contributions=900,
+    )
+
+    assert tracker.monthly_target == 2500
+    assert tracker.estimated_monthly_contributions == 900
+    assert tracker.monthly_gap == 1600
+    assert tracker.status == "gap"
+
+
+def test_build_retirement_scenarios_uses_assets_and_target_spend() -> None:
+    service = object.__new__(HouseholdFinanceService)
+
+    scenarios = service._build_retirement_scenarios(
+        retirement_assets=600000,
+        target_retirement_spend=5000,
+        baseline_monthly_spend=4300,
+    )
+
+    assert len(scenarios) == 3
+    assert scenarios[0].name == "Base plan"
+    assert scenarios[0].monthly_spend == 5000
+    assert scenarios[0].funded_years == 10.0
+    assert scenarios[1].monthly_spend > scenarios[0].monthly_spend

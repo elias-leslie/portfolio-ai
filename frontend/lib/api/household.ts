@@ -146,6 +146,55 @@ export interface HouseholdBudgetSnapshot {
   discretionaryHeadroom: number | null
 }
 
+export interface HouseholdCategorizationCandidate {
+  id: string
+  merchant: string
+  description: string
+  amount: number
+  transactionDate: string
+  currentCategory: string
+  currentEssentiality: string
+  suggestedCategory: string
+  suggestedEssentiality: string
+  confidence: number
+  reason: string
+}
+
+export interface HouseholdRecurringCommitment {
+  merchant: string
+  category: string
+  cadence: string
+  averageAmount: number
+  annualizedCost: number
+  lastSeen: string
+  nextExpected: string | null
+  commitmentType: string
+}
+
+export interface HouseholdSinkingFund {
+  name: string
+  monthlyTarget: number
+  annualCost: number
+  rationale: string
+}
+
+export interface HouseholdRetirementContributionTracker {
+  status: string
+  monthlyTarget: number | null
+  estimatedMonthlyContributions: number
+  monthlyGap: number
+  detail: string
+}
+
+export interface HouseholdRetirementScenario {
+  name: string
+  monthlySpend: number
+  annualSpend: number
+  fundedYears: number
+  readiness: string
+  detail: string
+}
+
 export interface ImportFormat {
   label: string
   formats: string[]
@@ -224,6 +273,11 @@ export interface HouseholdFinanceDashboard {
   questions: HouseholdQuestion[]
   jennyBrief: JennyMoneyBrief
   reports: HouseholdReports
+  categorizationQueue: HouseholdCategorizationCandidate[]
+  recurringCommitments: HouseholdRecurringCommitment[]
+  sinkingFunds: HouseholdSinkingFund[]
+  retirementContributionTracker: HouseholdRetirementContributionTracker
+  retirementScenarios: HouseholdRetirementScenario[]
 }
 
 export interface HouseholdProfileUpdate {
@@ -246,6 +300,11 @@ export interface HouseholdDocumentUpload {
 
 export interface HouseholdQuestionAnswer {
   answerText: string
+}
+
+export interface HouseholdTransactionCategoryUpdate {
+  category: string
+  essentiality: string
 }
 
 export async function fetchHouseholdDashboard(): Promise<HouseholdFinanceDashboard> {
@@ -292,4 +351,11 @@ export async function answerHouseholdQuestion(
   payload: HouseholdQuestionAnswer,
 ): Promise<HouseholdQuestion> {
   return post<HouseholdQuestion>(`/api/household/questions/${questionId}/answer`, payload)
+}
+
+export async function categorizeHouseholdTransaction(
+  transactionId: string,
+  payload: HouseholdTransactionCategoryUpdate,
+): Promise<{ ok: boolean }> {
+  return post<{ ok: boolean }>(`/api/household/transactions/${transactionId}/categorize`, payload)
 }

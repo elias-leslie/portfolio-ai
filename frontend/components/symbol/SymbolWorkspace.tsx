@@ -8,6 +8,7 @@ import { SectionCard } from '@/components/shared/SectionCard'
 import { Button } from '@/components/ui/button'
 import { useJennyDashboard } from '@/lib/hooks/usePortfolio'
 import { useSymbolIntelligence } from '@/lib/hooks/useSymbolIntelligence'
+import { SymbolWorkflowPanel } from '@/components/symbol/SymbolWorkflowPanel'
 import { ThesisSection } from '@/components/watchlist/ThesisSection'
 
 function formatCurrency(value: number | null | undefined) {
@@ -220,6 +221,8 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
           </div>
         </SectionCard>
       </div>
+
+      <SymbolWorkflowPanel symbol={uppercaseSymbol} />
 
       <ThesisSection symbol={uppercaseSymbol} userTimezone="America/New_York" />
 

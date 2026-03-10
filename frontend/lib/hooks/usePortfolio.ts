@@ -228,6 +228,10 @@ export function useRunJennyRoutine() {
         queryKey: ['portfolio'],
         refetchType: 'active',
       })
+      queryClient.invalidateQueries({
+        queryKey: ['home'],
+        refetchType: 'active',
+      })
       toast.success('Jenny finished a new review.')
     },
     onError: (error) => {
@@ -246,6 +250,10 @@ export function useAcknowledgeJennyNotification() {
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ['portfolio', 'jenny'],
+        refetchType: 'active',
+      })
+      queryClient.invalidateQueries({
+        queryKey: ['home'],
         refetchType: 'active',
       })
     },

@@ -162,6 +162,55 @@ class HouseholdBudgetSnapshot(BaseModel):
     discretionary_headroom: float | None = None
 
 
+class HouseholdCategorizationCandidate(BaseModel):
+    id: str
+    merchant: str
+    description: str
+    amount: float
+    transaction_date: str
+    current_category: str
+    current_essentiality: str
+    suggested_category: str
+    suggested_essentiality: str
+    confidence: float
+    reason: str
+
+
+class HouseholdRecurringCommitment(BaseModel):
+    merchant: str
+    category: str
+    cadence: str
+    average_amount: float
+    annualized_cost: float
+    last_seen: str
+    next_expected: str | None = None
+    commitment_type: str
+
+
+class HouseholdSinkingFund(BaseModel):
+    name: str
+    monthly_target: float
+    annual_cost: float
+    rationale: str
+
+
+class HouseholdRetirementContributionTracker(BaseModel):
+    status: str
+    monthly_target: float | None = None
+    estimated_monthly_contributions: float = 0.0
+    monthly_gap: float = 0.0
+    detail: str
+
+
+class HouseholdRetirementScenario(BaseModel):
+    name: str
+    monthly_spend: float
+    annual_spend: float
+    funded_years: float
+    readiness: str
+    detail: str
+
+
 class ImportFormat(BaseModel):
     label: str
     formats: list[str] = Field(default_factory=list)
@@ -253,6 +302,16 @@ class HouseholdFinanceDashboard(BaseModel):
     action_items: list[HouseholdActionItem] = Field(default_factory=list)
     opportunities: list[HouseholdOpportunity] = Field(default_factory=list)
     reports: HouseholdReports
+    categorization_queue: list[HouseholdCategorizationCandidate] = Field(default_factory=list)
+    recurring_commitments: list[HouseholdRecurringCommitment] = Field(default_factory=list)
+    sinking_funds: list[HouseholdSinkingFund] = Field(default_factory=list)
+    retirement_contribution_tracker: HouseholdRetirementContributionTracker
+    retirement_scenarios: list[HouseholdRetirementScenario] = Field(default_factory=list)
     import_center: ImportCenter
     questions: list[HouseholdQuestion] = Field(default_factory=list)
     jenny_brief: JennyMoneyBrief
+
+
+class HouseholdTransactionCategoryUpdate(BaseModel):
+    category: str
+    essentiality: str

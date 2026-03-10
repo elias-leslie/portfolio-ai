@@ -7,7 +7,7 @@ import json
 import re
 import uuid
 from csv import DictReader
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, cast
@@ -20,6 +20,7 @@ from app.models.household_finance import (
     BudgetReadiness,
     HouseholdActionItem,
     HouseholdBudgetSnapshot,
+    HouseholdCategorizationCandidate,
     HouseholdDocument,
     HouseholdDocumentList,
     HouseholdFinanceDashboard,
@@ -30,7 +31,12 @@ from app.models.household_finance import (
     HouseholdQuestion,
     HouseholdQuestionAnswer,
     HouseholdQuestionList,
+    HouseholdRecurringCommitment,
     HouseholdResolvedValue,
+    HouseholdRetirementContributionTracker,
+    HouseholdRetirementScenario,
+    HouseholdSinkingFund,
+    HouseholdTransactionCategoryUpdate,
     ImportCenter,
     ImportFormat,
     JennyMoneyBrief,
@@ -224,12 +230,25 @@ class HouseholdFinanceService:
             profile=profile,
             reports=reports,
         )
+        categorization_queue = self._build_categorization_queue()
+        recurring_commitments = self._build_recurring_commitments()
+        sinking_funds = self._build_sinking_funds(recurring_commitments=recurring_commitments)
+        retirement_contribution_tracker = self._build_retirement_contribution_tracker(
+            profile=profile,
+            estimated_monthly_contributions=self._estimate_monthly_retirement_contributions(),
+        )
+        retirement_scenarios = self._build_retirement_scenarios(
+            retirement_assets=retirement_assets,
+            target_retirement_spend=profile.target_retirement_spend,
+            baseline_monthly_spend=reports.executive.average_monthly_spend,
+        )
         action_items = self._build_action_items(
             questions=questions,
             opportunities=opportunities,
             next_best_action=overview.next_best_action,
             reports=reports,
             budget_readiness=budget_readiness,
+            categorization_queue=categorization_queue,
         )
 
         jenny_brief = JennyMoneyBrief(
@@ -256,6 +275,11 @@ class HouseholdFinanceService:
             action_items=action_items,
             opportunities=opportunities,
             reports=reports,
+            categorization_queue=categorization_queue,
+            recurring_commitments=recurring_commitments,
+            sinking_funds=sinking_funds,
+            retirement_contribution_tracker=retirement_contribution_tracker,
+            retirement_scenarios=retirement_scenarios,
             import_center=import_center,
             questions=questions,
             jenny_brief=jenny_brief,
@@ -336,8 +360,10 @@ class HouseholdFinanceService:
         next_best_action: str,
         reports: Any,
         budget_readiness: BudgetReadiness,
+        categorization_queue: list[HouseholdCategorizationCandidate] | None = None,
     ) -> list[HouseholdActionItem]:
         items: list[HouseholdActionItem] = []
+        categorization_queue = categorization_queue or []
 
         for question in questions[:3]:
             items.append(
@@ -387,6 +413,18 @@ class HouseholdFinanceService:
                 )
             )
 
+        if categorization_queue:
+            items.append(
+                HouseholdActionItem(
+                    title="Review uncategorized spending",
+                    detail=f"{len(categorization_queue)} transaction{'s' if len(categorization_queue) != 1 else ''} still need clean categories.",
+                    action_label="Categorize now",
+                    href="/money",
+                    priority="high",
+                    source="categorization_queue",
+                )
+            )
+
         if not items:
             items.append(
                 HouseholdActionItem(
@@ -413,6 +451,268 @@ class HouseholdFinanceService:
             deduped,
             key=lambda item: (priority_rank.get(item.priority, 3), item.title),
         )[:6]
+
+    def _build_categorization_queue(self, limit: int = 6) -> list[HouseholdCategorizationCandidate]:
+        with self.storage.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    id,
+                    COALESCE(raw_merchant, description) AS merchant,
+                    description,
+                    amount,
+                    transaction_date,
+                    category,
+                    essentiality,
+                    confidence
+                FROM household_transactions
+                WHERE flow_type = 'expense'
+                  AND (
+                    COALESCE(category, 'Household') = 'Household'
+                    OR COALESCE(essentiality, 'mixed') = 'mixed'
+                    OR COALESCE(confidence, 0) < 0.85
+                  )
+                ORDER BY COALESCE(confidence, 0) ASC, transaction_date DESC
+                LIMIT %s
+                """,
+                [limit],
+            ).fetchall()
+
+        return [
+            HouseholdCategorizationCandidate(
+                id=str(row[0]),
+                merchant=str(row[1]),
+                description=str(row[2]),
+                amount=float(row[3]),
+                transaction_date=row[4].isoformat(),
+                current_category=str(row[5] or "Household"),
+                current_essentiality=str(row[6] or "mixed"),
+                suggested_category=self._suggest_category(str(row[1]), str(row[2])),
+                suggested_essentiality=self._suggest_essentiality(str(row[1]), str(row[2])),
+                confidence=float(row[7] or 0.0),
+                reason="Low-confidence or mixed classification needs a human pass before Jenny hardens the budget lane.",
+            )
+            for row in rows
+        ]
+
+    def _build_recurring_commitments(self, limit: int = 6) -> list[HouseholdRecurringCommitment]:
+        commitments: list[HouseholdRecurringCommitment] = []
+        with self.storage.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    COALESCE(m.canonical_name, t.raw_merchant, t.description) AS merchant,
+                    COALESCE(t.category, 'Household') AS category,
+                    AVG(CAST(t.amount AS DOUBLE PRECISION)) AS average_amount,
+                    COUNT(*) AS transaction_count,
+                    MAX(t.transaction_date) AS last_seen
+                FROM household_transactions t
+                LEFT JOIN household_merchants m ON m.id = t.merchant_id
+                WHERE t.flow_type = 'expense'
+                GROUP BY 1, 2
+                HAVING COUNT(*) >= 2
+                ORDER BY average_amount DESC
+                LIMIT %s
+                """,
+                [limit * 2],
+            ).fetchall()
+
+        for row in rows:
+            merchant = str(row[0])
+            cadence_info = self.transaction_service.infer_merchant_cadence(merchant=merchant) or {}
+            cadence = str(cadence_info.get("label") or "irregular")
+            if cadence not in {"monthly", "biweekly", "weekly", "quarterly"}:
+                continue
+            average_amount = float(row[2] or 0.0)
+            last_seen = row[4]
+            if last_seen is None:
+                continue
+            annualized_cost = average_amount * {
+                "weekly": 52,
+                "biweekly": 26,
+                "monthly": 12,
+                "quarterly": 4,
+            }.get(cadence, 12)
+            commitment_type = (
+                "subscription"
+                if str(row[1]).lower() in {"subscriptions", "dining"}
+                else "bill"
+            )
+            next_expected = self._estimate_next_commitment_date(last_seen, cadence)
+            commitments.append(
+                HouseholdRecurringCommitment(
+                    merchant=merchant,
+                    category=str(row[1]),
+                    cadence=cadence,
+                    average_amount=round(average_amount, 2),
+                    annualized_cost=round(annualized_cost, 2),
+                    last_seen=last_seen.isoformat(),
+                    next_expected=next_expected,
+                    commitment_type=commitment_type,
+                )
+            )
+        return commitments[:limit]
+
+    def _build_sinking_funds(
+        self,
+        *,
+        recurring_commitments: list[HouseholdRecurringCommitment],
+    ) -> list[HouseholdSinkingFund]:
+        funds: list[HouseholdSinkingFund] = []
+        for commitment in recurring_commitments:
+            if commitment.cadence not in {"quarterly", "irregular"} and commitment.average_amount < 150:
+                continue
+            annual_cost = commitment.annualized_cost
+            monthly_target = round(annual_cost / 12, 2)
+            funds.append(
+                HouseholdSinkingFund(
+                    name=f"{commitment.merchant} buffer",
+                    monthly_target=monthly_target,
+                    annual_cost=round(annual_cost, 2),
+                    rationale="Set aside a monthly buffer so periodic or lumpy household costs stop surprising the budget.",
+                )
+            )
+        return funds[:4]
+
+    def _build_retirement_contribution_tracker(
+        self,
+        *,
+        profile: HouseholdProfile,
+        estimated_monthly_contributions: float,
+    ) -> HouseholdRetirementContributionTracker:
+        monthly_target = profile.monthly_savings_target
+        if monthly_target is None:
+            return HouseholdRetirementContributionTracker(
+                status="target_missing",
+                monthly_target=None,
+                estimated_monthly_contributions=estimated_monthly_contributions,
+                monthly_gap=0.0,
+                detail="Set the monthly savings target so Jenny can compare current retirement contributions against the plan.",
+            )
+
+        monthly_gap = max(monthly_target - estimated_monthly_contributions, 0.0)
+        status = "gap" if monthly_gap > 0 else "on_track"
+        detail = (
+            "Recent retirement contributions are trailing the household savings target."
+            if monthly_gap > 0
+            else "Recent retirement contributions are keeping up with the savings target."
+        )
+        return HouseholdRetirementContributionTracker(
+            status=status,
+            monthly_target=monthly_target,
+            estimated_monthly_contributions=estimated_monthly_contributions,
+            monthly_gap=monthly_gap,
+            detail=detail,
+        )
+
+    def _build_retirement_scenarios(
+        self,
+        *,
+        retirement_assets: float,
+        target_retirement_spend: float | None,
+        baseline_monthly_spend: float,
+    ) -> list[HouseholdRetirementScenario]:
+        base_monthly_spend = target_retirement_spend or baseline_monthly_spend or 0.0
+        if base_monthly_spend <= 0:
+            return []
+
+        scenarios: list[HouseholdRetirementScenario] = []
+        scenario_inputs = [
+            ("Base plan", base_monthly_spend),
+            ("Higher-spend stretch", round(base_monthly_spend * 1.15, 2)),
+            ("Lean floor", round(base_monthly_spend * 0.85, 2)),
+        ]
+        for name, monthly_spend in scenario_inputs:
+            annual_spend = monthly_spend * 12
+            funded_years = round(retirement_assets / annual_spend, 1) if annual_spend > 0 else 0.0
+            readiness = "strong" if funded_years >= 25 else "developing" if funded_years >= 15 else "short"
+            scenarios.append(
+                HouseholdRetirementScenario(
+                    name=name,
+                    monthly_spend=round(monthly_spend, 2),
+                    annual_spend=round(annual_spend, 2),
+                    funded_years=funded_years,
+                    readiness=readiness,
+                    detail="A plain-language spend scenario using currently visible retirement assets.",
+                )
+            )
+        return scenarios
+
+    def _estimate_monthly_retirement_contributions(self) -> float:
+        with self.storage.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT AVG(month_total)
+                FROM (
+                    SELECT
+                        date_trunc('month', transaction_date) AS month_bucket,
+                        SUM(CAST(amount AS DOUBLE PRECISION)) AS month_total
+                    FROM household_transactions
+                    WHERE flow_type IN ('transfer_out', 'expense')
+                      AND (
+                        COALESCE(account_label, '') ILIKE '%ira%'
+                        OR COALESCE(account_label, '') ILIKE '%401%'
+                        OR COALESCE(account_label, '') ILIKE '%roth%'
+                        OR COALESCE(account_label, '') ILIKE '%hsa%'
+                      )
+                    GROUP BY 1
+                ) monthly_contributions
+                """
+            ).fetchone()
+        return round(float(row[0] or 0.0), 2) if row is not None else 0.0
+
+    def _estimate_next_commitment_date(self, last_seen: datetime, cadence: str) -> str | None:
+        offsets = {
+            "weekly": timedelta(days=7),
+            "biweekly": timedelta(days=14),
+            "monthly": timedelta(days=30),
+            "quarterly": timedelta(days=90),
+        }
+        if cadence not in offsets:
+            return None
+        return (last_seen + offsets[cadence]).isoformat()
+
+    def _suggest_category(self, merchant: str, description: str) -> str:
+        candidate = f"{merchant} {description}".lower()
+        if "spotify" in candidate or "netflix" in candidate or "prime" in candidate:
+            return "Subscriptions"
+        if "walmart" in candidate or "publix" in candidate or "whole foods" in candidate:
+            return "Groceries"
+        if "shell" in candidate or "speedway" in candidate:
+            return "Gas"
+        if "insurance" in candidate or "duke" in candidate or "mortgage" in candidate:
+            return "Bills"
+        return "Household"
+
+    def _suggest_essentiality(self, merchant: str, description: str) -> str:
+        category = self._suggest_category(merchant, description)
+        return "essential" if category in {"Groceries", "Gas", "Bills"} else "discretionary"
+
+    def update_transaction_category(
+        self,
+        transaction_id: str,
+        payload: HouseholdTransactionCategoryUpdate,
+    ) -> bool:
+        with self.storage.connection() as conn:
+            row = conn.execute(
+                """
+                UPDATE household_transactions
+                SET category = %s,
+                    essentiality = %s,
+                    confidence = GREATEST(COALESCE(confidence, 0), 0.97),
+                    updated_at = %s
+                WHERE id = %s
+                RETURNING id
+                """,
+                [
+                    payload.category,
+                    payload.essentiality,
+                    datetime.now(UTC),
+                    transaction_id,
+                ],
+            ).fetchone()
+            conn.commit()
+        return row is not None
 
     def get_profile(self) -> HouseholdProfile:
         row = self._get_profile_row()

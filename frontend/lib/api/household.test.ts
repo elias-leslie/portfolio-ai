@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   answerHouseholdQuestion,
+  categorizeHouseholdTransaction,
   fetchHouseholdDashboard,
   uploadHouseholdDocument,
 } from './household'
@@ -78,6 +79,17 @@ describe('household api', () => {
         },
         action_items: [],
         opportunities: [],
+        categorization_queue: [],
+        recurring_commitments: [],
+        sinking_funds: [],
+        retirement_contribution_tracker: {
+          status: 'target_missing',
+          monthly_target: null,
+          estimated_monthly_contributions: 0,
+          monthly_gap: 0,
+          detail: 'Set a target.',
+        },
+        retirement_scenarios: [],
         import_center: {
           headline: 'Import things',
           tracked_documents: 0,
@@ -183,6 +195,27 @@ describe('household api', () => {
 
     expect(global.fetch).toHaveBeenCalledWith(
       'http://localhost:8000/api/household/questions/question-1/answer',
+      expect.objectContaining({
+        method: 'POST',
+      }),
+    )
+  })
+
+  it('categorizes a household transaction', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: vi.fn().mockResolvedValue({ ok: true }),
+    }) as unknown as typeof fetch
+
+    await categorizeHouseholdTransaction('txn-1', {
+      category: 'Groceries',
+      essentiality: 'essential',
+    })
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://localhost:8000/api/household/transactions/txn-1/categorize',
       expect.objectContaining({
         method: 'POST',
       }),

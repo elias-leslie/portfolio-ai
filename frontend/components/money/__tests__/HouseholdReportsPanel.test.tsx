@@ -63,6 +63,17 @@ describe('HouseholdReportsPanel', () => {
           },
           actionItems: [],
           opportunities: [],
+          categorizationQueue: [],
+          recurringCommitments: [],
+          sinkingFunds: [],
+          retirementContributionTracker: {
+            status: 'target_missing',
+            monthlyTarget: null,
+            estimatedMonthlyContributions: 0,
+            monthlyGap: 0,
+            detail: 'Set a target.',
+          },
+          retirementScenarios: [],
           importCenter: {
             headline: 'Import',
             trackedDocuments: 0,

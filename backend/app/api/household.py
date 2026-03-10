@@ -14,6 +14,7 @@ from app.models.household_finance import (
     HouseholdQuestion,
     HouseholdQuestionAnswer,
     HouseholdQuestionList,
+    HouseholdTransactionCategoryUpdate,
 )
 from app.services.household_finance_service import HouseholdFinanceService
 
@@ -81,3 +82,15 @@ async def upload_household_document(
     if document.metadata.get("duplicate_detected") is not True:
         background_tasks.add_task(service.review_document, document.id)
     return document
+
+
+@router.post("/transactions/{transaction_id}/categorize")
+async def categorize_household_transaction(
+    transaction_id: str,
+    payload: HouseholdTransactionCategoryUpdate,
+) -> dict[str, bool]:
+    """Confirm category and essentiality for a household transaction."""
+    updated = await run_in_threadpool(service.update_transaction_category, transaction_id, payload)
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Household transaction not found: {transaction_id}")
+    return {"ok": True}

@@ -4,7 +4,11 @@ import { ArrowRight, Brain, House, Target } from 'lucide-react'
 import Link from 'next/link'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import type { HomeActionItem } from '@/lib/api/home'
 import { useHomeActionQueue } from '@/lib/hooks/useHomeActionQueue'
+import { useAcknowledgeJennyNotification } from '@/lib/hooks/usePortfolio'
+import { useTransitionSymbolWorkflow } from '@/lib/hooks/useSymbolIntelligence'
 
 const categoryIcons = {
   household: House,
@@ -23,6 +27,31 @@ const priorityTone = {
 
 export function HomeActionQueue() {
   const { data, isLoading, error } = useHomeActionQueue()
+  const acknowledgeNotification = useAcknowledgeJennyNotification()
+  const transitionWorkflow = useTransitionSymbolWorkflow()
+
+  const handleExecution = (action: HomeActionItem) => {
+    const execution = action.execution
+    if (!execution) {
+      return
+    }
+
+    if (execution.kind === 'acknowledge_notification' && execution.notificationId) {
+      acknowledgeNotification.mutate(execution.notificationId)
+      return
+    }
+
+    if (
+      execution.kind === 'workflow_transition' &&
+      execution.symbol &&
+      execution.stage
+    ) {
+      transitionWorkflow.mutate({
+        symbol: execution.symbol,
+        stage: execution.stage,
+      })
+    }
+  }
 
   return (
     <SectionCard
@@ -60,9 +89,8 @@ export function HomeActionQueue() {
               priorityTone.low
 
             return (
-              <Link
+              <div
                 key={action.id}
-                href={action.href}
                 className={`rounded-2xl border p-4 transition hover:border-primary/40 hover:bg-surface-muted/30 ${tone}`}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -75,11 +103,26 @@ export function HomeActionQueue() {
                   </div>
                   {action.badge ? <Badge variant="outline">{action.badge}</Badge> : null}
                 </div>
-                <div className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-text">
-                  {action.actionLabel}
-                  <ArrowRight className="h-4 w-4" />
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={action.href}>
+                      {action.actionLabel}
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Link>
+                  </Button>
+                  {action.execution ? (
+                    <Button
+                      size="sm"
+                      onClick={() => handleExecution(action)}
+                      disabled={
+                        acknowledgeNotification.isPending || transitionWorkflow.isPending
+                      }
+                    >
+                      Quick action
+                    </Button>
+                  ) : null}
                 </div>
-              </Link>
+              </div>
             )
           })}
         </div>

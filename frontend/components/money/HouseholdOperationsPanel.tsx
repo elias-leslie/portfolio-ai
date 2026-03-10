@@ -2,7 +2,10 @@
 
 import { useState } from 'react'
 import type { HouseholdFinanceDashboard } from '@/lib/api/household'
-import { useAnswerHouseholdQuestion } from '@/lib/hooks/useHousehold'
+import {
+  useAnswerHouseholdQuestion,
+  useCategorizeHouseholdTransaction,
+} from '@/lib/hooks/useHousehold'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -24,10 +27,11 @@ export function HouseholdOperationsPanel({
   dashboard: HouseholdFinanceDashboard
 }) {
   const answerQuestion = useAnswerHouseholdQuestion()
+  const categorizeTransaction = useCategorizeHouseholdTransaction()
   const [drafts, setDrafts] = useState<Record<string, string>>({})
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+    <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
       <SectionCard
         variant="surface"
         title="Operational Queue"
@@ -96,6 +100,60 @@ export function HouseholdOperationsPanel({
               </div>
             ))}
           </div>
+
+          <div className="space-y-3 rounded-2xl border border-border/40 bg-surface/40 p-4">
+            <div>
+              <p className="text-sm font-semibold text-text">Categorization review</p>
+              <p className="mt-1 text-sm text-text-muted">
+                Confirm low-confidence spend rows so the budget and merchant insights stop drifting.
+              </p>
+            </div>
+            {dashboard.categorizationQueue.length === 0 ? (
+              <div className="rounded-2xl border border-gain/30 bg-gain/10 p-4 text-sm text-text-muted">
+                No categorization follow-ups are waiting right now.
+              </div>
+            ) : (
+              dashboard.categorizationQueue.slice(0, 4).map((candidate) => (
+                <div
+                  key={candidate.id}
+                  className="rounded-2xl border border-border/40 bg-surface/80 p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-text">{candidate.merchant}</p>
+                      <p className="mt-1 text-sm text-text-muted">{candidate.description}</p>
+                    </div>
+                    <span className="text-sm font-semibold text-text">
+                      {formatCurrency(candidate.amount)}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-xs uppercase tracking-wide text-text-muted">
+                    {candidate.currentCategory} / {candidate.currentEssentiality} {'->'}{' '}
+                    {candidate.suggestedCategory} / {candidate.suggestedEssentiality}
+                  </p>
+                  <p className="mt-2 text-sm text-text-muted">{candidate.reason}</p>
+                  <div className="mt-3 flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        categorizeTransaction.mutate({
+                          transactionId: candidate.id,
+                          category: candidate.suggestedCategory,
+                          essentiality: candidate.suggestedEssentiality,
+                        })
+                      }
+                      disabled={categorizeTransaction.isPending}
+                    >
+                      Accept suggestion
+                    </Button>
+                    <span className="text-xs text-text-muted">
+                      {(candidate.confidence * 100).toFixed(0)}% confidence
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </SectionCard>
 
@@ -143,6 +201,44 @@ export function HouseholdOperationsPanel({
               Headroom {formatCurrency(dashboard.budgetSnapshot.discretionaryHeadroom)}
             </p>
           </div>
+        </div>
+
+        <div className="mt-6 space-y-3">
+          <div>
+            <p className="text-sm font-semibold text-text">Recurring bills and subscriptions</p>
+            <p className="mt-1 text-sm text-text-muted">
+              The steady commitments Jenny can now pace against the monthly plan.
+            </p>
+          </div>
+          {dashboard.recurringCommitments.length === 0 ? (
+            <div className="rounded-2xl border border-border/40 bg-surface/60 p-4 text-sm text-text-muted">
+              Jenny needs more statement coverage before recurring commitments can be trusted.
+            </div>
+          ) : (
+            dashboard.recurringCommitments.slice(0, 4).map((commitment) => (
+              <div
+                key={`${commitment.merchant}-${commitment.cadence}`}
+                className="rounded-2xl border border-border/40 bg-surface/60 p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-text">{commitment.merchant}</p>
+                    <p className="mt-1 text-sm text-text-muted">
+                      {commitment.category} · {commitment.cadence}
+                    </p>
+                  </div>
+                  <div className="text-right text-sm">
+                    <p className="font-semibold text-text">
+                      {formatCurrency(commitment.averageAmount)}
+                    </p>
+                    <p className="text-text-muted">
+                      {formatCurrency(commitment.annualizedCost)} / year
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </SectionCard>
     </div>

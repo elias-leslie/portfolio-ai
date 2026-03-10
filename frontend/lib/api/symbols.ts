@@ -1,4 +1,4 @@
-import { get } from './client'
+import { get, post } from './client'
 
 export interface SymbolPillarScore {
   score: number | null
@@ -121,8 +121,41 @@ export interface SymbolIntelligence {
   error?: string | null
 }
 
+export interface SymbolWorkflowEvent {
+  id: string
+  symbol: string
+  fromStage?: string | null
+  toStage: string
+  note: string
+  createdBy: string
+  createdAt: string
+}
+
+export interface SymbolWorkflow {
+  symbol: string
+  stage: string
+  summary: string
+  lastTransitionAt: string
+  updatedBy: string
+  notes?: string | null
+  nextReviewAt?: string | null
+  availableTransitions: string[]
+  history: SymbolWorkflowEvent[]
+}
+
 export async function fetchSymbolIntelligence(
   symbol: string,
 ): Promise<SymbolIntelligence> {
   return get<SymbolIntelligence>(`/api/symbols/${symbol}/intelligence`)
+}
+
+export async function fetchSymbolWorkflow(symbol: string): Promise<SymbolWorkflow> {
+  return get<SymbolWorkflow>(`/api/symbols/${symbol}/workflow`)
+}
+
+export async function transitionSymbolWorkflow(
+  symbol: string,
+  payload: { stage: string; note?: string },
+): Promise<SymbolWorkflow> {
+  return post<SymbolWorkflow>(`/api/symbols/${symbol}/workflow/transition`, payload)
 }

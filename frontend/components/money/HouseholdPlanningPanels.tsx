@@ -2,6 +2,7 @@
 
 import type { HouseholdFinanceDashboard } from '@/lib/api/household'
 import { SectionCard } from '@/components/shared/SectionCard'
+import { formatCurrency } from './formatters'
 
 export function HouseholdPlanningPanels({
   dashboard,
@@ -51,6 +52,18 @@ export function HouseholdPlanningPanels({
         description={dashboard.retirementPreparedness.summary}
       >
         <div className="space-y-5">
+          <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4">
+            <p className="text-sm font-semibold text-text">Contribution tracker</p>
+            <p className="mt-2 text-2xl font-semibold text-text">
+              {dashboard.retirementContributionTracker.monthlyTarget
+                ? formatCurrency(dashboard.retirementContributionTracker.monthlyGap)
+                : '—'}
+            </p>
+            <p className="mt-2 text-sm text-text-muted">
+              {dashboard.retirementContributionTracker.detail}
+            </p>
+          </div>
+
           <div>
             <p className="text-sm font-semibold text-text">Strengths</p>
             <div className="mt-3 space-y-2">
@@ -69,6 +82,64 @@ export function HouseholdPlanningPanels({
                   {item}
                 </p>
               ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-sm font-semibold text-text">Retirement scenarios</p>
+            <div className="mt-3 space-y-3">
+              {dashboard.retirementScenarios.map((scenario) => (
+                <div
+                  key={scenario.name}
+                  className="rounded-2xl border border-border/40 bg-surface/60 p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-text">{scenario.name}</p>
+                      <p className="mt-1 text-sm text-text-muted">{scenario.detail}</p>
+                    </div>
+                    <div className="text-right text-sm">
+                      <p className="font-semibold text-text">
+                        {formatCurrency(scenario.monthlySpend)}
+                      </p>
+                      <p className="text-text-muted">{scenario.fundedYears} years funded</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-sm font-semibold text-text">Sinking funds</p>
+            <div className="mt-3 space-y-3">
+              {dashboard.sinkingFunds.length === 0 ? (
+                <p className="text-sm text-text-muted">
+                  No obvious sinking funds yet. More recurring bills and lumpy expenses will sharpen this.
+                </p>
+              ) : (
+                dashboard.sinkingFunds.map((fund) => (
+                  <div
+                    key={fund.name}
+                    className="rounded-2xl border border-border/40 bg-surface/60 p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-text">{fund.name}</p>
+                        <p className="mt-1 text-sm text-text-muted">{fund.rationale}</p>
+                      </div>
+                      <div className="text-right text-sm">
+                        <p className="font-semibold text-text">
+                          {formatCurrency(fund.monthlyTarget)}
+                        </p>
+                        <p className="text-text-muted">
+                          {formatCurrency(fund.annualCost)} / year
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
