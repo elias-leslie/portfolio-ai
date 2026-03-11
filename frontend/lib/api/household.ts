@@ -261,10 +261,17 @@ export interface HouseholdQuestionList {
   items: HouseholdQuestion[]
 }
 
+export interface JennyProgression {
+  found: string[]
+  workingOn: string | null
+  needsFromYou: string[]
+}
+
 export interface JennyMoneyBrief {
   headline: string
   body: string
   prompts: string[]
+  progression?: JennyProgression | null
 }
 
 export interface PortfolioHouseholdContext {

@@ -57,20 +57,19 @@ export function HouseholdOperationsPanel({
     <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
       <SectionCard
         variant="surface"
-        title="Operational Queue"
-        description="Handle the next household actions instead of just reading summaries."
+        title="Quick Confirmations"
+        description="Jenny just needs a quick sign-off on a few things to keep moving."
       >
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2">
             <Badge variant="outline">
-              {dashboard.questions.length} open question{dashboard.questions.length === 1 ? '' : 's'}
+              {dashboard.questions.length} quick question{dashboard.questions.length === 1 ? '' : 's'}
             </Badge>
             <Badge variant="outline">
-              {dashboard.actionItems.length} action item{dashboard.actionItems.length === 1 ? '' : 's'}
+              {dashboard.actionItems.length} suggestion{dashboard.actionItems.length === 1 ? '' : 's'}
             </Badge>
             <Badge variant="outline">
-              {dashboard.categorizationQueue.length} categorization follow-up
-              {dashboard.categorizationQueue.length === 1 ? '' : 's'}
+              {dashboard.categorizationQueue.length} to confirm
             </Badge>
           </div>
 
@@ -93,7 +92,7 @@ export function HouseholdOperationsPanel({
                         [question.id]: event.target.value,
                       }))
                     }
-                    placeholder="Answer briefly so Jenny can use it now"
+                    placeholder="Quick answer — Jenny will take it from here"
                   />
                   <Button
                     disabled={
@@ -106,27 +105,26 @@ export function HouseholdOperationsPanel({
                       })
                     }
                   >
-                    Save Answer
+                    Confirm
                   </Button>
                 </div>
               </div>
             ))
           ) : (
             <div className="rounded-2xl border border-gain/30 bg-gain/10 p-4 text-sm text-text-muted">
-              Jenny does not need any follow-up answers right now.
+              Nothing needed right now — Jenny has it covered.
             </div>
           )}
           {dashboard.questions.length > 3 ? (
             <p className="text-xs text-text-muted">
-              {dashboard.questions.length - 3} more question
-              {dashboard.questions.length - 3 === 1 ? '' : 's'} remain after this first batch.
+              {dashboard.questions.length - 3} more quick question{dashboard.questions.length - 3 === 1 ? '' : 's'} after these.
             </p>
           ) : null}
 
           <div className="grid gap-3">
             {dashboard.actionItems.length === 0 ? (
               <div className="rounded-2xl border border-gain/30 bg-gain/10 p-4 text-sm text-text-muted">
-                No additional operator actions are waiting right now.
+                All clear — Jenny is handling the rest.
               </div>
             ) : (
               dashboard.actionItems.slice(0, 4).map((item, index) => (
@@ -155,21 +153,20 @@ export function HouseholdOperationsPanel({
           </div>
           {dashboard.actionItems.length > 4 ? (
             <p className="text-xs text-text-muted">
-              {dashboard.actionItems.length - 4} more action item
-              {dashboard.actionItems.length - 4 === 1 ? '' : 's'} are waiting behind these.
+              {dashboard.actionItems.length - 4} more suggestion{dashboard.actionItems.length - 4 === 1 ? '' : 's'} after these.
             </p>
           ) : null}
 
           <div className="space-y-3 rounded-2xl border border-border/40 bg-surface/40 p-4">
             <div>
-              <p className="text-sm font-semibold text-text">Categorization review</p>
+              <p className="text-sm font-semibold text-text">Quick category check</p>
               <p className="mt-1 text-sm text-text-muted">
-                Confirm low-confidence spend rows so the budget and merchant insights stop drifting.
+                Jenny guessed these — just confirm or tweak so she learns your preferences.
               </p>
             </div>
             {dashboard.categorizationQueue.length === 0 ? (
               <div className="rounded-2xl border border-gain/30 bg-gain/10 p-4 text-sm text-text-muted">
-                No categorization follow-ups are waiting right now.
+                Nothing to confirm — Jenny is confident in all current categories.
               </div>
             ) : (
               dashboard.categorizationQueue.slice(0, 4).map((candidate) => (
@@ -272,7 +269,7 @@ export function HouseholdOperationsPanel({
                       disabled={categorizeTransaction.isPending}
                       aria-busy={categorizeTransaction.isPending}
                     >
-                      Save this row
+                      Looks right
                     </Button>
                     {candidate.similarTransactionCount > 0 ? (
                       <Button
@@ -305,8 +302,7 @@ export function HouseholdOperationsPanel({
             )}
             {dashboard.categorizationQueue.length > 4 ? (
               <p className="text-xs text-text-muted">
-                {dashboard.categorizationQueue.length - 4} more low-confidence transaction
-                {dashboard.categorizationQueue.length - 4 === 1 ? '' : 's'} remain after these.
+                {dashboard.categorizationQueue.length - 4} more to confirm after these.
               </p>
             ) : null}
           </div>
