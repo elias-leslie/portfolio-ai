@@ -7,7 +7,6 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 from app.models.household_finance import (
-    BudgetReadiness,
     HouseholdDocumentList,
     HouseholdExecutiveReport,
     HouseholdProfile,
