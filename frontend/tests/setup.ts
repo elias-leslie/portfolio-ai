@@ -36,3 +36,9 @@ global.IntersectionObserver = class MockIntersectionObserver implements Intersec
   }
   unobserve(_target: Element) {}
 }
+
+global.ResizeObserver = class MockResizeObserver implements ResizeObserver {
+  observe(_target: Element, _options?: ResizeObserverOptions) {}
+  unobserve(_target: Element) {}
+  disconnect() {}
+} as typeof ResizeObserver

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
@@ -22,12 +22,62 @@ export function WorkspaceTabs({
   defaultValue?: string
   className?: string
 }) {
-  const initialValue = defaultValue ?? tabs[0]?.value ?? ''
+  const fallbackValue = defaultValue ?? tabs[0]?.value ?? ''
+  const resolveValue = (requestedValue: string | null) =>
+    tabs.some((tab) => tab.value === requestedValue) && requestedValue
+      ? requestedValue
+      : fallbackValue
+  const readRequestedValue = () => {
+    if (typeof window === 'undefined') {
+      return null
+    }
+
+    return new URLSearchParams(window.location.search).get('tab')
+  }
+  const initialValue = resolveValue(readRequestedValue())
   const [value, setValue] = useState(initialValue)
   const activeTab = tabs.find((tab) => tab.value === value) ?? tabs[0]
 
+  useEffect(() => {
+    const syncFromLocation = () => {
+      const nextValue = resolveValue(readRequestedValue())
+      setValue((currentValue) =>
+        currentValue === nextValue ? currentValue : nextValue,
+      )
+    }
+
+    syncFromLocation()
+    window.addEventListener('popstate', syncFromLocation)
+    return () => {
+      window.removeEventListener('popstate', syncFromLocation)
+    }
+  }, [fallbackValue, tabs])
+
+  const handleValueChange = (nextValue: string) => {
+    if (nextValue === value) {
+      return
+    }
+
+    setValue(nextValue)
+
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const nextUrl = new URL(window.location.href)
+    const nextParams = new URLSearchParams(nextUrl.search)
+    if (nextValue === fallbackValue) {
+      nextParams.delete('tab')
+    } else {
+      nextParams.set('tab', nextValue)
+    }
+
+    nextUrl.search = nextParams.toString()
+    window.history.replaceState(window.history.state, '', nextUrl)
+  }
+
   return (
-    <Tabs value={value} onValueChange={setValue} className={className}>
+    <Tabs value={value} onValueChange={handleValueChange} className={className}>
       <div className="sticky top-20 z-10 rounded-2xl border border-border/50 bg-bg/90 p-3 backdrop-blur">
         <TabsList className="flex h-auto w-full flex-wrap justify-start gap-2 bg-transparent p-0">
           {tabs.map((tab) => (

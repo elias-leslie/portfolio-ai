@@ -1,7 +1,13 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, waitFor } from '@testing-library/react'
+import { act, render, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('next/navigation', () => ({
+  usePathname: () => '/',
+  useRouter: () => ({ replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams('tab=market'),
+}))
 
 // Mock IntersectionObserver
 const mockObserve = vi.fn()
@@ -58,6 +64,7 @@ beforeEach(() => {
   mockIntersectionCallback = null
   MockIntersectionObserver.lastInstance = null
   MockIntersectionObserver.lastOptions = undefined
+  window.history.replaceState({}, '', '/?tab=market')
 
   global.IntersectionObserver =
     MockIntersectionObserver as unknown as typeof IntersectionObserver
@@ -113,12 +120,14 @@ describe('Article Lazy Loading (MarketNewsSection)', () => {
     })
 
     // Simulate intersection
-    if (mockIntersectionCallback) {
-      mockIntersectionCallback(
-        [{ isIntersecting: true } as IntersectionObserverEntry],
-        MockIntersectionObserver.lastInstance as IntersectionObserver,
-      )
-    }
+    await act(async () => {
+      if (mockIntersectionCallback) {
+        mockIntersectionCallback(
+          [{ isIntersecting: true } as IntersectionObserverEntry],
+          MockIntersectionObserver.lastInstance as IntersectionObserver,
+        )
+      }
+    })
 
     // Observer should be disconnected after triggering
     await waitFor(() => {
@@ -149,12 +158,14 @@ describe('Article Lazy Loading (MarketNewsSection)', () => {
     })
 
     // Simulate intersection
-    if (mockIntersectionCallback) {
-      mockIntersectionCallback(
-        [{ isIntersecting: true } as IntersectionObserverEntry],
-        MockIntersectionObserver.lastInstance as IntersectionObserver,
-      )
-    }
+    await act(async () => {
+      if (mockIntersectionCallback) {
+        mockIntersectionCallback(
+          [{ isIntersecting: true } as IntersectionObserverEntry],
+          MockIntersectionObserver.lastInstance as IntersectionObserver,
+        )
+      }
+    })
 
     // Observer should be disconnected after triggering
     expect(mockDisconnect).toHaveBeenCalled()

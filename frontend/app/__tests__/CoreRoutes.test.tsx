@@ -192,8 +192,13 @@ vi.mock('@/components/status/StatusWorkspace', () => ({
   StatusWorkspace: () => <div>Status Workspace</div>,
 }))
 
+const replaceMock = vi.fn()
+
 vi.mock('next/navigation', () => ({
   useParams: () => ({ symbol: 'VTI' }),
+  usePathname: () => '/today',
+  useRouter: () => ({ replace: replaceMock }),
+  useSearchParams: () => new URLSearchParams(),
 }))
 
 describe('core product routes', () => {
