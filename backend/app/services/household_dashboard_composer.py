@@ -19,6 +19,7 @@ from app.models.household_finance import (
     ImportCenter,
     ImportFormat,
     JennyMoneyBrief,
+    JennyProgression,
     PortfolioHouseholdContext,
     RetirementPreparedness,
 )
@@ -84,6 +85,97 @@ _JENNY_BRIEF = JennyMoneyBrief(
         "Where is our money leaking month to month?",
     ],
 )
+
+
+def _build_progression(
+    *,
+    reports: Any,
+    resolved_values: list[Any],
+    questions: list[Any],
+    profile: Any,
+) -> JennyProgression:
+    """Build the found/working-on/needs-from-you progression for the Jenny brief."""
+    executive = reports.executive
+
+    # --- found ---
+    found: list[str] = []
+    if executive.recurring_merchant_count > 0:
+        found.append(
+            f"Detected {executive.recurring_merchant_count} recurring monthly "
+            f"commitment{'s' if executive.recurring_merchant_count != 1 else ''} "
+            f"from your statements"
+        )
+    if executive.average_monthly_essentials > 0:
+        found.append(
+            f"Your essential spending averages ${executive.average_monthly_essentials:,.0f}/mo "
+            f"across {executive.coverage_months} month{'s' if executive.coverage_months != 1 else ''}"
+        )
+    if executive.tracked_expense_count > 0:
+        found.append(
+            f"{executive.tracked_expense_count} transaction{'s' if executive.tracked_expense_count != 1 else ''} "
+            f"tracked and categorized from your statements"
+        )
+    inferred_count = sum(
+        1 for rv in resolved_values
+        if rv.source == "jenny_inference" and rv.value is not None
+    )
+    if inferred_count > 0:
+        found.append(
+            f"{inferred_count} profile value{'s' if inferred_count != 1 else ''} "
+            f"auto-resolved from your data"
+        )
+
+    # --- working_on ---
+    inferred_fields = _fields_with_confident_inferences(resolved_values, threshold=0.7)
+    profile_fields = {
+        "monthly_net_income_target",
+        "monthly_essential_target",
+        "monthly_discretionary_target",
+        "monthly_savings_target",
+        "target_retirement_age",
+        "target_retirement_spend",
+    }
+    confirmed_fields = {
+        rv.field_name for rv in resolved_values
+        if rv.source == "user" and rv.field_name in profile_fields
+    }
+    all_known = inferred_fields | confirmed_fields
+
+    if executive.coverage_months < 3:
+        working_on = (
+            "Building spending baselines \u2014 more statement history will improve accuracy"
+        )
+    elif len(all_known) < len(profile_fields):
+        working_on = "Refining your financial picture as more data comes in"
+    else:
+        working_on = "Monitoring budget pacing and identifying optimization opportunities"
+
+    # --- needs_from_you ---
+    needs_from_you: list[str] = []
+    for q in questions:
+        if (
+            q.status == "open"
+            and q.priority in {"high", "critical"}
+            and q.field_name is not None
+            and q.field_name not in inferred_fields
+        ):
+            needs_from_you.append(q.question)
+    # Flag missing retirement goals that have no question yet
+    question_fields = {q.field_name for q in questions}
+    if profile.target_retirement_age is None and "target_retirement_age" not in question_fields:
+        needs_from_you.append(
+            "Set a target retirement age so Jenny can run scenario planning"
+        )
+    if profile.target_retirement_spend is None and "target_retirement_spend" not in question_fields:
+        needs_from_you.append(
+            "Define target retirement spending for accurate readiness projections"
+        )
+
+    return JennyProgression(
+        found=found,
+        working_on=working_on,
+        needs_from_you=needs_from_you,
+    )
 
 
 def _fields_with_confident_inferences(resolved_values: list[Any], *, threshold: float) -> set[str]:
@@ -389,7 +481,17 @@ class HouseholdDashboardComposer:
             retirement_scenarios=retirement_scenarios,
             import_center=_build_import_center(documents),
             questions=visible_questions,
-            jenny_brief=_JENNY_BRIEF,
+            jenny_brief=JennyMoneyBrief(
+                headline=_JENNY_BRIEF.headline,
+                body=_JENNY_BRIEF.body,
+                prompts=_JENNY_BRIEF.prompts,
+                progression=_build_progression(
+                    reports=reports,
+                    resolved_values=resolved_values,
+                    questions=visible_questions,
+                    profile=profile,
+                ),
+            ),
             portfolio_context=portfolio_context,
         )
 
