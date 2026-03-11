@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Request
+from fastapi.concurrency import run_in_threadpool
 
 from app.logging_config import get_logger
 from app.middleware.cache import cache_response
@@ -139,7 +140,7 @@ async def get_analytics(request: Request, include_paper: bool = False) -> Analyt
     Args:
         include_paper: If False (default), excludes paper trading accounts.
     """
-    all_accounts = portfolio_mgr.get_accounts()
+    all_accounts = await run_in_threadpool(portfolio_mgr.get_accounts)
     if not include_paper:
         accounts = [acc for acc in all_accounts if acc.account_type != "paper"]
     else:
@@ -148,20 +149,23 @@ async def get_analytics(request: Request, include_paper: bool = False) -> Analyt
     account_ids = {acc.id for acc in accounts}
     cash_balance_total = sum(acc.cash_balance for acc in accounts)
 
-    all_positions = portfolio_mgr.get_positions()
+    all_positions = await run_in_threadpool(portfolio_mgr.get_positions)
     positions = [p for p in all_positions if p.account_id in account_ids]
 
     if not positions:
         return _empty_analytics_response(cash_balance_total)
 
     symbols = list({p.symbol for p in positions})
-    price_data = price_fetcher.fetch_price_data(symbols)
+    price_data = await run_in_threadpool(price_fetcher.fetch_price_data, symbols)
 
-    analytics = analytics_calculator.calculate_full_analytics(
-        positions,
-        price_data,
-        storage=storage,
-        account_ids=list(account_ids),
+    _account_ids = list(account_ids)
+    analytics = await run_in_threadpool(
+        lambda: analytics_calculator.calculate_full_analytics(
+            positions,
+            price_data,
+            storage=storage,
+            account_ids=_account_ids,
+        )
     )
 
     return _build_full_analytics_response(analytics, cash_balance_total)

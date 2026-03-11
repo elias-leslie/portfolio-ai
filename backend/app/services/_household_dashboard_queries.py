@@ -87,28 +87,37 @@ _MONTH_SPEND_SQL = """
 
 def fetch_categorization_queue(
     storage: Any,
-    transaction_service: Any,
     limit: int = 6,
 ) -> list[HouseholdCategorizationCandidate]:
+    # _CATEGORIZATION_SQL always returns exactly 9 columns:
+    # 0:id, 1:merchant, 2:description, 3:amount, 4:transaction_date,
+    # 5:category, 6:essentiality, 7:confidence, 8:similar_count
+    expected_columns = 9
     with storage.connection() as conn:
         rows = conn.execute(_CATEGORIZATION_SQL, [limit]).fetchall()
-    return [
-        HouseholdCategorizationCandidate(
-            id=str(row[0]),
-            merchant=str(row[1]),
-            description=str(row[2]),
-            amount=float(row[3]),
-            transaction_date=row[4].isoformat(),
-            current_category=str(row[5] or "Household"),
-            current_essentiality=str(row[6] or "mixed"),
-            suggested_category=suggest_category(str(row[1]), str(row[2])),
-            suggested_essentiality=suggest_essentiality(str(row[1]), str(row[2])),
-            confidence=float(row[7] or 0.0),
-            similar_transaction_count=max(int(row[8] or 0) - 1, 0),
-            reason="Low-confidence or mixed classification needs a human pass before Jenny hardens the budget lane.",
+    results: list[HouseholdCategorizationCandidate] = []
+    for row in rows:
+        if len(row) < expected_columns:
+            raise ValueError(
+                f"fetch_categorization_queue: expected {expected_columns} columns, got {len(row)}"
+            )
+        results.append(
+            HouseholdCategorizationCandidate(
+                id=str(row[0]),
+                merchant=str(row[1]),
+                description=str(row[2]),
+                amount=float(row[3]),
+                transaction_date=row[4].isoformat(),
+                current_category=str(row[5] or "Household"),
+                current_essentiality=str(row[6] or "mixed"),
+                suggested_category=suggest_category(str(row[1]), str(row[2])),
+                suggested_essentiality=suggest_essentiality(str(row[1]), str(row[2])),
+                confidence=float(row[7] or 0.0),
+                similar_transaction_count=max(int(row[8] or 0) - 1, 0),
+                reason="Low-confidence or mixed classification needs a human pass before Jenny hardens the budget lane.",
+            )
         )
-        for row in rows
-    ]
+    return results
 
 
 def fetch_recurring_commitments(

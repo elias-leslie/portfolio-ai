@@ -9,6 +9,7 @@ import datetime as dt
 import json
 from collections.abc import Iterable
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import polars as pl
 
@@ -137,8 +138,10 @@ class PolygonSource(BaseSource):
         if df is None or len(df) == 0:
             logger.debug("polygon_no_data_for_date", date=iso_date)
             return None
-        df = df.with_columns(pl.lit(dt.date.fromisoformat(iso_date)).alias("date_utc"))
-        df = df.with_columns(pl.lit("polygon").alias("source"))
+        df = df.with_columns(
+            pl.lit(dt.date.fromisoformat(iso_date)).alias("date_utc"),
+            pl.lit("polygon").alias("source"),
+        )
         if ingest_run_id:
             df = df.with_columns(pl.lit(ingest_run_id).alias("ingest_run_id"))
         return df
@@ -292,7 +295,7 @@ class PolygonSource(BaseSource):
             )
             return df
         except Exception as e:
-            logger.warning(f"Failed to fetch intraday for {symbol}: {e}")
+            logger.warning("polygon_intraday_fetch_error", symbol=symbol, error=str(e))
             return None
 
     def fetch_trades(
@@ -319,7 +322,7 @@ class PolygonSource(BaseSource):
             logger.info("polygon_trades_fetched", symbol=symbol, date=date_str, trades=len(df))
             return df
         except Exception as e:
-            logger.warning(f"Failed to fetch trades for {symbol}: {e}")
+            logger.warning("polygon_trades_fetch_error", symbol=symbol, error=str(e))
             return None
 
     def fetch_extended_hours(
@@ -331,10 +334,11 @@ class PolygonSource(BaseSource):
         full_day = self.fetch_intraday_bars(symbol, date, "minute", 1)
         if full_day is None:
             return {"premarket": None, "afterhours": None}
-        premarket_end = dt.time(14, 30)   # 9:30 AM ET = 14:30 UTC
-        afterhours_start = dt.time(21, 0)  # 4:00 PM ET = 21:00 UTC
-        premarket = full_day.filter(pl.col("timestamp").dt.time() < premarket_end)
-        afterhours = full_day.filter(pl.col("timestamp").dt.time() >= afterhours_start)
+        _ny_tz = ZoneInfo("America/New_York")
+        _market_open = dt.datetime.combine(date, dt.time(9, 30), tzinfo=_ny_tz).astimezone(dt.UTC)
+        _market_close = dt.datetime.combine(date, dt.time(16, 0), tzinfo=_ny_tz).astimezone(dt.UTC)
+        premarket = full_day.filter(pl.col("timestamp") < _market_open)
+        afterhours = full_day.filter(pl.col("timestamp") >= _market_close)
         logger.info(
             "polygon_extended_hours_fetched",
             symbol=symbol,

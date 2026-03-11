@@ -63,6 +63,43 @@ def build_symbol_context(
     }
 
 
+def _thin_evidence_fields() -> dict[str, Any]:
+    return {
+        "rationale": "There is not enough fresh evidence to form a trustworthy review yet.",
+        "recommendation": "Wait for fresher price, signal, and catalyst data before acting.",
+        "strengths": ["Jenny avoided pretending the evidence was stronger than it is."],
+        "weaknesses": ["Fresh data is too thin for a trustworthy review right now."],
+    }
+
+
+def _passive_fund_fields(profile: dict[str, Any]) -> dict[str, Any]:
+    rationale = (
+        "This passive fund is being treated as an allocation review instead of a missing company thesis."
+    )
+    if profile.get("is_live_position"):
+        recommendation = (
+            "Use portfolio weight, overlap, and cash needs to decide whether to hold or trim. "
+            "Avoid adding until the next review completes."
+        )
+    else:
+        recommendation = (
+            "Review whether you still need this broad exposure in the watchlist before adding it."
+        )
+    return {
+        "rationale": rationale,
+        "recommendation": recommendation,
+        "strengths": ["Passive fund holdings do not require a single-company thesis to stay actionable."],
+        "weaknesses": ["Fund reviews rely more on allocation and concentration than company-specific catalysts."],
+    }
+
+
+def _active_buy_fields() -> dict[str, Any]:
+    return {
+        "verdict": "hold",
+        "rationale": "Active thesis exists, but Jenny could not refresh the agent review.",
+    }
+
+
 def fallback_evaluation(
     symbol: str,
     thesis: Thesis | None,
@@ -84,29 +121,19 @@ def fallback_evaluation(
     data_quality_pct = profile.get("data_quality_pct")
 
     if data_quality_pct is not None and data_quality_pct < min_data_quality_pct and thesis is None:
-        rationale = "There is not enough fresh evidence to form a trustworthy review yet."
-        recommendation = "Wait for fresher price, signal, and catalyst data before acting."
-        strengths = ["Jenny avoided pretending the evidence was stronger than it is."]
-        weaknesses = ["Fresh data is too thin for a trustworthy review right now."]
-    elif profile.get("is_passive_fund") and thesis is None:
-        rationale = (
-            "This passive fund is being treated as an allocation review instead of a missing company thesis."
+        fields = _thin_evidence_fields()
+        rationale, recommendation, strengths, weaknesses = (
+            fields["rationale"], fields["recommendation"], fields["strengths"], fields["weaknesses"]
         )
-        if profile.get("is_live_position"):
-            recommendation = (
-                "Use portfolio weight, overlap, and cash needs to decide whether to hold or trim. "
-                "Avoid adding until the next review completes."
-            )
-        else:
-            recommendation = (
-                "Review whether you still need this broad exposure in the watchlist before adding it."
-            )
-        strengths = ["Passive fund holdings do not require a single-company thesis to stay actionable."]
-        weaknesses = ["Fund reviews rely more on allocation and concentration than company-specific catalysts."]
+    elif profile.get("is_passive_fund") and thesis is None:
+        fields = _passive_fund_fields(profile)
+        rationale, recommendation, strengths, weaknesses = (
+            fields["rationale"], fields["recommendation"], fields["strengths"], fields["weaknesses"]
+        )
 
     if thesis and thesis.status.value == "active" and thesis.action.value == "BUY":
-        verdict = "hold"
-        rationale = "Active thesis exists, but Jenny could not refresh the agent review."
+        fields = _active_buy_fields()
+        verdict, rationale = fields["verdict"], fields["rationale"]
 
     return {
         "agent_name": agent_name,

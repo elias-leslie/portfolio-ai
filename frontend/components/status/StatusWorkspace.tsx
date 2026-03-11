@@ -115,7 +115,9 @@ function remediationPresentation(
     return {
       badgeLabel: 'resolved',
       badgeVariant: 'success' as const,
-      detail: `Resolved in the latest freshness check at ${formatDateTime(remediation.resolvedAt)}.`,
+      detail: remediation.resolvedAt
+        ? `Resolved in the latest freshness check at ${formatDateTime(remediation.resolvedAt)}.`
+        : 'Resolved in the latest freshness check.',
     }
   }
 

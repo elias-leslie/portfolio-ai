@@ -32,7 +32,7 @@ def get_log_directories() -> list[Path]:
     backend_logs = Path(__file__).parent.parent.parent.parent / "logs"
     return [
         backend_logs,  # Primary: ~/portfolio-ai/backend/logs/
-        Path("/tmp"),  # Secondary: temp logs
+        Path("/tmp/portfolio-ai-logs"),  # Secondary: temp logs (restricted subdirectory)
         Path("/var/log/portfolio-ai"),  # Legacy: system logs (if exists)
     ]
 
@@ -57,6 +57,32 @@ def _rotate_single_log(log_file: Path, dry_run: bool) -> tuple[bool, dict[str, A
     return True, {}
 
 
+def _rotate_log_file(
+    log_file: Path,
+    dry_run: bool,
+    files_rotated: int,
+    would_rotate: list[dict[str, Any]],
+) -> int:
+    """Attempt to rotate a single log file; return updated files_rotated count."""
+    try:
+        rotated, metadata = _rotate_single_log(log_file, dry_run)
+    except Exception as file_error:
+        logger.error(
+            "log_rotation_failed",
+            file=str(log_file),
+            error=str(file_error),
+        )
+        return files_rotated
+
+    if not rotated:
+        return files_rotated
+
+    files_rotated += 1
+    if dry_run:
+        would_rotate.append({"file": str(log_file), **metadata})
+    return files_rotated
+
+
 def run_log_rotation(task_id: str, dry_run: bool) -> dict[str, Any]:
     """Execute log rotation core logic.
 
@@ -76,19 +102,7 @@ def run_log_rotation(task_id: str, dry_run: bool) -> dict[str, Any]:
             continue
 
         for log_file in log_dir.glob("*.log"):
-            try:
-                rotated, metadata = _rotate_single_log(log_file, dry_run)
-                if not rotated:
-                    continue
-                files_rotated += 1
-                if dry_run:
-                    would_rotate.append({"file": str(log_file), **metadata})
-            except Exception as file_error:
-                logger.error(
-                    "log_rotation_failed",
-                    file=str(log_file),
-                    error=str(file_error),
-                )
+            files_rotated = _rotate_log_file(log_file, dry_run, files_rotated, would_rotate)
 
     return build_cleanup_result(
         task_id=task_id,
@@ -105,11 +119,17 @@ def run_old_logs_cleanup(task_id: str, dry_run: bool, days: int) -> dict[str, An
     Args:
         task_id: Unique task identifier
         dry_run: If True, only report what would be deleted
-        days: Delete logs older than this many days
+        days: Delete logs older than this many days. Must be >= 1.
+
+    Raises:
+        ValueError: If days is <= 0.
 
     Returns:
         Partial result dict (without duration_seconds)
     """
+    if days <= 0:
+        raise ValueError(f"retention_days must be >= 1, got {days}")
+
     cutoff_time, cutoff_timestamp = calculate_cutoff_timestamp(days=days)
 
     all_log_files: list[Path] = []

@@ -18,10 +18,11 @@ logger = get_logger(__name__)
 
 
 def _exec(sql: str, params: list[Any]) -> Any:
-    """Execute SQL, commit, and return fetchone result. Raises on error."""
+    """Execute SQL, commit, and return fetchone result (only for RETURNING statements)."""
     conn_mgr = get_connection_manager()
     with conn_mgr.connection() as conn:
-        result = conn.execute(sql, params).fetchone()
+        cursor = conn.execute(sql, params)
+        result = cursor.fetchone() if "RETURNING" in sql.upper() else None
         conn.commit()
         return result
 

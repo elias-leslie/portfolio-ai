@@ -15,6 +15,7 @@ from fastapi import UploadFile
 
 from app.models.household_finance import HouseholdDocument, HouseholdQuestion
 from app.services.household_finance_rows import row_to_document
+from app.storage.types import DatabaseConnection
 
 if TYPE_CHECKING:
     from app.services.household_finance_service import HouseholdFinanceService
@@ -131,7 +132,7 @@ def build_import_row_hash(
 
 
 def _insert_inferred_values(
-    conn: object,
+    conn: DatabaseConnection,
     service: HouseholdFinanceService,
     *,
     document: HouseholdDocument,
@@ -163,7 +164,7 @@ def _insert_inferred_values(
 
 
 def _insert_questions(
-    conn: object,
+    conn: DatabaseConnection,
     service: HouseholdFinanceService,
     *,
     document: HouseholdDocument,
@@ -219,7 +220,7 @@ def _insert_questions(
             ) VALUES (%s, %s, 'open', %s, %s, %s, %s, %s::jsonb, %s)
             """,
             [
-                str(uuid.uuid4()), field_name,
+                candidate.id, field_name,
                 service._normalize_priority(question.get("priority")),
                 prompt,
                 question.get("rationale"),
@@ -566,7 +567,7 @@ class HouseholdDocumentPipeline:
                         currency = COALESCE(EXCLUDED.currency, household_import_rows.currency),
                         row_metadata = household_import_rows.row_metadata || EXCLUDED.row_metadata,
                         updated_at = EXCLUDED.updated_at
-                    RETURNING id
+                    RETURNING (xmax = 0) AS was_inserted
                     """,
                     [
                         str(uuid.uuid4()), document.id, dataset_type, row_hash,
@@ -584,7 +585,7 @@ class HouseholdDocumentPipeline:
                         now, now,
                     ],
                 ).fetchone()
-                if result is not None:
+                if result is not None and result[0]:
                     inserted += 1
                 else:
                     duplicates += 1

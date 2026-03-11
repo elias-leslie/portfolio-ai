@@ -23,6 +23,86 @@ def extract_invalidation_triggers(evaluations: list[dict[str, Any]]) -> list[str
     return []
 
 
+def _find_existing_notification(conn: Any, category: str, symbol: str | None) -> Any:
+    """Find the most recent open notification for a category/symbol pair."""
+    return conn.execute(
+        """
+        SELECT id
+        FROM jenny_notifications
+        WHERE status = 'open'
+          AND category = %s
+          AND COALESCE(symbol, '') = COALESCE(%s, '')
+        ORDER BY created_at DESC
+        LIMIT 1
+        """,
+        [category, symbol],
+    ).fetchone()
+
+
+def _execute_update(
+    conn: Any,
+    notification_id: str,
+    routine_id: str,
+    severity: str,
+    title: str,
+    detail: str,
+    recommendation: str | None,
+) -> None:
+    """Update an existing notification."""
+    conn.execute(
+        """
+        UPDATE jenny_notifications
+        SET routine_id = %s,
+            severity = %s,
+            title = %s,
+            detail = %s,
+            recommendation = %s,
+            created_at = %s
+        WHERE id = %s
+        """,
+        [
+            routine_id,
+            severity,
+            title,
+            detail,
+            recommendation,
+            datetime.now(UTC).isoformat(),
+            notification_id,
+        ],
+    )
+
+
+def _execute_insert(
+    conn: Any,
+    routine_id: str,
+    symbol: str | None,
+    category: str,
+    severity: str,
+    title: str,
+    detail: str,
+    recommendation: str | None,
+) -> None:
+    """Insert a new notification."""
+    conn.execute(
+        """
+        INSERT INTO jenny_notifications (
+            id, routine_id, symbol, category, severity, status, title, detail, recommendation, created_at
+        ) VALUES (%s, %s, %s, %s, %s, 'open', %s, %s, %s, %s)
+        """,
+        [
+            str(uuid.uuid4()),
+            routine_id,
+            symbol,
+            category,
+            severity,
+            title,
+            detail,
+            recommendation,
+            datetime.now(UTC).isoformat(),
+        ],
+    )
+
+
 def upsert_notification(
     service: Any,
     routine_id: str,
@@ -34,60 +114,30 @@ def upsert_notification(
     detail: str,
     recommendation: str | None,
 ) -> None:
+    """Upsert a notification (update existing or insert new)."""
     with service.storage.connection() as conn:
-        existing = conn.execute(
-            """
-            SELECT id
-            FROM jenny_notifications
-            WHERE status = 'open'
-              AND category = %s
-              AND COALESCE(symbol, '') = COALESCE(%s, '')
-            ORDER BY created_at DESC
-            LIMIT 1
-            """,
-            [category, symbol],
-        ).fetchone()
+        existing = _find_existing_notification(conn, category, symbol)
 
         if existing:
-            conn.execute(
-                """
-                UPDATE jenny_notifications
-                SET routine_id = %s,
-                    severity = %s,
-                    title = %s,
-                    detail = %s,
-                    recommendation = %s,
-                    created_at = %s
-                WHERE id = %s
-                """,
-                [
-                    routine_id,
-                    severity,
-                    title,
-                    detail,
-                    recommendation,
-                    datetime.now(UTC).isoformat(),
-                    str(existing[0]),
-                ],
+            _execute_update(
+                conn,
+                str(existing[0]),
+                routine_id,
+                severity,
+                title,
+                detail,
+                recommendation,
             )
         else:
-            conn.execute(
-                """
-                INSERT INTO jenny_notifications (
-                    id, routine_id, symbol, category, severity, status, title, detail, recommendation, created_at
-                ) VALUES (%s, %s, %s, %s, %s, 'open', %s, %s, %s, %s)
-                """,
-                [
-                    str(uuid.uuid4()),
-                    routine_id,
-                    symbol,
-                    category,
-                    severity,
-                    title,
-                    detail,
-                    recommendation,
-                    datetime.now(UTC).isoformat(),
-                ],
+            _execute_insert(
+                conn,
+                routine_id,
+                symbol,
+                category,
+                severity,
+                title,
+                detail,
+                recommendation,
             )
         conn.commit()
 

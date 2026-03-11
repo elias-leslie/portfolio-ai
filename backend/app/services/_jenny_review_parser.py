@@ -13,7 +13,8 @@ def normalize_confidence(raw_confidence: float | int | str | bool | None) -> flo
         return 1.0 if raw_confidence else 0.0
     if isinstance(raw_confidence, int | float):
         value = float(raw_confidence)
-        return value / 100.0 if value > 1.0 else value
+        normalized_value = value / 100.0 if value > 1.0 else value
+        return max(0.0, min(1.0, normalized_value))
     if isinstance(raw_confidence, str):
         normalized = raw_confidence.strip().lower()
         qualitative_map = {"low": 0.35, "medium": 0.6, "med": 0.6, "high": 0.8}
@@ -22,7 +23,8 @@ def normalize_confidence(raw_confidence: float | int | str | bool | None) -> flo
         if normalized.endswith("%"):
             normalized = normalized[:-1].strip()
         value = float(normalized)
-        return value / 100.0 if value > 1.0 else value
+        normalized_value = value / 100.0 if value > 1.0 else value
+        return max(0.0, min(1.0, normalized_value))
     raise ValueError(f"Unsupported confidence value: {raw_confidence!r}")
 
 
@@ -44,6 +46,8 @@ def normalize_verdict(raw_verdict: str | None) -> str:
     return "review"
 
 
+_FALLBACK_CONFIDENCE = 0.45
+
 def _extract_json(content: str) -> dict[str, Any]:
     try:
         if "```json" in content:
@@ -53,10 +57,10 @@ def _extract_json(content: str) -> dict[str, Any]:
         elif "{" in content and "}" in content:
             content = content[content.index("{") : content.rindex("}") + 1]
         return dict(json.loads(content))  # type: ignore[arg-type]
-    except Exception:
+    except (json.JSONDecodeError, ValueError):
         return {
             "verdict": "review",
-            "confidence": 0.45,
+            "confidence": _FALLBACK_CONFIDENCE,
             "rationale": content.strip(),
             "recommendation": "Manual review required.",
             "strengths": [],
@@ -86,13 +90,20 @@ def parse_agent_response(content: str, agent_name: str) -> dict[str, Any]:
     }
 
 
+_VALID_MODES = {"thesis", "risk", "exit", "synthesis"}
+
 def build_agent_prompt(mode: str, payload: dict[str, Any]) -> str:
-    mode_instruction = {
+    mode_map = {
         "thesis": "Decide whether the thesis still supports owning or buying the symbol.",
         "risk": "Decide whether current risk justifies trimming, reviewing, or holding.",
         "exit": "Focus on the next action for the position: hold, trim, review, exit, or avoid.",
         "synthesis": "Combine the prior evidence into the clearest plain-English next step.",
-    }[mode]
+    }
+    if mode not in mode_map:
+        raise ValueError(
+            f"Unknown mode {mode!r}. Valid modes are: {sorted(_VALID_MODES)}"
+        )
+    mode_instruction = mode_map[mode]
 
     review_instruction = ""
     if payload.get("review_mode") == "allocation":

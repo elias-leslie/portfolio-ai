@@ -218,14 +218,18 @@ class HouseholdQuestionReconciler:
         cleaned = answer_text.strip()
         if not cleaned or question.field_name not in service.FIELD_LABELS:
             return
-        parsed_value = parse_answer_value(question.field_name, cleaned)
+        column = question.field_name
+        allowed_columns = set(service.FIELD_LABELS.keys())
+        if column not in allowed_columns:
+            raise ValueError(f"Column '{column}' is not an allowed profile column.")
+        parsed_value = parse_answer_value(column, cleaned)
         if parsed_value is None:
             return
         now = datetime.now(UTC).isoformat()
         profile = service.get_profile()
         with service.storage.connection() as conn:
             conn.execute(
-                f"UPDATE household_profiles SET {question.field_name} = %s, updated_at = %s WHERE id = %s",
+                f"UPDATE household_profiles SET {column} = %s, updated_at = %s WHERE id = %s",
                 [parsed_value, now, profile.id],
             )
             if question.field_name:
@@ -247,6 +251,13 @@ class HouseholdQuestionReconciler:
     def _apply_answered_context(
         self, conn: Any, answered_questions: list[HouseholdQuestion], open_questions: list[HouseholdQuestion]
     ) -> bool:
+        """Mark open questions answered when existing context covers them.
+
+        Intentionally mutates candidate objects in-place (status, answer_text,
+        answered_at) so that subsequent helpers in the same reconciliation pass
+        see the updated state and skip already-resolved candidates. This matches
+        the mutation pattern used by _dismiss_duplicates and _dismiss_inferred.
+        """
         updated = False
         for answered in answered_questions:
             answer_text = (answered.answer_text or "").strip()

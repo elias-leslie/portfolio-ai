@@ -64,7 +64,8 @@ class ThesisGenerator:
             logger.error("json_parse_failed", content_preview=content[:500], error=str(e))
             raise ValueError(f"Failed to parse JSON from LLM response: {e}") from e
 
-    def _parse_float_str(self, value: str) -> float | None:
+    @staticmethod
+    def _parse_float_str(value: str) -> float | None:
         """Parse a float from a stripped non-empty string, returning None on failure."""
         stripped = value.strip()
         if not stripped:

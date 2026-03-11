@@ -173,12 +173,25 @@ class CrossValidationService:
         generator = self._ensure_generator()
         logger.info("gemini_generating", prompt_length=len(prompt))
         response = generator.generate(prompt=prompt, system=system, purpose="gemini_generation")
-        result = self.validate(
-            generator_output=response.content,
-            context_type=context_type,
-            context_symbol=context_symbol,
-            metadata=metadata,
-        )
+        try:
+            result = self.validate(
+                generator_output=response.content,
+                context_type=context_type,
+                context_symbol=context_symbol,
+                metadata=metadata,
+            )
+        except Exception as e:
+            logger.error("cross_validation_failed", error=str(e))
+            result = ValidationResult(
+                generator_output=response.content,
+                validator_review=f"Validation failed: {e}",
+                validator_approved=False,
+                has_disagreement=True,
+                status=ValidationStatus.PENDING,
+                context_type=context_type,
+                context_symbol=context_symbol,
+                metadata=metadata or {},
+            )
         return response, result
 
     def get_pending_validations(self, limit: int = 50) -> list[ValidationResult]:

@@ -22,6 +22,7 @@ from app.utils.market_hours import (
     NY_TZ,
     get_market_aware_age_hours,
     get_market_close_time,
+    is_market_open,
     is_trading_day,
 )
 
@@ -157,11 +158,16 @@ def _is_in_cooldown(table_name: str, now: dt.datetime) -> bool:
 
 
 def _can_remediate(table_name: str, is_market_data: bool, now: dt.datetime) -> bool:
-    """Return True if remediation should proceed (not in cooldown, market open if needed)."""
+    """Return True if remediation should proceed (not in cooldown, market open if needed).
+
+    For market data, remediation is only attempted while the market is actually open
+    (9:30 AM - 4:00 PM ET on trading days), not merely on any trading-day calendar date.
+    Triggering refreshes outside regular market hours cannot yield new intraday data.
+    """
     if _is_in_cooldown(table_name, now):
         logger.info("remediation_skipped_cooldown", table_name=table_name, reason="in_cooldown")
         return False
-    if is_market_data and not is_trading_day(now.date()):
+    if is_market_data and not is_market_open(now):
         logger.info("remediation_skipped_market_closed", table_name=table_name, reason="market_closed")
         return False
     return True
@@ -355,9 +361,21 @@ def _check_one_table(
             0,
         )
 
+    # Maximum time a weekend/holiday suppression is allowed to hide a real failure.
+    # Failures older than this threshold surface regardless of the trading calendar,
+    # preventing a failure that starts on Friday from going unnoticed until Monday.
+    max_weekend_suppression_hours = 24
+
     if result["is_critical"]:
-        if config["market_data"] and not is_trading:
-            logger.info("skipping_weekend_alert", table=config["table_name"], reason="market_closed")
+        age_hours_for_suppression = _as_age_hours(result.get("age_hours"))
+        suppress = (
+            config["market_data"]
+            and not is_trading
+            and age_hours_for_suppression is not None
+            and age_hours_for_suppression < max_weekend_suppression_hours
+        )
+        if suppress:
+            logger.info("skipping_weekend_alert", table=config["table_name"], reason="market_closed", age_hours=age_hours_for_suppression)
             return result, 0, 0
         triggered = _handle_critical_result(config, result, auto_remediate)
         return result, 1, triggered

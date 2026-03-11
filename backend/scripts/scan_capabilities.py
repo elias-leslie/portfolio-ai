@@ -18,10 +18,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import re
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TypedDict
 
 # Add backend to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -30,8 +32,20 @@ from sqlalchemy import create_engine, inspect, text
 
 from app.constants import DATABASE_URL
 
-# Type alias for a capability record
-Capability = dict[str, object]
+logger = logging.getLogger(__name__)
+
+
+class Capability(TypedDict):
+    """A single discovered system capability."""
+
+    category: str
+    name: str
+    source_type: str
+    source_location: str
+    coverage: str
+    metadata: dict[str, object]
+
+
 ChangeSet = dict[str, list[Capability]]
 
 _SCAN_FILE = Path(__file__).parent / ".capabilities_scan.json"
@@ -87,10 +101,11 @@ def _table_date_range(conn: object, table_name: str, column_names: list[str]) ->
             if row is None:
                 continue
             min_date, max_date = row
-            if min_date and max_date:
-                return f"{min_date.date()} to {max_date.date()}"
-        except Exception:
-            pass
+            if not (min_date and max_date):
+                continue
+            return f"{min_date.date()} to {max_date.date()}"
+        except Exception as e:
+            logger.warning("Failed to get date range for %s.%s: %s", table_name, col, e)
     return None
 
 
@@ -170,7 +185,11 @@ def load_previous_scan() -> list[Capability] | None:
     """Load previous scan results from file."""
     if not _SCAN_FILE.exists():
         return None
-    data: dict[str, object] = json.loads(_SCAN_FILE.read_text())
+    try:
+        data: dict[str, object] = json.loads(_SCAN_FILE.read_text())
+    except json.JSONDecodeError as e:
+        logger.warning("Previous scan file contains invalid JSON, ignoring: %s", e)
+        return None
     result = data.get("capabilities", [])
     return result if isinstance(result, list) else None
 

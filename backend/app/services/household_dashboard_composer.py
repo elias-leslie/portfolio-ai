@@ -149,9 +149,18 @@ def _build_overview(
     )
 
 
+def _resolved_numeric_value(field: Any, resolved_values: list[Any], service: Any) -> Any:
+    """Get resolved numeric value for a field."""
+    return service._resolved_numeric_value(resolved_values, field)
+
+
 def _build_budget_readiness(*, service: Any, resolved_values: list[Any], documents: list[Any]) -> BudgetReadiness:
     budget_inputs = service._budget_input_status(resolved_values, documents)
-    resolved_numeric_value = lambda field: service._resolved_numeric_value(resolved_values, field)  # noqa: E731
+
+    def resolved_numeric_value(field: Any) -> Any:
+        """Get resolved numeric value for the given field."""
+        return service._resolved_numeric_value(resolved_values, field)
+
     return BudgetReadiness(
         status="ready_for_budgeting" if budget_inputs["budget_ready"] else "setup_needed",
         summary=(
@@ -311,7 +320,7 @@ class HouseholdDashboardComposer:
     def build_categorization_queue(
         self, service: Any, limit: int = 6
     ) -> list[HouseholdCategorizationCandidate]:
-        return fetch_categorization_queue(service.storage, service.transaction_service, limit)
+        return fetch_categorization_queue(service.storage, limit)
 
     def build_recurring_commitments(
         self, service: Any, limit: int = 6
