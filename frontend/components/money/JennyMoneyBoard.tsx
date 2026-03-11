@@ -26,6 +26,25 @@ export function JennyMoneyBoard({
         {coverageMonths} month{coverageMonths === 1 ? '' : 's'} of evidence
       </div>
 
+      {dashboard.portfolioContext?.insights && dashboard.portfolioContext.insights.length > 0 && (
+        <SectionCard
+          variant="surface"
+          title="Portfolio × Household"
+          description="Cross-domain insights bridging your investments and spending."
+        >
+          <ul className="space-y-2">
+            {dashboard.portfolioContext.insights.map((insight, idx) => (
+              <li
+                key={`portfolio-insight-${idx}`}
+                className="rounded-2xl border border-border/40 bg-surface-muted/20 px-4 py-3 text-sm text-text-muted"
+              >
+                {insight}
+              </li>
+            ))}
+          </ul>
+        </SectionCard>
+      )}
+
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <SectionCard
           variant="surface"

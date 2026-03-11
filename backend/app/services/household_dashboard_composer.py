@@ -19,7 +19,6 @@ from app.models.household_finance import (
     ImportCenter,
     ImportFormat,
     JennyMoneyBrief,
-    JennyProgression,
     PortfolioHouseholdContext,
     RetirementPreparedness,
 )
