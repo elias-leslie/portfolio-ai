@@ -6,8 +6,10 @@ import pytest
 
 from app.storage.connection import ConnectionManager
 from tests.fixtures.db_safety import (
+    OWNERSHIP_REPAIR_COMMAND,
     TEST_DB_NAME,
     assert_connected_to_test_database,
+    assert_test_database_ownership,
     assert_test_database_writable,
     derive_test_db_url,
 )
@@ -58,3 +60,14 @@ def test_assert_test_database_writable_rejects_missing_permissions() -> None:
             symbols_writable=False,
             reference_cache_writable=True,
         )
+
+
+def test_assert_test_database_ownership_rejects_owner_drift() -> None:
+    """Legacy objects owned by the wrong role should fail with a repair command."""
+    with pytest.raises(RuntimeError, match="ownership drift detected") as exc_info:
+        assert_test_database_ownership(
+            current_user="portfolio_app",
+            owner_mismatches=[("feature_capabilities", "portfolio_ai_user")],
+        )
+
+    assert OWNERSHIP_REPAIR_COMMAND in str(exc_info.value)

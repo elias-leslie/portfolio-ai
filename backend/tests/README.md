@@ -376,6 +376,14 @@ sudo systemctl status postgresql
 sudo -u postgres psql -c "CREATE DATABASE portfolio_ai_test OWNER portfolio_app;"
 ```
 
+### "Test database ownership drift detected"
+**Cause:** Legacy objects inside `portfolio_ai_test` are still owned by `portfolio_ai_user`
+while tests and Alembic run as `portfolio_app`.
+**Solution:** Re-run the repairable setup script
+```bash
+sudo bash backend/scripts/setup-test-db.sh
+```
+
 ### Tests Pass Individually but Fail Together
 **Cause:** Test isolation issue (data leaking between tests)
 **Solution:** Verify `clean_database` fixture is running (check `autouse=True` in conftest.py)

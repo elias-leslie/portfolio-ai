@@ -38,8 +38,10 @@ from app.storage.connection import ConnectionManager  # noqa: E402
 from tests.fixtures.db_safety import (  # noqa: E402
     TEST_DB_NAME,
     assert_connected_to_test_database,
+    assert_test_database_ownership,
     assert_test_database_writable,
     derive_test_db_url,
+    find_test_database_owner_mismatches,
 )
 
 # Configure test database
@@ -136,6 +138,19 @@ def _get_existing_tables(conn: ConnectionManager) -> set[str]:
 @pytest.fixture(scope="session", autouse=True)
 def ensure_test_schema_up_to_date() -> None:
     """Apply Alembic migrations to the test database before any tests run."""
+    cm = ConnectionManager(TEST_DB_URL)
+    with cm.connection() as conn:
+        current_database_row = conn.execute("SELECT current_database(), current_user").fetchone()
+        current_database = str(current_database_row[0]) if current_database_row else ""
+        current_user = str(current_database_row[1]) if current_database_row else ""
+        assert_connected_to_test_database(current_database)
+        assert_test_database_ownership(
+            current_user=current_user,
+            owner_mismatches=find_test_database_owner_mismatches(
+                conn, current_user=current_user
+            ),
+        )
+
     backend_root = Path(__file__).resolve().parents[2]
     env = os.environ.copy()
     env["PORTFOLIO_DB_URL"] = TEST_DB_URL

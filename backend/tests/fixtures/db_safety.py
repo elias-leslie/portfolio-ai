@@ -2,8 +2,24 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 TEST_DB_NAME = "portfolio_ai_test"
 PROD_DB_NAME = "portfolio_ai"
+OWNERSHIP_REPAIR_COMMAND = "sudo bash backend/scripts/setup-test-db.sh"
+LEGACY_TEST_OBJECTS_WITH_OWNER_DRIFT = (
+    "api_capabilities",
+    "capability_insights",
+    "capability_notes",
+    "celery_capabilities",
+    "celery_feature_mappings",
+    "db_capabilities",
+    "feature_capabilities",
+    "feature_dependencies",
+    "feature_tasks",
+    "feature_vision_goal_mappings",
+    "feature_dependency_view",
+)
 
 
 def derive_test_db_url(prod_db_url: str, explicit_test_db_url: str | None = None) -> str:
@@ -56,4 +72,40 @@ def assert_test_database_writable(
         "Test database role permissions are incomplete. "
         f"Current user {current_user!r} must be able to write to 'symbols' and "
         "'reference_cache' in portfolio_ai_test."
+    )
+
+
+def find_test_database_owner_mismatches(conn: object, *, current_user: str) -> list[tuple[str, str]]:
+    """Return legacy test objects not owned by the active test role."""
+    conn._cursor.execute(
+        """
+        SELECT c.relname, pg_get_userbyid(c.relowner) AS owner
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = %s
+          AND c.relname = ANY(%s)
+          AND pg_get_userbyid(c.relowner) <> %s
+        ORDER BY c.relname
+        """,
+        ("public", list(LEGACY_TEST_OBJECTS_WITH_OWNER_DRIFT), current_user),
+    )
+    return [(str(name), str(owner)) for name, owner in conn._cursor.fetchall()]
+
+
+def assert_test_database_ownership(
+    *,
+    current_user: str,
+    owner_mismatches: Sequence[tuple[str, str]],
+) -> None:
+    """Require drift-prone legacy objects to be owned by the active test role."""
+    if not owner_mismatches:
+        return
+
+    mismatch_text = ", ".join(
+        f"{name} (owner {owner})" for name, owner in owner_mismatches
+    )
+    raise RuntimeError(
+        "Test database ownership drift detected. "
+        f"Current user {current_user!r} cannot run migrations against: {mismatch_text}. "
+        f"Repair the test database ownership first with `{OWNERSHIP_REPAIR_COMMAND}`."
     )
