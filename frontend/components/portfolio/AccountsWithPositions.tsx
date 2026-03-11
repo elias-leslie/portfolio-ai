@@ -4,6 +4,7 @@ import { PlusCircle } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog'
+import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { Accordion } from '@/components/ui/accordion'
 import { Button } from '@/components/ui/button'
 import {
@@ -37,12 +38,28 @@ interface AccountsWithPositionsProps {
   onAddPosition?: (accountId?: string) => void
 }
 
-export function AccountsWithPositions({
+export interface AccountsWithPositionsContentProps extends AccountsWithPositionsProps {
+  accounts: Awaited<ReturnType<typeof useAccounts>>['data']
+  accountsLoading: boolean
+  accountsError?: Error | null
+  onRetryAccounts?: () => void
+}
+
+export function AccountsWithPositionsContent({
+  accounts,
+  accountsLoading,
+  accountsError,
+  onRetryAccounts,
   onAddAccount,
   onAddPosition,
-}: AccountsWithPositionsProps) {
-  const { data: accounts, isLoading: accountsLoading } = useAccounts()
-  const { data: portfolio, isLoading: portfolioLoading } = usePortfolio()
+}: AccountsWithPositionsContentProps) {
+  const {
+    data: portfolio,
+    isLoading: portfolioLoading,
+    error: portfolioError,
+    refetch: refetchPortfolio,
+    isFetching: portfolioFetching,
+  } = usePortfolio()
   const deleteAccount = useDeleteAccount()
   const deletePosition = useDeletePosition()
   const updatePosition = useUpdatePosition()
@@ -202,6 +219,37 @@ export function AccountsWithPositions({
     )
   }
 
+  if (accountsError || portfolioError) {
+    return (
+      <>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Accounts & Positions</CardTitle>
+                <CardDescription>
+                  Reload account and position data before making portfolio edits.
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <LoadErrorState
+              title="Failed to load portfolio accounts."
+              detail={accountsError?.message ?? portfolioError?.message ?? 'Unknown error'}
+              onRetry={() => {
+                onRetryAccounts?.()
+                void refetchPortfolio()
+              }}
+              isRetrying={portfolioFetching}
+            />
+          </CardContent>
+        </Card>
+        {confirmDialog}
+      </>
+    )
+  }
+
   if (!accounts || accounts.length === 0) {
     return (
       <>
@@ -322,5 +370,26 @@ export function AccountsWithPositions({
       />
       {confirmDialog}
     </>
+  )
+}
+
+export function AccountsWithPositions(props: AccountsWithPositionsProps) {
+  const {
+    data: accounts,
+    isLoading: accountsLoading,
+    error: accountsError,
+    refetch,
+  } = useAccounts()
+
+  return (
+    <AccountsWithPositionsContent
+      {...props}
+      accounts={accounts}
+      accountsLoading={accountsLoading}
+      accountsError={accountsError}
+      onRetryAccounts={() => {
+        void refetch()
+      }}
+    />
   )
 }

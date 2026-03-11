@@ -34,13 +34,41 @@ export function WorkspaceTabs({
 
     return new URLSearchParams(window.location.search).get('tab')
   }
+  const syncLocationToValue = (nextValue: string) => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const nextUrl = new URL(window.location.href)
+    const nextParams = new URLSearchParams(nextUrl.search)
+    const currentTab = nextParams.get('tab')
+
+    if (nextValue === fallbackValue) {
+      if (!currentTab) {
+        return
+      }
+      nextParams.delete('tab')
+    } else {
+      if (currentTab === nextValue) {
+        return
+      }
+      nextParams.set('tab', nextValue)
+    }
+
+    nextUrl.search = nextParams.toString()
+    window.history.replaceState(window.history.state, '', nextUrl)
+  }
   const initialValue = resolveValue(readRequestedValue())
   const [value, setValue] = useState(initialValue)
   const activeTab = tabs.find((tab) => tab.value === value) ?? tabs[0]
 
   useEffect(() => {
     const syncFromLocation = () => {
+      const requestedValue = readRequestedValue()
       const nextValue = resolveValue(readRequestedValue())
+      if (requestedValue !== nextValue) {
+        syncLocationToValue(nextValue)
+      }
       setValue((currentValue) =>
         currentValue === nextValue ? currentValue : nextValue,
       )
@@ -57,6 +85,7 @@ export function WorkspaceTabs({
     const nextValue = resolveValue(value)
     if (nextValue !== value) {
       setValue(nextValue)
+      syncLocationToValue(nextValue)
     }
   }, [fallbackValue, tabs, value])
 
@@ -71,16 +100,7 @@ export function WorkspaceTabs({
       return
     }
 
-    const nextUrl = new URL(window.location.href)
-    const nextParams = new URLSearchParams(nextUrl.search)
-    if (nextValue === fallbackValue) {
-      nextParams.delete('tab')
-    } else {
-      nextParams.set('tab', nextValue)
-    }
-
-    nextUrl.search = nextParams.toString()
-    window.history.replaceState(window.history.state, '', nextUrl)
+    syncLocationToValue(nextValue)
   }
 
   return (
@@ -91,6 +111,7 @@ export function WorkspaceTabs({
             <TabsTrigger
               key={tab.value}
               value={tab.value}
+              aria-current={tab.value === value ? 'page' : undefined}
               className={cn(
                 'rounded-xl border border-border/40 bg-surface/70 px-4 py-2 text-left',
                 'data-[state=active]:border-primary/40 data-[state=active]:bg-primary/10',

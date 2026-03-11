@@ -1,11 +1,13 @@
 'use client'
 
+import Link from 'next/link'
 import { useState } from 'react'
 import type { HouseholdFinanceDashboard } from '@/lib/api/household'
 import {
   useAnswerHouseholdQuestion,
   useCategorizeHouseholdTransaction,
 } from '@/lib/hooks/useHousehold'
+import { Badge } from '@/components/ui/badge'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { formatCurrency } from './formatters'
 
 const HOUSEHOLD_CATEGORY_OPTIONS = [
   'Bills',
@@ -30,17 +33,6 @@ const HOUSEHOLD_CATEGORY_OPTIONS = [
 ] as const
 
 const ESSENTIALITY_OPTIONS = ['essential', 'discretionary', 'mixed'] as const
-
-function formatCurrency(value: number | null | undefined) {
-  if (value === null || value === undefined) {
-    return '—'
-  }
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(value)
-}
 
 export function HouseholdOperationsPanel({
   dashboard,
@@ -69,6 +61,19 @@ export function HouseholdOperationsPanel({
         description="Handle the next household actions instead of just reading summaries."
       >
         <div className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="outline">
+              {dashboard.questions.length} open question{dashboard.questions.length === 1 ? '' : 's'}
+            </Badge>
+            <Badge variant="outline">
+              {dashboard.actionItems.length} action item{dashboard.actionItems.length === 1 ? '' : 's'}
+            </Badge>
+            <Badge variant="outline">
+              {dashboard.categorizationQueue.length} categorization follow-up
+              {dashboard.categorizationQueue.length === 1 ? '' : 's'}
+            </Badge>
+          </div>
+
           {dashboard.questions.length > 0 ? (
             dashboard.questions.slice(0, 3).map((question) => (
               <div
@@ -111,26 +116,49 @@ export function HouseholdOperationsPanel({
               Jenny does not need any follow-up answers right now.
             </div>
           )}
+          {dashboard.questions.length > 3 ? (
+            <p className="text-xs text-text-muted">
+              {dashboard.questions.length - 3} more question
+              {dashboard.questions.length - 3 === 1 ? '' : 's'} remain after this first batch.
+            </p>
+          ) : null}
 
           <div className="grid gap-3">
-            {dashboard.actionItems.map((item) => (
-              <div
-                key={`${item.title}-${item.detail}`}
-                className="rounded-2xl border border-border/50 bg-surface/50 p-4"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-text">{item.title}</p>
-                    <p className="mt-1 text-sm text-text-muted">{item.detail}</p>
-                  </div>
-                  <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-primary">
-                    {item.priority}
-                  </span>
-                </div>
-                <p className="mt-3 text-sm text-text">{item.actionLabel}</p>
+            {dashboard.actionItems.length === 0 ? (
+              <div className="rounded-2xl border border-gain/30 bg-gain/10 p-4 text-sm text-text-muted">
+                No additional operator actions are waiting right now.
               </div>
-            ))}
+            ) : (
+              dashboard.actionItems.slice(0, 4).map((item) => (
+                <div
+                  key={`${item.title}-${item.detail}`}
+                  className="rounded-2xl border border-border/50 bg-surface/50 p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-text">{item.title}</p>
+                      <p className="mt-1 text-sm text-text-muted">{item.detail}</p>
+                    </div>
+                    <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-primary">
+                      {item.priority}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={item.href}>{item.actionLabel}</Link>
+                    </Button>
+                    <span className="text-xs text-text-muted">{item.source}</span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
+          {dashboard.actionItems.length > 4 ? (
+            <p className="text-xs text-text-muted">
+              {dashboard.actionItems.length - 4} more action item
+              {dashboard.actionItems.length - 4 === 1 ? '' : 's'} are waiting behind these.
+            </p>
+          ) : null}
 
           <div className="space-y-3 rounded-2xl border border-border/40 bg-surface/40 p-4">
             <div>
@@ -273,6 +301,12 @@ export function HouseholdOperationsPanel({
                 </div>
               ))
             )}
+            {dashboard.categorizationQueue.length > 4 ? (
+              <p className="text-xs text-text-muted">
+                {dashboard.categorizationQueue.length - 4} more low-confidence transaction
+                {dashboard.categorizationQueue.length - 4 === 1 ? '' : 's'} remain after these.
+              </p>
+            ) : null}
           </div>
         </div>
       </SectionCard>

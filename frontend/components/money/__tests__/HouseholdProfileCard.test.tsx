@@ -114,4 +114,30 @@ describe('HouseholdProfileCard', () => {
       screen.getByText(/confirm that this is a walmart order and should count as household shopping/i),
     ).toBeInTheDocument()
   })
+
+  it('shows an empty state when Jenny has not resolved any planning values yet', () => {
+    render(
+      <HouseholdProfileCard
+        profile={{
+          id: 'profile-1',
+          householdName: 'Household',
+          monthlyNetIncomeTarget: null,
+          monthlyEssentialTarget: null,
+          monthlyDiscretionaryTarget: null,
+          monthlySavingsTarget: null,
+          targetRetirementAge: null,
+          targetRetirementSpend: null,
+          notes: null,
+          createdAt: '2026-03-09T00:00:00Z',
+          updatedAt: '2026-03-09T00:00:00Z',
+        }}
+        resolvedValues={[]}
+        questions={[]}
+      />,
+    )
+
+    expect(
+      screen.getByText(/jenny has not resolved any structured planning values yet/i),
+    ).toBeInTheDocument()
+  })
 })

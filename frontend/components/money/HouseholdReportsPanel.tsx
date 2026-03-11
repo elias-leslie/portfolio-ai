@@ -29,6 +29,11 @@ export function HouseholdReportsPanel({
 }) {
   const { executive, categoryBreakdown, merchantHighlights, monthlySpendTrend, recentTransactions } =
     dashboard.reports
+  const displayedMonthlySpendTrend = monthlySpendTrend.slice(-6)
+  const maxMonthlySpend = Math.max(
+    ...displayedMonthlySpendTrend.map((entry) => entry.totalSpend),
+    1,
+  )
 
   const executiveCards = [
     {
@@ -140,6 +145,11 @@ export function HouseholdReportsPanel({
                   </div>
                 ))
               )}
+              {categoryBreakdown.length > 6 ? (
+                <p className="text-xs text-text-muted">
+                  Showing the top 6 of {categoryBreakdown.length} tracked spending lanes.
+                </p>
+              ) : null}
             </div>
           </div>
 
@@ -179,6 +189,11 @@ export function HouseholdReportsPanel({
                   </div>
                 ))
               )}
+              {merchantHighlights.length > 4 ? (
+                <p className="text-xs text-text-muted">
+                  Showing the top 4 of {merchantHighlights.length} merchant patterns.
+                </p>
+              ) : null}
             </div>
           </div>
         </div>
@@ -193,7 +208,7 @@ export function HouseholdReportsPanel({
               {monthlySpendTrend.length === 0 ? (
                 <p className="text-sm text-text-muted">Trend data appears once Jenny has at least one month of spend evidence.</p>
               ) : (
-                monthlySpendTrend.slice(-6).map((point) => (
+                displayedMonthlySpendTrend.map((point) => (
                   <div key={point.month} className="space-y-2">
                     <div className="flex items-center justify-between gap-3 text-sm">
                       <p className="font-semibold text-text">{formatMonthLabel(point.month)}</p>
@@ -210,19 +225,18 @@ export function HouseholdReportsPanel({
                       <div
                         className="h-2 rounded-full bg-accent"
                         style={{
-                          width: spendBarWidth(
-                            point.totalSpend /
-                              Math.max(
-                                ...monthlySpendTrend.map((entry) => entry.totalSpend),
-                                1,
-                              ),
-                          ),
+                          width: spendBarWidth(point.totalSpend / maxMonthlySpend),
                         }}
                       />
                     </div>
                   </div>
                 ))
               )}
+              {monthlySpendTrend.length > displayedMonthlySpendTrend.length ? (
+                <p className="text-xs text-text-muted">
+                  Showing the latest {displayedMonthlySpendTrend.length} of {monthlySpendTrend.length} months.
+                </p>
+              ) : null}
             </div>
           </div>
 
@@ -265,6 +279,11 @@ export function HouseholdReportsPanel({
                   </div>
                 ))
               )}
+              {recentTransactions.length > 8 ? (
+                <p className="text-xs text-text-muted">
+                  Showing the newest 8 of {recentTransactions.length} tracked transactions.
+                </p>
+              ) : null}
             </div>
           </div>
         </div>

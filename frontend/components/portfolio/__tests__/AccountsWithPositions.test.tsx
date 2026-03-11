@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { AccountsWithPositionsContent } from '../AccountsWithPositions'
 import {
   useAccounts,
   useDeleteAccount,
@@ -119,5 +120,34 @@ describe('AccountsWithPositions', () => {
     await user.click(screen.getByRole('button', { name: 'Add Position' }))
 
     expect(handleAddPosition).toHaveBeenCalledWith('acct-1')
+  })
+
+  it('shows a retryable error state when account data fails', async () => {
+    const user = userEvent.setup()
+    const retryAccounts = vi.fn()
+    const refetchPortfolio = vi.fn()
+
+    mockUsePortfolio.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isFetching: false,
+      error: null,
+      refetch: refetchPortfolio,
+    })
+
+    render(
+      <AccountsWithPositionsContent
+        accounts={undefined}
+        accountsLoading={false}
+        accountsError={new Error('accounts down')}
+        onRetryAccounts={retryAccounts}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+
+    expect(screen.getByText(/failed to load portfolio accounts/i)).toBeInTheDocument()
+    expect(retryAccounts).toHaveBeenCalled()
+    expect(refetchPortfolio).toHaveBeenCalled()
   })
 })

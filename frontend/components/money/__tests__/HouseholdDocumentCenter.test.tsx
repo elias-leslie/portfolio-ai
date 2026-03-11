@@ -30,7 +30,7 @@ describe('HouseholdDocumentCenter', () => {
       type: 'image/png',
     })
     const pasteTarget = screen.getByRole('button', {
-      name: /paste or drop screenshots or files here/i,
+      name: /paste, drop, or choose household documents to upload/i,
     })
 
     fireEvent.paste(pasteTarget, {
@@ -136,5 +136,74 @@ describe('HouseholdDocumentCenter', () => {
 
     expect(screen.queryByText(/ready to upload: 1 file/i)).not.toBeInTheDocument()
     expect(mutateAsync).not.toHaveBeenCalled()
+  })
+
+  it('reports duplicate files already staged in the queue', () => {
+    render(<HouseholdDocumentCenter documents={[]} />)
+
+    const january = new File(['jan'], 'january.pdf', { type: 'application/pdf' })
+    const input = screen.getByLabelText(/file/i)
+
+    fireEvent.change(input, {
+      target: {
+        files: [january],
+      },
+    })
+    fireEvent.change(input, {
+      target: {
+        files: [january],
+      },
+    })
+
+    expect(screen.getByText(/skipped 1 duplicate file/i)).toBeInTheDocument()
+  })
+
+  it('surfaces intake guidance and document timing metadata', () => {
+    render(
+      <HouseholdDocumentCenter
+        importCenter={{
+          headline: 'Import',
+          trackedDocuments: 8,
+          parsedDocuments: 5,
+          suggestedFirstUploads: ['Checking account statement'],
+          automations: ['Match merchants automatically'],
+          supportedDocuments: [
+            {
+              label: 'Statements',
+              formats: ['PDF', 'CSV'],
+              extracts: ['Transactions', 'balances'],
+            },
+          ],
+        }}
+        documents={[
+          {
+            id: 'doc-1',
+            filename: 'march.pdf',
+            sourceType: 'bank_statement',
+            documentType: 'statement',
+            status: 'parsed',
+            accountLabel: 'Primary Checking',
+            fileSizeBytes: 1024,
+            contentType: 'application/pdf',
+            classificationConfidence: 0.87,
+            reviewStatus: 'complete',
+            reviewSummary: 'Parsed successfully.',
+            reviewConfidence: 0.92,
+            statementStart: '2026-03-01',
+            statementEnd: '2026-03-31',
+            uploadedAt: '2026-03-10T00:00:00Z',
+            parsedAt: '2026-03-10T01:00:00Z',
+            metadata: {},
+          },
+        ]}
+      />,
+    )
+
+    expect(screen.getByText('8')).toBeInTheDocument()
+    expect(screen.getByText(/5 parsed so far/i)).toBeInTheDocument()
+    expect(screen.getByText('Checking account statement')).toBeInTheDocument()
+    expect(screen.getByText('Match merchants automatically')).toBeInTheDocument()
+    expect(screen.getByText(/statement window mar 1, 2026 to mar 31, 2026/i)).toBeInTheDocument()
+    expect(screen.getByText(/classifier 87%/i)).toBeInTheDocument()
   })
 })

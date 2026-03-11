@@ -6,11 +6,6 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Format a timestamp as relative time ("2m ago", "1h ago") or absolute time for older dates
- * @param timestamp ISO 8601 timestamp string
- * @returns Formatted time string
- */
-/**
  * Format a date string consistently across the app (MM/DD/YYYY style)
  * @param dateStr ISO 8601 date string or date-only string (YYYY-MM-DD)
  * @param includeYear Whether to include the year (default: true)

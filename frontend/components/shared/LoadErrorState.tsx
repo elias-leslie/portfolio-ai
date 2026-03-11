@@ -53,6 +53,7 @@ export function LoadErrorState({
                   variant="outline"
                   onClick={onRetry}
                   disabled={isRetrying}
+                  aria-busy={isRetrying}
                 >
                   <RefreshCw
                     className={cn('mr-2 h-4 w-4', isRetrying && 'animate-spin')}

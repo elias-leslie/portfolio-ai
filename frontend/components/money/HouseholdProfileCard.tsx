@@ -105,34 +105,40 @@ export function HouseholdProfileCard({
     >
       <div className="space-y-6">
         <div className="grid gap-4 xl:grid-cols-3">
-          {resolvedValues.map((value) => (
-            <div key={value.fieldName} className="rounded-2xl border border-border/50 bg-surface-muted/20 p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-text">{value.label}</p>
-                  <p className="mt-2 text-base font-semibold text-text">
-                    {formatResolvedValue(value)}
-                  </p>
-                </div>
-                <Badge variant={badgeVariantForStatus(value.status)}>{formatEnumLabel(value.status)}</Badge>
-              </div>
-              <div className="mt-3 space-y-2 text-sm text-text-muted">
-                <p>
-                  Source:{' '}
-                  {value.source === 'jenny_inference'
-                    ? 'Jenny estimate'
-                    : value.source === 'manual'
-                      ? 'Confirmed override'
-                      : 'Pending'}
-                </p>
-                {value.confidence != null ? (
-                  <p>Confidence: {Math.round(value.confidence * 100)}%</p>
-                ) : null}
-                {value.rationale ? <p>{value.rationale}</p> : null}
-                {value.question ? <p>Needs confirmation: {value.question}</p> : null}
-              </div>
+          {resolvedValues.length === 0 ? (
+            <div className="rounded-2xl border border-border/50 bg-surface-muted/20 p-4 text-sm text-text-muted xl:col-span-3">
+              Jenny has not resolved any structured planning values yet. Upload documents or set an override to start building the household plan.
             </div>
-          ))}
+          ) : (
+            resolvedValues.map((value) => (
+              <div key={value.fieldName} className="rounded-2xl border border-border/50 bg-surface-muted/20 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-text">{value.label}</p>
+                    <p className="mt-2 text-base font-semibold text-text">
+                      {formatResolvedValue(value)}
+                    </p>
+                  </div>
+                  <Badge variant={badgeVariantForStatus(value.status)}>{formatEnumLabel(value.status)}</Badge>
+                </div>
+                <div className="mt-3 space-y-2 text-sm text-text-muted">
+                  <p>
+                    Source:{' '}
+                    {value.source === 'jenny_inference'
+                      ? 'Jenny estimate'
+                      : value.source === 'manual'
+                        ? 'Confirmed override'
+                        : 'Pending'}
+                  </p>
+                  {value.confidence != null ? (
+                    <p>Confidence: {Math.round(value.confidence * 100)}%</p>
+                  ) : null}
+                  {value.rationale ? <p>{value.rationale}</p> : null}
+                  {value.question ? <p>Needs confirmation: {value.question}</p> : null}
+                </div>
+              </div>
+            ))
+          )}
         </div>
 
         <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5">

@@ -62,7 +62,7 @@ describe('HomeActionQueue', () => {
 
     render(<HomeActionQueue />)
 
-    await user.click(screen.getByRole('button', { name: /quick action/i }))
+    await user.click(screen.getByRole('button', { name: /advance workflow/i }))
 
     expect(transitionMutate).toHaveBeenCalledWith({
       symbol: 'VTI',
@@ -86,5 +86,27 @@ describe('HomeActionQueue', () => {
     await user.click(screen.getByRole('button', { name: 'Retry' }))
 
     expect(refetch).toHaveBeenCalled()
+  })
+
+  it('shows a clear empty state when the queue is empty', () => {
+    useHomeActionQueueMock.mockReturnValue({
+      data: {
+        generatedAt: '2026-03-11T00:00:00Z',
+        summary: 'Queue clear.',
+        actions: [],
+      },
+      isLoading: false,
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    render(<HomeActionQueue />)
+
+    expect(screen.getByText(/no urgent cross-workspace actions/i)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Review Watchlist' })).toHaveAttribute(
+      'href',
+      '/watchlist',
+    )
   })
 })

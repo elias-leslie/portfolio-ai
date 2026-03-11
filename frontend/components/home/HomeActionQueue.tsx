@@ -10,6 +10,7 @@ import type { HomeActionItem } from '@/lib/api/home'
 import { useHomeActionQueue } from '@/lib/hooks/useHomeActionQueue'
 import { useAcknowledgeJennyNotification } from '@/lib/hooks/usePortfolio'
 import { useTransitionSymbolWorkflow } from '@/lib/hooks/useSymbolIntelligence'
+import { formatRelativeTime } from '@/lib/utils'
 
 const categoryIcons = {
   household: House,
@@ -26,10 +27,26 @@ const priorityTone = {
   low: 'border-border/50 bg-surface-muted/20',
 }
 
+function quickActionLabel(action: HomeActionItem) {
+  if (!action.execution) {
+    return null
+  }
+
+  switch (action.execution.kind) {
+    case 'acknowledge_notification':
+      return 'Acknowledge'
+    case 'workflow_transition':
+      return 'Advance workflow'
+    default:
+      return 'Quick action'
+  }
+}
+
 export function HomeActionQueue() {
   const { data, isLoading, error, refetch, isFetching } = useHomeActionQueue()
   const acknowledgeNotification = useAcknowledgeJennyNotification()
   const transitionWorkflow = useTransitionSymbolWorkflow()
+  const actions = data?.actions ?? []
 
   const handleExecution = (action: HomeActionItem) => {
     const execution = action.execution
@@ -63,6 +80,15 @@ export function HomeActionQueue() {
         'The most important next steps across today, the portfolio, and the money system.'
       }
     >
+      {!isLoading && !error ? (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border/40 bg-surface-muted/20 px-4 py-3 text-sm text-text-muted">
+          <span>
+            {actions.length} prioritized action{actions.length === 1 ? '' : 's'}
+          </span>
+          <span>Updated {formatRelativeTime(data?.generatedAt)}</span>
+        </div>
+      ) : null}
+
       {isLoading ? (
         <div className="grid gap-3 lg:grid-cols-2">
           {[...Array(4)].map((_, index) => (
@@ -85,14 +111,33 @@ export function HomeActionQueue() {
         />
       ) : null}
 
-      {!isLoading && !error ? (
+      {!isLoading && !error && actions.length === 0 ? (
+        <div className="rounded-2xl border border-border/50 bg-surface-muted/20 p-5">
+          <p className="text-sm font-medium text-text">No urgent cross-workspace actions.</p>
+          <p className="mt-2 text-sm text-text-muted">
+            The queue is clear for now. Use this time to tighten the watchlist, review the
+            portfolio, or upload new household documents so Jenny has fresher evidence.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button asChild size="sm" variant="outline">
+              <Link href="/watchlist">Review Watchlist</Link>
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <Link href="/money?tab=intake">Open Intake</Link>
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {!isLoading && !error && actions.length > 0 ? (
         <div className="grid gap-3 lg:grid-cols-2">
-          {data?.actions.map((action) => {
+          {actions.map((action) => {
             const Icon =
               categoryIcons[action.category as keyof typeof categoryIcons] ?? ArrowRight
             const tone =
               priorityTone[action.priority as keyof typeof priorityTone] ??
               priorityTone.low
+            const quickLabel = quickActionLabel(action)
 
             return (
               <div
@@ -105,6 +150,11 @@ export function HomeActionQueue() {
                       <Icon className="h-4 w-4 text-primary" />
                       <span>{action.title}</span>
                     </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary">{action.category}</Badge>
+                      <Badge variant="outline">{action.source}</Badge>
+                      <Badge variant="outline">{action.priority}</Badge>
+                    </div>
                     <p className="text-sm text-text-muted">{action.detail}</p>
                   </div>
                   {action.badge ? <Badge variant="outline">{action.badge}</Badge> : null}
@@ -116,7 +166,7 @@ export function HomeActionQueue() {
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </Link>
                   </Button>
-                  {action.execution ? (
+                  {action.execution && quickLabel ? (
                     <Button
                       size="sm"
                       onClick={() => handleExecution(action)}
@@ -124,7 +174,7 @@ export function HomeActionQueue() {
                         acknowledgeNotification.isPending || transitionWorkflow.isPending
                       }
                     >
-                      Quick action
+                      {quickLabel}
                     </Button>
                   ) : null}
                 </div>

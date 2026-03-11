@@ -29,6 +29,7 @@ describe('AutomationCenter', () => {
     updatePreferencesMutate.mockReset()
     useAutomationCenterMock.mockReturnValue({
       data: {
+        generatedAt: '2026-03-11T00:00:00Z',
         guardrails: [
           {
             key: 'thesis_generation_enabled',
@@ -64,6 +65,7 @@ describe('AutomationCenter', () => {
   it('shows Running for active routines without a completed timestamp', () => {
     useAutomationCenterMock.mockReturnValue({
       data: {
+        generatedAt: '2026-03-11T00:00:00Z',
         guardrails: [],
         recentRuns: [
           {
@@ -107,5 +109,56 @@ describe('AutomationCenter', () => {
     await user.click(screen.getByRole('button', { name: 'Retry' }))
 
     expect(refetch).toHaveBeenCalled()
+  })
+
+  it('renders empty-state guidance when guardrails and recent runs are missing', () => {
+    useAutomationCenterMock.mockReturnValue({
+      data: {
+        generatedAt: '2026-03-11T00:00:00Z',
+        guardrails: [],
+        recentRuns: [],
+        warnings: [],
+      },
+      isLoading: false,
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    render(<AutomationCenter />)
+
+    expect(screen.getByText(/no automation guardrails are configured yet/i)).toBeInTheDocument()
+    expect(screen.getByText(/no automation runs have been recorded yet/i)).toBeInTheDocument()
+  })
+
+  it('avoids mutating unknown guardrail mappings', () => {
+    useAutomationCenterMock.mockReturnValue({
+      data: {
+        generatedAt: '2026-03-11T00:00:00Z',
+        guardrails: [
+          {
+            key: 'unknown_guardrail',
+            label: 'Unknown guardrail',
+            value: 'Enabled',
+            enabled: true,
+            source: 'preferences',
+            detail: 'Unexpected flag.',
+          },
+        ],
+        recentRuns: [],
+        warnings: [],
+      },
+      isLoading: false,
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    render(<AutomationCenter />)
+
+    expect(screen.getByRole('switch', { name: /toggle unknown guardrail/i })).toBeDisabled()
+    expect(screen.getByText('Read only')).toBeInTheDocument()
+
+    expect(updatePreferencesMutate).not.toHaveBeenCalled()
   })
 })

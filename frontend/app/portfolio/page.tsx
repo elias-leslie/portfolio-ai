@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { AccountsWithPositions } from '@/components/portfolio/AccountsWithPositions'
+import { AccountsWithPositionsContent } from '@/components/portfolio/AccountsWithPositions'
 import { PositionFormFields } from '@/components/portfolio/PositionFormFields'
 import { PortfolioOverview } from '@/components/portfolio/PortfolioOverview'
 import {
@@ -43,7 +43,12 @@ import {
 export default function PortfolioPage() {
   const addPosition = useAddPosition()
   const createAccount = useCreateAccount()
-  const { data: accounts, isLoading: accountsLoading } = useAccounts()
+  const {
+    data: accounts,
+    isLoading: accountsLoading,
+    error: accountsError,
+    refetch: refetchAccounts,
+  } = useAccounts()
 
   // Add Position form state
   const [positionOpen, setPositionOpen] = useState(false)
@@ -156,7 +161,13 @@ export default function PortfolioPage() {
 
       <PortfolioOverview />
 
-      <AccountsWithPositions
+      <AccountsWithPositionsContent
+        accounts={accounts}
+        accountsLoading={accountsLoading}
+        accountsError={accountsError}
+        onRetryAccounts={() => {
+          void refetchAccounts()
+        }}
         onAddAccount={() => setAccountOpen(true)}
         onAddPosition={openPositionDialog}
       />

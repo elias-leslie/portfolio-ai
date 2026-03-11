@@ -2,27 +2,33 @@
 
 import { useRef, useState } from 'react'
 import type { ClipboardEvent, DragEvent, KeyboardEvent } from 'react'
-import type { HouseholdDocument } from '@/lib/api/household'
+import type { HouseholdDocument, ImportCenter } from '@/lib/api/household'
 import { SectionCard } from '@/components/shared/SectionCard'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useUploadHouseholdDocument } from '@/lib/hooks/useHousehold'
+import { formatDate, formatRelativeTime } from '@/lib/utils'
 import { formatEnumLabel, formatFileSize } from './formatters'
 
 export function HouseholdDocumentCenter({
   documents,
+  importCenter,
 }: {
   documents: HouseholdDocument[]
+  importCenter?: ImportCenter
 }) {
   const upload = useUploadHouseholdDocument()
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [files, setFiles] = useState<File[]>([])
   const [isDragActive, setIsDragActive] = useState(false)
+  const [dedupedCount, setDedupedCount] = useState(0)
 
   const resetComposer = () => {
     setFiles([])
     setIsDragActive(false)
+    setDedupedCount(0)
     if (inputRef.current) {
       inputRef.current.value = ''
     }
@@ -53,6 +59,7 @@ export function HouseholdDocumentCenter({
     }
     setFiles((current) => {
       const next = [...current]
+      let duplicates = 0
       for (const file of incoming) {
         const alreadyQueued = next.some(
           (existing) =>
@@ -62,8 +69,11 @@ export function HouseholdDocumentCenter({
         )
         if (!alreadyQueued) {
           next.push(file)
+        } else {
+          duplicates += 1
         }
       }
+      setDedupedCount((currentCount) => currentCount + duplicates)
       return next
     })
   }
@@ -181,6 +191,11 @@ export function HouseholdDocumentCenter({
               Jenny will infer the source, document type, and likely account label from the file contents, filename, and screenshot evidence.
               If anything is ambiguous, she will open a short follow-up question in the household plan queue.
             </div>
+            {dedupedCount > 0 ? (
+              <div className="rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm text-text-muted">
+                Skipped {dedupedCount} duplicate file{dedupedCount === 1 ? '' : 's'} already in the upload queue.
+              </div>
+            ) : null}
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
@@ -206,6 +221,72 @@ export function HouseholdDocumentCenter({
         </div>
 
         <div className="space-y-3">
+          {importCenter ? (
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+                  Intake coverage
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-text">
+                  {importCenter.trackedDocuments}
+                </p>
+                <p className="mt-1 text-sm text-text-muted">
+                  {importCenter.parsedDocuments} parsed so far
+                </p>
+              </div>
+              <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+                  Next best uploads
+                </p>
+                {importCenter.suggestedFirstUploads.length > 0 ? (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {importCenter.suggestedFirstUploads.map((item) => (
+                      <Badge key={item} variant="outline">
+                        {item}
+                      </Badge>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-sm text-text-muted">
+                    Intake guidance appears after Jenny sees gaps in the household record.
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : null}
+
+          {importCenter?.automations.length ? (
+            <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4">
+              <p className="text-sm font-semibold text-text">What Jenny will automate</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {importCenter.automations.map((automation) => (
+                  <Badge key={automation} variant="secondary">
+                    {automation}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {importCenter?.supportedDocuments.length ? (
+            <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4">
+              <p className="text-sm font-semibold text-text">Supported document types</p>
+              <div className="mt-3 space-y-3">
+                {importCenter.supportedDocuments.map((documentType) => (
+                  <div key={documentType.label}>
+                    <p className="text-sm font-medium text-text">{documentType.label}</p>
+                    <p className="mt-1 text-sm text-text-muted">
+                      Formats: {documentType.formats.join(', ')}
+                    </p>
+                    <p className="mt-1 text-xs text-text-muted">
+                      Extracts: {documentType.extracts.join(', ')}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           {documents.length === 0 ? (
             <div className="rounded-2xl border border-border/50 bg-surface-muted/20 p-5 text-sm text-text-muted">
               No documents yet. Start with recent bank and credit-card statements so Jenny can see the real household cash flow.
@@ -223,15 +304,34 @@ export function HouseholdDocumentCenter({
                       {formatEnumLabel(document.sourceType, 'Source pending')} ·{' '}
                       {formatEnumLabel(document.documentType, 'Type pending')}
                     </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <Badge variant="secondary">
+                        {formatEnumLabel(document.status, 'staged')}
+                      </Badge>
+                      {document.classificationConfidence != null ? (
+                        <Badge variant="outline">
+                          Classifier {Math.round(document.classificationConfidence * 100)}%
+                        </Badge>
+                      ) : null}
+                    </div>
                     {document.accountLabel ? (
                       <p className="mt-1 text-sm text-text-muted">{document.accountLabel}</p>
                     ) : null}
                     {document.reviewSummary ? (
                       <p className="mt-2 text-sm text-text-muted">{document.reviewSummary}</p>
                     ) : null}
+                    <p className="mt-2 text-xs text-text-muted">
+                      Uploaded {formatRelativeTime(document.uploadedAt)}
+                      {document.parsedAt ? ` · Parsed ${formatRelativeTime(document.parsedAt)}` : ''}
+                    </p>
+                    {(document.statementStart || document.statementEnd) ? (
+                      <p className="mt-1 text-xs text-text-muted">
+                        Statement window {formatDate(document.statementStart, true)} to{' '}
+                        {formatDate(document.statementEnd, true)}
+                      </p>
+                    ) : null}
                   </div>
                   <div className="text-right text-xs text-text-muted">
-                    <p>{formatEnumLabel(document.status, 'staged')}</p>
                     {document.reviewStatus ? (
                       <p className="mt-1">
                         Jenny: {formatEnumLabel(document.reviewStatus)}
@@ -241,6 +341,7 @@ export function HouseholdDocumentCenter({
                       </p>
                     ) : null}
                     <p className="mt-1">{formatFileSize(document.fileSizeBytes)}</p>
+                    {document.contentType ? <p className="mt-1">{document.contentType}</p> : null}
                   </div>
                 </div>
               </div>

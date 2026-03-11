@@ -91,12 +91,17 @@ export default function MoneyPage() {
             value: 'operate',
             label: 'Operate',
             description: 'Handle active questions, categorization review, bills, and budget pacing first.',
+            badge:
+              dashboard.questions.length + dashboard.categorizationQueue.length > 0
+                ? String(dashboard.questions.length + dashboard.categorizationQueue.length)
+                : undefined,
             content: <HouseholdOperationsPanel dashboard={dashboard} />,
           },
           {
             value: 'analysis',
             label: 'Analysis',
             description: 'Review the transaction reports and Jenny’s synthesized money brief together.',
+            badge: dashboard.opportunities.length > 0 ? String(dashboard.opportunities.length) : undefined,
             content: (
               <div className="space-y-6">
                 <HouseholdReportsPanel dashboard={dashboard} />
@@ -108,6 +113,7 @@ export default function MoneyPage() {
             value: 'planning',
             label: 'Planning',
             description: 'Keep profile assumptions and long-range planning in one place.',
+            badge: dashboard.resolvedValues.length > 0 ? String(dashboard.resolvedValues.length) : undefined,
             content: (
               <div className="space-y-6">
                 <HouseholdProfileCard
@@ -123,6 +129,10 @@ export default function MoneyPage() {
             value: 'intake',
             label: 'Intake',
             description: 'Upload and audit source documents without forcing the rest of the page to grow.',
+            badge:
+              documents?.items.length || dashboard.importCenter.trackedDocuments
+                ? String(documents?.items.length ?? dashboard.importCenter.trackedDocuments)
+                : undefined,
             content: documentsError ? (
               <LoadErrorState
                 title="Failed to load intake documents."
@@ -132,8 +142,13 @@ export default function MoneyPage() {
                 }}
                 isRetrying={isFetchingDocuments}
               />
+            ) : !documents && isFetchingDocuments ? (
+              <LoadingState />
             ) : (
-              <HouseholdDocumentCenter documents={documents?.items ?? []} />
+              <HouseholdDocumentCenter
+                documents={documents?.items ?? []}
+                importCenter={dashboard.importCenter}
+              />
             ),
           },
         ]}

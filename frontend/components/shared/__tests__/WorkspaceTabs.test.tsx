@@ -95,6 +95,63 @@ describe('WorkspaceTabs', () => {
     expect(window.location.search).toBe('?symbol=VTI')
   })
 
+  it('cleans up invalid tab parameters by falling back to the default tab', () => {
+    window.history.replaceState({}, '', '/money?symbol=VTI&tab=unknown')
+
+    render(
+      <WorkspaceTabs
+        defaultValue="operate"
+        tabs={[
+          {
+            value: 'operate',
+            label: 'Operate',
+            description: 'Run the day-to-day queue.',
+            content: <div>Operate Content</div>,
+          },
+          {
+            value: 'planning',
+            label: 'Planning',
+            description: 'Review the longer-term plan.',
+            content: <div>Planning Content</div>,
+          },
+        ]}
+      />,
+    )
+
+    expect(screen.getByText('Operate Content')).toBeInTheDocument()
+    expect(window.location.search).toBe('?symbol=VTI')
+  })
+
+  it('preserves the hash fragment when changing tabs', async () => {
+    const user = userEvent.setup()
+    window.history.replaceState({}, '', '/money?symbol=VTI#intake')
+
+    render(
+      <WorkspaceTabs
+        defaultValue="operate"
+        tabs={[
+          {
+            value: 'operate',
+            label: 'Operate',
+            description: 'Run the day-to-day queue.',
+            content: <div>Operate Content</div>,
+          },
+          {
+            value: 'planning',
+            label: 'Planning',
+            description: 'Review the longer-term plan.',
+            content: <div>Planning Content</div>,
+          },
+        ]}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Planning' }))
+
+    expect(window.location.search).toBe('?symbol=VTI&tab=planning')
+    expect(window.location.hash).toBe('#intake')
+  })
+
   it('falls back when the active tab disappears from the available tab set', () => {
     const { rerender } = render(
       <WorkspaceTabs

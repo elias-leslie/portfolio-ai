@@ -31,6 +31,25 @@ vi.mock('@/components/portfolio/AccountsWithPositions', () => ({
       </button>
     </div>
   ),
+  AccountsWithPositionsContent: ({
+    onAddAccount,
+    onAddPosition,
+  }: {
+    onAddAccount?: () => void
+    onAddPosition?: (accountId?: string) => void
+  }) => (
+    <div>
+      <button type="button" onClick={onAddAccount}>
+        Open Add Account
+      </button>
+      <button type="button" onClick={() => onAddPosition?.('acct-2')}>
+        Open Add Position
+      </button>
+      <button type="button" onClick={() => onAddPosition?.()}>
+        Open Generic Add Position
+      </button>
+    </div>
+  ),
 }))
 
 vi.mock('@/lib/hooks/usePortfolio', () => ({
