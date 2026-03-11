@@ -8,9 +8,22 @@
 
 set -e
 
+if [[ -z "${POSTGRES_ADMIN_URL:-}" && -f "$HOME/.env.local" ]]; then
+  set -a
+  # shellcheck source=/dev/null
+  source "$HOME/.env.local"
+  set +a
+fi
+
+if [[ -n "${POSTGRES_ADMIN_URL:-}" ]]; then
+  PSQL_CMD=(psql "$POSTGRES_ADMIN_URL")
+else
+  PSQL_CMD=(sudo -u postgres psql)
+fi
+
 echo "Creating test database..."
 
-sudo -u postgres psql <<EOF
+"${PSQL_CMD[@]}" <<EOF
 -- Create test database if it doesn't exist
 SELECT 'CREATE DATABASE portfolio_ai_test'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'portfolio_ai_test')\gexec

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
+from typing import TypedDict
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -11,9 +12,15 @@ from pydantic import BaseModel, Field
 from app.storage import get_storage
 from app.tasks.news_profiling_tasks import profile_news_sources_task, reset_source_metrics_task
 
-from .types import ResetSourceMetricsDict
-
 router = APIRouter(prefix="/api/news", tags=["news-profiling"])
+
+
+class ResetSourceMetricsDict(TypedDict):
+    """Response payload from reset-source-metrics endpoint."""
+
+    status: str
+    task_id: str
+    message: str
 
 
 def _storage():

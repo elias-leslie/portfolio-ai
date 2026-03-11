@@ -1,33 +1,51 @@
 {
-  "scanned_at": "2025-11-13T22:29:40.262420",
+  "scanned_at": "2026-03-11T14:25:36.884200+00:00",
   "capabilities": [
     {
       "category": "analytics",
-      "name": "Agent Ideas Table",
+      "name": "Agent Conversation Messages Table",
       "source_type": "database_table",
-      "source_location": "Database table: agent_ideas",
-      "coverage": "53 rows, 2025-11-07 to 2025-11-07",
+      "source_location": "Database table: agent_conversation_messages",
+      "coverage": "69 rows, 2026-03-09T18:15:57.798161-04:00 to 2026-03-10T18:18:27.132944-04:00",
       "metadata": {
-        "table_name": "agent_ideas",
+        "table_name": "agent_conversation_messages",
         "columns": [
           "id",
           "agent_run_id",
-          "idea_type",
-          "title",
-          "thesis",
-          "action",
-          "confidence_score",
-          "risk_level",
-          "reward_estimate",
-          "portfolio_impact",
-          "data_needed",
-          "risks",
+          "sequence_num",
+          "role",
+          "content",
+          "token_count",
+          "created_at",
+          "metadata"
+        ],
+        "row_count": 69,
+        "date_range": "2026-03-09T18:15:57.798161-04:00 to 2026-03-10T18:18:27.132944-04:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Agent Messages Table",
+      "source_type": "database_table",
+      "source_location": "Database table: agent_messages",
+      "coverage": "0 rows",
+      "metadata": {
+        "table_name": "agent_messages",
+        "columns": [
+          "id",
+          "from_agent_run_id",
+          "to_agent_type",
+          "message_type",
+          "content",
           "status",
           "created_at",
-          "updated_at"
+          "read_at",
+          "replied_at",
+          "priority",
+          "timeout_seconds"
         ],
-        "row_count": 53,
-        "date_range": "2025-11-07 to 2025-11-07"
+        "row_count": 0,
+        "date_range": null
       }
     },
     {
@@ -35,7 +53,7 @@
       "name": "Agent Runs Table",
       "source_type": "database_table",
       "source_location": "Database table: agent_runs",
-      "coverage": "6 rows",
+      "coverage": "40 rows",
       "metadata": {
         "table_name": "agent_runs",
         "columns": [
@@ -48,9 +66,20 @@
           "cost_usd",
           "error_message",
           "metadata",
-          "celery_task_id"
+          "celery_task_id",
+          "provider",
+          "model",
+          "cli_command",
+          "exit_code",
+          "duration_ms",
+          "token_usage",
+          "session_id",
+          "run_type",
+          "parent_run_id",
+          "workflow_id",
+          "user_id"
         ],
-        "row_count": 6,
+        "row_count": 40,
         "date_range": null
       }
     },
@@ -59,7 +88,7 @@
       "name": "Agent Tool Calls Table",
       "source_type": "database_table",
       "source_location": "Database table: agent_tool_calls",
-      "coverage": "2 rows",
+      "coverage": "0 rows",
       "metadata": {
         "table_name": "agent_tool_calls",
         "columns": [
@@ -71,49 +100,311 @@
           "duration_ms",
           "called_at"
         ],
-        "row_count": 2,
+        "row_count": 0,
         "date_range": null
       }
     },
     {
       "category": "analytics",
-      "name": "Celery Taskmeta Table",
+      "name": "Agent Workflows Table",
       "source_type": "database_table",
-      "source_location": "Database table: celery_taskmeta",
-      "coverage": "28,794 rows",
+      "source_location": "Database table: agent_workflows",
+      "coverage": "2 rows, 2026-03-09T18:15:02.055006-04:00 to 2026-03-10T18:15:00.205048-04:00",
       "metadata": {
-        "table_name": "celery_taskmeta",
+        "table_name": "agent_workflows",
         "columns": [
           "id",
-          "task_id",
+          "workflow_type",
           "status",
+          "current_step",
+          "agents_involved",
+          "shared_context",
           "result",
-          "date_done",
-          "traceback",
-          "name",
-          "args",
-          "kwargs",
-          "worker",
-          "retries",
-          "queue"
+          "error",
+          "created_at",
+          "started_at",
+          "completed_at",
+          "last_updated_at",
+          "max_duration_seconds",
+          "retry_count",
+          "max_retries",
+          "triggered_by",
+          "priority"
         ],
-        "row_count": 28794,
+        "row_count": 2,
+        "date_range": "2026-03-09T18:15:02.055006-04:00 to 2026-03-10T18:15:00.205048-04:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Alembic Version Table",
+      "source_type": "database_table",
+      "source_location": "Database table: alembic_version",
+      "coverage": "1 rows",
+      "metadata": {
+        "table_name": "alembic_version",
+        "columns": [
+          "version_num"
+        ],
+        "row_count": 1,
         "date_range": null
       }
     },
     {
       "category": "analytics",
-      "name": "Celery Tasksetmeta Table",
+      "name": "Analyst Revisions Table",
       "source_type": "database_table",
-      "source_location": "Database table: celery_tasksetmeta",
+      "source_location": "Database table: analyst_revisions",
+      "coverage": "63 rows",
+      "metadata": {
+        "table_name": "analyst_revisions",
+        "columns": [
+          "id",
+          "symbol",
+          "metric",
+          "period",
+          "current_estimate",
+          "estimate_7d_ago",
+          "estimate_30d_ago",
+          "estimate_90d_ago",
+          "revision_direction",
+          "revision_magnitude",
+          "num_analysts",
+          "fetched_at"
+        ],
+        "row_count": 63,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Api Capabilities Table",
+      "source_type": "database_table",
+      "source_location": "Database table: api_capabilities",
+      "coverage": "36 rows, 2025-12-04T22:00:20.626262-05:00 to 2025-12-15T19:35:45.328875-05:00",
+      "metadata": {
+        "table_name": "api_capabilities",
+        "columns": [
+          "id",
+          "endpoint_path",
+          "http_method",
+          "category",
+          "route_file",
+          "function_name",
+          "depends_on_tables",
+          "avg_response_time_ms",
+          "p95_response_time_ms",
+          "p99_response_time_ms",
+          "error_rate_pct",
+          "last_7d_request_count",
+          "last_scanned_at",
+          "created_at",
+          "updated_at",
+          "health_status"
+        ],
+        "row_count": 36,
+        "date_range": "2025-12-04T22:00:20.626262-05:00 to 2025-12-15T19:35:45.328875-05:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Artifacts Table",
+      "source_type": "database_table",
+      "source_location": "Database table: artifacts",
+      "coverage": "678 rows, 2025-12-06T23:24:01.453684-05:00 to 2025-12-16T00:19:48.267411-05:00",
+      "metadata": {
+        "table_name": "artifacts",
+        "columns": [
+          "id",
+          "artifact_id",
+          "feature_id",
+          "criterion_id",
+          "artifact_type",
+          "file_path",
+          "file_size_bytes",
+          "version",
+          "is_current",
+          "captured_at",
+          "expires_at",
+          "quality_status",
+          "quality_issues",
+          "confidence",
+          "ai_reviewed_at",
+          "ai_reviewed_by",
+          "ai_evidence",
+          "user_reviewed_at",
+          "user_approved",
+          "user_notes",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 678,
+        "date_range": "2025-12-06T23:24:01.453684-05:00 to 2025-12-16T00:19:48.267411-05:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Automation Preferences Table",
+      "source_type": "database_table",
+      "source_location": "Database table: automation_preferences",
+      "coverage": "1 rows, 2026-03-10T12:11:07.387466-04:00 to 2026-03-10T12:11:07.387466-04:00",
+      "metadata": {
+        "table_name": "automation_preferences",
+        "columns": [
+          "id",
+          "thesis_generation_enabled",
+          "auto_remove_on_invalidation",
+          "auto_trim_enabled",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 1,
+        "date_range": "2026-03-10T12:11:07.387466-04:00 to 2026-03-10T12:11:07.387466-04:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Backtest Equity Table",
+      "source_type": "database_table",
+      "source_location": "Database table: backtest_equity",
+      "coverage": "14,906 rows, 2025-12-03T12:04:00.829939-05:00 to 2026-03-11T01:18:44.081884-04:00",
+      "metadata": {
+        "table_name": "backtest_equity",
+        "columns": [
+          "id",
+          "run_id",
+          "date",
+          "equity",
+          "cash",
+          "position_value",
+          "drawdown_pct",
+          "created_at"
+        ],
+        "row_count": 14906,
+        "date_range": "2025-12-03T12:04:00.829939-05:00 to 2026-03-11T01:18:44.081884-04:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Backtest Runs Table",
+      "source_type": "database_table",
+      "source_location": "Database table: backtest_runs",
+      "coverage": "27 rows, 2025-12-03T12:03:51.446490-05:00 to 2026-03-11T01:18:39.271742-04:00",
+      "metadata": {
+        "table_name": "backtest_runs",
+        "columns": [
+          "id",
+          "strategy_name",
+          "symbol",
+          "start_date",
+          "end_date",
+          "initial_capital",
+          "final_equity",
+          "total_return_pct",
+          "sharpe_ratio",
+          "max_drawdown_pct",
+          "win_rate",
+          "num_trades",
+          "profit_factor",
+          "status",
+          "error_message",
+          "created_at",
+          "completed_at",
+          "strategy_definition_id",
+          "buy_hold_return",
+          "excess_return",
+          "beats_buy_hold",
+          "alpha",
+          "information_ratio",
+          "beta",
+          "benchmark_symbol"
+        ],
+        "row_count": 27,
+        "date_range": "2025-12-03T12:03:51.446490-05:00 to 2026-03-11T01:18:39.271742-04:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Backtest Trades Table",
+      "source_type": "database_table",
+      "source_location": "Database table: backtest_trades",
+      "coverage": "788 rows, 2025-12-03T12:04:00.372677-05:00 to 2026-03-11T00:18:45.948124-04:00",
+      "metadata": {
+        "table_name": "backtest_trades",
+        "columns": [
+          "id",
+          "run_id",
+          "symbol",
+          "entry_date",
+          "entry_price",
+          "exit_date",
+          "exit_price",
+          "shares",
+          "pnl",
+          "pnl_pct",
+          "exit_reason",
+          "max_favorable_pct",
+          "max_adverse_pct",
+          "created_at"
+        ],
+        "row_count": 788,
+        "date_range": "2025-12-03T12:04:00.372677-05:00 to 2026-03-11T00:18:45.948124-04:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Capability Insights Table",
+      "source_type": "database_table",
+      "source_location": "Database table: capability_insights",
+      "coverage": "64 rows, 2025-11-21T22:19:11.354019-05:00 to 2025-12-07T22:15:40.188564-05:00",
+      "metadata": {
+        "table_name": "capability_insights",
+        "columns": [
+          "id",
+          "capability_type",
+          "capability_id",
+          "table_name",
+          "insight_type",
+          "severity",
+          "finding",
+          "expected_behavior",
+          "actual_behavior",
+          "impact",
+          "suggested_fix",
+          "reference_data",
+          "ai_model",
+          "ai_confidence",
+          "status",
+          "status_reason",
+          "generated_at",
+          "reviewed_at",
+          "reviewed_by",
+          "fixed_at",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 64,
+        "date_range": "2025-11-21T22:19:11.354019-05:00 to 2025-12-07T22:15:40.188564-05:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Capability Notes Table",
+      "source_type": "database_table",
+      "source_location": "Database table: capability_notes",
       "coverage": "0 rows",
       "metadata": {
-        "table_name": "celery_tasksetmeta",
+        "table_name": "capability_notes",
         "columns": [
           "id",
-          "taskset_id",
-          "result",
-          "date_done"
+          "capability_type",
+          "capability_id",
+          "insight_id",
+          "note_type",
+          "note",
+          "created_by",
+          "created_at",
+          "updated_at"
         ],
         "row_count": 0,
         "date_range": null
@@ -121,14 +412,212 @@
     },
     {
       "category": "analytics",
+      "name": "Cash Flow Metrics Table",
+      "source_type": "database_table",
+      "source_location": "Database table: cash_flow_metrics",
+      "coverage": "18 rows, 2025-12-04T22:53:36.414110-05:00 to 2026-03-07T11:27:00.945571-05:00",
+      "metadata": {
+        "table_name": "cash_flow_metrics",
+        "columns": [
+          "id",
+          "symbol",
+          "as_of_date",
+          "operating_cash_flow",
+          "free_cash_flow",
+          "capital_expenditure",
+          "fcf_yield",
+          "cash_flow_margin",
+          "fcf_per_share",
+          "cash_conversion_ratio",
+          "source",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 18,
+        "date_range": "2025-12-04T22:53:36.414110-05:00 to 2026-03-07T11:27:00.945571-05:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Celery Capabilities Table",
+      "source_type": "database_table",
+      "source_location": "Database table: celery_capabilities",
+      "coverage": "75 rows, 2025-11-13T18:37:36.827944-05:00 to 2025-12-16T22:00:13.312591-05:00",
+      "metadata": {
+        "table_name": "celery_capabilities",
+        "columns": [
+          "id",
+          "task_name",
+          "category",
+          "task_path",
+          "function_name",
+          "schedule_description",
+          "schedule_crontab",
+          "schedule_interval_seconds",
+          "last_run_at",
+          "next_run_at",
+          "success_count_7d",
+          "failure_count_7d",
+          "success_rate_pct",
+          "avg_duration_ms",
+          "max_duration_ms",
+          "populates_tables",
+          "depends_on_tasks",
+          "last_scanned_at",
+          "created_at",
+          "updated_at",
+          "health_status",
+          "reads_from_tables",
+          "dependency_overrides"
+        ],
+        "row_count": 75,
+        "date_range": "2025-11-13T18:37:36.827944-05:00 to 2025-12-16T22:00:13.312591-05:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Celery Feature Mappings Table",
+      "source_type": "database_table",
+      "source_location": "Database table: celery_feature_mappings",
+      "coverage": "98 rows",
+      "metadata": {
+        "table_name": "celery_feature_mappings",
+        "columns": [
+          "id",
+          "task_name",
+          "feature_id",
+          "relationship_type",
+          "confidence",
+          "reason",
+          "linked_at",
+          "linked_by"
+        ],
+        "row_count": 98,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Claude Progress Log Table",
+      "source_type": "database_table",
+      "source_location": "Database table: claude_progress_log",
+      "coverage": "248 rows",
+      "metadata": {
+        "table_name": "claude_progress_log",
+        "columns": [
+          "id",
+          "session_id",
+          "logged_at",
+          "action",
+          "action_type",
+          "feature_id",
+          "task_file",
+          "files_modified",
+          "details",
+          "git_commit",
+          "context_percent"
+        ],
+        "row_count": 248,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Corporate Actions Table",
+      "source_type": "database_table",
+      "source_location": "Database table: corporate_actions",
+      "coverage": "19 rows, 2025-12-10T12:45:31.085946-05:00 to 2025-12-10T12:45:32.228974-05:00",
+      "metadata": {
+        "table_name": "corporate_actions",
+        "columns": [
+          "id",
+          "symbol",
+          "action_type",
+          "action_date",
+          "repurchase_amount",
+          "shares_repurchased",
+          "dividend_amount",
+          "dividend_yield",
+          "ex_dividend_date",
+          "split_ratio",
+          "source",
+          "raw_data",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 19,
+        "date_range": "2025-12-10T12:45:31.085946-05:00 to 2025-12-10T12:45:32.228974-05:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Criteria Verification Runs Table",
+      "source_type": "database_table",
+      "source_location": "Database table: criteria_verification_runs",
+      "coverage": "35 rows",
+      "metadata": {
+        "table_name": "criteria_verification_runs",
+        "columns": [
+          "id",
+          "run_at",
+          "total_criteria",
+          "passed",
+          "failed",
+          "errors",
+          "type_filter",
+          "duration_seconds"
+        ],
+        "row_count": 35,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Cross Validation Results Table",
+      "source_type": "database_table",
+      "source_location": "Database table: cross_validation_results",
+      "coverage": "3 rows, 2026-03-07T15:25:31.563376-05:00 to 2026-03-07T15:26:00.776374-05:00",
+      "metadata": {
+        "table_name": "cross_validation_results",
+        "columns": [
+          "id",
+          "created_at",
+          "generator_provider",
+          "generator_model",
+          "generator_output",
+          "generator_confidence",
+          "validator_provider",
+          "validator_model",
+          "validator_review",
+          "validator_approved",
+          "validator_confidence",
+          "has_disagreement",
+          "disagreement_reasons",
+          "disagreement_details",
+          "status",
+          "resolved_at",
+          "resolved_by",
+          "final_output",
+          "context_type",
+          "context_symbol",
+          "metadata",
+          "generator_run_id",
+          "validator_run_id"
+        ],
+        "row_count": 3,
+        "date_range": "2026-03-07T15:25:31.563376-05:00 to 2026-03-07T15:26:00.776374-05:00"
+      }
+    },
+    {
+      "category": "analytics",
       "name": "Day Bars Table",
       "source_type": "database_table",
       "source_location": "Database table: day_bars",
-      "coverage": "10,103 rows",
+      "coverage": "27,530 rows, 2020-11-03 to 2026-03-11",
       "metadata": {
         "table_name": "day_bars",
         "columns": [
-          "ticker",
+          "symbol",
           "date",
           "open",
           "high",
@@ -139,8 +628,40 @@
           "source",
           "ingest_run_id"
         ],
-        "row_count": 10103,
-        "date_range": null
+        "row_count": 27530,
+        "date_range": "2020-11-03 to 2026-03-11"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Db Capabilities Table",
+      "source_type": "database_table",
+      "source_location": "Database table: db_capabilities",
+      "coverage": "100 rows, 2025-11-13T18:37:36.691803-05:00 to 2026-02-08T22:00:12.355231-05:00",
+      "metadata": {
+        "table_name": "db_capabilities",
+        "columns": [
+          "id",
+          "table_name",
+          "category",
+          "row_count",
+          "total_columns",
+          "columns",
+          "columns_with_data",
+          "columns_mostly_null",
+          "completeness_pct",
+          "date_range_start",
+          "date_range_end",
+          "expected_freshness",
+          "days_since_update",
+          "freshness_status",
+          "last_scanned_at",
+          "created_at",
+          "updated_at",
+          "health_status"
+        ],
+        "row_count": 100,
+        "date_range": "2025-11-13T18:37:36.691803-05:00 to 2026-02-08T22:00:12.355231-05:00"
       }
     },
     {
@@ -148,7 +669,7 @@
       "name": "Deletion Audit Table",
       "source_type": "database_table",
       "source_location": "Database table: deletion_audit",
-      "coverage": "0 rows",
+      "coverage": "5,262 rows",
       "metadata": {
         "table_name": "deletion_audit",
         "columns": [
@@ -162,8 +683,35 @@
           "metadata",
           "restored_at"
         ],
-        "row_count": 0,
+        "row_count": 5262,
         "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Earnings Surprises Table",
+      "source_type": "database_table",
+      "source_location": "Database table: earnings_surprises",
+      "coverage": "83 rows, 2025-12-03T18:03:23.791479-05:00 to 2026-03-08T00:10:05.906999-05:00",
+      "metadata": {
+        "table_name": "earnings_surprises",
+        "columns": [
+          "id",
+          "symbol",
+          "earnings_date",
+          "fiscal_quarter",
+          "eps_estimate",
+          "eps_actual",
+          "surprise_pct",
+          "surprise_direction",
+          "revenue_estimate",
+          "revenue_actual",
+          "data_source",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 83,
+        "date_range": "2025-12-03T18:03:23.791479-05:00 to 2026-03-08T00:10:05.906999-05:00"
       }
     },
     {
@@ -171,7 +719,7 @@
       "name": "Endpoint Catalog Table",
       "source_type": "database_table",
       "source_location": "Database table: endpoint_catalog",
-      "coverage": "0 rows",
+      "coverage": "21 rows, 2025-12-03T14:35:50.865091-05:00 to 2025-12-03T14:35:50.921921-05:00",
       "metadata": {
         "table_name": "endpoint_catalog",
         "columns": [
@@ -183,8 +731,8 @@
           "field_mapping",
           "created_at"
         ],
-        "row_count": 0,
-        "date_range": null
+        "row_count": 21,
+        "date_range": "2025-12-03T14:35:50.865091-05:00 to 2025-12-03T14:35:50.921921-05:00"
       }
     },
     {
@@ -192,7 +740,7 @@
       "name": "Fear Greed Components Table",
       "source_type": "database_table",
       "source_location": "Database table: fear_greed_components",
-      "coverage": "5 rows, 2025-11-07 to 2025-11-11",
+      "coverage": "1,056 rows, 2025-11-07T10:59:11.866598-05:00 to 2026-03-10T21:44:15.444317-04:00",
       "metadata": {
         "table_name": "fear_greed_components",
         "columns": [
@@ -206,8 +754,8 @@
           "window_days",
           "created_at"
         ],
-        "row_count": 5,
-        "date_range": "2025-11-07 to 2025-11-11"
+        "row_count": 1056,
+        "date_range": "2025-11-07T10:59:11.866598-05:00 to 2026-03-10T21:44:15.444317-04:00"
       }
     },
     {
@@ -215,7 +763,7 @@
       "name": "Fear Greed Daily Table",
       "source_type": "database_table",
       "source_location": "Database table: fear_greed_daily",
-      "coverage": "9 rows, 2025-11-07 to 2025-11-11",
+      "coverage": "1,060 rows, 2025-11-07T10:59:11.868763-05:00 to 2026-03-10T21:44:15.444317-04:00",
       "metadata": {
         "table_name": "fear_greed_daily",
         "columns": [
@@ -227,8 +775,8 @@
           "signal_count",
           "created_at"
         ],
-        "row_count": 9,
-        "date_range": "2025-11-07 to 2025-11-11"
+        "row_count": 1060,
+        "date_range": "2025-11-07T10:59:11.868763-05:00 to 2026-03-10T21:44:15.444317-04:00"
       }
     },
     {
@@ -236,7 +784,7 @@
       "name": "Fear Greed Inputs Table",
       "source_type": "database_table",
       "source_location": "Database table: fear_greed_inputs",
-      "coverage": "10 rows, 2025-11-07 to 2025-11-13",
+      "coverage": "1,094 rows, 2025-11-07T10:59:11.855671-05:00 to 2026-03-10T10:30:05.220019-04:00",
       "metadata": {
         "table_name": "fear_greed_inputs",
         "columns": [
@@ -251,8 +799,417 @@
           "source_map",
           "created_at"
         ],
-        "row_count": 10,
-        "date_range": "2025-11-07 to 2025-11-13"
+        "row_count": 1094,
+        "date_range": "2025-11-07T10:59:11.855671-05:00 to 2026-03-10T10:30:05.220019-04:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Feature Capabilities Table",
+      "source_type": "database_table",
+      "source_location": "Database table: feature_capabilities",
+      "coverage": "225 rows, 2025-12-05T09:59:34.502746-05:00 to 2025-12-16T00:19:13.120502-05:00",
+      "metadata": {
+        "table_name": "feature_capabilities",
+        "columns": [
+          "id",
+          "feature_id",
+          "name",
+          "category",
+          "description",
+          "last_verified_at",
+          "created_at",
+          "updated_at",
+          "layers",
+          "layer_results",
+          "priority",
+          "acceptance_criteria",
+          "vision_goals"
+        ],
+        "row_count": 225,
+        "date_range": "2025-12-05T09:59:34.502746-05:00 to 2025-12-16T00:19:13.120502-05:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Feature Dependencies Table",
+      "source_type": "database_table",
+      "source_location": "Database table: feature_dependencies",
+      "coverage": "0 rows",
+      "metadata": {
+        "table_name": "feature_dependencies",
+        "columns": [
+          "id",
+          "feature_id",
+          "depends_on_id",
+          "dependency_type",
+          "notes",
+          "created_at"
+        ],
+        "row_count": 0,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Feature Tasks Table",
+      "source_type": "database_table",
+      "source_location": "Database table: feature_tasks",
+      "coverage": "109 rows, 2025-12-05T20:11:55.602196-05:00 to 2025-12-12T23:00:00.077063-05:00",
+      "metadata": {
+        "table_name": "feature_tasks",
+        "columns": [
+          "id",
+          "feature_id",
+          "task_id",
+          "description",
+          "completed",
+          "order_num",
+          "created_at",
+          "updated_at",
+          "completed_at",
+          "completed_by",
+          "files",
+          "notes",
+          "status",
+          "effort",
+          "task_type"
+        ],
+        "row_count": 109,
+        "date_range": "2025-12-05T20:11:55.602196-05:00 to 2025-12-12T23:00:00.077063-05:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Feature Vision Goal Mappings Table",
+      "source_type": "database_table",
+      "source_location": "Database table: feature_vision_goal_mappings",
+      "coverage": "204 rows",
+      "metadata": {
+        "table_name": "feature_vision_goal_mappings",
+        "columns": [
+          "id",
+          "feature_id",
+          "vision_code",
+          "linked_at",
+          "linked_by"
+        ],
+        "row_count": 204,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "File Audit Table",
+      "source_type": "database_table",
+      "source_location": "Database table: file_audit",
+      "coverage": "2,210 rows",
+      "metadata": {
+        "table_name": "file_audit",
+        "columns": [
+          "id",
+          "path",
+          "is_directory",
+          "extension",
+          "size_bytes",
+          "lines_of_code",
+          "file_count",
+          "total_loc",
+          "bloat_level",
+          "last_modified",
+          "scanned_at",
+          "last_commit_days",
+          "reference_count",
+          "stale_status"
+        ],
+        "row_count": 2210,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Financial Health Scores Table",
+      "source_type": "database_table",
+      "source_location": "Database table: financial_health_scores",
+      "coverage": "4 rows, 2026-02-01T00:15:06.333019-05:00 to 2026-02-15T00:15:09.236495-05:00",
+      "metadata": {
+        "table_name": "financial_health_scores",
+        "columns": [
+          "id",
+          "symbol",
+          "as_of_date",
+          "f_score",
+          "f_score_components",
+          "z_score",
+          "z_score_zone",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 4,
+        "date_range": "2026-02-01T00:15:06.333019-05:00 to 2026-02-15T00:15:09.236495-05:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Gap Analysis History Table",
+      "source_type": "database_table",
+      "source_location": "Database table: gap_analysis_history",
+      "coverage": "7 rows, 2025-11-17T16:30:32.105849-05:00 to 2025-12-08T03:25:00.109628-05:00",
+      "metadata": {
+        "table_name": "gap_analysis_history",
+        "columns": [
+          "analysis_id",
+          "analysis_timestamp",
+          "total_gaps",
+          "p0_gaps",
+          "p1_gaps",
+          "p2_gaps",
+          "p3_gaps",
+          "avg_coverage_pct",
+          "analysis_results",
+          "created_at"
+        ],
+        "row_count": 7,
+        "date_range": "2025-11-17T16:30:32.105849-05:00 to 2025-12-08T03:25:00.109628-05:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Household Document Reviews Table",
+      "source_type": "database_table",
+      "source_location": "Database table: household_document_reviews",
+      "coverage": "39 rows, 2026-03-09T08:43:22.160598-04:00 to 2026-03-09T10:35:06.542384-04:00",
+      "metadata": {
+        "table_name": "household_document_reviews",
+        "columns": [
+          "id",
+          "document_id",
+          "status",
+          "summary",
+          "confidence",
+          "extracted_text",
+          "structured_data",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 39,
+        "date_range": "2026-03-09T08:43:22.160598-04:00 to 2026-03-09T10:35:06.542384-04:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Household Document Signatures Table",
+      "source_type": "database_table",
+      "source_location": "Database table: household_document_signatures",
+      "coverage": "7 rows, 2026-03-09T09:41:04.464146-04:00 to 2026-03-09T10:22:43.724802-04:00",
+      "metadata": {
+        "table_name": "household_document_signatures",
+        "columns": [
+          "id",
+          "signature_key",
+          "signature_type",
+          "source_type",
+          "document_type",
+          "merchant",
+          "account_hint",
+          "confidence",
+          "sample_document_id",
+          "metadata",
+          "match_count",
+          "created_at",
+          "updated_at",
+          "last_seen_at"
+        ],
+        "row_count": 7,
+        "date_range": "2026-03-09T09:41:04.464146-04:00 to 2026-03-09T10:22:43.724802-04:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Household Documents Table",
+      "source_type": "database_table",
+      "source_location": "Database table: household_documents",
+      "coverage": "13 rows",
+      "metadata": {
+        "table_name": "household_documents",
+        "columns": [
+          "id",
+          "filename",
+          "stored_path",
+          "source_type",
+          "document_type",
+          "status",
+          "account_label",
+          "content_type",
+          "file_size_bytes",
+          "classification_confidence",
+          "statement_start",
+          "statement_end",
+          "uploaded_at",
+          "parsed_at",
+          "metadata",
+          "review_status",
+          "review_summary",
+          "review_confidence"
+        ],
+        "row_count": 13,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Household Import Rows Table",
+      "source_type": "database_table",
+      "source_location": "Database table: household_import_rows",
+      "coverage": "2,899 rows, 2026-03-09T09:41:04.468923-04:00 to 2026-03-09T09:41:04.468923-04:00",
+      "metadata": {
+        "table_name": "household_import_rows",
+        "columns": [
+          "id",
+          "document_id",
+          "dataset_type",
+          "row_hash",
+          "external_row_id",
+          "row_date",
+          "merchant",
+          "description",
+          "amount",
+          "currency",
+          "row_metadata",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 2899,
+        "date_range": "2026-03-09T09:41:04.468923-04:00 to 2026-03-09T09:41:04.468923-04:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Household Inferred Values Table",
+      "source_type": "database_table",
+      "source_location": "Database table: household_inferred_values",
+      "coverage": "2 rows, 2026-03-09T10:22:15.942652-04:00 to 2026-03-09T10:31:57.761596-04:00",
+      "metadata": {
+        "table_name": "household_inferred_values",
+        "columns": [
+          "id",
+          "field_name",
+          "value_text",
+          "confidence",
+          "status",
+          "rationale",
+          "source_document_id",
+          "metadata",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 2,
+        "date_range": "2026-03-09T10:22:15.942652-04:00 to 2026-03-09T10:31:57.761596-04:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Household Merchants Table",
+      "source_type": "database_table",
+      "source_location": "Database table: household_merchants",
+      "coverage": "0 rows",
+      "metadata": {
+        "table_name": "household_merchants",
+        "columns": [
+          "id",
+          "canonical_name",
+          "normalized_key",
+          "display_name",
+          "primary_category",
+          "essentiality",
+          "metadata",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 0,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Household Profiles Table",
+      "source_type": "database_table",
+      "source_location": "Database table: household_profiles",
+      "coverage": "1 rows, 2026-03-08T23:44:49.147622-04:00 to 2026-03-08T23:44:49.147622-04:00",
+      "metadata": {
+        "table_name": "household_profiles",
+        "columns": [
+          "id",
+          "household_name",
+          "monthly_net_income_target",
+          "monthly_essential_target",
+          "monthly_discretionary_target",
+          "monthly_savings_target",
+          "target_retirement_age",
+          "target_retirement_spend",
+          "notes",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 1,
+        "date_range": "2026-03-08T23:44:49.147622-04:00 to 2026-03-08T23:44:49.147622-04:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Household Questions Table",
+      "source_type": "database_table",
+      "source_location": "Database table: household_questions",
+      "coverage": "63 rows, 2026-03-09T08:43:22.160598-04:00 to 2026-03-09T10:35:06.542384-04:00",
+      "metadata": {
+        "table_name": "household_questions",
+        "columns": [
+          "id",
+          "field_name",
+          "status",
+          "priority",
+          "question",
+          "rationale",
+          "answer_text",
+          "source_document_id",
+          "metadata",
+          "created_at",
+          "answered_at"
+        ],
+        "row_count": 63,
+        "date_range": "2026-03-09T08:43:22.160598-04:00 to 2026-03-09T10:35:06.542384-04:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Household Transactions Table",
+      "source_type": "database_table",
+      "source_location": "Database table: household_transactions",
+      "coverage": "0 rows",
+      "metadata": {
+        "table_name": "household_transactions",
+        "columns": [
+          "id",
+          "document_id",
+          "merchant_id",
+          "row_hash",
+          "transaction_date",
+          "posted_date",
+          "description",
+          "raw_merchant",
+          "account_label",
+          "amount",
+          "currency",
+          "flow_type",
+          "category",
+          "essentiality",
+          "confidence",
+          "metadata",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 0,
+        "date_range": null
       }
     },
     {
@@ -266,7 +1223,7 @@
         "columns": [
           "idea_id",
           "agent_run_id",
-          "ticker",
+          "symbol",
           "idea_type",
           "entry_price",
           "entry_date",
@@ -283,6 +1240,207 @@
           "max_favorable_pct",
           "max_adverse_pct",
           "created_at",
+          "updated_at",
+          "shares",
+          "entry_amount",
+          "exit_amount",
+          "realized_pnl",
+          "strategy_id",
+          "backtest_sharpe",
+          "backtest_win_rate",
+          "backtest_max_drawdown",
+          "backtest_run_id"
+        ],
+        "row_count": 0,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Insider Transactions Table",
+      "source_type": "database_table",
+      "source_location": "Database table: insider_transactions",
+      "coverage": "1,361 rows, 2025-12-04T22:53:36.424069-05:00 to 2026-03-07T11:27:00.974433-05:00",
+      "metadata": {
+        "table_name": "insider_transactions",
+        "columns": [
+          "id",
+          "symbol",
+          "insider_name",
+          "insider_title",
+          "transaction_type",
+          "transaction_date",
+          "shares",
+          "value",
+          "shares_owned_after",
+          "source",
+          "raw_data",
+          "created_at"
+        ],
+        "row_count": 1361,
+        "date_range": "2025-12-04T22:53:36.424069-05:00 to 2026-03-07T11:27:00.974433-05:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Institutional Ownership Summary Table",
+      "source_type": "database_table",
+      "source_location": "Database table: institutional_ownership_summary",
+      "coverage": "228 rows, 2025-12-04T22:53:36.684175-05:00 to 2026-03-07T11:27:01.094248-05:00",
+      "metadata": {
+        "table_name": "institutional_ownership_summary",
+        "columns": [
+          "id",
+          "symbol",
+          "as_of_date",
+          "total_institutions",
+          "total_shares_held",
+          "pct_held_institutions",
+          "pct_held_insiders",
+          "institutions_increased",
+          "institutions_decreased",
+          "source",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 228,
+        "date_range": "2025-12-04T22:53:36.684175-05:00 to 2026-03-07T11:27:01.094248-05:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Jenny Agent Evaluations Table",
+      "source_type": "database_table",
+      "source_location": "Database table: jenny_agent_evaluations",
+      "coverage": "40 rows, 2026-03-09T18:17:08.509642-04:00 to 2026-03-10T18:18:27.172431-04:00",
+      "metadata": {
+        "table_name": "jenny_agent_evaluations",
+        "columns": [
+          "id",
+          "routine_id",
+          "symbol",
+          "agent_name",
+          "provider",
+          "model",
+          "verdict",
+          "confidence",
+          "rationale",
+          "recommendation",
+          "strengths",
+          "weaknesses",
+          "metadata",
+          "thesis_id",
+          "agent_run_id",
+          "created_at"
+        ],
+        "row_count": 40,
+        "date_range": "2026-03-09T18:17:08.509642-04:00 to 2026-03-10T18:18:27.172431-04:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Jenny Agent Scorecards Table",
+      "source_type": "database_table",
+      "source_location": "Database table: jenny_agent_scorecards",
+      "coverage": "4 rows, 2026-03-07T12:57:19.047932-05:00 to 2026-03-07T12:57:19.057162-05:00",
+      "metadata": {
+        "table_name": "jenny_agent_scorecards",
+        "columns": [
+          "agent_name",
+          "total_evaluations",
+          "completed_reviews",
+          "positive_verdicts",
+          "win_rate",
+          "avg_return_pct",
+          "agreement_rate",
+          "calibration_score",
+          "strengths",
+          "weaknesses",
+          "last_evaluation_at",
+          "updated_at",
+          "entry_quality_score",
+          "risk_judgment_score",
+          "exit_timing_score",
+          "alert_discipline_score"
+        ],
+        "row_count": 4,
+        "date_range": "2026-03-07T12:57:19.047932-05:00 to 2026-03-07T12:57:19.057162-05:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Jenny Notifications Table",
+      "source_type": "database_table",
+      "source_location": "Database table: jenny_notifications",
+      "coverage": "7 rows, 2026-03-07T14:50:48.874823-05:00 to 2026-03-10T18:18:27.563849-04:00",
+      "metadata": {
+        "table_name": "jenny_notifications",
+        "columns": [
+          "id",
+          "routine_id",
+          "symbol",
+          "category",
+          "severity",
+          "status",
+          "title",
+          "detail",
+          "recommendation",
+          "metadata",
+          "created_at",
+          "acknowledged_at"
+        ],
+        "row_count": 7,
+        "date_range": "2026-03-07T14:50:48.874823-05:00 to 2026-03-10T18:18:27.563849-04:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Jenny Routines Table",
+      "source_type": "database_table",
+      "source_location": "Database table: jenny_routines",
+      "coverage": "19 rows",
+      "metadata": {
+        "table_name": "jenny_routines",
+        "columns": [
+          "id",
+          "routine_type",
+          "status",
+          "triggered_by",
+          "summary",
+          "metadata",
+          "agents_used",
+          "symbols_scanned",
+          "notifications_created",
+          "started_at",
+          "completed_at"
+        ],
+        "row_count": 19,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Jenny Trade Reviews Table",
+      "source_type": "database_table",
+      "source_location": "Database table: jenny_trade_reviews",
+      "coverage": "0 rows",
+      "metadata": {
+        "table_name": "jenny_trade_reviews",
+        "columns": [
+          "id",
+          "symbol",
+          "thesis_id",
+          "idea_id",
+          "review_source",
+          "outcome_label",
+          "return_pct",
+          "lesson",
+          "what_worked",
+          "what_failed",
+          "next_time",
+          "agent_consensus",
+          "metadata",
+          "created_at",
           "updated_at"
         ],
         "row_count": 0,
@@ -291,10 +1449,31 @@
     },
     {
       "category": "analytics",
+      "name": "Macro Indicators Table",
+      "source_type": "database_table",
+      "source_location": "Database table: macro_indicators",
+      "coverage": "560 rows, 2025-12-04T23:01:06.031421-05:00 to 2026-03-11T02:30:29.290820-04:00",
+      "metadata": {
+        "table_name": "macro_indicators",
+        "columns": [
+          "id",
+          "indicator_name",
+          "series_id",
+          "observation_date",
+          "value",
+          "source",
+          "created_at"
+        ],
+        "row_count": 560,
+        "date_range": "2025-12-04T23:01:06.031421-05:00 to 2026-03-11T02:30:29.290820-04:00"
+      }
+    },
+    {
+      "category": "analytics",
       "name": "Maintenance Log Table",
       "source_type": "database_table",
       "source_location": "Database table: maintenance_log",
-      "coverage": "0 rows",
+      "coverage": "2,260 rows",
       "metadata": {
         "table_name": "maintenance_log",
         "columns": [
@@ -307,31 +1486,59 @@
           "summary",
           "error_message"
         ],
-        "row_count": 0,
+        "row_count": 2260,
         "date_range": null
       }
     },
     {
       "category": "analytics",
-      "name": "Minute Bars Table",
+      "name": "Maintenance Stats Table",
       "source_type": "database_table",
-      "source_location": "Database table: minute_bars",
-      "coverage": "0 rows",
+      "source_location": "Database table: maintenance_stats",
+      "coverage": "65,395 rows, 2025-11-16T17:02:12.318487-05:00 to 2026-03-10T20:00:00.172778-04:00",
       "metadata": {
-        "table_name": "minute_bars",
+        "table_name": "maintenance_stats",
         "columns": [
-          "ticker",
-          "ts_utc",
-          "open",
-          "high",
-          "low",
-          "close",
-          "volume",
-          "vwap",
-          "source"
+          "id",
+          "recorded_at",
+          "metric_name",
+          "metric_value",
+          "metric_unit",
+          "metadata",
+          "created_at"
         ],
-        "row_count": 0,
-        "date_range": null
+        "row_count": 65395,
+        "date_range": "2025-11-16T17:02:12.318487-05:00 to 2026-03-10T20:00:00.172778-04:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Market Events Table",
+      "source_type": "database_table",
+      "source_location": "Database table: market_events",
+      "coverage": "72 rows, 2025-12-15T17:22:54.201666-05:00 to 2025-12-15T17:22:54.227957-05:00",
+      "metadata": {
+        "table_name": "market_events",
+        "columns": [
+          "id",
+          "event_type",
+          "event_date",
+          "event_time",
+          "title",
+          "description",
+          "expected_value",
+          "actual_value",
+          "prior_value",
+          "surprise_pct",
+          "impact_score",
+          "spy_change_1h",
+          "spy_change_1d",
+          "source",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 72,
+        "date_range": "2025-12-15T17:22:54.201666-05:00 to 2025-12-15T17:22:54.227957-05:00"
       }
     },
     {
@@ -339,7 +1546,7 @@
       "name": "Ml Model Metrics Table",
       "source_type": "database_table",
       "source_location": "Database table: ml_model_metrics",
-      "coverage": "6 rows, 2025-11-11 to 2025-11-12",
+      "coverage": "21 rows, 2025-11-11T12:46:18.827389-05:00 to 2026-03-10T13:16:36.501139-04:00",
       "metadata": {
         "table_name": "ml_model_metrics",
         "columns": [
@@ -360,8 +1567,8 @@
           "notes",
           "created_at"
         ],
-        "row_count": 6,
-        "date_range": "2025-11-11 to 2025-11-12"
+        "row_count": 21,
+        "date_range": "2025-11-11T12:46:18.827389-05:00 to 2026-03-10T13:16:36.501139-04:00"
       }
     },
     {
@@ -369,7 +1576,7 @@
       "name": "Ml Training Progress Table",
       "source_type": "database_table",
       "source_location": "Database table: ml_training_progress",
-      "coverage": "10 rows, 2025-11-11 to 2025-11-12",
+      "coverage": "13 rows, 2025-11-11T18:07:32.319249 to 2025-12-15T22:12:31.871207",
       "metadata": {
         "table_name": "ml_training_progress",
         "columns": [
@@ -389,8 +1596,8 @@
           "error_message",
           "created_at"
         ],
-        "row_count": 10,
-        "date_range": "2025-11-11 to 2025-11-12"
+        "row_count": 13,
+        "date_range": "2025-11-11T18:07:32.319249 to 2025-12-15T22:12:31.871207"
       }
     },
     {
@@ -398,7 +1605,7 @@
       "name": "Options Market Metrics Table",
       "source_type": "database_table",
       "source_location": "Database table: options_market_metrics",
-      "coverage": "1 rows, 2025-11-13 to 2025-11-13",
+      "coverage": "84 rows, 2025-11-13T15:56:51.567524-05:00 to 2026-03-11T00:00:01.360792-04:00",
       "metadata": {
         "table_name": "options_market_metrics",
         "columns": [
@@ -410,8 +1617,39 @@
           "source_timestamp",
           "created_at"
         ],
-        "row_count": 1,
-        "date_range": "2025-11-13 to 2025-11-13"
+        "row_count": 84,
+        "date_range": "2025-11-13T15:56:51.567524-05:00 to 2026-03-11T00:00:01.360792-04:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Paper Trade Transactions Table",
+      "source_type": "database_table",
+      "source_location": "Database table: paper_trade_transactions",
+      "coverage": "0 rows",
+      "metadata": {
+        "table_name": "paper_trade_transactions",
+        "columns": [
+          "id",
+          "trade_id",
+          "transaction_type",
+          "symbol",
+          "shares",
+          "price",
+          "amount",
+          "cash_before",
+          "cash_after",
+          "timestamp",
+          "notes",
+          "agent_run_id",
+          "expected_price",
+          "slippage_amount",
+          "slippage_bps",
+          "adv",
+          "slippage_model"
+        ],
+        "row_count": 0,
+        "date_range": null
       }
     },
     {
@@ -419,7 +1657,7 @@
       "name": "Price Cache Table",
       "source_type": "database_table",
       "source_location": "Database table: price_cache",
-      "coverage": "18,361 rows",
+      "coverage": "20 rows",
       "metadata": {
         "table_name": "price_cache",
         "columns": [
@@ -430,9 +1668,72 @@
           "sector",
           "cached_at",
           "source",
-          "error"
+          "error",
+          "bid",
+          "ask",
+          "bid_size",
+          "ask_size"
         ],
-        "row_count": 18361,
+        "row_count": 20,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Qa Issues Table",
+      "source_type": "database_table",
+      "source_location": "Database table: qa_issues",
+      "coverage": "5 rows, 2025-12-09T14:06:29.036809-05:00 to 2025-12-12T23:30:00.248787-05:00",
+      "metadata": {
+        "table_name": "qa_issues",
+        "columns": [
+          "id",
+          "issue_id",
+          "category",
+          "severity",
+          "file_path",
+          "line_start",
+          "line_end",
+          "description",
+          "detection_source",
+          "first_detected_at",
+          "last_detected_at",
+          "resolved_at",
+          "resolved_by",
+          "resolution_notes",
+          "false_positive",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 5,
+        "date_range": "2025-12-09T14:06:29.036809-05:00 to 2025-12-12T23:30:00.248787-05:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Qa Snapshots Table",
+      "source_type": "database_table",
+      "source_location": "Database table: qa_snapshots",
+      "coverage": "0 rows",
+      "metadata": {
+        "table_name": "qa_snapshots",
+        "columns": [
+          "id",
+          "snapshot_date",
+          "total_issues",
+          "critical_count",
+          "high_count",
+          "medium_count",
+          "low_count",
+          "by_category",
+          "issues_added",
+          "issues_resolved",
+          "lines_of_code",
+          "file_count",
+          "table_count",
+          "created_at"
+        ],
+        "row_count": 0,
         "date_range": null
       }
     },
@@ -441,30 +1742,162 @@
       "name": "Reference Cache Table",
       "source_type": "database_table",
       "source_location": "Database table: reference_cache",
-      "coverage": "126 rows, 2025-11-02 to 2025-11-13",
+      "coverage": "40 rows, 2026-03-07T15:14:58.680233-05:00 to 2026-03-11T00:02:01.670560-04:00",
       "metadata": {
         "table_name": "reference_cache",
         "columns": [
-          "ticker",
+          "symbol",
           "as_of_date",
           "payload",
           "source",
-          "created_at"
+          "created_at",
+          "pe_ratio_trailing",
+          "pe_ratio_forward",
+          "ps_ratio",
+          "pb_ratio",
+          "peg_ratio",
+          "dividend_yield",
+          "payout_ratio",
+          "f_score",
+          "f_score_components",
+          "z_score",
+          "z_score_zone",
+          "shares_short",
+          "short_ratio",
+          "short_percent_of_float",
+          "free_cash_flow",
+          "operating_cash_flow"
         ],
-        "row_count": 126,
-        "date_range": "2025-11-02 to 2025-11-13"
+        "row_count": 40,
+        "date_range": "2026-03-07T15:14:58.680233-05:00 to 2026-03-11T00:02:01.670560-04:00"
       }
     },
     {
       "category": "analytics",
-      "name": "Scheduled Task: Calculate Fear Greed Daily",
-      "source_type": "celery_task",
-      "source_location": "Celery task: calculate_fear_greed",
-      "coverage": "Runs 86400.0",
+      "name": "Rules Validation Reports Table",
+      "source_type": "database_table",
+      "source_location": "Database table: rules_validation_reports",
+      "coverage": "82 rows",
       "metadata": {
-        "task_name": "calculate-fear-greed-daily",
-        "task_path": "calculate_fear_greed",
-        "schedule": "86400.0"
+        "table_name": "rules_validation_reports",
+        "columns": [
+          "id",
+          "rules_version",
+          "validation_time",
+          "overall_status",
+          "critical_count",
+          "warning_count",
+          "info_count",
+          "validation_errors",
+          "recommendations",
+          "summary",
+          "performance_data"
+        ],
+        "row_count": 82,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Scheduled Task: Auto Paper Trade",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-auto-paper-trade",
+      "coverage": "Cron: 45 21 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-auto-paper-trade",
+        "function_name": "auto_paper_trade_wf",
+        "file": "strategy.py",
+        "crons": [
+          "45 21 * * *"
+        ]
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Scheduled Task: Daily Signals",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-daily-signals",
+      "coverage": "Cron: 30 21 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-daily-signals",
+        "function_name": "daily_signals_wf",
+        "file": "strategy.py",
+        "crons": [
+          "30 21 * * *"
+        ]
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Scheduled Task: Daily Strategy",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-daily-strategy",
+      "coverage": "Cron: 15 5 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-daily-strategy",
+        "function_name": "daily_strategy_refresh_wf",
+        "file": "strategy.py",
+        "crons": [
+          "15 5 * * *"
+        ]
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Scheduled Task: Eval Strategy",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-eval-strategy",
+      "coverage": "Cron: 0 4 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-eval-strategy",
+        "function_name": "eval_strategy_wf",
+        "file": "strategy.py",
+        "crons": [
+          "0 4 * * *"
+        ]
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Scheduled Task: Generate Signal",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-generate-signal",
+      "coverage": "Manual or event-driven workflow",
+      "metadata": {
+        "workflow_name": "portfolio-generate-signal",
+        "function_name": "generate_signal_wf",
+        "file": "strategy.py",
+        "crons": []
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Scheduled Task: Strategy Metrics",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-strategy-metrics",
+      "coverage": "Cron: 0 22 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-strategy-metrics",
+        "function_name": "strategy_metrics_wf",
+        "file": "strategy.py",
+        "crons": [
+          "0 22 * * *"
+        ]
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Scheduled Task: Weekly Strategy Gen",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-weekly-strategy-gen",
+      "coverage": "Cron: 0 5 * * 1,2",
+      "metadata": {
+        "workflow_name": "portfolio-weekly-strategy-gen",
+        "function_name": "weekly_strategy_gen_wf",
+        "file": "strategy.py",
+        "crons": [
+          "0 5 * * 1,2"
+        ]
       }
     },
     {
@@ -472,7 +1905,7 @@
       "name": "Schema Migrations Table",
       "source_type": "database_table",
       "source_location": "Database table: schema_migrations",
-      "coverage": "31 rows",
+      "coverage": "118 rows",
       "metadata": {
         "table_name": "schema_migrations",
         "columns": [
@@ -481,7 +1914,7 @@
           "applied_at",
           "checksum"
         ],
-        "row_count": 31,
+        "row_count": 118,
         "date_range": null
       }
     },
@@ -490,18 +1923,18 @@
       "name": "Sec Cik Cache Table",
       "source_type": "database_table",
       "source_location": "Database table: sec_cik_cache",
-      "coverage": "9,998 rows, 2025-11-06 to 2025-11-06",
+      "coverage": "9,998 rows, 2025-11-06T16:48:33.912698-05:00 to 2025-11-06T16:48:33.912698-05:00",
       "metadata": {
         "table_name": "sec_cik_cache",
         "columns": [
-          "ticker",
+          "symbol",
           "cik",
           "company_name",
           "last_updated",
           "created_at"
         ],
         "row_count": 9998,
-        "date_range": "2025-11-06 to 2025-11-06"
+        "date_range": "2025-11-06T16:48:33.912698-05:00 to 2025-11-06T16:48:33.912698-05:00"
       }
     },
     {
@@ -509,7 +1942,7 @@
       "name": "Settings Profiles Table",
       "source_type": "database_table",
       "source_location": "Database table: settings_profiles",
-      "coverage": "1 rows, 2025-11-11 to 2025-11-11",
+      "coverage": "1 rows, 2025-11-11T09:01:56.171706-05:00 to 2025-11-11T09:01:56.171706-05:00",
       "metadata": {
         "table_name": "settings_profiles",
         "columns": [
@@ -523,7 +1956,113 @@
           "updated_at"
         ],
         "row_count": 1,
-        "date_range": "2025-11-11 to 2025-11-11"
+        "date_range": "2025-11-11T09:01:56.171706-05:00 to 2025-11-11T09:01:56.171706-05:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Short Interest Summary Table",
+      "source_type": "database_table",
+      "source_location": "Database table: short_interest_summary",
+      "coverage": "18 rows, 2025-12-04T22:53:36.691540-05:00 to 2026-03-07T11:27:01.113732-05:00",
+      "metadata": {
+        "table_name": "short_interest_summary",
+        "columns": [
+          "id",
+          "symbol",
+          "as_of_date",
+          "shares_short",
+          "short_ratio",
+          "short_percent_of_float",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 18,
+        "date_range": "2025-12-04T22:53:36.691540-05:00 to 2026-03-07T11:27:01.113732-05:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Short Interest Table",
+      "source_type": "database_table",
+      "source_location": "Database table: short_interest",
+      "coverage": "18 rows, 2025-12-04T22:53:36.687464-05:00 to 2026-03-07T11:27:01.106278-05:00",
+      "metadata": {
+        "table_name": "short_interest",
+        "columns": [
+          "id",
+          "symbol",
+          "as_of_date",
+          "short_shares",
+          "short_ratio",
+          "short_percent_of_float",
+          "short_percent_of_outstanding",
+          "short_prior_month",
+          "short_pct_change",
+          "source",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 18,
+        "date_range": "2025-12-04T22:53:36.687464-05:00 to 2026-03-07T11:27:01.106278-05:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Sitemap Entries Table",
+      "source_type": "database_table",
+      "source_location": "Database table: sitemap_entries",
+      "coverage": "541 rows, 2025-12-15T18:30:06.570538-05:00 to 2026-01-02T22:33:00.520890-05:00",
+      "metadata": {
+        "table_name": "sitemap_entries",
+        "columns": [
+          "id",
+          "port",
+          "path",
+          "method",
+          "entry_type",
+          "source",
+          "title",
+          "parent_path",
+          "health_status",
+          "console_errors",
+          "console_warnings",
+          "http_status",
+          "response_time_ms",
+          "last_error_message",
+          "artifact_id",
+          "last_evidence_captured_at",
+          "last_checked_at",
+          "discovered_at",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 541,
+        "date_range": "2025-12-15T18:30:06.570538-05:00 to 2026-01-02T22:33:00.520890-05:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Sitemap Health History Table",
+      "source_type": "database_table",
+      "source_location": "Database table: sitemap_health_history",
+      "coverage": "14,066 rows, 2026-02-02T07:11:08.572290-05:00 to 2026-03-07T00:00:21.868107-05:00",
+      "metadata": {
+        "table_name": "sitemap_health_history",
+        "columns": [
+          "id",
+          "sitemap_entry_id",
+          "checked_at",
+          "health_status",
+          "console_errors",
+          "console_warnings",
+          "http_status",
+          "response_time_ms",
+          "error_details",
+          "created_at"
+        ],
+        "row_count": 14066,
+        "date_range": "2026-02-02T07:11:08.572290-05:00 to 2026-03-07T00:00:21.868107-05:00"
       }
     },
     {
@@ -531,7 +2070,7 @@
       "name": "Source Credentials Table",
       "source_type": "database_table",
       "source_location": "Database table: source_credentials",
-      "coverage": "14 rows, 2025-10-29 to 2025-10-29",
+      "coverage": "9 rows, 2025-10-29T19:25:35.905847-04:00 to 2025-12-03T14:35:50.921921-05:00",
       "metadata": {
         "table_name": "source_credentials",
         "columns": [
@@ -540,8 +2079,8 @@
           "value",
           "updated_at"
         ],
-        "row_count": 14,
-        "date_range": "2025-10-29 to 2025-10-29"
+        "row_count": 9,
+        "date_range": "2025-10-29T19:25:35.905847-04:00 to 2025-12-03T14:35:50.921921-05:00"
       }
     },
     {
@@ -549,7 +2088,7 @@
       "name": "Source Metrics Table",
       "source_type": "database_table",
       "source_location": "Database table: source_metrics",
-      "coverage": "11 rows",
+      "coverage": "876 rows",
       "metadata": {
         "table_name": "source_metrics",
         "columns": [
@@ -565,7 +2104,7 @@
           "sample_period_start",
           "calculated_at"
         ],
-        "row_count": 11,
+        "row_count": 876,
         "date_range": null
       }
     },
@@ -574,7 +2113,7 @@
       "name": "Source Performance Table",
       "source_type": "database_table",
       "source_location": "Database table: source_performance",
-      "coverage": "17 rows",
+      "coverage": "13 rows",
       "metadata": {
         "table_name": "source_performance",
         "columns": [
@@ -585,7 +2124,7 @@
           "rate_limit_hits",
           "last_success_at"
         ],
-        "row_count": 17,
+        "row_count": 13,
         "date_range": null
       }
     },
@@ -594,7 +2133,7 @@
       "name": "Source Registry Table",
       "source_type": "database_table",
       "source_location": "Database table: source_registry",
-      "coverage": "0 rows",
+      "coverage": "9 rows, 2025-12-03T14:35:50.865091-05:00 to 2025-12-03T14:35:50.921921-05:00",
       "metadata": {
         "table_name": "source_registry",
         "columns": [
@@ -606,8 +2145,312 @@
           "created_at",
           "updated_at"
         ],
+        "row_count": 9,
+        "date_range": "2025-12-03T14:35:50.865091-05:00 to 2025-12-03T14:35:50.921921-05:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Strategy Definitions Table",
+      "source_type": "database_table",
+      "source_location": "Database table: strategy_definitions",
+      "coverage": "46 rows, 2025-12-02T12:36:45.100680-05:00 to 2026-03-11T01:18:39.263312-04:00",
+      "metadata": {
+        "table_name": "strategy_definitions",
+        "columns": [
+          "id",
+          "name",
+          "symbol",
+          "strategy_type",
+          "parameters",
+          "research_summary",
+          "generation_reasoning",
+          "backtest_metrics",
+          "expected_sharpe",
+          "expected_win_rate",
+          "expected_max_drawdown",
+          "created_by",
+          "created_at",
+          "version",
+          "status",
+          "activation_date",
+          "archive_date",
+          "archive_reason",
+          "live_trades_count",
+          "live_win_rate",
+          "live_sharpe_ratio",
+          "last_used_at",
+          "live_metrics_updated_at",
+          "seed_id",
+          "seed_thesis",
+          "seed_confidence"
+        ],
+        "row_count": 46,
+        "date_range": "2025-12-02T12:36:45.100680-05:00 to 2026-03-11T01:18:39.263312-04:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Strategy Lineage Table",
+      "source_type": "database_table",
+      "source_location": "Database table: strategy_lineage",
+      "coverage": "0 rows",
+      "metadata": {
+        "table_name": "strategy_lineage",
+        "columns": [
+          "id",
+          "child_strategy_id",
+          "parent_strategy_id",
+          "changes_description",
+          "evolution_reason",
+          "metrics_before",
+          "metrics_after",
+          "created_at"
+        ],
         "row_count": 0,
         "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Strategy Metrics Table",
+      "source_type": "database_table",
+      "source_location": "Database table: strategy_metrics",
+      "coverage": "0 rows",
+      "metadata": {
+        "table_name": "strategy_metrics",
+        "columns": [
+          "id",
+          "metric_date",
+          "metric_type",
+          "total_signals",
+          "buy_signals",
+          "hold_signals",
+          "avoid_signals",
+          "signals_traded",
+          "winning_trades",
+          "losing_trades",
+          "win_rate_pct",
+          "avg_return_pct",
+          "best_return_pct",
+          "worst_return_pct",
+          "cumulative_return_pct",
+          "avg_overall_score",
+          "avg_technical_score",
+          "avg_fundamental_score",
+          "score_stdev",
+          "reviews_count",
+          "disagreements_count",
+          "disagreement_rate_pct",
+          "provider_disagreements_count",
+          "provider_disagreement_rate_pct",
+          "avg_agreement_score",
+          "major_disagreements_count",
+          "minor_disagreements_count",
+          "created_at"
+        ],
+        "row_count": 0,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Strategy Performance Table",
+      "source_type": "database_table",
+      "source_location": "Database table: strategy_performance",
+      "coverage": "39 rows, 2026-01-01T23:00:00.058904-05:00 to 2026-01-07T23:00:04.278321-05:00",
+      "metadata": {
+        "table_name": "strategy_performance",
+        "columns": [
+          "id",
+          "strategy_id",
+          "date",
+          "trades_today",
+          "wins_today",
+          "losses_today",
+          "pnl_today",
+          "trades_30d",
+          "win_rate_30d",
+          "sharpe_ratio_30d",
+          "max_drawdown_30d",
+          "status",
+          "notes",
+          "created_at"
+        ],
+        "row_count": 39,
+        "date_range": "2026-01-01T23:00:00.058904-05:00 to 2026-01-07T23:00:04.278321-05:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Strategy Reviews Table",
+      "source_type": "database_table",
+      "source_location": "Database table: strategy_reviews",
+      "coverage": "0 rows",
+      "metadata": {
+        "table_name": "strategy_reviews",
+        "columns": [
+          "id",
+          "watchlist_item_id",
+          "snapshot_id",
+          "symbol",
+          "review_text",
+          "provider",
+          "is_valid",
+          "disagreement",
+          "token_usage",
+          "created_at",
+          "review_pair_id",
+          "disagreement_severity",
+          "provider_disagreement",
+          "agreement_score",
+          "agent_run_id"
+        ],
+        "row_count": 0,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Strategy Seeds Table",
+      "source_type": "database_table",
+      "source_location": "Database table: strategy_seeds",
+      "coverage": "10 rows, 2025-12-28T22:30:40.554317-05:00 to 2026-01-04T22:36:54.014723-05:00",
+      "metadata": {
+        "table_name": "strategy_seeds",
+        "columns": [
+          "id",
+          "symbol",
+          "thesis",
+          "confidence",
+          "agent_run_id",
+          "source_type",
+          "source_data",
+          "status",
+          "strategy_id",
+          "created_at",
+          "processed_at"
+        ],
+        "row_count": 10,
+        "date_range": "2025-12-28T22:30:40.554317-05:00 to 2026-01-04T22:36:54.014723-05:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Strategy Signals Table",
+      "source_type": "database_table",
+      "source_location": "Database table: strategy_signals",
+      "coverage": "384 rows, 2025-12-02T23:25:13.251251-05:00 to 2026-01-07T16:30:00.015347-05:00",
+      "metadata": {
+        "table_name": "strategy_signals",
+        "columns": [
+          "id",
+          "strategy_id",
+          "symbol",
+          "signal_date",
+          "signal_type",
+          "signal_strength",
+          "reasons",
+          "market_data",
+          "created_at"
+        ],
+        "row_count": 384,
+        "date_range": "2025-12-02T23:25:13.251251-05:00 to 2026-01-07T16:30:00.015347-05:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Symbol Risk Metrics Table",
+      "source_type": "database_table",
+      "source_location": "Database table: symbol_risk_metrics",
+      "coverage": "1,751 rows, 2025-12-04T00:30:00.033668-05:00 to 2026-03-11T01:39:00.138298-04:00",
+      "metadata": {
+        "table_name": "symbol_risk_metrics",
+        "columns": [
+          "id",
+          "symbol",
+          "as_of_date",
+          "var_95",
+          "var_99",
+          "cvar_95",
+          "cvar_99",
+          "beta_90d",
+          "beta_1y",
+          "beta_2y",
+          "r_squared_1y",
+          "observations",
+          "created_at"
+        ],
+        "row_count": 1751,
+        "date_range": "2025-12-04T00:30:00.033668-05:00 to 2026-03-11T01:39:00.138298-04:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Symbol Workflow Events Table",
+      "source_type": "database_table",
+      "source_location": "Database table: symbol_workflow_events",
+      "coverage": "0 rows",
+      "metadata": {
+        "table_name": "symbol_workflow_events",
+        "columns": [
+          "id",
+          "symbol",
+          "from_stage",
+          "to_stage",
+          "note",
+          "created_by",
+          "created_at",
+          "metadata"
+        ],
+        "row_count": 0,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Symbol Workflows Table",
+      "source_type": "database_table",
+      "source_location": "Database table: symbol_workflows",
+      "coverage": "0 rows",
+      "metadata": {
+        "table_name": "symbol_workflows",
+        "columns": [
+          "symbol",
+          "current_stage",
+          "notes",
+          "updated_by",
+          "last_transition_at",
+          "next_review_at",
+          "created_at",
+          "updated_at",
+          "metadata"
+        ],
+        "row_count": 0,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Symbols Table",
+      "source_type": "database_table",
+      "source_location": "Database table: symbols",
+      "coverage": "175 rows, 2025-12-03T13:24:42.483359-05:00 to 2026-03-07T09:43:57.913250-05:00",
+      "metadata": {
+        "table_name": "symbols",
+        "columns": [
+          "symbol",
+          "company_name",
+          "sector",
+          "industry",
+          "exchange",
+          "security_type",
+          "is_active",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 175,
+        "date_range": "2025-12-03T13:24:42.483359-05:00 to 2026-03-07T09:43:57.913250-05:00"
       }
     },
     {
@@ -615,7 +2458,7 @@
       "name": "Table Registry Table",
       "source_type": "database_table",
       "source_location": "Database table: table_registry",
-      "coverage": "22 rows, 2025-10-27 to 2025-11-13",
+      "coverage": "27 rows, 2025-10-27T22:02:35.326750-04:00 to 2025-12-15T17:19:34.714389-05:00",
       "metadata": {
         "table_name": "table_registry",
         "columns": [
@@ -626,8 +2469,8 @@
           "last_written",
           "created_at"
         ],
-        "row_count": 22,
-        "date_range": "2025-10-27 to 2025-11-13"
+        "row_count": 27,
+        "date_range": "2025-10-27T22:02:35.326750-04:00 to 2025-12-15T17:19:34.714389-05:00"
       }
     },
     {
@@ -635,11 +2478,11 @@
       "name": "Technical Indicators Table",
       "source_type": "database_table",
       "source_location": "Database table: technical_indicators",
-      "coverage": "60 rows",
+      "coverage": "27,530 rows, 2020-11-03 to 2026-03-11",
       "metadata": {
         "table_name": "technical_indicators",
         "columns": [
-          "ticker",
+          "symbol",
           "date",
           "rsi_14",
           "macd",
@@ -660,100 +2503,950 @@
           "calculated_at",
           "sma_5"
         ],
-        "row_count": 60,
-        "date_range": null
+        "row_count": 27530,
+        "date_range": "2020-11-03 to 2026-03-11"
       }
     },
     {
       "category": "analytics",
-      "name": "Validation Results Table",
+      "name": "Thesis Versions Table",
       "source_type": "database_table",
-      "source_location": "Database table: validation_results",
-      "coverage": "0 rows",
+      "source_location": "Database table: thesis_versions",
+      "coverage": "3 rows, 2026-03-09T18:15:57.722777-04:00 to 2026-03-09T18:20:48.627152-04:00",
       "metadata": {
-        "table_name": "validation_results",
+        "table_name": "thesis_versions",
         "columns": [
           "id",
-          "idea_id",
-          "validation_type",
-          "passed",
-          "details",
-          "validated_at"
+          "thesis_id",
+          "version",
+          "snapshot",
+          "change_reason",
+          "created_at"
         ],
-        "row_count": 0,
-        "date_range": null
+        "row_count": 3,
+        "date_range": "2026-03-09T18:15:57.722777-04:00 to 2026-03-09T18:20:48.627152-04:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Valuation Metrics Table",
+      "source_type": "database_table",
+      "source_location": "Database table: valuation_metrics",
+      "coverage": "1,739 rows, 2025-12-04T23:30:00.031783-05:00 to 2026-03-11T00:30:00.224631-04:00",
+      "metadata": {
+        "table_name": "valuation_metrics",
+        "columns": [
+          "id",
+          "symbol",
+          "as_of_date",
+          "pe_ratio_trailing",
+          "pe_ratio_forward",
+          "ps_ratio",
+          "pb_ratio",
+          "peg_ratio",
+          "dividend_yield",
+          "payout_ratio",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 1739,
+        "date_range": "2025-12-04T23:30:00.031783-05:00 to 2026-03-11T00:30:00.224631-04:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Vision Content Table",
+      "source_type": "database_table",
+      "source_location": "Database table: vision_content",
+      "coverage": "21 rows, 2025-12-08T16:35:22.065477-05:00 to 2025-12-08T16:35:22.065477-05:00",
+      "metadata": {
+        "table_name": "vision_content",
+        "columns": [
+          "id",
+          "content_type",
+          "content_key",
+          "title",
+          "content",
+          "order_num",
+          "metadata",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 21,
+        "date_range": "2025-12-08T16:35:22.065477-05:00 to 2025-12-08T16:35:22.065477-05:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Vision Goal Details Table",
+      "source_type": "database_table",
+      "source_location": "Database table: vision_goal_details",
+      "coverage": "69 rows, 2025-12-08T16:35:22.088437-05:00 to 2025-12-08T16:35:22.088437-05:00",
+      "metadata": {
+        "table_name": "vision_goal_details",
+        "columns": [
+          "id",
+          "goal_code",
+          "detail_type",
+          "content",
+          "order_num",
+          "metadata",
+          "created_at"
+        ],
+        "row_count": 69,
+        "date_range": "2025-12-08T16:35:22.088437-05:00 to 2025-12-08T16:35:22.088437-05:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Vision Goals Table",
+      "source_type": "database_table",
+      "source_location": "Database table: vision_goals",
+      "coverage": "8 rows, 2025-12-06T17:12:38.627691-05:00 to 2025-12-08T16:36:17.772809-05:00",
+      "metadata": {
+        "table_name": "vision_goals",
+        "columns": [
+          "code",
+          "name",
+          "description",
+          "category",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 8,
+        "date_range": "2025-12-06T17:12:38.627691-05:00 to 2025-12-08T16:36:17.772809-05:00"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Yield Curve Table",
+      "source_type": "database_table",
+      "source_location": "Database table: yield_curve",
+      "coverage": "80 rows, 2025-12-04T23:00:02.274179-05:00 to 2026-03-11T02:30:26.118427-04:00",
+      "metadata": {
+        "table_name": "yield_curve",
+        "columns": [
+          "id",
+          "observation_date",
+          "yield_3m",
+          "yield_2y",
+          "yield_5y",
+          "yield_10y",
+          "yield_30y",
+          "spread_10y_2y",
+          "spread_10y_3m",
+          "is_inverted",
+          "source",
+          "created_at"
+        ],
+        "row_count": 80,
+        "date_range": "2025-12-04T23:00:02.274179-05:00 to 2026-03-11T02:30:26.118427-04:00"
       }
     },
     {
       "category": "infrastructure",
-      "name": "Scheduled Task: Fetch Options Activity Daily",
-      "source_type": "celery_task",
-      "source_location": "Celery task: fetch_options_activity_metrics",
-      "coverage": "Runs <crontab: 15 21 * * * (m/h/dM/MY/d)>",
+      "name": "API: /api/rules",
+      "source_type": "api_endpoint",
+      "source_location": "GET /api/rules (in api/rules.py)",
+      "coverage": "REST API endpoint",
       "metadata": {
-        "task_name": "fetch-options-activity-daily",
-        "task_path": "fetch_options_activity_metrics",
-        "schedule": "<crontab: 15 21 * * * (m/h/dM/MY/d)>"
+        "path": "/api/rules",
+        "method": "get",
+        "file": "api/rules.py"
       }
     },
     {
       "category": "infrastructure",
-      "name": "Scheduled Task: Fetch Putcall Ratio Daily",
-      "source_type": "celery_task",
-      "source_location": "Celery task: fetch_putcall_ratio",
-      "coverage": "Runs 86400.0",
+      "name": "API: /api/rules/export",
+      "source_type": "api_endpoint",
+      "source_location": "GET /api/rules/export (in api/rules.py)",
+      "coverage": "REST API endpoint",
       "metadata": {
-        "task_name": "fetch-putcall-ratio-daily",
-        "task_path": "fetch_putcall_ratio",
-        "schedule": "86400.0"
+        "path": "/api/rules/export",
+        "method": "get",
+        "file": "api/rules.py"
       }
     },
     {
       "category": "infrastructure",
-      "name": "Scheduled Task: Refresh Watchlist Scores",
-      "source_type": "celery_task",
-      "source_location": "Celery task: refresh_watchlist_scores",
-      "coverage": "Runs 60.0",
+      "name": "API: /article-feedback/{article_hash}",
+      "source_type": "api_endpoint",
+      "source_location": "GET /article-feedback/{article_hash} (in api/news_profiling.py)",
+      "coverage": "REST API endpoint",
       "metadata": {
-        "task_name": "refresh-watchlist-scores",
-        "task_path": "refresh_watchlist_scores",
-        "schedule": "60.0"
+        "path": "/article-feedback/{article_hash}",
+        "method": "get",
+        "file": "api/news_profiling.py"
       }
     },
     {
       "category": "infrastructure",
-      "name": "Scheduled Task: Retrain Article Quality Model",
-      "source_type": "celery_task",
-      "source_location": "Celery task: retrain_article_quality_model",
-      "coverage": "Runs 86400.0",
+      "name": "API: /corporate-actions",
+      "source_type": "api_endpoint",
+      "source_location": "GET /corporate-actions (in api/market/corporate_router.py)",
+      "coverage": "REST API endpoint",
       "metadata": {
-        "task_name": "retrain-article-quality-model",
-        "task_path": "retrain_article_quality_model",
-        "schedule": "86400.0"
+        "path": "/corporate-actions",
+        "method": "get",
+        "file": "api/market/corporate_router.py"
       }
     },
     {
       "category": "infrastructure",
-      "name": "Scheduled Task: Update Paper Trades Daily",
-      "source_type": "celery_task",
-      "source_location": "Celery task: update_paper_trades_task",
-      "coverage": "Runs 86400.0",
+      "name": "API: /corporate-actions/summary",
+      "source_type": "api_endpoint",
+      "source_location": "GET /corporate-actions/summary (in api/market/corporate_router.py)",
+      "coverage": "REST API endpoint",
       "metadata": {
-        "task_name": "update-paper-trades-daily",
-        "task_path": "update_paper_trades_task",
-        "schedule": "86400.0"
+        "path": "/corporate-actions/summary",
+        "method": "get",
+        "file": "api/market/corporate_router.py"
       }
     },
     {
       "category": "infrastructure",
-      "name": "Scheduled Task: Update Technical Indicators Daily",
-      "source_type": "celery_task",
-      "source_location": "Celery task: update_technical_indicators",
-      "coverage": "Runs 86400.0",
+      "name": "API: /events",
+      "source_type": "api_endpoint",
+      "source_location": "GET /events (in api/market/events_router.py)",
+      "coverage": "REST API endpoint",
       "metadata": {
-        "task_name": "update-technical-indicators-daily",
-        "task_path": "update_technical_indicators",
-        "schedule": "86400.0"
+        "path": "/events",
+        "method": "get",
+        "file": "api/market/events_router.py"
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "API: /events/chart",
+      "source_type": "api_endpoint",
+      "source_location": "GET /events/chart (in api/market/events_router.py)",
+      "coverage": "REST API endpoint",
+      "metadata": {
+        "path": "/events/chart",
+        "method": "get",
+        "file": "api/market/events_router.py"
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "API: /events/types",
+      "source_type": "api_endpoint",
+      "source_location": "GET /events/types (in api/market/events_router.py)",
+      "coverage": "REST API endpoint",
+      "metadata": {
+        "path": "/events/types",
+        "method": "get",
+        "file": "api/market/events_router.py"
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "API: /events/upcoming",
+      "source_type": "api_endpoint",
+      "source_location": "GET /events/upcoming (in api/market/events_router.py)",
+      "coverage": "REST API endpoint",
+      "metadata": {
+        "path": "/events/upcoming",
+        "method": "get",
+        "file": "api/market/events_router.py"
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "API: /refresh",
+      "source_type": "api_endpoint",
+      "source_location": "GET /refresh (in api/watchlist/refresh_router.py)",
+      "coverage": "REST API endpoint",
+      "metadata": {
+        "path": "/refresh",
+        "method": "get",
+        "file": "api/watchlist/refresh_router.py"
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "API: /simple",
+      "source_type": "api_endpoint",
+      "source_location": "GET /simple (in api/health.py)",
+      "coverage": "REST API endpoint",
+      "metadata": {
+        "path": "/simple",
+        "method": "get",
+        "file": "api/health.py"
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Analyst Revisions",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-analyst-revisions",
+      "coverage": "Cron: 0 7 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-analyst-revisions",
+        "function_name": "refresh_analyst_revisions_wf",
+        "file": "reference.py",
+        "crons": [
+          "0 7 * * *"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Auto Promote",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-auto-promote",
+      "coverage": "Cron: 15 4 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-auto-promote",
+        "function_name": "auto_promote_wf",
+        "file": "strategy.py",
+        "crons": [
+          "15 4 * * *"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Check Disk",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-check-disk",
+      "coverage": "Cron: 0 */6 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-check-disk",
+        "function_name": "check_disk_space_wf",
+        "file": "maintenance.py",
+        "crons": [
+          "0 */6 * * *"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Check Freshness",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-check-freshness",
+      "coverage": "Cron: 0 */2 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-check-freshness",
+        "function_name": "check_all_data_freshness_wf",
+        "file": "maintenance.py",
+        "crons": [
+          "0 */2 * * *"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Cleanup Agent Runs",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-cleanup-agent-runs",
+      "coverage": "Cron: 15 4 * * 0",
+      "metadata": {
+        "workflow_name": "portfolio-cleanup-agent-runs",
+        "function_name": "cleanup_old_agent_runs_wf",
+        "file": "maintenance.py",
+        "crons": [
+          "15 4 * * 0"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Cleanup Backups",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-cleanup-backups",
+      "coverage": "Cron: 45 4 * * 0",
+      "metadata": {
+        "workflow_name": "portfolio-cleanup-backups",
+        "function_name": "cleanup_old_backups_wf",
+        "file": "maintenance.py",
+        "crons": [
+          "45 4 * * 0"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Cleanup Debug",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-cleanup-debug",
+      "coverage": "Cron: 15 6 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-cleanup-debug",
+        "function_name": "cleanup_debug_captures_wf",
+        "file": "maintenance.py",
+        "crons": [
+          "15 6 * * *"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Cleanup Logs",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-cleanup-logs",
+      "coverage": "Cron: 0 2 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-cleanup-logs",
+        "function_name": "cleanup_old_logs_wf",
+        "file": "maintenance.py",
+        "crons": [
+          "0 2 * * *"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Cleanup Maintenance",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-cleanup-maintenance",
+      "coverage": "Cron: 30 5 * * 0",
+      "metadata": {
+        "workflow_name": "portfolio-cleanup-maintenance",
+        "function_name": "cleanup_maintenance_wf",
+        "file": "maintenance.py",
+        "crons": [
+          "30 5 * * 0"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Cleanup Models",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-cleanup-models",
+      "coverage": "Cron: 5 5 * * 0",
+      "metadata": {
+        "workflow_name": "portfolio-cleanup-models",
+        "function_name": "cleanup_old_models_wf",
+        "file": "maintenance.py",
+        "crons": [
+          "5 5 * * 0"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Cleanup Orphaned",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-cleanup-orphaned",
+      "coverage": "Cron: 30 4 * * 0",
+      "metadata": {
+        "workflow_name": "portfolio-cleanup-orphaned",
+        "function_name": "cleanup_orphaned_wf",
+        "file": "maintenance.py",
+        "crons": [
+          "30 4 * * 0"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Cleanup Snapshots",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-cleanup-snapshots",
+      "coverage": "Cron: 0 5 * * 0",
+      "metadata": {
+        "workflow_name": "portfolio-cleanup-snapshots",
+        "function_name": "cleanup_snapshots_wf",
+        "file": "maintenance.py",
+        "crons": [
+          "0 5 * * 0"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Cleanup Solution State",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-cleanup-solution-state",
+      "coverage": "Cron: 25 5 * * 0",
+      "metadata": {
+        "workflow_name": "portfolio-cleanup-solution-state",
+        "function_name": "cleanup_solution_state_wf",
+        "file": "maintenance.py",
+        "crons": [
+          "25 5 * * 0"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Cleanup Temp",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-cleanup-temp",
+      "coverage": "Cron: 15 2 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-cleanup-temp",
+        "function_name": "cleanup_temp_wf",
+        "file": "maintenance.py",
+        "crons": [
+          "15 2 * * *"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Corporate Actions",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-corporate-actions",
+      "coverage": "Cron: 30 6 * * 0",
+      "metadata": {
+        "workflow_name": "portfolio-corporate-actions",
+        "function_name": "corporate_actions_wf",
+        "file": "reference.py",
+        "crons": [
+          "30 6 * * 0"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Covariance",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-covariance",
+      "coverage": "Cron: 30 5 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-covariance",
+        "function_name": "covariance_wf",
+        "file": "strategy.py",
+        "crons": [
+          "30 5 * * *"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Cross Validate Insight",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-cross-validate-insight",
+      "coverage": "Manual or event-driven workflow",
+      "metadata": {
+        "workflow_name": "portfolio-cross-validate-insight",
+        "function_name": "cross_validate_insight_wf",
+        "file": "events.py",
+        "crons": []
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Data Freshness",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-data-freshness",
+      "coverage": "Cron: 0 */2 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-data-freshness",
+        "function_name": "maintain_data_freshness_wf",
+        "file": "maintenance.py",
+        "crons": [
+          "0 */2 * * *"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Db Size",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-db-size",
+      "coverage": "Cron: 36 5 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-db-size",
+        "function_name": "db_size_wf",
+        "file": "maintenance.py",
+        "crons": [
+          "36 5 * * *"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Discover Candidates",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-discover-candidates",
+      "coverage": "Cron: 0 8 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-discover-candidates",
+        "function_name": "discover_candidates_wf",
+        "file": "watchlist.py",
+        "crons": [
+          "0 8 * * *"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Fg Calc",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-fg-calc",
+      "coverage": "Manual or event-driven workflow",
+      "metadata": {
+        "workflow_name": "portfolio-fg-calc",
+        "function_name": "calculate_fear_greed_wf",
+        "file": "data_refresh.py",
+        "crons": []
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Fg Inputs",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-fg-inputs",
+      "coverage": "Manual or event-driven workflow",
+      "metadata": {
+        "workflow_name": "portfolio-fg-inputs",
+        "function_name": "populate_fear_greed_inputs_wf",
+        "file": "data_refresh.py",
+        "crons": []
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Financial Health",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-financial-health",
+      "coverage": "Cron: 15 5 * * 0",
+      "metadata": {
+        "workflow_name": "portfolio-financial-health",
+        "function_name": "financial_health_wf",
+        "file": "reference.py",
+        "crons": [
+          "15 5 * * 0"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Ingest Fundamentals",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-ingest-fundamentals",
+      "coverage": "Cron: 10 6 * * 0",
+      "metadata": {
+        "workflow_name": "portfolio-ingest-fundamentals",
+        "function_name": "ingest_fundamental_data_wf",
+        "file": "data_refresh.py",
+        "crons": [
+          "10 6 * * 0"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Ingest Macro",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-ingest-macro",
+      "coverage": "Cron: 30 6 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-ingest-macro",
+        "function_name": "ingest_macro_indicators_wf",
+        "file": "data_refresh.py",
+        "crons": [
+          "30 6 * * *"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Maintain Historical",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-maintain-historical",
+      "coverage": "Cron: 15 4 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-maintain-historical",
+        "function_name": "maintain_historical_wf",
+        "file": "data_refresh.py",
+        "crons": [
+          "15 4 * * *"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Monitor Theses",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-monitor-theses",
+      "coverage": "Cron: 0 3 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-monitor-theses",
+        "function_name": "monitor_theses_wf",
+        "file": "monitoring.py",
+        "crons": [
+          "0 3 * * *"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Options Activity",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-options-activity",
+      "coverage": "Cron: 15 21 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-options-activity",
+        "function_name": "fetch_options_activity_wf",
+        "file": "data_refresh.py",
+        "crons": [
+          "15 21 * * *"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Putcall Ratio",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-putcall-ratio",
+      "coverage": "Manual or event-driven workflow",
+      "metadata": {
+        "workflow_name": "portfolio-putcall-ratio",
+        "function_name": "fetch_putcall_ratio_wf",
+        "file": "data_refresh.py",
+        "crons": []
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Qa Scan",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-qa-scan",
+      "coverage": "Cron: 0 4 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-qa-scan",
+        "function_name": "qa_scan_wf",
+        "file": "monitoring.py",
+        "crons": [
+          "0 4 * * *"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Refresh Single Symbol",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-refresh-single-symbol",
+      "coverage": "Manual or event-driven workflow",
+      "metadata": {
+        "workflow_name": "portfolio-refresh-single-symbol",
+        "function_name": "refresh_single_symbol_wf",
+        "file": "watchlist.py",
+        "crons": []
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Retrain Ml",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-retrain-ml",
+      "coverage": "Cron: 0 5 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-retrain-ml",
+        "function_name": "retrain_ml_wf",
+        "file": "reference.py",
+        "crons": [
+          "0 5 * * *"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Rotate Logs",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-rotate-logs",
+      "coverage": "Cron: 45 1 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-rotate-logs",
+        "function_name": "rotate_logs_wf",
+        "file": "maintenance.py",
+        "crons": [
+          "45 1 * * *"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Rules Validation",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-rules-validation",
+      "coverage": "Cron: 8 3 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-rules-validation",
+        "function_name": "rules_validation_wf",
+        "file": "strategy.py",
+        "crons": [
+          "8 3 * * *"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Run Analyzer",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-run-portfolio-analyzer",
+      "coverage": "Cron: 39 3 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-run-portfolio-analyzer",
+        "function_name": "run_portfolio_analyzer_wf",
+        "file": "agents.py",
+        "crons": [
+          "39 3 * * *"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Run Discovery Agent",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-run-discovery-agent",
+      "coverage": "Cron: 36 3 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-run-discovery-agent",
+        "function_name": "run_discovery_agent_wf",
+        "file": "agents.py",
+        "crons": [
+          "36 3 * * *"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Schedule New Symbol",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-schedule-new-symbol",
+      "coverage": "Manual or event-driven workflow",
+      "metadata": {
+        "workflow_name": "portfolio-schedule-new-symbol",
+        "function_name": "schedule_new_symbol_wf",
+        "file": "agents.py",
+        "crons": []
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Snapshots",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-snapshots",
+      "coverage": "Cron: 33 21 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-snapshots",
+        "function_name": "portfolio_snapshots_wf",
+        "file": "strategy.py",
+        "crons": [
+          "33 21 * * *"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Trigger From Seed",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-trigger-from-seed",
+      "coverage": "Manual or event-driven workflow",
+      "metadata": {
+        "workflow_name": "portfolio-trigger-from-seed",
+        "function_name": "trigger_from_seed_wf",
+        "file": "strategy.py",
+        "crons": []
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Trigger Top Strategies",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-trigger-top-strategies",
+      "coverage": "Manual or event-driven workflow",
+      "metadata": {
+        "workflow_name": "portfolio-trigger-top-strategies",
+        "function_name": "trigger_top_strategies_wf",
+        "file": "strategy.py",
+        "crons": []
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Trim Underperforming",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-trim-underperforming",
+      "coverage": "Cron: 30 8 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-trim-underperforming",
+        "function_name": "trim_underperforming_wf",
+        "file": "watchlist.py",
+        "crons": [
+          "30 8 * * *"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Vacuum Db",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-vacuum-db",
+      "coverage": "Cron: 30 3 * * 0",
+      "metadata": {
+        "workflow_name": "portfolio-vacuum-db",
+        "function_name": "vacuum_db_wf",
+        "file": "maintenance.py",
+        "crons": [
+          "30 3 * * 0"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Valuation Metrics",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-valuation-metrics",
+      "coverage": "Cron: 30 4 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-valuation-metrics",
+        "function_name": "valuation_metrics_wf",
+        "file": "reference.py",
+        "crons": [
+          "30 4 * * *"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Weekly Evolution",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-weekly-evolution",
+      "coverage": "Cron: 0 6 * * 1,2",
+      "metadata": {
+        "workflow_name": "portfolio-weekly-evolution",
+        "function_name": "weekly_evolution_wf",
+        "file": "strategy.py",
+        "crons": [
+          "0 6 * * 1,2"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Weekly Optimization",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-weekly-optimization",
+      "coverage": "Cron: 10 3 * * 1",
+      "metadata": {
+        "workflow_name": "portfolio-weekly-optimization",
+        "function_name": "weekly_optimization_wf",
+        "file": "strategy.py",
+        "crons": [
+          "10 3 * * 1"
+        ]
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Yfinance Ref",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-yfinance-ref",
+      "coverage": "Cron: 2 4 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-yfinance-ref",
+        "function_name": "yfinance_ref_wf",
+        "file": "reference.py",
+        "crons": [
+          "2 4 * * *"
+        ]
       }
     },
     {
@@ -761,7 +3454,7 @@
       "name": "User Preferences Table",
       "source_type": "database_table",
       "source_location": "Database table: user_preferences",
-      "coverage": "1 rows, 2025-11-07 to 2025-11-07",
+      "coverage": "1 rows, 2026-03-08T03:02:44.923504-04:00 to 2026-03-08T03:02:44.923504-04:00",
       "metadata": {
         "table_name": "user_preferences",
         "columns": [
@@ -786,17 +3479,12 @@
           "news_refresh_override",
           "frontend_poll_interval",
           "watchlist_risk_budget",
-          "watchlist_price_clamp",
           "watchlist_show_news",
-          "watchlist_show_fundamentals",
           "watchlist_score_weights",
           "watchlist_avoid_threshold",
           "watchlist_volume_surge_multiplier",
           "news_lookback_hours",
           "news_max_articles",
-          "price_sub_weights",
-          "technical_sub_weights",
-          "fundamental_sub_weights",
           "source_duplicate_weight",
           "source_diversity_weight",
           "source_confidence_weight",
@@ -806,31 +3494,108 @@
           "news_profiling_interval_hours"
         ],
         "row_count": 1,
-        "date_range": "2025-11-07 to 2025-11-07"
+        "date_range": "2026-03-08T03:02:44.923504-04:00 to 2026-03-08T03:02:44.923504-04:00"
       }
     },
     {
       "category": "market_data",
-      "name": "Scheduled Task: Maintain Historical Market Data",
-      "source_type": "celery_task",
-      "source_location": "Celery task: maintain_historical_market_data",
-      "coverage": "Runs 86400.0",
+      "name": "Scheduled Task: Backfill Indicators",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-backfill-indicators",
+      "coverage": "Cron: 30 2 * * *",
       "metadata": {
-        "task_name": "maintain-historical-market-data",
-        "task_path": "maintain_historical_market_data",
-        "schedule": "86400.0"
+        "workflow_name": "portfolio-backfill-indicators",
+        "function_name": "backfill_indicators_wf",
+        "file": "data_refresh.py",
+        "crons": [
+          "30 2 * * *"
+        ]
       }
     },
     {
       "category": "market_data",
-      "name": "Scheduled Task: Refresh Daily Ohlcv",
-      "source_type": "celery_task",
-      "source_location": "Celery task: refresh_daily_ohlcv",
-      "coverage": "Runs 86400.0",
+      "name": "Scheduled Task: Earnings Surprises",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-earnings-surprises",
+      "coverage": "Cron: 10 5 * * 0",
       "metadata": {
-        "task_name": "refresh-daily-ohlcv",
-        "task_path": "refresh_daily_ohlcv",
-        "schedule": "86400.0"
+        "workflow_name": "portfolio-earnings-surprises",
+        "function_name": "earnings_surprises_wf",
+        "file": "reference.py",
+        "crons": [
+          "10 5 * * 0"
+        ]
+      }
+    },
+    {
+      "category": "market_data",
+      "name": "Scheduled Task: Ingest Ohlcv",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-ingest-ohlcv",
+      "coverage": "Manual or event-driven workflow",
+      "metadata": {
+        "workflow_name": "portfolio-ingest-ohlcv",
+        "function_name": "ingest_ohlcv_wf",
+        "file": "data_refresh.py",
+        "crons": []
+      }
+    },
+    {
+      "category": "market_data",
+      "name": "Scheduled Task: Refresh Ohlcv",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-refresh-ohlcv",
+      "coverage": "Cron: 0 2 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-refresh-ohlcv",
+        "function_name": "refresh_daily_ohlcv_wf",
+        "file": "data_refresh.py",
+        "crons": [
+          "0 2 * * *"
+        ]
+      }
+    },
+    {
+      "category": "market_data",
+      "name": "Scheduled Task: Refresh Watchlist Ohlcv",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-refresh-watchlist-ohlcv",
+      "coverage": "Cron: 15 2 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-refresh-watchlist-ohlcv",
+        "function_name": "refresh_watchlist_ohlcv_wf",
+        "file": "data_refresh.py",
+        "crons": [
+          "15 2 * * *"
+        ]
+      }
+    },
+    {
+      "category": "market_data",
+      "name": "Scheduled Task: Risk Metrics",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-risk-metrics",
+      "coverage": "Cron: 39 5 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-risk-metrics",
+        "function_name": "refresh_risk_metrics_wf",
+        "file": "reference.py",
+        "crons": [
+          "39 5 * * *"
+        ]
+      }
+    },
+    {
+      "category": "market_data",
+      "name": "Scheduled Task: Update Indicators",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-update-indicators",
+      "coverage": "Manual or event-driven workflow",
+      "metadata": {
+        "workflow_name": "portfolio-update-indicators",
+        "function_name": "update_technical_indicators_wf",
+        "file": "data_refresh.py",
+        "crons": []
       }
     },
     {
@@ -838,12 +3603,12 @@
       "name": "News Cache Table",
       "source_type": "database_table",
       "source_location": "Database table: news_cache",
-      "coverage": "8,218 rows, 2025-11-06 to 2025-11-13",
+      "coverage": "5,621 rows, 2026-03-07T15:20:03.443545-05:00 to 2026-03-11T09:25:11.593648-04:00",
       "metadata": {
         "table_name": "news_cache",
         "columns": [
           "id",
-          "ticker",
+          "symbol",
           "headline",
           "url",
           "summary",
@@ -862,7 +3627,6 @@
           "updated_at",
           "filing_type",
           "is_material_event",
-          "plain_language_headline",
           "story_id",
           "is_primary_article",
           "coverage_count",
@@ -871,8 +3635,8 @@
           "quality_prediction",
           "quality_confidence"
         ],
-        "row_count": 8218,
-        "date_range": "2025-11-06 to 2025-11-13"
+        "row_count": 5621,
+        "date_range": "2026-03-07T15:20:03.443545-05:00 to 2026-03-11T09:25:11.593648-04:00"
       }
     },
     {
@@ -880,12 +3644,12 @@
       "name": "News Summary Log Table",
       "source_type": "database_table",
       "source_location": "Database table: news_summary_log",
-      "coverage": "185,754 rows, 2025-11-05 to 2025-11-13",
+      "coverage": "531 rows, 2026-03-07T15:25:12.442855-05:00 to 2026-03-11T10:25:07.868995-04:00",
       "metadata": {
         "table_name": "news_summary_log",
         "columns": [
           "id",
-          "ticker",
+          "symbol",
           "window_start",
           "window_end",
           "sentiment_score",
@@ -897,32 +3661,96 @@
           "model_breakdown",
           "created_at"
         ],
-        "row_count": 185754,
-        "date_range": "2025-11-05 to 2025-11-13"
+        "row_count": 531,
+        "date_range": "2026-03-07T15:25:12.442855-05:00 to 2026-03-11T10:25:07.868995-04:00"
       }
     },
     {
       "category": "news",
-      "name": "Scheduled Task: Profile News Sources",
-      "source_type": "celery_task",
-      "source_location": "Celery task: profile_news_sources",
-      "coverage": "Runs 43200.0",
+      "name": "Scheduled Task: Cleanup News",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-cleanup-news",
+      "coverage": "Cron: 0 4 * * 0",
       "metadata": {
-        "task_name": "profile-news-sources",
-        "task_path": "profile_news_sources",
-        "schedule": "43200.0"
+        "workflow_name": "portfolio-cleanup-news",
+        "function_name": "cleanup_news_wf",
+        "file": "maintenance.py",
+        "crons": [
+          "0 4 * * 0"
+        ]
+      }
+    },
+    {
+      "category": "news",
+      "name": "Scheduled Task: Profile News",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-profile-news",
+      "coverage": "Cron: 0 */12 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-profile-news",
+        "function_name": "profile_news_wf",
+        "file": "maintenance.py",
+        "crons": [
+          "0 */12 * * *"
+        ]
       }
     },
     {
       "category": "news",
       "name": "Scheduled Task: Refresh News Sentiment",
-      "source_type": "celery_task",
-      "source_location": "Celery task: refresh_news_sentiment",
-      "coverage": "Runs 65.0",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-refresh-news-sentiment",
+      "coverage": "Cron: 25 * * * *",
       "metadata": {
-        "task_name": "refresh-news-sentiment",
-        "task_path": "refresh_news_sentiment",
-        "schedule": "65.0"
+        "workflow_name": "portfolio-refresh-news-sentiment",
+        "function_name": "refresh_news_sentiment_wf",
+        "file": "watchlist.py",
+        "crons": [
+          "25 * * * *"
+        ]
+      }
+    },
+    {
+      "category": "news",
+      "name": "Scheduled Task: Reset Source Metrics",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-reset-source-metrics",
+      "coverage": "Manual or event-driven workflow",
+      "metadata": {
+        "workflow_name": "portfolio-reset-source-metrics",
+        "function_name": "reset_source_metrics_wf",
+        "file": "maintenance.py",
+        "crons": []
+      }
+    },
+    {
+      "category": "news",
+      "name": "Scheduled Task: Sec Cik",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-sec-cik",
+      "coverage": "Cron: 5 6 * * 0",
+      "metadata": {
+        "workflow_name": "portfolio-sec-cik",
+        "function_name": "refresh_sec_cik_wf",
+        "file": "reference.py",
+        "crons": [
+          "5 6 * * 0"
+        ]
+      }
+    },
+    {
+      "category": "news",
+      "name": "Scheduled Task: Source Health",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-source-health",
+      "coverage": "Cron: 30 */6 * * *",
+      "metadata": {
+        "workflow_name": "portfolio-source-health",
+        "function_name": "check_data_source_health_wf",
+        "file": "maintenance.py",
+        "crons": [
+          "30 */6 * * *"
+        ]
       }
     },
     {
@@ -948,11 +3776,58 @@
       }
     },
     {
+      "category": "news",
+      "name": "Watchlist News Summary Table",
+      "source_type": "database_table",
+      "source_location": "Database table: watchlist_news_summary",
+      "coverage": "1,633 rows",
+      "metadata": {
+        "table_name": "watchlist_news_summary",
+        "columns": [
+          "snapshot_id",
+          "news_sentiment_score",
+          "recent_news_headlines",
+          "sector_score",
+          "competitor_score",
+          "earnings_date",
+          "earnings_days_away"
+        ],
+        "row_count": 1633,
+        "date_range": null
+      }
+    },
+    {
+      "category": "portfolio",
+      "name": "Institutional Holdings Table",
+      "source_type": "database_table",
+      "source_location": "Database table: institutional_holdings",
+      "coverage": "170 rows, 2025-12-04T22:53:36.653406-05:00 to 2026-03-07T11:27:01.084299-05:00",
+      "metadata": {
+        "table_name": "institutional_holdings",
+        "columns": [
+          "id",
+          "symbol",
+          "holder_name",
+          "shares",
+          "value",
+          "pct_held",
+          "pct_change",
+          "report_date",
+          "source",
+          "raw_data",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 170,
+        "date_range": "2025-12-04T22:53:36.653406-05:00 to 2026-03-07T11:27:01.084299-05:00"
+      }
+    },
+    {
       "category": "portfolio",
       "name": "Portfolio Accounts Table",
       "source_type": "database_table",
       "source_location": "Database table: portfolio_accounts",
-      "coverage": "2 rows, 2025-11-02 to 2025-11-09",
+      "coverage": "4 rows, 2026-03-07T15:19:39.157809-05:00 to 2026-03-07T15:19:39.157809-05:00",
       "metadata": {
         "table_name": "portfolio_accounts",
         "columns": [
@@ -960,10 +3835,35 @@
           "name",
           "account_type",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "cash_balance",
+          "initial_cash"
         ],
-        "row_count": 2,
-        "date_range": "2025-11-02 to 2025-11-09"
+        "row_count": 4,
+        "date_range": "2026-03-07T15:19:39.157809-05:00 to 2026-03-07T15:19:39.157809-05:00"
+      }
+    },
+    {
+      "category": "portfolio",
+      "name": "Portfolio Covariance Table",
+      "source_type": "database_table",
+      "source_location": "Database table: portfolio_covariance",
+      "coverage": "678 rows",
+      "metadata": {
+        "table_name": "portfolio_covariance",
+        "columns": [
+          "symbol1",
+          "symbol2",
+          "covariance",
+          "correlation",
+          "volatility1",
+          "volatility2",
+          "observation_count",
+          "lookback_days",
+          "calculated_at"
+        ],
+        "row_count": 678,
+        "date_range": null
       }
     },
     {
@@ -971,7 +3871,7 @@
       "name": "Portfolio Positions Table",
       "source_type": "database_table",
       "source_location": "Database table: portfolio_positions",
-      "coverage": "1 rows, 2025-11-08 to 2025-11-08",
+      "coverage": "8 rows, 2026-03-07T15:19:39.157809-05:00 to 2026-03-07T15:19:39.157809-05:00",
       "metadata": {
         "table_name": "portfolio_positions",
         "columns": [
@@ -982,10 +3882,120 @@
           "cost_basis",
           "position_type",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "strategy_id"
         ],
-        "row_count": 1,
-        "date_range": "2025-11-08 to 2025-11-08"
+        "row_count": 8,
+        "date_range": "2026-03-07T15:19:39.157809-05:00 to 2026-03-07T15:19:39.157809-05:00"
+      }
+    },
+    {
+      "category": "portfolio",
+      "name": "Portfolio Snapshots Table",
+      "source_type": "database_table",
+      "source_location": "Database table: portfolio_snapshots",
+      "coverage": "16 rows, 2026-03-07T16:33:00.099281-05:00 to 2026-03-10T17:33:00.141374-04:00",
+      "metadata": {
+        "table_name": "portfolio_snapshots",
+        "columns": [
+          "id",
+          "account_id",
+          "snapshot_date",
+          "equity",
+          "cash",
+          "position_value",
+          "peak_equity",
+          "drawdown_pct",
+          "created_at"
+        ],
+        "row_count": 16,
+        "date_range": "2026-03-07T16:33:00.099281-05:00 to 2026-03-10T17:33:00.141374-04:00"
+      }
+    },
+    {
+      "category": "portfolio",
+      "name": "Portfolio Volatility Cache Table",
+      "source_type": "database_table",
+      "source_location": "Database table: portfolio_volatility_cache",
+      "coverage": "31 rows",
+      "metadata": {
+        "table_name": "portfolio_volatility_cache",
+        "columns": [
+          "portfolio_id",
+          "weight_hash",
+          "portfolio_volatility",
+          "weighted_avg_volatility",
+          "diversification_benefit",
+          "calculated_at"
+        ],
+        "row_count": 31,
+        "date_range": null
+      }
+    },
+    {
+      "category": "portfolio",
+      "name": "Scheduled Task: Jenny Daily Operator",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-jenny-daily-operator",
+      "coverage": "Cron: 15 22 * * 1-5",
+      "metadata": {
+        "workflow_name": "portfolio-jenny-daily-operator",
+        "function_name": "jenny_daily_operator_wf",
+        "file": "jenny.py",
+        "crons": [
+          "15 22 * * 1-5"
+        ]
+      }
+    },
+    {
+      "category": "portfolio",
+      "name": "Scheduled Task: Jenny Weekly Learning",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-jenny-weekly-learning",
+      "coverage": "Cron: 0 14 * * 6",
+      "metadata": {
+        "workflow_name": "portfolio-jenny-weekly-learning",
+        "function_name": "jenny_weekly_learning_wf",
+        "file": "jenny.py",
+        "crons": [
+          "0 14 * * 6"
+        ]
+      }
+    },
+    {
+      "category": "portfolio",
+      "name": "Scheduled Task: Refresh Watchlist Scores",
+      "source_type": "scheduled_task",
+      "source_location": "Hatchet task: portfolio-refresh-watchlist-scores",
+      "coverage": "Cron: * * * * *",
+      "metadata": {
+        "workflow_name": "portfolio-refresh-watchlist-scores",
+        "function_name": "refresh_watchlist_scores_wf",
+        "file": "watchlist.py",
+        "crons": [
+          "* * * * *"
+        ]
+      }
+    },
+    {
+      "category": "portfolio",
+      "name": "Watchlist Daily Reports Table",
+      "source_type": "database_table",
+      "source_location": "Database table: watchlist_daily_reports",
+      "coverage": "0 rows",
+      "metadata": {
+        "table_name": "watchlist_daily_reports",
+        "columns": [
+          "id",
+          "report_date",
+          "symbols_added",
+          "symbols_removed",
+          "score_changes",
+          "generated_at",
+          "created_at"
+        ],
+        "row_count": 0,
+        "date_range": null
       }
     },
     {
@@ -993,7 +4003,7 @@
       "name": "Watchlist Items Table",
       "source_type": "database_table",
       "source_location": "Database table: watchlist_items",
-      "coverage": "9 rows, 2025-11-09 to 2025-11-13",
+      "coverage": "5 rows, 2026-03-07T15:19:46.173569-05:00 to 2026-03-07T15:19:46.173569-05:00",
       "metadata": {
         "table_name": "watchlist_items",
         "columns": [
@@ -1003,10 +4013,72 @@
           "note",
           "created_at",
           "updated_at",
-          "source"
+          "source",
+          "added_by",
+          "added_at"
         ],
-        "row_count": 9,
-        "date_range": "2025-11-09 to 2025-11-13"
+        "row_count": 5,
+        "date_range": "2026-03-07T15:19:46.173569-05:00 to 2026-03-07T15:19:46.173569-05:00"
+      }
+    },
+    {
+      "category": "portfolio",
+      "name": "Watchlist Narrative Table",
+      "source_type": "database_table",
+      "source_location": "Database table: watchlist_narrative",
+      "coverage": "1,633 rows",
+      "metadata": {
+        "table_name": "watchlist_narrative",
+        "columns": [
+          "snapshot_id",
+          "narrative_headline",
+          "narrative_why_bullets",
+          "narrative_company_health",
+          "narrative_technical",
+          "narrative_action_plan",
+          "narrative_position_sizing",
+          "narrative_special_notes",
+          "entry_price",
+          "stop_loss",
+          "profit_target",
+          "position_size_shares",
+          "recommended_style",
+          "style_confidence",
+          "optimal_holding_period",
+          "risk_level",
+          "company_health"
+        ],
+        "row_count": 1633,
+        "date_range": null
+      }
+    },
+    {
+      "category": "portfolio",
+      "name": "Watchlist Snapshots Core Table",
+      "source_type": "database_table",
+      "source_location": "Database table: watchlist_snapshots_core",
+      "coverage": "1,633 rows, 2026-03-07T15:20:20.123878-05:00 to 2026-03-11T10:25:01.848864-04:00",
+      "metadata": {
+        "table_name": "watchlist_snapshots_core",
+        "columns": [
+          "id",
+          "item_id",
+          "fetched_at",
+          "price",
+          "change_pct",
+          "overall_score",
+          "technical_score",
+          "fundamental_score",
+          "news_score",
+          "ai_score",
+          "ai_confidence",
+          "is_stale",
+          "signal_type",
+          "signal_strength",
+          "created_at"
+        ],
+        "row_count": 1633,
+        "date_range": "2026-03-07T15:20:20.123878-05:00 to 2026-03-11T10:25:01.848864-04:00"
       }
     },
     {
@@ -1014,7 +4086,7 @@
       "name": "Watchlist Snapshots Table",
       "source_type": "database_table",
       "source_location": "Database table: watchlist_snapshots",
-      "coverage": "456 rows",
+      "coverage": "1,633 rows",
       "metadata": {
         "table_name": "watchlist_snapshots",
         "columns": [
@@ -1061,8 +4133,62 @@
           "timeframe_long_aligned",
           "percentile_rank_30d"
         ],
-        "row_count": 456,
+        "row_count": 1633,
         "date_range": null
+      }
+    },
+    {
+      "category": "portfolio",
+      "name": "Watchlist Technical Metrics Table",
+      "source_type": "database_table",
+      "source_location": "Database table: watchlist_technical_metrics",
+      "coverage": "1,633 rows",
+      "metadata": {
+        "table_name": "watchlist_technical_metrics",
+        "columns": [
+          "snapshot_id",
+          "raw_metrics",
+          "beta",
+          "volatility",
+          "volume_relative",
+          "timeframe_short_aligned",
+          "timeframe_long_aligned",
+          "percentile_rank_30d"
+        ],
+        "row_count": 1633,
+        "date_range": null
+      }
+    },
+    {
+      "category": "portfolio",
+      "name": "Watchlist Thesis Table",
+      "source_type": "database_table",
+      "source_location": "Database table: watchlist_thesis",
+      "coverage": "3 rows, 2026-03-09T18:15:57.712907-04:00 to 2026-03-09T18:20:48.620694-04:00",
+      "metadata": {
+        "table_name": "watchlist_thesis",
+        "columns": [
+          "id",
+          "symbol",
+          "version",
+          "status",
+          "action",
+          "core_reasons",
+          "key_catalysts",
+          "risks",
+          "value_drivers",
+          "expected_return_pct",
+          "expected_timeframe_days",
+          "claude_validation",
+          "gemini_validation",
+          "cross_validation_score",
+          "invalidation_reason",
+          "invalidated_at",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 3,
+        "date_range": "2026-03-09T18:15:57.712907-04:00 to 2026-03-09T18:20:48.620694-04:00"
       }
     }
   ]

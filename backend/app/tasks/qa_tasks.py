@@ -72,7 +72,7 @@ def _build_skipped_response(task_id: str, reason: str) -> dict[str, Any]:
 
 
 def daily_qa_scan() -> dict[str, Any]:
-    """Run daily QA scan at 04:00 UTC, after capability scans.
+    """Run daily QA scan at 04:00 UTC after overnight maintenance jobs.
 
     Workflow:
     1. Scans for all QA issue categories (dead_code, orphan_file, schema_drift, etc.)

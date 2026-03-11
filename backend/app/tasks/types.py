@@ -97,23 +97,6 @@ class TechnicalIndicatorResultDict(TaskResultDict, total=False):
     symbols_processed: int
 
 
-class CapabilityResultDict(TaskResultDict, total=False):
-    """Result from capability scanning and analysis tasks."""
-
-    db_tables_scanned: int
-    celery_tasks_scanned: int
-    api_endpoints_scanned: int
-    total_capabilities: int
-    scan_duration_seconds: float
-    insights_generated: int
-    insights_saved: int
-    analysis_duration_seconds: float
-    features_scanned: int
-    needs_review_count: int
-    total_features: int
-    passes_breakdown: dict[str, int]
-
-
 class WatchlistResultDict(TaskResultDict, total=False):
     """Result from watchlist refresh task."""
 
