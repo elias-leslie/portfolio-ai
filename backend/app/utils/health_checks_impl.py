@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import subprocess
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 from pydantic import BaseModel
 
 from app.logging_config import get_logger
+from app.sources import initialize_data_sources
 from app.storage import PortfolioStorage
 
 logger = get_logger(__name__)
@@ -54,15 +56,30 @@ class WorkerInfo(BaseModel):
     message: str = ""
 
 
-def _get_news_cache_timestamp(storage: PortfolioStorage) -> datetime | None:
-    """Get latest news cache timestamp for RSS sources."""
-    try:
-        news_df = storage.query("SELECT MAX(fetched_at) as last_fetch FROM news_cache", [])
-        if not news_df.is_empty():
-            return news_df.to_dicts()[0].get("last_fetch")
-    except Exception:
-        pass  # news_cache might not exist yet
-    return None
+@dataclass(frozen=True)
+class SourceHealthPolicy:
+    """Freshness windows for a monitored source."""
+
+    ok_window: timedelta = timedelta(hours=2)
+    degraded_window: timedelta = timedelta(hours=24)
+
+
+def _get_source_health_policies() -> dict[str, SourceHealthPolicy]:
+    """Return health policies for source rows that belong in the source panel.
+
+    The source panel is scoped to market/reference providers. News-only vendors have a
+    dedicated News Vendors section and should not appear here.
+    """
+    policies = {
+        source.name: SourceHealthPolicy()
+        for source in initialize_data_sources()
+        if source.supports_day or source.supports_reference
+    }
+    policies["cboe_most_active"] = SourceHealthPolicy(
+        ok_window=timedelta(hours=30),
+        degraded_window=timedelta(hours=48),
+    )
+    return policies
 
 
 def _calculate_source_metrics(
@@ -76,37 +93,39 @@ def _calculate_source_metrics(
 
 
 def _determine_source_status(
-    last_success_at: datetime | None, success_rate: float
+    last_success_at: datetime | None,
+    success_rate: float,
+    *,
+    policy: SourceHealthPolicy | None = None,
 ) -> Literal["ok", "degraded", "down"]:
     """Determine source status based on last success time and success rate.
 
-    Thresholds designed for mixed usage patterns:
-    - Real-time sources: Should succeed within hours
-    - Periodic sources: May go 24h+ between refreshes
+    Thresholds vary by source cadence.
     """
     if not last_success_at:
         return "down"  # Never succeeded
 
+    active_policy = policy or SourceHealthPolicy()
     time_since_success = datetime.now(UTC) - last_success_at
 
-    if time_since_success < timedelta(hours=2):
+    if time_since_success < active_policy.ok_window:
         # Recent success - status based on success rate
         if success_rate >= 80:
             return "ok"
         if success_rate >= 50:
             return "degraded"
         return "down"
-    if time_since_success < timedelta(hours=24):
-        return "degraded"  # Stale but within 24h (common for RSS/periodic)
-    return "down"  # Very stale (> 24h) - likely a real issue
+    if time_since_success < active_policy.degraded_window:
+        return "degraded"
+    return "down"
 
 
 def check_sources(storage: PortfolioStorage) -> dict[str, SourceHealthCheck]:
-    """Check health of all data sources (see _get_news_cache_timestamp for RSS handling)."""
+    """Check health of monitored market/reference data sources."""
     sources: dict[str, SourceHealthCheck] = {}
 
     try:
-        news_cache_timestamp = _get_news_cache_timestamp(storage)
+        source_policies = _get_source_health_policies()
 
         df = storage.query(
             """
@@ -122,21 +141,21 @@ def check_sources(storage: PortfolioStorage) -> dict[str, SourceHealthCheck]:
 
         for row in df.iter_rows(named=True):
             source_name = row["source_name"]
+            policy = source_policies.get(source_name)
+            if policy is None:
+                continue
+
             success_count = row["success_count"] or 0
             failure_count = row["failure_count"] or 0
             total_latency_ms = row["total_latency_ms"] or 0
             rate_limit_hits = row["rate_limit_hits"] or 0
             last_success_at = row.get("last_success_at")
 
-            # RSS sources: use news_cache timestamp (actually updated during ops)
-            if "_rss" in source_name and news_cache_timestamp:
-                last_success_at = news_cache_timestamp
-
             success_rate, avg_latency_ms = _calculate_source_metrics(
                 success_count, failure_count, total_latency_ms
             )
 
-            status = _determine_source_status(last_success_at, success_rate)
+            status = _determine_source_status(last_success_at, success_rate, policy=policy)
 
             sources[source_name] = SourceHealthCheck(
                 status=status,
