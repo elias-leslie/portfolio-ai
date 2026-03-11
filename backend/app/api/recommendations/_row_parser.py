@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 from app.analytics.calculation_engine import build_trade_setup
@@ -201,7 +201,7 @@ def _get_fresh_current_price(
 
     cached_at = snapshot.cached_at
     if cached_at.tzinfo is None:
-        cached_at = cached_at.replace(tzinfo=datetime.now().astimezone().tzinfo)
+        cached_at = cached_at.replace(tzinfo=UTC)
 
     stale_minutes = get_rules().scoring.price_stale_ttl_minutes
     age = datetime.now(cached_at.tzinfo) - cached_at

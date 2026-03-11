@@ -8,7 +8,10 @@ from datetime import UTC, date, datetime, timedelta
 
 import requests
 
+from app.logging_config import get_logger
 from app.storage.types import DatabaseConnection
+
+logger = get_logger(__name__)
 
 try:
     import yfinance as yf
@@ -36,8 +39,8 @@ def _fetch_from_yfinance(symbol: str) -> datetime | None:
             return datetime.strptime(earnings_str, "%Y-%m-%d")
         if isinstance(earnings_str, datetime):
             return earnings_str
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("yfinance_earnings_fetch_failed", symbol=symbol, error=str(e))
     return None
 
 
@@ -59,8 +62,8 @@ def _fetch_from_finnhub(symbol: str) -> datetime | None:
         date_str = entries[0].get("date")
         if date_str:
             return datetime.strptime(date_str, "%Y-%m-%d")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("finnhub_earnings_fetch_failed", symbol=symbol, error=str(e))
     return None
 
 

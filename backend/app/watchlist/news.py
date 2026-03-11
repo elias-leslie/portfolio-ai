@@ -13,7 +13,10 @@ import feedparser
 from pydantic import BaseModel
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
+from app.logging_config import get_logger
 from app.storage.types import DatabaseConnection
+
+logger = get_logger(__name__)
 
 
 class NewsHeadline(BaseModel):
@@ -73,8 +76,8 @@ def fetch_news_headlines(symbol: str, max_results: int = 10) -> list[NewsHeadlin
 
         return headlines
 
-    except Exception:
-        # Return empty list on any error (network failure, parsing error, etc.)
+    except Exception as e:
+        logger.debug("news_fetch_failed", error=str(e))
         return []
 
 

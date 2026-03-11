@@ -17,7 +17,10 @@ from typing import Any, Literal
 import redis
 
 from app.config import REDIS_URL
+from app.logging_config import get_logger
 from app.storage import get_storage
+
+logger = get_logger(__name__)
 
 _redis_client: redis.Redis[str] | None = None  # redis.Redis with decode_responses=True
 
@@ -95,7 +98,8 @@ def invalidate_fear_greed_redis_cache() -> bool:
         redis_client = _get_redis_client()
         redis_client.delete("fear_greed:latest")
         return True
-    except Exception:
+    except Exception as e:
+        logger.debug("redis_cache_invalidation_failed", error=str(e))
         return False
 
 
@@ -122,9 +126,8 @@ def get_fear_greed_score() -> FearGreedReading:
         if cached:
             data = json.loads(cached)
             return FearGreedReading.from_dict(data)
-    except Exception:
-        # If Redis fails, fall through to database query
-        pass
+    except Exception as e:
+        logger.debug("redis_cache_read_failed", error=str(e))
 
     storage = get_storage()
 
@@ -185,9 +188,8 @@ def get_fear_greed_score() -> FearGreedReading:
                             trend = "down"
                         else:
                             trend = "flat"
-                except Exception:
-                    # If trend calculation fails, just skip it
-                    pass
+                except Exception as e:
+                    logger.debug("fear_greed_trend_calc_failed", error=str(e))
 
                 # Type narrowing for label
                 if not isinstance(row[1], str):
@@ -208,14 +210,12 @@ def get_fear_greed_score() -> FearGreedReading:
                 try:
                     redis_client = _get_redis_client()
                     redis_client.setex(cache_key, cache_ttl, json.dumps(reading.to_dict()))
-                except Exception:
-                    # If caching fails, continue anyway
-                    pass
+                except Exception as e:
+                    logger.debug("redis_cache_write_failed", error=str(e))
 
                 return reading
-    except Exception:
-        # Fall through to default if query fails
-        pass
+    except Exception as e:
+        logger.warning("fear_greed_db_query_failed", error=str(e))
 
     # Fallback: Return neutral score if no data available
     # Mark as stale since we have no real data

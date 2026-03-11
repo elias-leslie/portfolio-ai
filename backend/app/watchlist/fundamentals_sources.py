@@ -14,7 +14,10 @@ import os
 
 import requests
 
+from app.logging_config import get_logger
 from app.watchlist.fundamentals_models import BaseFundamentalSource, FundamentalData
+
+logger = get_logger(__name__)
 
 try:
     import yfinance as yf
@@ -64,7 +67,8 @@ class YFinanceSource(BaseFundamentalSource):
                 recommendation_mean=recommendation_mean,
                 target_mean_price=target_mean_price,
             )
-        except Exception:
+        except Exception as e:
+            logger.debug("yfinance_fundamentals_failed", symbol=symbol, error=str(e))
             return None
 
 
@@ -121,7 +125,8 @@ class FinnhubSource(BaseFundamentalSource):
                 revenue_growth=revenue_growth,
                 debt_to_equity=debt_to_equity,
             )
-        except Exception:
+        except Exception as e:
+            logger.debug("finnhub_fundamentals_failed", symbol=symbol, error=str(e))
             return None
 
 
@@ -172,7 +177,8 @@ class FMPSource(BaseFundamentalSource):
                 revenue_growth=revenue_growth,
                 debt_to_equity=debt_to_equity,
             )
-        except Exception:
+        except Exception as e:
+            logger.debug("fmp_fundamentals_failed", symbol=symbol, error=str(e))
             return None
 
 
