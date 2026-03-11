@@ -47,11 +47,24 @@ def classify_document(
         (["visa", "mastercard", "amex", "credit"], "credit_card", "statement", 0.88),
         (["brokerage", "fidelity", "schwab", "vanguard"], "brokerage", "brokerage_statement", 0.9),
         (["ira", "401k", "roth", "retirement"], "retirement", "retirement_statement", 0.9),
+        (["pay stub", "paystub", "payroll"], "income", "pay_stub", 0.92),
+        (["w-2", "w2", "1099"], "tax", "w2_1099", 0.94),
+        (["1040", "tax return", "taxreturn"], "tax", "tax_return", 0.94),
+        (["mortgage"], "housing", "mortgage_statement", 0.92),
+        (["heloc"], "debt", "heloc_statement", 0.92),
+        (["student loan", "nelnet", "mohela", "aidvantage"], "debt", "student_loan_statement", 0.92),
+        (["auto loan", "car loan"], "debt", "auto_loan_statement", 0.92),
+        (["declarations", "policy summary"], "insurance", "insurance_declarations", 0.92),
+        (["insurance policy", "policy"], "insurance", "insurance_policy", 0.86),
+        (["social security", "ssa"], "retirement_income", "social_security_statement", 0.94),
+        (["pension"], "retirement_income", "pension_statement", 0.92),
+        (["benefits summary", "open enrollment", "benefits"], "benefits", "benefits_summary", 0.9),
+        (["estimate", "quote", "contract"], "billing", "major_expense_support", 0.82),
         (["receipt", "walmart", "target", "costco"], "receipt", "receipt", 0.8),
         (["invoice", "bill", "utility", "insurance"], "billing", "invoice", 0.8),
     ]
     for tokens, src, doc_type, conf in rules:
-        if any(t in lowered for t in tokens):
+        if any(t in lowered for t in tokens) and conf >= confidence:
             inferred_source = source_type or src
             inferred_type = document_type or doc_type
             confidence = conf
@@ -391,6 +404,17 @@ class HouseholdDocumentPipeline:
         service.transaction_service.import_document_transactions(
             document=document, reviewed=reviewed
         )
+        planning_items = reviewed.get("planning_items")
+        if isinstance(planning_items, list):
+            service.merge_planning_items(
+                items=[
+                    item
+                    for item in planning_items
+                    if isinstance(item, dict)
+                ],
+                provenance="document_review",
+                source_document_id=document.id,
+            )
 
     def _persist_review(
         self,

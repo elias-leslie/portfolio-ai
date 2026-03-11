@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from app.models.household_planning import (
+    HouseholdPlanningSnapshot,
+    empty_household_planning_snapshot,
+)
+
 
 class HouseholdOverview(BaseModel):
     invested_assets: float
@@ -19,12 +24,21 @@ class HouseholdOverview(BaseModel):
 class HouseholdProfile(BaseModel):
     id: str
     household_name: str
+    adult_count: int | None = None
+    dependent_count: int | None = None
     monthly_net_income_target: float | None = None
     monthly_essential_target: float | None = None
     monthly_discretionary_target: float | None = None
     monthly_savings_target: float | None = None
     target_retirement_age: int | None = None
     target_retirement_spend: float | None = None
+    filing_status: str | None = None
+    state_of_residence: str | None = None
+    effective_tax_rate: float | None = None
+    marginal_federal_tax_rate: float | None = None
+    marginal_state_tax_rate: float | None = None
+    emergency_fund_target_months: float | None = None
+    emergency_fund_target_amount: float | None = None
     notes: str | None = None
     created_at: str
     updated_at: str
@@ -43,12 +57,21 @@ class HouseholdResolvedValue(BaseModel):
 
 class HouseholdProfileUpdate(BaseModel):
     household_name: str | None = None
+    adult_count: int | None = None
+    dependent_count: int | None = None
     monthly_net_income_target: float | None = None
     monthly_essential_target: float | None = None
     monthly_discretionary_target: float | None = None
     monthly_savings_target: float | None = None
     target_retirement_age: int | None = None
     target_retirement_spend: float | None = None
+    filing_status: str | None = None
+    state_of_residence: str | None = None
+    effective_tax_rate: float | None = None
+    marginal_federal_tax_rate: float | None = None
+    marginal_state_tax_rate: float | None = None
+    emergency_fund_target_months: float | None = None
+    emergency_fund_target_amount: float | None = None
     notes: str | None = None
 
 
@@ -360,6 +383,7 @@ class HouseholdFinanceDashboard(BaseModel):
     questions: list[HouseholdQuestion] = Field(default_factory=list)
     jenny_brief: JennyMoneyBrief
     portfolio_context: PortfolioHouseholdContext | None = None
+    planning: HouseholdPlanningSnapshot = Field(default_factory=empty_household_planning_snapshot)
 
 
 class HouseholdTransactionCategoryUpdate(BaseModel):

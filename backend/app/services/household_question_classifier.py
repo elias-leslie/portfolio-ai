@@ -89,14 +89,43 @@ def clean_source_value(value: object) -> str | None:
     return cleaned or None
 
 
-def parse_answer_value(field_name: str, answer_text: str) -> float | int | None:
+_STRING_FIELD_NORMALIZERS: dict[str, dict[str, str]] = {
+    "filing_status": {
+        "single": "single",
+        "married filing jointly": "married_filing_jointly",
+        "joint": "married_filing_jointly",
+        "married jointly": "married_filing_jointly",
+        "married filing separately": "married_filing_separately",
+        "head of household": "head_of_household",
+        "surviving spouse": "qualifying_surviving_spouse",
+    }
+}
+
+_INTEGER_FIELDS = {
+    "adult_count",
+    "dependent_count",
+    "target_retirement_age",
+    "emergency_fund_target_months",
+}
+
+_TEXT_FIELDS = {"filing_status", "state_of_residence"}
+
+
+def parse_answer_value(field_name: str, answer_text: str) -> str | float | int | None:
     """Extract a numeric value from free-text answer, rounding appropriately."""
+    if field_name in _TEXT_FIELDS:
+        cleaned = answer_text.strip()
+        if not cleaned:
+            return None
+        alias_map = _STRING_FIELD_NORMALIZERS.get(field_name, {})
+        return alias_map.get(cleaned.lower(), cleaned)
+
     normalized = answer_text.replace(",", "").replace("$", "").strip().lower()
     match = re.search(r"-?\d+(?:\.\d+)?", normalized)
     if match is None:
         return None
     number = float(match.group(0))
-    if field_name == "target_retirement_age":
+    if field_name in _INTEGER_FIELDS:
         return round(number)
     return round(number, 2)
 

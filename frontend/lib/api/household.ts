@@ -1,4 +1,31 @@
 import { get, post, postForm } from './client'
+import type {
+  HouseholdPlanningSnapshot,
+  HouseholdPlanningUpdate,
+} from './household-planning'
+
+export type {
+  HouseholdPlanningMember,
+  HouseholdPlanningMemberInput,
+  HouseholdIncomeSource,
+  HouseholdIncomeSourceInput,
+  HouseholdDebtObligation,
+  HouseholdDebtObligationInput,
+  HouseholdHousingCost,
+  HouseholdHousingCostInput,
+  HouseholdInsurancePolicy,
+  HouseholdInsurancePolicyInput,
+  HouseholdRetirementIncomeSource,
+  HouseholdRetirementIncomeSourceInput,
+  HouseholdPlannedExpense,
+  HouseholdPlannedExpenseInput,
+  HouseholdDocumentRequirement,
+  HouseholdDocumentRequirementUpdate,
+  HouseholdPlanningSectionStatus,
+  HouseholdPlanningSummary,
+  HouseholdPlanningSnapshot,
+  HouseholdPlanningUpdate,
+} from './household-planning'
 
 export interface HouseholdOverview {
   investedAssets: number
@@ -14,12 +41,21 @@ export interface HouseholdOverview {
 export interface HouseholdProfile {
   id: string
   householdName: string
+  adultCount?: number | null
+  dependentCount?: number | null
   monthlyNetIncomeTarget: number | null
   monthlyEssentialTarget: number | null
   monthlyDiscretionaryTarget: number | null
   monthlySavingsTarget: number | null
   targetRetirementAge: number | null
   targetRetirementSpend: number | null
+  filingStatus?: string | null
+  stateOfResidence?: string | null
+  effectiveTaxRate?: number | null
+  marginalFederalTaxRate?: number | null
+  marginalStateTaxRate?: number | null
+  emergencyFundTargetMonths?: number | null
+  emergencyFundTargetAmount?: number | null
   notes: string | null
   createdAt: string
   updatedAt: string
@@ -316,16 +352,26 @@ export interface HouseholdFinanceDashboard {
   retirementContributionTracker: HouseholdRetirementContributionTracker
   retirementScenarios: HouseholdRetirementScenario[]
   portfolioContext?: PortfolioHouseholdContext | null
+  planning?: HouseholdPlanningSnapshot | null
 }
 
 export interface HouseholdProfileUpdate {
   householdName?: string
+  adultCount?: number | null
+  dependentCount?: number | null
   monthlyNetIncomeTarget?: number | null
   monthlyEssentialTarget?: number | null
   monthlyDiscretionaryTarget?: number | null
   monthlySavingsTarget?: number | null
   targetRetirementAge?: number | null
   targetRetirementSpend?: number | null
+  filingStatus?: string | null
+  stateOfResidence?: string | null
+  effectiveTaxRate?: number | null
+  marginalFederalTaxRate?: number | null
+  marginalStateTaxRate?: number | null
+  emergencyFundTargetMonths?: number | null
+  emergencyFundTargetAmount?: number | null
   notes?: string | null
 }
 
@@ -358,6 +404,16 @@ export async function updateHouseholdProfile(
   payload: HouseholdProfileUpdate,
 ): Promise<HouseholdProfile> {
   return post<HouseholdProfile>('/api/household/profile', payload)
+}
+
+export async function fetchHouseholdPlanning(): Promise<HouseholdPlanningSnapshot> {
+  return get<HouseholdPlanningSnapshot>('/api/household/planning')
+}
+
+export async function updateHouseholdPlanning(
+  payload: HouseholdPlanningUpdate,
+): Promise<HouseholdPlanningSnapshot> {
+  return post<HouseholdPlanningSnapshot>('/api/household/planning', payload)
 }
 
 export async function fetchHouseholdDocuments(): Promise<HouseholdDocumentList> {

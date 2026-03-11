@@ -5,11 +5,13 @@ import {
   categorizeHouseholdTransaction,
   confirmFact,
   type HouseholdDocumentUpload,
+  type HouseholdPlanningUpdate,
   type HouseholdProfileUpdate,
   fetchHouseholdDashboard,
   fetchHouseholdDocuments,
   fetchHouseholdProfile,
   fetchHouseholdQuestions,
+  updateHouseholdPlanning,
   updateHouseholdProfile,
   uploadHouseholdDocument,
 } from '@/lib/api/household'
@@ -58,6 +60,21 @@ export function useUpdateHouseholdProfile() {
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Failed to update household plan')
+    },
+  })
+}
+
+export function useUpdateHouseholdPlanning() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (payload: HouseholdPlanningUpdate) => updateHouseholdPlanning(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['household'], refetchType: 'active' })
+      toast.success('Household planning sections updated.')
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Failed to update household planning')
     },
   })
 }

@@ -283,6 +283,7 @@ export default function MoneyPage() {
       <HouseholdDocumentCenter
         documents={documents?.items ?? []}
         importCenter={dashboard.importCenter}
+        documentRequirements={dashboard.planning?.documentRequirements ?? []}
       />
     ),
   }

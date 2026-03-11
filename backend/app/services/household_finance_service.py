@@ -28,6 +28,7 @@ from app.models.household_finance import (
     HouseholdSinkingFund,
     HouseholdTransactionCategoryUpdate,
 )
+from app.models.household_planning import HouseholdPlanningSnapshot, HouseholdPlanningUpdate
 from app.portfolio.manager import PortfolioManager
 from app.portfolio.price_fetcher import PriceDataFetcher
 from app.services._household_dashboard_builders import (
@@ -52,6 +53,7 @@ from app.services.household_finance_rows import (
     row_to_document,
     row_to_question,
 )
+from app.services.household_planning_service import HouseholdPlanningService
 from app.services.household_profile_service import HouseholdProfileService
 from app.services.household_question_classifier import (
     clean_source_value as _clean_source_value_fn,
@@ -81,12 +83,21 @@ RETIREMENT_ACCOUNT_TYPES = {"IRA", "401k", "Roth", "HSA"}
 TAXABLE_ACCOUNT_TYPES = {"Taxable"}
 DEFAULT_HOUSEHOLD_NAME = "Household"
 FIELD_LABELS = {
+    "adult_count": "Adults in household",
+    "dependent_count": "Dependents",
     "monthly_net_income_target": "Monthly take-home income",
     "monthly_essential_target": "Essential budget",
     "monthly_discretionary_target": "Discretionary budget",
     "monthly_savings_target": "Monthly savings target",
     "target_retirement_age": "Target retirement age",
     "target_retirement_spend": "Target monthly retirement spend",
+    "filing_status": "Tax filing status",
+    "state_of_residence": "State of residence",
+    "effective_tax_rate": "Effective tax rate",
+    "marginal_federal_tax_rate": "Federal marginal tax rate",
+    "marginal_state_tax_rate": "State marginal tax rate",
+    "emergency_fund_target_months": "Emergency fund target months",
+    "emergency_fund_target_amount": "Emergency fund target amount",
 }
 logger = get_logger(__name__)
 
@@ -113,6 +124,7 @@ class HouseholdFinanceService:
         self.document_pipeline = HouseholdDocumentPipeline()
         self.question_reconciler = HouseholdQuestionReconciler()
         self.profile_service = HouseholdProfileService()
+        self.planning_service = HouseholdPlanningService()
         self.question_command_service = HouseholdQuestionCommandService()
         self.transaction_rule_service = HouseholdTransactionRuleService()
 
@@ -149,6 +161,13 @@ class HouseholdFinanceService:
         if helper is None:
             helper = HouseholdQuestionCommandService()
             self.question_command_service = helper
+        return helper
+
+    def _planning_service(self) -> HouseholdPlanningService:
+        helper = getattr(self, "planning_service", None)
+        if helper is None:
+            helper = HouseholdPlanningService()
+            self.planning_service = helper
         return helper
 
     def _transaction_rule_service(self) -> HouseholdTransactionRuleService:
@@ -272,6 +291,26 @@ class HouseholdFinanceService:
 
     def update_profile(self, payload: HouseholdProfileUpdate) -> HouseholdProfile:
         return self._profile_service().update_profile(self, payload)
+
+    def get_planning_snapshot(self) -> HouseholdPlanningSnapshot:
+        return self._planning_service().get_snapshot(self)
+
+    def update_planning_snapshot(self, payload: HouseholdPlanningUpdate) -> HouseholdPlanningSnapshot:
+        return self._planning_service().update_snapshot(self, payload)
+
+    def merge_planning_items(
+        self,
+        *,
+        items: list[dict[str, object]],
+        provenance: str,
+        source_document_id: str | None = None,
+    ) -> None:
+        self._planning_service().merge_planning_items(
+            self,
+            items=items,
+            provenance=provenance,
+            source_document_id=source_document_id,
+        )
 
     def list_questions(self, limit: int = 20) -> HouseholdQuestionList:
         self._reconcile_open_questions()
@@ -481,10 +520,14 @@ class HouseholdFinanceService:
             return conn.execute(
                 """
                 SELECT
-                    id, household_name, monthly_net_income_target,
-                    monthly_essential_target, monthly_discretionary_target,
-                    monthly_savings_target, target_retirement_age,
-                    target_retirement_spend, notes, created_at, updated_at
+                    id, household_name, adult_count, dependent_count,
+                    monthly_net_income_target, monthly_essential_target,
+                    monthly_discretionary_target, monthly_savings_target,
+                    target_retirement_age, target_retirement_spend,
+                    filing_status, state_of_residence, effective_tax_rate,
+                    marginal_federal_tax_rate, marginal_state_tax_rate,
+                    emergency_fund_target_months, emergency_fund_target_amount,
+                    notes, created_at, updated_at
                 FROM household_profiles
                 ORDER BY created_at ASC
                 LIMIT 1
@@ -728,7 +771,7 @@ class HouseholdFinanceService:
     def _apply_answer_to_profile(self, question: HouseholdQuestion, answer_text: str) -> None:
         self._question_reconciler().apply_answer_to_profile(self, question, answer_text)
 
-    def _parse_answer_value(self, field_name: str, answer_text: str) -> float | int | None:
+    def _parse_answer_value(self, field_name: str, answer_text: str) -> str | float | int | None:
         return _parse_answer_value_fn(field_name, answer_text)
 
     def _normalize_priority(self, value: Any) -> str:

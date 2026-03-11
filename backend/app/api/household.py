@@ -22,6 +22,7 @@ from app.models.household_finance import (
     HouseholdQuestionList,
     HouseholdTransactionCategoryUpdate,
 )
+from app.models.household_planning import HouseholdPlanningSnapshot, HouseholdPlanningUpdate
 
 if TYPE_CHECKING:
     from app.services.household_finance_service import HouseholdFinanceService
@@ -50,6 +51,18 @@ async def get_household_profile() -> HouseholdProfile:
 async def update_household_profile(payload: HouseholdProfileUpdate) -> HouseholdProfile:
     """Update household planning assumptions."""
     return await run_in_threadpool(_service().update_profile, payload)
+
+
+@router.get("/planning", response_model=HouseholdPlanningSnapshot)
+async def get_household_planning() -> HouseholdPlanningSnapshot:
+    """Return the typed household planning snapshot."""
+    return await run_in_threadpool(_service().get_planning_snapshot)
+
+
+@router.post("/planning", response_model=HouseholdPlanningSnapshot)
+async def update_household_planning(payload: HouseholdPlanningUpdate) -> HouseholdPlanningSnapshot:
+    """Replace or update typed planning sections."""
+    return await run_in_threadpool(_service().update_planning_snapshot, payload)
 
 
 @router.get("/documents", response_model=HouseholdDocumentList)

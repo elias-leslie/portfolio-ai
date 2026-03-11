@@ -2,7 +2,11 @@
 
 import { useRef, useState } from 'react'
 import type { ClipboardEvent, DragEvent, KeyboardEvent } from 'react'
-import type { HouseholdDocument, ImportCenter } from '@/lib/api/household'
+import type {
+  HouseholdDocument,
+  HouseholdDocumentRequirement,
+  ImportCenter,
+} from '@/lib/api/household'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -15,9 +19,11 @@ import { formatEnumLabel, formatFileSize } from './formatters'
 export function HouseholdDocumentCenter({
   documents,
   importCenter,
+  documentRequirements = [],
 }: {
   documents: HouseholdDocument[]
   importCenter?: ImportCenter
+  documentRequirements?: HouseholdDocumentRequirement[]
 }) {
   const upload = useUploadHouseholdDocument()
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -282,6 +288,27 @@ export function HouseholdDocumentCenter({
                     </p>
                     <p className="mt-1 text-xs text-text-muted">
                       Extracts: {documentType.extracts.join(', ')}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {documentRequirements.length > 0 ? (
+            <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4">
+              <p className="text-sm font-semibold text-text">Planning document placeholders</p>
+              <div className="mt-3 space-y-3">
+                {documentRequirements.slice(0, 6).map((requirement) => (
+                  <div key={requirement.id}>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-medium text-text">{requirement.label}</p>
+                      <Badge variant={requirement.status === 'received' ? 'success' : 'outline'}>
+                        {formatEnumLabel(requirement.status)}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-sm text-text-muted">
+                      {requirement.rationale ?? 'Jenny is waiting on this planning document.'}
                     </p>
                   </div>
                 ))}

@@ -1,6 +1,13 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { HouseholdPlanningPanels } from '../HouseholdPlanningPanels'
+
+vi.mock('@/lib/hooks/useHousehold', () => ({
+  useUpdateHouseholdPlanning: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+  }),
+}))
 
 describe('HouseholdPlanningPanels', () => {
   it('shows blockers and empty-state planning copy when retirement details are sparse', () => {

@@ -41,6 +41,8 @@ export function HouseholdProfileCard({
 }) {
   const updateProfile = useUpdateHouseholdProfile()
   const [householdName, setHouseholdName] = useState(profile.householdName)
+  const [adultCount, setAdultCount] = useState(numberInput(profile.adultCount ?? null))
+  const [dependentCount, setDependentCount] = useState(numberInput(profile.dependentCount ?? null))
   const [monthlyNetIncomeTarget, setMonthlyNetIncomeTarget] = useState(
     numberInput(profile.monthlyNetIncomeTarget),
   )
@@ -59,28 +61,63 @@ export function HouseholdProfileCard({
   const [targetRetirementSpend, setTargetRetirementSpend] = useState(
     numberInput(profile.targetRetirementSpend),
   )
+  const [filingStatus, setFilingStatus] = useState(profile.filingStatus ?? '')
+  const [stateOfResidence, setStateOfResidence] = useState(profile.stateOfResidence ?? '')
+  const [effectiveTaxRate, setEffectiveTaxRate] = useState(
+    numberInput(profile.effectiveTaxRate ?? null),
+  )
+  const [marginalFederalTaxRate, setMarginalFederalTaxRate] = useState(
+    numberInput(profile.marginalFederalTaxRate ?? null),
+  )
+  const [marginalStateTaxRate, setMarginalStateTaxRate] = useState(
+    numberInput(profile.marginalStateTaxRate ?? null),
+  )
+  const [emergencyFundTargetMonths, setEmergencyFundTargetMonths] = useState(
+    numberInput(profile.emergencyFundTargetMonths ?? null),
+  )
+  const [emergencyFundTargetAmount, setEmergencyFundTargetAmount] = useState(
+    numberInput(profile.emergencyFundTargetAmount ?? null),
+  )
   const [notes, setNotes] = useState(profile.notes ?? '')
 
   useEffect(() => {
     setHouseholdName(profile.householdName)
+    setAdultCount(numberInput(profile.adultCount ?? null))
+    setDependentCount(numberInput(profile.dependentCount ?? null))
     setMonthlyNetIncomeTarget(numberInput(profile.monthlyNetIncomeTarget))
     setMonthlyEssentialTarget(numberInput(profile.monthlyEssentialTarget))
     setMonthlyDiscretionaryTarget(numberInput(profile.monthlyDiscretionaryTarget))
     setMonthlySavingsTarget(numberInput(profile.monthlySavingsTarget))
     setTargetRetirementAge(numberInput(profile.targetRetirementAge))
     setTargetRetirementSpend(numberInput(profile.targetRetirementSpend))
+    setFilingStatus(profile.filingStatus ?? '')
+    setStateOfResidence(profile.stateOfResidence ?? '')
+    setEffectiveTaxRate(numberInput(profile.effectiveTaxRate ?? null))
+    setMarginalFederalTaxRate(numberInput(profile.marginalFederalTaxRate ?? null))
+    setMarginalStateTaxRate(numberInput(profile.marginalStateTaxRate ?? null))
+    setEmergencyFundTargetMonths(numberInput(profile.emergencyFundTargetMonths ?? null))
+    setEmergencyFundTargetAmount(numberInput(profile.emergencyFundTargetAmount ?? null))
     setNotes(profile.notes ?? '')
   }, [profile])
 
   const handleSubmit = () => {
     updateProfile.mutate({
       householdName: householdName.trim(),
+      adultCount: parseNullableNumber(adultCount),
+      dependentCount: parseNullableNumber(dependentCount),
       monthlyNetIncomeTarget: parseNullableNumber(monthlyNetIncomeTarget),
       monthlyEssentialTarget: parseNullableNumber(monthlyEssentialTarget),
       monthlyDiscretionaryTarget: parseNullableNumber(monthlyDiscretionaryTarget),
       monthlySavingsTarget: parseNullableNumber(monthlySavingsTarget),
       targetRetirementAge: parseNullableNumber(targetRetirementAge),
       targetRetirementSpend: parseNullableNumber(targetRetirementSpend),
+      filingStatus: filingStatus.trim() || null,
+      stateOfResidence: stateOfResidence.trim() || null,
+      effectiveTaxRate: parseNullableNumber(effectiveTaxRate),
+      marginalFederalTaxRate: parseNullableNumber(marginalFederalTaxRate),
+      marginalStateTaxRate: parseNullableNumber(marginalStateTaxRate),
+      emergencyFundTargetMonths: parseNullableNumber(emergencyFundTargetMonths),
+      emergencyFundTargetAmount: parseNullableNumber(emergencyFundTargetAmount),
       notes: notes.trim() || null,
     })
   }
@@ -149,6 +186,26 @@ export function HouseholdProfileCard({
               />
             </div>
             <div>
+              <Label htmlFor="adult-count">Adults in household</Label>
+              <Input
+                id="adult-count"
+                inputMode="numeric"
+                value={adultCount}
+                onChange={(event) => setAdultCount(event.target.value)}
+                placeholder="2"
+              />
+            </div>
+            <div>
+              <Label htmlFor="dependent-count">Dependents</Label>
+              <Input
+                id="dependent-count"
+                inputMode="numeric"
+                value={dependentCount}
+                onChange={(event) => setDependentCount(event.target.value)}
+                placeholder="2"
+              />
+            </div>
+            <div>
               <Label htmlFor="monthly-income">Monthly take-home income</Label>
               <Input
                 id="monthly-income"
@@ -208,11 +265,83 @@ export function HouseholdProfileCard({
                 placeholder="9000"
               />
             </div>
+            <div>
+              <Label htmlFor="filing-status">Tax filing status</Label>
+              <Input
+                id="filing-status"
+                value={filingStatus}
+                onChange={(event) => setFilingStatus(event.target.value)}
+                placeholder="married_filing_jointly"
+              />
+            </div>
+            <div>
+              <Label htmlFor="state-of-residence">State of residence</Label>
+              <Input
+                id="state-of-residence"
+                value={stateOfResidence}
+                onChange={(event) => setStateOfResidence(event.target.value)}
+                placeholder="NC"
+              />
+            </div>
+            <div>
+              <Label htmlFor="effective-tax-rate">Effective tax rate (%)</Label>
+              <Input
+                id="effective-tax-rate"
+                inputMode="decimal"
+                value={effectiveTaxRate}
+                onChange={(event) => setEffectiveTaxRate(event.target.value)}
+                placeholder="24"
+              />
+            </div>
+            <div>
+              <Label htmlFor="federal-tax-rate">Federal marginal tax rate (%)</Label>
+              <Input
+                id="federal-tax-rate"
+                inputMode="decimal"
+                value={marginalFederalTaxRate}
+                onChange={(event) => setMarginalFederalTaxRate(event.target.value)}
+                placeholder="22"
+              />
+            </div>
+            <div>
+              <Label htmlFor="state-tax-rate">State marginal tax rate (%)</Label>
+              <Input
+                id="state-tax-rate"
+                inputMode="decimal"
+                value={marginalStateTaxRate}
+                onChange={(event) => setMarginalStateTaxRate(event.target.value)}
+                placeholder="5"
+              />
+            </div>
+            <div>
+              <Label htmlFor="emergency-fund-months">Emergency fund target (months)</Label>
+              <Input
+                id="emergency-fund-months"
+                inputMode="decimal"
+                value={emergencyFundTargetMonths}
+                onChange={(event) => setEmergencyFundTargetMonths(event.target.value)}
+                placeholder="6"
+              />
+            </div>
+            <div>
+              <Label htmlFor="emergency-fund-amount">Emergency fund target amount</Label>
+              <Input
+                id="emergency-fund-amount"
+                inputMode="decimal"
+                value={emergencyFundTargetAmount}
+                onChange={(event) => setEmergencyFundTargetAmount(event.target.value)}
+                placeholder="30000"
+              />
+            </div>
           </div>
 
           <div className="rounded-2xl border border-border/50 bg-surface-muted/30 p-5">
             <p className="text-sm font-semibold text-text">Manual overrides</p>
             <div className="mt-4 space-y-3 text-sm text-text-muted">
+              <p>
+                Household: {parseNullableNumber(adultCount) ?? '—'} adult(s),{' '}
+                {parseNullableNumber(dependentCount) ?? '—'} dependent(s)
+              </p>
               <p>Income: {formatCurrency(parseNullableNumber(monthlyNetIncomeTarget))}</p>
               <p>Essentials: {formatCurrency(parseNullableNumber(monthlyEssentialTarget))}</p>
               <p>
@@ -222,6 +351,11 @@ export function HouseholdProfileCard({
               <p>
                 Retirement: age {parseNullableNumber(targetRetirementAge) ?? 'Not set'} /{' '}
                 {formatCurrency(parseNullableNumber(targetRetirementSpend))}
+              </p>
+              <p>Taxes: {filingStatus || 'Not set'} in {stateOfResidence || '—'}</p>
+              <p>
+                Emergency fund: {parseNullableNumber(emergencyFundTargetMonths) ?? '—'} months /{' '}
+                {formatCurrency(parseNullableNumber(emergencyFundTargetAmount))}
               </p>
             </div>
             <div className="mt-5">

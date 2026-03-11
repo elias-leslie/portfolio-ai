@@ -62,6 +62,9 @@ def test_chat_reconciles_open_questions_from_free_form_message() -> None:
     service._reconcile_message = Mock(
         return_value=[{"question_id": "question-1", "answer_text": "60"}]
     )
+    service._extract_planning_updates = Mock(
+        return_value={"profile_updates": {}, "planning_items": []}
+    )
 
     result = service.chat("I want to retire at 60.")
 
@@ -72,3 +75,41 @@ def test_chat_reconciles_open_questions_from_free_form_message() -> None:
     assert result["session_id"] == "session-1"
     assert result["updated_fields"] == ["target_retirement_age"]
     assert result["resolved_questions"][0]["answer_text"] == "60"
+
+
+def test_chat_applies_profile_and_planning_updates_from_free_form_message() -> None:
+    service = JennyConversationService()
+    service.household_service = Mock()
+    service.household_service.list_questions.return_value = HouseholdQuestionList(items=[])
+    service.household_service.update_profile = Mock()
+    service.household_service.merge_planning_items = Mock()
+    service._build_context = Mock(return_value={"household": {}, "symbols": {"detected": []}})
+    service._complete_conversation = Mock(
+        return_value=SimpleNamespace(
+            content="I updated the household planning workbook.",
+            session_id="session-2",
+        )
+    )
+    service._reconcile_message = Mock(return_value=[])
+    service._extract_planning_updates = Mock(
+        return_value={
+            "profile_updates": {"emergency_fund_target_amount": 30000},
+            "planning_items": [
+                {
+                    "section": "planned_expenses",
+                    "label": "Roof replacement",
+                    "expense_kind": "major_expense",
+                    "category": "home",
+                    "target_amount": 18000,
+                }
+            ],
+        }
+    )
+
+    result = service.chat("We should plan for a $18k roof and a $30k emergency fund.")
+
+    service.household_service.update_profile.assert_called_once()
+    update_payload = service.household_service.update_profile.call_args.args[0]
+    assert update_payload.emergency_fund_target_amount == 30000
+    service.household_service.merge_planning_items.assert_called_once()
+    assert "planned_expenses" in result["updated_fields"]

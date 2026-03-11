@@ -35,6 +35,19 @@ export function formatResolvedValue(value: HouseholdResolvedValue): string {
   if (value.fieldName === 'target_retirement_age') {
     return `Age ${value.value}`
   }
+  if (value.fieldName === 'adult_count' || value.fieldName === 'dependent_count') {
+    return value.value
+  }
+  if (value.fieldName === 'emergency_fund_target_months') {
+    return `${value.value} months`
+  }
+  if (
+    value.fieldName === 'effective_tax_rate' ||
+    value.fieldName === 'marginal_federal_tax_rate' ||
+    value.fieldName === 'marginal_state_tax_rate'
+  ) {
+    return `${value.value}%`
+  }
   const numeric = Number(value.value)
   return Number.isFinite(numeric) ? formatCurrency(numeric) : value.value
 }

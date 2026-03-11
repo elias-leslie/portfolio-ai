@@ -50,6 +50,148 @@ def test_household_profile_is_created_and_can_be_updated(client: TestClient) -> 
     assert updated["target_retirement_age"] == 60
 
 
+def test_household_planning_snapshot_can_be_updated_and_surfaces_document_placeholders(
+    client: TestClient,
+) -> None:
+    profile_response = client.post(
+        "/api/household/profile",
+        json={
+            "household_name": "Kasadis Family",
+            "adult_count": 2,
+            "dependent_count": 2,
+            "filing_status": "married_filing_jointly",
+            "state_of_residence": "NC",
+            "emergency_fund_target_amount": 30000,
+        },
+    )
+    assert profile_response.status_code == 200
+
+    response = client.post(
+        "/api/household/planning",
+        json={
+            "members": [
+                {
+                    "display_name": "Jamie",
+                    "role": "adult",
+                    "relationship": "self",
+                },
+                {
+                    "display_name": "Alex",
+                    "role": "child",
+                    "relationship": "son",
+                },
+            ],
+            "income_sources": [
+                {
+                    "label": "Primary salary",
+                    "source_type": "salary",
+                    "pay_frequency": "biweekly",
+                    "monthly_amount": 8400,
+                }
+            ],
+            "debt_obligations": [
+                {
+                    "label": "Primary mortgage",
+                    "debt_type": "mortgage",
+                    "monthly_payment": 2450,
+                    "balance": 420000,
+                }
+            ],
+            "planned_expenses": [
+                {
+                    "label": "Roof replacement",
+                    "expense_kind": "major_expense",
+                    "category": "home",
+                    "target_amount": 18000,
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    planning = response.json()
+    assert planning["members"][0]["display_name"] == "Jamie"
+    assert planning["income_sources"][0]["label"] == "Primary salary"
+    requirement_kinds = {item["document_kind"] for item in planning["document_requirements"]}
+    assert "pay_stub" in requirement_kinds
+    assert "tax_return" in requirement_kinds
+    assert "mortgage_statement" in requirement_kinds
+    assert planning["summary"]["missing_document_count"] >= 3
+
+    dashboard = client.get("/api/household/dashboard")
+    assert dashboard.status_code == 200
+    dashboard_payload = dashboard.json()
+    assert dashboard_payload["planning"]["summary"]["completion_score"] > 0
+    assert dashboard_payload["planning"]["document_requirements"]
+
+
+def test_household_document_review_can_fill_planning_requirements(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    planning_response = client.post(
+        "/api/household/planning",
+        json={
+            "income_sources": [
+                {
+                    "label": "Primary salary",
+                    "source_type": "salary",
+                    "monthly_amount": 8200,
+                }
+            ]
+        },
+    )
+    assert planning_response.status_code == 200
+
+    with (
+        patch(
+            "app.services.household_finance_service.HouseholdFinanceService._upload_root",
+            return_value=tmp_path,
+        ),
+        patch(
+            "app.services.household_document_review.HouseholdDocumentReviewService.review",
+            return_value={
+                "summary": "Payroll stub confirming salary and deductions.",
+                "document_type": "pay_stub",
+                "source_type": "income",
+                "confidence": 0.95,
+                "structured_data": {
+                    "provider_name": "Acme Corp",
+                    "total_amount": "4100",
+                },
+                "inferred_values": [],
+                "planning_items": [
+                    {
+                        "section": "income_sources",
+                        "label": "Primary salary",
+                        "source_type": "salary",
+                        "pay_frequency": "biweekly",
+                        "monthly_amount": 8200,
+                        "rationale": "Net pay on the stub matches the recurring salary stream.",
+                    }
+                ],
+                "questions": [],
+            },
+        ),
+    ):
+        upload_response = client.post(
+            "/api/household/documents",
+            files={"file": ("pay_stub_march.pdf", b"pay stub bytes", "application/pdf")},
+        )
+
+    assert upload_response.status_code == 200
+    planning = client.get("/api/household/planning")
+    assert planning.status_code == 200
+    payload = planning.json()
+    assert payload["income_sources"][0]["pay_frequency"] == "biweekly"
+    pay_stub_requirement = next(
+        requirement
+        for requirement in payload["document_requirements"]
+        if requirement["document_kind"] == "pay_stub"
+    )
+    assert pay_stub_requirement["status"] == "received"
+
+
 def test_household_document_upload_persists_metadata(
     client: TestClient,
     tmp_path: Path,

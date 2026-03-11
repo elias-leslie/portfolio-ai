@@ -15,6 +15,7 @@ from app.models.household_finance import (
     HouseholdReports,
     HouseholdResolvedValue,
 )
+from app.models.household_planning import empty_household_planning_snapshot
 from app.services.household_finance_service import HouseholdFinanceService
 
 
@@ -211,6 +212,7 @@ def test_get_dashboard_returns_composed_household_view() -> None:
         }
     )
     service._build_retirement_scenarios = Mock(return_value=[])
+    service.get_planning_snapshot = Mock(return_value=empty_household_planning_snapshot())
 
     dashboard = service.get_dashboard()
 

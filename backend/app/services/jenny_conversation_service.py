@@ -10,7 +10,11 @@ from app.agents.clients.agent_hub_client import AgentHubAPIClient
 from app.api.portfolio.analytics_routes import _get_analytics_payload
 from app.api.symbols.router import _build_response as build_symbol_intelligence_response
 from app.logging_config import get_logger
-from app.models.household_finance import HouseholdQuestion, HouseholdQuestionAnswer
+from app.models.household_finance import (
+    HouseholdProfileUpdate,
+    HouseholdQuestion,
+    HouseholdQuestionAnswer,
+)
 from app.portfolio.manager import PortfolioManager
 from app.portfolio.price_fetcher import PriceDataFetcher
 from app.services.household_finance_service import HouseholdFinanceService
@@ -71,6 +75,80 @@ RECONCILIATION_RESPONSE_FORMAT = {
         "additionalProperties": False,
     },
 }
+PLANNING_UPDATE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "profile_updates": {
+            "type": "object",
+            "properties": {
+                "adult_count": {"type": ["integer", "null"]},
+                "dependent_count": {"type": ["integer", "null"]},
+                "monthly_net_income_target": {"type": ["number", "null"]},
+                "monthly_essential_target": {"type": ["number", "null"]},
+                "monthly_discretionary_target": {"type": ["number", "null"]},
+                "monthly_savings_target": {"type": ["number", "null"]},
+                "target_retirement_age": {"type": ["integer", "null"]},
+                "target_retirement_spend": {"type": ["number", "null"]},
+                "filing_status": {"type": ["string", "null"]},
+                "state_of_residence": {"type": ["string", "null"]},
+                "effective_tax_rate": {"type": ["number", "null"]},
+                "marginal_federal_tax_rate": {"type": ["number", "null"]},
+                "marginal_state_tax_rate": {"type": ["number", "null"]},
+                "emergency_fund_target_months": {"type": ["number", "null"]},
+                "emergency_fund_target_amount": {"type": ["number", "null"]},
+            },
+            "additionalProperties": False,
+        },
+        "planning_items": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "section": {"type": "string"},
+                    "label": {"type": "string"},
+                    "role": {"type": ["string", "null"]},
+                    "relationship": {"type": ["string", "null"]},
+                    "owner_name": {"type": ["string", "null"]},
+                    "source_type": {"type": ["string", "null"]},
+                    "pay_frequency": {"type": ["string", "null"]},
+                    "employer_or_source": {"type": ["string", "null"]},
+                    "debt_type": {"type": ["string", "null"]},
+                    "lender": {"type": ["string", "null"]},
+                    "housing_type": {"type": ["string", "null"]},
+                    "occupancy_role": {"type": ["string", "null"]},
+                    "coverage_type": {"type": ["string", "null"]},
+                    "carrier": {"type": ["string", "null"]},
+                    "expense_kind": {"type": ["string", "null"]},
+                    "category": {"type": ["string", "null"]},
+                    "monthly_amount": {"type": ["number", "null"]},
+                    "annual_amount": {"type": ["number", "null"]},
+                    "gross_amount": {"type": ["number", "null"]},
+                    "net_amount": {"type": ["number", "null"]},
+                    "monthly_payment": {"type": ["number", "null"]},
+                    "balance": {"type": ["number", "null"]},
+                    "interest_rate": {"type": ["number", "null"]},
+                    "premium_monthly": {"type": ["number", "null"]},
+                    "coverage_amount": {"type": ["number", "null"]},
+                    "deductible": {"type": ["number", "null"]},
+                    "target_amount": {"type": ["number", "null"]},
+                    "target_date": {"type": ["string", "null"]},
+                    "monthly_saving_target": {"type": ["number", "null"]},
+                    "start_age": {"type": ["integer", "null"]},
+                    "birth_year": {"type": ["integer", "null"]},
+                    "is_dependent": {"type": ["boolean", "null"]},
+                    "inflation_adjusted": {"type": ["boolean", "null"]},
+                    "survivor_benefit": {"type": ["boolean", "null"]},
+                    "notes": {"type": ["string", "null"]},
+                    "rationale": {"type": ["string", "null"]},
+                },
+                "required": ["section", "label"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["profile_updates", "planning_items"],
+    "additionalProperties": False,
+}
 
 
 class JennyConversationService:
@@ -126,6 +204,37 @@ class JennyConversationService:
             if answered.field_name and answered.field_name not in updated_fields:
                 updated_fields.append(answered.field_name)
 
+        planning_updates = self._extract_planning_updates(
+            message=cleaned_message,
+            context=context,
+            open_questions=open_questions,
+        )
+        profile_updates = planning_updates.get("profile_updates") if isinstance(planning_updates, dict) else None
+        if isinstance(profile_updates, dict):
+            cleaned_profile_updates = {
+                key: value
+                for key, value in profile_updates.items()
+                if value is not None
+            }
+            if cleaned_profile_updates:
+                self.household_service.update_profile(HouseholdProfileUpdate.model_validate(cleaned_profile_updates))
+                for field_name in cleaned_profile_updates:
+                    if field_name not in updated_fields:
+                        updated_fields.append(field_name)
+
+        planning_items = planning_updates.get("planning_items") if isinstance(planning_updates, dict) else None
+        if isinstance(planning_items, list) and planning_items:
+            self.household_service.merge_planning_items(
+                items=[item for item in planning_items if isinstance(item, dict)],
+                provenance="jenny_chat",
+            )
+            for item in planning_items:
+                if not isinstance(item, dict):
+                    continue
+                section = str(item.get("section") or "").strip()
+                if section and section not in updated_fields:
+                    updated_fields.append(section)
+
         reply = str(getattr(completion, "content", "") or "").strip()
         if resolved_questions:
             field_labels = getattr(self.household_service, "FIELD_LABELS", {})
@@ -140,6 +249,8 @@ class JennyConversationService:
                     f"{reply}\n\n"
                     f"I also used your message to update the household plan: {', '.join(labels)}."
                 ).strip()
+        elif isinstance(planning_items, list) and planning_items:
+            reply = f"{reply}\n\nI also added those planning details to your household plan.".strip()
 
         return {
             "reply": reply,
@@ -175,6 +286,7 @@ class JennyConversationService:
                 "retirement_preparedness": household_dashboard.retirement_preparedness.model_dump(),
                 "jenny_needs": [need.model_dump() for need in household_dashboard.jenny_needs],
                 "open_questions": [self._question_summary(question) for question in open_questions],
+                "planning": household_dashboard.planning.model_dump(),
             },
             "portfolio": {
                 "accounts": [
@@ -274,6 +386,48 @@ class JennyConversationService:
             if question_id and answer_text:
                 cleaned_answers.append({"question_id": question_id, "answer_text": answer_text})
         return cleaned_answers
+
+    def _extract_planning_updates(
+        self,
+        *,
+        message: str,
+        context: dict[str, Any],
+        open_questions: list[HouseholdQuestion],
+    ) -> dict[str, Any]:
+        prompt = (
+            "Extract only durable household planning changes that the user directly stated. "
+            "Use profile_updates for scalar assumptions and planning_items for typed section rows.\n\n"
+            f"Current context:\n{json.dumps(context, indent=2)}\n\n"
+            f"Open questions:\n{json.dumps([self._question_summary(q) for q in open_questions], indent=2)}\n\n"
+            f"User message:\n{message}"
+        )
+        client = self._client()
+        try:
+            response = client.complete_messages(
+                messages=[{"role": "user", "content": prompt}],
+                purpose="portfolio_jenny_planning_extract",
+                thinking_level="minimal",
+                system_prompt=(
+                    "Return JSON only. Extract only information the user clearly stated and that should update the household planning record."
+                ),
+                response_format={"type": "json_object", "schema": PLANNING_UPDATE_SCHEMA},
+                use_memory=False,
+            )
+        finally:
+            client.close()
+        try:
+            payload = json.loads(str(getattr(response, "content", "") or "{}"))
+        except json.JSONDecodeError:
+            logger.warning("jenny_chat_planning_parse_failed", content=getattr(response, "content", ""))
+            return {"profile_updates": {}, "planning_items": []}
+        if not isinstance(payload, dict):
+            return {"profile_updates": {}, "planning_items": []}
+        profile_updates = payload.get("profile_updates")
+        planning_items = payload.get("planning_items")
+        return {
+            "profile_updates": profile_updates if isinstance(profile_updates, dict) else {},
+            "planning_items": planning_items if isinstance(planning_items, list) else [],
+        }
 
     def _detect_symbols(self, message: str, live_symbols: list[str]) -> list[str]:
         live_symbol_set = {symbol.upper() for symbol in live_symbols}

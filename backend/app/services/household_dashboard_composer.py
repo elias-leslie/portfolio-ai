@@ -68,6 +68,18 @@ _IMPORT_CENTER = ImportCenter(
             extracts=["holdings", "cash flows", "dividends", "contributions", "fees"],
         ),
         ImportFormat(
+            label="Planning and payroll documents",
+            formats=["PDF", "PNG", "JPG"],
+            extracts=[
+                "pay frequency",
+                "benefits deductions",
+                "tax withholding",
+                "loan balance",
+                "insurance coverage",
+                "retirement income estimates",
+            ],
+        ),
+        ImportFormat(
             label="Receipts and invoices",
             formats=["PDF", "PNG", "JPG", "HEIC"],
             extracts=["merchant", "date", "line items", "subtotal", "tax", "total"],
@@ -92,6 +104,7 @@ _JENNY_BRIEF = JennyMoneyBrief(
 def _build_jenny_needs(
     *,
     profile: Any,
+    planning: Any,
     documents: list[Any],
     questions: list[Any],
     resolved_values: list[Any],
@@ -150,7 +163,7 @@ def _build_jenny_needs(
         ))
 
     # 4. Income sources (high)
-    if "income_sources" not in confirmed_facts:
+    if "income_sources" not in confirmed_facts and not planning.income_sources:
         needs.append(JennyNeed(
             id="need_income_sources",
             need_type="confirm",
@@ -161,6 +174,40 @@ def _build_jenny_needs(
             recurrence="one_time",
             field_name="income_sources",
         ))
+
+    planning_gaps = [section for section in planning.summary.sections if section.status == "missing"]
+    for section in planning_gaps[:3]:
+        needs.append(
+            JennyNeed(
+                id=f"need_planning_{section.section}",
+                need_type="set",
+                title=f"Complete {section.label.lower()} planning",
+                detail=section.detail,
+                priority="high" if section.section in {"household", "income", "housing", "debt"} else "medium",
+                status="unsatisfied",
+                recurrence="one_time",
+                action_href="/money",
+            )
+        )
+
+    missing_document_requirements = [
+        requirement
+        for requirement in planning.document_requirements
+        if requirement.status == "missing"
+    ]
+    for requirement in missing_document_requirements[:4]:
+        needs.append(
+            JennyNeed(
+                id=f"need_document_{requirement.id}",
+                need_type="provide",
+                title=f"Upload {requirement.label}",
+                detail=requirement.rationale or "Jenny needs this document to validate your planning assumptions.",
+                priority=requirement.priority if requirement.priority in {"critical", "high", "medium", "low"} else "medium",
+                status="unsatisfied",
+                recurrence="as_needed",
+                action_href="/money",
+            )
+        )
 
     # 5. Detected unknown accounts (high, per account)
     for account in detected_accounts:
@@ -330,13 +377,18 @@ def _fields_with_confident_inferences(resolved_values: list[Any], *, threshold: 
     return fields
 
 
-def _build_import_center(documents: list[Any]) -> ImportCenter:
+def _build_import_center(documents: list[Any], planning: Any) -> ImportCenter:
     parsed_count = sum(1 for d in documents if d.status in {"parsed", "needs_review"})
+    suggested_uploads = [
+        requirement.label
+        for requirement in planning.document_requirements
+        if requirement.status == "missing"
+    ]
     return ImportCenter(
         headline=_IMPORT_CENTER.headline,
         tracked_documents=len(documents),
         parsed_documents=parsed_count,
-        suggested_first_uploads=_IMPORT_CENTER.suggested_first_uploads,
+        suggested_first_uploads=suggested_uploads[:6] or _IMPORT_CENTER.suggested_first_uploads,
         automations=_IMPORT_CENTER.automations,
         supported_documents=_IMPORT_CENTER.supported_documents,
     )
@@ -511,6 +563,7 @@ class HouseholdDashboardComposer:
 
     def build_dashboard(self, service: Any) -> HouseholdFinanceDashboard:
         profile = service.get_profile()
+        planning = service.get_planning_snapshot()
         documents = service.list_documents(limit=12).items
         questions = service.list_questions(limit=12).items
         accounts = [a for a in service.portfolio_mgr.get_accounts() if a.account_type != "paper"]
@@ -593,6 +646,7 @@ class HouseholdDashboardComposer:
         freshness = check_statement_freshness(service.storage)
         jenny_needs = _build_jenny_needs(
             profile=profile,
+            planning=planning,
             documents=documents,
             questions=visible_questions,
             resolved_values=resolved_values,
@@ -632,7 +686,7 @@ class HouseholdDashboardComposer:
             sinking_funds=sinking_funds,
             retirement_contribution_tracker=retirement_contribution_tracker,
             retirement_scenarios=retirement_scenarios,
-            import_center=_build_import_center(documents),
+            import_center=_build_import_center(documents, planning),
             questions=visible_questions,
             jenny_brief=JennyMoneyBrief(
                 headline=_JENNY_BRIEF.headline,
@@ -645,6 +699,7 @@ class HouseholdDashboardComposer:
                 ),
             ),
             portfolio_context=portfolio_context,
+            planning=planning,
         )
 
     def build_budget_snapshot(

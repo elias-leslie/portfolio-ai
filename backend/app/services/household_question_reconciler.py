@@ -111,7 +111,7 @@ def _bulk_answer_related(
 class HouseholdQuestionReconciler:
     """Keep household questions deduped, contextual, and profile-aware."""
 
-    def parse_answer_value(self, field_name: str, answer_text: str) -> float | int | None:
+    def parse_answer_value(self, field_name: str, answer_text: str) -> str | float | int | None:
         return parse_answer_value(field_name, answer_text)
 
     def question_is_answered_by_context(
