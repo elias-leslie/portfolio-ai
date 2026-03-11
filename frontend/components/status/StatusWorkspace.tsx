@@ -68,6 +68,13 @@ function formatHours(value: number | null | undefined) {
   return `${value.toFixed(1)}h`
 }
 
+function formatSeconds(value: number | null | undefined) {
+  if (value === null || value === undefined) return '—'
+  if (value >= 3600) return `${(value / 3600).toFixed(1)}h`
+  if (value >= 60) return `${Math.round(value / 60)}m`
+  return `${Math.round(value)}s`
+}
+
 function formatLabel(value: string) {
   return value
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
@@ -203,6 +210,18 @@ export function StatusWorkspace() {
       ) as [string, NewsHealthResponse['vendors'][string]][],
     [newsHealthQuery.data?.vendors],
   )
+  const configuredQuotaCount = (healthQuery.data?.apiQuotas ?? []).filter(
+    (quota) => quota.configured,
+  ).length
+  const totalQuotaCount = (healthQuery.data?.apiQuotas ?? []).length
+  const watchlistItemsWithScores = healthQuery.data?.watchlistStats?.itemsWithScores ?? null
+  const watchlistTotalItems = healthQuery.data?.watchlistStats?.totalItems ?? null
+  const watchlistCoverageDetail =
+    watchlistItemsWithScores !== null && watchlistTotalItems !== null
+      ? `${formatInteger(watchlistItemsWithScores)} of ${formatInteger(watchlistTotalItems)} symbols scored`
+      : healthQuery.data?.watchlistStats?.lastRefresh
+        ? `Last refresh ${formatRelativeTime(healthQuery.data.watchlistStats.lastRefresh)}`
+        : 'No refresh timestamp yet'
 
   return (
     <PageContainer className="space-y-10 py-10">
@@ -219,6 +238,9 @@ export function StatusWorkspace() {
               void newsHealthQuery.refetch()
             }}
             disabled={healthQuery.isFetching || marketQuery.isFetching || newsHealthQuery.isFetching}
+            aria-busy={
+              healthQuery.isFetching || marketQuery.isFetching || newsHealthQuery.isFetching
+            }
           >
             <RefreshCw
               className={`mr-2 h-4 w-4 ${
@@ -286,16 +308,16 @@ export function StatusWorkspace() {
             <SummaryStat
               label="Watchlist"
               value={formatInteger(healthQuery.data?.watchlistStats?.itemsWithScores)}
-              detail={
-                healthQuery.data?.watchlistStats?.lastRefresh
-                  ? `Last refresh ${formatRelativeTime(healthQuery.data.watchlistStats.lastRefresh)}`
-                  : 'No refresh timestamp yet'
-              }
+              detail={watchlistCoverageDetail}
             />
             <SummaryStat
               label="News Pipeline"
               value={formatInteger(newsHealthQuery.data?.headlines24H)}
-              detail={`Fallback rate ${formatPercent(newsHealthQuery.data?.fallbackRate24H)}`}
+              detail={
+                newsHealthQuery.data?.fallbackHeadlines24H != null
+                  ? `Fallback rate ${formatPercent(newsHealthQuery.data?.fallbackRate24H)} · ${formatInteger(newsHealthQuery.data?.fallbackHeadlines24H)} fallback headlines`
+                  : `Fallback rate ${formatPercent(newsHealthQuery.data?.fallbackRate24H)}`
+              }
             />
           </section>
 
@@ -360,6 +382,13 @@ export function StatusWorkspace() {
                           <p className="mt-1 text-sm text-text-muted">
                             {service.message || service.status || 'No service detail provided'}
                           </p>
+                          {service.pid || service.port ? (
+                            <p className="mt-2 text-xs text-text-muted">
+                              {service.pid ? `PID ${service.pid}` : 'PID unavailable'}
+                              {service.pid && service.port ? ' · ' : ''}
+                              {service.port ? `Port ${service.port}` : ''}
+                            </p>
+                          ) : null}
                         </div>
                         <Badge variant={isServiceActive(service) ? 'success' : 'warning'}>
                           {isServiceActive(service) ? 'active' : 'inactive'}
@@ -390,6 +419,18 @@ export function StatusWorkspace() {
                     {formatInteger(healthQuery.data?.dataFreshnessStatus?.stale)} stale,{' '}
                     {formatInteger(healthQuery.data?.dataFreshnessStatus?.critical)} critical
                   </p>
+                  {healthQuery.data?.dataFreshnessStatus?.remediationsTriggered ? (
+                    <p className="mt-2 text-sm text-text-muted">
+                      {formatInteger(healthQuery.data?.dataFreshnessStatus?.remediationsTriggered)} remediation
+                      {healthQuery.data.dataFreshnessStatus.remediationsTriggered === 1 ? '' : 's'} triggered
+                      in the latest pass.
+                    </p>
+                  ) : null}
+                  {healthQuery.data?.dataFreshnessStatus?.error ? (
+                    <p className="mt-2 text-sm text-loss">
+                      Freshness error: {healthQuery.data.dataFreshnessStatus.error}
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="rounded-2xl border border-border/40 bg-surface/60 p-4">
@@ -413,9 +454,18 @@ export function StatusWorkspace() {
                     the last 24h.
                   </p>
                   <p className="mt-2 text-sm text-text-muted">
+                    {formatInteger(healthQuery.data?.workflowHealth?.failedWorkflows)} failed ·{' '}
+                    {formatInteger(healthQuery.data?.workflowHealth?.blockedWorkflows)} blocked
+                  </p>
+                  <p className="mt-2 text-sm text-text-muted">
                     Last success{' '}
                     {formatRelativeTime(healthQuery.data?.workflowHealth?.lastSuccessfulWorkflow)}
                   </p>
+                  {healthQuery.data?.workflowHealth?.lastSuccessfulType ? (
+                    <p className="mt-2 text-sm text-text-muted">
+                      Last successful workflow type: {formatLabel(healthQuery.data.workflowHealth.lastSuccessfulType)}
+                    </p>
+                  ) : null}
                 </div>
               </div>
             </SectionCard>
@@ -445,6 +495,17 @@ export function StatusWorkspace() {
                         <p>Latency: {formatInteger(source.avgLatencyMs)}ms</p>
                         <p>Last success: {formatRelativeTime(source.lastSuccess)}</p>
                       </div>
+                      {(source.rateLimitHits || source.inCooldown) && (
+                        <div className="mt-2 grid gap-2 text-sm text-text-muted md:grid-cols-2">
+                          <p>Rate limit hits: {formatInteger(source.rateLimitHits)}</p>
+                          <p>
+                            Cooldown:{' '}
+                            {source.inCooldown
+                              ? formatSeconds(source.cooldownRemainingSeconds)
+                              : 'clear'}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   ))
                 )}
@@ -476,11 +537,16 @@ export function StatusWorkspace() {
                       <div className="mt-3 grid gap-2 text-sm text-text-muted">
                         <p>Configured: {vendor.configured ? 'Yes' : 'No'}</p>
                         <p>Last activity: {formatRelativeTime(getVendorActivityTimestamp(vendor))}</p>
+                        {vendor.lastSuccessAt ? (
+                          <p>Last success: {formatRelativeTime(vendor.lastSuccessAt)}</p>
+                        ) : null}
                         <p>Articles 24h: {formatInteger(vendor.articlesLast24H)}</p>
+                        <p>Articles last fetch: {formatInteger(vendor.articlesLastFetch)}</p>
                         <p>
                           Last error:{' '}
                           {vendor.lastError ? vendor.lastError : vendor.reason ?? 'No recent error'}
                         </p>
+                        {vendor.notes ? <p>Notes: {vendor.notes}</p> : null}
                       </div>
                     </div>
                   ))
@@ -495,6 +561,10 @@ export function StatusWorkspace() {
               title="Quota Coverage"
               description="Configured providers and their expected request ceilings."
             >
+              <div className="mb-3 rounded-2xl border border-border/40 bg-surface/40 px-4 py-3 text-sm text-text-muted">
+                {formatInteger(configuredQuotaCount)} of {formatInteger(totalQuotaCount)} provider
+                {totalQuotaCount === 1 ? '' : 's'} configured
+              </div>
               <div className="grid gap-3">
                 {(healthQuery.data?.apiQuotas ?? []).length === 0 ? (
                   <EmptyPanelMessage message="No API quota configuration is available right now." />
