@@ -2,6 +2,7 @@
 
 import { Brain, CheckCircle2, RefreshCw, Siren, TrendingUp } from 'lucide-react'
 import Link from 'next/link'
+import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { Card } from '@/components/ui/card'
 import type {
   JennyAgentScorecard,
@@ -106,7 +107,7 @@ function notificationActionLabel(notification: JennyNotification) {
 }
 
 export function JennyOperatorPanel() {
-  const { data, isLoading } = useJennyDashboard()
+  const { data, isLoading, error, refetch, isFetching } = useJennyDashboard()
   const runRoutine = useRunJennyRoutine()
   const acknowledge = useAcknowledgeJennyNotification()
 
@@ -118,6 +119,19 @@ export function JennyOperatorPanel() {
     )
   }
 
+  if (!data && error) {
+    return (
+      <LoadErrorState
+        title="Failed to load Jenny operator status."
+        detail="Retry to refresh Jenny’s latest routines, alerts, and agent scorecards."
+        onRetry={() => {
+          void refetch()
+        }}
+        isRetrying={isFetching}
+      />
+    )
+  }
+
   const dashboard = data
   const latestRoutine = dashboard?.routines[0]
   const topReviews = dashboard?.symbolReviews.slice(0, 3) ?? []
@@ -126,6 +140,12 @@ export function JennyOperatorPanel() {
 
   return (
     <Card className="p-6">
+      {error ? (
+        <div className="mb-4 rounded-xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning-foreground">
+          Jenny data is partially stale. The latest cached operator view is shown below.
+        </div>
+      ) : null}
+
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <div className="flex items-center gap-2 text-sm font-semibold text-text">
@@ -141,6 +161,10 @@ export function JennyOperatorPanel() {
           </p>
           <p className="mt-1 text-xs text-text-muted">
             Updated {formatTimestamp(latestRoutine?.completedAt ?? null)}
+          </p>
+          <p className="mt-1 text-xs text-text-muted">
+            {dashboard?.notifications.length ?? 0} alerts · {dashboard?.symbolReviews.length ?? 0} symbol reviews ·{' '}
+            {dashboard?.scorecards.length ?? 0} scorecards
           </p>
         </div>
 
@@ -216,6 +240,11 @@ export function JennyOperatorPanel() {
               </div>
             ))
           )}
+          {dashboard && dashboard.notifications.length > topNotifications.length ? (
+            <p className="text-xs text-text-muted">
+              Showing the newest {topNotifications.length} of {dashboard.notifications.length} alerts.
+            </p>
+          ) : null}
         </div>
 
         <div className="space-y-4">
@@ -268,6 +297,11 @@ export function JennyOperatorPanel() {
                 ))
               )}
             </div>
+            {dashboard && dashboard.symbolReviews.length > topReviews.length ? (
+              <p className="text-xs text-text-muted">
+                Showing the top {topReviews.length} of {dashboard.symbolReviews.length} symbol reviews.
+              </p>
+            ) : null}
           </div>
 
           <div>
@@ -313,6 +347,11 @@ export function JennyOperatorPanel() {
                 ))
               )}
             </div>
+            {dashboard && dashboard.scorecards.length > topScorecards.length ? (
+              <p className="text-xs text-text-muted">
+                Showing the strongest {topScorecards.length} of {dashboard.scorecards.length} scorecards.
+              </p>
+            ) : null}
           </div>
         </div>
       </div>

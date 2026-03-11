@@ -1,6 +1,7 @@
 'use client'
 
 import { Activity, DollarSign, Gauge, TrendingUp } from 'lucide-react'
+import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { Card } from '@/components/ui/card'
 import { usePortfolio, usePortfolioAnalytics } from '@/lib/hooks/usePortfolio'
 import { AssetAllocation } from './AssetAllocation'
@@ -13,11 +14,25 @@ import { TopPerformers } from './TopPerformers'
 import { formatDisplayLabel } from './portfolio-utils'
 
 export function PortfolioOverview() {
-  const { data: portfolio, isLoading: portfolioLoading } = usePortfolio()
-  const { data: analytics, isLoading: analyticsLoading } =
-    usePortfolioAnalytics()
+  const {
+    data: portfolio,
+    isLoading: portfolioLoading,
+    error: portfolioError,
+    refetch: refetchPortfolio,
+    isFetching: portfolioFetching,
+  } = usePortfolio()
+  const {
+    data: analytics,
+    isLoading: analyticsLoading,
+    error: analyticsError,
+    refetch: refetchAnalytics,
+    isFetching: analyticsFetching,
+  } = usePortfolioAnalytics()
 
-  if (portfolioLoading || analyticsLoading) {
+  const isInitialLoading =
+    (!portfolio && portfolioLoading) || (!analytics && analyticsLoading)
+
+  if (isInitialLoading) {
     return (
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {[...Array(6)].map((_, i) => (
@@ -26,6 +41,24 @@ export function PortfolioOverview() {
           </Card>
         ))}
       </div>
+    )
+  }
+
+  if (!portfolio && !analytics && (portfolioError || analyticsError)) {
+    return (
+      <LoadErrorState
+        title="Failed to load portfolio overview."
+        detail={
+          portfolioError?.message ??
+          analyticsError?.message ??
+          'Retry to refresh portfolio value, concentration, and Jenny guidance.'
+        }
+        onRetry={() => {
+          void refetchPortfolio()
+          void refetchAnalytics()
+        }}
+        isRetrying={portfolioFetching || analyticsFetching}
+      />
     )
   }
 
@@ -42,9 +75,25 @@ export function PortfolioOverview() {
   }
 
   const gainColor = (portfolio?.totalGain ?? 0) >= 0 ? 'text-gain' : 'text-loss'
+  const hasPartialError = Boolean(portfolioError || analyticsError)
+  const positionCount = portfolio?.positions.length ?? 0
 
   return (
     <div className="space-y-6">
+      {hasPartialError ? (
+        <div className="rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning-foreground">
+          Some portfolio signals are unavailable right now. Core balances are still shown below.
+        </div>
+      ) : null}
+
+      <div className="rounded-2xl border border-border/40 bg-surface-muted/20 px-4 py-3 text-sm text-text-muted">
+        {positionCount} live position{positionCount === 1 ? '' : 's'}
+        {analytics?.numSymbols != null ? ` · ${analytics.numSymbols} unique symbol${analytics.numSymbols === 1 ? '' : 's'}` : ''}
+        {analytics?.cashInclusiveTotalValue != null
+          ? ` · ${formatCurrency(analytics.cashInclusiveTotalValue)} including cash`
+          : ''}
+      </div>
+
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card className="group p-6 transition-all hover:scale-[1.02] hover:shadow-lg">
@@ -128,15 +177,27 @@ export function PortfolioOverview() {
           </div>
         </Card>
 
-        {/* Diversification Score Card */}
-        {analytics?.diversificationScore && (
-          <DiversificationScore
-            diversification={analytics.diversificationScore}
-          />
+        {analytics?.diversificationScore ? (
+          <DiversificationScore diversification={analytics.diversificationScore} />
+        ) : (
+          <Card className="p-6">
+            <div className="text-sm font-medium text-text-muted">Diversification</div>
+            <div className="mt-2 text-sm text-text-muted">
+              Diversification scoring is unavailable until analytics refresh successfully.
+            </div>
+          </Card>
         )}
 
-        {/* Portfolio Stats Card */}
-        {analytics && <PortfolioStats analytics={analytics} />}
+        {analytics ? (
+          <PortfolioStats analytics={analytics} />
+        ) : (
+          <Card className="p-6">
+            <div className="text-sm font-medium text-text-muted">Portfolio Stats</div>
+            <div className="mt-2 text-sm text-text-muted">
+              Sharpe, symbol breadth, and risk statistics will return once analytics are back.
+            </div>
+          </Card>
+        )}
       </div>
 
       {portfolio && analytics && (
@@ -146,12 +207,22 @@ export function PortfolioOverview() {
       <JennyOperatorPanel />
 
       {/* Risk Profile (if available) */}
-      {analytics?.riskProfile && (
+      {analytics?.riskProfile ? (
         <RiskProfile riskProfile={analytics.riskProfile} />
-      )}
+      ) : analytics ? (
+        <Card className="p-6 text-sm text-text-muted">
+          Risk profile is not available yet for the current holdings mix.
+        </Card>
+      ) : null}
+
+      {portfolio && portfolio.positions.length === 0 ? (
+        <Card className="p-6 text-sm text-text-muted">
+          No live positions yet. Add a holding below to unlock concentration, risk, and performance coaching.
+        </Card>
+      ) : null}
 
       {/* Top Performers and Asset Allocation */}
-      {analytics && (
+      {analytics ? (
         <div className="grid gap-4 md:grid-cols-2">
           <TopPerformers
             topPerformers={analytics.topPerformers}
@@ -159,10 +230,14 @@ export function PortfolioOverview() {
           />
           <AssetAllocation topPerformers={analytics.topPerformers} />
         </div>
+      ) : (
+        <Card className="p-6 text-sm text-text-muted">
+          Top-performer and allocation breakdowns are waiting on portfolio analytics to refresh.
+        </Card>
       )}
 
       {/* Concentration & Sector Exposure */}
-      {analytics && (
+      {analytics ? (
         <div className="grid gap-4 md:grid-cols-2">
           <Card className="p-6">
             <h3 className="mb-4 text-sm font-semibold text-text">
@@ -222,6 +297,10 @@ export function PortfolioOverview() {
             </div>
           </Card>
         </div>
+      ) : (
+        <Card className="p-6 text-sm text-text-muted">
+          Concentration and sector exposure require portfolio analytics and will return once that query succeeds.
+        </Card>
       )}
     </div>
   )

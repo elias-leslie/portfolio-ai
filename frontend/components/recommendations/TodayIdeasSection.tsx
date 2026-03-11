@@ -27,6 +27,7 @@ export function TodayIdeasSection() {
   })
   const trackMutation = useTrackInPortfolio()
   const recommendations = data?.recommendations ?? []
+  const summary = data?.summary
 
   const handleTrackConfirm = (accountId: string, shares: number) => {
     if (!selectedRecommendation) return
@@ -53,6 +54,23 @@ export function TodayIdeasSection() {
         title="Today"
         description="A short list of ideas worth a closer look right now."
       >
+        {!isLoading && !error && data ? (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border/40 bg-surface-muted/20 px-4 py-3 text-sm text-text-muted">
+            <span>
+              Showing {recommendations.length} of {data.total} setup
+              {data.total === 1 ? '' : 's'} · average strength{' '}
+              {data.summary.avgSignalStrength.toFixed(1)}/10
+            </span>
+            <span>
+              Suggested capital {data.summary.totalPositionSize.toLocaleString('en-US', {
+                style: 'currency',
+                currency: 'USD',
+                maximumFractionDigits: 0,
+              })}
+            </span>
+          </div>
+        ) : null}
+
         <div className="mb-6 rounded-xl border border-border/60 bg-surface-muted/30 p-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
@@ -86,13 +104,23 @@ export function TodayIdeasSection() {
         {error && (
           <LoadErrorState
             title="Unable to load today’s ideas."
-            detail={error.message}
+            detail={
+              error.message ||
+              'Retry to refresh the latest recommendation set and sizing guidance.'
+            }
             onRetry={() => {
               void refetch()
             }}
             isRetrying={isFetching}
           />
         )}
+
+        {!isLoading && !error && isFetching ? (
+          <div className="mb-4 flex items-center gap-2 text-sm text-text-muted">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Refreshing ideas with the latest prices and strategy scores...
+          </div>
+        ) : null}
 
         {!isLoading && !error && recommendations.length === 0 && (
           <div className="rounded-xl border border-border/60 bg-surface-muted/30 p-5">
@@ -111,19 +139,26 @@ export function TodayIdeasSection() {
           </div>
         )}
 
-        {!isLoading && !error && recommendations.length > 0 && (
-          <div className="grid gap-6 lg:grid-cols-2">
-            {recommendations.map((recommendation) => (
-              <DecisionMemoCard
-                key={`${recommendation.strategyId}-${recommendation.symbol}`}
-                recommendation={recommendation}
-                onTrackInPortfolio={() => {
-                  setSelectedRecommendation(recommendation)
-                  setTrackModalOpen(true)
-                }}
-              />
-            ))}
-          </div>
+        {!isLoading && !error && data && summary && recommendations.length > 0 && (
+          <>
+            <div className="mb-4 flex flex-wrap gap-2 text-xs text-text-muted">
+              <span className="rounded-full border border-border/40 bg-surface px-3 py-1">BUY {summary.buySignals}</span>
+              <span className="rounded-full border border-border/40 bg-surface px-3 py-1">HOLD {summary.holdSignals}</span>
+              <span className="rounded-full border border-border/40 bg-surface px-3 py-1">SELL {summary.sellSignals}</span>
+            </div>
+            <div className="grid gap-6 lg:grid-cols-2">
+              {recommendations.map((recommendation) => (
+                <DecisionMemoCard
+                  key={`${recommendation.strategyId}-${recommendation.symbol}`}
+                  recommendation={recommendation}
+                  onTrackInPortfolio={() => {
+                    setSelectedRecommendation(recommendation)
+                    setTrackModalOpen(true)
+                  }}
+                />
+              ))}
+            </div>
+          </>
         )}
       </SectionCard>
 
