@@ -13,7 +13,7 @@ Design:
 from __future__ import annotations
 
 import datetime as dt
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, NotRequired, TypedDict
 
 from app.hatchet_app import get_admin_client
 from app.logging_config import get_logger
@@ -56,6 +56,7 @@ class TableFreshnessConfig(TypedDict):
     expected_hours: int  # How often data should refresh
     critical_hours: int  # When to create alert
     market_data: bool  # Whether to skip alerts on weekends/holidays
+    availability_delay_hours: NotRequired[float]  # Post-close processing window before data is expected
 
 
 # Freshness thresholds for all critical tables
@@ -73,6 +74,7 @@ TABLE_FRESHNESS_CONFIG: list[TableFreshnessConfig] = [
         "expected_hours": 24,
         "critical_hours": 48,
         "market_data": True,
+        "availability_delay_hours": 6.5,
     },
     {
         "table_name": "fear_greed_inputs",
@@ -310,6 +312,7 @@ def check_table_freshness(
         now=now,
         is_market_data=config["market_data"],
     )
+    age_hours = max(0.0, age_hours - config.get("availability_delay_hours", 0.0))
 
     # Check staleness using market-aware age
     is_stale = age_hours > config["expected_hours"]

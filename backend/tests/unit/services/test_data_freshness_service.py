@@ -55,11 +55,52 @@ def test_check_table_freshness_treats_market_dates_as_close_time(monkeypatch) ->
     assert result["age_hours"] == 29.57
 
 
+def test_check_table_freshness_respects_post_close_availability_delay(monkeypatch) -> None:
+    fake_conn = Mock()
+    fake_conn.execute.return_value.fetchone.return_value = (
+        dt.datetime(2026, 3, 10, 2, 30, tzinfo=dt.UTC),
+    )
+
+    @contextmanager
+    def fake_connection():
+        yield fake_conn
+
+    fake_storage = Mock()
+    fake_storage.connection.side_effect = fake_connection
+
+    config = {
+        "table_name": "technical_indicators",
+        "date_column": "calculated_at",
+        "expected_hours": 24,
+        "critical_hours": 48,
+        "market_data": True,
+        "availability_delay_hours": 6.5,
+    }
+
+    before_due = dt.datetime(2026, 3, 11, 1, 45, tzinfo=dt.UTC)
+    before_due_result = data_freshness_service.check_table_freshness(fake_storage, config, before_due)
+
+    assert before_due_result["age_hours"] == 23.25
+    assert before_due_result["is_stale"] is False
+    assert before_due_result["is_critical"] is False
+
+    after_due = dt.datetime(2026, 3, 11, 3, 0, tzinfo=dt.UTC)
+    after_due_result = data_freshness_service.check_table_freshness(fake_storage, config, after_due)
+
+    assert after_due_result["age_hours"] == 24.5
+    assert after_due_result["is_stale"] is True
+    assert after_due_result["is_critical"] is False
+
+
 def test_table_freshness_config_uses_live_options_and_reference_columns() -> None:
     config_by_table = {
-        config["table_name"]: config["date_column"]
+        config["table_name"]: {
+            "date_column": config["date_column"],
+            "availability_delay_hours": config.get("availability_delay_hours"),
+        }
         for config in data_freshness_service.TABLE_FRESHNESS_CONFIG
     }
 
-    assert config_by_table["options_market_metrics"] == "source_timestamp"
-    assert config_by_table["reference_cache"] == "as_of_date"
+    assert config_by_table["technical_indicators"]["availability_delay_hours"] == 6.5
+    assert config_by_table["options_market_metrics"]["date_column"] == "source_timestamp"
+    assert config_by_table["reference_cache"]["date_column"] == "as_of_date"
