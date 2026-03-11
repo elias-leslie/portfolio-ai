@@ -230,7 +230,7 @@ async def get_stale_maintenance_runs(hours: int = 2) -> list[dict[str, Any]]:
             SELECT task_name, started_at, dry_run
             FROM maintenance_log
             WHERE status = 'running'
-              AND started_at < NOW() - INTERVAL ? hours
+              AND started_at < NOW() - make_interval(hours => ?)
             ORDER BY started_at ASC
             LIMIT 50
         """
