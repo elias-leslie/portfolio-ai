@@ -57,6 +57,7 @@ class TableFreshnessConfig(TypedDict):
     critical_hours: int  # When to create alert
     market_data: bool  # Whether to skip alerts on weekends/holidays
     availability_delay_hours: NotRequired[float]  # Post-close processing window before data is expected
+    where_clause: NotRequired[str]  # Optional filter for freshness checks on shared tables
 
 
 # Freshness thresholds for all critical tables
@@ -120,10 +121,11 @@ TABLE_FRESHNESS_CONFIG: list[TableFreshnessConfig] = [
     },
     {
         "table_name": "reference_cache",
-        "date_column": "as_of_date",
+        "date_column": "created_at",
         "expected_hours": 24,
         "critical_hours": 72,
         "market_data": False,
+        "where_clause": "source = 'yfinance'",
     },
 ]
 
@@ -250,15 +252,17 @@ def check_table_freshness(
     """
     table_name = config["table_name"]
     date_column = config["date_column"]
+    where_clause = config.get("where_clause")
+    query = f"""
+            SELECT MAX({date_column}) as last_update
+            FROM {table_name}
+        """
+    if where_clause:
+        query = f"{query} WHERE {where_clause}"
 
     with storage.connection() as conn:
         # Query MAX(date_column) for this table
-        result = conn.execute(
-            f"""
-            SELECT MAX({date_column}) as last_update
-            FROM {table_name}
-            """
-        ).fetchone()
+        result = conn.execute(query).fetchone()
 
     last_update = result[0] if result else None
 

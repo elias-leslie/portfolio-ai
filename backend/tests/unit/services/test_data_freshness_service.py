@@ -92,15 +92,51 @@ def test_check_table_freshness_respects_post_close_availability_delay(monkeypatc
     assert after_due_result["is_critical"] is False
 
 
+def test_check_table_freshness_applies_where_clause_for_shared_table() -> None:
+    fake_conn = Mock()
+    fake_conn.execute.return_value.fetchone.return_value = (
+        dt.datetime(2026, 3, 10, 4, 2, tzinfo=dt.UTC),
+    )
+
+    @contextmanager
+    def fake_connection():
+        yield fake_conn
+
+    fake_storage = Mock()
+    fake_storage.connection.side_effect = fake_connection
+
+    config = {
+        "table_name": "reference_cache",
+        "date_column": "created_at",
+        "expected_hours": 24,
+        "critical_hours": 72,
+        "market_data": False,
+        "where_clause": "source = 'yfinance'",
+    }
+
+    data_freshness_service.check_table_freshness(
+        fake_storage,
+        config,
+        dt.datetime(2026, 3, 11, 1, 0, tzinfo=dt.UTC),
+    )
+
+    executed_query = fake_conn.execute.call_args[0][0]
+    assert "MAX(created_at)" in executed_query
+    assert "FROM reference_cache" in executed_query
+    assert "WHERE source = 'yfinance'" in executed_query
+
+
 def test_table_freshness_config_uses_live_options_and_reference_columns() -> None:
     config_by_table = {
         config["table_name"]: {
             "date_column": config["date_column"],
             "availability_delay_hours": config.get("availability_delay_hours"),
+            "where_clause": config.get("where_clause"),
         }
         for config in data_freshness_service.TABLE_FRESHNESS_CONFIG
     }
 
     assert config_by_table["technical_indicators"]["availability_delay_hours"] == 6.5
     assert config_by_table["options_market_metrics"]["date_column"] == "source_timestamp"
-    assert config_by_table["reference_cache"]["date_column"] == "as_of_date"
+    assert config_by_table["reference_cache"]["date_column"] == "created_at"
+    assert config_by_table["reference_cache"]["where_clause"] == "source = 'yfinance'"
