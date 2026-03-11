@@ -78,6 +78,7 @@ export function WatchlistTableRow({
         )}
         role="button"
         tabIndex={0}
+        aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${item.symbol} details`}
         aria-expanded={isExpanded}
         aria-controls={`watchlist-row-${item.id}`}
         data-slot="table-row"
