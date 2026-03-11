@@ -2,6 +2,7 @@
 
 import { AlertCircle, ArrowRight, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
+import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { SectionCard } from '@/components/shared/SectionCard'
@@ -61,11 +62,24 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
   if (error || data?.error) {
     return (
       <PageContainer className="space-y-10 py-10">
-        <PageHeader title={uppercaseSymbol} description="Symbol workspace" />
+        <PageHeader
+          title={uppercaseSymbol}
+          description="Symbol workspace"
+          actions={
+            <Button asChild variant="outline">
+              <Link href="/watchlist">Back to Watchlist</Link>
+            </Button>
+          }
+        />
         <SectionCard variant="surface">
-          <div className="rounded-2xl border border-loss/30 bg-loss/10 p-5 text-sm text-loss">
-            Failed to load symbol intelligence.
-          </div>
+          <LoadErrorState
+            title="Failed to load symbol intelligence."
+            detail="Retry to refresh the symbol score, recommendation, and linked workflow context."
+            onRetry={() => {
+              void refetch()
+            }}
+            isRetrying={isFetching}
+          />
         </SectionCard>
       </PageContainer>
     )

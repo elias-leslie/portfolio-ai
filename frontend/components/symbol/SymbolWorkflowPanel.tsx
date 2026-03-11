@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { ArrowRight, GitBranch, RotateCcw } from 'lucide-react'
+import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -37,7 +38,7 @@ export function SymbolWorkflowPanel({
     managementAction?: string | null
   } | null
 }) {
-  const { data, isLoading, error } = useSymbolWorkflow(symbol)
+  const { data, isLoading, error, refetch, isFetching } = useSymbolWorkflow(symbol)
   const transitionWorkflow = useTransitionSymbolWorkflow(symbol)
   const recordOutcome = useRecordSymbolWorkflowOutcome(symbol)
   const [outcomeNote, setOutcomeNote] = useState('')
@@ -60,9 +61,14 @@ export function SymbolWorkflowPanel({
       ) : null}
 
       {!isLoading && error ? (
-        <div className="rounded-2xl border border-loss/30 bg-loss/10 p-4 text-sm text-loss">
-          Failed to load the symbol workflow.
-        </div>
+        <LoadErrorState
+          title="Failed to load the symbol workflow."
+          detail="Retry to refresh the current stage, available transitions, and recent history."
+          onRetry={() => {
+            void refetch()
+          }}
+          isRetrying={isFetching}
+        />
       ) : null}
 
       {!isLoading && !error && data ? (

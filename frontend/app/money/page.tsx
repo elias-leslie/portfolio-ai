@@ -8,6 +8,7 @@ import { HouseholdPlanningPanels } from '@/components/money/HouseholdPlanningPan
 import { HouseholdProfileCard } from '@/components/money/HouseholdProfileCard'
 import { HouseholdReportsPanel } from '@/components/money/HouseholdReportsPanel'
 import { JennyMoneyBoard } from '@/components/money/JennyMoneyBoard'
+import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs'
@@ -25,8 +26,19 @@ function LoadingState() {
 }
 
 export default function MoneyPage() {
-  const { data: dashboard, isLoading, error } = useHouseholdDashboard()
-  const { data: documents } = useHouseholdDocuments()
+  const {
+    data: dashboard,
+    isLoading,
+    error,
+    refetch: refetchDashboard,
+    isFetching: isFetchingDashboard,
+  } = useHouseholdDashboard()
+  const {
+    data: documents,
+    error: documentsError,
+    refetch: refetchDocuments,
+    isFetching: isFetchingDocuments,
+  } = useHouseholdDocuments()
 
   if (isLoading) {
     return (
@@ -49,9 +61,16 @@ export default function MoneyPage() {
           title="Money System"
           description="One place for budgeting, saving, statement intake, and retirement preparedness."
         />
-        <div className="rounded-3xl border border-border/40 bg-surface-muted/20 p-8 text-sm text-text-muted">
-          Failed to load the household finance workspace.
-        </div>
+        <LoadErrorState
+          title="Failed to load the household finance workspace."
+          detail="Retry to refresh the household dashboard before working through questions, reports, and planning."
+          onRetry={() => {
+            void refetchDashboard()
+          }}
+          isRetrying={isFetchingDashboard}
+          retryLabel="Retry workspace"
+          className="rounded-3xl p-8"
+        />
       </PageContainer>
     )
   }
@@ -104,7 +123,18 @@ export default function MoneyPage() {
             value: 'intake',
             label: 'Intake',
             description: 'Upload and audit source documents without forcing the rest of the page to grow.',
-            content: <HouseholdDocumentCenter documents={documents?.items ?? []} />,
+            content: documentsError ? (
+              <LoadErrorState
+                title="Failed to load intake documents."
+                detail="Retry to refresh the intake queue and uploaded household files."
+                onRetry={() => {
+                  void refetchDocuments()
+                }}
+                isRetrying={isFetchingDocuments}
+              />
+            ) : (
+              <HouseholdDocumentCenter documents={documents?.items ?? []} />
+            ),
           },
         ]}
       />

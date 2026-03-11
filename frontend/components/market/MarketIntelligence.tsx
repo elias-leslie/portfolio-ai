@@ -10,6 +10,7 @@
 
 'use client'
 
+import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { Card } from '@/components/ui/card'
 import { useMarketIntelligence } from '@/lib/hooks/useMarketIntelligence'
 import { IndicatorsTrendChart } from './IndicatorsTrendChart'
@@ -19,7 +20,7 @@ import { SectorPerformanceChart } from './SectorPerformanceChart'
 import { SentimentTrendChart } from './SentimentTrendChart'
 
 export function MarketIntelligence() {
-  const { data, isLoading, error } = useMarketIntelligence()
+  const { data, isLoading, error, refetch, isFetching } = useMarketIntelligence()
 
   if (isLoading) {
     return (
@@ -37,9 +38,15 @@ export function MarketIntelligence() {
   if (error || !data) {
     return (
       <Card className="p-6 shadow-lg">
-        <div className="text-sm text-text-muted py-4">
-          Failed to load market intelligence. Please try again later.
-        </div>
+        <LoadErrorState
+          title="Failed to load market intelligence."
+          detail="Retry to refresh market conditions, sector rotation, and the related charts."
+          onRetry={() => {
+            void refetch()
+          }}
+          isRetrying={isFetching}
+          className="py-4"
+        />
       </Card>
     )
   }

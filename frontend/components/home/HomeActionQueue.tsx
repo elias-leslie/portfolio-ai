@@ -2,6 +2,7 @@
 
 import { ArrowRight, Brain, House, Target } from 'lucide-react'
 import Link from 'next/link'
+import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -26,7 +27,7 @@ const priorityTone = {
 }
 
 export function HomeActionQueue() {
-  const { data, isLoading, error } = useHomeActionQueue()
+  const { data, isLoading, error, refetch, isFetching } = useHomeActionQueue()
   const acknowledgeNotification = useAcknowledgeJennyNotification()
   const transitionWorkflow = useTransitionSymbolWorkflow()
 
@@ -74,9 +75,14 @@ export function HomeActionQueue() {
       ) : null}
 
       {!isLoading && error ? (
-        <div className="rounded-2xl border border-loss/30 bg-loss/10 p-4 text-sm text-loss">
-          Failed to load the action queue.
-        </div>
+        <LoadErrorState
+          title="Failed to load the action queue."
+          detail="Retry to refresh today’s next actions across the portfolio and money system."
+          onRetry={() => {
+            void refetch()
+          }}
+          isRetrying={isFetching}
+        />
       ) : null}
 
       {!isLoading && !error ? (

@@ -1,6 +1,7 @@
 'use client'
 
 import { Bot, Clock3, ShieldCheck, TriangleAlert } from 'lucide-react'
+import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -27,7 +28,7 @@ function formatTimestamp(value: string | null) {
 }
 
 export function AutomationCenter() {
-  const { data, isLoading, error } = useAutomationCenter()
+  const { data, isLoading, error, refetch, isFetching } = useAutomationCenter()
   const runJennyRoutine = useRunJennyRoutine()
   const updatePreferences = useUpdatePreferences()
 
@@ -68,9 +69,14 @@ export function AutomationCenter() {
       ) : null}
 
       {!isLoading && error ? (
-        <div className="rounded-2xl border border-loss/30 bg-loss/10 p-4 text-sm text-loss">
-          Failed to load automation guardrails.
-        </div>
+        <LoadErrorState
+          title="Failed to load automation guardrails."
+          detail="Retry to refresh runtime controls and the recent automation history."
+          onRetry={() => {
+            void refetch()
+          }}
+          isRetrying={isFetching}
+        />
       ) : null}
 
       {!isLoading && !error && data ? (

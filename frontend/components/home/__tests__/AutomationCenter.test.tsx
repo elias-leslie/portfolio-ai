@@ -43,7 +43,9 @@ describe('AutomationCenter', () => {
         warnings: [],
       },
       isLoading: false,
+      isFetching: false,
       error: null,
+      refetch: vi.fn(),
     })
   })
 
@@ -77,7 +79,9 @@ describe('AutomationCenter', () => {
         warnings: ['monitor thesis health reported failed.'],
       },
       isLoading: false,
+      isFetching: false,
       error: null,
+      refetch: vi.fn(),
     })
 
     render(<AutomationCenter />)
@@ -85,5 +89,23 @@ describe('AutomationCenter', () => {
     expect(screen.getByText('Jenny daily operator')).toBeInTheDocument()
     expect(screen.getByText('Running')).toBeInTheDocument()
     expect(screen.getByText('monitor thesis health reported failed.')).toBeInTheDocument()
+  })
+
+  it('offers retry when the automation query fails', async () => {
+    const user = userEvent.setup()
+    const refetch = vi.fn()
+    useAutomationCenterMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isFetching: false,
+      error: new Error('unavailable'),
+      refetch,
+    })
+
+    render(<AutomationCenter />)
+
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+
+    expect(refetch).toHaveBeenCalled()
   })
 })
