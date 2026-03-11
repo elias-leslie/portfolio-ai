@@ -99,25 +99,81 @@ def _record_summary(
         conn.commit()
 
 
+def _should_force_refresh(storage: PortfolioStorage, now: datetime) -> tuple[bool, int]:
+    """Return (should_force_refresh, interval_minutes) based on last market refresh."""
+    interval_minutes = _get_refresh_interval_minutes(storage)
+    last_refresh = _last_market_refresh_at(storage)
+    force = last_refresh is None or now - last_refresh >= timedelta(minutes=interval_minutes)
+    return force, interval_minutes
+
+
+def _refresh_market_news(
+    news_service: NewsService,
+    storage: PortfolioStorage,
+    max_articles: int,
+    force_refresh: bool,
+    now: datetime,
+) -> NewsBundle:
+    """Fetch market news bundle and conditionally record its summary."""
+    market_bundle = news_service.get_news_intelligence(
+        None,
+        max_articles=max_articles,
+        force_refresh=force_refresh,
+    )
+    # Only log summary when we actually refreshed from APIs (to avoid duplicate entries)
+    if force_refresh:
+        _record_summary(storage, market_bundle.summary, news_service.ttl, now)
+    return market_bundle
+
+
+def _refresh_watchlist_news(
+    news_service: NewsService,
+    storage: PortfolioStorage,
+    symbols: list[str],
+    max_articles: int,
+    force_refresh: bool,
+    now: datetime,
+) -> int:
+    """Fetch watchlist news bundles, record summaries if refreshed, return bundle count."""
+    if not symbols:
+        return 0
+    bundles: dict[str, NewsBundle] = news_service.get_watchlist_news(
+        symbols,
+        max_articles=max_articles,
+        force_refresh=force_refresh,
+    )
+    # Only log summaries when we actually refreshed
+    if force_refresh:
+        for bundle in bundles.values():
+            _record_summary(storage, bundle.summary, news_service.ttl, now)
+    return len(bundles)
+
+
+def _init_services() -> (
+    tuple[PortfolioStorage, NewsService, WatchlistService, int, int]
+):
+    """Initialise storage, services, and preference values."""
+    storage = get_storage()
+    load_credentials_from_database()
+    news_service = NewsService(storage)
+    lookback_hours = news_service.refresh_ttl_from_preferences()
+    news_max_articles = news_service.refresh_max_articles_from_preferences()
+    watchlist_service = WatchlistService(storage)
+    return storage, news_service, watchlist_service, lookback_hours, news_max_articles
+
+
 def _refresh_news_sentiment_task(
-    account_id: str = "default"
+    account_id: str = "default",
 ) -> dict[str, int | str | float]:
     """Refresh market and watchlist news sentiment caches."""
     try:
-        start_time = time.time()  # Track task duration
-        storage = get_storage()
-        load_credentials_from_database()
-        news_service = NewsService(storage)
-        lookback_hours = news_service.refresh_ttl_from_preferences()
-        news_max_articles = news_service.refresh_max_articles_from_preferences()
-        watchlist_service = WatchlistService(storage)
-
-        interval_minutes = _get_refresh_interval_minutes(storage)
-        now = datetime.now(UTC)
-        last_refresh = _last_market_refresh_at(storage)
-        should_force_refresh = last_refresh is None or now - last_refresh >= timedelta(
-            minutes=interval_minutes
+        start_time = time.time()
+        storage, news_service, watchlist_service, lookback_hours, news_max_articles = (
+            _init_services()
         )
+
+        now = datetime.now(UTC)
+        should_force_refresh, interval_minutes = _should_force_refresh(storage, now)
 
         logger.info(
             "news_refresh_started",
@@ -128,30 +184,15 @@ def _refresh_news_sentiment_task(
             max_articles=news_max_articles,
         )
 
-        # Always fetch market bundle; service decides whether to hit external APIs
-        market_bundle = news_service.get_news_intelligence(
-            None,
-            max_articles=news_max_articles,
-            force_refresh=should_force_refresh,
+        market_bundle = _refresh_market_news(
+            news_service, storage, news_max_articles, should_force_refresh, now
         )
-        # Only log summary when we actually refreshed from APIs (to avoid duplicate entries)
-        if should_force_refresh:
-            _record_summary(storage, market_bundle.summary, news_service.ttl, now)
 
         items_with_scores: list[dict[str, Any]] = watchlist_service.get_items_with_scores()
         symbols = [item["symbol"] for item in items_with_scores]
-        watchlist_count = 0
-        if symbols:
-            bundles: dict[str, NewsBundle] = news_service.get_watchlist_news(
-                symbols,
-                max_articles=news_max_articles,
-                force_refresh=should_force_refresh,
-            )
-            watchlist_count = len(bundles)
-            # Only log summaries when we actually refreshed
-            if should_force_refresh:
-                for bundle in bundles.values():
-                    _record_summary(storage, bundle.summary, news_service.ttl, now)
+        watchlist_count = _refresh_watchlist_news(
+            news_service, storage, symbols, news_max_articles, should_force_refresh, now
+        )
 
         logger.info(
             "news_refresh_completed",
