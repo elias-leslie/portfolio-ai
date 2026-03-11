@@ -18,10 +18,10 @@ from app.watchlist.response_builders import (
     RefreshResponse,
     RefreshStatusResponse,
 )
-from app.watchlist.service import (
-    _get_redis_client,
+from app.watchlist.scoring_service import (
+    get_redis_client as _get_redis_client,
 )
-from app.watchlist.service import (
+from app.watchlist.scoring_service import (
     refresh_watchlist_scores as refresh_watchlist_scores_service,
 )
 from app.watchlist.watchlist_repository import WatchlistRepository

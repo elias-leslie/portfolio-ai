@@ -95,7 +95,6 @@ class WatchlistService:
         enrich_news_intelligence(self.repo, symbol, item_data)
         enrich_data_quality(self.storage, symbol, item_data)
 
-        # Gap analysis removed - migrated to [DEBT] subtasks on features
         item_data["readiness_score"] = 100.0
         item_data["confidence_level"] = "HIGH"
         item_data["gap_warning"] = None

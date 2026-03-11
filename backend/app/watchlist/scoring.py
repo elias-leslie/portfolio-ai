@@ -15,7 +15,6 @@ from .models import ScoreBreakdown, WatchlistScoreInputs
 
 logger = get_logger(__name__)
 
-# Legacy exports for backward compatibility
 PRICE_STALE_TTL_MINUTES = 15
 TECHNICAL_STALE_TTL_MINUTES = 60
 

@@ -9,7 +9,7 @@ import polars as pl
 import pytest
 
 from app.portfolio.models import PriceData
-from app.watchlist.service import refresh_watchlist_scores
+from app.watchlist.scoring_service import refresh_watchlist_scores
 from tests.test_support.news import build_empty_news_service
 
 

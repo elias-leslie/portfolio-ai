@@ -15,7 +15,9 @@ from app.storage import PortfolioStorage, get_storage
 from app.tasks.types import WatchlistResultDict
 from app.utils.market_hours import is_market_hours
 from app.utils.task_logging import log_task_skip, task_logger
-from app.watchlist.service import refresh_watchlist_scores as refresh_watchlist_scores_service
+from app.watchlist.scoring_service import (
+    refresh_watchlist_scores as refresh_watchlist_scores_service,
+)
 
 logger = get_logger(__name__)
 
@@ -99,7 +101,7 @@ def trigger_auto_backfill(storage: PortfolioStorage) -> None:
 
 def _run_auto_backfill(storage: PortfolioStorage) -> None:
     """Inner logic for auto-backfill (separated for error isolation)."""
-    from app.watchlist.service import detect_missing_historical_data
+    from app.watchlist.refresh_data_fetchers import detect_missing_historical_data
 
     symbols = get_watchlist_symbols(storage)
     if not symbols:

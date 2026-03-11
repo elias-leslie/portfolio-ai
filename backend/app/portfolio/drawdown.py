@@ -18,8 +18,6 @@ from __future__ import annotations
 from datetime import date
 from typing import TYPE_CHECKING
 
-from app.rules import get_rules
-
 from ..logging_config import get_logger
 from .drawdown_calc import (
     calculate_drawdown,
@@ -41,22 +39,10 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-def _get_drawdown_rules() -> tuple[float, float, float]:
-    """Get drawdown thresholds from centralized rules engine."""
-    rules = get_rules()
-    rm = rules.risk_management
-    return (
-        rm.portfolio_drawdown_halt_pct,
-        rm.drawdown_warning_level_1,
-        rm.drawdown_warning_level_2,
-    )
-
-
-# Portfolio-level risk limits (GAP-023) - now from rules engine
-# Legacy constants kept for backwards compatibility
-PORTFOLIO_DRAWDOWN_HALT_PCT = 25.0  # Stop trading at -25% drawdown (updated from 10%)
-DRAWDOWN_WARNING_LEVEL_1 = 10.0  # First warning at -10% (updated from 5%)
-DRAWDOWN_WARNING_LEVEL_2 = 15.0  # Second warning at -15% (updated from 7.5%)
+# Portfolio-level risk limits (GAP-023)
+PORTFOLIO_DRAWDOWN_HALT_PCT = 25.0  # Stop trading at -25% drawdown
+DRAWDOWN_WARNING_LEVEL_1 = 10.0  # First warning at -10%
+DRAWDOWN_WARNING_LEVEL_2 = 15.0  # Second warning at -15%
 
 
 def calculate_drawdown_metrics(

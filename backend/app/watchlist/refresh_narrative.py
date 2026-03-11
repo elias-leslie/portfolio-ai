@@ -1,22 +1,17 @@
-"""Narrative intelligence and trade level calculations for watchlist refresh.
+"""Signal classification and trade level calculations for watchlist refresh.
 
 This module handles:
 - Signal classification (BUY/SELL/HOLD)
 - Trading style classification
 - Trade level calculations (entry, stop loss, profit target, position size)
-- Narrative text generation (headlines, action plans, company health bullets)
-
-Extracted from refresh_processor.py to improve modularity.
 """
 
 from __future__ import annotations
 
-from typing import Any, TypedDict, cast
+from typing import TypedDict, cast
 
 from ..logging_config import get_logger
 from ..portfolio.models import PriceData
-
-# GapDetector removed - gap analysis migrated to [DEBT] subtasks on features
 from ..storage import PortfolioStorage
 from .calculator import (
     calculate_entry_price,
@@ -31,10 +26,6 @@ from .narrative import (
     classify_trading_style,
     generate_headline,
 )
-
-# NOTE: Narrative text generation functions removed - no longer displayed in UI
-# generate_action_plan, generate_company_health_bullets, generate_position_sizing_text,
-# generate_special_notes are no longer imported to save CPU/memory costs
 
 logger = get_logger(__name__)
 
@@ -149,36 +140,6 @@ def calculate_trade_levels(
     )
 
     return entry_price, stop_loss, profit_target, position_size
-
-
-def generate_narrative_texts(
-    symbol: str,
-    signal_type: str,
-    signal_strength: int,
-    entry_price: float | None,
-    stop_loss: float | None,
-    profit_target: float | None,
-    position_size: int | None,
-    company_health_str: str | None,
-    earnings_days_away: int | None,
-    fundamentals_data: FundamentalData | None,
-    technical_snapshot: TechnicalSnapshot | None,
-    gap_result: dict[str, Any] | None = None,
-) -> tuple[str | None, str | None, list[str] | None, str | None]:
-    """Generate all narrative text components.
-
-    NOTE: Narrative text generation has been disabled as these texts are no longer
-    displayed in the UI. This saves CPU cost on every watchlist refresh.
-
-    Args:
-        (All args kept for backward compatibility but are ignored)
-
-    Returns:
-        Tuple of (None, None, None, None) - all narrative texts disabled
-    """
-    # Narrative text generation disabled - no longer displayed in UI
-    # Previously generated: action_plan, position_sizing, company_health_bullets, special_notes
-    return None, None, None, None
 
 
 def classify_signal_and_style(
@@ -303,25 +264,11 @@ def generate_narrative_and_trade_levels(
             storage, symbol, price_data.price, signal_type, risk_budget
         )
 
-        # Gap analysis removed - migrated to [DEBT] subtasks on features
-        gap_result = None  # Always None now - narrative will skip gap warnings
-
-        action_plan, position_sizing, company_health_bullets, special_notes = (
-            generate_narrative_texts(
-                symbol,
-                signal_type,
-                signal_strength,
-                entry_price,
-                stop_loss,
-                profit_target,
-                position_size,
-                company_health_str,
-                earnings_days_away_val,
-                fundamentals_data,
-                technical_snapshot,  # Added
-                gap_result,  # Task 5.2: Include gap analysis
-            )
-        )
+        # Narrative text generation disabled — no longer displayed in UI
+        action_plan = None
+        position_sizing = None
+        company_health_bullets = None
+        special_notes = None
         return build_narrative_result(
             signal_type,
             signal_strength,

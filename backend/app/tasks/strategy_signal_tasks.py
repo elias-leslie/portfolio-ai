@@ -28,8 +28,6 @@ from .strategy_signal_helpers import (
 )
 
 logger = get_logger(__name__)
-_fetch_current_market_data = fetch_current_market_data  # backward-compat alias
-_build_signal_inputs = build_signal_inputs  # backward-compat alias
 
 
 def generate_signal_for_strategy(strategy_id: str, symbol: str) -> dict[str, Any]:

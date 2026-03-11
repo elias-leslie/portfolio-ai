@@ -343,14 +343,14 @@ pytest tests/ -v --log-cli-level=DEBUG
 
 ## 📊 Test Metrics
 
-**Total Tests:** 582 (304 unit, 117 integration, 161 feature)
 **Test Discovery:** Automatic via pytest
 **Isolation:** Auto-cleanup via `clean_database` fixture
-**Execution Time:**
-- Unit tests: ~1m50s (parallel with `-n auto`), ~3min (sequential)
-- Full suite: ~2-3min (parallel), ~6-7min (sequential)
-**Coverage Target:** 80%+ (currently 85%)
-**Parallel Execution:** Enabled via `pytest-xdist` (installed 2025-11-12)
+**Parallel Execution:** Enabled via `pytest-xdist`
+
+To get current test counts:
+```bash
+dt pytest --collect-only  # List all discovered tests
+```
 
 ---
 
@@ -405,7 +405,4 @@ pytest tests/unit/ -v  # Much faster than full suite
 
 ---
 
-**Last Updated:** 2025-11-12
-**Test Count:** 582 tests
 **Organization:** Unit/Integration split completed
-**Latest Enhancement:** Parallel test execution enabled (pytest-xdist)

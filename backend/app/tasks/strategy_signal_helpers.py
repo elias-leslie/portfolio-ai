@@ -331,10 +331,6 @@ def process_paper_trade_signal(
         results["errors"].append({"strategy_id": strategy_id, "symbol": symbol, "error": str(e)})
 
 
-# Re-export for backward compatibility: callers that used the private names
-_fetch_current_market_data = fetch_current_market_data
-_build_signal_inputs = build_signal_inputs
-
 
 def make_signal_result(
     strategy_id: str,
