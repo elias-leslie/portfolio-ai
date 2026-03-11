@@ -25,7 +25,7 @@ import {
 interface AccountAccordionItemProps {
   account: Account
   positions: PositionWithValue[] | undefined
-  onAddPosition?: (accountId: string) => void
+  onAddPosition?: (accountId?: string) => void
   onDeleteAccount: (accountId: string, accountName: string) => void
   onEditPosition: (position: PositionWithValue) => void
   onDeletePosition: (positionId: string, symbol: string) => void

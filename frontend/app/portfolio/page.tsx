@@ -3,7 +3,17 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { AccountsWithPositions } from '@/components/portfolio/AccountsWithPositions'
+import { PositionFormFields } from '@/components/portfolio/PositionFormFields'
 import { PortfolioOverview } from '@/components/portfolio/PortfolioOverview'
+import {
+  type AccountType,
+  getAccountNameError,
+  getPositionFormErrors,
+  isPositionFormValid,
+  normalizeAccountName,
+  normalizeSymbol,
+  type PositionType,
+} from '@/components/portfolio/portfolio-form-utils'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
@@ -30,9 +40,6 @@ import {
   useCreateAccount,
 } from '@/lib/hooks/usePortfolio'
 
-type PositionType = 'long' | 'short'
-type AccountType = 'IRA' | 'Taxable' | '401k' | 'Roth' | 'HSA'
-
 export default function PortfolioPage() {
   const addPosition = useAddPosition()
   const createAccount = useCreateAccount()
@@ -45,71 +52,92 @@ export default function PortfolioPage() {
   const [shares, setShares] = useState('')
   const [costBasis, setCostBasis] = useState('')
   const [positionType, setPositionType] = useState<PositionType>('long')
+  const [positionSubmitAttempted, setPositionSubmitAttempted] = useState(false)
 
   // Add Account form state
   const [accountOpen, setAccountOpen] = useState(false)
   const [accountName, setAccountName] = useState('')
   const [accountType, setAccountType] = useState<AccountType>('Taxable')
+  const [accountSubmitAttempted, setAccountSubmitAttempted] = useState(false)
+  const positionFormErrors = getPositionFormErrors({
+    accountId,
+    symbol,
+    shares,
+    costBasis,
+  })
+  const canSubmitPositionForm = isPositionFormValid(positionFormErrors)
+  const accountNameError = getAccountNameError(accountName)
+  const canSubmitAccountForm = !accountNameError
 
-  // Form validation
-  const isPositionFormValid = () => {
-    return (
-      accountId.trim() !== '' &&
-      symbol.trim() !== '' &&
-      parseFloat(shares) > 0 &&
-      parseFloat(costBasis) > 0
-    )
+  const resetPositionForm = (nextAccountId: string = '') => {
+    setAccountId(nextAccountId)
+    setSymbol('')
+    setShares('')
+    setCostBasis('')
+    setPositionType('long')
+    setPositionSubmitAttempted(false)
   }
 
-  const isAccountFormValid = () => {
-    return accountName.trim() !== ''
+  const openPositionDialog = (nextAccountId?: string) => {
+    const defaultAccountId =
+      nextAccountId ??
+      (accounts?.length === 1 ? accounts[0].id : '')
+    resetPositionForm(defaultAccountId)
+    setPositionOpen(true)
   }
 
-  // Handle Add Position submit
+  const handlePositionDialogChange = (open: boolean) => {
+    setPositionOpen(open)
+    if (!open) {
+      resetPositionForm(accounts?.length === 1 ? accounts[0].id : '')
+    }
+  }
+
+  const resetAccountForm = () => {
+    setAccountName('')
+    setAccountType('Taxable')
+    setAccountSubmitAttempted(false)
+  }
+
+  const handleAccountDialogChange = (open: boolean) => {
+    setAccountOpen(open)
+    if (!open) {
+      resetAccountForm()
+    }
+  }
+
   const handleAddPosition = () => {
-    if (!isPositionFormValid()) return
+    setPositionSubmitAttempted(true)
+    if (!canSubmitPositionForm) return
 
     addPosition.mutate(
       {
-        accountId: accountId,
-        symbol: symbol.toUpperCase().trim(),
+        accountId,
+        symbol: normalizeSymbol(symbol),
         shares: parseFloat(shares),
         costBasis: parseFloat(costBasis),
-        positionType: positionType,
+        positionType,
       },
       {
         onSuccess: () => {
-          // Reset form
-          setAccountId('')
-          setSymbol('')
-          setShares('')
-          setCostBasis('')
-          setPositionType('long')
-          setPositionOpen(false)
-          toast.success('Position added successfully!')
-        },
-        onError: (error) => {
-          toast.error(`Failed to add position: ${error.message}`)
+          handlePositionDialogChange(false)
         },
       },
     )
   }
 
-  // Handle Add Account submit
   const handleAddAccount = () => {
-    if (!isAccountFormValid()) return
+    setAccountSubmitAttempted(true)
+    if (!canSubmitAccountForm) return
 
     createAccount.mutate(
       {
-        name: accountName,
-        accountType: accountType,
+        name: normalizeAccountName(accountName),
+        accountType,
       },
       {
         onSuccess: () => {
-          // Reset form
-          setAccountName('')
-          setAccountType('Taxable')
-          setAccountOpen(false)
+          handleAccountDialogChange(false)
           toast.success('Account created successfully!')
         },
         onError: (error) => {
@@ -130,23 +158,23 @@ export default function PortfolioPage() {
 
       <AccountsWithPositions
         onAddAccount={() => setAccountOpen(true)}
-        onAddPosition={(accountId) => {
-          setAccountId(accountId)
-          setPositionOpen(true)
-        }}
+        onAddPosition={openPositionDialog}
       />
 
-      {/* Hidden Dialogs */}
-      <div className="hidden">
-        {/* Add Account Dialog */}
-        <Dialog open={accountOpen} onOpenChange={setAccountOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New Account</DialogTitle>
-              <DialogDescription>
-                Create a new portfolio account to organize your positions.
-              </DialogDescription>
-            </DialogHeader>
+      <Dialog open={accountOpen} onOpenChange={handleAccountDialogChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Account</DialogTitle>
+            <DialogDescription>
+              Create a new portfolio account to organize your positions.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
+              handleAddAccount()
+            }}
+          >
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
                 <Label htmlFor="account-name">Account Name</Label>
@@ -154,8 +182,16 @@ export default function PortfolioPage() {
                   id="account-name"
                   placeholder="e.g., My IRA Account"
                   value={accountName}
-                  onChange={(e) => setAccountName(e.target.value)}
+                  onChange={(event) => setAccountName(event.target.value)}
+                  aria-invalid={accountSubmitAttempted && accountNameError ? true : undefined}
                 />
+                {accountSubmitAttempted && accountNameError ? (
+                  <p className="text-xs text-loss">{accountNameError}</p>
+                ) : (
+                  <p className="text-xs text-text-muted">
+                    Use a clear label like “Joint Brokerage” or “Roth IRA”.
+                  </p>
+                )}
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="account-type">Account Type</Label>
@@ -180,120 +216,64 @@ export default function PortfolioPage() {
             </div>
             <DialogFooter>
               <Button
-                onClick={handleAddAccount}
-                disabled={!isAccountFormValid() || createAccount.isPending}
+                type="submit"
+                disabled={!canSubmitAccountForm || createAccount.isPending}
               >
                 {createAccount.isPending ? 'Creating...' : 'Create Account'}
               </Button>
             </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-        {/* Add Position Dialog */}
-        <Dialog open={positionOpen} onOpenChange={setPositionOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add Position</DialogTitle>
-              <DialogDescription>
-                Add a new position to your portfolio. Enter the details below.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="account-select">Account</Label>
-                <Select
-                  value={accountId}
-                  onValueChange={setAccountId}
-                  disabled={accountsLoading || !accounts?.length}
-                >
-                  <SelectTrigger id="account-select">
-                    <SelectValue
-                      placeholder={
-                        accountsLoading
-                          ? 'Loading accounts...'
-                          : !accounts?.length
-                            ? 'No accounts available'
-                            : 'Select an account'
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {accounts?.map((account) => (
-                      <SelectItem key={account.id} value={account.id}>
-                        {account.name} ({account.accountType})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {!accounts?.length && !accountsLoading && (
+      <Dialog open={positionOpen} onOpenChange={handlePositionDialogChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Position</DialogTitle>
+            <DialogDescription>
+              Add a new position to your portfolio. Enter the live holding details below.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
+              handleAddPosition()
+            }}
+          >
+            <PositionFormFields
+              idPrefix="add-position"
+              accounts={accounts}
+              accountsLoading={accountsLoading}
+              accountId={accountId}
+              symbol={symbol}
+              shares={shares}
+              costBasis={costBasis}
+              positionType={positionType}
+              errors={positionSubmitAttempted ? positionFormErrors : undefined}
+              accountHint={
+                !accounts?.length && !accountsLoading ? (
                   <p className="text-xs text-text-muted">
-                    Create an account first using the &quot;Add Account&quot;
-                    button
+                    Create an account first using the &quot;Add Account&quot; button.
                   </p>
-                )}
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="symbol">Symbol</Label>
-                <Input
-                  id="symbol"
-                  placeholder="e.g., AAPL"
-                  value={symbol}
-                  onChange={(e) => setSymbol(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="shares">Shares</Label>
-                <Input
-                  id="shares"
-                  type="number"
-                  placeholder="e.g., 100"
-                  value={shares}
-                  onChange={(e) => setShares(e.target.value)}
-                  step="0.01"
-                  min="0"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="cost-basis">Cost Basis (per share)</Label>
-                <Input
-                  id="cost-basis"
-                  type="number"
-                  placeholder="e.g., 150.00"
-                  value={costBasis}
-                  onChange={(e) => setCostBasis(e.target.value)}
-                  step="0.01"
-                  min="0"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="position-type">Position Type</Label>
-                <Select
-                  value={positionType}
-                  onValueChange={(value: string) =>
-                    setPositionType(value as PositionType)
-                  }
-                >
-                  <SelectTrigger id="position-type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="long">Long</SelectItem>
-                    <SelectItem value="short">Short</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+                ) : undefined
+              }
+              onAccountChange={setAccountId}
+              onSymbolChange={setSymbol}
+              onSharesChange={setShares}
+              onCostBasisChange={setCostBasis}
+              onPositionTypeChange={setPositionType}
+            />
             <DialogFooter>
               <Button
-                onClick={handleAddPosition}
-                disabled={!isPositionFormValid() || addPosition.isPending}
+                type="submit"
+                disabled={!canSubmitPositionForm || addPosition.isPending}
               >
                 {addPosition.isPending ? 'Adding...' : 'Add Position'}
               </Button>
             </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </PageContainer>
   )
 }

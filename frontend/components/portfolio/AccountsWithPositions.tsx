@@ -25,12 +25,16 @@ import { AccountAccordionItem } from './AccountAccordionItem'
 import { AccountsWithPositionsSkeleton } from './AccountsWithPositionsSkeleton'
 import { EditPositionDialog } from './EditPositionDialog'
 import { getAccountPositions } from './portfolio-utils'
-
-type PositionType = 'long' | 'short'
+import {
+  getPositionFormErrors,
+  isPositionFormValid,
+  normalizeSymbol,
+  type PositionType,
+} from './portfolio-form-utils'
 
 interface AccountsWithPositionsProps {
   onAddAccount?: () => void
-  onAddPosition?: (accountId: string) => void
+  onAddPosition?: (accountId?: string) => void
 }
 
 export function AccountsWithPositions({
@@ -57,10 +61,27 @@ export function AccountsWithPositions({
   const [editShares, setEditShares] = useState('')
   const [editCostBasis, setEditCostBasis] = useState('')
   const [editPositionType, setEditPositionType] = useState<PositionType>('long')
+  const editFormErrors = getPositionFormErrors({
+    accountId: editAccountId,
+    symbol: editSymbol,
+    shares: editShares,
+    costBasis: editCostBasis,
+  })
+  const canUpdatePosition = Boolean(editingPosition) && isPositionFormValid(editFormErrors)
 
   // Helper to get positions for account
   const getPositionsForAccount = (accountId: string) => {
     return getAccountPositions(accountId, portfolio?.positions)
+  }
+
+  const resetEditForm = () => {
+    setEditOpen(false)
+    setEditingPosition(null)
+    setEditAccountId('')
+    setEditSymbol('')
+    setEditShares('')
+    setEditCostBasis('')
+    setEditPositionType('long')
   }
 
   const handleDeleteAccount = (accountId: string, accountName: string) => {
@@ -92,14 +113,14 @@ export function AccountsWithPositions({
   }
 
   const handleUpdatePosition = () => {
-    if (!editingPosition) return
+    if (!editingPosition || !canUpdatePosition) return
 
     updatePosition.mutate(
       {
         positionId: editingPosition.id,
         data: {
           accountId: editAccountId,
-          symbol: editSymbol.toUpperCase().trim(),
+          symbol: normalizeSymbol(editSymbol),
           shares: parseFloat(editShares),
           costBasis: parseFloat(editCostBasis),
           positionType: editPositionType,
@@ -107,12 +128,7 @@ export function AccountsWithPositions({
       },
       {
         onSuccess: () => {
-          setEditOpen(false)
-          setEditingPosition(null)
-          toast.success('Position updated successfully!')
-        },
-        onError: (error) => {
-          toast.error(`Failed to update position: ${error.message}`)
+          resetEditForm()
         },
       },
     )
@@ -126,18 +142,15 @@ export function AccountsWithPositions({
         toast.success(`Deleted account "${pendingAction.name}".`)
       } else {
         await deletePosition.mutateAsync(pendingAction.id)
-        toast.success(`${pendingAction.symbol} position deleted.`)
       }
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Unable to complete the request'
-      const target =
-        pendingAction.type === 'account'
-          ? `account "${pendingAction.name}"`
-          : `${pendingAction.symbol} position`
-      toast.error(`Failed to delete ${target}: ${message}`)
+      if (pendingAction.type === 'account') {
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'Unable to complete the request'
+        toast.error(`Failed to delete account "${pendingAction.name}": ${message}`)
+      }
       throw error
     }
   }
@@ -221,6 +234,14 @@ export function AccountsWithPositions({
     )
   }
 
+  const handleHeaderAddPosition = () => {
+    if (!onAddPosition) {
+      return
+    }
+
+    onAddPosition(accounts.length === 1 ? accounts[0].id : undefined)
+  }
+
   return (
     <>
       <Card>
@@ -234,15 +255,28 @@ export function AccountsWithPositions({
                 {portfolio?.positions.length !== 1 ? 's' : ''}
               </CardDescription>
             </div>
-            {onAddAccount && (
-              <Button variant="outline" size="sm" onClick={onAddAccount}>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Add Account
-              </Button>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {onAddPosition && (
+                <Button variant="outline" size="sm" onClick={handleHeaderAddPosition}>
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Add Position
+                </Button>
+              )}
+              {onAddAccount && (
+                <Button variant="outline" size="sm" onClick={onAddAccount}>
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Add Account
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
+          {portfolio?.positions.length === 0 ? (
+            <div className="mb-4 rounded-xl border border-border/50 bg-surface-muted/20 p-4 text-sm text-text-muted">
+              You have accounts set up but no live positions yet. Add your first holding to start tracking concentration, sizing, and performance.
+            </div>
+          ) : null}
           <Accordion type="single" collapsible className="w-full">
             {accounts.map((account) => (
               <AccountAccordionItem
@@ -263,13 +297,21 @@ export function AccountsWithPositions({
 
       <EditPositionDialog
         open={editOpen}
-        onOpenChange={setEditOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            resetEditForm()
+          } else {
+            setEditOpen(true)
+          }
+        }}
         accounts={accounts}
         accountId={editAccountId}
         symbol={editSymbol}
         shares={editShares}
         costBasis={editCostBasis}
         positionType={editPositionType}
+        errors={editFormErrors}
+        canSubmit={canUpdatePosition}
         isPending={updatePosition.isPending}
         onAccountChange={setEditAccountId}
         onSymbolChange={setEditSymbol}

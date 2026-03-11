@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import {
   useAccounts,
@@ -94,5 +95,29 @@ describe('AccountsWithPositions', () => {
     expect(screen.getByText('$47,880.13')).toBeVisible()
     expect(screen.getByText(/Cash \$47,880\.13/)).toBeVisible()
     expect(screen.queryByText(/No positions in this account yet/i)).not.toBeInTheDocument()
+  })
+
+  it('shows a top-level add-position action and preselects the only account', async () => {
+    const user = userEvent.setup()
+    const handleAddPosition = vi.fn()
+    mockUseAccounts.mockReturnValue({
+      data: [
+        {
+          id: 'acct-1',
+          name: 'Brokerage',
+          accountType: 'Taxable',
+          cashBalance: 0,
+          createdAt: '2026-03-07T00:00:00Z',
+          updatedAt: '2026-03-07T00:00:00Z',
+        },
+      ],
+      isLoading: false,
+    })
+
+    render(<AccountsWithPositions onAddPosition={handleAddPosition} />)
+
+    await user.click(screen.getByRole('button', { name: 'Add Position' }))
+
+    expect(handleAddPosition).toHaveBeenCalledWith('acct-1')
   })
 })
