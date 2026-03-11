@@ -280,7 +280,8 @@ class HouseholdFinanceService:
                 """
                 SELECT
                     q.id, q.field_name, q.status, q.priority, q.question, q.rationale,
-                    q.answer_text, q.source_document_id, q.metadata, q.created_at, q.answered_at,
+                    q.answer_text, q.source_document_id, q.metadata, q.question_format,
+                    q.options, q.direction, q.created_at, q.answered_at,
                     d.filename, d.source_type, d.document_type, d.account_label, d.review_summary, d.metadata
                 FROM household_questions q
                 LEFT JOIN household_documents d ON d.id = q.source_document_id
@@ -462,7 +463,8 @@ class HouseholdFinanceService:
                 """
                 SELECT
                     q.id, q.field_name, q.status, q.priority, q.question, q.rationale,
-                    q.answer_text, q.source_document_id, q.metadata, q.created_at, q.answered_at,
+                    q.answer_text, q.source_document_id, q.metadata, q.question_format,
+                    q.options, q.direction, q.created_at, q.answered_at,
                     d.filename, d.source_type, d.document_type, d.account_label, d.review_summary, d.metadata
                 FROM household_questions q
                 LEFT JOIN household_documents d ON d.id = q.source_document_id
@@ -734,6 +736,40 @@ class HouseholdFinanceService:
         if priority not in {"high", "medium", "low"}:
             return "medium"
         return priority
+
+    def _normalize_question_format(self, value: Any) -> str:
+        question_format = str(value or "short_text").strip().lower()
+        aliases = {
+            "text": "short_text",
+            "number": "integer",
+            "yes_no": "boolean",
+            "multiple_choice": "single_select",
+        }
+        normalized = aliases.get(question_format, question_format)
+        if normalized not in {
+            "short_text",
+            "long_text",
+            "boolean",
+            "integer",
+            "currency",
+            "single_select",
+            "multi_select",
+            "date",
+        }:
+            return "short_text"
+        return normalized
+
+    def _normalize_question_options(self, value: Any) -> list[str] | None:
+        if not isinstance(value, list):
+            return None
+        options = [str(item).strip() for item in value if str(item).strip()]
+        return options or None
+
+    def _normalize_question_direction(self, value: Any) -> str:
+        direction = str(value or "jenny_to_user").strip().lower()
+        if direction not in {"jenny_to_user", "user_to_jenny"}:
+            return "jenny_to_user"
+        return direction
 
     def _resolved_numeric_value(
         self,

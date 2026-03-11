@@ -246,6 +246,9 @@ export interface HouseholdQuestion {
   answerText: string | null
   sourceDocumentId: string | null
   metadata: Record<string, unknown>
+  questionFormat?: string
+  options?: string[] | null
+  direction?: string
   createdAt: string
   answeredAt: string | null
 }

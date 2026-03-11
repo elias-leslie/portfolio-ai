@@ -17,11 +17,23 @@ def _load_json_object(value: Any) -> dict[str, object]:
     return {}
 
 
+def _load_json_string_list(value: Any) -> list[str] | None:
+    if value is None:
+        return None
+    parsed = value
+    if isinstance(value, str) and value:
+        parsed = json.loads(value)
+    if not isinstance(parsed, list):
+        return None
+    options = [str(item).strip() for item in parsed if str(item).strip()]
+    return options or None
+
+
 def question_source_document(row: tuple[Any, ...]) -> dict[str, object] | None:
-    if len(row) < 17 or row[11] is None:
+    if len(row) < 20 or row[14] is None:
         return None
 
-    document_metadata = _load_json_object(row[16])
+    document_metadata = _load_json_object(row[19])
     structured_data = document_metadata.get("structured_data")
     if not isinstance(structured_data, dict):
         structured_data = {}
@@ -31,11 +43,11 @@ def question_source_document(row: tuple[Any, ...]) -> dict[str, object] | None:
 
     return {
         "id": str(row[7]) if row[7] is not None else None,
-        "filename": str(row[11]),
-        "source_type": str(row[12]) if row[12] is not None else None,
-        "document_type": str(row[13]) if row[13] is not None else None,
-        "account_label": str(row[14]) if row[14] is not None else None,
-        "review_summary": str(row[15]) if row[15] is not None else None,
+        "filename": str(row[14]),
+        "source_type": str(row[15]) if row[15] is not None else None,
+        "document_type": str(row[16]) if row[16] is not None else None,
+        "account_label": str(row[17]) if row[17] is not None else None,
+        "review_summary": str(row[18]) if row[18] is not None else None,
         "merchant": str(merchant) if isinstance(merchant, str) and merchant else None,
         "account_hint": str(account_hint) if isinstance(account_hint, str) and account_hint else None,
     }
@@ -139,8 +151,11 @@ def row_to_question(
         answer_text=str(row[6]) if row[6] is not None else None,
         source_document_id=str(row[7]) if row[7] is not None else None,
         metadata=metadata,
-        created_at=iso(row[9]),
-        answered_at=iso_or_none(row[10]),
+        question_format=str(row[9]) if row[9] is not None else "short_text",
+        options=_load_json_string_list(row[10]),
+        direction=str(row[11]) if row[11] is not None else "jenny_to_user",
+        created_at=iso(row[12]),
+        answered_at=iso_or_none(row[13]),
     )
 
 

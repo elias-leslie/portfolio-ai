@@ -8,6 +8,8 @@ import { HouseholdOverviewGrid } from '@/components/money/HouseholdOverviewGrid'
 import { HouseholdPlanningPanels } from '@/components/money/HouseholdPlanningPanels'
 import { HouseholdProfileCard } from '@/components/money/HouseholdProfileCard'
 import { HouseholdReportsPanel } from '@/components/money/HouseholdReportsPanel'
+import { JennyChatPanel } from '@/components/money/JennyChatPanel'
+import { JennyQuestionInbox } from '@/components/money/JennyQuestionInbox'
 import { JennyMoneyBoard } from '@/components/money/JennyMoneyBoard'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { PageContainer } from '@/components/shared/PageContainer'
@@ -309,10 +311,17 @@ export default function MoneyPage() {
         : undefined,
     content: (
       <div className="space-y-6">
+        {stage < 4 && dashboard.questions.length > 0 ? (
+          <JennyQuestionInbox
+            questions={dashboard.questions}
+            title="Questions Blocking Jenny"
+            description="Before Operate is unlocked, answer Jenny here so she can finish building the household system."
+          />
+        ) : null}
+        {stage < 4 ? <JennyChatPanel title="Talk to Jenny" /> : null}
         <HouseholdProfileCard
           profile={dashboard.profile}
           resolvedValues={dashboard.resolvedValues}
-          questions={dashboard.questions}
         />
         <HouseholdPlanningPanels dashboard={dashboard} />
       </div>

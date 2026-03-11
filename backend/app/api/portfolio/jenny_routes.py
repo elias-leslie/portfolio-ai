@@ -10,6 +10,8 @@ from fastapi import APIRouter, HTTPException
 from starlette.concurrency import run_in_threadpool
 
 from .models import (
+    JennyChatRequest,
+    JennyChatResponseModel,
     JennyDashboardResponse,
     JennyNotificationResponse,
     JennyRunRequest,
@@ -17,6 +19,7 @@ from .models import (
 )
 
 if TYPE_CHECKING:
+    from app.services.jenny_conversation_service import JennyConversationService
     from app.services.jenny_operator_service import JennyOperatorService
 
 router = APIRouter()
@@ -25,6 +28,11 @@ router = APIRouter()
 @lru_cache(maxsize=1)
 def _service() -> JennyOperatorService:
     return import_module("app.services.jenny_operator_service").JennyOperatorService()
+
+
+@lru_cache(maxsize=1)
+def _conversation_service() -> JennyConversationService:
+    return import_module("app.services.jenny_conversation_service").JennyConversationService()
 
 
 def _get_jenny_dashboard_payload() -> JennyDashboardResponse:
@@ -49,6 +57,11 @@ def _acknowledge_jenny_notification_payload(notification_id: str) -> JennyNotifi
     return JennyNotificationResponse.model_validate(notification.model_dump())
 
 
+def _chat_with_jenny_payload(payload: JennyChatRequest) -> JennyChatResponseModel:
+    response = _conversation_service().chat(payload.message, session_id=payload.session_id)
+    return JennyChatResponseModel.model_validate(response)
+
+
 @router.get("/jenny", response_model=JennyDashboardResponse)
 async def get_jenny_dashboard() -> JennyDashboardResponse:
     """Return Jenny's latest operator dashboard."""
@@ -65,3 +78,9 @@ async def run_jenny_routine(payload: JennyRunRequest) -> JennyRunResponseModel:
 async def acknowledge_jenny_notification(notification_id: str) -> JennyNotificationResponse:
     """Acknowledge an open Jenny notification."""
     return await run_in_threadpool(_acknowledge_jenny_notification_payload, notification_id)
+
+
+@router.post("/jenny/chat", response_model=JennyChatResponseModel)
+async def chat_with_jenny(payload: JennyChatRequest) -> JennyChatResponseModel:
+    """Chat with Jenny using portfolio-wide context."""
+    return await run_in_threadpool(_chat_with_jenny_payload, payload)

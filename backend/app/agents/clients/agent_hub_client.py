@@ -147,11 +147,7 @@ class AgentHubAPIClient(LLMClient):
         """
         start_time = time.time()
 
-        # Build messages
-        messages: list[dict[str, str]] = []
-        if system:
-            messages.append({"role": "system", "content": system})
-        messages.append({"role": "user", "content": prompt})
+        messages: list[dict[str, str]] = [{"role": "user", "content": prompt}]
 
         logger.info(
             "agent_hub_calling",
@@ -163,22 +159,12 @@ class AgentHubAPIClient(LLMClient):
         )
 
         try:
-            request_kwargs = {
-                "agent_slug": self.agent_slug,
-                "messages": messages,
-                "temperature": temperature,
-                "tools": tools,
-                "project_id": "portfolio-ai",
-                "purpose": purpose,
-                "timeout_seconds": self.timeout,
-            }
-            if self.model is not None:
-                request_kwargs["model"] = self.model
-            if self.use_memory is not None:
-                request_kwargs["use_memory"] = self.use_memory
-
-            response = self._client.complete(
-                **request_kwargs,
+            response = self.complete_messages(
+                messages=messages,
+                temperature=temperature,
+                tools=tools,
+                purpose=purpose,
+                system_prompt=system,
             )
 
             duration_ms = int((time.time() - start_time) * 1000)
@@ -231,6 +217,53 @@ class AgentHubAPIClient(LLMClient):
         except Exception as e:
             logger.error("agent_hub_unexpected_error", error=str(e))
             raise RuntimeError(f"Unexpected Agent Hub error: {e}") from e
+
+    def complete_messages(
+        self,
+        *,
+        messages: list[dict[str, str]],
+        tools: list[dict[str, Any]] | None = None,
+        temperature: float = 1.0,
+        purpose: str | None = None,
+        session_id: str | None = None,
+        max_turns: int = 1,
+        thinking_level: str | None = None,
+        response_format: dict[str, Any] | None = None,
+        system_prompt: str | None = None,
+        use_memory: bool | None = None,
+        execute_tools: bool = False,
+        enable_programmatic_tools: bool = False,
+    ) -> Any:
+        request_kwargs: dict[str, Any] = {
+            "agent_slug": self.agent_slug,
+            "messages": messages,
+            "temperature": temperature,
+            "project_id": "portfolio-ai",
+            "purpose": purpose,
+            "timeout_seconds": self.timeout,
+        }
+        if self.model is not None:
+            request_kwargs["model"] = self.model
+        if tools is not None:
+            request_kwargs["tools"] = tools
+        resolved_memory = self.use_memory if use_memory is None else use_memory
+        if resolved_memory is not None:
+            request_kwargs["use_memory"] = resolved_memory
+        if session_id is not None:
+            request_kwargs["session_id"] = session_id
+        if max_turns != 1:
+            request_kwargs["max_turns"] = max_turns
+        if thinking_level is not None:
+            request_kwargs["thinking_level"] = thinking_level
+        if response_format is not None:
+            request_kwargs["response_format"] = response_format
+        if system_prompt is not None:
+            request_kwargs["system_prompt"] = system_prompt
+        if execute_tools:
+            request_kwargs["execute_tools"] = True
+        if enable_programmatic_tools:
+            request_kwargs["enable_programmatic_tools"] = True
+        return self._client.complete(**request_kwargs)
 
     def close(self) -> None:
         """Close the underlying HTTP client."""

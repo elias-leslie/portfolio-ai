@@ -377,6 +377,8 @@ def test_household_questions_can_be_answered_and_confirm_profile_value(
                         "field_name": "target_retirement_age",
                         "question": "What age do you want to retire?",
                         "priority": "high",
+                        "question_format": "integer",
+                        "options": None,
                         "recommendation": "Use age 60 unless you expect to work materially longer.",
                         "rationale": "Jenny needs a target age to anchor retirement scenarios.",
                     }
@@ -396,6 +398,9 @@ def test_household_questions_can_be_answered_and_confirm_profile_value(
     questions = questions_response.json()["items"]
     assert len(questions) == 1
     assert questions[0]["field_name"] == "target_retirement_age"
+    assert questions[0]["question_format"] == "integer"
+    assert questions[0]["options"] is None
+    assert questions[0]["direction"] == "jenny_to_user"
     assert questions[0]["recommendation"] == "Use age 60 unless you expect to work materially longer."
     assert questions[0]["metadata"]["source_document"]["filename"] == "roth_statement.pdf"
 
@@ -407,6 +412,7 @@ def test_household_questions_can_be_answered_and_confirm_profile_value(
     answered = answer_response.json()
     assert answered["status"] == "answered"
     assert answered["answer_text"] == "Age 60"
+    assert answered["question_format"] == "integer"
 
     profile_response = client.get("/api/household/profile")
     assert profile_response.status_code == 200

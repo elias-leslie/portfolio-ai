@@ -281,6 +281,9 @@ class HouseholdQuestion(BaseModel):
     answer_text: str | None = None
     source_document_id: str | None = None
     metadata: dict[str, object] = Field(default_factory=dict)
+    question_format: str = "short_text"
+    options: list[str] | None = None
+    direction: str = "jenny_to_user"
     created_at: str
     answered_at: str | None = None
 

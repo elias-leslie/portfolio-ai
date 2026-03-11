@@ -190,6 +190,9 @@ def _insert_questions(
             recommendation=str(question.get("recommendation")) if question.get("recommendation") is not None else None,
             answer_text=None,
             source_document_id=document.id,
+            question_format=service._normalize_question_format(question.get("question_format")),
+            options=service._normalize_question_options(question.get("options")),
+            direction=service._normalize_question_direction(question.get("direction")),
             metadata={
                 "document_id": document.id,
                 "recommendation": question.get("recommendation"),
@@ -216,8 +219,8 @@ def _insert_questions(
             """
             INSERT INTO household_questions (
                 id, field_name, status, priority, question, rationale,
-                source_document_id, metadata, created_at
-            ) VALUES (%s, %s, 'open', %s, %s, %s, %s, %s::jsonb, %s)
+                source_document_id, metadata, question_format, options, direction, created_at
+            ) VALUES (%s, %s, 'open', %s, %s, %s, %s, %s::jsonb, %s, %s::jsonb, %s, %s)
             """,
             [
                 candidate.id, field_name,
@@ -226,6 +229,9 @@ def _insert_questions(
                 question.get("rationale"),
                 document.id,
                 json.dumps({"document_id": document.id, "recommendation": question.get("recommendation")}),
+                candidate.question_format,
+                json.dumps(candidate.options) if candidate.options is not None else None,
+                candidate.direction,
                 now,
             ],
         )

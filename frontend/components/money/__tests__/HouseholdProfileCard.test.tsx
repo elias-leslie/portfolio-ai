@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { HouseholdProfileCard } from '../HouseholdProfileCard'
 
 const mutate = vi.fn()
-const answerMutate = vi.fn()
 const useUpdateHouseholdProfileMock = vi.fn()
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
@@ -12,17 +11,12 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
       mutate,
       isPending: false,
     },
-  useAnswerHouseholdQuestion: () => ({
-    mutate: answerMutate,
-    isPending: false,
-  }),
 }))
 
 describe('HouseholdProfileCard', () => {
   beforeEach(() => {
     useUpdateHouseholdProfileMock.mockReset()
     mutate.mockReset()
-    answerMutate.mockReset()
   })
 
   it('submits the edited household plan', () => {
@@ -53,7 +47,6 @@ describe('HouseholdProfileCard', () => {
             question: null,
           },
         ]}
-        questions={[]}
       />,
     )
 
@@ -73,56 +66,6 @@ describe('HouseholdProfileCard', () => {
     )
   })
 
-  it('shows source attribution and recommendations for Jenny questions', () => {
-    render(
-      <HouseholdProfileCard
-        profile={{
-          id: 'profile-1',
-          householdName: 'Household',
-          monthlyNetIncomeTarget: null,
-          monthlyEssentialTarget: null,
-          monthlyDiscretionaryTarget: null,
-          monthlySavingsTarget: null,
-          targetRetirementAge: null,
-          targetRetirementSpend: null,
-          notes: null,
-          createdAt: '2026-03-09T00:00:00Z',
-          updatedAt: '2026-03-09T00:00:00Z',
-        }}
-        resolvedValues={[]}
-        questions={[
-          {
-            id: 'question-1',
-            fieldName: null,
-            status: 'open',
-            priority: 'high',
-            question: 'What kind of document is this and which account or merchant is it tied to?',
-            rationale: 'Jenny could not confidently identify the institution, account, or document class from the file alone.',
-            recommendation: 'Confirm that this is a Walmart order and should count as household shopping.',
-            answerText: null,
-            sourceDocumentId: 'doc-1',
-            metadata: {
-              sourceDocument: {
-                filename: '1Order details - Walmart.com.pdf',
-                merchant: 'Walmart',
-                reviewSummary: 'Order details from Walmart with itemized household purchases.',
-              },
-            },
-            createdAt: '2026-03-09T00:00:00Z',
-            answeredAt: null,
-          },
-        ]}
-      />,
-    )
-
-    expect(screen.getByText(/source: walmart/i)).toBeInTheDocument()
-    expect(screen.getByText(/file: 1order details - walmart\.com\.pdf/i)).toBeInTheDocument()
-    expect(screen.getByText(/jenny recommends:/i)).toBeInTheDocument()
-    expect(
-      screen.getByText(/confirm that this is a walmart order and should count as household shopping/i),
-    ).toBeInTheDocument()
-  })
-
   it('shows an empty state when Jenny has not resolved any planning values yet', () => {
     render(
       <HouseholdProfileCard
@@ -140,7 +83,6 @@ describe('HouseholdProfileCard', () => {
           updatedAt: '2026-03-09T00:00:00Z',
         }}
         resolvedValues={[]}
-        questions={[]}
       />,
     )
 
@@ -171,7 +113,6 @@ describe('HouseholdProfileCard', () => {
           updatedAt: '2026-03-09T00:00:00Z',
         }}
         resolvedValues={[]}
-        questions={[]}
       />,
     )
 

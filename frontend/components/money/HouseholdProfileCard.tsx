@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import type {
   HouseholdProfile,
-  HouseholdQuestion,
   HouseholdResolvedValue,
 } from '@/lib/api/household'
 import { SectionCard } from '@/components/shared/SectionCard'
@@ -12,14 +11,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { useAnswerHouseholdQuestion, useUpdateHouseholdProfile } from '@/lib/hooks/useHousehold'
+import { useUpdateHouseholdProfile } from '@/lib/hooks/useHousehold'
 import { formatCurrency, formatEnumLabel } from './formatters'
 import {
   formatResolvedValue,
-  getQuestionSourceDocument,
   numberInput,
   parseNullableNumber,
-  questionSourceLabel,
 } from './household-profile-utils'
 
 function badgeVariantForStatus(status: string) {
@@ -38,14 +35,11 @@ function badgeVariantForStatus(status: string) {
 export function HouseholdProfileCard({
   profile,
   resolvedValues,
-  questions,
 }: {
   profile: HouseholdProfile
   resolvedValues: HouseholdResolvedValue[]
-  questions: HouseholdQuestion[]
 }) {
   const updateProfile = useUpdateHouseholdProfile()
-  const answerQuestion = useAnswerHouseholdQuestion()
   const [householdName, setHouseholdName] = useState(profile.householdName)
   const [monthlyNetIncomeTarget, setMonthlyNetIncomeTarget] = useState(
     numberInput(profile.monthlyNetIncomeTarget),
@@ -66,7 +60,6 @@ export function HouseholdProfileCard({
     numberInput(profile.targetRetirementSpend),
   )
   const [notes, setNotes] = useState(profile.notes ?? '')
-  const [answers, setAnswers] = useState<Record<string, string>>({})
 
   useEffect(() => {
     setHouseholdName(profile.householdName)
@@ -143,87 +136,6 @@ export function HouseholdProfileCard({
               </div>
             ))
           )}
-        </div>
-
-        <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-sm font-semibold text-text">Jenny follow-up questions</p>
-              <p className="mt-1 text-sm text-text-muted">
-                Answer only the gaps Jenny cannot infer confidently from your statements, receipts, and screenshots.
-              </p>
-            </div>
-            <Badge variant={questions.length > 0 ? 'warning' : 'success'}>
-              {questions.length > 0 ? `${questions.length} open` : 'No open questions'}
-            </Badge>
-          </div>
-          <div className="mt-4 space-y-4">
-            {questions.length === 0 ? (
-              <div className="rounded-2xl border border-border/40 bg-surface/70 px-4 py-3 text-sm text-text-muted">
-                Jenny has enough confirmed information for now. Keep uploading fresh documents and she will reopen the queue only when confidence drops.
-              </div>
-            ) : (
-              questions.map((question) => {
-                const sourceDocument = getQuestionSourceDocument(question)
-                return (
-                  <div
-                    key={question.id}
-                    className="rounded-2xl border border-border/40 bg-surface/80 p-4"
-                  >
-                    <div className="mb-3 rounded-xl border border-border/40 bg-surface-muted/30 px-3 py-2 text-xs text-text-muted">
-                      <p className="font-medium text-text">Source: {questionSourceLabel(question)}</p>
-                      {sourceDocument?.filename ? (
-                        <p className="mt-1">File: {sourceDocument.filename}</p>
-                      ) : null}
-                      {sourceDocument?.reviewSummary ? (
-                        <p className="mt-1">{sourceDocument.reviewSummary}</p>
-                      ) : null}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-semibold text-text">{question.question}</p>
-                      <Badge variant={question.priority === 'high' ? 'warning' : 'secondary'}>
-                        {question.priority}
-                      </Badge>
-                    </div>
-                    {question.rationale ? (
-                      <p className="mt-2 text-sm text-text-muted">{question.rationale}</p>
-                    ) : null}
-                    {question.recommendation ? (
-                      <div className="mt-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-text">
-                        <span className="font-semibold">Jenny recommends:</span>{' '}
-                        {question.recommendation}
-                      </div>
-                    ) : null}
-                    <div className="mt-3 flex flex-col gap-3 sm:flex-row">
-                      <Input
-                        value={answers[question.id] ?? ''}
-                        onChange={(event) =>
-                          setAnswers((current) => ({
-                            ...current,
-                            [question.id]: event.target.value,
-                          }))
-                        }
-                        placeholder="Answer briefly so Jenny can confirm the plan"
-                      />
-                      <Button
-                        onClick={() =>
-                          answerQuestion.mutate({
-                            questionId: question.id,
-                            answerText: (answers[question.id] ?? '').trim(),
-                          })
-                        }
-                        disabled={
-                          answerQuestion.isPending || !(answers[question.id] ?? '').trim()
-                        }
-                      >
-                        Confirm
-                      </Button>
-                    </div>
-                  </div>
-                )
-              })
-            )}
-          </div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">

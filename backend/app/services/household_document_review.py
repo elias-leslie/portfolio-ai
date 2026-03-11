@@ -323,6 +323,14 @@ def _build_questions(
             "field_name": None,
             "question": "What role should this document play in the household plan?",
             "priority": "medium",
+            "question_format": "single_select",
+            "options": [
+                "Budgeting",
+                "Cash-flow tracking",
+                "Savings analysis",
+                "Retirement planning",
+                "Reference only",
+            ],
             "recommendation": "Confirm whether Jenny should use this for budgeting, cash-flow tracking, savings analysis, or only as a reference.",
             "rationale": "Jenny could not confidently infer the full financial meaning from the file alone.",
         }
@@ -333,6 +341,8 @@ def _build_questions(
                 "field_name": None,
                 "question": f"Should Jenny treat {merchant} orders like this as part of regular household spending?",
                 "priority": "medium",
+                "question_format": "boolean",
+                "options": ["Yes", "No"],
                 "recommendation": f"Answer 'yes' if {merchant} is a recurring household shopping channel for groceries, consumables, or home goods.",
                 "rationale": "This helps Jenny separate recurring household shopping from one-off discretionary purchases.",
             }
@@ -343,6 +353,8 @@ def _build_questions(
                 "field_name": "monthly_essential_target",
                 "question": f"Is {account_hint} your primary account for monthly bills, deposits, and budget tracking?",
                 "priority": "high",
+                "question_format": "boolean",
+                "options": ["Yes", "No"],
                 "recommendation": "Answer 'yes' if most paycheck deposits, bill payments, and core household cash flow pass through this account.",
                 "rationale": "Primary checking accounts anchor the household cash-flow model.",
             }
@@ -353,6 +365,8 @@ def _build_questions(
                 "field_name": "monthly_essential_target",
                 "question": f"Should Jenny treat {account_hint} as part of core household spending?",
                 "priority": "high",
+                "question_format": "boolean",
+                "options": ["Yes", "No"],
                 "recommendation": "Answer 'yes' if this card is used for regular groceries, household shopping, subscriptions, or recurring family spending.",
                 "rationale": "This determines whether Jenny should treat the card as budget-driving spend data.",
             }
@@ -363,6 +377,7 @@ def _build_questions(
                 "field_name": None,
                 "question": "What kind of document is this and which account or merchant is it tied to?",
                 "priority": "high",
+                "question_format": "long_text",
                 "recommendation": "Name the merchant or institution and say whether this is a receipt, order confirmation, or statement.",
                 "rationale": "Jenny could not confidently identify the institution, account, or document class from the file alone.",
             }
@@ -373,6 +388,8 @@ def _build_questions(
                 "field_name": "monthly_essential_target",
                 "question": "Is this account part of your core monthly household spending?",
                 "priority": "high",
+                "question_format": "boolean",
+                "options": ["Yes", "No"],
                 "recommendation": "Confirm if this account covers regular household bills, groceries, or everyday spending.",
                 "rationale": "This determines whether Jenny should treat the spend as budget-driving data.",
             }
@@ -383,6 +400,8 @@ def _build_questions(
                 "field_name": "target_retirement_spend",
                 "question": "Should this account count toward retirement readiness tracking?",
                 "priority": "medium",
+                "question_format": "boolean",
+                "options": ["Yes", "No"],
                 "recommendation": "Confirm if this is a retirement or long-term investment account that should shape future-income planning.",
                 "rationale": "Jenny needs to know whether the account is part of the retirement plan or general savings.",
             }

@@ -8,6 +8,7 @@ import {
   type AddPositionRequest,
   acknowledgeJennyNotification,
   addPosition,
+  chatWithJenny,
   type CreateAccountRequest,
   createAccount,
   deleteAccount,
@@ -53,6 +54,29 @@ export function useJennyDashboard() {
     queryFn: fetchJennyDashboard,
     staleTime: 1000 * 60,
     refetchInterval: 1000 * 60 * 5,
+  })
+}
+
+export function useJennyChat() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: chatWithJenny,
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: ['household'], refetchType: 'active' })
+      queryClient.invalidateQueries({ queryKey: ['portfolio'], refetchType: 'active' })
+      queryClient.invalidateQueries({ queryKey: ['accounts'], refetchType: 'active' })
+      queryClient.invalidateQueries({ queryKey: ['portfolio', 'analytics'], refetchType: 'active' })
+      queryClient.invalidateQueries({ queryKey: ['portfolio', 'jenny'], refetchType: 'active' })
+      if (response.resolvedQuestions.length > 0) {
+        toast.success(
+          `Jenny reconciled ${response.resolvedQuestions.length} question${response.resolvedQuestions.length === 1 ? '' : 's'}.`,
+        )
+      }
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Failed to chat with Jenny')
+    },
   })
 }
 

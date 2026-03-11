@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fetchPortfolio } from './portfolio'
+import { chatWithJenny, fetchPortfolio } from './portfolio'
 
 describe('portfolio api', () => {
   const originalFetch = global.fetch
@@ -33,6 +33,30 @@ describe('portfolio api', () => {
       'http://localhost:8000/api/portfolio',
       expect.objectContaining({
         method: 'GET',
+      }),
+    )
+  })
+
+  it('posts a message to Jenny chat', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: vi.fn().mockResolvedValue({
+        reply: 'Jenny says AMD still looks constructive.',
+        session_id: 'session-1',
+        resolved_questions: [],
+        updated_fields: [],
+        referenced_symbols: ['AMD'],
+      }),
+    }) as unknown as typeof fetch
+
+    await chatWithJenny({ message: 'What do you think about AMD?', sessionId: null })
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://localhost:8000/api/portfolio/jenny/chat',
+      expect.objectContaining({
+        method: 'POST',
       }),
     )
   })

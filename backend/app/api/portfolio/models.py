@@ -234,3 +234,23 @@ class JennyRunRequest(BaseModel):
 class JennyRunResponseModel(BaseModel):
     routine: JennyRoutineResponse
     dashboard: JennyDashboardResponse
+
+
+class JennyChatRequest(BaseModel):
+    message: str = Field(..., min_length=1, description="Free-form message to Jenny")
+    session_id: str | None = Field(default=None, description="Existing Agent Hub session to continue")
+
+
+class JennyChatResolvedQuestionResponse(BaseModel):
+    id: str
+    field_name: str | None = None
+    question: str
+    answer_text: str | None = None
+
+
+class JennyChatResponseModel(BaseModel):
+    reply: str
+    session_id: str
+    resolved_questions: list[JennyChatResolvedQuestionResponse] = Field(default_factory=list)
+    updated_fields: list[str] = Field(default_factory=list)
+    referenced_symbols: list[str] = Field(default_factory=list)

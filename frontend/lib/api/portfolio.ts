@@ -201,6 +201,26 @@ export interface JennyRunResponse {
   dashboard: JennyDashboard
 }
 
+export interface JennyChatResolvedQuestion {
+  id: string
+  fieldName: string | null
+  question: string
+  answerText: string | null
+}
+
+export interface JennyChatResponse {
+  reply: string
+  sessionId: string
+  resolvedQuestions: JennyChatResolvedQuestion[]
+  updatedFields: string[]
+  referencedSymbols: string[]
+}
+
+export interface JennyChatRequest {
+  message: string
+  sessionId?: string | null
+}
+
 export interface CreateAccountRequest {
   name: string
   accountType: string
@@ -291,4 +311,10 @@ export async function acknowledgeJennyNotification(
   return post<JennyNotification>(
     `/api/portfolio/jenny/notifications/${notificationId}/acknowledge`,
   )
+}
+
+export async function chatWithJenny(
+  payload: JennyChatRequest,
+): Promise<JennyChatResponse> {
+  return post<JennyChatResponse>('/api/portfolio/jenny/chat', payload)
 }

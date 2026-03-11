@@ -28,6 +28,12 @@ vi.mock('@/components/money/HouseholdProfileCard', () => ({
 vi.mock('@/components/money/HouseholdPlanningPanels', () => ({
   HouseholdPlanningPanels: () => <div>Planning Panels</div>,
 }))
+vi.mock('@/components/money/JennyQuestionInbox', () => ({
+  JennyQuestionInbox: () => <div>Jenny Question Inbox</div>,
+}))
+vi.mock('@/components/money/JennyChatPanel', () => ({
+  JennyChatPanel: () => <div>Jenny Chat Panel</div>,
+}))
 vi.mock('@/components/money/JennyMoneyBoard', () => ({
   JennyMoneyBoard: () => <div>Jenny Money Board</div>,
 }))
@@ -193,5 +199,169 @@ describe('MoneyPage', () => {
     await user.click(screen.getByRole('button', { name: 'Retry' }))
 
     expect(refetchDocuments).toHaveBeenCalled()
+  })
+
+  it('shows Jenny questions in Planning before Operate is unlocked', async () => {
+    const user = userEvent.setup()
+    useHouseholdDashboardMock.mockReturnValue({
+      data: {
+        generatedAt: '2026-03-10T00:00:00Z',
+        overview: {
+          investedAssets: 0,
+          retirementAssets: 0,
+          taxableAssets: 0,
+          cashReserve: 0,
+          totalTrackedAssets: 0,
+          visibilityScore: 40,
+          visibilityLabel: 'Early',
+          nextBestAction: 'Answer Jenny.',
+        },
+        profile: {
+          id: 'profile-1',
+          householdName: 'Household',
+          monthlyNetIncomeTarget: null,
+          monthlyEssentialTarget: null,
+          monthlyDiscretionaryTarget: null,
+          monthlySavingsTarget: null,
+          targetRetirementAge: null,
+          targetRetirementSpend: null,
+          notes: null,
+          createdAt: '2026-03-10T00:00:00Z',
+          updatedAt: '2026-03-10T00:00:00Z',
+        },
+        resolvedValues: [],
+        budgetReadiness: {
+          status: 'setup_needed',
+          summary: 'Needs setup',
+          priorities: [],
+          missingInputs: [],
+          starterLanes: [],
+        },
+        budgetSnapshot: {
+          status: 'setup_needed',
+          summary: 'Need plan.',
+          monthlyIncomeTarget: null,
+          monthlyPlanTotal: null,
+          essentialTarget: null,
+          discretionaryTarget: null,
+          savingsTarget: null,
+          actualMonthlySpend: 0,
+          actualEssentialMonthlySpend: 0,
+          actualDiscretionaryMonthlySpend: 0,
+          monthToDateSpend: 0,
+          monthToDatePlan: null,
+          paceStatus: 'on_track',
+          paceDetail: 'Waiting for more data.',
+          remainingCashAfterPlan: null,
+          discretionaryHeadroom: null,
+        },
+        retirementPreparedness: {
+          status: 'baseline_visible',
+          summary: 'Needs more data',
+          retirementAccountShare: 0,
+          strengths: [],
+          blockers: [],
+          nextSteps: [],
+        },
+        actionItems: [],
+        jennyNeeds: [
+          {
+            id: 'need-1',
+            needType: 'confirm',
+            title: 'Confirm account coverage',
+            detail: 'Jenny needs to know whether all accounts are included.',
+            priority: 'high',
+            status: 'unsatisfied',
+            recurrence: 'one_time',
+            satisfactionDetail: null,
+            actionHref: null,
+            relatedQuestionId: 'question-1',
+            fieldName: null,
+          },
+        ],
+        reports: {
+          executive: {
+            headline: 'Partial',
+            summary: 'Summary',
+            averageMonthlySpend: 100,
+            averageMonthlyEssentials: 100,
+            averageMonthlyDiscretionary: 0,
+            recent30DaySpend: 100,
+            recurringMerchantCount: 0,
+            trackedExpenseCount: 1,
+            coverageMonths: 1,
+          },
+          categoryBreakdown: [],
+          merchantHighlights: [],
+          monthlySpendTrend: [],
+          recentTransactions: [],
+        },
+        categorizationQueue: [],
+        recurringCommitments: [],
+        sinkingFunds: [],
+        retirementContributionTracker: {
+          status: 'target_missing',
+          monthlyTarget: null,
+          estimatedMonthlyContributions: 0,
+          monthlyGap: 0,
+          detail: 'Set a target.',
+        },
+        retirementScenarios: [],
+        importCenter: {
+          headline: 'Import',
+          trackedDocuments: 1,
+          parsedDocuments: 1,
+          suggestedFirstUploads: [],
+          automations: [],
+          supportedDocuments: [],
+        },
+        questions: [
+          {
+            id: 'question-1',
+            fieldName: null,
+            status: 'open',
+            priority: 'high',
+            question: 'Are all accounts covered?',
+            rationale: null,
+            recommendation: null,
+            answerText: null,
+            sourceDocumentId: null,
+            questionFormat: 'boolean',
+            options: null,
+            direction: 'jenny_to_user',
+            metadata: {},
+            createdAt: '2026-03-10T00:00:00Z',
+            answeredAt: null,
+          },
+        ],
+        jennyBrief: {
+          headline: 'Jenny',
+          body: 'Body',
+          prompts: [],
+        },
+      },
+      isLoading: false,
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    const { default: MoneyPage } = await import('../money/page')
+
+    render(<MoneyPage />)
+
+    expect(screen.queryByRole('button', { name: 'Operate' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Planning' }))
+    expect(screen.getByText('Jenny Question Inbox')).toBeInTheDocument()
+    expect(screen.getByText('Jenny Chat Panel')).toBeInTheDocument()
+  })
+
+  it('defaults mature users into Operate', async () => {
+    const { default: MoneyPage } = await import('../money/page')
+
+    render(<MoneyPage />)
+
+    expect(screen.getByText('Operations Panel')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Operate' })).toHaveAttribute('aria-current', 'page')
   })
 })

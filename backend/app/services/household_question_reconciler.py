@@ -29,8 +29,9 @@ __all__ = [
 
 _COLS = (
     "q.id, q.field_name, q.status, q.priority, q.question, q.rationale, "
-    "q.answer_text, q.source_document_id, q.metadata, q.created_at, q.answered_at, "
-    "d.filename, d.source_type, d.document_type, d.account_label, d.review_summary, d.metadata"
+    "q.answer_text, q.source_document_id, q.metadata, q.question_format, q.options, q.direction, "
+    "q.created_at, q.answered_at, d.filename, d.source_type, d.document_type, "
+    "d.account_label, d.review_summary, d.metadata"
 )
 _JOIN = "FROM household_questions q LEFT JOIN household_documents d ON d.id = q.source_document_id"
 

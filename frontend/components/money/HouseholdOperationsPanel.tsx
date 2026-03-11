@@ -7,7 +7,6 @@ import type {
   JennyNeed,
 } from '@/lib/api/household'
 import {
-  useAnswerHouseholdQuestion,
   useCategorizeHouseholdTransaction,
   useConfirmFact,
   useUpdateHouseholdProfile,
@@ -23,6 +22,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { formatCurrency } from './formatters'
+import { JennyChatPanel } from './JennyChatPanel'
+import { JennyQuestionInbox } from './JennyQuestionInbox'
 
 const HOUSEHOLD_CATEGORY_OPTIONS = [
   'Bills',
@@ -46,7 +47,6 @@ function JennyNeedCard({
   dashboard: HouseholdFinanceDashboard
 }) {
   const confirmFact = useConfirmFact()
-  const answerQuestion = useAnswerHouseholdQuestion()
   const updateProfile = useUpdateHouseholdProfile()
   const categorizeTransaction = useCategorizeHouseholdTransaction()
   const [draft, setDraft] = useState('')
@@ -78,7 +78,7 @@ function JennyNeedCard({
     )
   }
 
-  // Confirm type: yes/no or answer question
+  // Confirm type: fact confirmation or routed question
   if (need.needType === 'confirm') {
     if (need.relatedQuestionId) {
       const question = dashboard.questions.find(
@@ -88,29 +88,14 @@ function JennyNeedCard({
         <div className={`rounded-2xl border p-4 ${priorityColor}`}>
           <p className="text-sm font-semibold text-text">{need.title}</p>
           <p className="mt-1 text-sm text-text-muted">{need.detail}</p>
-          <div className="mt-3 flex flex-col gap-3 md:flex-row">
-            <Input
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder="Quick answer — Jenny will take it from here"
-            />
-            <Button
-              disabled={answerQuestion.isPending || !draft.trim()}
-              onClick={() =>
-                answerQuestion.mutate({
-                  questionId: need.relatedQuestionId!,
-                  answerText: draft.trim(),
-                })
-              }
-            >
-              Confirm
-            </Button>
-          </div>
           {question?.recommendation ? (
             <p className="mt-2 text-xs text-text-muted">
               {question.recommendation}
             </p>
           ) : null}
+          <p className="mt-3 text-xs text-text-muted">
+            Answer this in Jenny&apos;s question inbox below.
+          </p>
         </div>
       )
     }
@@ -348,31 +333,43 @@ export function HouseholdOperationsPanel({
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-      <SectionCard
-        variant="surface"
-        title="What Jenny Needs"
-        description={
-          unsatisfiedNeeds.length > 0
-            ? `${unsatisfiedNeeds.length} thing${unsatisfiedNeeds.length === 1 ? '' : 's'} to move forward.`
-            : 'Nothing needed — Jenny has everything she needs.'
-        }
-      >
-        <div className="space-y-4">
-          {unsatisfiedNeeds.length === 0 ? (
-            <div className="rounded-2xl border border-gain/30 bg-gain/10 p-4 text-sm text-text-muted">
-              Nothing needed — Jenny has everything she needs.
-            </div>
-          ) : (
-            unsatisfiedNeeds.map((need) => (
-              <JennyNeedCard
-                key={need.id}
-                need={need}
-                dashboard={dashboard}
-              />
-            ))
-          )}
-        </div>
-      </SectionCard>
+      <div className="space-y-6">
+        <SectionCard
+          variant="surface"
+          title="What Jenny Needs"
+          description={
+            unsatisfiedNeeds.length > 0
+              ? `${unsatisfiedNeeds.length} thing${unsatisfiedNeeds.length === 1 ? '' : 's'} to move forward.`
+              : 'Nothing needed — Jenny has everything she needs.'
+          }
+        >
+          <div className="space-y-4">
+            {unsatisfiedNeeds.length === 0 ? (
+              <div className="rounded-2xl border border-gain/30 bg-gain/10 p-4 text-sm text-text-muted">
+                Nothing needed — Jenny has everything she needs.
+              </div>
+            ) : (
+              unsatisfiedNeeds.map((need) => (
+                <JennyNeedCard
+                  key={need.id}
+                  need={need}
+                  dashboard={dashboard}
+                />
+              ))
+            )}
+          </div>
+        </SectionCard>
+
+        {dashboard.questions.length > 0 ? (
+          <JennyQuestionInbox
+            questions={dashboard.questions}
+            title="Questions for You"
+            description="These are the few clarifications Jenny still needs before she can move the money system forward."
+          />
+        ) : null}
+
+        <JennyChatPanel />
+      </div>
 
       <SectionCard
         variant="surface"

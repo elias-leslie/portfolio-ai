@@ -183,6 +183,9 @@ vi.mock('@/components/money/HouseholdPlanningPanels', () => ({
 vi.mock('@/components/money/JennyMoneyBoard', () => ({
   JennyMoneyBoard: () => <div>Jenny Money Board</div>,
 }))
+vi.mock('@/components/money/JennyChatPanel', () => ({
+  JennyChatPanel: () => <div>Jenny Chat Panel</div>,
+}))
 
 vi.mock('@/components/symbol/SymbolWorkspace', () => ({
   SymbolWorkspace: ({ symbol }: { symbol: string }) => <div>Symbol Workspace {symbol}</div>,

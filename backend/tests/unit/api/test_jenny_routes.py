@@ -105,3 +105,39 @@ def test_acknowledge_notification_returns_404_when_missing(mocker: MockerFixture
     response = client.post("/api/portfolio/jenny/notifications/missing/acknowledge")
 
     assert response.status_code == 404
+
+
+def test_chat_with_jenny_returns_reply_and_reconciled_questions(mocker: MockerFixture) -> None:
+    """Jenny chat route should expose a conversational reply and any reconciled questions."""
+    mocker.patch(
+        "app.api.portfolio.jenny_routes._conversation_service",
+        return_value=Mock(
+            chat=Mock(
+                return_value={
+                    "reply": "I updated your retirement age to 60 and your plan still looks on track.",
+                    "session_id": "session-1",
+                    "resolved_questions": [
+                        {
+                            "id": "question-1",
+                            "field_name": "target_retirement_age",
+                            "question": "What age do you want to retire?",
+                            "answer_text": "60",
+                        }
+                    ],
+                    "updated_fields": ["target_retirement_age"],
+                    "referenced_symbols": ["AMD"],
+                }
+            )
+        ),
+    )
+
+    response = client.post(
+        "/api/portfolio/jenny/chat",
+        json={"message": "I want to retire at 60. Also, what do you think about AMD?"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["session_id"] == "session-1"
+    assert data["resolved_questions"][0]["field_name"] == "target_retirement_age"
+    assert data["referenced_symbols"] == ["AMD"]
