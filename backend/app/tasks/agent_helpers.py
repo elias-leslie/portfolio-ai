@@ -51,8 +51,8 @@ def setup_agent_tools(storage: PortfolioStorage) -> AgentTools:
     )
 
 
-def update_celery_task_id(storage: PortfolioStorage, task_id: str, run_id: str) -> None:
-    """Update agent_runs table with task ID."""
+def update_run_task_id(storage: PortfolioStorage, task_id: str, run_id: str) -> None:
+    """Update agent_runs table with task ID (stored in celery_task_id column for legacy reasons)."""
     with storage.connection() as conn:
         cursor = conn.execute(
             """
@@ -63,7 +63,7 @@ def update_celery_task_id(storage: PortfolioStorage, task_id: str, run_id: str) 
             [task_id, run_id],
         )
         if cursor.rowcount == 0:
-            logger.warning("update_celery_task_id_no_match", run_id=run_id, task_id=task_id)
+            logger.warning("update_run_task_id_no_match", run_id=run_id, task_id=task_id)
         conn.commit()
 
 
@@ -117,7 +117,7 @@ def run_agent_task(
         if not run_id:
             raise ValueError(f"Agent {task_name} returned result without run_id: {result.keys()}")
 
-        update_celery_task_id(storage, task_id, run_id)
+        update_run_task_id(storage, task_id, run_id)
         emit_insight_if_meaningful(result.get("response", ""), context_type, confidence)
 
         logger.info("agent_task_completed", task_name=task_name, task_id=task_id, run_id=run_id)

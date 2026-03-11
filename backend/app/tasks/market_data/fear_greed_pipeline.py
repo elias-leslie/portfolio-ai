@@ -16,15 +16,15 @@ from typing import TYPE_CHECKING
 from app.logging_config import get_logger
 from app.storage import get_storage
 from app.tasks.indicators import calculate_fear_greed
-from app.tasks.market_data.fear_greed_data import fetch_market_indicators, fetch_spy_data
 from app.tasks.market_data.fear_greed_data import (
     fetch_market_indicators as _fetch_market_indicators,
 )
-from app.tasks.market_data.fear_greed_data import fetch_spy_data as _fetch_spy_data
+from app.tasks.market_data.fear_greed_data import (
+    fetch_spy_data as _fetch_spy_data,
+)
 from app.tasks.market_data.fear_greed_indicators import (
     calculate_market_breadth as _calculate_market_breadth,
 )
-from app.tasks.market_data.fear_greed_processing import calculate_and_upsert_inputs
 from app.tasks.market_data.fear_greed_processing import (
     calculate_and_upsert_inputs as _calculate_and_upsert_inputs,
 )
@@ -61,13 +61,13 @@ def _validate_and_fetch_data(
 
     Returns (spy_dict, dates, vix_data, hy_spread_dict, vix_est, hy_fallback) or None on error.
     """
-    spy_dict = fetch_spy_data(storage, data_start, end_date)
+    spy_dict = _fetch_spy_data(storage, data_start, end_date)
 
     if len(spy_dict) < 200:
         return None
 
     dates = sorted(spy_dict.keys())
-    vix_data, hy_spread_dict, vix_estimate, hy_spread_fallback = fetch_market_indicators(
+    vix_data, hy_spread_dict, vix_estimate, hy_spread_fallback = _fetch_market_indicators(
         storage, start_date, end_date
     )
 
@@ -94,7 +94,7 @@ def _process_and_return_results(
         hy_spread_count=len(hy_spread_dict),
     )
 
-    updates_count = calculate_and_upsert_inputs(
+    updates_count = _calculate_and_upsert_inputs(
         storage,
         spy_dict,
         dates,
