@@ -106,6 +106,22 @@ function notificationActionLabel(notification: JennyNotification) {
   return 'Mark reviewed'
 }
 
+function severityCounts(notifications: JennyNotification[]) {
+  return notifications.reduce(
+    (counts, notification) => {
+      if (notification.severity === 'critical') {
+        counts.critical += 1
+      } else if (notification.severity === 'warning') {
+        counts.warning += 1
+      } else {
+        counts.other += 1
+      }
+      return counts
+    },
+    { critical: 0, warning: 0, other: 0 },
+  )
+}
+
 export function JennyOperatorPanel() {
   const { data, isLoading, error, refetch, isFetching } = useJennyDashboard()
   const runRoutine = useRunJennyRoutine()
@@ -137,6 +153,7 @@ export function JennyOperatorPanel() {
   const topReviews = dashboard?.symbolReviews.slice(0, 3) ?? []
   const topNotifications = dashboard?.notifications.slice(0, 4) ?? []
   const topScorecards = dashboard?.scorecards.slice(0, 3) ?? []
+  const notificationCounts = severityCounts(dashboard?.notifications ?? [])
 
   return (
     <Card className="p-6">
@@ -192,6 +209,20 @@ export function JennyOperatorPanel() {
             Refresh Learning
           </button>
         </div>
+      </div>
+
+      <div className="mt-4 rounded-xl border border-border/40 bg-surface-muted/20 px-4 py-3 text-sm text-text-muted">
+        Latest routine {latestRoutine?.status ?? 'not_run'}
+        {latestRoutine?.symbolsScanned != null ? ` · ${latestRoutine.symbolsScanned} symbols scanned` : ''}
+        {latestRoutine?.notificationsCreated != null
+          ? ` · ${latestRoutine.notificationsCreated} alert${latestRoutine.notificationsCreated === 1 ? '' : 's'} created`
+          : ''}
+        {' · '}
+        {notificationCounts.critical} critical
+        {' · '}
+        {notificationCounts.warning} warning
+        {' · '}
+        {notificationCounts.other} other
       </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-[1.1fr_1fr]">

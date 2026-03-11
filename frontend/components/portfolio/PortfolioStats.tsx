@@ -14,12 +14,6 @@ export function PortfolioStats({ analytics }: PortfolioStatsProps) {
       ? analytics.portfolioValue.totalValue / analytics.numPositions
       : 0
 
-  // Find largest position
-  const largestPosition =
-    analytics.topPerformers.length > 0
-      ? Math.max(...analytics.topPerformers.map((p) => p.weightPct))
-      : 0
-
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -41,6 +35,12 @@ export function PortfolioStats({ analytics }: PortfolioStatsProps) {
           <span className="text-sm text-text-muted">Total Positions</span>
           <span className="text-sm font-medium text-text">
             {analytics.numPositions}
+          </span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="text-sm text-text-muted">Unique Symbols</span>
+          <span className="text-sm font-medium text-text">
+            {analytics.numSymbols}
           </span>
         </div>
         <div className="flex justify-between items-center">
@@ -66,7 +66,7 @@ export function PortfolioStats({ analytics }: PortfolioStatsProps) {
         <div className="flex justify-between items-center">
           <span className="text-sm text-text-muted">Largest Position</span>
           <span className="text-sm font-medium text-text">
-            {largestPosition.toFixed(1)}%
+            {analytics.concentration.topHoldingPct.toFixed(1)}%
           </span>
         </div>
         <div className="border-t border-border pt-3">

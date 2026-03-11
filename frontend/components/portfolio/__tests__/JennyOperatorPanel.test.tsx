@@ -109,6 +109,7 @@ describe('JennyOperatorPanel', () => {
     render(<JennyOperatorPanel />)
 
     expect(screen.getByText(/5 alerts · 4 symbol reviews · 4 scorecards/i)).toBeInTheDocument()
+    expect(screen.getByText(/latest routine completed · 10 symbols scanned · 6 alerts created · 0 critical · 0 warning · 5 other/i)).toBeInTheDocument()
     expect(screen.getByText(/showing the newest 4 of 5 alerts/i)).toBeInTheDocument()
     expect(screen.getByText(/showing the top 3 of 4 symbol reviews/i)).toBeInTheDocument()
     expect(screen.getByText(/showing the strongest 3 of 4 scorecards/i)).toBeInTheDocument()
