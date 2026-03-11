@@ -137,41 +137,34 @@ REMEDIATION_COOLDOWN_MINUTES = 30
 
 
 def get_remediation_cooldowns() -> dict[str, str]:
-    """Get current remediation cooldowns for visibility in health endpoints.
-
-    Returns:
-        Dict mapping table_name to ISO timestamp of last remediation attempt.
-    """
+    """Get current remediation cooldowns for visibility in health endpoints."""
     return {table: ts.isoformat() for table, ts in _remediation_cooldowns.items()}
 
 
 def clear_remediation_cooldown(table_name: str) -> None:
-    """Clear cooldown for a table after successful data refresh.
-
-    Args:
-        table_name: Table to clear cooldown for
-    """
+    """Clear cooldown for a table after successful data refresh."""
     if table_name in _remediation_cooldowns:
         del _remediation_cooldowns[table_name]
         logger.info("remediation_cooldown_cleared", table_name=table_name)
 
 
 def _is_in_cooldown(table_name: str, now: dt.datetime) -> bool:
-    """Check if a table is still in remediation cooldown.
-
-    Args:
-        table_name: Table to check
-        now: Current datetime
-
-    Returns:
-        True if table was remediated within cooldown period
-    """
+    """Return True if table was remediated within the cooldown period."""
     last_attempt = _remediation_cooldowns.get(table_name)
     if last_attempt is None:
         return False
+    return (now - last_attempt) < dt.timedelta(minutes=REMEDIATION_COOLDOWN_MINUTES)
 
-    elapsed = now - last_attempt
-    return elapsed < dt.timedelta(minutes=REMEDIATION_COOLDOWN_MINUTES)
+
+def _can_remediate(table_name: str, is_market_data: bool, now: dt.datetime) -> bool:
+    """Return True if remediation should proceed (not in cooldown, market open if needed)."""
+    if _is_in_cooldown(table_name, now):
+        logger.info("remediation_skipped_cooldown", table_name=table_name, reason="in_cooldown")
+        return False
+    if is_market_data and not is_trading_day(now.date()):
+        logger.info("remediation_skipped_market_closed", table_name=table_name, reason="market_closed")
+        return False
+    return True
 
 
 def trigger_remediation(
@@ -185,33 +178,10 @@ def trigger_remediation(
     - Won't retry same table within 30 minutes
     - Won't attempt market data remediation if market is closed
 
-    Args:
-        table_name: Name of the stale table
-        age_hours: Age of the data in hours (None if no data)
-        is_market_data: Whether this is a market-data table (skip if market closed)
-
-    Returns:
-        task_id if triggered, None if skipped or no remediation available
+    Returns task_id if triggered, None if skipped or no remediation available.
     """
     now = dt.datetime.now(dt.UTC)
-
-    # Check cooldown - prevent thrashing
-    if _is_in_cooldown(table_name, now):
-        logger.info(
-            "remediation_skipped_cooldown",
-            table_name=table_name,
-            reason="in_cooldown",
-            cooldown_minutes=REMEDIATION_COOLDOWN_MINUTES,
-        )
-        return None
-
-    # Check market hours for market data tables
-    if is_market_data and not is_trading_day(now.date()):
-        logger.info(
-            "remediation_skipped_market_closed",
-            table_name=table_name,
-            reason="market_closed",
-        )
+    if not _can_remediate(table_name, is_market_data, now):
         return None
 
     task_name = REMEDIATION_TASKS.get(table_name)
@@ -219,20 +189,72 @@ def trigger_remediation(
         logger.warning("no_remediation_task", table_name=table_name)
         return None
 
-    # Record cooldown before triggering
     _remediation_cooldowns[table_name] = now
-
     admin = get_admin_client()
     result = admin.run_workflow(task_name, {})
     task_id = str(result.workflow_run_id) if result else None
-    logger.info(
-        "remediation_triggered",
-        table_name=table_name,
-        task_name=task_name,
-        task_id=task_id,
-        age_hours=age_hours,
-    )
+    logger.info("remediation_triggered", table_name=table_name, task_name=task_name, task_id=task_id, age_hours=age_hours)
     return task_id
+
+
+# ---------------------------------------------------------------------------
+# Freshness query helpers
+# ---------------------------------------------------------------------------
+
+
+def _build_freshness_query(table_name: str, date_column: str, where_clause: str | None) -> str:
+    """Build a MAX(date_column) query with an optional WHERE clause."""
+    base = f"SELECT MAX({date_column}) as last_update\nFROM {table_name}"
+    return f"{base}\nWHERE {where_clause}" if where_clause else base
+
+
+def _fetch_last_update(storage: ConnectionManager, query: str) -> object:
+    """Execute a freshness query and return the raw MAX value (or None)."""
+    with storage.connection() as conn:
+        result = conn.execute(query).fetchone()
+    return result[0] if result else None
+
+
+def _coerce_to_datetime(
+    last_update: object,
+    table_name: str,
+    date_column: str,
+    is_market_data: bool,
+) -> dt.datetime | None:
+    """Coerce a DATE or DATETIME value to a timezone-aware datetime.
+
+    Returns None when the value is an unrecognised type (caller should treat
+    this as an invalid-date error).
+    """
+    if isinstance(last_update, dt.datetime):
+        if last_update.tzinfo is None:
+            return last_update.replace(tzinfo=dt.UTC)
+        return last_update
+
+    if isinstance(last_update, dt.date):
+        if is_market_data:
+            return dt.datetime.combine(last_update, get_market_close_time(last_update), tzinfo=NY_TZ)
+        return dt.datetime.combine(last_update, dt.time.min, tzinfo=dt.UTC)
+
+    logger.warning(
+        "invalid_date_column_type",
+        table=table_name,
+        column=date_column,
+        type=type(last_update).__name__,
+    )
+    return None
+
+
+def _stale_result(table_name: str, reason: str) -> dict[str, object]:
+    """Return a critically-stale result dict."""
+    return {
+        "table_name": table_name,
+        "last_update": None,
+        "age_hours": None,
+        "is_stale": True,
+        "is_critical": True,
+        "reason": reason,
+    }
 
 
 def check_table_freshness(
@@ -242,86 +264,25 @@ def check_table_freshness(
 ) -> dict[str, object]:
     """Check freshness for a single table.
 
-    Args:
-        storage: Database connection manager
-        config: Table freshness configuration
-        now: Current datetime for comparison
-
-    Returns:
-        Dict with table_name, last_update, age_hours, is_stale, is_critical
+    Returns dict with table_name, last_update, age_hours, is_stale, is_critical.
     """
     table_name = config["table_name"]
     date_column = config["date_column"]
-    where_clause = config.get("where_clause")
-    query = f"""
-            SELECT MAX({date_column}) as last_update
-            FROM {table_name}
-        """
-    if where_clause:
-        query = f"{query} WHERE {where_clause}"
+    query = _build_freshness_query(table_name, date_column, config.get("where_clause"))
+    raw = _fetch_last_update(storage, query)
 
-    with storage.connection() as conn:
-        # Query MAX(date_column) for this table
-        result = conn.execute(query).fetchone()
+    if raw is None:
+        return _stale_result(table_name, "no_data")
 
-    last_update = result[0] if result else None
-
+    last_update = _coerce_to_datetime(raw, table_name, date_column, config["market_data"])
     if last_update is None:
-        # Table is empty - critically stale
-        return {
-            "table_name": table_name,
-            "last_update": None,
-            "age_hours": None,
-            "is_stale": True,
-            "is_critical": True,
-            "reason": "no_data",
-        }
+        return _stale_result(table_name, "invalid_date")
 
-    # Handle both DATE and TIMESTAMP types from PostgreSQL
-    # DATE columns return date objects, TIMESTAMP returns datetime objects
-    if isinstance(last_update, dt.date) and not isinstance(last_update, dt.datetime):
-        if config["market_data"]:
-            # Market date columns represent the trading session, not midnight UTC.
-            last_update = dt.datetime.combine(
-                last_update,
-                get_market_close_time(last_update),
-                tzinfo=NY_TZ,
-            )
-        else:
-            last_update = dt.datetime.combine(last_update, dt.time.min, tzinfo=dt.UTC)
-    elif isinstance(last_update, dt.datetime):
-        # Make timezone-aware if needed
-        if last_update.tzinfo is None:
-            last_update = last_update.replace(tzinfo=dt.UTC)
-    else:
-        # Invalid type - not a date or datetime
-        logger.warning(
-            "invalid_date_column_type",
-            table=table_name,
-            column=date_column,
-            type=type(last_update).__name__,
-        )
-        return {
-            "table_name": table_name,
-            "last_update": None,
-            "age_hours": None,
-            "is_stale": True,
-            "is_critical": True,
-            "reason": "invalid_date",
-        }
-
-    # Calculate age (market-aware for market data tables)
-    age_hours = get_market_aware_age_hours(
-        last_update=last_update,
-        now=now,
-        is_market_data=config["market_data"],
-    )
+    age_hours = get_market_aware_age_hours(last_update=last_update, now=now, is_market_data=config["market_data"])
     age_hours = max(0.0, age_hours - config.get("availability_delay_hours", 0.0))
 
-    # Check staleness using market-aware age
     is_stale = age_hours > config["expected_hours"]
     is_critical = age_hours > config["critical_hours"]
-
     return {
         "table_name": table_name,
         "last_update": last_update.isoformat(),
@@ -332,90 +293,108 @@ def check_table_freshness(
     }
 
 
+# ---------------------------------------------------------------------------
+# Bulk check helpers
+# ---------------------------------------------------------------------------
+
+
+def _as_age_hours(value: object) -> float | None:
+    """Cast a result dict age_hours value to float | None."""
+    return value if isinstance(value, (float, int, type(None))) else None
+
+
+def _handle_critical_result(
+    config: TableFreshnessConfig,
+    result: dict[str, object],
+    auto_remediate: bool,
+) -> int:
+    """Create a staleness alert and optionally trigger remediation.
+
+    Returns the number of remediations triggered (0 or 1).
+    """
+    age_hours = _as_age_hours(result.get("age_hours"))
+    reason = result.get("reason")
+    create_staleness_alert(
+        table_name=config["table_name"],
+        age_hours=age_hours,
+        threshold=config["critical_hours"],
+        reason=reason if isinstance(reason, str) else "unknown",
+    )
+    if not auto_remediate:
+        return 0
+    task_id = trigger_remediation(
+        table_name=config["table_name"],
+        age_hours=age_hours,
+        is_market_data=config["market_data"],
+    )
+    return 1 if task_id else 0
+
+
+def _check_one_table(
+    storage: ConnectionManager,
+    config: TableFreshnessConfig,
+    now: dt.datetime,
+    is_trading: bool,
+    auto_remediate: bool,
+) -> tuple[dict[str, object], int, int]:
+    """Check a single table and return (result, alerts_created, remediations_triggered)."""
+    try:
+        result = check_table_freshness(storage, config, now)
+    except Exception as e:
+        logger.error("table_freshness_check_failed", table=config["table_name"], error=str(e))
+        return (
+            {
+                "table_name": config["table_name"],
+                "last_update": None,
+                "age_hours": None,
+                "is_stale": True,
+                "is_critical": True,
+                "reason": f"check_failed: {e}",
+            },
+            0,
+            0,
+        )
+
+    if result["is_critical"]:
+        if config["market_data"] and not is_trading:
+            logger.info("skipping_weekend_alert", table=config["table_name"], reason="market_closed")
+            return result, 0, 0
+        triggered = _handle_critical_result(config, result, auto_remediate)
+        return result, 1, triggered
+
+    if result["is_stale"] and auto_remediate:
+        age_hours = _as_age_hours(result.get("age_hours"))
+        task_id = trigger_remediation(
+            table_name=config["table_name"],
+            age_hours=age_hours,
+            is_market_data=config["market_data"],
+        )
+        return result, 0, 1 if task_id else 0
+
+    return result, 0, 0
+
+
 def check_all_tables_freshness(
     storage: ConnectionManager, auto_remediate: bool = True
 ) -> dict[str, object]:
     """Check freshness of all configured tables with optional auto-remediation.
 
-    Args:
-        storage: Database connection manager
-        auto_remediate: If True, trigger refresh tasks for stale/critical tables
-
-    Returns:
-        Dict with tables_checked, fresh, stale, critical, alerts_created, remediations_triggered, details
+    Returns dict with tables_checked, fresh, stale, critical, alerts_created,
+    remediations_triggered, details.
     """
     now = dt.datetime.now(dt.UTC)
     is_trading = is_trading_day(now.date())
 
-    results = []
+    results: list[dict[str, object]] = []
     alerts_created = 0
     remediations_triggered = 0
 
     for config in TABLE_FRESHNESS_CONFIG:
-        try:
-            result = check_table_freshness(storage, config, now)
-            results.append(result)
+        result, alerts, triggered = _check_one_table(storage, config, now, is_trading, auto_remediate)
+        results.append(result)
+        alerts_created += alerts
+        remediations_triggered += triggered
 
-            # Determine if we should take action
-            should_remediate = False
-            if result["is_critical"]:
-                # Skip alerts for market data on weekends
-                if config["market_data"] and not is_trading:
-                    logger.info(
-                        "skipping_weekend_alert",
-                        table=config["table_name"],
-                        reason="market_closed",
-                    )
-                    continue
-
-                # Create maintenance_log alert
-                age_hours_val = result["age_hours"]
-                reason_val = result.get("reason", "age")
-                create_staleness_alert(
-                    table_name=config["table_name"],
-                    age_hours=age_hours_val
-                    if isinstance(age_hours_val, (float, int, type(None)))
-                    else None,
-                    threshold=config["critical_hours"],
-                    reason=reason_val if isinstance(reason_val, str) else "unknown",
-                )
-                alerts_created += 1
-                should_remediate = True
-            elif result["is_stale"] and auto_remediate:
-                # Even if not critical, remediate stale data
-                should_remediate = True
-
-            # Trigger remediation if needed (with thrashing protection)
-            if should_remediate and auto_remediate:
-                age_hours_val = result["age_hours"]
-                task_id = trigger_remediation(
-                    table_name=config["table_name"],
-                    age_hours=age_hours_val
-                    if isinstance(age_hours_val, (float, int, type(None)))
-                    else None,
-                    is_market_data=config["market_data"],
-                )
-                if task_id:
-                    remediations_triggered += 1
-
-        except Exception as e:
-            logger.error(
-                "table_freshness_check_failed",
-                table=config["table_name"],
-                error=str(e),
-            )
-            results.append(
-                {
-                    "table_name": config["table_name"],
-                    "last_update": None,
-                    "age_hours": None,
-                    "is_stale": True,
-                    "is_critical": True,
-                    "reason": f"check_failed: {e}",
-                }
-            )
-
-    # Count statuses
     critical_count = sum(1 for r in results if r["is_critical"])
     stale_count = sum(1 for r in results if r["is_stale"])
     fresh_count = len(results) - stale_count
@@ -431,55 +410,36 @@ def check_all_tables_freshness(
     }
 
 
+# ---------------------------------------------------------------------------
+# Alert helpers
+# ---------------------------------------------------------------------------
+
+
+def _build_error_message(table_name: str, age_hours: float | None, threshold: int, reason: str) -> str:
+    """Build a human-readable error message for a staleness alert."""
+    if reason == "no_data":
+        return f"Table '{table_name}' has no data (empty table)"
+    if reason == "invalid_date":
+        return f"Table '{table_name}' has invalid date column"
+    if age_hours is not None:
+        return f"Table '{table_name}' is critically stale: {age_hours:.1f} hours old (threshold: {threshold} hours)"
+    return f"Table '{table_name}' freshness check failed: {reason}"
+
+
 def create_staleness_alert(
     table_name: str,
     age_hours: float | None,
     threshold: int,
     reason: str,
 ) -> None:
-    """Create maintenance_log entry for critical staleness.
-
-    Args:
-        table_name: Name of stale table
-        age_hours: Age of data in hours (None if no data)
-        threshold: Critical hours threshold
-        reason: Reason code (no_data, age, invalid_date, etc.)
-    """
+    """Create maintenance_log entry for critical staleness."""
     task_name = f"data_freshness_alert_{table_name}"
-
-    # Record start
     log_id = record_maintenance_start(task_name=task_name, dry_run=False)
-
-    # Build error message
-    if reason == "no_data":
-        error_message = f"Table '{table_name}' has no data (empty table)"
-    elif reason == "invalid_date":
-        error_message = f"Table '{table_name}' has invalid date column"
-    elif age_hours is not None:
-        error_message = (
-            f"Table '{table_name}' is critically stale: "
-            f"{age_hours:.1f} hours old (threshold: {threshold} hours)"
-        )
-    else:
-        error_message = f"Table '{table_name}' freshness check failed: {reason}"
-
-    # Record completion as error
+    error_message = _build_error_message(table_name, age_hours, threshold, reason)
     record_maintenance_completion(
         log_id=log_id,
         status="error",
-        summary={
-            "table_name": table_name,
-            "age_hours": age_hours,
-            "threshold_hours": threshold,
-            "reason": reason,
-        },
+        summary={"table_name": table_name, "age_hours": age_hours, "threshold_hours": threshold, "reason": reason},
         error_message=error_message,
     )
-
-    logger.warning(
-        "staleness_alert_created",
-        table=table_name,
-        age_hours=age_hours,
-        threshold=threshold,
-        reason=reason,
-    )
+    logger.warning("staleness_alert_created", table=table_name, age_hours=age_hours, threshold=threshold, reason=reason)
