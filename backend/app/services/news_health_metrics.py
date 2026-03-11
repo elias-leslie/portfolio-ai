@@ -41,6 +41,18 @@ class NewsHealthMetrics:
             return None
         return dt.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
+    @staticmethod
+    def latest_timestamp(*values: object) -> datetime | None:
+        """Return the newest timezone-aware datetime from a candidate list."""
+        candidates: list[datetime] = []
+        for value in values:
+            if not isinstance(value, datetime):
+                continue
+            candidates.append(value if value.tzinfo else value.replace(tzinfo=UTC))
+        if not candidates:
+            return None
+        return max(candidates)
+
     def get_fallback_metrics(self, window_start: datetime) -> FallbackMetricsDict:
         """Get sentiment fallback metrics for health check.
 
@@ -206,6 +218,10 @@ class NewsHealthMetrics:
             stats: VendorStatsDict | dict[str, object] = vendor_stats.get(vendor_name, {})
             last_article_at_dt = stats.get("last_article_at")
             articles_last_24h = stats.get("articles_last_24h", 0)
+            last_success_at_dt = self.latest_timestamp(
+                runtime.get("last_success_at"),
+                last_article_at_dt,
+            )
             active = False
             if config.get("enabled") and isinstance(last_article_at_dt, datetime):
                 active = (now - last_article_at_dt) <= (self.ttl * 2)
@@ -215,7 +231,7 @@ class NewsHealthMetrics:
                 enabled=bool(config.get("enabled")),
                 active=active,
                 last_attempt_at=self.to_iso(cast(datetime | None, runtime.get("last_attempt_at"))),
-                last_success_at=self.to_iso(cast(datetime | None, runtime.get("last_success_at"))),
+                last_success_at=self.to_iso(last_success_at_dt),
                 last_error_at=self.to_iso(cast(datetime | None, runtime.get("last_error_at"))),
                 last_error=runtime.get("last_error"),
                 articles_last_fetch=int(runtime.get("articles_last_fetch", 0)),
