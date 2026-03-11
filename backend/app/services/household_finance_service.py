@@ -51,6 +51,21 @@ from app.services.household_finance_rows import (
     row_to_question,
 )
 from app.services.household_profile_service import HouseholdProfileService
+from app.services.household_question_classifier import (
+    clean_source_value as _clean_source_value_fn,
+)
+from app.services.household_question_classifier import (
+    parse_answer_value as _parse_answer_value_fn,
+)
+from app.services.household_question_classifier import (
+    question_family as _question_family_fn,
+)
+from app.services.household_question_classifier import (
+    question_sort_key as _question_sort_key_fn,
+)
+from app.services.household_question_classifier import (
+    questions_share_source_context as _questions_share_source_context_fn,
+)
 from app.services.household_question_command_service import HouseholdQuestionCommandService
 from app.services.household_question_reconciler import HouseholdQuestionReconciler
 from app.services.household_review_agent_service import (
@@ -640,17 +655,17 @@ class HouseholdFinanceService:
         return self._question_reconciler().questions_are_semantic_duplicates(first, second)
 
     def _question_sort_key(self, question: HouseholdQuestion) -> tuple[int, str]:
-        return self._question_reconciler().question_sort_key(question)
+        return _question_sort_key_fn(question)
 
     def _questions_share_source_context(
         self,
         first: HouseholdQuestion,
         second: HouseholdQuestion,
     ) -> bool:
-        return self._question_reconciler().questions_share_source_context(first, second)
+        return _questions_share_source_context_fn(first, second)
 
     def _question_family(self, question_text: str, field_name: str | None) -> str:
-        return self._question_reconciler().question_family(question_text, field_name)
+        return _question_family_fn(question_text, field_name)
 
     def _infer_question_resolution_from_existing_context(
         self,
@@ -665,7 +680,7 @@ class HouseholdFinanceService:
         )
 
     def _clean_source_value(self, value: object) -> str | None:
-        return self._question_reconciler().clean_source_value(value)
+        return _clean_source_value_fn(value)
 
     def _upsert_document_signatures(
         self,
@@ -709,7 +724,7 @@ class HouseholdFinanceService:
         self._question_reconciler().apply_answer_to_profile(self, question, answer_text)
 
     def _parse_answer_value(self, field_name: str, answer_text: str) -> float | int | None:
-        return self._question_reconciler().parse_answer_value(field_name, answer_text)
+        return _parse_answer_value_fn(field_name, answer_text)
 
     def _normalize_priority(self, value: Any) -> str:
         priority = str(value or "medium").strip().lower()
