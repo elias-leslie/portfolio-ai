@@ -19,7 +19,9 @@ from app.hatchet_app import get_admin_client
 from app.logging_config import get_logger
 from app.services.maintenance_tracker import record_maintenance_completion, record_maintenance_start
 from app.utils.market_hours import (
+    NY_TZ,
     get_market_aware_age_hours,
+    get_market_close_time,
     is_trading_day,
 )
 
@@ -272,8 +274,15 @@ def check_table_freshness(
     # Handle both DATE and TIMESTAMP types from PostgreSQL
     # DATE columns return date objects, TIMESTAMP returns datetime objects
     if isinstance(last_update, dt.date) and not isinstance(last_update, dt.datetime):
-        # Convert date to datetime at midnight UTC
-        last_update = dt.datetime.combine(last_update, dt.time.min, tzinfo=dt.UTC)
+        if config["market_data"]:
+            # Market date columns represent the trading session, not midnight UTC.
+            last_update = dt.datetime.combine(
+                last_update,
+                get_market_close_time(last_update),
+                tzinfo=NY_TZ,
+            )
+        else:
+            last_update = dt.datetime.combine(last_update, dt.time.min, tzinfo=dt.UTC)
     elif isinstance(last_update, dt.datetime):
         # Make timezone-aware if needed
         if last_update.tzinfo is None:
