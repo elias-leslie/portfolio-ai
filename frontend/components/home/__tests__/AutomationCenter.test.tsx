@@ -111,6 +111,25 @@ describe('AutomationCenter', () => {
     expect(refetch).toHaveBeenCalled()
   })
 
+  it('marks the manual controls busy while automation work is running', () => {
+    useAutomationCenterMock.mockReturnValue({
+      data: {
+        generatedAt: '2026-03-11T00:00:00Z',
+        guardrails: [],
+        recentRuns: [],
+        warnings: [],
+      },
+      isLoading: false,
+      isFetching: true,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    render(<AutomationCenter />)
+
+    expect(screen.getByRole('button', { name: 'Refresh' })).toHaveAttribute('aria-busy', 'true')
+  })
+
   it('renders empty-state guidance when guardrails and recent runs are missing', () => {
     useAutomationCenterMock.mockReturnValue({
       data: {

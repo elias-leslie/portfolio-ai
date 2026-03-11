@@ -98,7 +98,12 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             <Button asChild variant="outline">
               <Link href="/watchlist">Back to Watchlist</Link>
             </Button>
-            <Button variant="outline" onClick={() => refetch()} disabled={isFetching}>
+            <Button
+              variant="outline"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              aria-busy={isFetching}
+            >
               <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
               Refresh
             </Button>

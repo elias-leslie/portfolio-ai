@@ -108,4 +108,42 @@ describe('SymbolWorkspace', () => {
 
     expect(screen.getByText(/jenny review data is temporarily unavailable/i)).toBeInTheDocument()
   })
+
+  it('marks the refresh control busy while symbol intelligence is refetching', () => {
+    vi.mocked(useSymbolIntelligence).mockReturnValue({
+      data: {
+        symbol: 'VTI',
+        generatedAt: '2026-03-10T15:30:00Z',
+        scores: { overall: 78, signalType: 'BUY', signalStrength: 7, pillars: {} },
+        signal: { type: 'BUY', strength: 7, avoidFlags: 0 },
+        trading: null,
+        portfolio: { held: false, position: null, context: null },
+        news: {
+          articleCount24H: 0,
+          headline: 'Balanced setup',
+          keyEvents: [],
+          recentArticles: [],
+        },
+        market: {
+          fearGreedLabel: 'Neutral',
+          fearGreedScore: 55,
+          vix: 18.2,
+        },
+        alerts: [],
+        recommendation: {
+          action: 'watch',
+          reasoning: ['Wait.'],
+          ifNotHeld: null,
+        },
+      },
+      isLoading: false,
+      isFetching: true,
+      error: null,
+      refetch: vi.fn(),
+    } as never)
+
+    render(<SymbolWorkspace symbol="vti" />)
+
+    expect(screen.getByRole('button', { name: 'Refresh' })).toHaveAttribute('aria-busy', 'true')
+  })
 })

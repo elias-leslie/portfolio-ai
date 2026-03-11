@@ -49,6 +49,7 @@ export function AutomationCenter() {
               void refetch()
             }}
             disabled={isFetching || isMutating}
+            aria-busy={isFetching}
           >
             <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
             Refresh
@@ -58,6 +59,7 @@ export function AutomationCenter() {
             variant="outline"
             onClick={() => runJennyRoutine.mutate('weeklyLearning')}
             disabled={isMutating}
+            aria-busy={runJennyRoutine.isPending}
           >
             Refresh learning
           </Button>
@@ -65,6 +67,7 @@ export function AutomationCenter() {
             size="sm"
             onClick={() => runJennyRoutine.mutate('dailyOperator')}
             disabled={isMutating}
+            aria-busy={runJennyRoutine.isPending}
           >
             Run daily review
           </Button>
