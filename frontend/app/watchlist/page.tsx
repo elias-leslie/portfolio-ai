@@ -16,13 +16,15 @@ import {
   WatchlistLoadingSkeleton,
 } from '@/components/watchlist/WatchlistStateViews'
 import { WatchlistTable } from '@/components/watchlist/WatchlistTable'
-import { useRefreshWatchlist, useWatchlist } from '@/lib/hooks/useWatchlist'
+import { useRefreshStatus, useRefreshWatchlist, useWatchlist } from '@/lib/hooks/useWatchlist'
 
 export default function WatchlistPage() {
   const [addSymbolOpen, setAddSymbolOpen] = useState(false)
 
   const { data: watchlistData, isLoading, error, refetch, isFetching } = useWatchlist()
   const refreshMutation = useRefreshWatchlist()
+  const totalCount = watchlistData?.items.length ?? 0
+  const { data: refreshStatus } = useRefreshStatus(totalCount > 0)
 
   const {
     styleFilter,
@@ -61,7 +63,6 @@ export default function WatchlistPage() {
     })
   }
 
-  const totalCount = watchlistData?.items.length ?? 0
   const filterLabels = [
     signalFilter !== 'all' ? signalFilter : null,
     styleFilter !== 'all' ? styleFilter : null,
@@ -73,6 +74,17 @@ export default function WatchlistPage() {
     : filterLabels.length > 0
       ? `Showing ${filteredItems.length} of ${totalCount} symbols with ${filterLabels.join(', ')} filters.`
       : `Showing all ${totalCount} symbols.`
+  const scoredCount =
+    watchlistData?.items.filter((item) => item.currentScore).length ?? 0
+  const alertCount =
+    watchlistData?.items.filter((item) => item.scoreAlert).length ?? 0
+  const staleCount =
+    watchlistData?.items.filter(
+      (item) =>
+        item.currentScore?.price.stale ||
+        item.currentScore?.technical.stale ||
+        item.dataQuality?.overallPct === 0,
+    ).length ?? 0
 
   return (
     <PageContainer className="py-10">
@@ -86,6 +98,7 @@ export default function WatchlistPage() {
               variant="outline"
               onClick={handleRefresh}
               disabled={refreshMutation.isPending}
+              aria-busy={refreshMutation.isPending}
             >
               <RefreshCw
                 className={`mr-2 h-4 w-4 ${refreshMutation.isPending ? 'animate-spin' : ''}`}
@@ -99,6 +112,28 @@ export default function WatchlistPage() {
           </div>
         }
       />
+
+      {!isLoading && !error && totalCount > 0 ? (
+        <div className="mb-6 rounded-2xl border border-border/40 bg-surface-muted/20 px-4 py-3 text-sm text-text-muted">
+          {totalCount} symbol{totalCount === 1 ? '' : 's'}
+          {' · '}
+          {scoredCount} scored
+          {' · '}
+          {alertCount} flagged
+          {' · '}
+          {staleCount} with stale inputs
+          {refreshStatus?.isRefreshing ? (
+            <>
+              {' · '}
+              Refreshing
+              {refreshStatus.processedItems !== undefined && refreshStatus.totalItems !== undefined
+                ? ` ${refreshStatus.processedItems}/${refreshStatus.totalItems}`
+                : ''}
+              {refreshStatus.currentSymbol ? ` · ${refreshStatus.currentSymbol}` : ''}
+            </>
+          ) : null}
+        </div>
+      ) : null}
 
       <WatchlistFilterBar
         totalCount={totalCount}
@@ -145,13 +180,13 @@ export default function WatchlistPage() {
           title="No symbols match the current filters"
           detail="Clear the search or reset the filters to bring symbols back into view."
           primaryAction={{
-            label: 'Reset filters',
+            label: 'Show all symbols',
             onClick: resetFilters,
           }}
         />
       )}
       {!isLoading && !error && filteredItems.length > 0 && (
-        <WatchlistTable items={filteredItems} />
+        <WatchlistTable items={filteredItems} refreshStatus={refreshStatus} />
       )}
 
       <AddSymbolModal

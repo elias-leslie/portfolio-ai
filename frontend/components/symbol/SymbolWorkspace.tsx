@@ -36,12 +36,14 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
   const { data, isLoading, error, refetch, isFetching } = useSymbolIntelligence(
     uppercaseSymbol,
   )
-  const { data: jennyDashboard } = useJennyDashboard()
+  const { data: jennyDashboard, error: jennyError } = useJennyDashboard()
   const latestReview = jennyDashboard?.symbolReviews.find(
     (review) => review.symbol === uppercaseSymbol,
   )
   const tradeReviews =
     jennyDashboard?.tradeReviews.filter((review) => review.symbol === uppercaseSymbol) ?? []
+  const newsArticleCount = data?.news?.recentArticles.length ?? 0
+  const alertCount = data?.alerts.length ?? 0
 
   if (isLoading) {
     return (
@@ -104,6 +106,28 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
         }
       />
 
+      {jennyError ? (
+        <SectionCard variant="surface">
+          <div className="rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning-foreground">
+            Jenny review data is temporarily unavailable. Live symbol intelligence is still shown
+            below.
+          </div>
+        </SectionCard>
+      ) : null}
+
+      <div className="rounded-2xl border border-border/40 bg-surface-muted/20 px-4 py-3 text-sm text-text-muted">
+        Updated {data?.generatedAt ? new Date(data.generatedAt).toLocaleString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+        }) : '—'}
+        {' · '}
+        {alertCount} alert{alertCount === 1 ? '' : 's'}
+        {' · '}
+        {newsArticleCount} recent article{newsArticleCount === 1 ? '' : 's'}
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-4">
         <SectionCard variant="surface" title="Overall Score">
           <p className="text-3xl font-semibold text-text">
@@ -149,6 +173,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
           {
             value: 'decision',
             label: 'Decision',
+            badge: data?.recommendation?.reasoning?.length ? String(data.recommendation.reasoning.length) : undefined,
             description: 'Keep the decision memo and Jenny review in one working surface.',
             content: (
               <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
@@ -158,14 +183,20 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                   description="The clearest plain-language case for acting, waiting, or stepping aside."
                 >
                   <div className="space-y-4">
-                    {(data?.recommendation?.reasoning ?? []).map((reason) => (
-                      <div
-                        key={reason}
-                        className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4 text-sm text-text-muted"
-                      >
-                        {reason}
+                    {(data?.recommendation?.reasoning ?? []).length > 0 ? (
+                      (data?.recommendation?.reasoning ?? []).map((reason) => (
+                        <div
+                          key={reason}
+                          className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4 text-sm text-text-muted"
+                        >
+                          {reason}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4 text-sm text-text-muted">
+                        No decision memo reasoning is available yet for this symbol.
                       </div>
-                    ))}
+                    )}
                     {data?.trading ? (
                       <div className="grid gap-3 md:grid-cols-2">
                         <div className="rounded-2xl border border-border/40 bg-surface/60 p-4">
@@ -249,6 +280,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
           {
             value: 'workflow',
             label: 'Workflow',
+            badge: data?.alerts.length ? String(data.alerts.length) : undefined,
             description: 'Advance the symbol, capture live-position outcomes, and keep the thesis close.',
             content: (
               <div className="space-y-6">
@@ -266,6 +298,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
           {
             value: 'market',
             label: 'Market',
+            badge: data?.news?.articleCount24H ? String(data.news.articleCount24H) : undefined,
             description: 'Alerts, headlines, and the next routing action without forcing a long scroll.',
             content: (
               <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
@@ -303,6 +336,30 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                         No recent key events attached to this symbol right now.
                       </div>
                     )}
+                    {(data?.news?.recentArticles ?? []).length > 0 ? (
+                      <div className="space-y-3">
+                        <p className="text-sm font-semibold text-text">Recent articles</p>
+                        {data?.news?.recentArticles.slice(0, 4).map((article) => (
+                          <div
+                            key={`${article.headline}-${article.publishedAt ?? 'unknown'}`}
+                            className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
+                          >
+                            <p className="text-sm font-medium text-text">{article.headline}</p>
+                            <p className="mt-1 text-xs text-text-muted">
+                              {article.source ?? 'Unknown source'}
+                              {article.publishedAt
+                                ? ` · ${new Date(article.publishedAt).toLocaleString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: 'numeric',
+                                    minute: '2-digit',
+                                  })}`
+                                : ''}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 </SectionCard>
 

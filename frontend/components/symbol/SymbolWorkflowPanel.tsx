@@ -80,6 +80,9 @@ export function SymbolWorkflowPanel({
               </p>
               <p className="mt-2 text-2xl font-semibold text-text">{formatStage(data.stage)}</p>
               <p className="mt-2 text-sm text-text-muted">{data.summary}</p>
+              {data.notes ? (
+                <p className="mt-3 text-sm text-text-muted">{data.notes}</p>
+              ) : null}
               <p className="mt-4 text-xs text-text-muted">
                 Updated {formatTimestamp(data.lastTransitionAt)} by {data.updatedBy}
               </p>
@@ -110,24 +113,31 @@ export function SymbolWorkflowPanel({
 
             <div className="rounded-2xl border border-border/40 bg-surface/70 p-4">
               <p className="text-sm font-semibold text-text">Available transitions</p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {data.availableTransitions.map((stage) => (
-                  <Button
-                    key={stage}
-                    size="sm"
-                    variant={stage === 'invalidated' ? 'destructive' : 'outline'}
-                    onClick={() => transitionWorkflow.mutate({ stage })}
-                    disabled={transitionWorkflow.isPending}
-                  >
-                    {stage === 'discover' ? (
-                      <RotateCcw className="mr-2 h-4 w-4" />
-                    ) : (
-                      <ArrowRight className="mr-2 h-4 w-4" />
-                    )}
-                    Move to {formatStage(stage)}
-                  </Button>
-                ))}
-              </div>
+              {data.availableTransitions.length === 0 ? (
+                <div className="mt-4 rounded-2xl border border-border/40 bg-surface-muted/20 p-4 text-sm text-text-muted">
+                  No stage transitions are available right now. This symbol is waiting on the next
+                  review or outcome capture.
+                </div>
+              ) : (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {data.availableTransitions.map((stage) => (
+                    <Button
+                      key={stage}
+                      size="sm"
+                      variant={stage === 'invalidated' ? 'destructive' : 'outline'}
+                      onClick={() => transitionWorkflow.mutate({ stage })}
+                      disabled={transitionWorkflow.isPending}
+                    >
+                      {stage === 'discover' ? (
+                        <RotateCcw className="mr-2 h-4 w-4" />
+                      ) : (
+                        <ArrowRight className="mr-2 h-4 w-4" />
+                      )}
+                      Move to {formatStage(stage)}
+                    </Button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

@@ -190,4 +190,24 @@ describe('WorkspaceTabs', () => {
     expect(screen.getByText('Operate Content')).toBeInTheDocument()
     expect(screen.queryByText('Planning Content')).not.toBeInTheDocument()
   })
+
+  it('keeps badge counts out of the tab accessible name', () => {
+    render(
+      <WorkspaceTabs
+        defaultValue="operate"
+        tabs={[
+          {
+            value: 'operate',
+            label: 'Operate',
+            badge: '7',
+            description: 'Run the day-to-day queue.',
+            content: <div>Operate Content</div>,
+          },
+        ]}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Operate' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Operate7' })).not.toBeInTheDocument()
+  })
 })

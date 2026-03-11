@@ -120,7 +120,10 @@ export function WorkspaceTabs({
               <span className="flex items-center gap-2">
                 <span>{tab.label}</span>
                 {tab.badge ? (
-                  <span className="rounded-full bg-surface-muted px-2 py-0.5 text-[11px] uppercase tracking-wide text-text-muted">
+                  <span
+                    aria-hidden="true"
+                    className="rounded-full bg-surface-muted px-2 py-0.5 text-[11px] uppercase tracking-wide text-text-muted"
+                  >
                     {tab.badge}
                   </span>
                 ) : null}

@@ -243,26 +243,44 @@ export function useRefreshWatchlist() {
 
   return useMutation<RefreshResponse, Error, void>({
     mutationFn: refreshWatchlistScores,
+    onMutate: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: watchlistKeys.refreshStatus(),
+        refetchType: 'active',
+      })
+    },
     onSuccess: () => {
       // Invalidate and refetch watchlist query to show new scores
       queryClient.invalidateQueries({
         queryKey: watchlistKeys.list(),
         refetchType: 'active', // Force immediate refetch of active queries
       })
+      queryClient.invalidateQueries({
+        queryKey: watchlistKeys.refreshStatus(),
+        refetchType: 'active',
+      })
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({
+        queryKey: watchlistKeys.refreshStatus(),
+        refetchType: 'active',
+      })
     },
   })
 }
 
 /**
- * Hook to poll refresh status for the watchlist
- * Polls every 1 second when refresh is active or recently completed
+ * Hook to read watchlist refresh status.
+ * Polling stays active only while a refresh is in progress; manual refresh invalidation
+ * wakes the query back up when a new run starts.
  */
 export function useRefreshStatus(enabled = true) {
   return useQuery<RefreshStatus, Error>({
     queryKey: watchlistKeys.refreshStatus(),
     queryFn: () => fetchRefreshStatus(),
     enabled,
-    refetchInterval: 1000, // Poll every 1 second to catch short refreshes
+    refetchInterval: (query) =>
+      query.state.data?.isRefreshing ? 1000 : false,
     refetchIntervalInBackground: false,
     staleTime: 0, // Always consider stale to enable polling
   })

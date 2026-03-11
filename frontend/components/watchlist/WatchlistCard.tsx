@@ -1,16 +1,23 @@
 'use client'
 
-import { AlertCircle, ChevronDown, ChevronRight, Trash2 } from 'lucide-react'
+import { AlertCircle, Briefcase, ChevronDown, ChevronRight, Loader2, Trash2 } from 'lucide-react'
+import Link from 'next/link'
 import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Sparkline } from '@/components/ui/sparkline'
 import { ExpandedRow } from '@/components/watchlist/ExpandedRow'
+import { getDataQualityBgColor, getDataQualityColor, getRiskLevelConfig } from '@/components/watchlist/ExpandedRowUtils'
 import { SourceBadge } from '@/components/watchlist/SourceBadge'
-import type { WatchlistItem } from '@/lib/api/watchlist'
+import { formatDate } from '@/components/watchlist/watchlistTableUtils'
+import type { RefreshStatus, WatchlistItem } from '@/lib/api/watchlist'
+import { cn } from '@/lib/utils'
 
 interface WatchlistCardProps {
   item: WatchlistItem
+  portfolioSymbols: Set<string>
+  refreshStatus?: RefreshStatus
+  userTimezone: string
   onDelete: (itemId: string, symbol: string) => void
   isDeleting: boolean
 }
@@ -27,19 +34,11 @@ const getScoreBadgeVariant = (
   return 'viz-0'
 }
 
-// Format date
-const formatDate = (dateStr: string) => {
-  const date = new Date(dateStr)
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
-}
-
 export function WatchlistCard({
   item,
+  portfolioSymbols,
+  refreshStatus,
+  userTimezone,
   onDelete,
   isDeleting,
 }: WatchlistCardProps) {
@@ -50,14 +49,40 @@ export function WatchlistCard({
   const techScore = item.currentScore?.technical.score ?? 0
   const priceStale = item.currentScore?.price.stale ?? false
   const techStale = item.currentScore?.technical.stale ?? false
+  const isRefreshing =
+    refreshStatus?.isRefreshing && refreshStatus.currentSymbol === item.symbol
+  const latestUpdatedAt = item.currentScore?.price.updatedAt ?? item.updatedAt
+  const riskConfig = item.riskLevel ? getRiskLevelConfig(item.riskLevel) : null
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4 shadow-sm">
+    <div
+      className={cn(
+        'rounded-lg border border-border bg-surface p-4 shadow-sm',
+        isRefreshing && 'border-accent/40 bg-accent/5',
+      )}
+    >
       {/* Card Header */}
       <div className="mb-3 flex items-start justify-between">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
-            <h3 className="text-lg font-semibold text-text">{item.symbol}</h3>
+            <Link
+              href={`/symbols/${item.symbol}`}
+              className="text-lg font-semibold text-text underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            >
+              {item.symbol}
+            </Link>
+            {portfolioSymbols.has(item.symbol.toUpperCase()) && (
+              <Badge
+                variant="outline"
+                className="gap-1 text-xs px-1.5 py-0 h-5 bg-accent/10 border-accent/30 text-accent"
+              >
+                <Briefcase className="h-3 w-3" />
+                <span>Portfolio</span>
+              </Badge>
+            )}
+            {isRefreshing ? (
+              <Loader2 className="h-4 w-4 animate-spin text-accent" aria-label="Refreshing..." />
+            ) : null}
             {item.scoreAlert && (
               <AlertCircle
                 className="h-4 w-4 text-accent"
@@ -79,6 +104,9 @@ export function WatchlistCard({
           ) : null}
         </div>
         <div className="flex items-center gap-1">
+          <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-xs">
+            <Link href={`/symbols/${item.symbol}`}>Workspace</Link>
+          </Button>
           <Button
             data-testid="watchlist-card-expand"
             variant="ghost"
@@ -105,6 +133,30 @@ export function WatchlistCard({
             <Trash2 className="h-4 w-4" />
           </Button>
         </div>
+      </div>
+
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-text-muted">
+        {riskConfig ? (
+          <span className={cn('font-medium', riskConfig.color)}>
+            {riskConfig.icon} {riskConfig.label}
+          </span>
+        ) : null}
+        {item.dataQuality ? (
+          <span
+            className={cn(
+              'rounded-md px-2 py-1 font-semibold',
+              getDataQualityBgColor(item.dataQuality.overallPct),
+              getDataQualityColor(item.dataQuality.overallPct),
+            )}
+          >
+            DQ {item.dataQuality.overallPct.toFixed(0)}%
+          </span>
+        ) : null}
+        {isRefreshing && refreshStatus?.processedItems !== undefined && refreshStatus?.totalItems !== undefined ? (
+          <span>
+            Refreshing {refreshStatus.processedItems}/{refreshStatus.totalItems}
+          </span>
+        ) : null}
       </div>
 
       {/* Score Grid */}
@@ -171,7 +223,7 @@ export function WatchlistCard({
 
       {/* Updated Timestamp */}
       <p className="text-xs text-text-muted">
-        Updated {formatDate(item.updatedAt)}
+        Updated {formatDate(latestUpdatedAt, userTimezone)}
       </p>
 
       {/* Expanded Content */}

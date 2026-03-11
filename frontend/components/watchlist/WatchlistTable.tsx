@@ -12,12 +12,11 @@ import {
 } from '@/components/ui/table'
 import { WatchlistCard } from '@/components/watchlist/WatchlistCard'
 import { WatchlistTableRow } from '@/components/watchlist/WatchlistTableRow'
-import type { WatchlistItem } from '@/lib/api/watchlist'
+import type { RefreshStatus, WatchlistItem } from '@/lib/api/watchlist'
 import { usePortfolio } from '@/lib/hooks/usePortfolio'
 import { usePreferences } from '@/lib/hooks/usePreferences'
 import {
   useDeleteWatchlistItem,
-  useRefreshStatus,
 } from '@/lib/hooks/useWatchlist'
 import { useWatchlistChangeDetection } from '@/lib/hooks/useWatchlistChangeDetection'
 import {
@@ -28,9 +27,10 @@ import {
 
 interface WatchlistTableProps {
   items: WatchlistItem[]
+  refreshStatus?: RefreshStatus
 }
 
-export function WatchlistTable({ items }: WatchlistTableProps) {
+export function WatchlistTable({ items, refreshStatus }: WatchlistTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [sortField, setSortField] = useState<SortField>('symbol')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
@@ -41,7 +41,6 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
   } | null>(null)
 
   const deleteMutation = useDeleteWatchlistItem()
-  const { data: refreshStatus } = useRefreshStatus()
   const { data: preferences } = usePreferences()
   const { data: portfolio } = usePortfolio()
   const searchParams = useSearchParams()
@@ -170,6 +169,9 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
             <WatchlistCard
               key={item.id}
               item={item}
+              portfolioSymbols={portfolioSymbols}
+              refreshStatus={refreshStatus}
+              userTimezone={userTimezone}
               onDelete={handleDelete}
               isDeleting={deleteMutation.isPending}
             />
