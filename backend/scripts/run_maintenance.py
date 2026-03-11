@@ -130,6 +130,15 @@ TASK_REGISTRY: dict[str, TaskConfig] = {
     },
 }
 
+TASK_ALIASES = {
+    "vacuum": "vacuum_database",
+}
+
+
+def _normalize_task_name(task_name: str) -> str:
+    """Resolve task aliases to canonical task names."""
+    return TASK_ALIASES.get(task_name, task_name)
+
 
 def _resolve_args(task_name: str, kwargs: dict[str, Any]) -> list[int]:
     """Resolve task arguments from defaults plus CLI overrides."""
@@ -145,8 +154,10 @@ def run_task(
     task_name: str, dry_run: bool = False, verbose: bool = False, **kwargs: Any
 ) -> dict[str, Any]:
     """Run a single maintenance task."""
+    task_name = _normalize_task_name(task_name)
     if task_name not in TASK_REGISTRY:
-        raise ValueError(f"Unknown task: {task_name}. Available: {', '.join(TASK_REGISTRY.keys())}")
+        available_tasks = sorted({*TASK_REGISTRY.keys(), *TASK_ALIASES.keys()})
+        raise ValueError(f"Unknown task: {task_name}. Available: {', '.join(available_tasks)}")
 
     task_config = TASK_REGISTRY[task_name]
     task_func = task_config["function"]
@@ -190,7 +201,11 @@ def run_all_tasks(dry_run: bool = False, verbose: bool = False) -> list[dict[str
 def main() -> int:
     """CLI entrypoint."""
     parser = argparse.ArgumentParser(description="Manual maintenance task runner")
-    parser.add_argument("--task", choices=sorted(TASK_REGISTRY.keys()), help="Run one maintenance task")
+    parser.add_argument(
+        "--task",
+        choices=sorted({*TASK_REGISTRY.keys(), *TASK_ALIASES.keys()}),
+        help="Run one maintenance task",
+    )
     parser.add_argument("--all", action="store_true", help="Run all maintenance tasks in sequence")
     parser.add_argument("--dry-run", action="store_true", help="Preview work without making changes")
     parser.add_argument("--verbose", action="store_true", help="Print detailed task output")
