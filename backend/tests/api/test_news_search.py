@@ -8,7 +8,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.api.news import news_service, router
+from app.api.news import router
 from app.services.news_models import NewsArticle, NewsBundle, NewsSummary, SentimentScore
 
 
@@ -52,15 +52,30 @@ def _build_bundle(symbol: str, with_article: bool = True) -> NewsBundle:
 
 @pytest.fixture
 def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
+    captured_limits: list[int] = []
+
     def fake_get_custom_news(query: str, *, max_articles: int = 10) -> NewsBundle:
+        captured_limits.append(max_articles)
         if query == "XYZNOTASYMBOL123":
             return _build_bundle(query, with_article=False)
         return _build_bundle(query)
 
-    monkeypatch.setattr(news_service, "get_custom_news", fake_get_custom_news)
+    class FakeNewsService:
+        def refresh_max_articles_from_preferences(self) -> int:
+            return 10
+
+        def get_custom_news(self, query: str, *, max_articles: int = 10) -> NewsBundle:
+            return fake_get_custom_news(query, max_articles=max_articles)
+
+    def build_news_service() -> FakeNewsService:
+        return FakeNewsService()
+
+    monkeypatch.setattr("app.api.news._news_service", build_news_service)
     app = FastAPI()
     app.include_router(router)
-    return TestClient(app)
+    client = TestClient(app)
+    client.captured_limits = captured_limits  # type: ignore[attr-defined]
+    return client
 
 
 class TestNewsSearchEndpoint:
@@ -98,10 +113,11 @@ class TestNewsSearchEndpoint:
 
         assert data["symbol"] == "MSFT"
 
-    def test_news_search_accepts_limit_parameter(self, client: TestClient) -> None:
-        response = client.get("/api/news/search?query=AAPL&limit=5")
+    def test_news_search_accepts_max_results_parameter(self, client: TestClient) -> None:
+        response = client.get("/api/news/search?query=AAPL&max_results=5")
         assert response.status_code == 200
         assert "articles" in response.json()
+        assert client.captured_limits[-1] == 5  # type: ignore[attr-defined]
 
     def test_news_search_unknown_symbol_returns_200(self, client: TestClient) -> None:
         response = client.get("/api/news/search?query=XYZNOTASYMBOL123")

@@ -2,23 +2,33 @@
 
 from __future__ import annotations
 
+from importlib import import_module
+from typing import TYPE_CHECKING
+
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, Field
 
 from app.middleware.cache import cache_response
-from app.services import NewsService
-from app.storage import get_storage
-from app.storage.credential_loader import load_credentials_from_database
-from app.watchlist.watchlist_service import WatchlistService
+
+if TYPE_CHECKING:
+    from app.services import NewsService
+    from app.watchlist.watchlist_service import WatchlistService
 
 router = APIRouter(prefix="/api/news", tags=["news"])
 
-storage = get_storage()
-load_credentials_from_database()
-news_service = NewsService(storage)
-news_service.refresh_ttl_from_preferences()
-news_service.refresh_max_articles_from_preferences()
-watchlist_service = WatchlistService(storage)
+
+def _news_service() -> NewsService:
+    storage = import_module("app.storage").get_storage()
+    import_module("app.storage.credential_loader").load_credentials_from_database()
+    service = import_module("app.services").NewsService(storage)
+    service.refresh_ttl_from_preferences()
+    service.refresh_max_articles_from_preferences()
+    return service
+
+
+def _watchlist_service() -> WatchlistService:
+    storage = import_module("app.storage").get_storage()
+    return import_module("app.watchlist.watchlist_service").WatchlistService(storage)
 
 
 class SentimentScoreResponse(BaseModel):
@@ -235,7 +245,7 @@ async def get_news_intelligence(
 
     The response includes sentiment summary and scored articles with AI insights.
     """
-    news_service.refresh_ttl_from_preferences()
+    news_service = _news_service()
     pref_limit = news_service.refresh_max_articles_from_preferences()
     final_limit = min(limit, pref_limit) if limit else pref_limit
 
@@ -263,11 +273,12 @@ async def get_watchlist_news(
     Note: Watchlist is now user-level (not account-specific). The account_id parameter
     is kept for backward compatibility but is ignored.
     """
+    watchlist_service = _watchlist_service()
     items = watchlist_service.get_items_with_scores()
     if not items:
         return WatchlistNewsResponse(account_id=account_id, items=[])
 
-    news_service.refresh_ttl_from_preferences()
+    news_service = _news_service()
     pref_limit = news_service.refresh_max_articles_from_preferences()
     limit = max_results or pref_limit
     symbols = [item["symbol"] for item in items]
@@ -290,6 +301,7 @@ async def get_watchlist_news(
 @router.get("/health", response_model=NewsHealthResponse)
 async def get_news_health() -> NewsHealthResponse:
     """Return health information for the news ingestion pipeline."""
+    news_service = _news_service()
     news_service.refresh_ttl_from_preferences()
     news_service.refresh_max_articles_from_preferences()
     metrics = news_service.get_health()
@@ -302,7 +314,7 @@ async def search_news(
     max_results: int | None = Query(None, ge=1, le=50),
 ) -> NewsBundleResponse:
     """Search news without caching results."""
-    news_service.refresh_ttl_from_preferences()
+    news_service = _news_service()
     pref_limit = news_service.refresh_max_articles_from_preferences()
     limit = max_results or pref_limit
     bundle = news_service.get_custom_news(query, max_articles=limit)
