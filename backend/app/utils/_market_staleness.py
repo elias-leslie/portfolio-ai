@@ -125,16 +125,16 @@ def get_market_aware_age_hours(
         age = now - last_update
         return age.total_seconds() / 3600
 
-    last_trading = get_last_trading_day(now.date())
-    last_update_date: date = (
-        last_update.date() if isinstance(last_update, datetime) else last_update
-    )
+    market_now = now.astimezone(NY_TZ)
+    market_last_update = last_update.astimezone(NY_TZ)
+    last_trading = get_last_trading_day(market_now.date())
+    last_update_date: date = market_last_update.date()
 
     if last_update_date >= last_trading:
-        age = now - last_update
+        age = market_now - market_last_update
         return age.total_seconds() / 3600
 
-    hours_since_close = get_hours_since_last_close(now)
+    hours_since_close = get_hours_since_last_close(market_now)
     days_old = (last_trading - last_update_date).days
     extra_hours = days_old * 24
 

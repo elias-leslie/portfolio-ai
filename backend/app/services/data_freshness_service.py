@@ -35,7 +35,7 @@ logger = get_logger(__name__)
 # Triggering just calculate_fear_greed would only recalculate from existing inputs.
 REMEDIATION_TASKS: dict[str, str] = {
     "day_bars": "portfolio-maintain-historical",
-    "technical_indicators": "portfolio-update-indicators",
+    "technical_indicators": "portfolio-backfill-indicators",
     "fear_greed_inputs": "portfolio-fg-inputs",
     "fear_greed_daily": "portfolio-fg-inputs",
     "fear_greed_components": "portfolio-fg-inputs",

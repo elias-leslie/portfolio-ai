@@ -1,10 +1,10 @@
 """Unit tests for market hours utilities."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pytest
 
-from app.utils.market_hours import NY_TZ, is_market_hours, is_stale
+from app.utils.market_hours import NY_TZ, get_market_aware_age_hours, is_market_hours, is_stale
 
 
 class TestIsMarketHours:
@@ -132,3 +132,20 @@ class TestIsStale:
 
         with pytest.raises(ValueError, match="must be timezone-aware"):
             is_stale(fetched_at, now)
+
+
+class TestMarketAwareAge:
+    """Test get_market_aware_age_hours()."""
+
+    def test_uses_market_day_instead_of_utc_day_after_hours(self) -> None:
+        """Evening ET checks should not advance to the next trading day just because UTC crossed midnight."""
+        last_update = datetime(2026, 3, 9, 22, 30, tzinfo=NY_TZ)
+        now = datetime(2026, 3, 11, 0, 0, tzinfo=UTC)
+
+        age_hours = get_market_aware_age_hours(
+            last_update=last_update,
+            now=now,
+            is_market_data=True,
+        )
+
+        assert age_hours == 28.0
