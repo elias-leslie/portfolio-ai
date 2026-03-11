@@ -32,6 +32,11 @@ from app.models.household_finance import (
 )
 from app.portfolio.manager import PortfolioManager
 from app.portfolio.price_fetcher import PriceDataFetcher
+from app.services._household_dashboard_builders import (
+    estimate_next_commitment_date,
+    suggest_category,
+    suggest_essentiality,
+)
 from app.services._household_dashboard_sections import (
     budget_input_status,
     build_opportunities,
@@ -214,13 +219,13 @@ class HouseholdFinanceService:
         return self._dashboard_builder().estimate_monthly_retirement_contributions(self)
 
     def _estimate_next_commitment_date(self, last_seen: datetime, cadence: str) -> str | None:
-        return self._dashboard_builder().estimate_next_commitment_date(last_seen, cadence)
+        return estimate_next_commitment_date(last_seen, cadence)
 
     def _suggest_category(self, merchant: str, description: str) -> str:
-        return self._dashboard_builder().suggest_category(merchant, description)
+        return suggest_category(merchant, description)
 
     def _suggest_essentiality(self, merchant: str, description: str) -> str:
-        return self._dashboard_builder().suggest_essentiality(merchant, description)
+        return suggest_essentiality(merchant, description)
 
     def update_transaction_category(
         self,
