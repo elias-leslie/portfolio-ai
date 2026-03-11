@@ -188,7 +188,7 @@ describe('StatusWorkspace', () => {
     expect(screen.queryByText('Last success: Never')).not.toBeInTheDocument()
   })
 
-  it('shows remediation occurrence counts without duplicating cards', () => {
+  it('shows resolved remediation history without duplicating cards', () => {
     useDetailedHealthMock.mockReturnValue(
       createQueryResult({
         data: {
@@ -217,8 +217,8 @@ describe('StatusWorkspace', () => {
           },
           dataFreshnessStatus: {
             status: 'success',
-            lastCheck: '2026-03-10T22:00:00.000000Z',
-            fresh: 4,
+            lastCheck: '2026-03-10T23:00:00.000000Z',
+            fresh: 9,
             stale: 0,
             critical: 0,
           },
@@ -258,7 +258,9 @@ describe('StatusWorkspace', () => {
     render(<StatusWorkspace />)
 
     expect(screen.getAllByText('technical_indicators')).toHaveLength(1)
+    expect(screen.getByText('resolved')).toBeInTheDocument()
     expect(screen.getByText('Repeated 2 times in the last 24h.')).toBeInTheDocument()
+    expect(screen.getByText(/Resolved in the latest freshness check at/i)).toBeInTheDocument()
   })
 
   it('keeps the workspace visible when one live signal fails', () => {

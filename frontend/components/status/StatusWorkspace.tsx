@@ -100,6 +100,52 @@ function getWorkflowCount(
   return workflowHealth?.totalWorkflows24h ?? workflowHealth?.totalWorkflows24H ?? null
 }
 
+function remediationPresentation(
+  remediation: {
+    status: string
+    triggeredAt?: string | null
+  },
+  freshnessStatus:
+    | {
+        status?: string
+        lastCheck?: string | null
+        stale?: number
+        critical?: number
+      }
+    | null
+    | undefined,
+): {
+  badgeLabel: string
+  badgeVariant: 'success' | 'warning'
+  detail: string | null
+} {
+  const freshnessIsClear =
+    freshnessStatus?.status === 'success' &&
+    (freshnessStatus?.stale ?? 0) === 0 &&
+    (freshnessStatus?.critical ?? 0) === 0
+  const lastCheckTime = freshnessStatus?.lastCheck ? Date.parse(freshnessStatus.lastCheck) : NaN
+  const triggeredAtTime = remediation.triggeredAt ? Date.parse(remediation.triggeredAt) : NaN
+  const resolved =
+    freshnessIsClear &&
+    Number.isFinite(lastCheckTime) &&
+    Number.isFinite(triggeredAtTime) &&
+    lastCheckTime > triggeredAtTime
+
+  if (resolved) {
+    return {
+      badgeLabel: 'resolved',
+      badgeVariant: 'success' as const,
+      detail: `Resolved in the latest freshness check at ${formatDateTime(freshnessStatus?.lastCheck)}.`,
+    }
+  }
+
+  return {
+    badgeLabel: remediation.status,
+    badgeVariant: remediation.status === 'success' ? 'success' : 'warning',
+    detail: null,
+  }
+}
+
 function SummaryStat({
   label,
   value,
@@ -503,31 +549,41 @@ export function StatusWorkspace() {
                     No remediation actions were recorded in the last 24 hours.
                   </div>
                 ) : (
-                  healthQuery.data?.recentRemediations.map((event) => (
-                    <div
-                      key={`${event.tableName}-${event.triggeredAt ?? 'unknown'}`}
-                      className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-semibold text-text">{event.tableName}</p>
-                        <Badge variant={event.status === 'success' ? 'success' : 'warning'}>
-                          {event.status}
-                        </Badge>
-                      </div>
-                      <p className="mt-2 text-sm text-text-muted">
-                        Triggered {formatDateTime(event.triggeredAt)} · Age{' '}
-                        {formatHours(event.ageHours)} / threshold {formatHours(event.thresholdHours)}
-                      </p>
-                      {event.occurrenceCount && event.occurrenceCount > 1 ? (
+                  healthQuery.data?.recentRemediations.map((event) => {
+                    const presentation = remediationPresentation(
+                      event,
+                      healthQuery.data?.dataFreshnessStatus,
+                    )
+
+                    return (
+                      <div
+                        key={`${event.tableName}-${event.triggeredAt ?? 'unknown'}`}
+                        className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-semibold text-text">{event.tableName}</p>
+                          <Badge variant={presentation.badgeVariant}>
+                            {presentation.badgeLabel}
+                          </Badge>
+                        </div>
                         <p className="mt-2 text-sm text-text-muted">
-                          Repeated {formatInteger(event.occurrenceCount)} times in the last 24h.
+                          Triggered {formatDateTime(event.triggeredAt)} · Age{' '}
+                          {formatHours(event.ageHours)} / threshold {formatHours(event.thresholdHours)}
                         </p>
-                      ) : null}
-                      <p className="mt-2 text-sm text-text-muted">
-                        {event.reason ?? event.errorMessage ?? 'No additional detail'}
-                      </p>
-                    </div>
-                  ))
+                        {event.occurrenceCount && event.occurrenceCount > 1 ? (
+                          <p className="mt-2 text-sm text-text-muted">
+                            Repeated {formatInteger(event.occurrenceCount)} times in the last 24h.
+                          </p>
+                        ) : null}
+                        {presentation.detail ? (
+                          <p className="mt-2 text-sm text-text-muted">{presentation.detail}</p>
+                        ) : null}
+                        <p className="mt-2 text-sm text-text-muted">
+                          {event.reason ?? event.errorMessage ?? 'No additional detail'}
+                        </p>
+                      </div>
+                    )
+                  })
                 )}
               </div>
             </SectionCard>
