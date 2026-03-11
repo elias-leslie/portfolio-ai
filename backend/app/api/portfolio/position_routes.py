@@ -2,26 +2,37 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
+from importlib import import_module
+
 from fastapi import APIRouter, HTTPException
+from starlette.concurrency import run_in_threadpool
 
 from app.logging_config import get_logger
 from app.middleware.cache import invalidate_endpoint_cache
-from app.portfolio.manager import PortfolioManager
 from app.portfolio.models import Position
-from app.portfolio.price_fetcher import PriceDataFetcher
-from app.storage import get_storage
 from app.strategies.storage import get_strategy_storage
 
 from .models import PositionCreate, PositionResponse
 
 logger = get_logger(__name__)
 
-# Initialize services
-storage = get_storage()
-portfolio_mgr = PortfolioManager(storage)
-price_fetcher = PriceDataFetcher(storage)
-
 router = APIRouter()
+
+
+@lru_cache(maxsize=1)
+def _storage():
+    return import_module("app.storage").get_storage()
+
+
+@lru_cache(maxsize=1)
+def _portfolio_mgr():
+    return import_module("app.portfolio.manager").PortfolioManager(_storage())
+
+
+@lru_cache(maxsize=1)
+def _price_fetcher():
+    return import_module("app.portfolio.price_fetcher").PriceDataFetcher(_storage())
 
 
 def _build_position_response(
@@ -37,7 +48,7 @@ def _build_position_response(
         PositionResponse with current price and gain calculations
     """
     # Get current price if available
-    price_data = price_fetcher.fetch_price_data([position.symbol])
+    price_data = _price_fetcher().fetch_price_data([position.symbol])
     price_info = price_data.get(position.symbol)
     current_price = price_info.price if price_info else None
 
@@ -82,15 +93,12 @@ def _invalidate_portfolio_read_cache() -> None:
     invalidate_endpoint_cache("/api/portfolio/analytics", method="GET")
 
 
-@router.post("/position", response_model=PositionResponse)
-async def create_position(position: PositionCreate) -> PositionResponse:
-    """Add or update a portfolio position."""
-    # Check if account exists
+def _create_position_response(position: PositionCreate) -> PositionResponse:
+    portfolio_mgr = _portfolio_mgr()
     accounts = portfolio_mgr.get_accounts()
     if not any(acc.id == position.account_id for acc in accounts):
         raise HTTPException(status_code=404, detail="Account not found")
 
-    # Create position
     created = portfolio_mgr.add_position(
         account_id=position.account_id,
         symbol=position.symbol,
@@ -99,27 +107,20 @@ async def create_position(position: PositionCreate) -> PositionResponse:
         position_type=position.position_type,
         strategy_id=position.strategy_id,
     )
-
-    _invalidate_portfolio_read_cache()
-
     return _build_position_response(created, include_strategy_name=True)
 
 
-@router.put("/position/{position_id}", response_model=PositionResponse)
-async def update_position(position_id: str, position: PositionCreate) -> PositionResponse:
-    """Update an existing portfolio position."""
-    # Check if position exists
+def _update_position_response(position_id: str, position: PositionCreate) -> PositionResponse:
+    portfolio_mgr = _portfolio_mgr()
     positions = portfolio_mgr.get_positions()
     existing_pos = next((p for p in positions if p.id == position_id), None)
     if not existing_pos:
         raise HTTPException(status_code=404, detail="Position not found")
 
-    # Check if account exists
     accounts = portfolio_mgr.get_accounts()
     if not any(acc.id == position.account_id for acc in accounts):
         raise HTTPException(status_code=404, detail="Account not found")
 
-    # Update position
     updated = portfolio_mgr.update_position(
         position_id=position_id,
         account_id=position.account_id,
@@ -128,17 +129,33 @@ async def update_position(position_id: str, position: PositionCreate) -> Positio
         cost_basis=position.cost_basis,
         position_type=position.position_type,
     )
-
-    _invalidate_portfolio_read_cache()
-
     return _build_position_response(updated, include_strategy_name=False)
+
+
+def _delete_position_payload(position_id: str) -> dict[str, str]:
+    _portfolio_mgr().delete_position(position_id)
+    return {"status": "deleted", "position_id": position_id}
+
+
+@router.post("/position", response_model=PositionResponse)
+async def create_position(position: PositionCreate) -> PositionResponse:
+    """Add or update a portfolio position."""
+    created = await run_in_threadpool(_create_position_response, position)
+    _invalidate_portfolio_read_cache()
+    return created
+
+
+@router.put("/position/{position_id}", response_model=PositionResponse)
+async def update_position(position_id: str, position: PositionCreate) -> PositionResponse:
+    """Update an existing portfolio position."""
+    updated = await run_in_threadpool(_update_position_response, position_id, position)
+    _invalidate_portfolio_read_cache()
+    return updated
 
 
 @router.delete("/position/{position_id}")
 async def delete_position(position_id: str) -> dict[str, str]:
     """Delete a portfolio position."""
-    portfolio_mgr.delete_position(position_id)
-
+    deleted = await run_in_threadpool(_delete_position_payload, position_id)
     _invalidate_portfolio_read_cache()
-
-    return {"status": "deleted", "position_id": position_id}
+    return deleted

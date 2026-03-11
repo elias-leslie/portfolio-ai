@@ -6,6 +6,9 @@ Provides the main endpoint for comprehensive symbol data aggregation.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from functools import lru_cache
+from importlib import import_module
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter
 from fastapi.concurrency import run_in_threadpool
@@ -16,9 +19,6 @@ from app.models.symbol_workflow import (
     SymbolWorkflowOutcomeRequest,
     SymbolWorkflowTransitionRequest,
 )
-from app.services.symbol_workflow_service import SymbolWorkflowService
-from app.storage import get_storage
-from app.watchlist.watchlist_service import WatchlistService
 
 from .builders import (
     build_alerts,
@@ -37,12 +37,28 @@ from .data_fetchers import fetch_all_data
 from .models import RecommendationSection, SymbolIntelligenceResponse
 from .recommendations import generate_recommendation
 
+if TYPE_CHECKING:
+    from app.services.symbol_workflow_service import SymbolWorkflowService
+    from app.watchlist.watchlist_service import WatchlistService
+
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/symbols", tags=["symbols"])
-storage = get_storage()
-watchlist_service = WatchlistService(storage)
-workflow_service = SymbolWorkflowService()
+
+
+@lru_cache(maxsize=1)
+def _storage():
+    return import_module("app.storage").get_storage()
+
+
+@lru_cache(maxsize=1)
+def _watchlist_service() -> WatchlistService:
+    return import_module("app.watchlist.watchlist_service").WatchlistService(_storage())
+
+
+@lru_cache(maxsize=1)
+def _workflow_service() -> SymbolWorkflowService:
+    return import_module("app.services.symbol_workflow_service").SymbolWorkflowService()
 
 
 def _build_response(
@@ -53,7 +69,7 @@ def _build_response(
 
     # Fetch all data
     data = fetch_all_data(
-        symbol, storage, watchlist_service, include_market, include_strategies
+        symbol, _storage(), _watchlist_service(), include_market, include_strategies
     )
     watchlist = data["watchlist"]
     portfolio = data["portfolio"]
@@ -128,7 +144,7 @@ async def get_symbol_intelligence(
 @router.get("/{symbol}/workflow", response_model=SymbolWorkflow)
 async def get_symbol_workflow(symbol: str) -> SymbolWorkflow:
     """Return the persisted operating workflow for a symbol."""
-    payload = await run_in_threadpool(workflow_service.get_workflow, symbol)
+    payload = await run_in_threadpool(_workflow_service().get_workflow, symbol)
     return SymbolWorkflow.model_validate(payload)
 
 
@@ -138,6 +154,7 @@ async def transition_symbol_workflow(
     payload: SymbolWorkflowTransitionRequest,
 ) -> SymbolWorkflow:
     """Advance or reset a symbol inside the investing workflow loop."""
+    workflow_service = _workflow_service()
     result = await run_in_threadpool(
         workflow_service.transition,
         symbol,
@@ -153,6 +170,7 @@ async def record_symbol_workflow_outcome(
     payload: SymbolWorkflowOutcomeRequest,
 ) -> SymbolWorkflow:
     """Capture a live position decision with linked Jenny context."""
+    workflow_service = _workflow_service()
     result = await run_in_threadpool(
         lambda: workflow_service.record_outcome(
             symbol,

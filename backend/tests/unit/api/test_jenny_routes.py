@@ -66,8 +66,10 @@ def _dashboard_dump() -> dict[str, Any]:
 def test_get_jenny_dashboard_returns_service_payload(mocker: Mock) -> None:
     """Dashboard route should expose Jenny data through the portfolio API."""
     mocker.patch(
-        "app.api.portfolio.jenny_routes.service.get_dashboard",
-        return_value=Mock(model_dump=_dashboard_dump),
+        "app.api.portfolio.jenny_routes._service",
+        return_value=Mock(
+            get_dashboard=Mock(return_value=Mock(model_dump=_dashboard_dump)),
+        ),
     )
 
     response = client.get("/api/portfolio/jenny")
@@ -80,10 +82,11 @@ def test_get_jenny_dashboard_returns_service_payload(mocker: Mock) -> None:
 
 def test_run_jenny_routine_dispatches_daily_operator(mocker: Mock) -> None:
     """Manual Jenny run should dispatch the requested routine."""
-    mocked = mocker.patch(
-        "app.api.portfolio.jenny_routes.service.run_daily_operator",
-        return_value=Mock(model_dump=_run_response_payload),
+    service = Mock(
+        run_daily_operator=Mock(return_value=Mock(model_dump=_run_response_payload)),
     )
+    mocker.patch("app.api.portfolio.jenny_routes._service", return_value=service)
+    mocked = service.run_daily_operator
 
     response = client.post("/api/portfolio/jenny/run", json={"routine_type": "daily_operator"})
 
@@ -94,8 +97,8 @@ def test_run_jenny_routine_dispatches_daily_operator(mocker: Mock) -> None:
 def test_acknowledge_notification_returns_404_when_missing(mocker: Mock) -> None:
     """Missing notifications should return 404."""
     mocker.patch(
-        "app.api.portfolio.jenny_routes.service.acknowledge_notification",
-        return_value=None,
+        "app.api.portfolio.jenny_routes._service",
+        return_value=Mock(acknowledge_notification=Mock(return_value=None)),
     )
 
     response = client.post("/api/portfolio/jenny/notifications/missing/acknowledge")

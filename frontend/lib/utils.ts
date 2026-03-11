@@ -113,19 +113,3 @@ export function checkDataFreshness(
       : `Data may be stale - expected ${formatDate(expectedDataDate, false)}, have ${formatDate(dataDate, false)}`,
   }
 }
-
-/**
- * Format data date with freshness indicator
- * @param dataDate The date of the data
- * @param expectedDataDate The expected data date from market status API
- * @returns Formatted string like "Dec 10 ✓" or "Dec 10 ⚠️"
- */
-export function formatDataDateWithFreshness(
-  dataDate: string | null | undefined,
-  expectedDataDate: string | null | undefined,
-): string {
-  if (!dataDate) return '-'
-
-  const { indicator } = checkDataFreshness(dataDate, expectedDataDate)
-  return `${formatDate(dataDate, false)} ${indicator}`
-}

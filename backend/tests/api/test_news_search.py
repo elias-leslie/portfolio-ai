@@ -61,16 +61,16 @@ def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
         return _build_bundle(query)
 
     class FakeNewsService:
+        max_articles = 10
+
         def refresh_max_articles_from_preferences(self) -> int:
             return 10
 
         def get_custom_news(self, query: str, *, max_articles: int = 10) -> NewsBundle:
             return fake_get_custom_news(query, max_articles=max_articles)
 
-    def build_news_service() -> FakeNewsService:
-        return FakeNewsService()
-
-    monkeypatch.setattr("app.api.news._news_service", build_news_service)
+    fake_service = FakeNewsService()
+    monkeypatch.setattr("app.api.news._news_service", lambda: fake_service)
     app = FastAPI()
     app.include_router(router)
     client = TestClient(app)

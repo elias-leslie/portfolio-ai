@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
+from importlib import import_module
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
+from starlette.concurrency import run_in_threadpool
 
 from app.logging_config import get_logger
 from app.middleware.cache import cache_response
-from app.portfolio.analytics import PortfolioAnalytics
-from app.portfolio.manager import PortfolioManager
-from app.portfolio.price_fetcher import PriceDataFetcher
-from app.storage import get_storage
 
 from .analytics_routes import router as analytics_router
 from .jenny_routes import router as jenny_router
@@ -23,16 +22,32 @@ logger = get_logger(__name__)
 # Create main router
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
 
-# Initialize services
-storage = get_storage()
-portfolio_mgr = PortfolioManager(storage)
-price_fetcher = PriceDataFetcher(storage)
+
+@lru_cache(maxsize=1)
+def _storage():
+    return import_module("app.storage").get_storage()
+
+
+@lru_cache(maxsize=1)
+def _portfolio_mgr():
+    return import_module("app.portfolio.manager").PortfolioManager(_storage())
+
+
+@lru_cache(maxsize=1)
+def _price_fetcher():
+    return import_module("app.portfolio.price_fetcher").PriceDataFetcher(_storage())
+
+
+@lru_cache(maxsize=1)
+def _analytics_calculator():
+    return import_module("app.portfolio.analytics").PortfolioAnalytics()
 
 
 def _get_filtered_accounts_and_positions(
     include_paper: bool,
 ) -> tuple[list[Any], set[str], float, list[Any]]:
     """Return filtered accounts, their IDs, cash total, and filtered positions."""
+    portfolio_mgr = _portfolio_mgr()
     all_accounts = portfolio_mgr.get_accounts()
     if not include_paper:
         accounts = [acc for acc in all_accounts if acc.account_type != "paper"]
@@ -50,12 +65,13 @@ def _get_filtered_accounts_and_positions(
 
 def _fetch_prices_with_sync(symbols: list[str]) -> dict[str, Any]:
     """Sync symbols to watchlist (best-effort) then fetch price data."""
+    portfolio_mgr = _portfolio_mgr()
     try:
         portfolio_mgr.sync_portfolio_to_watchlist(symbols)
     except Exception as e:
         logger.error(f"Failed to sync portfolio to watchlist: {e}")
 
-    return price_fetcher.fetch_price_data(symbols)
+    return _price_fetcher().fetch_price_data(symbols)
 
 
 def _build_position_responses(
@@ -96,14 +112,7 @@ def _build_position_responses(
     return position_responses
 
 
-@router.get("", response_model=PortfolioResponse)
-@cache_response(ttl=30)  # 30 seconds cache
-async def get_portfolio(request: Request, include_paper: bool = False) -> PortfolioResponse:
-    """Get all portfolio positions with current values.
-
-    Args:
-        include_paper: If False (default), excludes paper trading accounts.
-    """
+def _get_portfolio_payload(include_paper: bool) -> PortfolioResponse:
     _accounts, account_ids, cash_balance_total, positions = (
         _get_filtered_accounts_and_positions(include_paper)
     )
@@ -121,11 +130,10 @@ async def get_portfolio(request: Request, include_paper: bool = False) -> Portfo
     symbols = list({p.symbol for p in positions})
     price_data = _fetch_prices_with_sync(symbols)
 
-    analytics_calculator = PortfolioAnalytics()
-    analytics = analytics_calculator.calculate_full_analytics(
+    analytics = _analytics_calculator().calculate_full_analytics(
         positions,
         price_data,
-        storage=storage,
+        storage=_storage(),
         account_ids=list(account_ids),
     )
 
@@ -146,16 +154,9 @@ async def get_portfolio(request: Request, include_paper: bool = False) -> Portfo
     )
 
 
-@router.get("/accounts", response_model=list[AccountResponse])
-async def get_accounts(include_paper: bool = False) -> list[AccountResponse]:
-    """Get all portfolio accounts.
+def _get_accounts_payload(include_paper: bool) -> list[AccountResponse]:
+    accounts = _portfolio_mgr().get_accounts()
 
-    Args:
-        include_paper: If False (default), excludes paper trading accounts.
-    """
-    accounts = portfolio_mgr.get_accounts()
-
-    # Filter out paper accounts unless explicitly requested
     if not include_paper:
         accounts = [acc for acc in accounts if acc.account_type != "paper"]
 
@@ -172,11 +173,8 @@ async def get_accounts(include_paper: bool = False) -> list[AccountResponse]:
     ]
 
 
-@router.post("/account", response_model=AccountResponse)
-async def create_account(account: AccountCreate) -> AccountResponse:
-    """Create a new portfolio account."""
-    created = portfolio_mgr.add_account(account.name, account.account_type)
-
+def _create_account_payload(account: AccountCreate) -> AccountResponse:
+    created = _portfolio_mgr().add_account(account.name, account.account_type)
     return AccountResponse(
         id=created.id,
         name=created.name,
@@ -187,25 +185,55 @@ async def create_account(account: AccountCreate) -> AccountResponse:
     )
 
 
-@router.delete("/account/{account_id}")
-async def delete_account(account_id: str) -> dict[str, str]:
-    """Delete a portfolio account and all its positions."""
+def _delete_account_payload(account_id: str) -> dict[str, str]:
+    portfolio_mgr = _portfolio_mgr()
     accounts = portfolio_mgr.get_accounts()
     if not any(acc.id == account_id for acc in accounts):
         raise HTTPException(status_code=404, detail="Account not found")
 
-    # Delete all positions in this account
     positions = portfolio_mgr.get_positions()
     for pos in positions:
         if pos.account_id == account_id:
             portfolio_mgr.delete_position(pos.id)
 
-    # Delete the account
-    with storage.connection() as conn:
+    with _storage().connection() as conn:
         conn.execute("DELETE FROM portfolio_accounts WHERE id = %s", (account_id,))
         conn.commit()
 
     return {"status": "deleted", "account_id": account_id}
+
+
+@router.get("", response_model=PortfolioResponse)
+@cache_response(ttl=30)  # 30 seconds cache
+async def get_portfolio(request: Request, include_paper: bool = False) -> PortfolioResponse:
+    """Get all portfolio positions with current values.
+
+    Args:
+        include_paper: If False (default), excludes paper trading accounts.
+    """
+    return await run_in_threadpool(_get_portfolio_payload, include_paper)
+
+
+@router.get("/accounts", response_model=list[AccountResponse])
+async def get_accounts(include_paper: bool = False) -> list[AccountResponse]:
+    """Get all portfolio accounts.
+
+    Args:
+        include_paper: If False (default), excludes paper trading accounts.
+    """
+    return await run_in_threadpool(_get_accounts_payload, include_paper)
+
+
+@router.post("/account", response_model=AccountResponse)
+async def create_account(account: AccountCreate) -> AccountResponse:
+    """Create a new portfolio account."""
+    return await run_in_threadpool(_create_account_payload, account)
+
+
+@router.delete("/account/{account_id}")
+async def delete_account(account_id: str) -> dict[str, str]:
+    """Delete a portfolio account and all its positions."""
+    return await run_in_threadpool(_delete_account_payload, account_id)
 
 
 # Include sub-routers

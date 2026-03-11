@@ -17,7 +17,6 @@ import { UnifiedNewsIntelligenceCard } from '@/components/shared/UnifiedNewsInte
 import type { RefreshStatus, WatchlistItem } from '@/lib/api/watchlist'
 import { useNewsIntelligence } from '@/lib/hooks/useNews'
 import { usePreferences } from '@/lib/hooks/usePreferences'
-import { ExpandedRowNarrative } from './ExpandedRowNarrative'
 import { ExpandedRowNotes } from './ExpandedRowNotes'
 import { ExpandedRowRefreshStatus } from './ExpandedRowRefreshStatus'
 import { ExpandedRowScoreBreakdown } from './ExpandedRowScoreBreakdown'
@@ -44,9 +43,6 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
           symbol={item.symbol}
         />
       )}
-
-      {/* Narrative Intelligence */}
-      <ExpandedRowNarrative item={item} />
 
       {/* Score Breakdown */}
       <ExpandedRowScoreBreakdown item={item} userTimezone={userTimezone} />

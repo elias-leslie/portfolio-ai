@@ -163,6 +163,8 @@ def get_database_size_task() -> dict[str, int | str | float | list[dict[str, Any
     Returns:
         Dict with task_id, database_size_bytes, top_tables, duration_seconds
     """
+    # This task intentionally bypasses execute_maintenance_task so it can persist
+    # database_size_bytes via save_maintenance_stat before completion is recorded.
     task_id = str(uuid.uuid4())
     start_time = dt.datetime.now(dt.UTC)
     log_id = record_maintenance_start("get_database_size_task", dry_run=False)
@@ -218,6 +220,8 @@ def refresh_sec_cik_cache() -> dict[str, Any]:
     Returns:
         Dict with task_id, symbols_updated, duration_seconds, success
     """
+    # This task intentionally bypasses execute_maintenance_task so it can persist
+    # sec_cik_symbols_updated via save_maintenance_stat before completion is recorded.
     task_id = str(uuid.uuid4())
     start_time = dt.datetime.now(dt.UTC)
     log_id = record_maintenance_start("refresh_sec_cik_cache", dry_run=False)

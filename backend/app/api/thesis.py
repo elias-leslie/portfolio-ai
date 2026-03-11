@@ -6,6 +6,10 @@ investment theses with dual-agent validation.
 
 from __future__ import annotations
 
+from functools import lru_cache
+from importlib import import_module
+from typing import TYPE_CHECKING
+
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 
@@ -15,16 +19,19 @@ from app.models.thesis import (
     ThesisResponse,
     ThesisVersion,
 )
-from app.services.thesis_service import ThesisService
+
+if TYPE_CHECKING:
+    from app.services.thesis_service import ThesisService
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/thesis", tags=["thesis"])
 
 
+@lru_cache(maxsize=1)
 def _get_thesis_service() -> ThesisService:
     """Get ThesisService instance."""
-    return ThesisService()
+    return import_module("app.services.thesis_service").ThesisService()
 
 
 @router.get("/{symbol}", response_model=ThesisResponse)

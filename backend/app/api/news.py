@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
 from importlib import import_module
 from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 
 from app.middleware.cache import cache_response
 
@@ -17,18 +19,76 @@ if TYPE_CHECKING:
 router = APIRouter(prefix="/api/news", tags=["news"])
 
 
+@lru_cache(maxsize=1)
 def _news_service() -> NewsService:
     storage = import_module("app.storage").get_storage()
-    import_module("app.storage.credential_loader").load_credentials_from_database()
-    service = import_module("app.services").NewsService(storage)
+    import_module("app.services.news_cache_refresh").ensure_credentials_loaded()
+    service = import_module("app.services").NewsService(storage, auto_load_credentials=False)
     service.refresh_ttl_from_preferences()
     service.refresh_max_articles_from_preferences()
     return service
 
 
+@lru_cache(maxsize=1)
 def _watchlist_service() -> WatchlistService:
     storage = import_module("app.storage").get_storage()
     return import_module("app.watchlist.watchlist_service").WatchlistService(storage)
+
+
+def _get_news_bundle(
+    symbol: str | None,
+    limit: int,
+    force_refresh: bool,
+) -> tuple[object, int]:
+    news_service = _news_service()
+    final_limit = min(limit, news_service.max_articles) if limit else news_service.max_articles
+    bundle = news_service.get_news_intelligence(
+        symbol=symbol,
+        max_articles=final_limit,
+        force_refresh=force_refresh,
+    )
+    return bundle, final_limit
+
+
+def _get_watchlist_news_payload(
+    account_id: str,
+    max_results: int | None,
+    force_refresh: bool,
+) -> WatchlistNewsResponse:
+    watchlist_service = _watchlist_service()
+    items = watchlist_service.get_items_with_scores()
+    if not items:
+        return WatchlistNewsResponse(account_id=account_id, items=[])
+
+    news_service = _news_service()
+    limit = max_results or news_service.max_articles
+    symbols = [item["symbol"] for item in items]
+    bundles = news_service.get_watchlist_news(
+        symbols,
+        max_articles=limit,
+        force_refresh=force_refresh,
+    )
+
+    serialized_items: list[NewsBundleResponse] = []
+    for symbol in symbols:
+        bundle = bundles.get(symbol.upper())
+        if not bundle:
+            continue
+        serialized_items.append(_serialize_bundle(bundle, limit=limit))
+
+    return WatchlistNewsResponse(account_id=account_id, items=serialized_items)
+
+
+def _get_news_health_payload() -> NewsHealthResponse:
+    metrics = _news_service().get_health()
+    return NewsHealthResponse(**metrics)
+
+
+def _search_news_bundle(query: str, max_results: int | None) -> tuple[object, int]:
+    news_service = _news_service()
+    limit = max_results or news_service.max_articles
+    bundle = news_service.get_custom_news(query, max_articles=limit)
+    return bundle, limit
 
 
 class SentimentScoreResponse(BaseModel):
@@ -245,15 +305,7 @@ async def get_news_intelligence(
 
     The response includes sentiment summary and scored articles with AI insights.
     """
-    news_service = _news_service()
-    pref_limit = news_service.refresh_max_articles_from_preferences()
-    final_limit = min(limit, pref_limit) if limit else pref_limit
-
-    bundle = news_service.get_news_intelligence(
-        symbol=symbol,
-        max_articles=final_limit,
-        force_refresh=force_refresh,
-    )
+    bundle, final_limit = await run_in_threadpool(_get_news_bundle, symbol, limit, force_refresh)
     return _serialize_bundle(bundle, limit=final_limit)
 
 
@@ -273,39 +325,18 @@ async def get_watchlist_news(
     Note: Watchlist is now user-level (not account-specific). The account_id parameter
     is kept for backward compatibility but is ignored.
     """
-    watchlist_service = _watchlist_service()
-    items = watchlist_service.get_items_with_scores()
-    if not items:
-        return WatchlistNewsResponse(account_id=account_id, items=[])
-
-    news_service = _news_service()
-    pref_limit = news_service.refresh_max_articles_from_preferences()
-    limit = max_results or pref_limit
-    symbols = [item["symbol"] for item in items]
-    bundles = news_service.get_watchlist_news(
-        symbols,
-        max_articles=limit,
-        force_refresh=force_refresh,
+    return await run_in_threadpool(
+        _get_watchlist_news_payload,
+        account_id,
+        max_results,
+        force_refresh,
     )
-
-    serialized_items: list[NewsBundleResponse] = []
-    for symbol in symbols:
-        bundle = bundles.get(symbol.upper())
-        if not bundle:
-            continue
-        serialized_items.append(_serialize_bundle(bundle, limit=limit))
-
-    return WatchlistNewsResponse(account_id=account_id, items=serialized_items)
 
 
 @router.get("/health", response_model=NewsHealthResponse)
 async def get_news_health() -> NewsHealthResponse:
     """Return health information for the news ingestion pipeline."""
-    news_service = _news_service()
-    news_service.refresh_ttl_from_preferences()
-    news_service.refresh_max_articles_from_preferences()
-    metrics = news_service.get_health()
-    return NewsHealthResponse(**metrics)
+    return await run_in_threadpool(_get_news_health_payload)
 
 
 @router.get("/search", response_model=NewsBundleResponse)
@@ -314,8 +345,5 @@ async def search_news(
     max_results: int | None = Query(None, ge=1, le=50),
 ) -> NewsBundleResponse:
     """Search news without caching results."""
-    news_service = _news_service()
-    pref_limit = news_service.refresh_max_articles_from_preferences()
-    limit = max_results or pref_limit
-    bundle = news_service.get_custom_news(query, max_articles=limit)
+    bundle, limit = await run_in_threadpool(_search_news_bundle, query, max_results)
     return _serialize_bundle(bundle, limit=limit)

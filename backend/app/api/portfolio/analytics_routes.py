@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
+from importlib import import_module
 from typing import Any
 
 from fastapi import APIRouter, Request
-from fastapi.concurrency import run_in_threadpool
+from starlette.concurrency import run_in_threadpool
 
 from app.logging_config import get_logger
 from app.middleware.cache import cache_response
-from app.portfolio.analytics import PortfolioAnalytics
-from app.portfolio.manager import PortfolioManager
-from app.portfolio.price_fetcher import PriceDataFetcher
-from app.storage import get_storage
 
 from .models import (
     AnalyticsResponse,
@@ -23,13 +21,27 @@ from .models import (
 
 logger = get_logger(__name__)
 
-# Initialize services
-storage = get_storage()
-portfolio_mgr = PortfolioManager(storage)
-price_fetcher = PriceDataFetcher(storage)
-analytics_calculator = PortfolioAnalytics()
-
 router = APIRouter()
+
+
+@lru_cache(maxsize=1)
+def _storage():
+    return import_module("app.storage").get_storage()
+
+
+@lru_cache(maxsize=1)
+def _portfolio_mgr():
+    return import_module("app.portfolio.manager").PortfolioManager(_storage())
+
+
+@lru_cache(maxsize=1)
+def _price_fetcher():
+    return import_module("app.portfolio.price_fetcher").PriceDataFetcher(_storage())
+
+
+@lru_cache(maxsize=1)
+def _analytics_calculator():
+    return import_module("app.portfolio.analytics").PortfolioAnalytics()
 
 
 def _empty_analytics_response(cash_balance_total: float) -> AnalyticsResponse:
@@ -132,15 +144,9 @@ def _build_full_analytics_response(
     )
 
 
-@router.get("/analytics", response_model=AnalyticsResponse)
-@cache_response(ttl=30)  # 30 seconds cache
-async def get_analytics(request: Request, include_paper: bool = False) -> AnalyticsResponse:
-    """Get portfolio analytics (value, beta, volatility, concentration, sector exposure).
-
-    Args:
-        include_paper: If False (default), excludes paper trading accounts.
-    """
-    all_accounts = await run_in_threadpool(portfolio_mgr.get_accounts)
+def _get_analytics_payload(include_paper: bool) -> AnalyticsResponse:
+    portfolio_mgr = _portfolio_mgr()
+    all_accounts = portfolio_mgr.get_accounts()
     if not include_paper:
         accounts = [acc for acc in all_accounts if acc.account_type != "paper"]
     else:
@@ -149,23 +155,30 @@ async def get_analytics(request: Request, include_paper: bool = False) -> Analyt
     account_ids = {acc.id for acc in accounts}
     cash_balance_total = sum(acc.cash_balance for acc in accounts)
 
-    all_positions = await run_in_threadpool(portfolio_mgr.get_positions)
+    all_positions = portfolio_mgr.get_positions()
     positions = [p for p in all_positions if p.account_id in account_ids]
 
     if not positions:
         return _empty_analytics_response(cash_balance_total)
 
     symbols = list({p.symbol for p in positions})
-    price_data = await run_in_threadpool(price_fetcher.fetch_price_data, symbols)
-
-    _account_ids = list(account_ids)
-    analytics = await run_in_threadpool(
-        lambda: analytics_calculator.calculate_full_analytics(
-            positions,
-            price_data,
-            storage=storage,
-            account_ids=_account_ids,
-        )
+    price_data = _price_fetcher().fetch_price_data(symbols)
+    analytics = _analytics_calculator().calculate_full_analytics(
+        positions,
+        price_data,
+        storage=_storage(),
+        account_ids=list(account_ids),
     )
 
     return _build_full_analytics_response(analytics, cash_balance_total)
+
+
+@router.get("/analytics", response_model=AnalyticsResponse)
+@cache_response(ttl=30)  # 30 seconds cache
+async def get_analytics(request: Request, include_paper: bool = False) -> AnalyticsResponse:
+    """Get portfolio analytics (value, beta, volatility, concentration, sector exposure).
+
+    Args:
+        include_paper: If False (default), excludes paper trading accounts.
+    """
+    return await run_in_threadpool(_get_analytics_payload, include_paper)
