@@ -5,12 +5,14 @@ from __future__ import annotations
 import subprocess
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Literal
+from functools import lru_cache
+from pathlib import Path
+from typing import Any, Literal
 
+import yaml
 from pydantic import BaseModel
 
 from app.logging_config import get_logger
-from app.sources import initialize_data_sources
 from app.storage import PortfolioStorage
 
 logger = get_logger(__name__)
@@ -64,21 +66,48 @@ class SourceHealthPolicy:
     degraded_window: timedelta = timedelta(hours=24)
 
 
+@lru_cache(maxsize=1)
+def _load_api_sources_registry() -> dict[str, Any]:
+    """Load the provider capability registry."""
+    config_path = Path(__file__).resolve().parent.parent / "config" / "api-sources-registry.yaml"
+    with config_path.open() as registry_file:
+        loaded = yaml.safe_load(registry_file)
+    return loaded if isinstance(loaded, dict) else {}
+
+
+def _is_source_panel_capability(capabilities: dict[str, Any]) -> bool:
+    """Return True when a provider belongs in the market/reference source panel."""
+    return any(
+        bool(capabilities.get(key))
+        for key in ("ohlcv", "reference", "fundamentals", "options", "macro")
+    )
+
+
 def _get_source_health_policies() -> dict[str, SourceHealthPolicy]:
     """Return health policies for source rows that belong in the source panel.
 
     The source panel is scoped to market/reference providers. News-only vendors have a
     dedicated News Vendors section and should not appear here.
     """
-    policies = {
-        source.name: SourceHealthPolicy()
-        for source in initialize_data_sources()
-        if source.supports_day or source.supports_reference
-    }
-    policies["cboe_most_active"] = SourceHealthPolicy(
-        ok_window=timedelta(hours=30),
-        degraded_window=timedelta(hours=48),
-    )
+    providers = _load_api_sources_registry().get("providers", {})
+    policies: dict[str, SourceHealthPolicy] = {}
+
+    if isinstance(providers, dict):
+        for source_name, provider_config in providers.items():
+            if not isinstance(source_name, str) or not isinstance(provider_config, dict):
+                continue
+
+            capabilities = provider_config.get("capabilities", {})
+            if not isinstance(capabilities, dict) or not _is_source_panel_capability(capabilities):
+                continue
+
+            policies[source_name] = SourceHealthPolicy()
+
+    if "cboe_most_active" in policies:
+        policies["cboe_most_active"] = SourceHealthPolicy(
+            ok_window=timedelta(hours=30),
+            degraded_window=timedelta(hours=48),
+        )
     return policies
 
 

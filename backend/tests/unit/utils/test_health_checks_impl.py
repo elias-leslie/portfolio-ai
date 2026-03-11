@@ -51,11 +51,15 @@ def test_check_sources_excludes_news_only_vendors(monkeypatch) -> None:
 
     monkeypatch.setattr(
         health_checks_impl,
-        "initialize_data_sources",
-        lambda: [
-            SimpleNamespace(name="yfinance", supports_day=True, supports_reference=True),
-            SimpleNamespace(name="polygon", supports_day=True, supports_reference=True),
-        ],
+        "_load_api_sources_registry",
+        lambda: {
+            "providers": {
+                "yfinance": {"capabilities": {"ohlcv": True, "reference": True}},
+                "polygon": {"capabilities": {"ohlcv": True, "reference": True}},
+                "sec_edgar": {"capabilities": {"news": True, "filings": True}},
+                "cboe_most_active": {"capabilities": {"options": True}},
+            }
+        },
     )
     monkeypatch.setattr(health_checks_impl, "datetime", _FrozenDateTime)
 
