@@ -4,7 +4,7 @@
 # This file defines retention periods and thresholds for automated maintenance tasks.
 # These values control how long data is kept before cleanup.
 #
-# Schedule: Configured in backend/app/celery_app.py beat_schedule
+# Schedule: Configured in backend/app/workflows/maintenance.py Hatchet cron workflows
 # Tasks: Implemented in backend/app/tasks/maintenance_tasks.py and cleanup/ modules
 
 # Retention Periods
@@ -82,8 +82,8 @@ cleanup:
 
 # Notes
 # -----
-# - To change retention periods, update values here and restart Celery Beat
-# - Retention periods in celery_app.py beat_schedule should match these values
+# - To change retention periods, update values here and restart the Hatchet worker
+# - Retention periods in backend/app/workflows/maintenance.py should match these values
 # - All tasks are idempotent and safe to run multiple times
-# - Manual triggers available via API: POST /api/maintenance/trigger/{task_name}
-# - View status and history: Status page > Maintenance tab
+# - Manual triggers are available via backend/scripts/run_maintenance.py
+# - View status and history via maintenance_log, automation center cards, and /health/detailed

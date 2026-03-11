@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from ..api.maintenance.monitoring_types import (
+from .maintenance_types import (
     CacheDirectoryInfo,
     CacheStatusResponse,
     FileCleanupStatusResponse,
@@ -158,7 +158,7 @@ def get_file_cleanup_status() -> FileCleanupStatusResponse:
             "size_mb": logs_size,
             "file_count": logs_count,
             "retention_policy": "Keep 7 days",
-            "schedule": "Daily 02:00 UTC",
+            "schedule": "Rotate 01:45 UTC, purge 02:00 UTC",
         },
         "backups": {
             "path": str(backups_path),

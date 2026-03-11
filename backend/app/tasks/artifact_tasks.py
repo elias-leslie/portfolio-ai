@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import re
 import shutil
+import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -104,10 +105,35 @@ def cleanup_debug_captures(max_age_days: int = 7, dry_run: bool = False) -> dict
     Returns:
         Summary dict with deleted count and size
     """
+    task_id = str(uuid.uuid4())
+    started_at = datetime.now(UTC)
     log_id = log_maintenance_start(_TASK_NAME, dry_run)
-    logger.info("cleanup_debug_captures_started", max_age_days=max_age_days, dry_run=dry_run)
+    logger.info(
+        "cleanup_debug_captures_started",
+        task_id=task_id,
+        max_age_days=max_age_days,
+        dry_run=dry_run,
+    )
 
     try:
+        if not _ARTIFACTS_DIR.exists():
+            result_dict: dict[str, object] = {
+                "task_id": task_id,
+                "deleted_count": 0,
+                "deleted_size_bytes": 0,
+                "dry_run": dry_run,
+                "success": True,
+                "message": f"Artifacts directory not found: {_ARTIFACTS_DIR}",
+                "duration_seconds": round((datetime.now(UTC) - started_at).total_seconds(), 2),
+            }
+            logger.warning(
+                "cleanup_debug_captures_directory_missing",
+                task_id=task_id,
+                artifacts_dir=str(_ARTIFACTS_DIR),
+            )
+            log_maintenance_complete(log_id, _TASK_NAME, True, result_dict)
+            return result_dict
+
         cutoff_date = datetime.now(UTC) - timedelta(days=max_age_days)
         deleted_count = 0
         deleted_size = 0
@@ -122,17 +148,43 @@ def cleanup_debug_captures(max_age_days: int = 7, dry_run: bool = False) -> dict
                 errors.append({"path": str(entry), "error": str(e)})
                 logger.error("cleanup_debug_capture_error", path=str(entry), error=str(e))
 
-        logger.info("cleanup_debug_captures_completed", deleted_count=deleted_count,
-                    deleted_size_bytes=deleted_size, dry_run=dry_run, error_count=len(errors))
+        duration_seconds = round((datetime.now(UTC) - started_at).total_seconds(), 2)
+        logger.info(
+            "cleanup_debug_captures_completed",
+            task_id=task_id,
+            deleted_count=deleted_count,
+            deleted_size_bytes=deleted_size,
+            dry_run=dry_run,
+            error_count=len(errors),
+            duration_seconds=duration_seconds,
+        )
         result_dict: dict[str, object] = {
-            "deleted_count": deleted_count, "deleted_size_bytes": deleted_size,
-            "dry_run": dry_run, "errors": errors,
+            "task_id": task_id,
+            "deleted_count": deleted_count,
+            "deleted_size_bytes": deleted_size,
+            "dry_run": dry_run,
+            "errors": errors,
+            "success": True,
+            "duration_seconds": duration_seconds,
         }
         log_maintenance_complete(log_id, _TASK_NAME, True, result_dict)
         return result_dict
 
     except Exception as e:
-        logger.error("cleanup_debug_captures_failed", error=str(e), error_type=type(e).__name__)
-        error_result: dict[str, object] = {"error": str(e), "success": False, "dry_run": dry_run}
+        duration_seconds = round((datetime.now(UTC) - started_at).total_seconds(), 2)
+        logger.error(
+            "cleanup_debug_captures_failed",
+            task_id=task_id,
+            error=str(e),
+            error_type=type(e).__name__,
+            duration_seconds=duration_seconds,
+        )
+        error_result: dict[str, object] = {
+            "task_id": task_id,
+            "error": str(e),
+            "success": False,
+            "dry_run": dry_run,
+            "duration_seconds": duration_seconds,
+        }
         log_maintenance_complete(log_id, _TASK_NAME, False, error_result, str(e))
         return error_result

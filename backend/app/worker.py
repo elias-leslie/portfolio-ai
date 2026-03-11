@@ -33,19 +33,21 @@ from app.workflows.maintenance import (
     check_data_source_health_wf,
     check_disk_space_wf,
     cleanup_debug_captures_wf,
+    cleanup_maintenance_wf,
     cleanup_news_wf,
     cleanup_old_agent_runs_wf,
     cleanup_old_backups_wf,
     cleanup_old_logs_wf,
     cleanup_old_models_wf,
-    cleanup_old_versions_wf,
     cleanup_orphaned_wf,
+    cleanup_snapshots_wf,
     cleanup_solution_state_wf,
     cleanup_temp_wf,
     db_size_wf,
     maintain_data_freshness_wf,
     profile_news_wf,
     reset_source_metrics_wf,
+    rotate_logs_wf,
     vacuum_db_wf,
 )
 from app.workflows.monitoring import (
@@ -93,11 +95,14 @@ def main() -> None:
     worker = hatchet.worker(
         "portfolio-worker",
         workflows=[
-            # Maintenance (18)
+            # Maintenance
+            rotate_logs_wf,
             vacuum_db_wf,
             cleanup_news_wf,
             cleanup_old_agent_runs_wf,
             cleanup_orphaned_wf,
+            cleanup_snapshots_wf,
+            cleanup_maintenance_wf,
             cleanup_old_backups_wf,
             cleanup_old_models_wf,
             cleanup_solution_state_wf,
@@ -109,7 +114,6 @@ def main() -> None:
             check_all_data_freshness_wf,
             check_data_source_health_wf,
             cleanup_debug_captures_wf,
-            cleanup_old_versions_wf,
             reset_source_metrics_wf,
             profile_news_wf,
             # Data Refresh (12)

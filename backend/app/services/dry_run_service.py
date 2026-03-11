@@ -7,17 +7,63 @@ the results into comprehensive reports.
 from __future__ import annotations
 
 import datetime as dt
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, TimeoutError, as_completed
 from typing import Any
 
-from ..api.maintenance.monitoring_types import (
+from ..logging_config import get_logger
+from ..tasks.cleanup import (
+    cleanup_cache_directories_task,
+    cleanup_old_backups_task,
+    cleanup_old_logs_task,
+    cleanup_old_models_task,
+    cleanup_solution_state_task,
+    cleanup_temp_files_task,
+    rotate_logs_task,
+)
+from ..tasks.maintenance_tasks import (
+    cleanup_maintenance_tables_task,
+    cleanup_old_agent_runs_task,
+    cleanup_old_news_task,
+    cleanup_old_watchlist_snapshots_task,
+    cleanup_orphaned_data_task,
+)
+from .maintenance_types import (
     DryRunCategoryReport,
     DryRunFileInfo,
     DryRunReportResponse,
 )
-from ..logging_config import get_logger
 
 logger = get_logger(__name__)
+
+DRY_RUN_TASKS: list[tuple[str, str, str, Any]] = [
+    ("cleanup_old_logs_task", "logs", "Keep 7 days", cleanup_old_logs_task),
+    ("cleanup_old_backups_task", "backups", "Keep 5 most recent", cleanup_old_backups_task),
+    ("cleanup_old_models_task", "models", "Keep 3 versions per model", cleanup_old_models_task),
+    ("cleanup_solution_state_task", "solution_state", "Keep 14 days", cleanup_solution_state_task),
+    (
+        "cleanup_cache_directories_task",
+        "cache",
+        "Safe to clear anytime",
+        cleanup_cache_directories_task,
+    ),
+    ("cleanup_temp_files_task", "temp_files", "Keep 24 hours", cleanup_temp_files_task),
+    ("rotate_logs_task", "log_rotation", "Rotate files >10MB", rotate_logs_task),
+    ("cleanup_old_news_task", "news", "Keep 90 days", cleanup_old_news_task),
+    ("cleanup_old_agent_runs_task", "agent_runs", "Keep 30 days", cleanup_old_agent_runs_task),
+    ("cleanup_orphaned_data_task", "orphaned_data", "Integrity-based", cleanup_orphaned_data_task),
+    (
+        "cleanup_old_watchlist_snapshots_task",
+        "watchlist_snapshots",
+        "Keep 60 days",
+        cleanup_old_watchlist_snapshots_task,
+    ),
+    (
+        "cleanup_maintenance_tables_task",
+        "maintenance_tables",
+        "Keep 90 days",
+        cleanup_maintenance_tables_task,
+    ),
+]
 
 
 def _extract_count_from_result(result: dict[str, Any]) -> int:
@@ -44,8 +90,17 @@ def _extract_count_from_result(result: dict[str, Any]) -> int:
         "orphaned_insights_to_delete",
     ]
 
-    count_field = next((f for f in count_fields if f in result), None)
-    return result.get(count_field, 0) if count_field else 0
+    explicit_count = next((f for f in count_fields if f in result), None)
+    if explicit_count:
+        return int(result.get(explicit_count, 0) or 0)
+
+    derived_count = 0
+    for key, value in result.items():
+        if not isinstance(value, int):
+            continue
+        if key.endswith("_to_delete") or key.endswith("_deleted"):
+            derived_count += value
+    return derived_count
 
 
 def _extract_bytes_from_result(result: dict[str, Any]) -> int:
@@ -145,39 +200,15 @@ def generate_dry_run_report(timeout: int = 60) -> DryRunReportResponse:
     """
     logger.info("dry_run_report_started")
 
-    # Define all cleanup tasks with their categories
-    cleanup_tasks = [
-        # File cleanup tasks
-        ("cleanup_old_logs_task", "logs", "Keep 7 days"),
-        ("cleanup_old_backups_task", "backups", "Keep 5 most recent"),
-        ("cleanup_old_models_task", "models", "Keep 3 versions per model"),
-        ("cleanup_solution_state_task", "solution_state", "Keep 14 days"),
-        ("cleanup_cache_directories_task", "cache", "Safe to clear anytime"),
-        ("cleanup_temp_files_task", "temp_files", "Keep 24 hours"),
-        ("rotate_logs_task", "log_rotation", "Rotate files >10MB"),
-        # Artifact cleanup tasks
-        ("cleanup_old_versions", "artifact_versions", "Keep 5 per criterion"),
-        ("cleanup_debug_captures", "debug_captures", "Keep 7 days"),
-        # Database cleanup tasks
-        ("cleanup_old_news_task", "news", "Keep 90 days"),
-        ("cleanup_old_agent_runs_task", "agent_runs", "Keep 30 days"),
-        ("cleanup_orphaned_data_task", "orphaned_data", "N/A"),
-    ]
-
     categories: dict[str, DryRunCategoryReport] = {}
     errors: list[str] = []
 
     def run_task_dry_run(
-        task_info: tuple[str, str, str],
+        task_info: tuple[str, str, str, Any],
     ) -> tuple[str, dict[str, Any] | None, str | None]:
         """Run a single task in dry-run mode and return result."""
-        task_name, category, _retention = task_info
+        _task_name, category, _retention, task_fn = task_info
         try:
-            from app.tasks import cleanup  # noqa: PLC0415
-
-            task_fn = getattr(cleanup, task_name, None)
-            if task_fn is None:
-                return (category, None, f"Task {task_name} not found")
             result = task_fn(dry_run=True)
             return (category, result, None)
         except Exception as e:
@@ -185,23 +216,32 @@ def generate_dry_run_report(timeout: int = 60) -> DryRunReportResponse:
 
     # Run all tasks concurrently using thread pool
     with ThreadPoolExecutor(max_workers=6) as executor:
-        futures = {executor.submit(run_task_dry_run, task): task for task in cleanup_tasks}
+        futures = {executor.submit(run_task_dry_run, task): task for task in DRY_RUN_TASKS}
 
-        for future in as_completed(futures):
-            task_info = futures[future]
-            task_name, category, retention = task_info
+        try:
+            for future in as_completed(futures, timeout=timeout):
+                task_info = futures[future]
+                task_name, category, retention, _task_fn = task_info
 
-            try:
-                _cat_name, result, error = future.result()
+                try:
+                    _cat_name, result, error = future.result()
 
-                if error:
-                    errors.append(f"{task_name}: {error}")
+                    if error:
+                        errors.append(f"{task_name}: {error}")
+                        continue
+
+                    categories[category] = _build_category_report(result, category, retention)
+
+                except Exception as e:
+                    errors.append(f"{task_name}: {e!s}")
+        except TimeoutError:
+            logger.error("dry_run_report_timed_out", timeout_seconds=timeout)
+            errors.append(f"dry_run_report timed out after {timeout} seconds")
+            for future, task_info in futures.items():
+                if future.done():
                     continue
-
-                categories[category] = _build_category_report(result, category, retention)
-
-            except Exception as e:
-                errors.append(f"{task_name}: {e!s}")
+                future.cancel()
+                errors.append(f"{task_info[0]}: timed out")
 
     # Calculate totals
     total_count = sum(cat["would_delete_count"] for cat in categories.values())
@@ -217,6 +257,8 @@ def generate_dry_run_report(timeout: int = 60) -> DryRunReportResponse:
         "total_would_delete": total_count,
         "total_would_free_mb": round(total_bytes / (1024 * 1024), 2),
     }
+    if errors:
+        response["errors"] = errors
 
     logger.info(
         "dry_run_report_completed",

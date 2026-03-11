@@ -7,8 +7,6 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-import polars as pl
-
 from ..logging_config import get_logger
 from ..storage import PortfolioStorage
 from ..utils.preferences_loader import get_user_scoring_weights
@@ -35,7 +33,7 @@ def load_latest_technical(
     placeholders = ",".join(["?"] * len(symbols))
     df = storage.query(
         f"""
-        SELECT *
+        SELECT DISTINCT ON (symbol) *
         FROM technical_indicators
         WHERE symbol IN ({placeholders})
         ORDER BY symbol, date DESC
@@ -46,9 +44,8 @@ def load_latest_technical(
     if df.is_empty():
         return {}
 
-    grouped = df.group_by("symbol").agg(pl.all().first())
     snapshots: dict[str, TechnicalSnapshot] = {}
-    for row in grouped.iter_rows(named=True):
+    for row in df.iter_rows(named=True):
         calculated_at = row.get("calculated_at")
         if isinstance(calculated_at, datetime) and calculated_at.tzinfo is None:
             calculated_at = calculated_at.replace(tzinfo=UTC)

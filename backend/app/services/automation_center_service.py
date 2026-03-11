@@ -108,7 +108,7 @@ class AutomationCenterService:
 
     def _warnings(self) -> list[str]:
         with self.storage.connection() as conn:
-            rows = conn.execute(
+            failure_rows = conn.execute(
                 """
                 SELECT task_name, status
                 FROM maintenance_log
@@ -117,4 +117,22 @@ class AutomationCenterService:
                 LIMIT 3
                 """
             ).fetchall()
-        return [f"{str(row[0]).replace('_', ' ')} reported {row[1]}." for row in rows]
+            stale_rows = conn.execute(
+                """
+                SELECT task_name, started_at
+                FROM maintenance_log
+                WHERE status = 'running'
+                  AND started_at < NOW() - INTERVAL '2 hours'
+                ORDER BY started_at ASC
+                LIMIT 3
+                """
+            ).fetchall()
+
+        warnings = [
+            f"{str(row[0]).replace('_', ' ')} reported {row[1]}." for row in failure_rows
+        ]
+        warnings.extend(
+            f"{str(row[0]).replace('_', ' ')} has been running since {row[1].isoformat()}."
+            for row in stale_rows
+        )
+        return warnings[:5]

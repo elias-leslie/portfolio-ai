@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.api.health import get_recent_remediations
+from app.api.health import get_recent_remediations, get_stale_maintenance_runs
 
 
 @pytest.mark.asyncio
@@ -145,3 +145,36 @@ async def test_get_recent_remediations_keeps_active_failures_unresolved(
     assert remediations[0]["table_name"] == "reference_cache"
     assert remediations[0]["resolved"] is False
     assert remediations[0]["resolved_at"] is None
+
+
+@pytest.mark.asyncio
+async def test_get_stale_maintenance_runs_returns_old_running_jobs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_conn = MagicMock()
+    fake_conn.execute.return_value.fetchall.return_value = [
+        (
+            "cleanup_debug_captures",
+            datetime(2026, 3, 11, 2, 15, tzinfo=UTC),
+            False,
+        ),
+    ]
+
+    @contextmanager
+    def fake_connection():
+        yield fake_conn
+
+    fake_storage = MagicMock()
+    fake_storage.connection.side_effect = fake_connection
+
+    monkeypatch.setattr("app.api.health.get_storage", lambda: fake_storage)
+
+    stale_runs = await get_stale_maintenance_runs()
+
+    assert stale_runs == [
+        {
+            "task_name": "cleanup_debug_captures",
+            "started_at": "2026-03-11T02:15:00+00:00",
+            "dry_run": False,
+        }
+    ]

@@ -50,6 +50,7 @@ class GapAnalysisResultDict(TaskResultDict, total=False):
 class NewsProfilingResultDict(TaskResultDict, total=False):
     """Result from news source profiling task."""
 
+    task_id: str
     vendors_profiled: int
     total_vendors: int
     duration_seconds: float

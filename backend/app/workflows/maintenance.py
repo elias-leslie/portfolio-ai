@@ -16,6 +16,24 @@ from .models import CleanupInput, EmptyInput, WatchlistInput
 
 
 @hatchet.task(
+    name="portfolio-rotate-logs",
+    input_validator=EmptyInput,
+    execution_timeout="1800s",
+    retries=1,
+    on_crons=["45 1 * * *"],
+    concurrency=ConcurrencyExpression(
+        expression="'portfolio-rotate-logs'",
+        max_runs=1,
+        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
+    ),
+)
+async def rotate_logs_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
+    from ..tasks.cleanup.log_cleanup import rotate_logs_task
+
+    return await asyncio.to_thread(rotate_logs_task)
+
+
+@hatchet.task(
     name="portfolio-vacuum-db",
     input_validator=EmptyInput,
     execution_timeout="7200s",
@@ -325,24 +343,6 @@ async def cleanup_debug_captures_wf(input: EmptyInput, ctx: Context) -> dict[str
     from ..tasks.artifact_tasks import cleanup_debug_captures
 
     return await asyncio.to_thread(cleanup_debug_captures)
-
-
-@hatchet.task(
-    name="portfolio-cleanup-versions",
-    input_validator=EmptyInput,
-    execution_timeout="1800s",
-    retries=1,
-    on_crons=["0 6 * * *"],
-    concurrency=ConcurrencyExpression(
-        expression="'portfolio-cleanup-versions'",
-        max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
-    ),
-)
-async def cleanup_old_versions_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.artifact_tasks import cleanup_old_versions
-
-    return await asyncio.to_thread(cleanup_old_versions)
 
 
 @hatchet.task(

@@ -217,6 +217,37 @@ async def get_recent_remediations(hours: int = 24) -> list[dict[str, Any]]:
         return []
 
 
+async def get_stale_maintenance_runs(hours: int = 2) -> list[dict[str, Any]]:
+    """Return maintenance runs stuck in running status past the alert threshold."""
+    storage = get_storage()
+
+    try:
+        query = f"""
+            SELECT task_name, started_at, dry_run
+            FROM maintenance_log
+            WHERE status = 'running'
+              AND started_at < NOW() - INTERVAL '{hours} hours'
+            ORDER BY started_at ASC
+            LIMIT 50
+        """
+
+        with storage.connection() as conn:
+            result = conn.execute(query).fetchall()
+
+        return [
+            {
+                "task_name": str(task_name),
+                "started_at": started_at.isoformat() if isinstance(started_at, datetime) else None,
+                "dry_run": bool(dry_run),
+            }
+            for task_name, started_at, dry_run in result
+        ]
+
+    except Exception as e:
+        logger.error("get_stale_maintenance_runs_failed", error=str(e))
+        return []
+
+
 # API Response Models
 class HealthCheckResponse(BaseModel):
     """Complete health check response."""
@@ -256,6 +287,10 @@ class DetailedHealthCheckResponse(HealthCheckResponse):
     recent_remediations: list[dict[str, Any]] = Field(
         default_factory=list,
         description="Recent auto-remediation actions (last 24h)",
+    )
+    stale_maintenance_runs: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Maintenance jobs stuck in running state past the alert threshold",
     )
 
 
@@ -349,6 +384,7 @@ async def detailed_health_check(response: Response) -> DetailedHealthCheckRespon
     # Add pipeline execution and remediation data
     result["data_freshness_status"] = await get_data_freshness_summary()
     result["recent_remediations"] = await get_recent_remediations()
+    result["stale_maintenance_runs"] = await get_stale_maintenance_runs()
 
     logger.info(
         "detailed_health_check_endpoint",
@@ -358,6 +394,7 @@ async def detailed_health_check(response: Response) -> DetailedHealthCheckRespon
         api_keys_configured=sum(1 for k in result["api_keys"] if k.configured),
         freshness_status=result["data_freshness_status"].get("status"),
         remediations_count=len(result["recent_remediations"]),
+        stale_maintenance_runs=len(result["stale_maintenance_runs"]),
     )
 
     return DetailedHealthCheckResponse(**result)

@@ -1,37 +1,9 @@
 #!/usr/bin/env python3
-"""Manual maintenance task runner with dry-run support.
-
-This script allows you to manually run maintenance tasks for testing,
-dry-run previews, or custom retention periods.
-
-Usage:
-    # Preview what would be cleaned (no changes made)
-    python scripts/run_maintenance.py --task cleanup_old_news --dry-run
-
-    # Run specific task with custom retention
-    python scripts/run_maintenance.py --task cleanup_old_news --days 60
-
-    # Run all tasks (full maintenance cycle)
-    python scripts/run_maintenance.py --all
-
-    # Run with verbose output
-    python scripts/run_maintenance.py --task vacuum_database --verbose
-
-Available tasks:
-    - vacuum_database: VACUUM ANALYZE all tables
-    - cleanup_old_news: Delete news older than N days
-    - cleanup_old_agent_runs: Delete agent runs older than N days
-    - cleanup_old_logs: Delete log files older than N days
-    - cleanup_temp_files: Delete temp files older than N hours
-    - cleanup_orphaned_data: Remove orphaned records
-    - check_disk_space: Check disk usage
-    - get_database_size: Get database and table sizes
-"""
+"""Manual maintenance task runner with dry-run support."""
 
 from __future__ import annotations
 
 import argparse
-import datetime as dt
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -42,17 +14,22 @@ backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir))
 
 from app.logging_config import get_logger  # noqa: E402
-from app.storage.connection import get_connection_manager  # noqa: E402
+from app.tasks.artifact_tasks import cleanup_debug_captures  # noqa: E402
 from app.tasks.cleanup import (  # noqa: E402
     check_disk_space_task,
+    cleanup_cache_directories_task,
     cleanup_old_logs_task,
     cleanup_temp_files_task,
+    rotate_logs_task,
 )
 from app.tasks.maintenance_tasks import (  # noqa: E402
+    cleanup_maintenance_tables_task,
     cleanup_old_agent_runs_task,
     cleanup_old_news_task,
+    cleanup_old_watchlist_snapshots_task,
     cleanup_orphaned_data_task,
     get_database_size_task,
+    refresh_sec_cik_cache,
     vacuum_database_task,
 )
 
@@ -63,107 +40,130 @@ class TaskConfig(TypedDict):
     function: Callable[..., dict[str, Any]]
     args: list[int]
     description: str
+    supports_dry_run: bool
 
 
-# Task registry: Maps task names to functions and their default args
 TASK_REGISTRY: dict[str, TaskConfig] = {
     "vacuum_database": {
         "function": vacuum_database_task,
         "args": [],
         "description": "VACUUM ANALYZE all database tables",
+        "supports_dry_run": True,
     },
     "cleanup_old_news": {
         "function": cleanup_old_news_task,
-        "args": [90],  # days
-        "description": "Delete news articles older than N days (default: 90)",
+        "args": [90],
+        "description": "Delete news older than N days",
+        "supports_dry_run": True,
     },
     "cleanup_old_agent_runs": {
         "function": cleanup_old_agent_runs_task,
-        "args": [30],  # days
-        "description": "Delete agent runs older than N days (default: 30)",
+        "args": [30],
+        "description": "Delete agent runs older than N days",
+        "supports_dry_run": True,
+    },
+    "cleanup_old_watchlist_snapshots": {
+        "function": cleanup_old_watchlist_snapshots_task,
+        "args": [60],
+        "description": "Delete watchlist snapshots older than N days",
+        "supports_dry_run": True,
+    },
+    "cleanup_maintenance_tables": {
+        "function": cleanup_maintenance_tables_task,
+        "args": [90],
+        "description": "Delete old maintenance stats/logs older than N days",
+        "supports_dry_run": True,
+    },
+    "rotate_logs": {
+        "function": rotate_logs_task,
+        "args": [],
+        "description": "Rotate log files over the size threshold",
+        "supports_dry_run": True,
     },
     "cleanup_old_logs": {
         "function": cleanup_old_logs_task,
-        "args": [7],  # days
-        "description": "Delete log files older than N days (default: 7)",
+        "args": [7],
+        "description": "Delete log files older than N days",
+        "supports_dry_run": True,
     },
     "cleanup_temp_files": {
         "function": cleanup_temp_files_task,
-        "args": [24],  # hours
-        "description": "Delete temp files older than N hours (default: 24)",
+        "args": [24],
+        "description": "Delete temp files older than N hours",
+        "supports_dry_run": True,
+    },
+    "cleanup_cache_directories": {
+        "function": cleanup_cache_directories_task,
+        "args": [],
+        "description": "Delete regenerable development cache directories",
+        "supports_dry_run": True,
     },
     "cleanup_orphaned_data": {
         "function": cleanup_orphaned_data_task,
         "args": [],
-        "description": "Remove orphaned records (referential integrity cleanup)",
+        "description": "Remove orphaned records",
+        "supports_dry_run": True,
     },
     "check_disk_space": {
         "function": check_disk_space_task,
         "args": [],
         "description": "Check disk usage for /, /tmp, /var/log",
+        "supports_dry_run": False,
     },
     "get_database_size": {
         "function": get_database_size_task,
         "args": [],
-        "description": "Get database size and top 10 largest tables",
+        "description": "Get database size and top tables",
+        "supports_dry_run": False,
+    },
+    "cleanup_debug_captures": {
+        "function": cleanup_debug_captures,
+        "args": [7],
+        "description": "Delete old DBG-* artifact captures older than N days",
+        "supports_dry_run": True,
+    },
+    "refresh_sec_cik_cache": {
+        "function": refresh_sec_cik_cache,
+        "args": [],
+        "description": "Refresh SEC CIK mappings from EDGAR",
+        "supports_dry_run": False,
     },
 }
 
 
-class MockCeleryRequest:
-    """Mock Celery request for manual task execution."""
-
-    def __init__(self) -> None:
-        self.id = f"manual-{dt.datetime.now(dt.UTC).strftime('%Y%m%d%H%M%S')}"
+def _resolve_args(task_name: str, kwargs: dict[str, Any]) -> list[int]:
+    """Resolve task arguments from defaults plus CLI overrides."""
+    default_args = TASK_REGISTRY[task_name]["args"].copy()
+    if kwargs.get("days") is not None:
+        return [int(kwargs["days"])]
+    if kwargs.get("hours") is not None:
+        return [int(kwargs["hours"])]
+    return default_args
 
 
 def run_task(
     task_name: str, dry_run: bool = False, verbose: bool = False, **kwargs: Any
 ) -> dict[str, Any]:
-    """Run a single maintenance task.
-
-    Args:
-        task_name: Name of the task to run
-        dry_run: If True, preview what would be done without making changes
-        verbose: If True, print detailed output
-        **kwargs: Task-specific arguments (e.g., days, hours)
-
-    Returns:
-        Result dictionary from task execution
-    """
+    """Run a single maintenance task."""
     if task_name not in TASK_REGISTRY:
         raise ValueError(f"Unknown task: {task_name}. Available: {', '.join(TASK_REGISTRY.keys())}")
 
     task_config = TASK_REGISTRY[task_name]
     task_func = task_config["function"]
-    default_args = task_config["args"].copy()
-
-    # Override default args with provided kwargs
-    if "days" in kwargs and kwargs["days"] is not None:
-        default_args = [kwargs["days"]]
-    elif "hours" in kwargs and kwargs["hours"] is not None:
-        default_args = [kwargs["hours"]]
+    task_args = _resolve_args(task_name, kwargs)
+    effective_dry_run = dry_run and task_config["supports_dry_run"]
 
     print(f"\n{'=' * 70}")
     print(f"Task: {task_name}")
     print(f"Description: {task_config['description']}")
-    print(f"Args: {default_args}")
-    print(f"Mode: {'DRY RUN (no changes)' if dry_run else 'LIVE (changes will be made)'}")
+    print(f"Args: {task_args}")
+    print(f"Mode: {'DRY RUN (no changes)' if effective_dry_run else 'LIVE / READ-ONLY'}")
     print(f"{'=' * 70}\n")
 
-    if dry_run:
-        # For dry run, we'll query what WOULD be affected
-        result = _dry_run_preview(task_name, default_args, verbose)
+    if task_config["supports_dry_run"]:
+        result = task_func(*task_args, dry_run=effective_dry_run)
     else:
-        # Create mock request object for Celery task
-        mock_request = MockCeleryRequest()
-
-        # Execute task (need to pass self/request for bind=True tasks)
-        # Most tasks use self.request.id, so we pass mock request as self
-        class TaskContext:
-            request = mock_request
-
-        result = task_func(TaskContext(), *default_args)
+        result = task_func(*task_args)
 
     if verbose:
         print(f"\n{'-' * 70}")
@@ -175,271 +175,49 @@ def run_task(
     return result
 
 
-def _dry_run_preview(task_name: str, args: list[Any], verbose: bool) -> dict[str, Any]:
-    """Preview what would be affected by a task (dry run).
-
-    Args:
-        task_name: Name of the task
-        args: Task arguments
-        verbose: If True, print detailed information
-
-    Returns:
-        Dictionary with preview information
-    """
-    storage = get_connection_manager()
-
-    if task_name == "cleanup_old_news":
-        days = args[0]
-        cutoff_date = dt.datetime.now(dt.UTC) - dt.timedelta(days=days)
-
-        with storage.connection() as conn:
-            count_row = conn.execute(
-                "SELECT COUNT(*) FROM news_cache WHERE fetched_at < %s",
-                [cutoff_date],
-            ).fetchone()
-            count = int(count_row[0]) if count_row and count_row[0] is not None else 0
-
-            if verbose:
-                # Show sample of articles that would be deleted
-                sample = conn.execute(
-                    """
-                    SELECT symbol, headline, fetched_at
-                    FROM news_cache
-                    WHERE fetched_at < %s
-                    ORDER BY fetched_at
-                    LIMIT 5
-                    """,
-                    [cutoff_date],
-                ).fetchall()
-
-                print(f"\nWould delete {count} news articles older than {cutoff_date.date()}")
-                if sample:
-                    print("\nSample (first 5):")
-                    for row in sample:
-                        symbol, headline, fetched_at = str(row[0]), str(row[1]), row[2]
-                        fetched_date = fetched_at.date() if isinstance(fetched_at, dt.datetime) else fetched_at
-                        print(f"  - {symbol}: {headline[:60]}... ({fetched_date})")
-
-        return {
-            "task": task_name,
-            "dry_run": True,
-            "would_delete": count,
-            "cutoff_date": cutoff_date.isoformat(),
-            "retention_days": days,
-        }
-
-    if task_name == "cleanup_old_agent_runs":
-        days = args[0]
-        cutoff_date = dt.datetime.now(dt.UTC) - dt.timedelta(days=days)
-
-        with storage.connection() as conn:
-            count_row = conn.execute(
-                "SELECT COUNT(*) FROM agent_runs WHERE created_at < %s",
-                [cutoff_date],
-            ).fetchone()
-            count = int(count_row[0]) if count_row and count_row[0] is not None else 0
-
-            if verbose:
-                # Show sample of runs that would be deleted
-                sample = conn.execute(
-                    """
-                    SELECT agent_name, status, created_at
-                    FROM agent_runs
-                    WHERE created_at < %s
-                    ORDER BY created_at
-                    LIMIT 5
-                    """,
-                    [cutoff_date],
-                ).fetchall()
-
-                print(f"\nWould delete {count} agent runs older than {cutoff_date.date()}")
-                if sample:
-                    print("\nSample (first 5):")
-                    for row in sample:
-                        agent_name, status, created_at = str(row[0]), str(row[1]), row[2]
-                        created_date = created_at.date() if isinstance(created_at, dt.datetime) else created_at
-                        print(f"  - {agent_name} ({status}): {created_date}")
-
-        return {
-            "task": task_name,
-            "dry_run": True,
-            "would_delete": count,
-            "cutoff_date": cutoff_date.isoformat(),
-            "retention_days": days,
-        }
-
-    if task_name == "vacuum_database":
-        with storage.connection() as conn:
-            # Get table stats
-            vacuum_rows = conn.execute(
-                """
-                SELECT
-                    schemaname,
-                    tablename,
-                    n_dead_tup,
-                    n_live_tup,
-                    last_vacuum,
-                    last_autovacuum
-                FROM pg_stat_user_tables
-                WHERE schemaname = 'public'
-                ORDER BY n_dead_tup DESC
-                LIMIT 10
-                """
-            ).fetchall()
-
-            if verbose:
-                print("\nTop 10 tables by dead tuples (candidates for VACUUM):")
-                print(f"{'Table':<30} {'Dead':>10} {'Live':>10} {'Last Vacuum':<20}")
-                print("-" * 72)
-                for row in vacuum_rows:
-                    table = str(row[1])
-                    dead = int(row[2]) if row[2] is not None else 0
-                    live = int(row[3]) if row[3] is not None else 0
-                    vac_raw = row[4] or row[5]
-                    if isinstance(vac_raw, dt.datetime):
-                        last_vac_str = vac_raw.strftime("%Y-%m-%d %H:%M")
-                    elif vac_raw is not None:
-                        last_vac_str = str(vac_raw)
-                    else:
-                        last_vac_str = "Never"
-                    print(f"{table:<30} {dead:>10,} {live:>10,} {last_vac_str:<20}")
-
-        return {
-            "task": task_name,
-            "dry_run": True,
-            "tables_to_vacuum": len(vacuum_rows),
-            "note": "VACUUM will reclaim space and update statistics",
-        }
-
-    return {
-        "task": task_name,
-        "dry_run": True,
-        "note": f"Dry run not implemented for {task_name} (would execute normally)",
-    }
-
-
-def run_all_tasks(dry_run: bool = False, verbose: bool = False) -> dict[str, Any]:
-    """Run all maintenance tasks in sequence.
-
-    Args:
-        dry_run: If True, preview what would be done
-        verbose: If True, print detailed output
-
-    Returns:
-        Dictionary with results for each task
-    """
-    print(f"\n{'=' * 70}")
-    print("Running ALL Maintenance Tasks")
-    print(f"Mode: {'DRY RUN' if dry_run else 'LIVE'}")
-    print(f"{'=' * 70}\n")
-
-    results = {}
+def run_all_tasks(dry_run: bool = False, verbose: bool = False) -> list[dict[str, Any]]:
+    """Run all maintenance tasks in sequence."""
+    results = []
     for task_name in TASK_REGISTRY:
         try:
-            result = run_task(task_name, dry_run=dry_run, verbose=verbose)
-            results[task_name] = result
-        except Exception as e:
-            logger.error(f"Task {task_name} failed", error=str(e))
-            results[task_name] = {"error": str(e), "success": False}
-
-    print(f"\n{'=' * 70}")
-    print(
-        f"Summary: {len([r for r in results.values() if r.get('success', True)])} / {len(results)} tasks succeeded"
-    )
-    print(f"{'=' * 70}\n")
-
+            results.append(run_task(task_name, dry_run=dry_run, verbose=verbose))
+        except Exception as exc:
+            logger.error("manual_maintenance_task_failed", task_name=task_name, error=str(exc))
+            results.append({"task": task_name, "success": False, "error": str(exc)})
     return results
 
 
 def main() -> int:
-    """Main entry point."""
-    parser = argparse.ArgumentParser(
-        description="Manual maintenance task runner",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__,
-    )
-
-    parser.add_argument(
-        "--task",
-        choices=list(TASK_REGISTRY.keys()),
-        help="Task to run (use --all to run all tasks)",
-    )
-
-    parser.add_argument(
-        "--all",
-        action="store_true",
-        help="Run all maintenance tasks in sequence",
-    )
-
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Preview what would be done without making changes",
-    )
-
-    parser.add_argument(
-        "--verbose",
-        "-v",
-        action="store_true",
-        help="Print detailed output",
-    )
-
-    parser.add_argument(
-        "--days",
-        type=int,
-        help="Custom retention period in days (for cleanup tasks)",
-    )
-
-    parser.add_argument(
-        "--hours",
-        type=int,
-        help="Custom retention period in hours (for temp file cleanup)",
-    )
-
-    parser.add_argument(
-        "--list",
-        action="store_true",
-        help="List available tasks and exit",
-    )
-
+    """CLI entrypoint."""
+    parser = argparse.ArgumentParser(description="Manual maintenance task runner")
+    parser.add_argument("--task", choices=sorted(TASK_REGISTRY.keys()), help="Run one maintenance task")
+    parser.add_argument("--all", action="store_true", help="Run all maintenance tasks in sequence")
+    parser.add_argument("--dry-run", action="store_true", help="Preview work without making changes")
+    parser.add_argument("--verbose", action="store_true", help="Print detailed task output")
+    parser.add_argument("--days", type=int, help="Override retention period in days")
+    parser.add_argument("--hours", type=int, help="Override retention period in hours")
     args = parser.parse_args()
 
-    # List tasks and exit
-    if args.list:
-        print("\nAvailable maintenance tasks:\n")
-        for task_name, config in TASK_REGISTRY.items():
-            print(f"  {task_name}")
-            print(f"    {config['description']}")
-            print()
-        return 0
-
-    # Validate args
     if not args.task and not args.all:
-        parser.error("Must specify --task or --all")
+        parser.print_help()
+        return 1
 
     if args.task and args.all:
-        parser.error("Cannot specify both --task and --all")
+        parser.error("Choose either --task or --all")
 
-    # Run tasks
-    try:
-        if args.all:
-            run_all_tasks(dry_run=args.dry_run, verbose=args.verbose)
-        else:
-            run_task(
-                args.task,
-                dry_run=args.dry_run,
-                verbose=args.verbose,
-                days=args.days,
-                hours=args.hours,
-            )
-
+    if args.task:
+        run_task(
+            args.task,
+            dry_run=args.dry_run,
+            verbose=args.verbose,
+            days=args.days,
+            hours=args.hours,
+        )
         return 0
 
-    except Exception as e:
-        logger.error("Maintenance script failed", error=str(e))
-        print(f"\nERROR: {e}")
-        return 1
+    run_all_tasks(dry_run=args.dry_run, verbose=args.verbose)
+    return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

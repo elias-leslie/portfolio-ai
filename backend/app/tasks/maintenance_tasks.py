@@ -18,6 +18,11 @@ import uuid
 from typing import Any
 
 from app.logging_config import get_logger
+from app.services.maintenance_tracker import (
+    record_maintenance_completion,
+    record_maintenance_start,
+    save_maintenance_stat,
+)
 from app.sources.sec_cik_fetcher import fetch_and_save as fetch_cik_mapping
 from app.storage import get_storage
 from app.tasks.maintenance_helpers import execute_maintenance_task
@@ -152,8 +157,7 @@ def cleanup_orphaned_data_task(dry_run: bool = False) -> dict[str, Any]:
     return execute_maintenance_task("cleanup_orphaned_data_task", task_id, cleanup_impl, dry_run)
 
 
-def get_database_size_task(
-    ) -> dict[str, int | str | float | list[dict[str, Any]]]:
+def get_database_size_task() -> dict[str, int | str | float | list[dict[str, Any]]]:
     """Get database size and table sizes for monitoring.
 
     Returns:
@@ -161,12 +165,19 @@ def get_database_size_task(
     """
     task_id = str(uuid.uuid4())
     start_time = dt.datetime.now(dt.UTC)
+    log_id = record_maintenance_start("get_database_size_task", dry_run=False)
 
     logger.info("get_database_size_started", task_id=task_id)
 
     try:
         result = get_database_size()
         duration = calculate_duration(start_time)
+        save_maintenance_stat(
+            "database_size_bytes",
+            float(result["database_size_bytes"]),
+            "bytes",
+            {"top_table_count": len(result["top_tables"])},
+        )
 
         result_dict: dict[str, int | str | float | list[dict[str, Any]]] = {
             "task_id": task_id,
@@ -176,6 +187,7 @@ def get_database_size_task(
         }
 
         logger.info("get_database_size_completed", **result_dict)
+        record_maintenance_completion(log_id, "success", result_dict, None)
         return result_dict
 
     except Exception as e:
@@ -187,12 +199,14 @@ def get_database_size_task(
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
         )
-        return {
+        error_result = {
             "task_id": task_id,
             "error": str(e),
             "success": False,
             "duration_seconds": round(duration, 2),
         }
+        record_maintenance_completion(log_id, "error", error_result, str(e))
+        return error_result
 
 
 def refresh_sec_cik_cache() -> dict[str, Any]:
@@ -206,6 +220,7 @@ def refresh_sec_cik_cache() -> dict[str, Any]:
     """
     task_id = str(uuid.uuid4())
     start_time = dt.datetime.now(dt.UTC)
+    log_id = record_maintenance_start("refresh_sec_cik_cache", dry_run=False)
 
     logger.info("refresh_sec_cik_cache_started", task_id=task_id)
 
@@ -214,15 +229,22 @@ def refresh_sec_cik_cache() -> dict[str, Any]:
         mapping = fetch_cik_mapping(storage)
 
         duration = calculate_duration(start_time)
+        symbols_updated = len(mapping)
+        save_maintenance_stat(
+            "sec_cik_symbols_updated",
+            float(symbols_updated),
+            "count",
+        )
 
         result_dict: dict[str, Any] = {
             "task_id": task_id,
-            "symbols_updated": len(mapping),
+            "symbols_updated": symbols_updated,
             "duration_seconds": round(duration, 2),
             "success": True,
         }
 
         logger.info("refresh_sec_cik_cache_completed", **result_dict)
+        record_maintenance_completion(log_id, "success", result_dict, None)
         return result_dict
 
     except Exception as e:
@@ -234,9 +256,11 @@ def refresh_sec_cik_cache() -> dict[str, Any]:
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
         )
-        return {
+        error_result = {
             "task_id": task_id,
             "error": str(e),
             "success": False,
             "duration_seconds": round(duration, 2),
         }
+        record_maintenance_completion(log_id, "error", error_result, str(e))
+        return error_result

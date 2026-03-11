@@ -75,6 +75,7 @@ def maintain_data_freshness() -> dict[str, object]:
     """
     task_id = str(uuid.uuid4())
     start = dt.datetime.now(dt.UTC)
+    log_id = record_maintenance_start(task_name="maintain_data_freshness", dry_run=False)
     logger.info("maintain_data_freshness_started", task_id=task_id)
 
     try:
@@ -90,6 +91,7 @@ def maintain_data_freshness() -> dict[str, object]:
                 "failed": 0,
                 "execution_time_sec": round((dt.datetime.now(dt.UTC) - start).total_seconds(), 2),
             }
+            record_maintenance_completion(log_id, "success", result, None)
             logger.info("maintain_data_freshness_completed_no_stale", **result)
             return result
 
@@ -102,13 +104,16 @@ def maintain_data_freshness() -> dict[str, object]:
             "failed": failed,
             "execution_time_sec": round((dt.datetime.now(dt.UTC) - start).total_seconds(), 2),
         }
+        record_maintenance_completion(log_id, "success", result, None)
         logger.info("maintain_data_freshness_completed", **result)
         return result
 
     except Exception as e:
         duration = (dt.datetime.now(dt.UTC) - start).total_seconds()
+        error_result = _error_response(e, duration)
+        record_maintenance_completion(log_id, "error", error_result, str(e))
         logger.error("maintain_data_freshness_failed", task_id=task_id, error=str(e), duration_seconds=round(duration, 2))
-        return _error_response(e, duration)
+        return error_result
 
 
 def check_all_data_freshness(auto_remediate: bool = True) -> dict[str, object]:

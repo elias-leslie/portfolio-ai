@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
@@ -14,7 +15,9 @@ from .types import ResetSourceMetricsDict
 
 router = APIRouter(prefix="/api/news", tags=["news-profiling"])
 
-storage = get_storage()
+
+def _storage():
+    return get_storage()
 
 
 class SourceMetricsResponse(BaseModel):
@@ -75,13 +78,14 @@ async def trigger_profiling(user_id: str = "default") -> ProfilingTaskResponse:
         ProfilingTaskResponse with task ID and status
     """
     try:
-        # Trigger async task
-        result = profile_news_sources_task(user_id,)
+        result = await asyncio.to_thread(profile_news_sources_task, user_id)
 
         return ProfilingTaskResponse(
-            status="completed",
-            task_id=result.get("status", "completed"),
-            message="Profiling task completed successfully.",
+            status=str(result.get("status", "completed")),
+            task_id=str(result.get("task_id")) if result.get("task_id") else None,
+            message="Profiling task completed successfully."
+            if result.get("status") != "error"
+            else "Profiling task failed.",
         )
     except Exception as exc:
         return ProfilingTaskResponse(
@@ -99,7 +103,7 @@ async def get_all_source_stats() -> list[SourceMetricsResponse]:
     Returns:
         list[SourceMetricsResponse]: List of source metrics, one per vendor
     """
-    with storage.connection() as conn:
+    with _storage().connection() as conn:
         # Get latest metrics for each vendor
         result = conn.execute(
             """
@@ -192,7 +196,7 @@ async def get_vendor_stats(vendor: str) -> SourceMetricsResponse | None:
     Returns:
         SourceMetricsResponse: Latest metrics for the vendor, or None if not found
     """
-    with storage.connection() as conn:
+    with _storage().connection() as conn:
         result = conn.execute(
             """
             SELECT
@@ -287,7 +291,7 @@ async def submit_article_feedback(
         ArticleFeedbackResponse with updated useful rate
     """
     try:
-        with storage.connection() as conn:
+        with _storage().connection() as conn:
             # Insert or update feedback
             conn.execute(
                 """
@@ -356,7 +360,7 @@ async def get_article_feedback(
     Returns:
         dict with feedback data, or {"exists": false} if no feedback
     """
-    with storage.connection() as conn:
+    with _storage().connection() as conn:
         result = conn.execute(
             """
             SELECT vendor, is_useful, created_at
@@ -399,12 +403,15 @@ async def reset_source_metrics() -> ResetSourceMetricsDict:
         dict with deletion counts
     """
     try:
-        result = reset_source_metrics_task()
+        result = await asyncio.to_thread(reset_source_metrics_task)
 
-        return {
-            "status": "completed",
-            "task_id": result.get("status", "completed"),
-            "message": "Reset task completed. All metrics and feedback have been deleted.",
+        response: ResetSourceMetricsDict = {
+            "status": str(result.get("status", "completed")),
+            "task_id": str(result.get("task_id", "")),
+            "message": "Reset task completed. All metrics and feedback have been deleted."
+            if result.get("status") != "error"
+            else "Reset task failed.",
         }
+        return response
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to reset metrics: {exc!s}") from exc

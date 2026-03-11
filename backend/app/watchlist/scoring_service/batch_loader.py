@@ -11,7 +11,6 @@ This module handles:
 from __future__ import annotations
 
 import time
-from datetime import UTC, datetime
 from typing import Any
 
 import polars as pl
@@ -21,6 +20,7 @@ from ...logging_config import get_logger
 from ...portfolio.price_fetcher import PriceDataFetcher
 from ...services import NewsService
 from ...storage import PortfolioStorage
+from ..data_loaders import load_latest_technical as load_latest_technical_snapshots
 from ..models import TechnicalSnapshot
 from ..refresh_data_fetchers import detect_missing_historical_data
 
@@ -60,49 +60,7 @@ def load_latest_technical(
     Returns:
         Map of symbol to TechnicalSnapshot
     """
-    if not symbols:
-        return {}
-
-    placeholders = ",".join(["?"] * len(symbols))
-    df = storage.query(
-        f"""
-        SELECT *
-        FROM technical_indicators
-        WHERE symbol IN ({placeholders})
-        ORDER BY symbol, date DESC
-        """,
-        symbols,  # type: ignore[arg-type]
-    )
-
-    if df.is_empty():
-        return {}
-
-    grouped = df.group_by("symbol").agg(pl.all().first())
-    snapshots: dict[str, TechnicalSnapshot] = {}
-    for row in grouped.iter_rows(named=True):
-        calculated_at = row.get("calculated_at")
-        if isinstance(calculated_at, datetime) and calculated_at.tzinfo is None:
-            calculated_at = calculated_at.replace(tzinfo=UTC)
-        snapshots[row["symbol"]] = TechnicalSnapshot(
-            rsi_14=row.get("rsi_14"),
-            sma_20=row.get("sma_20"),
-            sma_5=row.get("sma_5"),
-            sma_50=row.get("sma_50"),
-            sma_200=row.get("sma_200"),
-            ema_20=row.get("ema_20"),
-            ema_50=row.get("ema_50"),
-            ema_200=row.get("ema_200"),
-            macd=row.get("macd"),
-            macd_signal=row.get("macd_signal"),
-            bb_upper=row.get("bb_upper"),
-            bb_middle=row.get("bb_middle"),
-            bb_lower=row.get("bb_lower"),
-            stoch_k=row.get("stoch_k"),
-            stoch_d=row.get("stoch_d"),
-            price=None,
-            calculated_at=calculated_at,
-        )
-    return snapshots
+    return load_latest_technical_snapshots(storage, symbols)
 
 
 def trigger_auto_backfill(storage: PortfolioStorage, symbols: list[str]) -> None:

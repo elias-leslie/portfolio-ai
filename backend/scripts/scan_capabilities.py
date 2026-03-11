@@ -4,7 +4,7 @@ Scan system capabilities - auto-discover data sources, features, and infrastruct
 
 This script scans the codebase and running system to detect:
 - Database tables and their coverage
-- Celery scheduled tasks
+- Hatchet scheduled tasks
 - API endpoints that provide data
 - Changes since last scan (NEW additions)
 
@@ -82,6 +82,20 @@ def _categorize_api_endpoint(path: str) -> str:
     return "infrastructure"
 
 
+def _categorize_scheduled_task(name: str) -> str:
+    """Categorize scheduled workflow names."""
+    normalized = name.replace("portfolio-", "").replace("_", "-")
+    if any(k in normalized for k in ("ohlcv", "indicator", "market", "risk", "earnings")):
+        return "market_data"
+    if any(k in normalized for k in ("news", "source", "sec-cik")):
+        return "news"
+    if any(k in normalized for k in ("portfolio", "watchlist", "jenny")):
+        return "portfolio"
+    if any(k in normalized for k in ("strategy", "signal", "paper-trade")):
+        return "analytics"
+    return "infrastructure"
+
+
 # ---------------------------------------------------------------------------
 # Scanners
 # ---------------------------------------------------------------------------
@@ -103,7 +117,9 @@ def _table_date_range(conn: object, table_name: str, column_names: list[str]) ->
             min_date, max_date = row
             if not (min_date and max_date):
                 continue
-            return f"{min_date.date()} to {max_date.date()}"
+            min_str = min_date.isoformat() if hasattr(min_date, "isoformat") else str(min_date)
+            max_str = max_date.isoformat() if hasattr(max_date, "isoformat") else str(max_date)
+            return f"{min_str} to {max_str}"
         except Exception as e:
             logger.warning("Failed to get date range for %s.%s: %s", table_name, col, e)
     return None
@@ -141,23 +157,73 @@ def scan_database_tables() -> list[Capability]:
     return capabilities
 
 
+def scan_scheduled_tasks() -> list[Capability]:
+    """Scan Hatchet task definitions from workflow modules."""
+    workflows_dir = Path(__file__).parent.parent / "app" / "workflows"
+    if not workflows_dir.exists():
+        return []
+
+    capabilities: list[Capability] = []
+    task_pattern = re.compile(r"@hatchet\.task\((?P<args>.*?)\)\s*async def (?P<func>\w+)", re.S)
+    name_pattern = re.compile(r'name\s*=\s*"([^"]+)"')
+    crons_pattern = re.compile(r"on_crons\s*=\s*\[(?P<crons>[^\]]*)\]")
+
+    for workflow_file in workflows_dir.glob("*.py"):
+        if workflow_file.name.startswith("_"):
+            continue
+        content = workflow_file.read_text()
+        for match in task_pattern.finditer(content):
+            args_block = match.group("args")
+            function_name = match.group("func")
+            name_match = name_pattern.search(args_block)
+            if not name_match:
+                continue
+
+            workflow_name = name_match.group(1)
+            crons_match = crons_pattern.search(args_block)
+            crons = re.findall(r'"([^"]+)"', crons_match.group("crons")) if crons_match else []
+            coverage = (
+                f"Cron: {', '.join(crons)}"
+                if crons
+                else "Manual or event-driven workflow"
+            )
+
+            capabilities.append(
+                {
+                    "category": _categorize_scheduled_task(workflow_name),
+                    "name": f"Scheduled Task: {workflow_name.replace('portfolio-', '').replace('-', ' ').title()}",
+                    "source_type": "scheduled_task",
+                    "source_location": f"Hatchet task: {workflow_name}",
+                    "coverage": coverage,
+                    "metadata": {
+                        "workflow_name": workflow_name,
+                        "function_name": function_name,
+                        "file": workflow_file.name,
+                        "crons": crons,
+                    },
+                }
+            )
+
+    return capabilities
+
+
 def scan_celery_tasks() -> list[Capability]:
-    """Scan scheduled workflows (migrated from Celery to Hatchet)."""
-    return []
+    """Backward-compatible alias for scheduled task scanning."""
+    return scan_scheduled_tasks()
 
 
 def scan_api_endpoints() -> list[Capability]:
     """Scan FastAPI endpoints by reading route files (avoids loading full app)."""
-    routes_dir = Path(__file__).parent.parent / "app" / "routes"
-    if not routes_dir.exists():
+    api_dir = Path(__file__).parent.parent / "app" / "api"
+    if not api_dir.exists():
         return []
 
     capabilities: list[Capability] = []
     route_pattern = r'@router\.(get|post|put|delete)\(["\']([^"\']+)["\']\)'
     skip_paths = ("/health", "/docs", "/openapi")
 
-    for route_file in routes_dir.glob("*.py"):
-        if route_file.name.startswith("_"):
+    for route_file in api_dir.rglob("*.py"):
+        if route_file.name.startswith("_") or "__pycache__" in route_file.parts:
             continue
         for method, path in re.findall(route_pattern, route_file.read_text()):
             if any(s in path for s in skip_paths) or method.upper() != "GET":
@@ -167,9 +233,13 @@ def scan_api_endpoints() -> list[Capability]:
                     "category": _categorize_api_endpoint(path),
                     "name": f"API: {path}",
                     "source_type": "api_endpoint",
-                    "source_location": f"GET {path} (in {route_file.name})",
+                    "source_location": f"GET {path} (in {route_file.relative_to(api_dir.parent)})",
                     "coverage": "REST API endpoint",
-                    "metadata": {"path": path, "method": method, "file": route_file.name},
+                    "metadata": {
+                        "path": path,
+                        "method": method,
+                        "file": str(route_file.relative_to(api_dir.parent)),
+                    },
                 }
             )
 
@@ -339,7 +409,8 @@ def main() -> None:
 
     previous = load_previous_scan()
     changes = detect_changes(capabilities, previous) if previous else None
-    save_scan(capabilities)
+    if not args.diff:
+        save_scan(capabilities)
 
     if args.output == "json":
         output_data: dict[str, object] = {

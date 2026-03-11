@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Health report generator for capabilities system.
+"""Health report generator for capabilities and maintenance surfaces.
 
 Runs after capabilities scan (03:15 UTC) to generate health summary.
 Outputs to logs and JSON file for monitoring.
@@ -8,7 +8,7 @@ Usage:
     python backend/scripts/health_report.py
 
 Scheduled:
-    Runs daily at 03:15 UTC via Celery beat (after capability scan)
+    Runs daily at 03:15 UTC via Hatchet (after capability scan)
 """
 
 from __future__ import annotations
@@ -54,6 +54,16 @@ def generate_health_report() -> dict[str, Any]:
                 {"type": "celery", "name": "experimental_task", "schedule": null},
                 ...
             ],
+            "maintenance": {
+                "stale_running": 1,
+                "recent_failures": 2
+            },
+            "stale_maintenance_runs": [
+                {"task_name": "cleanup_debug_captures", "started_at": "..."}
+            ],
+            "recent_maintenance_failures": [
+                {"task_name": "vacuum_database_task", "started_at": "...", "status": "error"}
+            ],
             "legacy": [
                 {"type": "database", "name": "old_cache", "last_update": "2024-10-01"},
                 ...
@@ -78,6 +88,9 @@ def generate_health_report() -> dict[str, Any]:
                     "api": {"active": 0, "orphaned": 0, "legacy": 0, "suspect": 0},
                 },
                 "by_status": {"active": 0, "orphaned": 0, "legacy": 0, "suspect": 0},
+                "maintenance": {"stale_running": 0, "recent_failures": 0},
+                "stale_maintenance_runs": [],
+                "recent_maintenance_failures": [],
                 "orphaned": [],
                 "legacy": [],
                 "suspect": [],
@@ -197,6 +210,45 @@ def generate_health_report() -> dict[str, Any]:
                 }
                 summary[health_status_val].append(detail)  # type: ignore[attr-defined]
 
+            stale_runs_query = """
+                SELECT task_name, started_at
+                FROM maintenance_log
+                WHERE status = 'running'
+                  AND started_at < NOW() - INTERVAL '2 hours'
+                ORDER BY started_at ASC
+                LIMIT 10
+            """
+            result = conn.execute(stale_runs_query)
+            stale_runs = [
+                {
+                    "task_name": str(row[0]),
+                    "started_at": row[1].isoformat() if row[1] is not None else None,
+                }
+                for row in result.fetchall()
+            ]
+            summary["stale_maintenance_runs"] = stale_runs
+            summary["maintenance"]["stale_running"] = len(stale_runs)  # type: ignore[index]
+
+            recent_failures_query = """
+                SELECT task_name, started_at, status
+                FROM maintenance_log
+                WHERE status IN ('error', 'failed')
+                  AND started_at > NOW() - INTERVAL '24 hours'
+                ORDER BY started_at DESC
+                LIMIT 10
+            """
+            result = conn.execute(recent_failures_query)
+            recent_failures = [
+                {
+                    "task_name": str(row[0]),
+                    "started_at": row[1].isoformat() if row[1] is not None else None,
+                    "status": str(row[2]),
+                }
+                for row in result.fetchall()
+            ]
+            summary["recent_maintenance_failures"] = recent_failures
+            summary["maintenance"]["recent_failures"] = len(recent_failures)  # type: ignore[index]
+
             logger.info(
                 "health_report_generated",
                 total=summary["total_capabilities"],
@@ -204,6 +256,8 @@ def generate_health_report() -> dict[str, Any]:
                 orphaned=summary["by_status"]["orphaned"],  # type: ignore[index]
                 legacy=summary["by_status"]["legacy"],  # type: ignore[index]
                 suspect=summary["by_status"]["suspect"],  # type: ignore[index]
+                stale_maintenance_runs=summary["maintenance"]["stale_running"],  # type: ignore[index]
+                recent_maintenance_failures=summary["maintenance"]["recent_failures"],  # type: ignore[index]
             )
 
             return summary
@@ -254,7 +308,8 @@ def print_health_summary(report: dict[str, Any]) -> None:
     print("By Type:")
     for cap_type, counts in report["by_type"].items():
         total = sum(counts.values())
-        print(f"  {cap_type.capitalize()}: {total}")
+        label = "Scheduled" if cap_type == "celery" else cap_type.capitalize()
+        print(f"  {label}: {total}")
         for status, count in counts.items():
             if count > 0:
                 print(f"    - {status}: {count}")
@@ -265,6 +320,13 @@ def print_health_summary(report: dict[str, Any]) -> None:
         if count > 0:
             print(f"  {status}: {count}")
     print()
+
+    maintenance = report.get("maintenance", {})
+    if maintenance:
+        print("Maintenance:")
+        print(f"  stale running: {maintenance.get('stale_running', 0)}")
+        print(f"  recent failures: {maintenance.get('recent_failures', 0)}")
+        print()
 
     # Show problematic capabilities
     if report["orphaned"]:
@@ -288,6 +350,18 @@ def print_health_summary(report: dict[str, Any]) -> None:
         if len(report["suspect"]) > 10:
             print(f"  ... and {len(report['suspect']) - 10} more")
 
+    stale_runs = report.get("stale_maintenance_runs", [])
+    if stale_runs:
+        print(f"\nStale Maintenance Runs ({len(stale_runs)}):")
+        for item in stale_runs[:10]:
+            print(f"  - {item['task_name']} since {item['started_at']}")
+
+    recent_failures = report.get("recent_maintenance_failures", [])
+    if recent_failures:
+        print(f"\nRecent Maintenance Failures ({len(recent_failures)}):")
+        for item in recent_failures[:10]:
+            print(f"  - {item['task_name']} ({item['status']}) at {item['started_at']}")
+
     print(f"\n{'=' * 80}\n")
 
 
@@ -306,6 +380,7 @@ def main() -> None:
         # Exit with status based on health
         orphaned_count = report["by_status"]["orphaned"]
         legacy_count = report["by_status"]["legacy"]
+        stale_running_count = report.get("maintenance", {}).get("stale_running", 0)
 
         if legacy_count > 0:
             logger.warning(
@@ -320,6 +395,13 @@ def main() -> None:
                 "health_report_many_orphaned",
                 count=orphaned_count,
                 message="High number of orphaned capabilities",
+            )
+
+        if stale_running_count > 0:
+            logger.warning(
+                "health_report_stale_maintenance_runs",
+                count=stale_running_count,
+                message="Maintenance tasks appear stuck in running state",
             )
 
     except Exception as e:

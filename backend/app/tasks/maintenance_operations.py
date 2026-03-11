@@ -9,12 +9,29 @@ This module provides the actual database operations for maintenance:
 from __future__ import annotations
 
 import datetime as dt
+import re
 from typing import Any
 
 from app.logging_config import get_logger
 from app.storage.connection import get_connection_manager
 
 logger = get_logger(__name__)
+_SAFE_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_ORPHANED_CAPABILITY_INSIGHTS_CONDITION = """
+    capability_id IS NOT NULL
+    AND NOT EXISTS (
+        SELECT 1 FROM db_capabilities db
+        WHERE db.id = capability_insights.capability_id
+    )
+    AND NOT EXISTS (
+        SELECT 1 FROM celery_capabilities scheduled
+        WHERE scheduled.id = capability_insights.capability_id
+    )
+    AND NOT EXISTS (
+        SELECT 1 FROM api_capabilities api
+        WHERE api.id = capability_insights.capability_id
+    )
+"""
 
 
 def get_database_size() -> dict[str, Any]:
@@ -91,6 +108,11 @@ def vacuum_tables(tables: list[str] | None = None, dry_run: bool = False) -> dic
     else:
         tables_to_vacuum = tables
 
+    invalid_tables = [table for table in tables_to_vacuum if not _SAFE_IDENTIFIER.fullmatch(table)]
+    if invalid_tables:
+        msg = f"Unsafe table names for vacuum: {', '.join(sorted(invalid_tables))}"
+        raise ValueError(msg)
+
     if dry_run:
         return {
             "tables_to_vacuum": tables_to_vacuum,
@@ -100,29 +122,39 @@ def vacuum_tables(tables: list[str] | None = None, dry_run: bool = False) -> dic
 
     # VACUUM ANALYZE each table
     tables_processed = 0
+    failed_tables: list[str] = []
     for table in tables_to_vacuum:
         try:
             with storage.connection() as conn:
-                # Set autocommit mode for VACUUM command
-                raw_conn = conn.connection  # type: ignore[attr-defined]
-                old_isolation_level = raw_conn.isolation_level
-                raw_conn.set_isolation_level(0)  # AUTOCOMMIT
+                raw_conn = conn.raw_connection
+                old_autocommit = raw_conn.autocommit
+                raw_conn.autocommit = True
 
                 try:
-                    conn.execute(f"VACUUM ANALYZE {table}")  # validated: table from pg_tables
+                    with raw_conn.cursor() as cursor:
+                        cursor.execute(f'VACUUM ANALYZE "{table}"')
                     tables_processed += 1
                     logger.info("table_vacuumed", table=table)
                 finally:
-                    raw_conn.set_isolation_level(old_isolation_level)
+                    raw_conn.autocommit = old_autocommit
 
         except Exception as table_error:
             logger.error("table_vacuum_failed", table=table, error=str(table_error))
-            # Continue with next table
+            failed_tables.append(table)
 
-    return {
+    result = {
         "tables_processed": tables_processed,
         "total_tables": len(tables_to_vacuum),
+        "tables_failed": failed_tables,
+        "failed_tables_count": len(failed_tables),
     }
+    if failed_tables:
+        msg = (
+            f"VACUUM ANALYZE failed for {len(failed_tables)} tables; "
+            f"processed={tables_processed}, failed={failed_tables}"
+        )
+        raise RuntimeError(msg)
+    return result
 
 
 def cleanup_old_news(days: int = 90, dry_run: bool = False) -> dict[str, Any]:
@@ -138,14 +170,16 @@ def cleanup_old_news(days: int = 90, dry_run: bool = False) -> dict[str, Any]:
     storage = get_connection_manager()
     cutoff_date = dt.datetime.now(dt.UTC) - dt.timedelta(days=days)
 
+    where_clause = """
+        WHERE COALESCE(published_at, fetched_at) < %s
+          AND fetched_at < %s
+    """
+
     with storage.connection() as conn:
         if dry_run:
             result = conn.execute(
-                """
-                SELECT COUNT(*) FROM news_cache
-                WHERE published_at < %s
-                """,
-                [cutoff_date],
+                f"SELECT COUNT(*) FROM news_cache {where_clause}",
+                [cutoff_date, cutoff_date],
             ).fetchone()
             rows_to_delete = result[0] if result else 0
 
@@ -153,15 +187,15 @@ def cleanup_old_news(days: int = 90, dry_run: bool = False) -> dict[str, Any]:
                 "rows_to_delete": rows_to_delete,
                 "cutoff_date": cutoff_date.isoformat(),
                 "retention_days": days,
-                "message": f"Would delete {rows_to_delete} news articles",
+                "message": (
+                    f"Would delete {rows_to_delete} news articles older than the retention window "
+                    "and not re-fetched recently"
+                ),
             }
 
         conn.execute(
-            """
-            DELETE FROM news_cache
-            WHERE published_at < %s
-            """,
-            [cutoff_date],
+            f"DELETE FROM news_cache {where_clause}",
+            [cutoff_date, cutoff_date],
         )
         rows_deleted = conn._cursor.rowcount
         conn.commit()
@@ -378,15 +412,9 @@ def cleanup_orphaned_data(dry_run: bool = False) -> dict[str, Any]:
         if dry_run:
             # Count orphaned insights
             result = conn.execute(
-                """
+                f"""
                 SELECT COUNT(*) FROM capability_insights
-                WHERE capability_id NOT IN (
-                    SELECT capability_id FROM db_capabilities
-                    UNION
-                    SELECT capability_id FROM celery_capabilities
-                    UNION
-                    SELECT capability_id FROM api_capabilities
-                )
+                WHERE {_ORPHANED_CAPABILITY_INSIGHTS_CONDITION}
                 """
             ).fetchone()
             orphaned_insights = result[0] if result else 0
@@ -411,15 +439,9 @@ def cleanup_orphaned_data(dry_run: bool = False) -> dict[str, Any]:
 
         # Delete capabilities insights with non-existent capability_id
         conn.execute(
-            """
+            f"""
             DELETE FROM capability_insights
-            WHERE capability_id NOT IN (
-                SELECT capability_id FROM db_capabilities
-                UNION
-                SELECT capability_id FROM celery_capabilities
-                UNION
-                SELECT capability_id FROM api_capabilities
-            )
+            WHERE {_ORPHANED_CAPABILITY_INSIGHTS_CONDITION}
             """
         )
         orphaned_insights = conn._cursor.rowcount
