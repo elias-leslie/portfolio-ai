@@ -188,6 +188,79 @@ describe('StatusWorkspace', () => {
     expect(screen.queryByText('Last success: Never')).not.toBeInTheDocument()
   })
 
+  it('shows remediation occurrence counts without duplicating cards', () => {
+    useDetailedHealthMock.mockReturnValue(
+      createQueryResult({
+        data: {
+          status: 'healthy',
+          timestamp: '2026-03-10T23:26:56.894882+00:00',
+          checks: {},
+          sources: {},
+          services: {},
+          apiQuotas: [],
+          recentRemediations: [
+            {
+              tableName: 'technical_indicators',
+              triggeredAt: '2026-03-10T22:00:00.000Z',
+              status: 'error',
+              ageHours: 52,
+              thresholdHours: 48,
+              reason: 'age',
+              occurrenceCount: 2,
+            },
+          ],
+          workflowHealth: {
+            status: 'healthy',
+            successRate: 100,
+            totalWorkflows24H: 1,
+            lastSuccessfulWorkflow: '2026-03-10T22:18:27.574496Z',
+          },
+          dataFreshnessStatus: {
+            status: 'success',
+            lastCheck: '2026-03-10T22:00:00.000000Z',
+            fresh: 4,
+            stale: 0,
+            critical: 0,
+          },
+          watchlistStats: {
+            itemsWithScores: 5,
+            lastRefresh: '2026-03-10T23:14:01.484006Z',
+          },
+        },
+      }),
+    )
+
+    useMarketStatusMock.mockReturnValue(
+      createQueryResult({
+        data: {
+          status: 'closed',
+          currentTimeEt: '6:00 PM ET',
+          expectedDataDate: '2026-03-10',
+          lastTradingDay: '2026-03-10',
+          nextTradingDay: '2026-03-11',
+          isHoliday: false,
+          isEarlyClose: false,
+        },
+      }),
+    )
+
+    useNewsHealthMock.mockReturnValue(
+      createQueryResult({
+        data: {
+          headlines24H: 0,
+          fallbackRate24H: 0,
+          vendors: {},
+          marketLastRefreshedAt: null,
+        },
+      }),
+    )
+
+    render(<StatusWorkspace />)
+
+    expect(screen.getAllByText('technical_indicators')).toHaveLength(1)
+    expect(screen.getByText('Repeated 2 times in the last 24h.')).toBeInTheDocument()
+  })
+
   it('keeps the workspace visible when one live signal fails', () => {
     useDetailedHealthMock.mockReturnValue(
       createQueryResult({

@@ -114,13 +114,13 @@ async def get_recent_remediations(hours: int = 24) -> list[dict[str, Any]]:
             WHERE task_name LIKE 'data_freshness_alert_%'
             AND started_at > NOW() - INTERVAL '{hours} hours'
             ORDER BY started_at DESC
-            LIMIT 20
+            LIMIT 100
         """
 
         with storage.connection() as conn:
             result = conn.execute(query).fetchall()
 
-        remediations = []
+        remediations_by_table: dict[str, dict[str, Any]] = {}
         for row in result:
             # Unpack row with explicit types
             task_name_val = row[0]  # str | int | float | None
@@ -146,21 +146,25 @@ async def get_recent_remediations(hours: int = 24) -> list[dict[str, Any]]:
                 elif isinstance(summary_json_val, dict):
                     summary = summary_json_val
 
-            remediations.append(
-                {
-                    "table_name": table_name,
-                    "triggered_at": started_at_val.isoformat()
-                    if isinstance(started_at_val, datetime)
-                    else None,
-                    "status": str(status_val) if status_val else "unknown",
-                    "age_hours": summary.get("age_hours"),
-                    "threshold_hours": summary.get("threshold_hours"),
-                    "reason": summary.get("reason"),
-                    "error_message": str(error_message_val) if error_message_val else None,
-                }
-            )
+            existing = remediations_by_table.get(table_name)
+            if existing:
+                existing["occurrence_count"] = int(existing.get("occurrence_count", 1)) + 1
+                continue
 
-        return remediations
+            remediations_by_table[table_name] = {
+                "table_name": table_name,
+                "triggered_at": started_at_val.isoformat()
+                if isinstance(started_at_val, datetime)
+                else None,
+                "status": str(status_val) if status_val else "unknown",
+                "age_hours": summary.get("age_hours"),
+                "threshold_hours": summary.get("threshold_hours"),
+                "reason": summary.get("reason"),
+                "error_message": str(error_message_val) if error_message_val else None,
+                "occurrence_count": 1,
+            }
+
+        return list(remediations_by_table.values())[:20]
 
     except Exception as e:
         logger.error("get_recent_remediations_failed", error=str(e))

@@ -518,6 +518,11 @@ export function StatusWorkspace() {
                         Triggered {formatDateTime(event.triggeredAt)} · Age{' '}
                         {formatHours(event.ageHours)} / threshold {formatHours(event.thresholdHours)}
                       </p>
+                      {event.occurrenceCount && event.occurrenceCount > 1 ? (
+                        <p className="mt-2 text-sm text-text-muted">
+                          Repeated {formatInteger(event.occurrenceCount)} times in the last 24h.
+                        </p>
+                      ) : null}
                       <p className="mt-2 text-sm text-text-muted">
                         {event.reason ?? event.errorMessage ?? 'No additional detail'}
                       </p>

@@ -98,6 +98,7 @@ export interface RecentRemediation {
   thresholdHours?: number | null
   reason?: string | null
   errorMessage?: string | null
+  occurrenceCount?: number | null
 }
 
 export interface DetailedHealthCheckResponse {
