@@ -62,15 +62,21 @@ export function HouseholdOperationsPanel({
       >
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2">
-            <Badge variant="outline">
-              {dashboard.questions.length} quick question{dashboard.questions.length === 1 ? '' : 's'}
-            </Badge>
-            <Badge variant="outline">
-              {dashboard.actionItems.length} suggestion{dashboard.actionItems.length === 1 ? '' : 's'}
-            </Badge>
-            <Badge variant="outline">
-              {dashboard.categorizationQueue.length} to confirm
-            </Badge>
+            {dashboard.questions.length > 0 ? (
+              <Badge variant="outline">
+                {dashboard.questions.length} quick question{dashboard.questions.length === 1 ? '' : 's'}
+              </Badge>
+            ) : null}
+            {dashboard.actionItems.length > 0 ? (
+              <Badge variant="outline">
+                {dashboard.actionItems.length} suggestion{dashboard.actionItems.length === 1 ? '' : 's'}
+              </Badge>
+            ) : null}
+            {dashboard.categorizationQueue.length > 0 ? (
+              <Badge variant="outline">
+                {dashboard.categorizationQueue.length} to confirm
+              </Badge>
+            ) : null}
           </div>
 
           {dashboard.questions.length > 0 ? (
@@ -110,24 +116,16 @@ export function HouseholdOperationsPanel({
                 </div>
               </div>
             ))
-          ) : (
-            <div className="rounded-2xl border border-gain/30 bg-gain/10 p-4 text-sm text-text-muted">
-              Nothing needed right now — Jenny has it covered.
-            </div>
-          )}
+          ) : null}
           {dashboard.questions.length > 3 ? (
             <p className="text-xs text-text-muted">
               {dashboard.questions.length - 3} more quick question{dashboard.questions.length - 3 === 1 ? '' : 's'} after these.
             </p>
           ) : null}
 
-          <div className="grid gap-3">
-            {dashboard.actionItems.length === 0 ? (
-              <div className="rounded-2xl border border-gain/30 bg-gain/10 p-4 text-sm text-text-muted">
-                All clear — Jenny is handling the rest.
-              </div>
-            ) : (
-              dashboard.actionItems.slice(0, 4).map((item, index) => (
+          {dashboard.actionItems.length > 0 ? (
+            <div className="grid gap-3">
+              {dashboard.actionItems.slice(0, 4).map((item, index) => (
                 <div
                   key={`${item.title}-${index}`}
                   className="rounded-2xl border border-border/50 bg-surface/50 p-4"
@@ -148,13 +146,19 @@ export function HouseholdOperationsPanel({
                     <span className="text-xs text-text-muted">{item.source}</span>
                   </div>
                 </div>
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          ) : null}
           {dashboard.actionItems.length > 4 ? (
             <p className="text-xs text-text-muted">
               {dashboard.actionItems.length - 4} more suggestion{dashboard.actionItems.length - 4 === 1 ? '' : 's'} after these.
             </p>
+          ) : null}
+
+          {dashboard.questions.length === 0 && dashboard.actionItems.length === 0 && dashboard.categorizationQueue.length === 0 ? (
+            <div className="rounded-2xl border border-gain/30 bg-gain/10 p-4 text-sm text-text-muted">
+              Nothing needed right now — Jenny has it covered.
+            </div>
           ) : null}
 
           <div className="space-y-3 rounded-2xl border border-border/40 bg-surface/40 p-4">
@@ -375,7 +379,7 @@ export function HouseholdOperationsPanel({
           </div>
           {dashboard.recurringCommitments.length === 0 ? (
             <div className="rounded-2xl border border-border/40 bg-surface/60 p-4 text-sm text-text-muted">
-              Jenny needs more statement coverage before recurring commitments can be trusted.
+              Jenny is processing your documents to detect recurring commitments.
             </div>
           ) : (
             dashboard.recurringCommitments.slice(0, 4).map((commitment) => (

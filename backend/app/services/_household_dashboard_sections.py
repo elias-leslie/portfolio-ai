@@ -63,24 +63,26 @@ def next_best_action(
     resolved_numeric_value: ResolvedNumericValue,
 ) -> str:
     action = "Review this month's pacing and savings opportunities instead of collecting more setup data."
+    has_docs = bool(documents)
     if questions:
         action = questions[0]
-    elif not documents:
+    elif not has_docs:
         action = "Upload recent bank and credit-card statements so Jenny can see actual cash flow."
     elif resolved_numeric_value("monthly_net_income_target") is None:
-        action = "Jenny still needs enough evidence to infer your monthly take-home income."
+        # Documents exist — Jenny is working on it, don't blame the user
+        action = "Jenny is building your income profile from uploaded documents."
     elif (
         resolved_numeric_value("monthly_essential_target") is None
         or resolved_numeric_value("monthly_discretionary_target") is None
     ):
-        action = "Jenny still needs enough evidence to infer your spending guardrails."
+        action = "Jenny is analyzing your statements to establish spending guardrails."
     elif (
         resolved_numeric_value("target_retirement_spend") is None
         or resolved_numeric_value("target_retirement_age") is None
     ):
-        action = "Jenny still needs enough evidence to model retirement readiness."
+        action = "Set a retirement age and spending target so Jenny can model readiness."
     elif visibility_score < 80:
-        action = "Keep feeding statements and receipts until the full household money picture is visible."
+        action = "Jenny is refining your financial picture as more data flows in."
     return action
 
 
@@ -90,16 +92,29 @@ def budget_input_status(
 ) -> dict[str, object]:
     missing_inputs: list[str] = []
     priorities: list[str] = []
+    has_docs = bool(documents)
+
+    # When documents exist, Jenny can infer income/essential/discretionary —
+    # don't create homework items for inferable fields.
     if resolved_numeric_value("monthly_net_income_target") is None:
-        missing_inputs.append("Monthly income target")
-        priorities.append("Upload paystubs, deposit screenshots, or answer Jenny's income question.")
+        if has_docs:
+            priorities.append("Jenny is working on inferring income from your uploaded documents.")
+        else:
+            missing_inputs.append("Monthly income target")
+            priorities.append("Upload paystubs, deposit screenshots, or answer Jenny's income question.")
     if resolved_numeric_value("monthly_essential_target") is None:
-        missing_inputs.append("Essential spending target")
-        priorities.append("Jenny still needs bills and core spending data to infer the essentials budget.")
+        if has_docs:
+            priorities.append("Jenny is analyzing statements to establish essential spending baselines.")
+        else:
+            missing_inputs.append("Essential spending target")
+            priorities.append("Jenny still needs bills and core spending data to infer the essentials budget.")
     if resolved_numeric_value("monthly_discretionary_target") is None:
-        missing_inputs.append("Discretionary spending target")
-        priorities.append("Feed more card and checking data so Jenny can separate flexible spend from essentials.")
-    if not documents:
+        if has_docs:
+            priorities.append("Jenny is categorizing transactions to separate discretionary from essentials.")
+        else:
+            missing_inputs.append("Discretionary spending target")
+            priorities.append("Feed more card and checking data so Jenny can separate flexible spend from essentials.")
+    if not has_docs:
         missing_inputs.append("Recent statements and receipts")
         priorities.append("Upload the last 90 days of statements to turn targets into monitored reality.")
 
@@ -201,15 +216,26 @@ def build_opportunities(
         resolved_numeric_value("monthly_essential_target") is None
         or resolved_numeric_value("monthly_discretionary_target") is None
     ):
-        opportunities.append(
-            HouseholdOpportunity(
-                title="Turn Jenny into a budget guardrail",
-                category="budget_control",
-                impact="High",
-                detail="Jenny can only alert on overspend pace after she has enough evidence to infer your budget guardrails.",
-                next_step="Keep feeding statements and answer open Jenny questions so she can finalize the budget.",
+        if documents:
+            opportunities.append(
+                HouseholdOpportunity(
+                    title="Budget guardrails in progress",
+                    category="budget_control",
+                    impact="Medium",
+                    detail="Jenny is analyzing your statements to establish spending guardrails. More months of data will improve accuracy.",
+                    next_step="No action needed — Jenny is processing your documents.",
+                )
             )
-        )
+        else:
+            opportunities.append(
+                HouseholdOpportunity(
+                    title="Turn Jenny into a budget guardrail",
+                    category="budget_control",
+                    impact="High",
+                    detail="Jenny can only alert on overspend pace after she has enough evidence to infer your budget guardrails.",
+                    next_step="Upload 90 days of checking and credit-card statements.",
+                )
+            )
     if retirement_assets > 0 and resolved_numeric_value("target_retirement_spend") is None:
         opportunities.append(
             HouseholdOpportunity(
