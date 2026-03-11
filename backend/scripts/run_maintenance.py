@@ -101,7 +101,7 @@ TASK_REGISTRY: dict[str, TaskConfig] = {
     "cleanup_orphaned_data": {
         "function": cleanup_orphaned_data_task,
         "args": [],
-        "description": "Remove orphaned records",
+        "description": "Mark stale agent runs older than 1 hour as failed",
         "supports_dry_run": True,
     },
     "check_disk_space": {

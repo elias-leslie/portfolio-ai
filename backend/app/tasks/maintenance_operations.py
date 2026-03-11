@@ -2,7 +2,7 @@
 
 This module provides the actual database operations for maintenance:
 - Database vacuuming and optimization
-- Old data cleanup (news, agent runs, orphaned records)
+- Old data cleanup (news and agent runs)
 - Database size monitoring
 """
 
@@ -17,21 +17,6 @@ from app.storage.connection import get_connection_manager
 
 logger = get_logger(__name__)
 _SAFE_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-_ORPHANED_CAPABILITY_INSIGHTS_CONDITION = """
-    capability_id IS NOT NULL
-    AND NOT EXISTS (
-        SELECT 1 FROM db_capabilities db
-        WHERE db.id = capability_insights.capability_id
-    )
-    AND NOT EXISTS (
-        SELECT 1 FROM celery_capabilities scheduled
-        WHERE scheduled.id = capability_insights.capability_id
-    )
-    AND NOT EXISTS (
-        SELECT 1 FROM api_capabilities api
-        WHERE api.id = capability_insights.capability_id
-    )
-"""
 
 
 def get_database_size() -> dict[str, Any]:
@@ -398,28 +383,18 @@ def cleanup_maintenance_tables(days: int = 90, dry_run: bool = False) -> dict[st
 
 
 def cleanup_orphaned_data(dry_run: bool = False) -> dict[str, Any]:
-    """Remove orphaned records and fix zombie runs.
+    """Fix stale agent runs left behind by interrupted maintenance workflows.
 
     Args:
         dry_run: If True, only report what would be cleaned
 
     Returns:
-        Dict with orphaned_insights_deleted, zombie_runs_fixed
+        Dict with zombie_runs_fixed or zombie_runs_to_fix
     """
     storage = get_connection_manager()
 
     with storage.connection() as conn:
         if dry_run:
-            # Count orphaned insights
-            result = conn.execute(
-                f"""
-                SELECT COUNT(*) FROM capability_insights
-                WHERE {_ORPHANED_CAPABILITY_INSIGHTS_CONDITION}
-                """
-            ).fetchone()
-            orphaned_insights = result[0] if result else 0
-
-            # Count zombie runs
             cutoff = dt.datetime.now(dt.UTC) - dt.timedelta(hours=1)
             result = conn.execute(
                 """
@@ -432,21 +407,10 @@ def cleanup_orphaned_data(dry_run: bool = False) -> dict[str, Any]:
             zombie_runs = result[0] if result else 0
 
             return {
-                "orphaned_insights_to_delete": orphaned_insights,
                 "zombie_runs_to_fix": zombie_runs,
-                "message": f"Would delete {orphaned_insights} orphaned insights and fix {zombie_runs} zombie runs",
+                "message": f"Would mark {zombie_runs} stale agent runs as failed",
             }
 
-        # Delete capabilities insights with non-existent capability_id
-        conn.execute(
-            f"""
-            DELETE FROM capability_insights
-            WHERE {_ORPHANED_CAPABILITY_INSIGHTS_CONDITION}
-            """
-        )
-        orphaned_insights = conn._cursor.rowcount
-
-        # Fix zombie agent runs
         cutoff = dt.datetime.now(dt.UTC) - dt.timedelta(hours=1)
         conn.execute(
             """
@@ -464,6 +428,5 @@ def cleanup_orphaned_data(dry_run: bool = False) -> dict[str, Any]:
         conn.commit()
 
     return {
-        "orphaned_insights_deleted": orphaned_insights,
         "zombie_runs_fixed": zombie_runs_fixed,
     }

@@ -150,12 +150,9 @@ def test_vacuum_tables_raises_when_any_table_fails(monkeypatch) -> None:
         vacuum_tables()
 
 
-def test_cleanup_orphaned_data_dry_run_ignores_null_capability_ids(monkeypatch) -> None:
+def test_cleanup_orphaned_data_dry_run_reports_only_stale_runs(monkeypatch) -> None:
     fake_conn = MagicMock()
-    fake_conn.execute.side_effect = [
-        MagicMock(fetchone=MagicMock(return_value=(3,))),
-        MagicMock(fetchone=MagicMock(return_value=(11,))),
-    ]
+    fake_conn.execute.return_value = MagicMock(fetchone=MagicMock(return_value=(11,)))
 
     @contextmanager
     def fake_connection():
@@ -172,24 +169,17 @@ def test_cleanup_orphaned_data_dry_run_ignores_null_capability_ids(monkeypatch) 
     result = cleanup_orphaned_data(dry_run=True)
 
     orphan_sql = fake_conn.execute.call_args_list[0][0][0]
-    assert "capability_id IS NOT NULL" in orphan_sql
-    assert "NOT EXISTS" in orphan_sql
-    assert "NOT IN" not in orphan_sql
-    assert "db.id = capability_insights.capability_id" in orphan_sql
-    assert "scheduled.id = capability_insights.capability_id" in orphan_sql
-    assert "api.id = capability_insights.capability_id" in orphan_sql
-    assert result["orphaned_insights_to_delete"] == 3
+    assert "FROM agent_runs" in orphan_sql
+    assert "status IN ('running', 'error')" in orphan_sql
     assert result["zombie_runs_to_fix"] == 11
 
 
 def test_cleanup_orphaned_data_live_commits_deleted_counts(monkeypatch) -> None:
     fake_conn = MagicMock()
-    fake_conn._cursor.rowcount = 4
+    fake_conn._cursor.rowcount = 2
 
     def execute_side_effect(sql: str, *_args, **_kwargs):
-        if "DELETE FROM capability_insights" in sql:
-            fake_conn._cursor.rowcount = 4
-        elif "UPDATE agent_runs" in sql:
+        if "UPDATE agent_runs" in sql:
             fake_conn._cursor.rowcount = 2
         return MagicMock()
 
@@ -210,7 +200,6 @@ def test_cleanup_orphaned_data_live_commits_deleted_counts(monkeypatch) -> None:
     result = cleanup_orphaned_data(dry_run=False)
 
     assert result == {
-        "orphaned_insights_deleted": 4,
         "zombie_runs_fixed": 2,
     }
     fake_conn.commit.assert_called_once()

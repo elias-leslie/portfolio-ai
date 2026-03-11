@@ -2,7 +2,7 @@
 
 This module provides automated maintenance tasks for:
 - Database vacuuming and optimization
-- Old data cleanup (news, agent runs, orphaned records)
+- Old data cleanup (news and agent runs)
 - Database size monitoring and tracking
 
 All tasks are designed to be:
@@ -141,13 +141,13 @@ def cleanup_maintenance_tables_task(
 
 
 def cleanup_orphaned_data_task(dry_run: bool = False) -> dict[str, Any]:
-    """Remove orphaned records and fix zombie runs.
+    """Fix stale agent runs left behind by interrupted workflows.
 
     Args:
         dry_run: If True, only report what would be cleaned
 
     Returns:
-        Dict with task_id, orphaned_insights_deleted, zombie_runs_fixed, duration_seconds, success status
+        Dict with task_id, zombie_runs_fixed, duration_seconds, success status
     """
     task_id = str(uuid.uuid4())
 

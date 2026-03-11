@@ -26,9 +26,9 @@ retention:
   # Weekly cleanup runs Sunday 04:15 UTC
   agent_run_retention_days: 30
 
-  # Orphaned data: Cleanup interval (not time-based, integrity-based)
+  # Stale agent runs: Mark interrupted runs as failed once they sit for over 1 hour
   # Weekly cleanup runs Sunday 04:30 UTC
-  orphaned_data_cleanup_enabled: true
+  stale_agent_run_cleanup_enabled: true
 
   # Watchlist snapshots: How long to keep snapshot history
   # Weekly cleanup runs Sunday 05:00 UTC

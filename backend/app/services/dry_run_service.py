@@ -50,7 +50,12 @@ DRY_RUN_TASKS: list[tuple[str, str, str, Any]] = [
     ("rotate_logs_task", "log_rotation", "Rotate files >10MB", rotate_logs_task),
     ("cleanup_old_news_task", "news", "Keep 90 days", cleanup_old_news_task),
     ("cleanup_old_agent_runs_task", "agent_runs", "Keep 30 days", cleanup_old_agent_runs_task),
-    ("cleanup_orphaned_data_task", "orphaned_data", "Integrity-based", cleanup_orphaned_data_task),
+    (
+        "cleanup_orphaned_data_task",
+        "stale_agent_runs",
+        "Mark stale runs older than 1 hour as failed",
+        cleanup_orphaned_data_task,
+    ),
     (
         "cleanup_old_watchlist_snapshots_task",
         "watchlist_snapshots",
@@ -83,11 +88,12 @@ def _extract_count_from_result(result: dict[str, Any]) -> int:
         "directories_cleaned",
         "rows_deleted",
         "runs_deleted",
+        "zombie_runs_fixed",
         "deleted_count",
         "files_rotated",
         "rows_to_delete",
         "runs_to_delete",
-        "orphaned_insights_to_delete",
+        "zombie_runs_to_fix",
     ]
 
     explicit_count = next((f for f in count_fields if f in result), None)
