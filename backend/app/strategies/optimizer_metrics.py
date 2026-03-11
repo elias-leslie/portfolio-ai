@@ -24,6 +24,86 @@ class BacktestMetrics:
     profit_factor: float
 
 
+def _calculate_trade_metrics(
+    state: BacktestState,
+) -> tuple[float, float]:
+    """Calculate win rate and profit factor from trades.
+
+    Args:
+        state: Backtest state with trades
+
+    Returns:
+        Tuple of (win_rate, profit_factor)
+    """
+    num_trades = len(state.trades)
+    wins = [t for t in state.trades if t.pnl and t.pnl > 0]
+    losses = [t for t in state.trades if t.pnl and t.pnl < 0]
+
+    win_rate = len(wins) / num_trades if num_trades > 0 else 0.0
+
+    total_wins = sum(float(t.pnl) for t in wins if t.pnl is not None) if wins else 0.0
+    total_losses = abs(sum(float(t.pnl) for t in losses if t.pnl is not None)) if losses else 0.0
+    profit_factor = (
+        total_wins / total_losses if total_losses > 0 else (2.0 if total_wins > 0 else 0.0)
+    )
+
+    return win_rate, profit_factor
+
+
+def _calculate_sharpe_ratio(equities: list[float]) -> float:
+    """Calculate annualized Sharpe ratio from equity series.
+
+    Args:
+        equities: List of equity values
+
+    Returns:
+        Annualized Sharpe ratio, or 0.0 if not calculable
+    """
+    if len(equities) <= 1:
+        return 0.0
+
+    daily_returns = [
+        (equities[i] - equities[i - 1]) / equities[i - 1]
+        for i in range(1, len(equities))
+        if equities[i - 1] > 0
+    ]
+
+    if not daily_returns:
+        return 0.0
+
+    mean_return = statistics.mean(daily_returns)
+    std_return = statistics.stdev(daily_returns) if len(daily_returns) > 1 else 0.0
+    # Annualize: sqrt(252) * daily Sharpe
+    return (mean_return / std_return * (252**0.5)) if std_return > 0 else 0.0
+
+
+def _calculate_equity_metrics(
+    state: BacktestState,
+) -> tuple[float, float, float]:
+    """Calculate return, drawdown, and Sharpe from equity curve.
+
+    Args:
+        state: Backtest state with equity curve
+
+    Returns:
+        Tuple of (total_return, max_drawdown, sharpe_ratio)
+    """
+    if not state.equity_curve:
+        return 0.0, 0.0, 0.0
+
+    equities = [float(e.equity) for e in state.equity_curve]
+    initial_equity = equities[0] if equities else 1.0
+    final_equity = equities[-1] if equities else initial_equity
+
+    total_return = (
+        (final_equity - initial_equity) / initial_equity if initial_equity > 0 else 0.0
+    )
+    max_drawdown = max(float(e.drawdown_pct) for e in state.equity_curve)
+    sharpe_ratio = _calculate_sharpe_ratio(equities)
+
+    return total_return, max_drawdown, sharpe_ratio
+
+
 def calculate_metrics_from_state(state: BacktestState) -> BacktestMetrics:
     """Calculate performance metrics from backtest state.
 
@@ -50,54 +130,8 @@ def calculate_metrics_from_state(state: BacktestState) -> BacktestMetrics:
             profit_factor=0.0,
         )
 
-    # Calculate win rate and profit factor from trades
-    wins = [t for t in state.trades if t.pnl and t.pnl > 0]
-    losses = [t for t in state.trades if t.pnl and t.pnl < 0]
-
-    win_rate = len(wins) / num_trades if num_trades > 0 else 0.0
-
-    total_wins = sum(float(t.pnl) for t in wins if t.pnl is not None) if wins else 0.0
-    total_losses = abs(sum(float(t.pnl) for t in losses if t.pnl is not None)) if losses else 0.0
-    profit_factor = (
-        total_wins / total_losses if total_losses > 0 else (2.0 if total_wins > 0 else 0.0)
-    )
-
-    # Calculate from equity curve
-    if state.equity_curve:
-        equities = [float(e.equity) for e in state.equity_curve]
-        initial_equity = equities[0] if equities else 1.0
-        final_equity = equities[-1] if equities else initial_equity
-
-        # Total return
-        total_return = (
-            (final_equity - initial_equity) / initial_equity if initial_equity > 0 else 0.0
-        )
-
-        # Max drawdown (already tracked in equity curve)
-        max_drawdown = (
-            max(float(e.drawdown_pct) for e in state.equity_curve) if state.equity_curve else 0.0
-        )
-
-        # Sharpe ratio from daily returns
-        if len(equities) > 1:
-            daily_returns = [
-                (equities[i] - equities[i - 1]) / equities[i - 1]
-                for i in range(1, len(equities))
-                if equities[i - 1] > 0
-            ]
-            if daily_returns:
-                mean_return = statistics.mean(daily_returns)
-                std_return = statistics.stdev(daily_returns) if len(daily_returns) > 1 else 0.0
-                # Annualize: sqrt(252) * daily Sharpe
-                sharpe_ratio = (mean_return / std_return * (252**0.5)) if std_return > 0 else 0.0
-            else:
-                sharpe_ratio = 0.0
-        else:
-            sharpe_ratio = 0.0
-    else:
-        total_return = 0.0
-        max_drawdown = 0.0
-        sharpe_ratio = 0.0
+    win_rate, profit_factor = _calculate_trade_metrics(state)
+    total_return, max_drawdown, sharpe_ratio = _calculate_equity_metrics(state)
 
     return BacktestMetrics(
         sharpe_ratio=sharpe_ratio,
@@ -136,6 +170,34 @@ def aggregate_window_metrics(window_results: list[BacktestMetrics]) -> dict[str,
     }
 
 
+def _find_viable_results(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Find viable strategy results using progressive filter relaxation.
+
+    Args:
+        results: List of result dicts with params and metrics
+
+    Returns:
+        List of viable results (may be all results as last resort)
+    """
+    filters = [
+        (1.0, 0.25),
+        (0.7, 0.35),
+        (0.0, 0.50),
+    ]
+    for min_sharpe, max_dd in filters:
+        viable = [
+            r
+            for r in results
+            if r["metrics"]["avg_sharpe"] > min_sharpe
+            and r["metrics"]["max_drawdown"] < max_dd
+        ]
+        if viable:
+            return viable
+
+    # Last resort: accept all results
+    return results
+
+
 def select_best_metrics(
     results: list[dict[str, Any]],
 ) -> tuple[dict[str, Any], list[dict[str, float]]]:
@@ -150,32 +212,10 @@ def select_best_metrics(
     Raises:
         ValueError: If no viable strategies found
     """
-    # Filter viable strategies (Sharpe > 1.0, drawdown < 25%)
-    viable = [
-        r
-        for r in results
-        if r["metrics"]["avg_sharpe"] > 1.0 and r["metrics"]["max_drawdown"] < 0.25
-    ]
+    if not results:
+        raise ValueError("No viable strategies found (all failed Sharpe or drawdown filters)")
 
-    if not viable:
-        # Relax filters if nothing passes
-        viable = [
-            r
-            for r in results
-            if r["metrics"]["avg_sharpe"] > 0.7 and r["metrics"]["max_drawdown"] < 0.35
-        ]
-
-    if not viable:
-        # Further relax: accept any positive Sharpe with reasonable drawdown
-        viable = [
-            r
-            for r in results
-            if r["metrics"]["avg_sharpe"] > 0.0 and r["metrics"]["max_drawdown"] < 0.50
-        ]
-
-    if not viable and results:
-        # Last resort: pick best from all results if we have any
-        viable = results
+    viable = _find_viable_results(results)
 
     if not viable:
         raise ValueError("No viable strategies found (all failed Sharpe or drawdown filters)")
