@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, HTTPException, Request
 
 from app.logging_config import get_logger
@@ -27,14 +29,10 @@ portfolio_mgr = PortfolioManager(storage)
 price_fetcher = PriceDataFetcher(storage)
 
 
-@router.get("", response_model=PortfolioResponse)
-@cache_response(ttl=30)  # 30 seconds cache
-async def get_portfolio(request: Request, include_paper: bool = False) -> PortfolioResponse:
-    """Get all portfolio positions with current values.
-
-    Args:
-        include_paper: If False (default), excludes paper trading accounts.
-    """
+def _get_filtered_accounts_and_positions(
+    include_paper: bool,
+) -> tuple[list[Any], set[str], float, list[Any]]:
+    """Return filtered accounts, their IDs, cash total, and filtered positions."""
     all_accounts = portfolio_mgr.get_accounts()
     if not include_paper:
         accounts = [acc for acc in all_accounts if acc.account_type != "paper"]
@@ -47,38 +45,24 @@ async def get_portfolio(request: Request, include_paper: bool = False) -> Portfo
     all_positions = portfolio_mgr.get_positions()
     positions = [p for p in all_positions if p.account_id in account_ids]
 
-    if not positions:
-        return PortfolioResponse(
-            positions=[],
-            cash_balance_total=cash_balance_total,
-            total_value=cash_balance_total,
-            total_cost_basis=cash_balance_total,
-            total_gain=0.0,
-            total_gain_pct=0.0,
-        )
+    return accounts, account_ids, cash_balance_total, positions
 
-    # Get current prices
-    symbols = list({p.symbol for p in positions})
 
-    # Sync portfolio symbols to watchlist
+def _fetch_prices_with_sync(symbols: list[str]) -> dict[str, Any]:
+    """Sync symbols to watchlist (best-effort) then fetch price data."""
     try:
         portfolio_mgr.sync_portfolio_to_watchlist(symbols)
     except Exception as e:
-        # Log error but don't fail the request
         logger.error(f"Failed to sync portfolio to watchlist: {e}")
 
-    price_data = price_fetcher.fetch_price_data(symbols)
+    return price_fetcher.fetch_price_data(symbols)
 
-    # Calculate analytics
-    analytics_calculator = PortfolioAnalytics()
-    analytics = analytics_calculator.calculate_full_analytics(
-        positions,
-        price_data,
-        storage=storage,
-        account_ids=list(account_ids),
-    )
 
-    # Build position responses with current values
+def _build_position_responses(
+    positions: list[Any],
+    price_data: dict[str, Any],
+) -> list[PositionResponse]:
+    """Build PositionResponse objects enriched with current price and gain data."""
     position_responses = []
     for pos in positions:
         price_info = price_data.get(pos.symbol)
@@ -109,6 +93,43 @@ async def get_portfolio(request: Request, include_paper: bool = False) -> Portfo
                 gain_pct=gain_pct,
             )
         )
+    return position_responses
+
+
+@router.get("", response_model=PortfolioResponse)
+@cache_response(ttl=30)  # 30 seconds cache
+async def get_portfolio(request: Request, include_paper: bool = False) -> PortfolioResponse:
+    """Get all portfolio positions with current values.
+
+    Args:
+        include_paper: If False (default), excludes paper trading accounts.
+    """
+    _accounts, account_ids, cash_balance_total, positions = (
+        _get_filtered_accounts_and_positions(include_paper)
+    )
+
+    if not positions:
+        return PortfolioResponse(
+            positions=[],
+            cash_balance_total=cash_balance_total,
+            total_value=cash_balance_total,
+            total_cost_basis=cash_balance_total,
+            total_gain=0.0,
+            total_gain_pct=0.0,
+        )
+
+    symbols = list({p.symbol for p in positions})
+    price_data = _fetch_prices_with_sync(symbols)
+
+    analytics_calculator = PortfolioAnalytics()
+    analytics = analytics_calculator.calculate_full_analytics(
+        positions,
+        price_data,
+        storage=storage,
+        account_ids=list(account_ids),
+    )
+
+    position_responses = _build_position_responses(positions, price_data)
 
     total_cost_basis = analytics.portfolio_value.total_cost_basis + cash_balance_total
     total_gain = analytics.portfolio_value.total_gain
