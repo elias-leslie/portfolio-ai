@@ -62,6 +62,8 @@ describe('HomeActionQueue', () => {
 
     render(<HomeActionQueue />)
 
+    expect(screen.getByText(/1 prioritized action · 1 urgent · 1 quick action-ready/i)).toBeInTheDocument()
+
     await user.click(screen.getByRole('button', { name: /advance workflow/i }))
 
     expect(transitionMutate).toHaveBeenCalledWith({

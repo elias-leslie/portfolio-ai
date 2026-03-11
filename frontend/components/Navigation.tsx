@@ -10,7 +10,10 @@ import {
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { MarketStatusBadge } from '@/components/market/MarketStatusBadge'
-import { MAIN_PRODUCT_ROUTES } from '@/lib/product-routes'
+import {
+  MAIN_PRODUCT_ROUTES,
+  resolveMainProductRoute,
+} from '@/lib/product-routes'
 import { cn } from '@/lib/utils'
 
 const routeIcons = {
@@ -31,10 +34,12 @@ export function Navigation() {
  * Actual navigation content - only rendered on main app routes
  */
 function NavigationContent({ pathname }: { pathname: string }) {
+  const activeRoute = resolveMainProductRoute(pathname)
+
   return (
     <nav className="sticky top-0 z-50 border-b border-border/50 bg-surface/80 backdrop-blur-md supports-[backdrop-filter]:bg-surface/60">
-      <div className="mx-auto h-16 w-full px-4 sm:px-6 lg:px-8">
-        <div className="flex h-full items-center justify-between">
+      <div className="mx-auto w-full px-4 sm:px-6 lg:px-8">
+        <div className="flex h-16 items-center justify-between">
           {/* Logo */}
           <div className="flex items-center">
             <Link
@@ -46,19 +51,19 @@ function NavigationContent({ pathname }: { pathname: string }) {
           </div>
 
           {/* Main Navigation - Centered */}
-          <div className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-            <div className="flex items-center gap-1 rounded-full bg-surface-muted/50 border border-border/50 p-1 shadow-sm backdrop-blur-sm">
+          <div className="absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 lg:flex">
+            <div className="flex items-center gap-1 rounded-full border border-border/50 bg-surface-muted/50 p-1 shadow-sm backdrop-blur-sm">
               {MAIN_PRODUCT_ROUTES.map((link) => {
                 const Icon = routeIcons[link.href]
-                const isActive = pathname === link.href
+                const isActive = activeRoute.href === link.href
 
                 return (
                   <Link
                     key={link.href}
                     href={link.href}
                     aria-current={isActive ? 'page' : undefined}
-                    aria-label={link.label}
-                    title={link.label}
+                    aria-label={`${link.label}. ${link.description}`}
+                    title={`${link.label} - ${link.description}`}
                     className={cn(
                       'group flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
                       isActive
@@ -87,6 +92,34 @@ function NavigationContent({ pathname }: { pathname: string }) {
               <MarketStatusBadge />
             </div>
           </div>
+        </div>
+
+        <div className="border-t border-border/40 py-3 lg:hidden">
+          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {MAIN_PRODUCT_ROUTES.map((link) => {
+              const Icon = routeIcons[link.href]
+              const isActive = activeRoute.href === link.href
+
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  aria-current={isActive ? 'page' : undefined}
+                  aria-label={`${link.label}. ${link.description}`}
+                  className={cn(
+                    'flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
+                    isActive
+                      ? 'border-primary/40 bg-primary/10 text-text'
+                      : 'border-border/40 bg-surface/60 text-text-muted',
+                  )}
+                >
+                  <Icon className="size-4" aria-hidden suppressHydrationWarning />
+                  <span>{link.label}</span>
+                </Link>
+              )
+            })}
+          </div>
+          <p className="mt-2 text-sm text-text-muted">{activeRoute.description}</p>
         </div>
       </div>
     </nav>

@@ -142,6 +142,7 @@ export default function Dashboard() {
 
       <WorkspaceTabs
         defaultValue="operate"
+        ariaLabel="Today workspace sections"
         tabs={[
           {
             value: 'operate',

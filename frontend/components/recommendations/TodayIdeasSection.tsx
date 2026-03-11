@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
 import type { TradeRecommendation } from '@/lib/api/recommendations'
 import { useRecommendations, useTrackInPortfolio } from '@/lib/hooks/useRecommendations'
+import { formatRelativeTime } from '@/lib/utils'
 import { DecisionMemoCard } from './DecisionMemoCard'
 import { TrackInPortfolioModal } from './TrackInPortfolioModal'
 
@@ -28,6 +29,10 @@ export function TodayIdeasSection() {
   const trackMutation = useTrackInPortfolio()
   const recommendations = data?.recommendations ?? []
   const summary = data?.summary
+  const latestGeneratedAt =
+    recommendations
+      .map((recommendation) => recommendation.generatedAt)
+      .find((generatedAt) => Boolean(generatedAt)) ?? null
 
   const handleTrackConfirm = (accountId: string, shares: number) => {
     if (!selectedRecommendation) return
@@ -60,6 +65,8 @@ export function TodayIdeasSection() {
               Showing {recommendations.length} of {data.total} setup
               {data.total === 1 ? '' : 's'} · average strength{' '}
               {data.summary.avgSignalStrength.toFixed(1)}/10
+              {' · '}
+              {Math.round(data.summary.positionPct * 100)}% sizing rule
             </span>
             <span>
               Suggested capital {data.summary.totalPositionSize.toLocaleString('en-US', {
@@ -67,6 +74,7 @@ export function TodayIdeasSection() {
                 currency: 'USD',
                 maximumFractionDigits: 0,
               })}
+              {latestGeneratedAt ? ` · refreshed ${formatRelativeTime(latestGeneratedAt)}` : ''}
             </span>
           </div>
         ) : null}
@@ -76,7 +84,7 @@ export function TodayIdeasSection() {
             <div>
               <p className="text-sm font-semibold text-text">Sizing baseline</p>
               <p className="text-sm text-text-muted">
-                This sets the sample share count shown below.
+                This sets the sample share count shown below using the default per-idea cap.
               </p>
             </div>
             <div className="w-full md:max-w-sm">

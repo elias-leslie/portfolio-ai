@@ -157,6 +157,16 @@ export default function PortfolioPage() {
       <PageHeader
         title="Portfolio Coach"
         description="Review your holdings, spot concentration risk, and keep position sizes honest."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setAccountOpen(true)}>
+              Add Account
+            </Button>
+            <Button onClick={() => openPositionDialog()}>
+              Add Position
+            </Button>
+          </div>
+        }
       />
 
       <PortfolioOverview />

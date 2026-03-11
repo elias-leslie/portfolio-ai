@@ -1,8 +1,6 @@
 'use client'
 
-import { useQuery } from '@tanstack/react-query'
 import { Clock } from 'lucide-react'
-
 import { Badge } from '@/components/ui/badge'
 import {
   Tooltip,
@@ -10,25 +8,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { apiRequest } from '@/lib/api/client'
+import { useMarketStatus } from '@/lib/hooks/useMarketIntelligence'
 import { cn } from '@/lib/utils'
-
-interface MarketStatusResponse {
-  // Note: status values are snake_case from backend (string values aren't transformed)
-  status: 'open' | 'pre_market' | 'after_hours' | 'closed'
-  isOpen: boolean
-  lastTradingDay: string
-  nextTradingDay: string
-  currentTimeEt: string
-  isHoliday: boolean
-  holidayName: string | null
-  isEarlyClose: boolean
-  earlyCloseName: string | null
-}
-
-async function fetchMarketStatus(): Promise<MarketStatusResponse> {
-  return apiRequest<MarketStatusResponse>('/api/market/status')
-}
 
 const STATUS_CONFIG = {
   open: {
@@ -54,13 +35,7 @@ const STATUS_CONFIG = {
 }
 
 export function MarketStatusBadge() {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['market-status'],
-    queryFn: fetchMarketStatus,
-    staleTime: 30 * 1000, // 30 seconds
-    refetchInterval: 30 * 1000, // Refresh every 30 seconds
-    refetchOnWindowFocus: true,
-  })
+  const { data, isLoading, error } = useMarketStatus()
 
   if (isLoading) {
     return (

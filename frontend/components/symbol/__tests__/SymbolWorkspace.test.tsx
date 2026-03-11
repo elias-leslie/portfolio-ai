@@ -25,7 +25,7 @@ describe('SymbolWorkspace', () => {
         symbol: 'VTI',
         generatedAt: '2026-03-10T15:30:00Z',
         scores: { overall: 78, signalType: 'BUY', signalStrength: 7, pillars: {} },
-        signal: { type: 'BUY', strength: 7, avoidFlags: 0 },
+        signal: { type: 'BUY', strength: 7, confirmations: 3, avoidFlags: 0 },
         trading: {
           style: 'swing',
           confidence: 0.7,
@@ -37,8 +37,20 @@ describe('SymbolWorkspace', () => {
           positionSizeShares: 12,
           positionSizeDollars: 3360,
         },
-        portfolio: { held: false, position: null, context: null },
+        portfolio: {
+          held: false,
+          position: null,
+          context: {
+            totalValue: 200000,
+            numHoldings: 8,
+            diversificationScore: 74,
+            sectorWeight: 12,
+            concentrationTop3: 28,
+          },
+        },
         news: {
+          sentimentLabel: 'Constructive',
+          sentimentScore: 0.7,
           articleCount24H: 4,
           headline: 'Balanced setup',
           keyEvents: [],
@@ -86,13 +98,15 @@ describe('SymbolWorkspace', () => {
     const user = userEvent.setup()
     render(<SymbolWorkspace symbol="vti" />)
 
-    expect(screen.getByText(/1 alert · 1 recent article/i)).toBeInTheDocument()
+    expect(screen.getByText(/1 alert · 1 recent article · 4 articles in 24h · 3 confirmations · 0 avoid flags/i)).toBeInTheDocument()
+    expect(screen.getByText(/8 holdings · top 3 \+28.0% · diversification 74/i)).toBeInTheDocument()
     expect(screen.getByText(/no decision memo reasoning is available yet/i)).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Market' }))
 
     expect(screen.getByText(/recent articles/i)).toBeInTheDocument()
     expect(screen.getByText(/etf flows remain constructive/i)).toBeInTheDocument()
+    expect(screen.getByText(/constructive · score 0.7 · 4 articles in the last 24h/i)).toBeInTheDocument()
   })
 
   it('shows a Jenny warning when review data is unavailable', () => {

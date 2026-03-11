@@ -187,6 +187,8 @@ describe('MoneyPage', () => {
 
     render(<MoneyPage />)
 
+    expect(screen.getByText(/next best action: review uncategorized spending\./i)).toBeInTheDocument()
+    expect(screen.getByText(/0 open questions · 0 opportunities · 0 documents/i)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Intake' }))
     await user.click(screen.getByRole('button', { name: 'Retry' }))
 

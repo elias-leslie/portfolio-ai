@@ -13,6 +13,7 @@ import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs'
 import { useHouseholdDashboard, useHouseholdDocuments } from '@/lib/hooks/useHousehold'
+import { formatRelativeTime } from '@/lib/utils'
 
 function LoadingState() {
   return (
@@ -83,9 +84,23 @@ export default function MoneyPage() {
         description="Budgeting, savings, retirement planning, and document intake in one shared workspace for you and Jenny."
       />
 
+      <div className="rounded-2xl border border-border/40 bg-surface-muted/20 px-4 py-3 text-sm text-text-muted">
+        Updated {formatRelativeTime(dashboard.generatedAt)}
+        {' · '}
+        {dashboard.questions.length} open question{dashboard.questions.length === 1 ? '' : 's'}
+        {' · '}
+        {dashboard.opportunities.length} opportunit{dashboard.opportunities.length === 1 ? 'y' : 'ies'}
+        {' · '}
+        {documents?.items.length ?? dashboard.importCenter.trackedDocuments} document
+        {(documents?.items.length ?? dashboard.importCenter.trackedDocuments) === 1 ? '' : 's'}
+        {' · '}
+        Next best action: {dashboard.overview.nextBestAction}
+      </div>
+
       <HouseholdOverviewGrid dashboard={dashboard} />
       <WorkspaceTabs
         defaultValue="operate"
+        ariaLabel="Money workspace sections"
         tabs={[
           {
             value: 'operate',

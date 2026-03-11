@@ -319,6 +319,19 @@ export function StatusWorkspace() {
                   : `Fallback rate ${formatPercent(newsHealthQuery.data?.fallbackRate24H)}`
               }
             />
+            <SummaryStat
+              label="Cache"
+              value={
+                healthQuery.data?.cacheStats?.enabled === false
+                  ? 'off'
+                  : formatPercent(healthQuery.data?.cacheStats?.hitRate)
+              }
+              detail={
+                healthQuery.data?.cacheStats?.enabled === false
+                  ? 'Cache disabled'
+                  : `Size ${formatInteger(healthQuery.data?.cacheStats?.size)} / ${formatInteger(healthQuery.data?.cacheStats?.maxSize)} · age ${formatHours(healthQuery.data?.cacheStats?.cacheAgeMinutes != null ? healthQuery.data.cacheStats.cacheAgeMinutes / 60 : null)}`
+              }
+            />
           </section>
 
           <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">

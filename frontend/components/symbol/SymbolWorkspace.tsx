@@ -10,6 +10,7 @@ import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs'
 import { Button } from '@/components/ui/button'
 import { useJennyDashboard } from '@/lib/hooks/usePortfolio'
 import { useSymbolIntelligence } from '@/lib/hooks/useSymbolIntelligence'
+import { formatRelativeTime } from '@/lib/utils'
 import { SymbolWorkflowPanel } from '@/components/symbol/SymbolWorkflowPanel'
 import { ThesisSection } from '@/components/watchlist/ThesisSection'
 
@@ -25,6 +26,13 @@ function formatCurrency(value: number | null | undefined) {
 }
 
 function formatPercent(value: number | null | undefined) {
+  if (value === null || value === undefined) {
+    return '—'
+  }
+  return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`
+}
+
+function formatSignalPercent(value: number | null | undefined) {
   if (value === null || value === undefined) {
     return '—'
   }
@@ -121,16 +129,20 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
       ) : null}
 
       <div className="rounded-2xl border border-border/40 bg-surface-muted/20 px-4 py-3 text-sm text-text-muted">
-        Updated {data?.generatedAt ? new Date(data.generatedAt).toLocaleString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          hour: 'numeric',
-          minute: '2-digit',
-        }) : '—'}
+        Updated {data?.generatedAt ? formatRelativeTime(data.generatedAt) : '—'}
         {' · '}
         {alertCount} alert{alertCount === 1 ? '' : 's'}
         {' · '}
         {newsArticleCount} recent article{newsArticleCount === 1 ? '' : 's'}
+        {' · '}
+        {data?.news?.articleCount24H ?? 0} article
+        {data?.news?.articleCount24H === 1 ? '' : 's'} in 24h
+        {' · '}
+        {data?.signal?.confirmations ?? 0} confirmation
+        {data?.signal?.confirmations === 1 ? '' : 's'}
+        {' · '}
+        {data?.signal?.avoidFlags ?? 0} avoid flag
+        {data?.signal?.avoidFlags === 1 ? '' : 's'}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-4">
@@ -141,6 +153,10 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
           <p className="mt-2 text-sm text-text-muted">
             Signal {data?.signal?.type ?? 'Unavailable'} · Strength{' '}
             {data?.signal?.strength ?? '—'}/10
+          </p>
+          <p className="mt-2 text-sm text-text-muted">
+            {data?.signal?.confirmations ?? 0} confirmations · {data?.signal?.avoidFlags ?? 0}{' '}
+            avoid flags
           </p>
         </SectionCard>
         <SectionCard variant="surface" title="Recommendation">
@@ -160,6 +176,14 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
               ? `${formatPercent(data.portfolio.position?.gainPct)} · ${formatPercent(data.portfolio.position?.weightPct)} of portfolio`
               : data?.recommendation?.ifNotHeld?.reasoning ?? 'Jenny does not see a live portfolio position.'}
           </p>
+          {data?.portfolio?.context ? (
+            <p className="mt-2 text-sm text-text-muted">
+              {data.portfolio.context.numHoldings} holding
+              {data.portfolio.context.numHoldings === 1 ? '' : 's'} · Top 3{' '}
+              {formatSignalPercent(data.portfolio.context.concentrationTop3)} · Diversification{' '}
+              {data.portfolio.context.diversificationScore?.toFixed(0) ?? '—'}
+            </p>
+          ) : null}
         </SectionCard>
         <SectionCard variant="surface" title="Market Backdrop">
           <p className="text-2xl font-semibold text-text">
@@ -169,11 +193,23 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             Fear & Greed {data?.market?.fearGreedScore ?? '—'} · VIX{' '}
             {data?.market?.vix?.toFixed(1) ?? '—'}
           </p>
+          {data?.market?.sector ? (
+            <p className="mt-2 text-sm text-text-muted">
+              {data.market.sector.name ?? 'Sector unavailable'} ·{' '}
+              {data.market.sector.signal ?? 'No sector signal'} ·{' '}
+              {formatSignalPercent(data.market.sector.relativeToSpy)} vs SPY
+            </p>
+          ) : data?.market?.sp500Change != null ? (
+            <p className="mt-2 text-sm text-text-muted">
+              S&P 500 {formatSignalPercent(data.market.sp500Change)}
+            </p>
+          ) : null}
         </SectionCard>
       </div>
 
       <WorkspaceTabs
         defaultValue="decision"
+        ariaLabel="Symbol workspace sections"
         tabs={[
           {
             value: 'decision',
@@ -220,12 +256,34 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                             {formatCurrency(data.trading.profitTarget)} / {data.trading.positionSizeShares ?? '—'} shares
                           </p>
                         </div>
+                        <div className="rounded-2xl border border-border/40 bg-surface/60 p-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+                            Confidence / Risk
+                          </p>
+                          <p className="mt-2 text-sm text-text">
+                            {data.trading.confidence != null
+                              ? `${Math.round(data.trading.confidence * 100)}% confidence`
+                              : 'Confidence unavailable'}{' '}
+                            · {data.trading.riskLevel ?? 'Risk unavailable'}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-border/40 bg-surface/60 p-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+                            Holding Period
+                          </p>
+                          <p className="mt-2 text-sm text-text">
+                            {data.trading.holdingPeriod ?? '—'} · {data.trading.style ?? 'Unknown style'}
+                          </p>
+                        </div>
                       </div>
                     ) : null}
                     {data?.recommendation?.ifNotHeld ? (
                       <div className="rounded-2xl border border-border/40 bg-primary/5 p-4 text-sm text-text">
                         If not held: {data.recommendation.ifNotHeld.action ?? 'Review'} ·{' '}
                         {data.recommendation.ifNotHeld.reasoning}
+                        {data.recommendation.ifNotHeld.sizePct != null
+                          ? ` · Size ${data.recommendation.ifNotHeld.sizePct.toFixed(1)}%`
+                          : ''}
                       </div>
                     ) : null}
                   </div>
@@ -313,6 +371,15 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                   description={data?.news?.headline ?? 'Latest headlines and alert signals.'}
                 >
                   <div className="space-y-3">
+                    <div className="rounded-2xl border border-border/40 bg-surface/60 p-4 text-sm text-text-muted">
+                      {data?.news?.sentimentLabel ?? 'Sentiment unavailable'}
+                      {data?.news?.sentimentScore != null
+                        ? ` · score ${data.news.sentimentScore.toFixed(1)}`
+                        : ''}
+                      {' · '}
+                      {data?.news?.articleCount24H ?? 0} article
+                      {data?.news?.articleCount24H === 1 ? '' : 's'} in the last 24h
+                    </div>
                     {data?.alerts?.length ? (
                       <div className="flex flex-wrap gap-2">
                         {data.alerts.map((alert) => (

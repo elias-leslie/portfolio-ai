@@ -70,7 +70,7 @@ describe('TodayIdeasSection', () => {
 
     render(<TodayIdeasSection />)
 
-    expect(screen.getByText(/showing 1 of 9 setups · average strength 7.6\/10/i)).toBeInTheDocument()
+    expect(screen.getByText(/showing 1 of 9 setups · average strength 7.6\/10 · 5% sizing rule/i)).toBeInTheDocument()
     expect(screen.getByText(/\$12,000/)).toBeInTheDocument()
     expect(screen.getByText('BUY 6')).toBeInTheDocument()
     expect(screen.getByText('HOLD 1')).toBeInTheDocument()

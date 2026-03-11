@@ -210,4 +210,29 @@ describe('WorkspaceTabs', () => {
     expect(screen.getByRole('button', { name: 'Operate' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Operate7' })).not.toBeInTheDocument()
   })
+
+  it('connects the active tab, description, and panel for assistive tech', () => {
+    render(
+      <WorkspaceTabs
+        defaultValue="operate"
+        tabs={[
+          {
+            value: 'operate',
+            label: 'Operate',
+            description: 'Run the day-to-day queue.',
+            content: <div>Operate Content</div>,
+          },
+        ]}
+      />,
+    )
+
+    const trigger = screen.getByRole('button', { name: 'Operate' })
+    const panel = document.getElementById(trigger.getAttribute('aria-controls') ?? '')
+
+    expect(trigger).toHaveAttribute('aria-describedby')
+    expect(panel).toHaveAttribute('aria-labelledby', trigger.getAttribute('id'))
+    expect(
+      document.getElementById(trigger.getAttribute('aria-describedby') ?? ''),
+    ).toHaveTextContent('Run the day-to-day queue.')
+  })
 })

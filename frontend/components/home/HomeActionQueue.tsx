@@ -47,6 +47,10 @@ export function HomeActionQueue() {
   const acknowledgeNotification = useAcknowledgeJennyNotification()
   const transitionWorkflow = useTransitionSymbolWorkflow()
   const actions = data?.actions ?? []
+  const urgentCount = actions.filter((action) =>
+    ['critical', 'high'].includes(action.priority),
+  ).length
+  const quickActionCount = actions.filter((action) => Boolean(action.execution)).length
 
   const handleExecution = (action: HomeActionItem) => {
     const execution = action.execution
@@ -84,6 +88,8 @@ export function HomeActionQueue() {
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border/40 bg-surface-muted/20 px-4 py-3 text-sm text-text-muted">
           <span>
             {actions.length} prioritized action{actions.length === 1 ? '' : 's'}
+            {urgentCount > 0 ? ` · ${urgentCount} urgent` : ''}
+            {quickActionCount > 0 ? ` · ${quickActionCount} quick action-ready` : ''}
           </span>
           <span>Updated {formatRelativeTime(data?.generatedAt)}</span>
         </div>

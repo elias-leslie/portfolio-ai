@@ -52,6 +52,13 @@ describe('StatusWorkspace', () => {
           sources: {},
           services: {},
           apiQuotas: [],
+          cacheStats: {
+            enabled: true,
+            hitRate: 91.2,
+            size: 12,
+            maxSize: 50,
+            cacheAgeMinutes: 90,
+          },
           recentRemediations: [],
           workflowHealth: {
             status: 'healthy',
@@ -105,6 +112,8 @@ describe('StatusWorkspace', () => {
 
     expect(screen.getByText('0ms')).toBeInTheDocument()
     expect(screen.getByText('5 of 8 symbols scored')).toBeInTheDocument()
+    expect(screen.getByText('91.2%')).toBeInTheDocument()
+    expect(screen.getByText('Size 12 / 50 · age 1.5h')).toBeInTheDocument()
     expect(screen.getByText('No service status entries are available right now.')).toBeInTheDocument()
     expect(screen.getByText('No source health signals are available right now.')).toBeInTheDocument()
     expect(screen.getByText('No news vendor diagnostics are available right now.')).toBeInTheDocument()
