@@ -37,6 +37,39 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/health", tags=["health"])
 
 
+def _parse_summary_json(summary_json: Any) -> dict[str, Any]:
+    """Normalize maintenance summary payloads to a dictionary."""
+    if isinstance(summary_json, str):
+        try:
+            parsed = json.loads(summary_json)
+        except json.JSONDecodeError:
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+    if isinstance(summary_json, dict):
+        return summary_json
+    return {}
+
+
+def _get_remediation_resolution_state(
+    *,
+    triggered_at: datetime | None,
+    freshness_status: str | None,
+    freshness_started_at: datetime | None,
+    freshness_summary: dict[str, Any],
+) -> tuple[bool, str | None]:
+    """Return whether a remediation is now resolved by a later clear freshness check."""
+    if (
+        triggered_at is None
+        or freshness_status != "success"
+        or not isinstance(freshness_started_at, datetime)
+        or freshness_started_at <= triggered_at
+        or freshness_summary.get("stale", 0) != 0
+        or freshness_summary.get("critical", 0) != 0
+    ):
+        return False, None
+    return True, freshness_started_at.isoformat()
+
+
 # Helper functions for status page enhancement
 async def get_data_freshness_summary() -> dict[str, Any]:
     """Get summary of data freshness status from last check.
@@ -71,13 +104,7 @@ async def get_data_freshness_summary() -> dict[str, Any]:
         started_at = result[1]  # Should be datetime or None
         status = result[2]  # Should be str
 
-        # Parse summary JSON
-        if isinstance(summary_json, str):
-            summary = json.loads(summary_json)
-        elif isinstance(summary_json, dict):
-            summary = summary_json
-        else:
-            summary = {}
+        summary = _parse_summary_json(summary_json)
 
         return {
             "last_check": started_at.isoformat() if isinstance(started_at, datetime) else None,
@@ -117,8 +144,29 @@ async def get_recent_remediations(hours: int = 24) -> list[dict[str, Any]]:
             LIMIT 100
         """
 
+        latest_freshness_query = """
+            SELECT summary, started_at, status
+            FROM maintenance_log
+            WHERE task_name = 'check_all_data_freshness'
+            ORDER BY started_at DESC
+            LIMIT 1
+        """
+
         with storage.connection() as conn:
             result = conn.execute(query).fetchall()
+            latest_freshness_row = conn.execute(latest_freshness_query).fetchone()
+
+        latest_freshness_summary = (
+            _parse_summary_json(latest_freshness_row[0]) if latest_freshness_row else {}
+        )
+        latest_freshness_started_at = (
+            latest_freshness_row[1]
+            if latest_freshness_row and isinstance(latest_freshness_row[1], datetime)
+            else None
+        )
+        latest_freshness_status = (
+            str(latest_freshness_row[2]) if latest_freshness_row and latest_freshness_row[2] else None
+        )
 
         remediations_by_table: dict[str, dict[str, Any]] = {}
         for row in result:
@@ -135,16 +183,14 @@ async def get_recent_remediations(hours: int = 24) -> list[dict[str, Any]]:
             else:
                 table_name = "unknown"
 
-            # Parse summary
-            summary = {}
-            if summary_json_val:
-                if isinstance(summary_json_val, str):
-                    try:
-                        summary = json.loads(summary_json_val)
-                    except json.JSONDecodeError:
-                        summary = {}
-                elif isinstance(summary_json_val, dict):
-                    summary = summary_json_val
+            summary = _parse_summary_json(summary_json_val)
+            triggered_at = started_at_val if isinstance(started_at_val, datetime) else None
+            resolved, resolved_at = _get_remediation_resolution_state(
+                triggered_at=triggered_at,
+                freshness_status=latest_freshness_status,
+                freshness_started_at=latest_freshness_started_at,
+                freshness_summary=latest_freshness_summary,
+            )
 
             existing = remediations_by_table.get(table_name)
             if existing:
@@ -153,15 +199,15 @@ async def get_recent_remediations(hours: int = 24) -> list[dict[str, Any]]:
 
             remediations_by_table[table_name] = {
                 "table_name": table_name,
-                "triggered_at": started_at_val.isoformat()
-                if isinstance(started_at_val, datetime)
-                else None,
+                "triggered_at": triggered_at.isoformat() if triggered_at else None,
                 "status": str(status_val) if status_val else "unknown",
                 "age_hours": summary.get("age_hours"),
                 "threshold_hours": summary.get("threshold_hours"),
                 "reason": summary.get("reason"),
                 "error_message": str(error_message_val) if error_message_val else None,
                 "occurrence_count": 1,
+                "resolved": resolved,
+                "resolved_at": resolved_at,
             }
 
         return list(remediations_by_table.values())[:20]

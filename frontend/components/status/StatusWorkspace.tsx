@@ -103,39 +103,19 @@ function getWorkflowCount(
 function remediationPresentation(
   remediation: {
     status: string
-    triggeredAt?: string | null
+    resolved?: boolean
+    resolvedAt?: string | null
   },
-  freshnessStatus:
-    | {
-        status?: string
-        lastCheck?: string | null
-        stale?: number
-        critical?: number
-      }
-    | null
-    | undefined,
 ): {
   badgeLabel: string
   badgeVariant: 'success' | 'warning'
   detail: string | null
 } {
-  const freshnessIsClear =
-    freshnessStatus?.status === 'success' &&
-    (freshnessStatus?.stale ?? 0) === 0 &&
-    (freshnessStatus?.critical ?? 0) === 0
-  const lastCheckTime = freshnessStatus?.lastCheck ? Date.parse(freshnessStatus.lastCheck) : NaN
-  const triggeredAtTime = remediation.triggeredAt ? Date.parse(remediation.triggeredAt) : NaN
-  const resolved =
-    freshnessIsClear &&
-    Number.isFinite(lastCheckTime) &&
-    Number.isFinite(triggeredAtTime) &&
-    lastCheckTime > triggeredAtTime
-
-  if (resolved) {
+  if (remediation.resolved) {
     return {
       badgeLabel: 'resolved',
       badgeVariant: 'success' as const,
-      detail: `Resolved in the latest freshness check at ${formatDateTime(freshnessStatus?.lastCheck)}.`,
+      detail: `Resolved in the latest freshness check at ${formatDateTime(remediation.resolvedAt)}.`,
     }
   }
 
@@ -550,10 +530,7 @@ export function StatusWorkspace() {
                   </div>
                 ) : (
                   healthQuery.data?.recentRemediations.map((event) => {
-                    const presentation = remediationPresentation(
-                      event,
-                      healthQuery.data?.dataFreshnessStatus,
-                    )
+                    const presentation = remediationPresentation(event)
 
                     return (
                       <div

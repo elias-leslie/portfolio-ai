@@ -207,6 +207,8 @@ describe('StatusWorkspace', () => {
               thresholdHours: 48,
               reason: 'age',
               occurrenceCount: 2,
+              resolved: true,
+              resolvedAt: '2026-03-10T23:00:00.000000Z',
             },
           ],
           workflowHealth: {

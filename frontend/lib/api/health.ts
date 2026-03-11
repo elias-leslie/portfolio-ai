@@ -99,6 +99,8 @@ export interface RecentRemediation {
   reason?: string | null
   errorMessage?: string | null
   occurrenceCount?: number | null
+  resolved?: boolean
+  resolvedAt?: string | null
 }
 
 export interface DetailedHealthCheckResponse {
