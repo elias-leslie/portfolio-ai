@@ -29,6 +29,12 @@ function getOnboardingStage(
     | undefined
   if (docCount === 0 && !executive) return 1
   if (docCount > 0 && !executive?.averageMonthlySpend) return 2
+  const criticalHighNeeds = dashboard.jennyNeeds?.filter(
+    (n) =>
+      n.status === 'unsatisfied' &&
+      (n.priority === 'critical' || n.priority === 'high'),
+  )
+  if (!criticalHighNeeds || criticalHighNeeds.length === 0) return 4
   const hasConfirmed = dashboard.resolvedValues?.some(
     (v) => v.status === 'confirmed',
   )
@@ -233,14 +239,14 @@ export default function MoneyPage() {
               value: 'operate',
               label: 'Operate',
               description:
-                'Handle active questions from Jenny while she processes your documents.',
+                'Handle what Jenny needs while she processes your documents.',
               badge:
-                dashboard.questions.length +
-                  dashboard.categorizationQueue.length >
-                0
+                dashboard.jennyNeeds.filter((n) => n.status === 'unsatisfied')
+                  .length > 0
                   ? String(
-                      dashboard.questions.length +
-                        dashboard.categorizationQueue.length,
+                      dashboard.jennyNeeds.filter(
+                        (n) => n.status === 'unsatisfied',
+                      ).length,
                     )
                   : undefined,
               content: (
@@ -284,10 +290,6 @@ export default function MoneyPage() {
     label: 'Analysis',
     description:
       "Review the transaction reports and Jenny\u2019s synthesized money brief together.",
-    badge:
-      dashboard.opportunities.length > 0
-        ? String(dashboard.opportunities.length)
-        : undefined,
     content: (
       <div className="space-y-6">
         <HouseholdReportsPanel dashboard={dashboard} />
@@ -317,18 +319,15 @@ export default function MoneyPage() {
     ),
   }
 
+  const unsatisfiedNeedCount = dashboard.jennyNeeds.filter(
+    (n) => n.status === 'unsatisfied',
+  ).length
   const operateTab: WorkspaceTab = {
     value: 'operate',
     label: 'Operate',
     description:
-      'Handle active questions, categorization review, bills, and budget pacing first.',
-    badge:
-      dashboard.questions.length + dashboard.categorizationQueue.length > 0
-        ? String(
-            dashboard.questions.length +
-              dashboard.categorizationQueue.length,
-          )
-        : undefined,
+      'Handle what Jenny needs, review categories, bills, and budget pacing.',
+    badge: unsatisfiedNeedCount > 0 ? String(unsatisfiedNeedCount) : undefined,
     content: <HouseholdOperationsPanel dashboard={dashboard} />,
   }
 
@@ -350,11 +349,8 @@ export default function MoneyPage() {
       <div className="rounded-2xl border border-border/40 bg-surface-muted/20 px-4 py-3 text-sm text-text-muted">
         Updated {formatRelativeTime(dashboard.generatedAt)}
         {' \u00b7 '}
-        {dashboard.questions.length} open question
-        {dashboard.questions.length === 1 ? '' : 's'}
-        {' \u00b7 '}
-        {dashboard.opportunities.length} opportunit
-        {dashboard.opportunities.length === 1 ? 'y' : 'ies'}
+        {dashboard.jennyNeeds.filter((n) => n.status === 'unsatisfied').length} need
+        {dashboard.jennyNeeds.filter((n) => n.status === 'unsatisfied').length === 1 ? '' : 's'}
         {' \u00b7 '}
         {docCount} document
         {docCount === 1 ? '' : 's'}

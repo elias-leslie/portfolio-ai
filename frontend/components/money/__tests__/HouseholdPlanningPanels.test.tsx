@@ -66,7 +66,7 @@ describe('HouseholdPlanningPanels', () => {
             nextSteps: [],
           },
           actionItems: [],
-          opportunities: [],
+          jennyNeeds: [],
           reports: {
             executive: {
               headline: 'Ledger ready',
@@ -200,7 +200,7 @@ describe('HouseholdPlanningPanels', () => {
             ],
           },
           actionItems: [],
-          opportunities: [],
+          jennyNeeds: [],
           reports: {
             executive: {
               headline: 'Ledger ready',

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from app.models.household_finance import HouseholdDocument, HouseholdOpportunity
+from app.models.household_finance import HouseholdDocument
 
 ResolvedNumericValue = Callable[[str], float | int | None]
 
@@ -191,70 +191,4 @@ def retirement_next_steps(
     return next_steps
 
 
-def build_opportunities(
-    *,
-    resolved_numeric_value: ResolvedNumericValue,
-    documents: list[HouseholdDocument],
-    taxable_assets: float,
-    retirement_assets: float,
-) -> list[HouseholdOpportunity]:
-    opportunities: list[HouseholdOpportunity] = []
-    if not documents:
-        opportunities.append(
-            HouseholdOpportunity(
-                title="Build a statement-first data foundation",
-                category="data_foundation",
-                impact="High",
-                detail=(
-                    "Bank and card statements unlock real budgeting, recurring-charge detection, "
-                    "merchant comparisons, and future card optimization."
-                ),
-                next_step="Import 90 days of checking and primary credit-card statements.",
-            )
-        )
-    if (
-        resolved_numeric_value("monthly_essential_target") is None
-        or resolved_numeric_value("monthly_discretionary_target") is None
-    ):
-        if documents:
-            opportunities.append(
-                HouseholdOpportunity(
-                    title="Budget guardrails in progress",
-                    category="budget_control",
-                    impact="Medium",
-                    detail="Jenny is analyzing your statements to establish spending guardrails. More months of data will improve accuracy.",
-                    next_step="No action needed — Jenny is processing your documents.",
-                )
-            )
-        else:
-            opportunities.append(
-                HouseholdOpportunity(
-                    title="Turn Jenny into a budget guardrail",
-                    category="budget_control",
-                    impact="High",
-                    detail="Jenny can only alert on overspend pace after she has enough evidence to infer your budget guardrails.",
-                    next_step="Upload 90 days of checking and credit-card statements.",
-                )
-            )
-    if retirement_assets > 0 and resolved_numeric_value("target_retirement_spend") is None:
-        opportunities.append(
-            HouseholdOpportunity(
-                title="Connect retirement assets to a real spending target",
-                category="retirement",
-                impact="High",
-                detail="Retirement balances are visible, but readiness still depends on what life actually costs.",
-                next_step="Add a target retirement spending figure and keep statements current.",
-            )
-        )
-    if documents and taxable_assets >= 0:
-        opportunities.append(
-            HouseholdOpportunity(
-                title="Prepare for merchant and rewards optimization",
-                category="savings",
-                impact="Medium",
-                detail="Once spending data is stable, Jenny can start comparing merchants, brands, and card usage.",
-                next_step="Keep uploading statements and receipts so category patterns become trustworthy.",
-            )
-        )
-    return opportunities
 

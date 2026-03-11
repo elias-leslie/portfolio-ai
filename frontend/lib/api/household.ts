@@ -59,14 +59,7 @@ export interface RetirementPreparedness {
   nextSteps: string[]
 }
 
-export interface HouseholdOpportunity {
-  title: string
-  category: string
-  impact: string
-  detail: string
-  nextStep: string
-}
-
+/** @deprecated Use JennyNeed instead */
 export interface HouseholdActionItem {
   title: string
   detail: string
@@ -261,10 +254,29 @@ export interface HouseholdQuestionList {
   items: HouseholdQuestion[]
 }
 
+export interface JennyNeed {
+  id: string
+  needType: string
+  title: string
+  detail: string
+  priority: string
+  status: string
+  recurrence: string
+  satisfactionDetail: string | null
+  actionHref: string | null
+  relatedQuestionId: string | null
+  fieldName: string | null
+}
+
+export interface HouseholdConfirmedFact {
+  factKey: string
+  factValue: string
+  confirmedAt: string
+}
+
 export interface JennyProgression {
   found: string[]
   workingOn: string | null
-  needsFromYou: string[]
 }
 
 export interface JennyMoneyBrief {
@@ -289,8 +301,8 @@ export interface HouseholdFinanceDashboard {
   budgetReadiness: BudgetReadiness
   budgetSnapshot: HouseholdBudgetSnapshot
   retirementPreparedness: RetirementPreparedness
+  jennyNeeds: JennyNeed[]
   actionItems: HouseholdActionItem[]
-  opportunities: HouseholdOpportunity[]
   importCenter: ImportCenter
   questions: HouseholdQuestion[]
   jennyBrief: JennyMoneyBrief
@@ -375,6 +387,17 @@ export async function answerHouseholdQuestion(
   payload: HouseholdQuestionAnswer,
 ): Promise<HouseholdQuestion> {
   return post<HouseholdQuestion>(`/api/household/questions/${questionId}/answer`, payload)
+}
+
+export async function fetchConfirmedFacts(): Promise<HouseholdConfirmedFact[]> {
+  return get<HouseholdConfirmedFact[]>('/api/household/facts')
+}
+
+export async function confirmFact(
+  factKey: string,
+  factValue: string,
+): Promise<HouseholdConfirmedFact> {
+  return post<HouseholdConfirmedFact>('/api/household/facts', { factKey, factValue })
 }
 
 export async function categorizeHouseholdTransaction(

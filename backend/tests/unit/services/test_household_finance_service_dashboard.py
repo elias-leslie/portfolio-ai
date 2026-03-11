@@ -1,4 +1,4 @@
-"""Unit tests for new household dashboard action helpers."""
+"""Unit tests for household dashboard helpers."""
 
 from __future__ import annotations
 
@@ -10,7 +10,6 @@ from app.models.household_finance import (
     BudgetReadiness,
     HouseholdDocumentList,
     HouseholdExecutiveReport,
-    HouseholdOpportunity,
     HouseholdProfile,
     HouseholdQuestion,
     HouseholdQuestionList,
@@ -57,59 +56,6 @@ def test_build_budget_snapshot_uses_targets_and_actuals() -> None:
     assert snapshot.month_to_date_spend == 2800.0
     assert snapshot.month_to_date_plan is not None
     assert snapshot.pace_status in {"on_track", "running_hot", "under_plan"}
-
-
-def test_build_action_items_prioritizes_questions_and_budget_gaps() -> None:
-    service = _service()
-    questions = [
-        HouseholdQuestion(
-            id="question-1",
-            field_name="monthly_net_income_target",
-            status="open",
-            priority="high",
-            question="What is the monthly household take-home income?",
-            rationale=None,
-            recommendation=None,
-            answer_text=None,
-            source_document_id=None,
-            metadata={},
-            created_at="2026-03-10T00:00:00Z",
-            answered_at=None,
-        )
-    ]
-    opportunities = [
-        HouseholdOpportunity(
-            title="Tighten grocery baseline",
-            category="budgeting",
-            impact="high",
-            detail="Recurring grocery merchants are visible now.",
-            next_step="Confirm the monthly grocery cap.",
-        )
-    ]
-    reports = SimpleNamespace(
-        executive=SimpleNamespace(
-            tracked_expense_count=10,
-        )
-    )
-    budget_readiness = BudgetReadiness(
-        status="setup_needed",
-        summary="Budget needs one more input.",
-        priorities=[],
-        missing_inputs=["Confirm monthly take-home income."],
-        starter_lanes=[],
-    )
-
-    items = service._build_action_items(
-        questions=questions,
-        opportunities=opportunities,
-        next_best_action="Confirm monthly take-home income.",
-        reports=reports,
-        budget_readiness=budget_readiness,
-    )
-
-    assert items[0].title == "Answer Jenny follow-up"
-    assert items[0].priority == "high"
-    assert any(item.title == "Tighten grocery baseline" for item in items)
 
 
 def test_build_retirement_contribution_tracker_highlights_gap_to_target() -> None:
@@ -214,7 +160,8 @@ def test_get_dashboard_returns_composed_household_view() -> None:
     service.get_resolved_values = Mock(return_value=[resolved_value])
     service._get_inferred_value_rows = Mock(return_value={})
     mock_conn = Mock()
-    mock_conn.execute.return_value.fetchone.return_value = (0, 0.0)
+    mock_conn.execute.return_value.fetchall.return_value = []
+    mock_conn.execute.return_value.fetchone.return_value = (None, 0, None)
     mock_conn.__enter__ = Mock(return_value=mock_conn)
     mock_conn.__exit__ = Mock(return_value=False)
     service.storage = Mock()
@@ -238,7 +185,6 @@ def test_get_dashboard_returns_composed_household_view() -> None:
     service._retirement_strengths = Mock(return_value=["Visible retirement assets"])
     service._retirement_blockers = Mock(return_value=[])
     service._retirement_next_steps = Mock(return_value=["Keep saving"])
-    service._build_opportunities = Mock(return_value=[])
     service.transaction_service = Mock()
     service.transaction_service.build_reports.return_value = reports
     service._build_budget_snapshot = Mock(
@@ -266,7 +212,6 @@ def test_get_dashboard_returns_composed_household_view() -> None:
         }
     )
     service._build_retirement_scenarios = Mock(return_value=[])
-    service._build_action_items = Mock(return_value=[])
 
     dashboard = service.get_dashboard()
 
@@ -275,4 +220,6 @@ def test_get_dashboard_returns_composed_household_view() -> None:
     assert dashboard.budget_readiness.status == "ready_for_budgeting"
     assert dashboard.retirement_preparedness.status == "scenario_ready"
     assert dashboard.questions[0].id == "question-1"
+    assert isinstance(dashboard.jenny_needs, list)
+    assert dashboard.action_items == []
     assert datetime.fromisoformat(dashboard.generated_at).tzinfo == UTC

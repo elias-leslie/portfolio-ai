@@ -10,17 +10,12 @@ from dateutil.relativedelta import relativedelta
 
 from app.models.household_finance import (
     BudgetLane,
-    BudgetReadiness,
-    HouseholdActionItem,
     HouseholdBudgetSnapshot,
-    HouseholdCategorizationCandidate,
     HouseholdRecurringCommitment,
     HouseholdRetirementContributionTracker,
     HouseholdRetirementScenario,
     HouseholdSinkingFund,
 )
-
-_PRIORITY_RANK: dict[str, int] = {"high": 0, "medium": 1, "low": 2}
 
 _CADENCE_MULTIPLIERS: dict[str, int] = {
     "weekly": 52,
@@ -292,140 +287,6 @@ def build_budget_snapshot(
         remaining_cash_after_plan=remaining_cash_after_plan,
         discretionary_headroom=discretionary_headroom,
     )
-
-
-def _action_items_from_questions(questions: list[Any]) -> list[HouseholdActionItem]:
-    return [
-        HouseholdActionItem(
-            title="Answer Jenny follow-up",
-            detail=question.question,
-            action_label="Answer in Money System",
-            href="/money",
-            priority=question.priority,
-            source="question",
-        )
-        for question in questions[:3]
-    ]
-
-
-def _action_items_from_budget(budget_readiness: BudgetReadiness) -> list[HouseholdActionItem]:
-    return [
-        HouseholdActionItem(
-            title="Finish the monthly plan",
-            detail=missing_input,
-            action_label="Update plan",
-            href="/money",
-            priority="high",
-            source="budget_readiness",
-        )
-        for missing_input in budget_readiness.missing_inputs[:2]
-    ]
-
-
-def _action_items_from_opportunities(opportunities: list[Any]) -> list[HouseholdActionItem]:
-    return [
-        HouseholdActionItem(
-            title=opportunity.title,
-            detail=opportunity.detail,
-            action_label="Review in Money System",
-            href="/money",
-            priority="medium",
-            source=opportunity.category,
-        )
-        for opportunity in opportunities[:2]
-    ]
-
-
-def _action_items_from_ledger(reports: Any) -> list[HouseholdActionItem]:
-    """Return a prompt to upload transactions when the ledger is empty."""
-    if reports.executive.tracked_expense_count != 0:
-        return []
-    return [
-        HouseholdActionItem(
-            title="Feed the household ledger",
-            detail="Upload a recent checking or credit-card statement so the budget view is based on real transactions.",
-            action_label="Upload documents",
-            href="/money",
-            priority="high",
-            source="documents",
-        )
-    ]
-
-
-def _action_items_from_categorization(
-    categorization_queue: list[HouseholdCategorizationCandidate],
-) -> list[HouseholdActionItem]:
-    """Return a prompt to categorize pending transactions when the queue is non-empty."""
-    if not categorization_queue:
-        return []
-    count = len(categorization_queue)
-    return [
-        HouseholdActionItem(
-            title="Review uncategorized spending",
-            detail=f"{count} transaction{'s' if count != 1 else ''} still need clean categories.",
-            action_label="Categorize now",
-            href="/money",
-            priority="high",
-            source="categorization_queue",
-        )
-    ]
-
-
-def _action_items_fallback(
-    items: list[HouseholdActionItem], next_best_action: str
-) -> list[HouseholdActionItem]:
-    """Return a generic next-step item when no other actions were produced."""
-    if items:
-        return []
-    return [
-        HouseholdActionItem(
-            title="Next best household step",
-            detail=next_best_action,
-            action_label="Open Money System",
-            href="/money",
-            priority="medium",
-            source="overview",
-        )
-    ]
-
-
-def _deduplicate_action_items(
-    items: list[HouseholdActionItem],
-) -> list[HouseholdActionItem]:
-    """Remove duplicate action items, preserving first-seen order."""
-    seen: set[tuple[str, str]] = set()
-    deduped: list[HouseholdActionItem] = []
-    for item in items:
-        key = (item.title, item.detail)
-        if key not in seen:
-            seen.add(key)
-            deduped.append(item)
-    return deduped
-
-
-def build_action_items(
-    *,
-    questions: list[Any],
-    opportunities: list[Any],
-    next_best_action: str,
-    reports: Any,
-    budget_readiness: BudgetReadiness,
-    categorization_queue: list[HouseholdCategorizationCandidate] | None = None,
-) -> list[HouseholdActionItem]:
-    categorization_queue = categorization_queue or []
-    items: list[HouseholdActionItem] = (
-        _action_items_from_questions(questions)
-        + _action_items_from_budget(budget_readiness)
-        + _action_items_from_opportunities(opportunities)
-        + _action_items_from_ledger(reports)
-        + _action_items_from_categorization(categorization_queue)
-    )
-    items += _action_items_fallback(items, next_best_action)
-    deduped = _deduplicate_action_items(items)
-    return sorted(
-        deduped,
-        key=lambda item: (_PRIORITY_RANK.get(item.priority, 3), item.title),
-    )[:6]
 
 
 def build_starter_lanes(resolved_numeric_value: Any) -> list[BudgetLane]:

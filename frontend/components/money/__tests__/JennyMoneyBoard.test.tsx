@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { JennyMoneyBoard } from '../JennyMoneyBoard'
 
 describe('JennyMoneyBoard', () => {
-  it('shows summary telemetry for prompts, opportunities, resolved values, and evidence coverage', () => {
+  it('shows summary telemetry for prompts, needs, resolved values, and evidence coverage', () => {
     render(
       <JennyMoneyBoard
         dashboard={{
@@ -77,13 +77,19 @@ describe('JennyMoneyBoard', () => {
             nextSteps: [],
           },
           actionItems: [],
-          opportunities: [
+          jennyNeeds: [
             {
+              id: 'need-1',
+              needType: 'confirm',
               title: 'Tighten grocery lane',
-              category: 'budget',
-              impact: 'high',
               detail: 'Groceries are drifting above plan.',
-              nextStep: 'Revisit store mix.',
+              priority: 'high',
+              status: 'unsatisfied',
+              recurrence: 'one_time',
+              satisfactionDetail: null,
+              actionHref: null,
+              relatedQuestionId: null,
+              fieldName: null,
             },
           ],
           categorizationQueue: [],
@@ -132,12 +138,11 @@ describe('JennyMoneyBoard', () => {
       />,
     )
 
-    expect(screen.getByText(/1 prompt · 1 opportunity · 1 resolved value · 3 months of evidence/i)).toBeInTheDocument()
+    expect(screen.getByText(/1 prompt · 1 need · 1 resolved value · 3 months of evidence/i)).toBeInTheDocument()
     expect(screen.getByText(/confirm take-home pay\./i)).toBeInTheDocument()
-    expect(screen.getByText(/tighten grocery lane/i)).toBeInTheDocument()
   })
 
-  it('shows empty-state messages when prompts, opportunities, resolved values, and evidence coverage are zero', () => {
+  it('shows empty-state messages when prompts, needs, resolved values, and evidence coverage are zero', () => {
     render(
       <JennyMoneyBoard
         dashboard={{
@@ -200,7 +205,7 @@ describe('JennyMoneyBoard', () => {
             nextSteps: [],
           },
           actionItems: [],
-          opportunities: [],
+          jennyNeeds: [],
           categorizationQueue: [],
           recurringCommitments: [],
           sinkingFunds: [],
@@ -247,8 +252,7 @@ describe('JennyMoneyBoard', () => {
       />,
     )
 
-    expect(screen.getByText(/0 prompts · 0 opportunities · 0 resolved values · 0 months of evidence/i)).toBeInTheDocument()
+    expect(screen.getByText(/0 prompts · 0 needs · 0 resolved values · 0 months of evidence/i)).toBeInTheDocument()
     expect(screen.getByText(/Jenny does not need a follow-up prompt right now\./i)).toBeInTheDocument()
-    expect(screen.getByText(/No open opportunity queue right now\./i)).toBeInTheDocument()
   })
 })

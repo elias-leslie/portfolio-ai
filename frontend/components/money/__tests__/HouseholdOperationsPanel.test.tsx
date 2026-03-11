@@ -64,7 +64,7 @@ describe('HouseholdOperationsPanel', () => {
           },
           questions: [],
           actionItems: [],
-          opportunities: [],
+          jennyNeeds: [],
           reports: {
             executive: {
               headline: 'Ledger ready',
@@ -208,7 +208,7 @@ describe('HouseholdOperationsPanel', () => {
               source: 'documents',
             },
           ],
-          opportunities: [],
+          jennyNeeds: [],
           reports: {
             executive: {
               headline: 'Ledger ready',
@@ -329,7 +329,7 @@ describe('HouseholdOperationsPanel', () => {
           },
           questions: [],
           actionItems: [],
-          opportunities: [],
+          jennyNeeds: [],
           reports: {
             executive: {
               headline: 'Ledger ready',

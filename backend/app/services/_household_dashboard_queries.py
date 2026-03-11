@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -86,6 +87,140 @@ _MONTH_SPEND_SQL = """
     WHERE flow_type = 'expense'
       AND transaction_date >= date_trunc('month', CURRENT_DATE)
 """
+
+
+_UNKNOWN_ACCOUNT_SQL = """
+    SELECT DISTINCT
+        t.description,
+        t.flow_type
+    FROM household_transactions t
+    WHERE t.flow_type IN ('transfer_out', 'payment')
+    ORDER BY t.description
+    LIMIT 500
+"""
+
+_STATEMENT_FRESHNESS_SQL = """
+    SELECT
+        MAX(transaction_date) AS most_recent_date,
+        COUNT(DISTINCT date_trunc('month', transaction_date)) AS coverage_months,
+        MIN(transaction_date) AS earliest_date
+    FROM household_transactions
+    WHERE flow_type = 'expense'
+"""
+
+_CONFIRMED_FACTS_SQL = """
+    SELECT fact_key, fact_value
+    FROM household_confirmed_facts
+"""
+
+_KNOWN_INSTITUTIONS = [
+    "CHASE", "AMEX", "DISCOVER", "CITI", "CAPITAL ONE", "BANK OF AMERICA",
+    "AMERICAN EXPRESS", "WELLS FARGO", "BARCLAYS", "US BANK", "PNC",
+    "TD BANK", "NAVY FEDERAL", "USAA", "FIDELITY", "SCHWAB", "VANGUARD",
+]
+
+_INSTITUTION_PATTERN = re.compile(
+    r"(?:" + "|".join(re.escape(inst) for inst in _KNOWN_INSTITUTIONS) + r")"
+    r"(?:\s*(?:X+|[*]+)?\s*(\d{4}))?\b",
+    re.IGNORECASE,
+)
+
+
+def detect_unknown_accounts(
+    storage: Any,
+    documents: list[Any],
+) -> list[dict[str, str]]:
+    """Detect references to external accounts in transaction descriptions not matched to any document."""
+    with storage.connection() as conn:
+        rows = conn.execute(_UNKNOWN_ACCOUNT_SQL).fetchall()
+
+    known_labels: set[str] = set()
+    known_hints: set[str] = set()
+    for doc in documents:
+        if hasattr(doc, "account_label") and doc.account_label:
+            known_labels.add(doc.account_label.upper())
+        meta = getattr(doc, "metadata", {}) or {}
+        if isinstance(meta, dict):
+            hint = meta.get("account_hint", "")
+            if hint:
+                known_hints.add(str(hint).upper())
+            inst = meta.get("institution", "")
+            if inst:
+                known_labels.add(str(inst).upper())
+
+    detected: dict[str, dict[str, str]] = {}
+    for row in rows:
+        description = str(row[0] or "")
+        match = _INSTITUTION_PATTERN.search(description)
+        if not match:
+            continue
+        institution = match.group(0).split()[0].upper()
+        # Normalize multi-word institutions
+        for known in _KNOWN_INSTITUTIONS:
+            if known.upper() in description.upper():
+                institution = known
+                break
+        partial_account = match.group(1) or ""
+        key = f"{institution}_{partial_account}" if partial_account else institution
+
+        # Skip if this matches a known document
+        if institution in known_labels:
+            continue
+        if partial_account and partial_account in known_hints:
+            continue
+
+        if key not in detected:
+            detected[key] = {
+                "institution": institution,
+                "partial_account": partial_account,
+                "key": key,
+            }
+
+    return list(detected.values())
+
+
+def check_statement_freshness(storage: Any) -> dict[str, Any]:
+    """Check transaction coverage freshness."""
+    with storage.connection() as conn:
+        row = conn.execute(_STATEMENT_FRESHNESS_SQL).fetchone()
+
+    if row is None or row[0] is None:
+        return {
+            "most_recent_date": None,
+            "days_since_latest": None,
+            "coverage_months": 0,
+            "gap_months": [],
+        }
+
+    most_recent = row[0]
+    coverage_months = int(row[1] or 0)
+    earliest = row[2]
+    today = datetime.now(UTC).date()
+    most_recent_date = most_recent.date() if hasattr(most_recent, "date") else most_recent
+    days_since_latest = (today - most_recent_date).days
+
+    # Calculate gap months
+    gap_months: list[str] = []
+    if earliest is not None and coverage_months > 0:
+        earliest_date = earliest.date() if hasattr(earliest, "date") else earliest
+        total_months = (most_recent_date.year - earliest_date.year) * 12 + (most_recent_date.month - earliest_date.month) + 1
+        if total_months > coverage_months:
+            gap_months_count = total_months - coverage_months
+            gap_months = [f"{gap_months_count} month{'s' if gap_months_count != 1 else ''} missing in range"]
+
+    return {
+        "most_recent_date": most_recent_date.isoformat(),
+        "days_since_latest": days_since_latest,
+        "coverage_months": coverage_months,
+        "gap_months": gap_months,
+    }
+
+
+def fetch_confirmed_facts(storage: Any) -> dict[str, str]:
+    """Fetch all confirmed household facts as a dict."""
+    with storage.connection() as conn:
+        rows = conn.execute(_CONFIRMED_FACTS_SQL).fetchall()
+    return {str(row[0]): str(row[1]) for row in rows}
 
 
 def fetch_categorization_queue(

@@ -293,10 +293,34 @@ class HouseholdQuestionAnswer(BaseModel):
     answer_text: str
 
 
+class JennyNeed(BaseModel):
+    id: str
+    need_type: str  # "provide" | "confirm" | "set" | "review"
+    title: str
+    detail: str
+    priority: str  # "critical" | "high" | "medium" | "low"
+    status: str  # "unsatisfied" | "satisfied"
+    recurrence: str  # "periodic" | "one_time" | "as_needed"
+    satisfaction_detail: str | None = None
+    action_href: str | None = None
+    related_question_id: str | None = None
+    field_name: str | None = None
+
+
+class HouseholdConfirmedFact(BaseModel):
+    fact_key: str
+    fact_value: str
+    confirmed_at: str
+
+
+class ConfirmFactRequest(BaseModel):
+    fact_key: str
+    fact_value: str
+
+
 class JennyProgression(BaseModel):
     found: list[str] = Field(default_factory=list)
     working_on: str | None = None
-    needs_from_you: list[str] = Field(default_factory=list)
 
 
 class JennyMoneyBrief(BaseModel):
@@ -321,8 +345,8 @@ class HouseholdFinanceDashboard(BaseModel):
     budget_readiness: BudgetReadiness
     budget_snapshot: HouseholdBudgetSnapshot
     retirement_preparedness: RetirementPreparedness
-    action_items: list[HouseholdActionItem] = Field(default_factory=list)
-    opportunities: list[HouseholdOpportunity] = Field(default_factory=list)
+    jenny_needs: list[JennyNeed] = Field(default_factory=list)
+    action_items: list[HouseholdActionItem] = Field(default_factory=list)  # deprecated — empty
     reports: HouseholdReports
     categorization_queue: list[HouseholdCategorizationCandidate] = Field(default_factory=list)
     recurring_commitments: list[HouseholdRecurringCommitment] = Field(default_factory=list)

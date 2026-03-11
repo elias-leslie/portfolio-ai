@@ -2,12 +2,16 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
-import type { HouseholdFinanceDashboard } from '@/lib/api/household'
+import type {
+  HouseholdFinanceDashboard,
+  JennyNeed,
+} from '@/lib/api/household'
 import {
   useAnswerHouseholdQuestion,
   useCategorizeHouseholdTransaction,
+  useConfirmFact,
+  useUpdateHouseholdProfile,
 } from '@/lib/hooks/useHousehold'
-import { Badge } from '@/components/ui/badge'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -34,231 +38,260 @@ const HOUSEHOLD_CATEGORY_OPTIONS = [
 
 const ESSENTIALITY_OPTIONS = ['essential', 'discretionary', 'mixed'] as const
 
-export function HouseholdOperationsPanel({
+function JennyNeedCard({
+  need,
   dashboard,
 }: {
+  need: JennyNeed
   dashboard: HouseholdFinanceDashboard
 }) {
+  const confirmFact = useConfirmFact()
   const answerQuestion = useAnswerHouseholdQuestion()
+  const updateProfile = useUpdateHouseholdProfile()
   const categorizeTransaction = useCategorizeHouseholdTransaction()
-  const [drafts, setDrafts] = useState<Record<string, string>>({})
+  const [draft, setDraft] = useState('')
   const [categorizationDrafts, setCategorizationDrafts] = useState<
     Record<string, { category: string; essentiality: string }>
   >({})
 
-  const paceTone =
-    dashboard.budgetSnapshot.paceStatus === 'running_hot'
-      ? 'border-warning/30 bg-warning/10'
-      : dashboard.budgetSnapshot.paceStatus === 'under_plan'
-        ? 'border-gain/30 bg-gain/10'
-        : 'border-border/40 bg-surface-muted/20'
+  const priorityColor =
+    need.priority === 'critical'
+      ? 'border-loss/30 bg-loss/10'
+      : need.priority === 'high'
+        ? 'border-warning/30 bg-warning/10'
+        : 'border-border/50 bg-surface-muted/20'
 
-  return (
-    <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-      <SectionCard
-        variant="surface"
-        title="Quick Confirmations"
-        description="Jenny just needs a quick sign-off on a few things to keep moving."
-      >
-        <div className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            {dashboard.questions.length > 0 ? (
-              <Badge variant="outline">
-                {dashboard.questions.length} quick question{dashboard.questions.length === 1 ? '' : 's'}
-              </Badge>
-            ) : null}
-            {dashboard.actionItems.length > 0 ? (
-              <Badge variant="outline">
-                {dashboard.actionItems.length} suggestion{dashboard.actionItems.length === 1 ? '' : 's'}
-              </Badge>
-            ) : null}
-            {dashboard.categorizationQueue.length > 0 ? (
-              <Badge variant="outline">
-                {dashboard.categorizationQueue.length} to confirm
-              </Badge>
-            ) : null}
+  // Provide type: link to intake
+  if (need.needType === 'provide') {
+    return (
+      <div className={`rounded-2xl border p-4 ${priorityColor}`}>
+        <p className="text-sm font-semibold text-text">{need.title}</p>
+        <p className="mt-1 text-sm text-text-muted">{need.detail}</p>
+        {need.actionHref ? (
+          <div className="mt-3">
+            <Button asChild size="sm" variant="outline">
+              <Link href={need.actionHref}>Go to Intake</Link>
+            </Button>
           </div>
+        ) : null}
+      </div>
+    )
+  }
 
-          {dashboard.questions.length > 0 ? (
-            dashboard.questions.slice(0, 3).map((question) => (
+  // Confirm type: yes/no or answer question
+  if (need.needType === 'confirm') {
+    if (need.relatedQuestionId) {
+      const question = dashboard.questions.find(
+        (q) => q.id === need.relatedQuestionId,
+      )
+      return (
+        <div className={`rounded-2xl border p-4 ${priorityColor}`}>
+          <p className="text-sm font-semibold text-text">{need.title}</p>
+          <p className="mt-1 text-sm text-text-muted">{need.detail}</p>
+          <div className="mt-3 flex flex-col gap-3 md:flex-row">
+            <Input
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="Quick answer — Jenny will take it from here"
+            />
+            <Button
+              disabled={answerQuestion.isPending || !draft.trim()}
+              onClick={() =>
+                answerQuestion.mutate({
+                  questionId: need.relatedQuestionId!,
+                  answerText: draft.trim(),
+                })
+              }
+            >
+              Confirm
+            </Button>
+          </div>
+          {question?.recommendation ? (
+            <p className="mt-2 text-xs text-text-muted">
+              {question.recommendation}
+            </p>
+          ) : null}
+        </div>
+      )
+    }
+
+    // Fact confirmation (yes/no)
+    return (
+      <div className={`rounded-2xl border p-4 ${priorityColor}`}>
+        <p className="text-sm font-semibold text-text">{need.title}</p>
+        <p className="mt-1 text-sm text-text-muted">{need.detail}</p>
+        <div className="mt-3 flex flex-col gap-3 md:flex-row">
+          <Input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Your answer"
+          />
+          <Button
+            disabled={confirmFact.isPending || !draft.trim()}
+            onClick={() =>
+              confirmFact.mutate({
+                factKey: need.fieldName ?? need.id,
+                factValue: draft.trim(),
+              })
+            }
+          >
+            Confirm
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // Set type: profile field input
+  if (need.needType === 'set') {
+    return (
+      <div className={`rounded-2xl border p-4 ${priorityColor}`}>
+        <p className="text-sm font-semibold text-text">{need.title}</p>
+        <p className="mt-1 text-sm text-text-muted">{need.detail}</p>
+        <div className="mt-3 flex flex-col gap-3 md:flex-row">
+          <Input
+            type="number"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder={
+              need.fieldName === 'target_retirement_age'
+                ? 'e.g. 65'
+                : 'e.g. 5000'
+            }
+          />
+          <Button
+            disabled={updateProfile.isPending || !draft.trim()}
+            onClick={() => {
+              if (!need.fieldName) return
+              const value = Number(draft)
+              if (Number.isNaN(value)) return
+              const payload: Record<string, number> = {}
+              // Convert snake_case field to camelCase for the API
+              const camelKey = need.fieldName.replace(/_([a-z])/g, (_, c: string) =>
+                c.toUpperCase(),
+              )
+              payload[camelKey] = value
+              updateProfile.mutate(payload)
+            }}
+          >
+            Save
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // Review type: inline categorization
+  if (need.needType === 'review') {
+    return (
+      <div className={`rounded-2xl border p-4 ${priorityColor}`}>
+        <p className="text-sm font-semibold text-text">{need.title}</p>
+        <p className="mt-1 text-sm text-text-muted">{need.detail}</p>
+        {dashboard.categorizationQueue.length > 0 ? (
+          <div className="mt-3 space-y-3">
+            {dashboard.categorizationQueue.slice(0, 4).map((candidate) => (
               <div
-                key={question.id}
-                className="rounded-2xl border border-border/50 bg-surface-muted/20 p-4"
+                key={candidate.id}
+                className="rounded-2xl border border-border/40 bg-surface/80 p-4"
               >
-                <p className="text-sm font-semibold text-text">{question.question}</p>
-                {question.recommendation ? (
-                  <p className="mt-2 text-sm text-text-muted">{question.recommendation}</p>
-                ) : null}
-                <div className="mt-4 flex flex-col gap-3 md:flex-row">
-                  <Input
-                    value={drafts[question.id] ?? ''}
-                    onChange={(event) =>
-                      setDrafts((current) => ({
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-text">
+                      {candidate.merchant}
+                    </p>
+                    <p className="mt-1 text-sm text-text-muted">
+                      {candidate.description}
+                    </p>
+                  </div>
+                  <span className="text-sm font-semibold text-text">
+                    {formatCurrency(candidate.amount)}
+                  </span>
+                </div>
+                <p className="mt-3 text-xs uppercase tracking-wide text-text-muted">
+                  {candidate.currentCategory} / {candidate.currentEssentiality}{' '}
+                  {'->'} {candidate.suggestedCategory} /{' '}
+                  {candidate.suggestedEssentiality}
+                </p>
+                <div className="mt-3 grid gap-2 md:grid-cols-2">
+                  <Select
+                    value={
+                      categorizationDrafts[candidate.id]?.category ??
+                      candidate.suggestedCategory
+                    }
+                    onValueChange={(value) =>
+                      setCategorizationDrafts((current) => ({
                         ...current,
-                        [question.id]: event.target.value,
+                        [candidate.id]: {
+                          category: value,
+                          essentiality:
+                            current[candidate.id]?.essentiality ??
+                            candidate.suggestedEssentiality,
+                        },
                       }))
                     }
-                    placeholder="Quick answer — Jenny will take it from here"
-                  />
-                  <Button
-                    disabled={
-                      answerQuestion.isPending || !(drafts[question.id] ?? '').trim()
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {HOUSEHOLD_CATEGORY_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={
+                      categorizationDrafts[candidate.id]?.essentiality ??
+                      candidate.suggestedEssentiality
                     }
-                    onClick={() =>
-                      answerQuestion.mutate({
-                        questionId: question.id,
-                        answerText: (drafts[question.id] ?? '').trim(),
-                      })
+                    onValueChange={(value) =>
+                      setCategorizationDrafts((current) => ({
+                        ...current,
+                        [candidate.id]: {
+                          category:
+                            current[candidate.id]?.category ??
+                            candidate.suggestedCategory,
+                          essentiality: value,
+                        },
+                      }))
                     }
                   >
-                    Confirm
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Essentiality" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ESSENTIALITY_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() =>
+                      categorizeTransaction.mutate({
+                        transactionId: candidate.id,
+                        category:
+                          categorizationDrafts[candidate.id]?.category ??
+                          candidate.suggestedCategory,
+                        essentiality:
+                          categorizationDrafts[candidate.id]?.essentiality ??
+                          candidate.suggestedEssentiality,
+                      })
+                    }
+                    disabled={categorizeTransaction.isPending}
+                  >
+                    Looks right
                   </Button>
-                </div>
-              </div>
-            ))
-          ) : null}
-          {dashboard.questions.length > 3 ? (
-            <p className="text-xs text-text-muted">
-              {dashboard.questions.length - 3} more quick question{dashboard.questions.length - 3 === 1 ? '' : 's'} after these.
-            </p>
-          ) : null}
-
-          {dashboard.actionItems.length > 0 ? (
-            <div className="grid gap-3">
-              {dashboard.actionItems.slice(0, 4).map((item, index) => (
-                <div
-                  key={`${item.title}-${index}`}
-                  className="rounded-2xl border border-border/50 bg-surface/50 p-4"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-text">{item.title}</p>
-                      <p className="mt-1 text-sm text-text-muted">{item.detail}</p>
-                    </div>
-                    <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-primary">
-                      {item.priority}
-                    </span>
-                  </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <Button asChild size="sm" variant="outline">
-                      <Link href={item.href}>{item.actionLabel}</Link>
-                    </Button>
-                    <span className="text-xs text-text-muted">{item.source}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : null}
-          {dashboard.actionItems.length > 4 ? (
-            <p className="text-xs text-text-muted">
-              {dashboard.actionItems.length - 4} more suggestion{dashboard.actionItems.length - 4 === 1 ? '' : 's'} after these.
-            </p>
-          ) : null}
-
-          {dashboard.questions.length === 0 && dashboard.actionItems.length === 0 && dashboard.categorizationQueue.length === 0 ? (
-            <div className="rounded-2xl border border-gain/30 bg-gain/10 p-4 text-sm text-text-muted">
-              Nothing needed right now — Jenny has it covered.
-            </div>
-          ) : null}
-
-          <div className="space-y-3 rounded-2xl border border-border/40 bg-surface/40 p-4">
-            <div>
-              <p className="text-sm font-semibold text-text">Quick category check</p>
-              <p className="mt-1 text-sm text-text-muted">
-                Jenny guessed these — just confirm or tweak so she learns your preferences.
-              </p>
-            </div>
-            {dashboard.categorizationQueue.length === 0 ? (
-              <div className="rounded-2xl border border-gain/30 bg-gain/10 p-4 text-sm text-text-muted">
-                Nothing to confirm — Jenny is confident in all current categories.
-              </div>
-            ) : (
-              dashboard.categorizationQueue.slice(0, 4).map((candidate) => (
-                <div
-                  key={candidate.id}
-                  className="rounded-2xl border border-border/40 bg-surface/80 p-4"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-text">{candidate.merchant}</p>
-                      <p className="mt-1 text-sm text-text-muted">{candidate.description}</p>
-                    </div>
-                    <span className="text-sm font-semibold text-text">
-                      {formatCurrency(candidate.amount)}
-                    </span>
-                  </div>
-                  <p className="mt-3 text-xs uppercase tracking-wide text-text-muted">
-                    {candidate.currentCategory} / {candidate.currentEssentiality} {'->'}{' '}
-                    {candidate.suggestedCategory} / {candidate.suggestedEssentiality}
-                  </p>
-                  <p className="mt-2 text-sm text-text-muted">{candidate.reason}</p>
                   {candidate.similarTransactionCount > 0 ? (
-                    <p className="mt-2 text-xs text-text-muted">
-                      {candidate.similarTransactionCount} similar transaction
-                      {candidate.similarTransactionCount === 1 ? '' : 's'} can be updated with the same rule.
-                    </p>
-                  ) : null}
-                  <div className="mt-3 grid gap-2 md:grid-cols-2">
-                    <Select
-                      value={
-                        categorizationDrafts[candidate.id]?.category ??
-                        candidate.suggestedCategory
-                      }
-                      onValueChange={(value) =>
-                        setCategorizationDrafts((current) => ({
-                          ...current,
-                          [candidate.id]: {
-                            category: value,
-                            essentiality:
-                              current[candidate.id]?.essentiality ??
-                              candidate.suggestedEssentiality,
-                          },
-                        }))
-                      }
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {HOUSEHOLD_CATEGORY_OPTIONS.map((option) => (
-                          <SelectItem key={option} value={option}>
-                            {option}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Select
-                      value={
-                        categorizationDrafts[candidate.id]?.essentiality ??
-                        candidate.suggestedEssentiality
-                      }
-                      onValueChange={(value) =>
-                        setCategorizationDrafts((current) => ({
-                          ...current,
-                          [candidate.id]: {
-                            category:
-                              current[candidate.id]?.category ??
-                              candidate.suggestedCategory,
-                            essentiality: value,
-                          },
-                        }))
-                      }
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Essentiality" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ESSENTIALITY_OPTIONS.map((option) => (
-                          <SelectItem key={option} value={option}>
-                            {option}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
                     <Button
                       size="sm"
+                      variant="outline"
                       onClick={() =>
                         categorizeTransaction.mutate({
                           transactionId: candidate.id,
@@ -268,48 +301,76 @@ export function HouseholdOperationsPanel({
                           essentiality:
                             categorizationDrafts[candidate.id]?.essentiality ??
                             candidate.suggestedEssentiality,
+                          applyToMerchant: true,
                         })
                       }
                       disabled={categorizeTransaction.isPending}
-                      aria-busy={categorizeTransaction.isPending}
                     >
-                      Looks right
+                      Apply to similar
                     </Button>
-                    {candidate.similarTransactionCount > 0 ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          categorizeTransaction.mutate({
-                            transactionId: candidate.id,
-                            category:
-                              categorizationDrafts[candidate.id]?.category ??
-                              candidate.suggestedCategory,
-                            essentiality:
-                              categorizationDrafts[candidate.id]?.essentiality ??
-                              candidate.suggestedEssentiality,
-                            applyToMerchant: true,
-                          })
-                        }
-                        disabled={categorizeTransaction.isPending}
-                        aria-busy={categorizeTransaction.isPending}
-                      >
-                        Apply to similar
-                      </Button>
-                    ) : null}
-                    <span className="text-xs text-text-muted">
-                      {(candidate.confidence * 100).toFixed(0)}% confidence
-                    </span>
-                  </div>
+                  ) : null}
+                  <span className="text-xs text-text-muted">
+                    {(candidate.confidence * 100).toFixed(0)}% confidence
+                  </span>
                 </div>
-              ))
-            )}
-            {dashboard.categorizationQueue.length > 4 ? (
-              <p className="text-xs text-text-muted">
-                {dashboard.categorizationQueue.length - 4} more to confirm after these.
-              </p>
-            ) : null}
+              </div>
+            ))}
           </div>
+        ) : null}
+      </div>
+    )
+  }
+
+  // Fallback
+  return (
+    <div className={`rounded-2xl border p-4 ${priorityColor}`}>
+      <p className="text-sm font-semibold text-text">{need.title}</p>
+      <p className="mt-1 text-sm text-text-muted">{need.detail}</p>
+    </div>
+  )
+}
+
+export function HouseholdOperationsPanel({
+  dashboard,
+}: {
+  dashboard: HouseholdFinanceDashboard
+}) {
+  const paceTone =
+    dashboard.budgetSnapshot.paceStatus === 'running_hot'
+      ? 'border-warning/30 bg-warning/10'
+      : dashboard.budgetSnapshot.paceStatus === 'under_plan'
+        ? 'border-gain/30 bg-gain/10'
+        : 'border-border/40 bg-surface-muted/20'
+
+  const unsatisfiedNeeds = dashboard.jennyNeeds.filter(
+    (n) => n.status === 'unsatisfied',
+  )
+
+  return (
+    <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+      <SectionCard
+        variant="surface"
+        title="What Jenny Needs"
+        description={
+          unsatisfiedNeeds.length > 0
+            ? `${unsatisfiedNeeds.length} thing${unsatisfiedNeeds.length === 1 ? '' : 's'} to move forward.`
+            : 'Nothing needed — Jenny has everything she needs.'
+        }
+      >
+        <div className="space-y-4">
+          {unsatisfiedNeeds.length === 0 ? (
+            <div className="rounded-2xl border border-gain/30 bg-gain/10 p-4 text-sm text-text-muted">
+              Nothing needed — Jenny has everything she needs.
+            </div>
+          ) : (
+            unsatisfiedNeeds.map((need) => (
+              <JennyNeedCard
+                key={need.id}
+                need={need}
+                dashboard={dashboard}
+              />
+            ))
+          )}
         </div>
       </SectionCard>
 
@@ -320,9 +381,12 @@ export function HouseholdOperationsPanel({
       >
         <div className={`rounded-2xl border p-4 ${paceTone}`}>
           <p className="text-sm font-semibold text-text">Mid-month pacing</p>
-          <p className="mt-2 text-sm text-text-muted">{dashboard.budgetSnapshot.paceDetail}</p>
+          <p className="mt-2 text-sm text-text-muted">
+            {dashboard.budgetSnapshot.paceDetail}
+          </p>
           <p className="mt-3 text-xs uppercase tracking-wide text-text-muted">
-            {formatCurrency(dashboard.budgetSnapshot.monthToDateSpend)} spent so far
+            {formatCurrency(dashboard.budgetSnapshot.monthToDateSpend)} spent so
+            far
             {dashboard.budgetSnapshot.monthToDatePlan
               ? ` · pace target ${formatCurrency(dashboard.budgetSnapshot.monthToDatePlan)}`
               : ''}
@@ -351,10 +415,13 @@ export function HouseholdOperationsPanel({
               Essential Spend
             </p>
             <p className="mt-2 text-2xl font-semibold text-text">
-              {formatCurrency(dashboard.budgetSnapshot.actualEssentialMonthlySpend)}
+              {formatCurrency(
+                dashboard.budgetSnapshot.actualEssentialMonthlySpend,
+              )}
             </p>
             <p className="mt-1 text-sm text-text-muted">
-              Target {formatCurrency(dashboard.budgetSnapshot.essentialTarget)}
+              Target{' '}
+              {formatCurrency(dashboard.budgetSnapshot.essentialTarget)}
             </p>
           </div>
           <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4">
@@ -362,24 +429,30 @@ export function HouseholdOperationsPanel({
               Discretionary Spend
             </p>
             <p className="mt-2 text-2xl font-semibold text-text">
-              {formatCurrency(dashboard.budgetSnapshot.actualDiscretionaryMonthlySpend)}
+              {formatCurrency(
+                dashboard.budgetSnapshot.actualDiscretionaryMonthlySpend,
+              )}
             </p>
             <p className="mt-1 text-sm text-text-muted">
-              Headroom {formatCurrency(dashboard.budgetSnapshot.discretionaryHeadroom)}
+              Headroom{' '}
+              {formatCurrency(dashboard.budgetSnapshot.discretionaryHeadroom)}
             </p>
           </div>
         </div>
 
         <div className="mt-6 space-y-3">
           <div>
-            <p className="text-sm font-semibold text-text">Recurring bills and subscriptions</p>
+            <p className="text-sm font-semibold text-text">
+              Recurring bills and subscriptions
+            </p>
             <p className="mt-1 text-sm text-text-muted">
               The steady commitments Jenny can now pace against the monthly plan.
             </p>
           </div>
           {dashboard.recurringCommitments.length === 0 ? (
             <div className="rounded-2xl border border-border/40 bg-surface/60 p-4 text-sm text-text-muted">
-              Jenny is processing your documents to detect recurring commitments.
+              Jenny is processing your documents to detect recurring
+              commitments.
             </div>
           ) : (
             dashboard.recurringCommitments.slice(0, 4).map((commitment) => (
@@ -389,7 +462,9 @@ export function HouseholdOperationsPanel({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold text-text">{commitment.merchant}</p>
+                    <p className="text-sm font-semibold text-text">
+                      {commitment.merchant}
+                    </p>
                     <p className="mt-1 text-sm text-text-muted">
                       {commitment.category} · {commitment.cadence}
                     </p>

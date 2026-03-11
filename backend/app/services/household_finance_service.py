@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -10,14 +10,12 @@ from fastapi import UploadFile
 
 from app.logging_config import get_logger
 from app.models.household_finance import (
-    BudgetReadiness,
-    HouseholdActionItem,
     HouseholdBudgetSnapshot,
     HouseholdCategorizationCandidate,
+    HouseholdConfirmedFact,
     HouseholdDocument,
     HouseholdDocumentList,
     HouseholdFinanceDashboard,
-    HouseholdOpportunity,
     HouseholdProfile,
     HouseholdProfileUpdate,
     HouseholdQuestion,
@@ -39,7 +37,6 @@ from app.services._household_dashboard_builders import (
 )
 from app.services._household_dashboard_sections import (
     budget_input_status,
-    build_opportunities,
     compute_visibility_score,
     next_best_action,
     retirement_blockers,
@@ -172,25 +169,6 @@ class HouseholdFinanceService:
     ) -> HouseholdBudgetSnapshot:
         return self._dashboard_builder().build_budget_snapshot(self, profile=profile, reports=reports)
 
-    def _build_action_items(
-        self,
-        *,
-        questions: list[HouseholdQuestion],
-        opportunities: list[HouseholdOpportunity],
-        next_best_action: str,
-        reports: Any,
-        budget_readiness: BudgetReadiness,
-        categorization_queue: list[HouseholdCategorizationCandidate] | None = None,
-    ) -> list[HouseholdActionItem]:
-        return self._dashboard_builder().build_action_items(
-            questions=questions,
-            opportunities=opportunities,
-            next_best_action=next_best_action,
-            reports=reports,
-            budget_readiness=budget_readiness,
-            categorization_queue=categorization_queue,
-        )
-
     def _build_categorization_queue(self, limit: int = 6) -> list[HouseholdCategorizationCandidate]:
         return self._dashboard_builder().build_categorization_queue(self, limit=limit)
 
@@ -241,6 +219,39 @@ class HouseholdFinanceService:
 
     def _suggest_essentiality(self, merchant: str, description: str) -> str:
         return suggest_essentiality(merchant, description)
+
+    def list_confirmed_facts(self) -> list[HouseholdConfirmedFact]:
+        with self.storage.connection() as conn:
+            rows = conn.execute(
+                "SELECT fact_key, fact_value, confirmed_at FROM household_confirmed_facts ORDER BY confirmed_at"
+            ).fetchall()
+        return [
+            HouseholdConfirmedFact(
+                fact_key=str(row[0]),
+                fact_value=str(row[1]),
+                confirmed_at=self._iso(row[2]),
+            )
+            for row in rows
+        ]
+
+    def confirm_fact(self, fact_key: str, fact_value: str) -> HouseholdConfirmedFact:
+        now = datetime.now(UTC)
+        with self.storage.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO household_confirmed_facts (fact_key, fact_value, confirmed_at)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (fact_key) DO UPDATE
+                SET fact_value = EXCLUDED.fact_value, confirmed_at = EXCLUDED.confirmed_at
+                """,
+                [fact_key, fact_value, now],
+            )
+            conn.commit()
+        return HouseholdConfirmedFact(
+            fact_key=fact_key,
+            fact_value=fact_value,
+            confirmed_at=now.isoformat(),
+        )
 
     def update_transaction_category(
         self,
@@ -585,21 +596,6 @@ class HouseholdFinanceService:
         return retirement_next_steps(
             lambda field_name: self._resolved_numeric_value(resolved_values, field_name),
             documents,
-        )
-
-    def _build_opportunities(
-        self,
-        *,
-        resolved_values: list[HouseholdResolvedValue],
-        documents: list[HouseholdDocument],
-        taxable_assets: float,
-        retirement_assets: float,
-    ) -> list[HouseholdOpportunity]:
-        return build_opportunities(
-            resolved_numeric_value=lambda field_name: self._resolved_numeric_value(resolved_values, field_name),
-            documents=documents,
-            taxable_assets=taxable_assets,
-            retirement_assets=retirement_assets,
         )
 
     def _classify_document(

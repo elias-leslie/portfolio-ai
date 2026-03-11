@@ -78,7 +78,7 @@ describe('household api', () => {
           next_steps: [],
         },
         action_items: [],
-        opportunities: [],
+        jenny_needs: [],
         categorization_queue: [],
         recurring_commitments: [],
         sinking_funds: [],

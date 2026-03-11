@@ -7,7 +7,6 @@ from typing import Any
 
 from app.models.household_finance import (
     BudgetReadiness,
-    HouseholdActionItem,
     HouseholdBudgetSnapshot,
     HouseholdCategorizationCandidate,
     HouseholdFinanceDashboard,
@@ -19,12 +18,12 @@ from app.models.household_finance import (
     ImportCenter,
     ImportFormat,
     JennyMoneyBrief,
+    JennyNeed,
     JennyProgression,
     PortfolioHouseholdContext,
     RetirementPreparedness,
 )
 from app.services._household_dashboard_builders import (
-    build_action_items,
     build_budget_snapshot,
     build_retirement_contribution_tracker,
     build_retirement_scenarios,
@@ -32,7 +31,10 @@ from app.services._household_dashboard_builders import (
     build_starter_lanes,
 )
 from app.services._household_dashboard_queries import (
+    check_statement_freshness,
+    detect_unknown_accounts,
     fetch_categorization_queue,
+    fetch_confirmed_facts,
     fetch_current_month_spend,
     fetch_monthly_retirement_contributions,
     fetch_recurring_commitments,
@@ -87,14 +89,172 @@ _JENNY_BRIEF = JennyMoneyBrief(
 )
 
 
+def _build_jenny_needs(
+    *,
+    profile: Any,
+    documents: list[Any],
+    questions: list[Any],
+    resolved_values: list[Any],
+    reports: Any,
+    confirmed_facts: dict[str, str],
+    detected_accounts: list[dict[str, str]],
+    freshness: dict[str, Any],
+    categorization_queue: list[Any],
+) -> list[JennyNeed]:
+    """Build the unified priority-ordered jenny_needs list. Only unsatisfied needs are returned."""
+    needs: list[JennyNeed] = []
+    coverage_months = freshness.get("coverage_months", 0)
+    days_since_latest = freshness.get("days_since_latest")
+
+    # 1. Upload statements (critical)
+    statements_satisfied = coverage_months >= 3 and (days_since_latest is not None and days_since_latest < 45)
+    if not statements_satisfied:
+        detail = "Jenny needs at least 3 months of recent statements to build accurate spending baselines."
+        if coverage_months > 0 and days_since_latest is not None:
+            detail = f"Currently {coverage_months} month{'s' if coverage_months != 1 else ''} of data, most recent {days_since_latest} days ago. More coverage improves accuracy."
+        needs.append(JennyNeed(
+            id="need_statements",
+            need_type="provide",
+            title="Upload statements",
+            detail=detail,
+            priority="critical",
+            status="unsatisfied",
+            recurrence="periodic",
+            action_href="/money",
+        ))
+
+    # 2. Account completeness (high)
+    if "account_completeness" not in confirmed_facts:
+        needs.append(JennyNeed(
+            id="need_account_completeness",
+            need_type="confirm",
+            title="Are all accounts covered?",
+            detail="Confirm that the uploaded statements cover all your active bank and credit card accounts.",
+            priority="high",
+            status="unsatisfied",
+            recurrence="one_time",
+            field_name="account_completeness",
+        ))
+
+    # 3. Household scope (high)
+    if "household_scope" not in confirmed_facts:
+        needs.append(JennyNeed(
+            id="need_household_scope",
+            need_type="confirm",
+            title="Who is in this household?",
+            detail="Confirm whether this is a single-person or multi-person household so Jenny sizes the budget correctly.",
+            priority="high",
+            status="unsatisfied",
+            recurrence="one_time",
+            field_name="household_scope",
+        ))
+
+    # 4. Income sources (high)
+    if "income_sources" not in confirmed_facts:
+        needs.append(JennyNeed(
+            id="need_income_sources",
+            need_type="confirm",
+            title="Confirm income sources",
+            detail="Tell Jenny about your income sources (salary, freelance, etc.) so she can track completeness.",
+            priority="high",
+            status="unsatisfied",
+            recurrence="one_time",
+            field_name="income_sources",
+        ))
+
+    # 5. Detected unknown accounts (high, per account)
+    for account in detected_accounts:
+        institution = account.get("institution", "Unknown")
+        partial = account.get("partial_account", "")
+        acct_key = account.get("key", institution)
+        label = f"{institution} ...{partial}" if partial else institution
+        needs.append(JennyNeed(
+            id=f"need_account_{acct_key}",
+            need_type="provide",
+            title=f"Upload {label} statements",
+            detail=f"Jenny spotted references to {label} in your transactions but has no statements for it.",
+            priority="high",
+            status="unsatisfied",
+            recurrence="one_time",
+            action_href="/money",
+        ))
+
+    # 6. Document review confirmations (medium)
+    open_questions = [q for q in questions if q.status == "open"]
+    for q in open_questions[:3]:
+        needs.append(JennyNeed(
+            id=f"need_question_{q.id}",
+            need_type="confirm",
+            title="Review Jenny's finding",
+            detail=q.question,
+            priority="medium",
+            status="unsatisfied",
+            recurrence="as_needed",
+            related_question_id=q.id,
+        ))
+
+    # 7. Retirement age (medium)
+    if profile.target_retirement_age is None:
+        needs.append(JennyNeed(
+            id="need_retirement_age",
+            need_type="set",
+            title="Set retirement age",
+            detail="Jenny needs a target retirement age to run scenario planning.",
+            priority="medium",
+            status="unsatisfied",
+            recurrence="one_time",
+            field_name="target_retirement_age",
+        ))
+
+    # 8. Retirement spending (medium)
+    if profile.target_retirement_spend is None:
+        needs.append(JennyNeed(
+            id="need_retirement_spend",
+            need_type="set",
+            title="Set retirement spending target",
+            detail="Define a monthly retirement spending target so Jenny can project readiness.",
+            priority="medium",
+            status="unsatisfied",
+            recurrence="one_time",
+            field_name="target_retirement_spend",
+        ))
+
+    # 9. Category corrections (medium)
+    if categorization_queue:
+        count = len(categorization_queue)
+        needs.append(JennyNeed(
+            id="need_category_corrections",
+            need_type="review",
+            title="Review spending categories",
+            detail=f"{count} transaction{'s' if count != 1 else ''} need category confirmation so Jenny can trust the budget lanes.",
+            priority="medium",
+            status="unsatisfied",
+            recurrence="as_needed",
+        ))
+
+    # 10. Statement freshness (low, only when docs exist but stale)
+    if documents and days_since_latest is not None and days_since_latest >= 45:
+        needs.append(JennyNeed(
+            id="need_freshness",
+            need_type="provide",
+            title="Upload newer statements",
+            detail=f"The most recent transaction is {days_since_latest} days old. Fresher data keeps pacing accurate.",
+            priority="low",
+            status="unsatisfied",
+            recurrence="periodic",
+            action_href="/money",
+        ))
+
+    return needs
+
+
 def _build_progression(
     *,
     reports: Any,
     resolved_values: list[Any],
-    questions: list[Any],
     profile: Any,
 ) -> JennyProgression:
-    """Build the found/working-on/needs-from-you progression for the Jenny brief."""
+    """Build the found/working-on progression for the Jenny brief."""
     executive = reports.executive
 
     # --- found ---
@@ -150,31 +310,9 @@ def _build_progression(
     else:
         working_on = "Monitoring budget pacing and identifying optimization opportunities"
 
-    # --- needs_from_you ---
-    needs_from_you: list[str] = []
-    for q in questions:
-        if (
-            q.status == "open"
-            and q.priority in {"high", "critical"}
-            and q.field_name is not None
-            and q.field_name not in inferred_fields
-        ):
-            needs_from_you.append(q.question)
-    # Flag missing retirement goals that have no question yet
-    question_fields = {q.field_name for q in questions}
-    if profile.target_retirement_age is None and "target_retirement_age" not in question_fields:
-        needs_from_you.append(
-            "Set a target retirement age so Jenny can run scenario planning"
-        )
-    if profile.target_retirement_spend is None and "target_retirement_spend" not in question_fields:
-        needs_from_you.append(
-            "Define target retirement spending for accurate readiness projections"
-        )
-
     return JennyProgression(
         found=found,
         working_on=working_on,
-        needs_from_you=needs_from_you,
     )
 
 
@@ -429,12 +567,6 @@ class HouseholdDashboardComposer:
             cash_reserve=cash_reserve,
             total_tracked_assets=total_tracked_assets,
         )
-        opportunities = service._build_opportunities(
-            resolved_values=resolved_values,
-            documents=documents,
-            taxable_assets=taxable_assets,
-            retirement_assets=retirement_assets,
-        )
         budget_snapshot = service._build_budget_snapshot(profile=profile, reports=reports)
         categorization_queue = service._build_categorization_queue()
         recurring_commitments = service._build_recurring_commitments()
@@ -454,14 +586,35 @@ class HouseholdDashboardComposer:
             profile=profile,
             reports=reports,
         )
-        action_items = service._build_action_items(
+
+        # Unified needs system
+        confirmed_facts = fetch_confirmed_facts(service.storage)
+        detected_accounts = detect_unknown_accounts(service.storage, documents)
+        freshness = check_statement_freshness(service.storage)
+        jenny_needs = _build_jenny_needs(
+            profile=profile,
+            documents=documents,
             questions=visible_questions,
-            opportunities=opportunities,
-            next_best_action=overview.next_best_action,
+            resolved_values=resolved_values,
             reports=reports,
-            budget_readiness=budget_readiness,
+            confirmed_facts=confirmed_facts,
+            detected_accounts=detected_accounts,
+            freshness=freshness,
             categorization_queue=categorization_queue,
         )
+
+        # Derive next_best_action from top unsatisfied need
+        if jenny_needs:
+            overview = HouseholdOverview(
+                invested_assets=overview.invested_assets,
+                retirement_assets=overview.retirement_assets,
+                taxable_assets=overview.taxable_assets,
+                cash_reserve=overview.cash_reserve,
+                total_tracked_assets=overview.total_tracked_assets,
+                visibility_score=overview.visibility_score,
+                visibility_label=overview.visibility_label,
+                next_best_action=jenny_needs[0].title,
+            )
 
         return HouseholdFinanceDashboard(
             generated_at=datetime.now(UTC).isoformat(),
@@ -471,8 +624,8 @@ class HouseholdDashboardComposer:
             budget_readiness=budget_readiness,
             budget_snapshot=budget_snapshot,
             retirement_preparedness=retirement_preparedness,
-            action_items=action_items,
-            opportunities=opportunities,
+            jenny_needs=jenny_needs,
+            action_items=[],
             reports=reports,
             categorization_queue=categorization_queue,
             recurring_commitments=recurring_commitments,
@@ -488,7 +641,6 @@ class HouseholdDashboardComposer:
                 progression=_build_progression(
                     reports=reports,
                     resolved_values=resolved_values,
-                    questions=visible_questions,
                     profile=profile,
                 ),
             ),
@@ -506,25 +658,6 @@ class HouseholdDashboardComposer:
             profile=profile,
             reports=reports,
             month_to_date_spend=service._current_month_spend(),
-        )
-
-    def build_action_items(
-        self,
-        *,
-        questions: list[Any],
-        opportunities: list[Any],
-        next_best_action: str,
-        reports: Any,
-        budget_readiness: BudgetReadiness,
-        categorization_queue: list[HouseholdCategorizationCandidate] | None = None,
-    ) -> list[HouseholdActionItem]:
-        return build_action_items(
-            questions=questions,
-            opportunities=opportunities,
-            next_best_action=next_best_action,
-            reports=reports,
-            budget_readiness=budget_readiness,
-            categorization_queue=categorization_queue,
         )
 
     def build_categorization_queue(

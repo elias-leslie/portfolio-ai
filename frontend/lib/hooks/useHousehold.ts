@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import {
   answerHouseholdQuestion,
   categorizeHouseholdTransaction,
+  confirmFact,
   type HouseholdDocumentUpload,
   type HouseholdProfileUpdate,
   fetchHouseholdDashboard,
@@ -92,6 +93,22 @@ export function useAnswerHouseholdQuestion() {
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Failed to answer Jenny question')
+    },
+  })
+}
+
+export function useConfirmFact() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ factKey, factValue }: { factKey: string; factValue: string }) =>
+      confirmFact(factKey, factValue),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['household'], refetchType: 'active' })
+      toast.success('Jenny noted your confirmation.')
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Failed to confirm fact')
     },
   })
 }

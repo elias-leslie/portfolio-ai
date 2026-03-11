@@ -10,6 +10,8 @@ from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Uploa
 from fastapi.concurrency import run_in_threadpool
 
 from app.models.household_finance import (
+    ConfirmFactRequest,
+    HouseholdConfirmedFact,
     HouseholdDocument,
     HouseholdDocumentList,
     HouseholdFinanceDashboard,
@@ -93,6 +95,18 @@ async def upload_household_document(
     if document.metadata.get("duplicate_detected") is not True:
         background_tasks.add_task(service.review_document, document.id)
     return document
+
+
+@router.get("/facts", response_model=list[HouseholdConfirmedFact])
+async def list_confirmed_facts() -> list[HouseholdConfirmedFact]:
+    """Return all confirmed household facts."""
+    return await run_in_threadpool(_service().list_confirmed_facts)
+
+
+@router.post("/facts", response_model=HouseholdConfirmedFact)
+async def confirm_fact(payload: ConfirmFactRequest) -> HouseholdConfirmedFact:
+    """Upsert a confirmed household fact by key."""
+    return await run_in_threadpool(_service().confirm_fact, payload.fact_key, payload.fact_value)
 
 
 @router.post("/transactions/{transaction_id}/categorize")
