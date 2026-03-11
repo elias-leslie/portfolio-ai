@@ -5,6 +5,7 @@ import { useState } from 'react'
 import type { MarketMoverItem } from '@/lib/api/market'
 import { useMarketMovers } from '@/lib/hooks/useMarketIntelligence'
 import { cn, formatRelativeTime } from '@/lib/utils'
+import { MarketPanelMessage } from './MarketPanelMessage'
 
 type Tab = 'gainers' | 'losers' | 'volume' | 'rvol'
 
@@ -33,11 +34,7 @@ export function MarketMoversTable() {
   }
 
   if (error || !data) {
-    return (
-      <div className="text-xs text-text-muted text-center py-4">
-        Unable to load market movers
-      </div>
-    )
+    return <MarketPanelMessage message="Unable to load market movers right now." />
   }
 
   const getItems = (): MarketMoverItem[] => {
@@ -55,8 +52,13 @@ export function MarketMoversTable() {
 
   const items = getItems()
 
-  // Determine which column to highlight based on tab
   const showRvolColumn = activeTab === 'rvol'
+
+  if (items.length === 0) {
+    return (
+      <MarketPanelMessage message="No market mover data is available for this view yet." />
+    )
+  }
 
   return (
     <div className="space-y-2">
@@ -64,6 +66,8 @@ export function MarketMoversTable() {
         <h3 className="text-sm font-semibold text-text">Market Movers</h3>
         <div className="flex gap-0.5 bg-surface-muted rounded-lg p-0.5">
           <button
+            type="button"
+            aria-pressed={activeTab === 'gainers'}
             onClick={() => setActiveTab('gainers')}
             className={cn(
               'flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors',
@@ -76,6 +80,8 @@ export function MarketMoversTable() {
             Gainers
           </button>
           <button
+            type="button"
+            aria-pressed={activeTab === 'losers'}
             onClick={() => setActiveTab('losers')}
             className={cn(
               'flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors',
@@ -88,6 +94,8 @@ export function MarketMoversTable() {
             Losers
           </button>
           <button
+            type="button"
+            aria-pressed={activeTab === 'volume'}
             onClick={() => setActiveTab('volume')}
             className={cn(
               'flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors',
@@ -100,6 +108,8 @@ export function MarketMoversTable() {
             Volume
           </button>
           <button
+            type="button"
+            aria-pressed={activeTab === 'rvol'}
             onClick={() => setActiveTab('rvol')}
             className={cn(
               'flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors',

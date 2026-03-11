@@ -79,23 +79,28 @@ export function usePortfolioNews(options?: {
   return useQuery<WatchlistNewsResponse, Error>({
     queryKey: newsKeys.portfolio(),
     queryFn: async () => {
-      // Fetch news for each symbol and combine into WatchlistNewsResponse format
-      const bundles = await Promise.all(
-        symbols.map(async (symbol) => {
-          try {
-            const bundle = await fetchNewsIntelligence(symbol, options)
-            return bundle
-          } catch (error) {
-            console.error(`Failed to fetch news for ${symbol}:`, error)
-            return null
-          }
-        }),
+      const bundles = await Promise.allSettled(
+        symbols.map((symbol) => fetchNewsIntelligence(symbol, options)),
       )
 
-      // Filter out null results and format as WatchlistNewsResponse
+      const fulfilledBundles = bundles.flatMap((bundle) =>
+        bundle.status === 'fulfilled' ? [bundle.value] : [],
+      )
+
+      if (fulfilledBundles.length === 0 && bundles.length > 0) {
+        const firstError = bundles.find(
+          (bundle): bundle is PromiseRejectedResult => bundle.status === 'rejected',
+        )
+        throw (
+          firstError?.reason instanceof Error
+            ? firstError.reason
+            : new Error('Failed to load portfolio news')
+        )
+      }
+
       return {
-        accountId: 'portfolio', // Not used, but required by type
-        items: bundles.filter((b): b is NewsBundle => b !== null),
+        accountId: 'portfolio',
+        items: fulfilledBundles,
       }
     },
     enabled: symbols.length > 0 && options?.enabled !== false, // Require symbols AND not explicitly disabled

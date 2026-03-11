@@ -229,7 +229,8 @@ def get_or_create_preferences() -> dict[str, str | int | float | bool | datetime
 def update_preferences(update: PreferencesUpdate) -> dict[str, Any]:
     """Update user preferences and return updated dict."""
     current = get_or_create_preferences()
-    automation_updates: dict[str, bool] = {}
+    automation_updates: dict[str, bool | None] = {}
+    provided_fields = update.model_fields_set
 
     # Update fields
     if update.risk_tolerance is not None:
@@ -248,11 +249,11 @@ def update_preferences(update: PreferencesUpdate) -> dict[str, Any]:
         current["max_position_size_pct"] = update.max_position_size_pct
     if update.default_refresh_minutes is not None:
         current["default_refresh_minutes"] = update.default_refresh_minutes
-    if update.watchlist_refresh_override is not None:
+    if "watchlist_refresh_override" in provided_fields:
         current["watchlist_refresh_override"] = update.watchlist_refresh_override
-    if update.portfolio_refresh_override is not None:
+    if "portfolio_refresh_override" in provided_fields:
         current["portfolio_refresh_override"] = update.portfolio_refresh_override
-    if update.news_refresh_override is not None:
+    if "news_refresh_override" in provided_fields:
         current["news_refresh_override"] = update.news_refresh_override
     if update.news_lookback_hours is not None:
         current["news_lookback_hours"] = update.news_lookback_hours
@@ -272,13 +273,13 @@ def update_preferences(update: PreferencesUpdate) -> dict[str, Any]:
         current["display_timezone"] = update.display_timezone
     if update.watchlist_show_news is not None:
         current["watchlist_show_news"] = update.watchlist_show_news
-    if update.thesis_generation_enabled is not None:
+    if "thesis_generation_enabled" in provided_fields:
         current["thesis_generation_enabled"] = update.thesis_generation_enabled
         automation_updates["thesis_generation_enabled"] = update.thesis_generation_enabled
-    if update.auto_remove_on_invalidation is not None:
+    if "auto_remove_on_invalidation" in provided_fields:
         current["auto_remove_on_invalidation"] = update.auto_remove_on_invalidation
         automation_updates["auto_remove_on_invalidation"] = update.auto_remove_on_invalidation
-    if update.auto_trim_enabled is not None:
+    if "auto_trim_enabled" in provided_fields:
         current["auto_trim_enabled"] = update.auto_trim_enabled
         automation_updates["auto_trim_enabled"] = update.auto_trim_enabled
 
@@ -343,7 +344,7 @@ def update_preferences(update: PreferencesUpdate) -> dict[str, Any]:
     return current
 
 
-def _update_automation_preferences(updates: dict[str, bool]) -> None:
+def _update_automation_preferences(updates: dict[str, bool | None]) -> None:
     current = get_or_create_automation_preferences()
     current.update(updates)
     with storage.connection() as conn:

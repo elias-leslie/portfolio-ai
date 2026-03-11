@@ -75,7 +75,7 @@ export function MarketStatusBadge() {
     return (
       <Badge variant="secondary" className="gap-1.5 px-2 py-1">
         <div className="size-2 rounded-full bg-text-muted" />
-        <span className="hidden sm:inline">Unknown</span>
+        <span className="hidden sm:inline">Status unavailable</span>
       </Badge>
     )
   }

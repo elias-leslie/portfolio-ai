@@ -95,6 +95,29 @@ export interface PreferencesUpdate {
   fundamentalSubWeights?: FundamentalSubWeights
 }
 
+type RefreshPreferenceSnapshot = Pick<
+  PreferencesResponse,
+  'defaultRefreshMinutes' | 'watchlistRefreshOverride' | 'watchlistRefreshMinutes'
+>
+
+export function getWatchlistRefreshMinutes(
+  preferences?: RefreshPreferenceSnapshot | null,
+): number {
+  if (!preferences) {
+    return 5
+  }
+
+  if (typeof preferences.watchlistRefreshOverride === 'number') {
+    return preferences.watchlistRefreshOverride
+  }
+
+  if (typeof preferences.defaultRefreshMinutes === 'number') {
+    return preferences.defaultRefreshMinutes
+  }
+
+  return preferences.watchlistRefreshMinutes
+}
+
 /**
  * Get user's risk tolerance and trade preferences
  */

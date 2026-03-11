@@ -7,6 +7,7 @@ import {
   useMarketStatus,
   useNewsSentimentHistory,
 } from '@/lib/hooks/useMarketIntelligence'
+import { MarketPanelMessage } from './MarketPanelMessage'
 import { EventTimeline } from './EventTimeline'
 import { SentimentChart } from './SentimentChart'
 import { SentimentLegendSummary } from './SentimentLegendSummary'
@@ -83,11 +84,7 @@ export function SentimentTrendChart() {
   }
 
   if (fgError || !fearGreedData?.dates?.length) {
-    return (
-      <div className="flex items-center justify-center h-48 text-text-muted text-sm">
-        Unable to load sentiment data
-      </div>
-    )
+    return <MarketPanelMessage message="Unable to load market sentiment history right now." className="min-h-48" />
   }
 
   return (

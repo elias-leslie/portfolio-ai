@@ -7,6 +7,7 @@ import { MarketIntelligence } from '@/components/market/MarketIntelligence'
 import { HomeActionQueue } from '@/components/home/HomeActionQueue'
 import { TodayIdeasSection } from '@/components/recommendations/TodayIdeasSection'
 import { PageContainer } from '@/components/shared/PageContainer'
+import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { UnifiedNewsIntelligenceCard } from '@/components/shared/UnifiedNewsIntelligenceCard'
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs'
@@ -106,16 +107,14 @@ function MarketNewsSection() {
         <SectionLoadingState label="Fetching latest headlines" rows={4} />
       )}
       {!showSkeleton && error && (
-        <div className="rounded-lg border border-border/50 bg-surface-muted/40 p-4 text-sm text-text-muted">
-          Failed to load market news.{' '}
-          <button
-            className="text-primary underline-offset-2 hover:underline"
-            onClick={() => refetch()}
-            type="button"
-          >
-            Retry
-          </button>
-        </div>
+        <LoadErrorState
+          title="Failed to load market news."
+          detail="Retry to refresh the latest headlines and the current positive versus negative split."
+          onRetry={() => {
+            void refetch()
+          }}
+          isRetrying={isFetching}
+        />
       )}
       {!showSkeleton && !error && (
         <UnifiedNewsIntelligenceCard

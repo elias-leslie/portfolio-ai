@@ -16,7 +16,7 @@ def test_trigger_remediation_uses_backfill_workflow_for_technical_indicators(
 
     data_freshness_service._remediation_cooldowns.clear()
     monkeypatch.setattr("app.services.data_freshness_service.get_admin_client", lambda: fake_admin)
-    monkeypatch.setattr("app.services.data_freshness_service.is_trading_day", lambda _: True)
+    monkeypatch.setattr("app.services.data_freshness_service.is_market_open", lambda _: True)
 
     task_id = data_freshness_service.trigger_remediation(
         table_name="technical_indicators",

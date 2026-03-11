@@ -16,6 +16,7 @@ import {
   useSectorHistory,
 } from '@/lib/hooks/useMarketIntelligence'
 import { checkDataFreshness, formatDate } from '@/lib/utils'
+import { MarketPanelMessage } from './MarketPanelMessage'
 import {
   calculateTickInterval,
   formatChartDate,
@@ -85,12 +86,12 @@ export function SectorPerformanceChart() {
     )
   }
 
-  if (error || !data?.sectors?.length) {
-    return (
-      <div className="flex items-center justify-center h-64 text-text-muted text-sm">
-        Unable to load sector data
-      </div>
-    )
+  if (error) {
+    return <MarketPanelMessage message="Unable to load sector performance right now." className="min-h-64" />
+  }
+
+  if (!data?.sectors?.length || chartData.length === 0) {
+    return <MarketPanelMessage message="Sector performance history is not available yet." className="min-h-64" />
   }
 
   return (
@@ -183,6 +184,8 @@ export function SectorPerformanceChart() {
           {data.sectors.map((sector) => (
             <button
               key={sector.symbol}
+              type="button"
+              aria-pressed={highlightedSector === sector.symbol}
               onClick={() =>
                 setHighlightedSector(
                   highlightedSector === sector.symbol ? null : sector.symbol,

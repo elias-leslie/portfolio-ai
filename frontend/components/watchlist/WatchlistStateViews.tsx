@@ -1,12 +1,35 @@
+import { LoadErrorState } from '@/components/shared/LoadErrorState'
+import { Button } from '@/components/ui/button'
+
 interface WatchlistErrorViewProps {
   message: string
+  onRetry: () => void
+  isRetrying?: boolean
 }
 
-export function WatchlistErrorView({ message }: WatchlistErrorViewProps) {
+interface WatchlistEmptyStateProps {
+  title: string
+  detail: string
+  primaryAction?: {
+    label: string
+    onClick: () => void
+  }
+}
+
+export function WatchlistErrorView({
+  message,
+  onRetry,
+  isRetrying = false,
+}: WatchlistErrorViewProps) {
   return (
-    <div className="mb-6 rounded-md border border-loss bg-loss/10 p-4 text-sm text-loss">
-      Failed to load watchlist: {message}
-    </div>
+    <LoadErrorState
+      title="Failed to load the watchlist."
+      detail={message}
+      onRetry={onRetry}
+      isRetrying={isRetrying}
+      retryLabel="Retry watchlist"
+      className="mb-6"
+    />
   )
 }
 
@@ -16,6 +39,26 @@ export function WatchlistLoadingSkeleton() {
       {[1, 2, 3].map((i) => (
         <div key={i} className="h-16 animate-pulse rounded-md bg-surface-muted" />
       ))}
+    </div>
+  )
+}
+
+export function WatchlistEmptyState({
+  title,
+  detail,
+  primaryAction,
+}: WatchlistEmptyStateProps) {
+  return (
+    <div className="rounded-md border border-border bg-surface p-8 text-center">
+      <p className="text-sm font-medium text-text">{title}</p>
+      <p className="mt-2 text-sm text-text-muted">{detail}</p>
+      {primaryAction ? (
+        <div className="mt-4">
+          <Button type="button" variant="outline" onClick={primaryAction.onClick}>
+            {primaryAction.label}
+          </Button>
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -16,6 +16,7 @@ import {
   useMarketStatus,
 } from '@/lib/hooks/useMarketIntelligence'
 import { checkDataFreshness, formatDate } from '@/lib/utils'
+import { MarketPanelMessage } from './MarketPanelMessage'
 import {
   calculateTickInterval,
   formatChartDate,
@@ -87,12 +88,12 @@ export function IndicatorsTrendChart() {
     )
   }
 
-  if (error || !data?.sp500?.length) {
-    return (
-      <div className="flex items-center justify-center h-48 text-text-muted text-sm">
-        Unable to load indicator data
-      </div>
-    )
+  if (error) {
+    return <MarketPanelMessage message="Unable to load key indicator history right now." className="min-h-48" />
+  }
+
+  if (!data?.sp500?.length || chartData.length === 0) {
+    return <MarketPanelMessage message="Key indicator history is not available yet." className="min-h-48" />
   }
 
   return (
@@ -195,6 +196,8 @@ export function IndicatorsTrendChart() {
             return (
               <button
                 key={key}
+                type="button"
+                aria-pressed={highlighted === key}
                 onClick={() => setHighlighted(highlighted === key ? null : key)}
                 className={`flex items-center gap-1 transition-opacity ${
                   highlighted !== null && highlighted !== key

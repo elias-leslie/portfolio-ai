@@ -86,6 +86,7 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
 
   const renderSortableHeader = (field: SortField, label: string) => (
     <button
+      type="button"
       onClick={() => handleSort(field)}
       className="flex items-center gap-1 font-medium hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
     >
@@ -113,17 +114,6 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
   }
 
   const sortedItems = sortWatchlistItems(items, sortField, sortDirection)
-
-  if (items.length === 0) {
-    return (
-      <div className="rounded-md border border-border bg-surface p-8 text-center">
-        <p className="text-text-muted">
-          No symbols in your watchlist yet. Click &quot;Add Symbol&quot; to get
-          started.
-        </p>
-      </div>
-    )
-  }
 
   return (
     <>

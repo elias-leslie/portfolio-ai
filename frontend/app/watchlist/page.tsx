@@ -11,6 +11,7 @@ import { useWatchlistFilters } from '@/components/watchlist/useWatchlistFilters'
 import { WatchlistFilterBar } from '@/components/watchlist/WatchlistFilterBar'
 import { WatchlistSearchBar } from '@/components/watchlist/WatchlistSearchBar'
 import {
+  WatchlistEmptyState,
   WatchlistErrorView,
   WatchlistLoadingSkeleton,
 } from '@/components/watchlist/WatchlistStateViews'
@@ -20,7 +21,7 @@ import { useRefreshWatchlist, useWatchlist } from '@/lib/hooks/useWatchlist'
 export default function WatchlistPage() {
   const [addSymbolOpen, setAddSymbolOpen] = useState(false)
 
-  const { data: watchlistData, isLoading, error } = useWatchlist()
+  const { data: watchlistData, isLoading, error, refetch, isFetching } = useWatchlist()
   const refreshMutation = useRefreshWatchlist()
 
   const {
@@ -34,6 +35,8 @@ export default function WatchlistPage() {
     setSearchQuery,
     filteredItems,
     counts,
+    hasActiveFilters,
+    resetFilters,
   } = useWatchlistFilters(watchlistData?.items ?? [])
 
   const handleRefresh = () => {
@@ -59,11 +62,17 @@ export default function WatchlistPage() {
   }
 
   const totalCount = watchlistData?.items.length ?? 0
+  const filterLabels = [
+    signalFilter !== 'all' ? signalFilter : null,
+    styleFilter !== 'all' ? styleFilter : null,
+    riskFilter !== 'all' ? riskFilter : null,
+  ].flatMap((label) => (label ? [label] : []))
+
   const description = searchQuery.trim()
-    ? `Found ${filteredItems.length} ${filteredItems.length === 1 ? 'symbol' : 'symbols'} matching "${searchQuery}"`
-    : styleFilter === 'all'
-      ? `Showing all ${totalCount} symbols`
-      : `Showing ${filteredItems.length} ${styleFilter} ${filteredItems.length === 1 ? 'play' : 'plays'}`
+    ? `Showing ${filteredItems.length} matches for "${searchQuery}"${filterLabels.length ? ` with ${filterLabels.join(', ')} filters` : ''}.`
+    : filterLabels.length > 0
+      ? `Showing ${filteredItems.length} of ${totalCount} symbols with ${filterLabels.join(', ')} filters.`
+      : `Showing all ${totalCount} symbols.`
 
   return (
     <PageContainer className="py-10">
@@ -100,13 +109,50 @@ export default function WatchlistPage() {
         riskFilter={riskFilter}
         onRiskChange={setRiskFilter}
         counts={counts}
+        hasActiveFilters={hasActiveFilters}
+        onReset={resetFilters}
       />
 
-      <WatchlistSearchBar value={searchQuery} onChange={setSearchQuery} />
+      <WatchlistSearchBar
+        value={searchQuery}
+        onChange={setSearchQuery}
+        resultCount={filteredItems.length}
+        totalCount={totalCount}
+      />
 
-      {error && <WatchlistErrorView message={error.message} />}
+      {error && (
+        <WatchlistErrorView
+          message={error.message}
+          onRetry={() => {
+            void refetch()
+          }}
+          isRetrying={isFetching}
+        />
+      )}
       {isLoading && <WatchlistLoadingSkeleton />}
-      {!isLoading && !error && <WatchlistTable items={filteredItems} />}
+      {!isLoading && !error && totalCount === 0 && (
+        <WatchlistEmptyState
+          title="No symbols yet"
+          detail='Add a symbol to start tracking live setups, thesis quality, and refresh status.'
+          primaryAction={{
+            label: 'Add Symbol',
+            onClick: () => setAddSymbolOpen(true),
+          }}
+        />
+      )}
+      {!isLoading && !error && totalCount > 0 && filteredItems.length === 0 && (
+        <WatchlistEmptyState
+          title="No symbols match the current filters"
+          detail="Clear the search or reset the filters to bring symbols back into view."
+          primaryAction={{
+            label: 'Reset filters',
+            onClick: resetFilters,
+          }}
+        />
+      )}
+      {!isLoading && !error && filteredItems.length > 0 && (
+        <WatchlistTable items={filteredItems} />
+      )}
 
       <AddSymbolModal
         open={addSymbolOpen}

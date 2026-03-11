@@ -4,7 +4,10 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { fetchPreferences } from '@/lib/api/preferences'
+import {
+  fetchPreferences,
+  getWatchlistRefreshMinutes,
+} from '@/lib/api/preferences'
 import {
   createWatchlistItem,
   deleteWatchlistItem,
@@ -42,20 +45,15 @@ export const watchlistKeys = {
  * Watchlist is user-level (not account-specific).
  */
 export function useWatchlist() {
-  // Fetch preferences to get refresh interval
   const { data: preferences } = useQuery({
     queryKey: ['preferences'],
     queryFn: fetchPreferences,
     staleTime: 1000 * 60 * 5, // Reduced to 5 min to pick up changes faster
   })
 
-  // Use preference or fallback to 5 minutes
-  const refreshMinutes = preferences?.watchlistRefreshMinutes ?? 5
+  const refreshMinutes = getWatchlistRefreshMinutes(preferences)
   const refreshIntervalMs = refreshMinutes * 60 * 1000 // Convert to milliseconds
 
-  // Query key should NOT include refreshIntervalMs - that causes unnecessary cache
-  // invalidation and resets UI state (modals, etc). The interval is a query option,
-  // not part of the query identity. React Query handles interval changes correctly.
   return useQuery<WatchlistListResponse, Error>({
     queryKey: watchlistKeys.list(),
     queryFn: () => fetchWatchlistItems(),

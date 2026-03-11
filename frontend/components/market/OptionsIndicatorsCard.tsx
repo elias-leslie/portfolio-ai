@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/tooltip'
 import { useMarketIntelligence } from '@/lib/hooks/useMarketIntelligence'
 import { formatRelativeTime } from '@/lib/utils'
+import { MarketPanelMessage } from './MarketPanelMessage'
 
 const SIGNAL_COLORS: Record<string, string> = {
   Bullish: 'text-gain',
@@ -49,9 +50,10 @@ export function OptionsIndicatorsCard() {
   if (error || !data) {
     return (
       <Card className="p-4">
-        <div className="text-sm text-text-muted">
-          Unable to load options data
-        </div>
+        <MarketPanelMessage
+          message="Unable to load options sentiment right now."
+          className="min-h-24 border-0 bg-transparent px-0"
+        />
       </Card>
     )
   }

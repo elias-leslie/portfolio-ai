@@ -53,6 +53,13 @@ export function WorkspaceTabs({
     }
   }, [fallbackValue, tabs])
 
+  useEffect(() => {
+    const nextValue = resolveValue(value)
+    if (nextValue !== value) {
+      setValue(nextValue)
+    }
+  }, [fallbackValue, tabs, value])
+
   const handleValueChange = (nextValue: string) => {
     if (nextValue === value) {
       return

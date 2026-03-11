@@ -27,6 +27,8 @@ export interface UseWatchlistFiltersReturn {
   setSearchQuery: (value: string) => void
   filteredItems: WatchlistItem[]
   counts: WatchlistCounts
+  hasActiveFilters: boolean
+  resetFilters: () => void
 }
 
 export function useWatchlistFilters(
@@ -75,7 +77,10 @@ export function useWatchlistFilters(
       result = result.filter(
         (item) =>
           item.symbol.toLowerCase().includes(query) ||
-          item.note?.toLowerCase().includes(query),
+          item.note?.toLowerCase().includes(query) ||
+          item.narrativeHeadline?.toLowerCase().includes(query) ||
+          item.signalType?.toLowerCase().includes(query) ||
+          item.recommendedStyle?.toLowerCase().includes(query),
       )
     }
 
@@ -102,6 +107,19 @@ export function useWatchlistFilters(
     return { style, signal, risk }
   }, [items])
 
+  const hasActiveFilters =
+    styleFilter !== 'all' ||
+    signalFilter !== 'all' ||
+    riskFilter !== 'all' ||
+    searchQuery.trim().length > 0
+
+  const resetFilters = () => {
+    setStyleFilter('all')
+    setSignalFilter('all')
+    setRiskFilter('all')
+    setSearchQuery('')
+  }
+
   return {
     styleFilter,
     setStyleFilter,
@@ -113,5 +131,7 @@ export function useWatchlistFilters(
     setSearchQuery,
     filteredItems,
     counts,
+    hasActiveFilters,
+    resetFilters,
   }
 }

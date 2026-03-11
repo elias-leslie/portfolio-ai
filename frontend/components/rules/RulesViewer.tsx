@@ -9,6 +9,7 @@
 import { ChevronDown, ChevronRight, Download, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -25,7 +26,7 @@ interface ExpandedSections {
 }
 
 export function RulesViewer() {
-  const { data: rules, isLoading, error } = useRules()
+  const { data: rules, isLoading, error, refetch, isFetching } = useRules()
   const [expandedSections, setExpandedSections] = useState<ExpandedSections>({})
   const [isExporting, setIsExporting] = useState(false)
 
@@ -111,6 +112,7 @@ export function RulesViewer() {
       >
         {/* Header */}
         <button
+          type="button"
           onClick={() => toggleSection(title)}
           className="w-full flex items-center justify-between p-4 hover:bg-surface-hover transition-colors text-left"
         >
@@ -167,6 +169,7 @@ export function RulesViewer() {
       >
         {/* Header */}
         <button
+          type="button"
           onClick={() => toggleSection(title)}
           className="w-full flex items-center justify-between p-4 hover:bg-surface-hover transition-colors text-left"
         >
@@ -245,9 +248,14 @@ export function RulesViewer() {
 
   if (error) {
     return (
-      <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-6 text-center">
-        <p className="text-sm text-destructive">Failed to load trading rules</p>
-      </div>
+      <LoadErrorState
+        title="Failed to load trading rules."
+        detail="Retry to refresh the current risk, sizing, and watchlist rules."
+        onRetry={() => {
+          void refetch()
+        }}
+        isRetrying={isFetching}
+      />
     )
   }
 

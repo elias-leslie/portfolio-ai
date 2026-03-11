@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fetchPreferences, updatePreferences } from './preferences'
+import {
+  fetchPreferences,
+  getWatchlistRefreshMinutes,
+  updatePreferences,
+} from './preferences'
 
 describe('preferences api', () => {
   beforeEach(() => {
@@ -78,5 +82,25 @@ describe('preferences api', () => {
         }),
       }),
     )
+  })
+
+  it('prefers the watchlist refresh override when resolving watchlist polling', () => {
+    expect(
+      getWatchlistRefreshMinutes({
+        defaultRefreshMinutes: 15,
+        watchlistRefreshOverride: 3,
+        watchlistRefreshMinutes: 30,
+      }),
+    ).toBe(3)
+  })
+
+  it('falls back to the shared default refresh interval before the legacy field', () => {
+    expect(
+      getWatchlistRefreshMinutes({
+        defaultRefreshMinutes: 12,
+        watchlistRefreshOverride: null,
+        watchlistRefreshMinutes: 30,
+      }),
+    ).toBe(12)
   })
 })

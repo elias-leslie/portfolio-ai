@@ -1,9 +1,10 @@
 'use client'
 
-import { AlertCircle, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { useState } from 'react'
 import { SectionCard } from '@/components/shared/SectionCard'
+import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
 import type { TradeRecommendation } from '@/lib/api/recommendations'
@@ -17,7 +18,7 @@ export function TodayIdeasSection() {
     useState<TradeRecommendation | null>(null)
   const [trackModalOpen, setTrackModalOpen] = useState(false)
 
-  const { data, isLoading, error } = useRecommendations({
+  const { data, isLoading, error, refetch, isFetching } = useRecommendations({
     minStrength: 6,
     limit: 6,
     signalType: 'BUY',
@@ -83,10 +84,14 @@ export function TodayIdeasSection() {
         )}
 
         {error && (
-          <div className="flex items-center gap-2 rounded-xl border border-loss/40 bg-loss/10 p-4 text-sm text-loss">
-            <AlertCircle className="h-4 w-4" />
-            Unable to load ideas: {error.message}
-          </div>
+          <LoadErrorState
+            title="Unable to load today’s ideas."
+            detail={error.message}
+            onRetry={() => {
+              void refetch()
+            }}
+            isRetrying={isFetching}
+          />
         )}
 
         {!isLoading && !error && recommendations.length === 0 && (

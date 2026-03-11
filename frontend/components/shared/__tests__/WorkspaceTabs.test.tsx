@@ -94,4 +94,43 @@ describe('WorkspaceTabs', () => {
     expect(window.location.pathname).toBe('/money')
     expect(window.location.search).toBe('?symbol=VTI')
   })
+
+  it('falls back when the active tab disappears from the available tab set', () => {
+    const { rerender } = render(
+      <WorkspaceTabs
+        defaultValue="operate"
+        tabs={[
+          {
+            value: 'operate',
+            label: 'Operate',
+            description: 'Run the day-to-day queue.',
+            content: <div>Operate Content</div>,
+          },
+          {
+            value: 'planning',
+            label: 'Planning',
+            description: 'Review the longer-term plan.',
+            content: <div>Planning Content</div>,
+          },
+        ]}
+      />,
+    )
+
+    rerender(
+      <WorkspaceTabs
+        defaultValue="operate"
+        tabs={[
+          {
+            value: 'operate',
+            label: 'Operate',
+            description: 'Run the day-to-day queue.',
+            content: <div>Operate Content</div>,
+          },
+        ]}
+      />,
+    )
+
+    expect(screen.getByText('Operate Content')).toBeInTheDocument()
+    expect(screen.queryByText('Planning Content')).not.toBeInTheDocument()
+  })
 })

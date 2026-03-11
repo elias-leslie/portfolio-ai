@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
@@ -17,6 +18,8 @@ interface WatchlistFilterBarProps {
   riskFilter: RiskFilter
   onRiskChange: (value: RiskFilter) => void
   counts: WatchlistCounts
+  hasActiveFilters: boolean
+  onReset: () => void
 }
 
 export function WatchlistFilterBar({
@@ -28,9 +31,11 @@ export function WatchlistFilterBar({
   riskFilter,
   onRiskChange,
   counts,
+  hasActiveFilters,
+  onReset,
 }: WatchlistFilterBarProps) {
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <Select
         value={signalFilter}
         onValueChange={(value) => onSignalChange(value as SignalFilter)}
@@ -98,6 +103,11 @@ export function WatchlistFilterBar({
           </SelectItem>
         </SelectContent>
       </Select>
+      {hasActiveFilters ? (
+        <Button type="button" variant="ghost" size="sm" onClick={onReset}>
+          Reset filters
+        </Button>
+      ) : null}
     </div>
   )
 }

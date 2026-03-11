@@ -1,7 +1,8 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
+import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -52,16 +53,20 @@ export function ConfirmActionDialog({
 }: ConfirmActionDialogProps) {
   const [rememberChoice, setRememberChoice] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const checkboxId = useId()
 
   useEffect(() => {
     if (!open) {
       setRememberChoice(false)
       setIsSubmitting(false)
+      setSubmitError(null)
     }
   }, [open])
 
   const handleConfirm = async () => {
     setIsSubmitting(true)
+    setSubmitError(null)
     try {
       await onConfirm()
       if (
@@ -73,7 +78,9 @@ export function ConfirmActionDialog({
       }
       onOpenChange(false)
     } catch (error) {
-      console.error(error)
+      setSubmitError(
+        error instanceof Error ? error.message : 'Unable to complete that action.',
+      )
     } finally {
       setIsSubmitting(false)
     }
@@ -86,16 +93,23 @@ export function ConfirmActionDialog({
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
+        {submitError ? (
+          <LoadErrorState
+            title="Action failed."
+            detail={submitError}
+            className="p-4"
+          />
+        ) : null}
         {children}
         {rememberChoiceKey && (
           <div className="flex items-center space-x-2 rounded-md border border-border/50 bg-surface/60 p-3">
             <Checkbox
-              id="remember-choice"
+              id={checkboxId}
               checked={rememberChoice}
               onCheckedChange={(checked) => setRememberChoice(Boolean(checked))}
             />
             <Label
-              htmlFor="remember-choice"
+              htmlFor={checkboxId}
               className="cursor-pointer text-sm text-text-muted"
             >
               {rememberChoiceLabel}
