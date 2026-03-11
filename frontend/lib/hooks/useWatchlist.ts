@@ -255,10 +255,6 @@ export function useRefreshWatchlist() {
         queryKey: watchlistKeys.list(),
         refetchType: 'active', // Force immediate refetch of active queries
       })
-      queryClient.invalidateQueries({
-        queryKey: watchlistKeys.refreshStatus(),
-        refetchType: 'active',
-      })
     },
     onSettled: () => {
       queryClient.invalidateQueries({

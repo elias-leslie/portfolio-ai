@@ -43,9 +43,9 @@ export function JennyMoneyBoard({
                   answer household questions to generate the next briefing prompts.
                 </div>
               ) : (
-                dashboard.jennyBrief.prompts.map((prompt) => (
+                dashboard.jennyBrief.prompts.map((prompt, index) => (
                   <div
-                    key={prompt}
+                    key={`${prompt}-${index}`}
                     className="rounded-2xl border border-border/40 bg-surface/70 px-4 py-3 text-sm text-text-muted"
                   >
                     {prompt}
@@ -68,9 +68,9 @@ export function JennyMoneyBoard({
                 current household plan without pushing a new optimization theme.
               </div>
             ) : (
-              dashboard.opportunities.map((opportunity) => (
+              dashboard.opportunities.map((opportunity, idx) => (
                 <div
-                  key={opportunity.title}
+                  key={`${opportunity.title}-${idx}`}
                   className="rounded-2xl border border-border/50 bg-surface-muted/20 p-4"
                 >
                   <div className="flex items-start justify-between gap-3">

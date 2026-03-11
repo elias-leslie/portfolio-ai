@@ -32,8 +32,6 @@ async def test_reset_source_metrics_returns_task_id(monkeypatch: pytest.MonkeyPa
 
     response = await reset_source_metrics()
 
-    assert response == {
-        "status": "completed",
-        "task_id": "reset-456",
-        "message": "Reset task completed. All metrics and feedback have been deleted.",
-    }
+    assert response.status == "completed"
+    assert response.task_id == "reset-456"
+    assert response.message == "Reset task completed. All metrics and feedback have been deleted."

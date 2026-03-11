@@ -30,9 +30,7 @@ export function TodayIdeasSection() {
   const recommendations = data?.recommendations ?? []
   const summary = data?.summary
   const latestGeneratedAt =
-    recommendations
-      .map((recommendation) => recommendation.generatedAt)
-      .find((generatedAt) => Boolean(generatedAt)) ?? null
+    recommendations.find((r) => r.generatedAt)?.generatedAt ?? null
 
   const handleTrackConfirm = (accountId: string, shares: number) => {
     if (!selectedRecommendation) return

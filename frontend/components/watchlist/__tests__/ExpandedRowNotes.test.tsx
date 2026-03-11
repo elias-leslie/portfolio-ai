@@ -1,7 +1,18 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { WatchlistItem } from '@/lib/api/watchlist'
 import { ExpandedRowNotes } from '../ExpandedRowNotes'
+
+function buildItem(overrides: Partial<WatchlistItem> = {}): WatchlistItem {
+  return {
+    id: 'item-1',
+    symbol: 'MSFT',
+    createdAt: '2024-01-01T00:00:00Z',
+    updatedAt: '2024-01-01T00:00:00Z',
+    ...overrides,
+  }
+}
 
 const mutate = vi.fn()
 const useUpdateWatchlistItemMock = vi.fn()
@@ -30,15 +41,7 @@ describe('ExpandedRowNotes', () => {
   it('saves an edited note', async () => {
     const user = userEvent.setup()
 
-    render(
-      <ExpandedRowNotes
-        item={{
-          id: 'item-1',
-          symbol: 'MSFT',
-          note: 'Original note',
-        } as any}
-      />,
-    )
+    render(<ExpandedRowNotes item={buildItem({ note: 'Original note' })} />)
 
     await user.click(screen.getByRole('button', { name: /edit/i }))
     await user.clear(screen.getByPlaceholderText(/add a note about this symbol/i))
@@ -64,15 +67,7 @@ describe('ExpandedRowNotes', () => {
     })
     const user = userEvent.setup()
 
-    render(
-      <ExpandedRowNotes
-        item={{
-          id: 'item-1',
-          symbol: 'MSFT',
-          note: 'Original note',
-        } as any}
-      />,
-    )
+    render(<ExpandedRowNotes item={buildItem({ note: 'Original note' })} />)
 
     await user.click(screen.getByRole('button', { name: /edit/i }))
 

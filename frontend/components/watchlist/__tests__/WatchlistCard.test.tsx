@@ -76,4 +76,99 @@ describe('WatchlistCard', () => {
     expect(screen.getByText('DQ 91%')).toBeInTheDocument()
     expect(screen.getByText(/Refreshing 2\/5/i)).toBeInTheDocument()
   })
+
+  it('handles undefined refreshStatus and isRefreshing false', () => {
+    render(
+      <WatchlistCard
+        item={buildItem()}
+        portfolioSymbols={new Set(['MSFT'])}
+        refreshStatus={undefined}
+        userTimezone="America/New_York"
+        onDelete={vi.fn()}
+        isDeleting={false}
+      />,
+    )
+
+    expect(screen.getByRole('link', { name: 'MSFT' })).toBeInTheDocument()
+  })
+
+  it('handles symbol not in portfolioSymbols', () => {
+    render(
+      <WatchlistCard
+        item={buildItem()}
+        portfolioSymbols={new Set(['AAPL'])}
+        refreshStatus={{
+          isRefreshing: false,
+          currentSymbol: undefined,
+          processedItems: 0,
+          totalItems: 0,
+        }}
+        userTimezone="America/New_York"
+        onDelete={vi.fn()}
+        isDeleting={false}
+      />,
+    )
+
+    expect(screen.getByRole('link', { name: 'MSFT' })).toBeInTheDocument()
+    expect(screen.queryByText('Portfolio')).not.toBeInTheDocument()
+  })
+
+  it('handles undefined or zero dataQuality', () => {
+    const item = buildItem()
+    const { rerender } = render(
+      <WatchlistCard
+        item={{ ...item, dataQuality: undefined }}
+        portfolioSymbols={new Set(['MSFT'])}
+        refreshStatus={{
+          isRefreshing: false,
+          currentSymbol: undefined,
+          processedItems: 0,
+          totalItems: 0,
+        }}
+        userTimezone="America/New_York"
+        onDelete={vi.fn()}
+        isDeleting={false}
+      />,
+    )
+
+    expect(screen.queryByText(/DQ/)).not.toBeInTheDocument()
+
+    rerender(
+      <WatchlistCard
+        item={{ ...item, dataQuality: { overallPct: 0, pillars: {} } }}
+        portfolioSymbols={new Set(['MSFT'])}
+        refreshStatus={{
+          isRefreshing: false,
+          currentSymbol: undefined,
+          processedItems: 0,
+          totalItems: 0,
+        }}
+        userTimezone="America/New_York"
+        onDelete={vi.fn()}
+        isDeleting={false}
+      />,
+    )
+
+    expect(screen.getByText('DQ 0%')).toBeInTheDocument()
+  })
+
+  it('handles isDeleting true state', () => {
+    render(
+      <WatchlistCard
+        item={buildItem()}
+        portfolioSymbols={new Set(['MSFT'])}
+        refreshStatus={{
+          isRefreshing: false,
+          currentSymbol: undefined,
+          processedItems: 0,
+          totalItems: 0,
+        }}
+        userTimezone="America/New_York"
+        onDelete={vi.fn()}
+        isDeleting={true}
+      />,
+    )
+
+    expect(screen.getByRole('link', { name: 'MSFT' })).toBeInTheDocument()
+  })
 })

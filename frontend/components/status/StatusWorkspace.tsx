@@ -508,7 +508,7 @@ export function StatusWorkspace() {
                         <p>Latency: {formatInteger(source.avgLatencyMs)}ms</p>
                         <p>Last success: {formatRelativeTime(source.lastSuccess)}</p>
                       </div>
-                      {(source.rateLimitHits || source.inCooldown) && (
+                      {(source.rateLimitHits != null || source.inCooldown) && (
                         <div className="mt-2 grid gap-2 text-sm text-text-muted md:grid-cols-2">
                           <p>Rate limit hits: {formatInteger(source.rateLimitHits)}</p>
                           <p>

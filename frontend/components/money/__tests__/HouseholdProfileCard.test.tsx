@@ -21,6 +21,8 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
 describe('HouseholdProfileCard', () => {
   beforeEach(() => {
     useUpdateHouseholdProfileMock.mockReset()
+    mutate.mockReset()
+    answerMutate.mockReset()
   })
 
   it('submits the edited household plan', () => {

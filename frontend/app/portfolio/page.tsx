@@ -46,6 +46,7 @@ export default function PortfolioPage() {
   const {
     data: accounts,
     isLoading: accountsLoading,
+    isFetching: accountsFetching,
     error: accountsError,
     refetch: refetchAccounts,
   } = useAccounts()
@@ -174,6 +175,7 @@ export default function PortfolioPage() {
       <AccountsWithPositionsContent
         accounts={accounts}
         accountsLoading={accountsLoading}
+        accountsFetching={accountsFetching}
         accountsError={accountsError}
         onRetryAccounts={() => {
           void refetchAccounts()

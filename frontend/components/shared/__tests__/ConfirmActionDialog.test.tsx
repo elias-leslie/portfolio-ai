@@ -28,6 +28,7 @@ describe('ConfirmActionDialog', () => {
   })
 
   it('clears the inline error after the dialog closes', async () => {
+    const user = userEvent.setup()
     const { rerender } = render(
       <ConfirmActionDialog
         open
@@ -37,7 +38,6 @@ describe('ConfirmActionDialog', () => {
       />,
     )
 
-    const user = userEvent.setup()
     await user.click(screen.getByRole('button', { name: 'Continue' }))
 
     await screen.findByText('Delete failed')

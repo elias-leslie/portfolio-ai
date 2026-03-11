@@ -165,6 +165,7 @@ def cleanup_debug_captures(max_age_days: int = 7, dry_run: bool = False) -> dict
             "dry_run": dry_run,
             "errors": errors,
             "success": True,
+            "partial_success": len(errors) > 0,
             "duration_seconds": duration_seconds,
         }
         log_maintenance_complete(log_id, _TASK_NAME, True, result_dict)

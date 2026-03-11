@@ -93,20 +93,9 @@ describe('ThesisSection', () => {
       isLoading: false,
       error: null,
     })
-    let mutationCall = 0
-    useMutationMock.mockImplementation(() => {
-      mutationCall += 1
-      if (mutationCall % 2 === 1) {
-        return {
-          mutate: vi.fn(),
-          isPending: true,
-        }
-      }
-
-      return {
-        mutate: vi.fn(),
-        isPending: true,
-      }
+    useMutationMock.mockReturnValue({
+      mutate: vi.fn(),
+      isPending: true,
     })
     const user = userEvent.setup()
 

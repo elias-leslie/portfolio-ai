@@ -21,6 +21,7 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
 describe('HouseholdOperationsPanel', () => {
   beforeEach(() => {
     useCategorizeHouseholdTransactionMock.mockReset()
+    categorizeMutate.mockReset()
   })
 
   it('applies a categorization decision across similar merchant rows', async () => {

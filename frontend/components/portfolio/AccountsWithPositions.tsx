@@ -41,6 +41,7 @@ interface AccountsWithPositionsProps {
 export interface AccountsWithPositionsContentProps extends AccountsWithPositionsProps {
   accounts: Awaited<ReturnType<typeof useAccounts>>['data']
   accountsLoading: boolean
+  accountsFetching?: boolean
   accountsError?: Error | null
   onRetryAccounts?: () => void
 }
@@ -48,6 +49,7 @@ export interface AccountsWithPositionsContentProps extends AccountsWithPositions
 export function AccountsWithPositionsContent({
   accounts,
   accountsLoading,
+  accountsFetching,
   accountsError,
   onRetryAccounts,
   onAddAccount,
@@ -241,7 +243,7 @@ export function AccountsWithPositionsContent({
                 onRetryAccounts?.()
                 void refetchPortfolio()
               }}
-              isRetrying={portfolioFetching}
+              isRetrying={accountsFetching || portfolioFetching}
             />
           </CardContent>
         </Card>
@@ -377,6 +379,7 @@ export function AccountsWithPositions(props: AccountsWithPositionsProps) {
   const {
     data: accounts,
     isLoading: accountsLoading,
+    isFetching: accountsFetching,
     error: accountsError,
     refetch,
   } = useAccounts()
@@ -386,6 +389,7 @@ export function AccountsWithPositions(props: AccountsWithPositionsProps) {
       {...props}
       accounts={accounts}
       accountsLoading={accountsLoading}
+      accountsFetching={accountsFetching}
       accountsError={accountsError}
       onRetryAccounts={() => {
         void refetch()

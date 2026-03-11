@@ -78,8 +78,8 @@ export function HouseholdPlanningPanels({
                   Jenny has not identified a strong retirement edge yet.
                 </p>
               ) : (
-                dashboard.retirementPreparedness.strengths.map((item) => (
-                  <p key={item} className="text-sm text-text-muted">
+                dashboard.retirementPreparedness.strengths.map((item, index) => (
+                  <p key={`${item}-${index}`} className="text-sm text-text-muted">
                     {item}
                   </p>
                 ))
@@ -94,8 +94,8 @@ export function HouseholdPlanningPanels({
                   No retirement blockers are flagged right now.
                 </p>
               ) : (
-                dashboard.retirementPreparedness.blockers.map((item) => (
-                  <p key={item} className="text-sm text-text-muted">
+                dashboard.retirementPreparedness.blockers.map((item, index) => (
+                  <p key={`${item}-${index}`} className="text-sm text-text-muted">
                     {item}
                   </p>
                 ))
@@ -110,8 +110,8 @@ export function HouseholdPlanningPanels({
                   Jenny does not have a next-step recommendation yet.
                 </p>
               ) : (
-                dashboard.retirementPreparedness.nextSteps.map((item) => (
-                  <p key={item} className="text-sm text-text-muted">
+                dashboard.retirementPreparedness.nextSteps.map((item, index) => (
+                  <p key={`${item}-${index}`} className="text-sm text-text-muted">
                     {item}
                   </p>
                 ))

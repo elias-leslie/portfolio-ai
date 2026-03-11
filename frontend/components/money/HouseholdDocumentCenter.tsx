@@ -326,10 +326,18 @@ export function HouseholdDocumentCenter({
                       Uploaded {formatRelativeTime(document.uploadedAt)}
                       {document.parsedAt ? ` · Parsed ${formatRelativeTime(document.parsedAt)}` : ''}
                     </p>
-                    {(document.statementStart || document.statementEnd) ? (
+                    {(document.statementStart && document.statementEnd) ? (
                       <p className="mt-1 text-xs text-text-muted">
                         Statement window {formatDate(document.statementStart, true)} to{' '}
                         {formatDate(document.statementEnd, true)}
+                      </p>
+                    ) : document.statementStart ? (
+                      <p className="mt-1 text-xs text-text-muted">
+                        Statement start {formatDate(document.statementStart, true)}
+                      </p>
+                    ) : document.statementEnd ? (
+                      <p className="mt-1 text-xs text-text-muted">
+                        Statement end {formatDate(document.statementEnd, true)}
                       </p>
                     ) : null}
                   </div>

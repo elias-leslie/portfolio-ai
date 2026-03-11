@@ -129,9 +129,9 @@ export function HouseholdOperationsPanel({
                 No additional operator actions are waiting right now.
               </div>
             ) : (
-              dashboard.actionItems.slice(0, 4).map((item) => (
+              dashboard.actionItems.slice(0, 4).map((item, index) => (
                 <div
-                  key={`${item.title}-${item.detail}`}
+                  key={`${item.title}-${index}`}
                   className="rounded-2xl border border-border/50 bg-surface/50 p-4"
                 >
                   <div className="flex items-start justify-between gap-3">

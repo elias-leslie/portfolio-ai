@@ -8,8 +8,8 @@ SCRIPT_PATH = Path(__file__).resolve().parents[2] / "scripts" / "run_maintenance
 
 def _load_run_maintenance_module():
     spec = importlib.util.spec_from_file_location("run_maintenance_script", SCRIPT_PATH)
-    assert spec is not None
-    assert spec.loader is not None
+    assert spec is not None, "Failed to create spec from SCRIPT_PATH"
+    assert spec.loader is not None, "Failed to get loader from spec"
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

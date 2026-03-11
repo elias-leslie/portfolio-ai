@@ -110,5 +110,9 @@ describe('HomeActionQueue', () => {
       'href',
       '/watchlist',
     )
+    expect(screen.getByRole('link', { name: 'Open Intake' })).toHaveAttribute(
+      'href',
+      '/money?tab=intake',
+    )
   })
 })

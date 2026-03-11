@@ -157,7 +157,7 @@ def cleanup_orphaned_data_task(dry_run: bool = False) -> dict[str, Any]:
     return execute_maintenance_task("cleanup_orphaned_data_task", task_id, cleanup_impl, dry_run)
 
 
-def get_database_size_task() -> dict[str, int | str | float | list[dict[str, Any]]]:
+def get_database_size_task() -> dict[str, int | str | float | bool | list[dict[str, Any]]]:
     """Get database size and table sizes for monitoring.
 
     Returns:
@@ -207,7 +207,15 @@ def get_database_size_task() -> dict[str, int | str | float | list[dict[str, Any
             "success": False,
             "duration_seconds": round(duration, 2),
         }
-        record_maintenance_completion(log_id, "error", error_result, str(e))
+        try:
+            record_maintenance_completion(log_id, "error", error_result, str(e))
+        except Exception as record_err:
+            logger.error(
+                "get_database_size_record_completion_failed",
+                task_id=task_id,
+                error=str(record_err),
+                error_type=type(record_err).__name__,
+            )
         return error_result
 
 

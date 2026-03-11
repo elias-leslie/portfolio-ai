@@ -7,9 +7,15 @@ from app.services.dry_run_service import DRY_RUN_TASKS, _build_category_report
 
 def test_dry_run_tasks_label_stale_agent_run_cleanup() -> None:
     """The stale-run cleanup task should advertise its current purpose."""
-    task_name, category, retention, _task_fn = next(
-        task for task in DRY_RUN_TASKS if task[0] == "cleanup_orphaned_data_task"
+    task = next(
+        (task for task in DRY_RUN_TASKS if task[0] == "cleanup_orphaned_data_task"),
+        None,
     )
+    if task is None:
+        raise AssertionError(
+            "cleanup_orphaned_data_task not found in DRY_RUN_TASKS"
+        )
+    task_name, category, retention, _task_fn = task
 
     assert task_name == "cleanup_orphaned_data_task"
     assert category == "stale_agent_runs"

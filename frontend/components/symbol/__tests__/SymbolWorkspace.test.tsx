@@ -129,7 +129,7 @@ describe('SymbolWorkspace', () => {
         symbol: 'VTI',
         generatedAt: '2026-03-10T15:30:00Z',
         scores: { overall: 78, signalType: 'BUY', signalStrength: 7, pillars: {} },
-        signal: { type: 'BUY', strength: 7, avoidFlags: 0 },
+        signal: { type: 'BUY', strength: 7, confirmations: 0, avoidFlags: 0 },
         trading: null,
         portfolio: { held: false, position: null, context: null },
         news: {

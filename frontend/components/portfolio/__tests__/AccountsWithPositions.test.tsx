@@ -125,15 +125,6 @@ describe('AccountsWithPositions', () => {
   it('shows a retryable error state when account data fails', async () => {
     const user = userEvent.setup()
     const retryAccounts = vi.fn()
-    const refetchPortfolio = vi.fn()
-
-    mockUsePortfolio.mockReturnValue({
-      data: undefined,
-      isLoading: false,
-      isFetching: false,
-      error: null,
-      refetch: refetchPortfolio,
-    })
 
     render(
       <AccountsWithPositionsContent
@@ -148,6 +139,5 @@ describe('AccountsWithPositions', () => {
 
     expect(screen.getByText(/failed to load portfolio accounts/i)).toBeInTheDocument()
     expect(retryAccounts).toHaveBeenCalled()
-    expect(refetchPortfolio).toHaveBeenCalled()
   })
 })

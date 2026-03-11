@@ -4,7 +4,73 @@ import {
   usePortfolio,
   usePortfolioAnalytics,
 } from '@/lib/hooks/usePortfolio'
+import type {
+  PortfolioResponse,
+  PortfolioAnalytics,
+} from '@/lib/api/portfolio'
 import { PortfolioOverview } from '../PortfolioOverview'
+
+// Helper to create properly typed portfolio mock
+function createPortfolioMock(
+  overrides?: Partial<ReturnType<typeof usePortfolio>>
+): ReturnType<typeof usePortfolio> {
+  return {
+    data: {
+      positions: [],
+      cashBalanceTotal: 5000,
+      totalValue: 25000,
+      totalCostBasis: 22000,
+      totalGain: 3000,
+      totalGainPct: 13.6,
+    } as PortfolioResponse,
+    isLoading: false,
+    isFetching: false,
+    error: null,
+    refetch: vi.fn(),
+    ...overrides,
+  } as unknown as ReturnType<typeof usePortfolio>
+}
+
+// Helper to create properly typed portfolio analytics mock
+function createPortfolioAnalyticsMock(
+  overrides?: Partial<ReturnType<typeof usePortfolioAnalytics>>
+): ReturnType<typeof usePortfolioAnalytics> {
+  return {
+    data: {
+      portfolioValue: {
+        totalValue: 25000,
+        totalCostBasis: 22000,
+        totalGain: 3000,
+        totalGainPct: 13.6,
+      },
+      cashBalanceTotal: 5000,
+      cashInclusiveTotalValue: 30000,
+      portfolioBeta: 0.92,
+      portfolioVolatility: 0.18,
+      sharpeRatio: 1.1,
+      concentration: {
+        topHoldingPct: 40,
+        top3Pct: 70,
+        top10Pct: 100,
+        herfindahlIndex: 0.21,
+      },
+      sectorExposure: {
+        technology: 60,
+      },
+      riskProfile: null,
+      diversificationScore: null,
+      topPerformers: [],
+      bottomPerformers: [],
+      numPositions: 0,
+      numSymbols: 0,
+    } as PortfolioAnalytics,
+    isLoading: false,
+    isFetching: false,
+    error: null,
+    refetch: vi.fn(),
+    ...overrides,
+  } as unknown as ReturnType<typeof usePortfolioAnalytics>
+}
 
 vi.mock('@/components/portfolio/AssetAllocation', () => ({
   AssetAllocation: () => <div>Asset Allocation</div>,
@@ -35,71 +101,25 @@ vi.mock('@/lib/hooks/usePortfolio', () => ({
 
 describe('PortfolioOverview', () => {
   beforeEach(() => {
-    vi.mocked(usePortfolio).mockReturnValue({
-      data: {
-        positions: [],
-        cashBalanceTotal: 5000,
-        totalValue: 25000,
-        totalCostBasis: 22000,
-        totalGain: 3000,
-        totalGainPct: 13.6,
-      },
-      isLoading: false,
-      isFetching: false,
-      error: null,
-      refetch: vi.fn(),
-    } as never)
-    vi.mocked(usePortfolioAnalytics).mockReturnValue({
-      data: {
-        portfolioValue: {
-          totalValue: 25000,
-          totalCostBasis: 22000,
-          totalGain: 3000,
-          totalGainPct: 13.6,
-        },
-        cashBalanceTotal: 5000,
-        cashInclusiveTotalValue: 30000,
-        portfolioBeta: 0.92,
-        portfolioVolatility: 0.18,
-        sharpeRatio: 1.1,
-        concentration: {
-          topHoldingPct: 40,
-          top3Pct: 70,
-          top10Pct: 100,
-          herfindahlIndex: 0.21,
-        },
-        sectorExposure: {
-          technology: 60,
-        },
-        riskProfile: null,
-        diversificationScore: null,
-        topPerformers: [],
-        bottomPerformers: [],
-        numPositions: 0,
-        numSymbols: 0,
-      },
-      isLoading: false,
-      isFetching: false,
-      error: null,
-      refetch: vi.fn(),
-    } as never)
+    vi.mocked(usePortfolio).mockReturnValue(createPortfolioMock())
+    vi.mocked(usePortfolioAnalytics).mockReturnValue(
+      createPortfolioAnalyticsMock()
+    )
   })
 
   it('shows a combined fatal error state when both portfolio queries fail', () => {
-    vi.mocked(usePortfolio).mockReturnValue({
-      data: undefined,
-      isLoading: false,
-      isFetching: false,
-      error: new Error('portfolio down'),
-      refetch: vi.fn(),
-    } as never)
-    vi.mocked(usePortfolioAnalytics).mockReturnValue({
-      data: undefined,
-      isLoading: false,
-      isFetching: false,
-      error: new Error('analytics down'),
-      refetch: vi.fn(),
-    } as never)
+    vi.mocked(usePortfolio).mockReturnValue(
+      createPortfolioMock({
+        data: undefined,
+        error: new Error('portfolio down'),
+      })
+    )
+    vi.mocked(usePortfolioAnalytics).mockReturnValue(
+      createPortfolioAnalyticsMock({
+        data: undefined,
+        error: new Error('analytics down'),
+      })
+    )
 
     render(<PortfolioOverview />)
 
@@ -107,13 +127,12 @@ describe('PortfolioOverview', () => {
   })
 
   it('keeps core balances visible when analytics fail', () => {
-    vi.mocked(usePortfolioAnalytics).mockReturnValue({
-      data: undefined,
-      isLoading: false,
-      isFetching: false,
-      error: new Error('analytics down'),
-      refetch: vi.fn(),
-    } as never)
+    vi.mocked(usePortfolioAnalytics).mockReturnValue(
+      createPortfolioAnalyticsMock({
+        data: undefined,
+        error: new Error('analytics down'),
+      })
+    )
 
     render(<PortfolioOverview />)
 

@@ -6,6 +6,7 @@ from typing import Any
 from unittest.mock import Mock
 
 from fastapi.testclient import TestClient
+from pytest_mock import MockerFixture
 
 from app.main import app
 
@@ -63,12 +64,12 @@ def _dashboard_dump() -> dict[str, Any]:
     return _dashboard_payload()
 
 
-def test_get_jenny_dashboard_returns_service_payload(mocker: Mock) -> None:
+def test_get_jenny_dashboard_returns_service_payload(mocker: MockerFixture) -> None:
     """Dashboard route should expose Jenny data through the portfolio API."""
     mocker.patch(
         "app.api.portfolio.jenny_routes._service",
         return_value=Mock(
-            get_dashboard=Mock(return_value=Mock(model_dump=_dashboard_dump)),
+            get_dashboard=Mock(return_value=Mock(model_dump=Mock(return_value=_dashboard_dump()))),
         ),
     )
 
@@ -80,10 +81,10 @@ def test_get_jenny_dashboard_returns_service_payload(mocker: Mock) -> None:
     assert data["notifications"][0]["symbol"] == "AAPL"
 
 
-def test_run_jenny_routine_dispatches_daily_operator(mocker: Mock) -> None:
+def test_run_jenny_routine_dispatches_daily_operator(mocker: MockerFixture) -> None:
     """Manual Jenny run should dispatch the requested routine."""
     service = Mock(
-        run_daily_operator=Mock(return_value=Mock(model_dump=_run_response_payload)),
+        run_daily_operator=Mock(return_value=Mock(model_dump=Mock(return_value=_run_response_payload()))),
     )
     mocker.patch("app.api.portfolio.jenny_routes._service", return_value=service)
     mocked = service.run_daily_operator
@@ -94,7 +95,7 @@ def test_run_jenny_routine_dispatches_daily_operator(mocker: Mock) -> None:
     mocked.assert_called_once_with(triggered_by="manual")
 
 
-def test_acknowledge_notification_returns_404_when_missing(mocker: Mock) -> None:
+def test_acknowledge_notification_returns_404_when_missing(mocker: MockerFixture) -> None:
     """Missing notifications should return 404."""
     mocker.patch(
         "app.api.portfolio.jenny_routes._service",

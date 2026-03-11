@@ -103,4 +103,22 @@ describe('preferences api', () => {
       }),
     ).toBe(12)
   })
+
+  it('returns 5 when preferences is null', () => {
+    expect(getWatchlistRefreshMinutes(null)).toBe(5)
+  })
+
+  it('returns 5 when preferences is undefined', () => {
+    expect(getWatchlistRefreshMinutes()).toBe(5)
+  })
+
+  it('falls back to legacy watchlistRefreshMinutes when both overrides are null', () => {
+    expect(
+      getWatchlistRefreshMinutes({
+        defaultRefreshMinutes: 0,
+        watchlistRefreshOverride: null,
+        watchlistRefreshMinutes: 25,
+      }),
+    ).toBe(25)
+  })
 })

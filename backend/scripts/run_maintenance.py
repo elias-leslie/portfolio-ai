@@ -213,6 +213,9 @@ def main() -> int:
     parser.add_argument("--hours", type=int, help="Override retention period in hours")
     args = parser.parse_args()
 
+    if args.days is not None and args.hours is not None:
+        parser.error("--days and --hours are mutually exclusive")
+
     if not args.task and not args.all:
         parser.print_help()
         return 1

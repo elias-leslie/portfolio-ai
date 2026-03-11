@@ -81,6 +81,30 @@ def test_cleanup_old_news_respects_recent_refetches(monkeypatch) -> None:
     assert result["rows_to_delete"] == 7
 
 
+def test_cleanup_old_news_executes_delete_and_commits_on_non_dry_run(monkeypatch) -> None:
+    fake_conn = MagicMock()
+    fake_conn._cursor.rowcount = 5
+
+    @contextmanager
+    def fake_connection():
+        yield fake_conn
+
+    fake_manager = MagicMock()
+    fake_manager.connection.side_effect = fake_connection
+
+    monkeypatch.setattr(
+        "app.tasks.maintenance_operations.get_connection_manager",
+        lambda: fake_manager,
+    )
+
+    result = cleanup_old_news(days=30, dry_run=False)
+
+    executed_sql = fake_conn.execute.call_args[0][0]
+    assert "DELETE FROM news_cache" in executed_sql
+    assert result["rows_deleted"] == 5
+    fake_conn.commit.assert_called_once()
+
+
 def test_vacuum_tables_uses_raw_connection_and_reports_processed(monkeypatch) -> None:
     fake_query_conn = MagicMock()
     query_result = MagicMock()

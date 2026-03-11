@@ -190,6 +190,35 @@ def _build_category_report(
     }
 
 
+def _process_future_result(
+    future: Any,
+    task_info: tuple[str, str, str, Any],
+    categories: dict[str, DryRunCategoryReport],
+    errors: list[str],
+) -> None:
+    """Process a completed future result and update categories/errors.
+
+    Args:
+        future: The completed future object
+        task_info: Task information tuple (name, category, retention, fn)
+        categories: Dictionary to store category reports
+        errors: List to collect error messages
+    """
+    task_name, category, retention, _task_fn = task_info
+
+    try:
+        _cat_name, result, error = future.result()
+
+        if error:
+            errors.append(f"{task_name}: {error}")
+            return
+
+        categories[category] = _build_category_report(result, category, retention)
+
+    except Exception as e:
+        errors.append(f"{task_name}: {e!s}")
+
+
 def generate_dry_run_report(timeout: int = 60) -> DryRunReportResponse:
     """Generate a comprehensive dry-run report for all cleanup tasks.
 
@@ -227,19 +256,7 @@ def generate_dry_run_report(timeout: int = 60) -> DryRunReportResponse:
         try:
             for future in as_completed(futures, timeout=timeout):
                 task_info = futures[future]
-                task_name, category, retention, _task_fn = task_info
-
-                try:
-                    _cat_name, result, error = future.result()
-
-                    if error:
-                        errors.append(f"{task_name}: {error}")
-                        continue
-
-                    categories[category] = _build_category_report(result, category, retention)
-
-                except Exception as e:
-                    errors.append(f"{task_name}: {e!s}")
+                _process_future_result(future, task_info, categories, errors)
         except TimeoutError:
             logger.error("dry_run_report_timed_out", timeout_seconds=timeout)
             errors.append(f"dry_run_report timed out after {timeout} seconds")

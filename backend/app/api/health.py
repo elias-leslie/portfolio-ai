@@ -222,17 +222,21 @@ async def get_stale_maintenance_runs(hours: int = 2) -> list[dict[str, Any]]:
     storage = get_storage()
 
     try:
-        query = f"""
+        # Validate hours is a positive integer
+        if not isinstance(hours, int) or hours < 0:
+            raise ValueError(f"hours must be a non-negative integer, got {hours}")
+
+        query = """
             SELECT task_name, started_at, dry_run
             FROM maintenance_log
             WHERE status = 'running'
-              AND started_at < NOW() - INTERVAL '{hours} hours'
+              AND started_at < NOW() - INTERVAL ? hours
             ORDER BY started_at ASC
             LIMIT 50
         """
 
         with storage.connection() as conn:
-            result = conn.execute(query).fetchall()
+            result = conn.execute(query, [hours]).fetchall()
 
         return [
             {

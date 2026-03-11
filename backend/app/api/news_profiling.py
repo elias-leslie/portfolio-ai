@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime
+from functools import lru_cache
 from typing import TypedDict
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 
 from app.storage import get_storage
 from app.tasks.news_profiling_tasks import profile_news_sources_task, reset_source_metrics_task
@@ -23,6 +24,7 @@ class ResetSourceMetricsDict(TypedDict):
     message: str
 
 
+@lru_cache(maxsize=1)
 def _storage():
     return get_storage()
 
@@ -85,7 +87,7 @@ async def trigger_profiling(user_id: str = "default") -> ProfilingTaskResponse:
         ProfilingTaskResponse with task ID and status
     """
     try:
-        result = await asyncio.to_thread(profile_news_sources_task, user_id)
+        result = await run_in_threadpool(profile_news_sources_task, user_id)
 
         return ProfilingTaskResponse(
             status=str(result.get("status", "completed")),
@@ -410,7 +412,7 @@ async def reset_source_metrics() -> ResetSourceMetricsDict:
         dict with deletion counts
     """
     try:
-        result = await asyncio.to_thread(reset_source_metrics_task)
+        result = await run_in_threadpool(reset_source_metrics_task)
 
         response: ResetSourceMetricsDict = {
             "status": str(result.get("status", "completed")),

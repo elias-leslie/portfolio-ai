@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from app.storage.connection import PostgreSQLConnectionWrapper
+
 TEST_DB_NAME = "portfolio_ai_test"
 PROD_DB_NAME = "portfolio_ai"
 OWNERSHIP_REPAIR_COMMAND = "sudo bash backend/scripts/setup-test-db.sh"
@@ -75,9 +77,9 @@ def assert_test_database_writable(
     )
 
 
-def find_test_database_owner_mismatches(conn: object, *, current_user: str) -> list[tuple[str, str]]:
+def find_test_database_owner_mismatches(conn: PostgreSQLConnectionWrapper, *, current_user: str) -> list[tuple[str, str]]:
     """Return legacy test objects not owned by the active test role."""
-    conn._cursor.execute(
+    conn.execute(
         """
         SELECT c.relname, pg_get_userbyid(c.relowner) AS owner
         FROM pg_class c
@@ -89,7 +91,7 @@ def find_test_database_owner_mismatches(conn: object, *, current_user: str) -> l
         """,
         ("public", list(LEGACY_TEST_OBJECTS_WITH_OWNER_DRIFT), current_user),
     )
-    return [(str(name), str(owner)) for name, owner in conn._cursor.fetchall()]
+    return [(str(name), str(owner)) for name, owner in conn.fetchall()]
 
 
 def assert_test_database_ownership(

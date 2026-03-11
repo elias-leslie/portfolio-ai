@@ -145,7 +145,7 @@ describe('WatchlistPage', () => {
 
     expect(screen.getByText('Add Symbol Modal Closed')).toBeInTheDocument()
 
-    await user.click(screen.getAllByRole('button', { name: 'Add Symbol' })[0])
+    await user.click(screen.getByRole('button', { name: /add symbol/i }))
 
     expect(screen.getByText('Add Symbol Modal Open')).toBeInTheDocument()
   })

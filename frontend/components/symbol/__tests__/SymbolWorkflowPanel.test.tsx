@@ -51,6 +51,8 @@ describe('SymbolWorkflowPanel', () => {
     useSymbolWorkflowMock.mockReset()
     useTransitionWorkflowMock.mockReset()
     useRecordOutcomeMock.mockReset()
+    transitionMutate.mockReset()
+    outcomeMutate.mockReset()
     const user = userEvent.setup()
 
     render(

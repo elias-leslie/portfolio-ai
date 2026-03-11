@@ -52,7 +52,9 @@ def _load_disk_alert_threshold() -> int:
         return _DEFAULT_DISK_ALERT_THRESHOLD_PERCENT
 
     threshold = config.get("monitoring", {}).get("disk_space_alert_threshold")
-    return threshold if isinstance(threshold, int) else _DEFAULT_DISK_ALERT_THRESHOLD_PERCENT
+    if isinstance(threshold, int) and 0 <= threshold <= 100:
+        return threshold
+    return _DEFAULT_DISK_ALERT_THRESHOLD_PERCENT
 
 
 def check_disk_space_impl(alert_threshold_percent: int) -> dict[str, Any]:

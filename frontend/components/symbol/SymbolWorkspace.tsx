@@ -32,12 +32,6 @@ function formatPercent(value: number | null | undefined) {
   return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`
 }
 
-function formatSignalPercent(value: number | null | undefined) {
-  if (value === null || value === undefined) {
-    return '—'
-  }
-  return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`
-}
 
 export function SymbolWorkspace({ symbol }: { symbol: string }) {
   const uppercaseSymbol = symbol.toUpperCase()
@@ -180,7 +174,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             <p className="mt-2 text-sm text-text-muted">
               {data.portfolio.context.numHoldings} holding
               {data.portfolio.context.numHoldings === 1 ? '' : 's'} · Top 3{' '}
-              {formatSignalPercent(data.portfolio.context.concentrationTop3)} · Diversification{' '}
+              {formatPercent(data.portfolio.context.concentrationTop3)} · Diversification{' '}
               {data.portfolio.context.diversificationScore?.toFixed(0) ?? '—'}
             </p>
           ) : null}
@@ -197,11 +191,11 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             <p className="mt-2 text-sm text-text-muted">
               {data.market.sector.name ?? 'Sector unavailable'} ·{' '}
               {data.market.sector.signal ?? 'No sector signal'} ·{' '}
-              {formatSignalPercent(data.market.sector.relativeToSpy)} vs SPY
+              {formatPercent(data.market.sector.relativeToSpy)} vs SPY
             </p>
           ) : data?.market?.sp500Change != null ? (
             <p className="mt-2 text-sm text-text-muted">
-              S&P 500 {formatSignalPercent(data.market.sp500Change)}
+              S&P 500 {formatPercent(data.market.sp500Change)}
             </p>
           ) : null}
         </SectionCard>
@@ -411,9 +405,9 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                     {(data?.news?.recentArticles ?? []).length > 0 ? (
                       <div className="space-y-3">
                         <p className="text-sm font-semibold text-text">Recent articles</p>
-                        {data?.news?.recentArticles.slice(0, 4).map((article) => (
+                        {data?.news?.recentArticles.slice(0, 4).map((article, idx) => (
                           <div
-                            key={`${article.headline}-${article.publishedAt ?? 'unknown'}`}
+                            key={`${article.headline}-${article.publishedAt ?? idx}`}
                             className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
                           >
                             <p className="text-sm font-medium text-text">{article.headline}</p>

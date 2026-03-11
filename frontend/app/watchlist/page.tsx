@@ -1,7 +1,7 @@
 'use client'
 
 import { PlusCircle, RefreshCw } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -67,24 +67,31 @@ export default function WatchlistPage() {
     signalFilter !== 'all' ? signalFilter : null,
     styleFilter !== 'all' ? styleFilter : null,
     riskFilter !== 'all' ? riskFilter : null,
-  ].flatMap((label) => (label ? [label] : []))
+  ].filter((label) => label !== null)
 
   const description = searchQuery.trim()
     ? `Showing ${filteredItems.length} matches for "${searchQuery}"${filterLabels.length ? ` with ${filterLabels.join(', ')} filters` : ''}.`
     : filterLabels.length > 0
       ? `Showing ${filteredItems.length} of ${totalCount} symbols with ${filterLabels.join(', ')} filters.`
       : `Showing all ${totalCount} symbols.`
-  const scoredCount =
-    watchlistData?.items.filter((item) => item.currentScore).length ?? 0
-  const alertCount =
-    watchlistData?.items.filter((item) => item.scoreAlert).length ?? 0
-  const staleCount =
-    watchlistData?.items.filter(
-      (item) =>
-        item.currentScore?.price.stale ||
-        item.currentScore?.technical.stale ||
-        item.dataQuality?.overallPct === 0,
-    ).length ?? 0
+  const scoredCount = useMemo(
+    () => watchlistData?.items.filter((item) => item.currentScore).length ?? 0,
+    [watchlistData?.items]
+  )
+  const alertCount = useMemo(
+    () => watchlistData?.items.filter((item) => item.scoreAlert).length ?? 0,
+    [watchlistData?.items]
+  )
+  const staleCount = useMemo(
+    () =>
+      watchlistData?.items.filter(
+        (item) =>
+          item.currentScore?.price.stale ||
+          item.currentScore?.technical.stale ||
+          item.dataQuality?.overallPct === 0,
+      ).length ?? 0,
+    [watchlistData?.items]
+  )
 
   return (
     <PageContainer className="py-10">

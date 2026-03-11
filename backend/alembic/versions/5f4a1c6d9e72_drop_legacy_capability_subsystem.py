@@ -38,9 +38,9 @@ def upgrade() -> None:
     _drop_table("celery_capabilities")
     _drop_table("db_capabilities")
 
-    op.execute("DROP FUNCTION IF EXISTS sync_task_completion()")
-    op.execute("DROP FUNCTION IF EXISTS update_feature_tasks_updated_at()")
-    op.execute("DROP FUNCTION IF EXISTS update_feature_capabilities_updated_at()")
+    op.execute("DROP FUNCTION IF EXISTS sync_task_completion() CASCADE")
+    op.execute("DROP FUNCTION IF EXISTS update_feature_tasks_updated_at() CASCADE")
+    op.execute("DROP FUNCTION IF EXISTS update_feature_capabilities_updated_at() CASCADE")
 
 
 def downgrade() -> None:

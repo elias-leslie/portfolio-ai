@@ -35,8 +35,10 @@ def _run_jenny_routine_payload(payload: JennyRunRequest) -> JennyRunResponseMode
     service = _service()
     if payload.routine_type == "weekly_learning":
         result = service.run_weekly_learning(triggered_by="manual")
-    else:
+    elif payload.routine_type == "daily_operator":
         result = service.run_daily_operator(triggered_by="manual")
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown routine_type: {payload.routine_type}")
     return JennyRunResponseModel.model_validate(result.model_dump())
 
 

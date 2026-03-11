@@ -136,4 +136,119 @@ describe('JennyMoneyBoard', () => {
     expect(screen.getByText(/confirm take-home pay\./i)).toBeInTheDocument()
     expect(screen.getByText(/tighten grocery lane/i)).toBeInTheDocument()
   })
+
+  it('shows empty-state messages when prompts, opportunities, resolved values, and evidence coverage are zero', () => {
+    render(
+      <JennyMoneyBoard
+        dashboard={{
+          generatedAt: '2026-03-09T00:00:00Z',
+          overview: {
+            investedAssets: 0,
+            retirementAssets: 0,
+            taxableAssets: 0,
+            cashReserve: 0,
+            totalTrackedAssets: 0,
+            visibilityScore: 72,
+            visibilityLabel: 'Good',
+            nextBestAction: 'Upload one more bank statement.',
+          },
+          profile: {
+            id: 'profile-1',
+            householdName: 'Household',
+            monthlyNetIncomeTarget: null,
+            monthlyEssentialTarget: null,
+            monthlyDiscretionaryTarget: null,
+            monthlySavingsTarget: null,
+            targetRetirementAge: null,
+            targetRetirementSpend: null,
+            notes: null,
+            createdAt: '2026-03-09T00:00:00Z',
+            updatedAt: '2026-03-09T00:00:00Z',
+          },
+          resolvedValues: [],
+          budgetReadiness: {
+            status: 'baseline_visible',
+            summary: 'Ready',
+            priorities: [],
+            missingInputs: [],
+            starterLanes: [],
+          },
+          budgetSnapshot: {
+            status: 'on_track',
+            summary: 'On track',
+            monthlyIncomeTarget: null,
+            monthlyPlanTotal: null,
+            essentialTarget: null,
+            discretionaryTarget: null,
+            savingsTarget: null,
+            actualMonthlySpend: 4250,
+            actualEssentialMonthlySpend: 2600,
+            actualDiscretionaryMonthlySpend: 1650,
+            monthToDateSpend: 2100,
+            monthToDatePlan: 2200,
+            paceStatus: 'on_track',
+            paceDetail: 'Month-to-date spend is tracking close to the plan.',
+            remainingCashAfterPlan: null,
+            discretionaryHeadroom: null,
+          },
+          retirementPreparedness: {
+            status: 'baseline_visible',
+            summary: 'Ready',
+            retirementAccountShare: 42,
+            strengths: [],
+            blockers: [],
+            nextSteps: [],
+          },
+          actionItems: [],
+          opportunities: [],
+          categorizationQueue: [],
+          recurringCommitments: [],
+          sinkingFunds: [],
+          retirementContributionTracker: {
+            status: 'target_missing',
+            monthlyTarget: null,
+            estimatedMonthlyContributions: 0,
+            monthlyGap: 0,
+            detail: 'Set a target.',
+          },
+          retirementScenarios: [],
+          importCenter: {
+            headline: 'Import',
+            trackedDocuments: 0,
+            parsedDocuments: 0,
+            suggestedFirstUploads: [],
+            automations: [],
+            supportedDocuments: [],
+          },
+          questions: [],
+          jennyBrief: {
+            headline: 'Jenny',
+            body: 'Body',
+            prompts: [],
+          },
+          reports: {
+            executive: {
+              headline: 'Jenny now has a real household spending ledger to work from.',
+              summary: 'The report is based on actual tracked expense evidence.',
+              averageMonthlySpend: 4250,
+              averageMonthlyEssentials: 2600,
+              averageMonthlyDiscretionary: 1650,
+              recent30DaySpend: 3980,
+              recurringMerchantCount: 7,
+              trackedExpenseCount: 58,
+              coverageMonths: 0,
+            },
+            categoryBreakdown: [],
+            merchantHighlights: [],
+            monthlySpendTrend: [],
+            recentTransactions: [],
+          },
+        }}
+      />,
+    )
+
+    expect(screen.getByText(/0 prompts · 0 opportunities · 0 resolved values · 0 months of evidence/i)).toBeInTheDocument()
+    expect(screen.getByText(/Jenny does not need a follow-up prompt right now\./i)).toBeInTheDocument()
+    expect(screen.getByText(/No open opportunity queue right now\./i)).toBeInTheDocument()
+  })
 })
