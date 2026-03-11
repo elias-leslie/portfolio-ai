@@ -426,7 +426,8 @@ class HouseholdFinanceService:
             rows = conn.execute(
                 """
                 SELECT DISTINCT ON (field_name)
-                    field_name, value_text, confidence, status, rationale, source_document_id
+                    field_name, value_text, confidence, status, rationale,
+                    source_document_id, metadata->>'source' AS inference_source
                 FROM household_inferred_values
                 ORDER BY field_name, updated_at DESC
                 """
@@ -439,6 +440,7 @@ class HouseholdFinanceService:
                 "status": row[3],
                 "rationale": row[4],
                 "source_document_id": row[5],
+                "source": row[6] if len(row) > 6 else None,
             }
             for row in rows
         }

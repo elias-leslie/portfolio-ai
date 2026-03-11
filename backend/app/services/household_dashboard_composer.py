@@ -34,6 +34,7 @@ from app.services._household_dashboard_queries import (
     fetch_current_month_spend,
     fetch_monthly_retirement_contributions,
     fetch_recurring_commitments,
+    infer_profile_from_transactions,
 )
 
 _IMPORT_CENTER = ImportCenter(
@@ -82,6 +83,20 @@ _JENNY_BRIEF = JennyMoneyBrief(
         "Where is our money leaking month to month?",
     ],
 )
+
+
+def _fields_with_confident_inferences(resolved_values: list[Any], *, threshold: float) -> set[str]:
+    """Return field names that have inferred values at or above the given confidence threshold."""
+    fields: set[str] = set()
+    for rv in resolved_values:
+        if (
+            rv.source == "jenny_inference"
+            and rv.confidence is not None
+            and rv.confidence >= threshold
+            and rv.value is not None
+        ):
+            fields.add(rv.field_name)
+    return fields
 
 
 def _build_import_center(documents: list[Any]) -> ImportCenter:
@@ -206,7 +221,6 @@ class HouseholdDashboardComposer:
         profile = service.get_profile()
         documents = service.list_documents(limit=12).items
         questions = service.list_questions(limit=12).items
-        resolved_values = service.get_resolved_values(profile=profile, questions=questions)
         accounts = [a for a in service.portfolio_mgr.get_accounts() if a.account_type != "paper"]
         positions = service.portfolio_mgr.get_positions()
         account_ids = {a.id for a in accounts}
@@ -214,13 +228,39 @@ class HouseholdDashboardComposer:
         price_data = service._fetch_prices(live_positions)
         holdings_by_account = service._calculate_holdings_by_account(live_positions, price_data)
 
+        # Build reports first so we can infer profile values from transaction data
+        reports = service.transaction_service.build_reports()
+
+        # Auto-infer profile fields from transaction data before resolving values
+        existing_inferences = service._get_inferred_value_rows()
+        infer_profile_from_transactions(
+            service.storage,
+            profile=profile,
+            reports=reports,
+            existing_inferences=existing_inferences,
+        )
+
+        # Re-fetch resolved values now that transaction inferences are persisted
+        resolved_values = service.get_resolved_values(profile=profile, questions=questions)
+
+        # Filter out questions for fields that have high-confidence transaction inferences.
+        # Only target_retirement_age and target_retirement_spend genuinely need user input.
+        non_inferable_fields = {"target_retirement_age", "target_retirement_spend"}
+        inferred_fields = _fields_with_confident_inferences(resolved_values, threshold=0.7)
+        visible_questions = [
+            q for q in questions
+            if q.field_name is None
+            or q.field_name in non_inferable_fields
+            or q.field_name not in inferred_fields
+        ]
+
         overview, retirement_assets, taxable_assets, cash_reserve, total_tracked_assets = _build_overview(
             service=service,
             accounts=accounts,
             live_positions=live_positions,
             holdings_by_account=holdings_by_account,
             documents=documents,
-            questions=questions,
+            questions=visible_questions,
             resolved_values=resolved_values,
         )
         budget_readiness = _build_budget_readiness(
@@ -241,7 +281,6 @@ class HouseholdDashboardComposer:
             taxable_assets=taxable_assets,
             retirement_assets=retirement_assets,
         )
-        reports = service.transaction_service.build_reports()
         budget_snapshot = service._build_budget_snapshot(profile=profile, reports=reports)
         categorization_queue = service._build_categorization_queue()
         recurring_commitments = service._build_recurring_commitments()
@@ -256,7 +295,7 @@ class HouseholdDashboardComposer:
             baseline_monthly_spend=reports.executive.average_monthly_spend,
         )
         action_items = service._build_action_items(
-            questions=questions,
+            questions=visible_questions,
             opportunities=opportunities,
             next_best_action=overview.next_best_action,
             reports=reports,
@@ -281,7 +320,7 @@ class HouseholdDashboardComposer:
             retirement_contribution_tracker=retirement_contribution_tracker,
             retirement_scenarios=retirement_scenarios,
             import_center=_build_import_center(documents),
-            questions=questions,
+            questions=visible_questions,
             jenny_brief=_JENNY_BRIEF,
         )
 

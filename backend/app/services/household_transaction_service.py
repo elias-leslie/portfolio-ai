@@ -85,21 +85,34 @@ def _classify_wells_flow(description: str) -> str:
     return "expense"
 
 
-def _classify_merchant(*, raw_merchant: str, description: str) -> tuple[str, str]:
+def _classify_merchant(*, raw_merchant: str, description: str, amount: float | None = None) -> tuple[str, str]:
     normalized = _merchant_root(f"{raw_merchant} {description}")
     rules = [
-        (["walmart", "wal mart", "wm supercenter", "publix", "whole foods", "food patch"], ("Groceries", "essential")),
-        (["dukeenergy", "utilities", "mortgage", "insurance"], ("Bills", "essential")),
-        (["shell", "speedway", "gas"], ("Gas", "essential")),
-        (["spotify", "cloudflare", "prime", "netflix"], ("Subscriptions", "discretionary")),
+        (["walmart", "wal mart", "wm supercenter", "publix", "whole foods", "food patch", "aldi", "kroger", "costco", "trader joe"], ("Groceries", "essential")),
+        (["dukeenergy", "duke energy", "utilities", "mortgage", "comcast", "xfinity", "att", "a t t", "verizon", "tmobile", "t mobile", "spectrum"], ("Bills", "essential")),
+        (["geico", "statefarm", "state farm", "progressive", "allstate", "insurance"], ("Insurance", "essential")),
+        (["cvs", "walgreens", "urgent care", "pharmacy", "medical", "healthcare", "doctor", "dental"], ("Healthcare", "essential")),
+        (["shell", "speedway", "gas", "chevron", "exxon", "bp"], ("Gas", "essential")),
+        (["uber", "lyft", "parking", "toll"], ("Transportation", "discretionary")),
+        (["lowes", "lowe s", "home depot", "menards", "ace hardware"], ("Home", "discretionary")),
+        (["planet fitness", "gym", "ymca", "fitness"], ("Fitness", "discretionary")),
+        (["spotify", "cloudflare", "prime", "netflix", "hulu", "disney", "hbo", "apple music", "youtube"], ("Subscriptions", "discretionary")),
         (["target", "tjmaxx", "american eagle", "sephora", "amazon"], ("Retail", "discretionary")),
-        (["chipotle", "bonefish", "cantina"], ("Dining", "discretionary")),
+        (["chipotle", "bonefish", "cantina", "mcdonald", "starbucks", "dunkin", "chick fil", "wendy", "taco bell", "subway", "pizza", "grubhub", "doordash", "ubereats"], ("Dining", "discretionary")),
         (["payroll"], ("Income", "essential")),
         (["transfer", "payment thank you", "payment"], ("Transfers", "mixed")),
     ]
     for keywords, classification in rules:
         if any(keyword in normalized for keyword in keywords):
             return classification
+
+    # Amount-range heuristics as a secondary signal for unrecognized merchants
+    if amount is not None:
+        if 5.0 <= amount <= 25.0:
+            return ("Subscriptions", "discretionary")
+        if amount >= 800.0:
+            return ("Bills", "essential")
+
     return ("Household", "mixed")
 
 
@@ -208,12 +221,15 @@ class HouseholdTransactionService:
 
         with self.storage.connection() as conn:
             for transaction in transactions:
-                merchant_id, canonical_name, category, essentiality = self._resolve_merchant(
+                merchant_id, canonical_name, category, essentiality, has_manual_rule = self._resolve_merchant(
                     conn=conn,
                     raw_merchant=transaction.raw_merchant or transaction.description,
                     category=transaction.category,
                     essentiality=transaction.essentiality,
                 )
+                # Auto-apply prior manual categorization with high confidence
+                if has_manual_rule:
+                    transaction.confidence = max(transaction.confidence, 0.90)
                 row_hash = hashlib.sha256(
                     "|".join([
                         document.id,
@@ -475,6 +491,7 @@ class HouseholdTransactionService:
                 category, essentiality = _classify_merchant(
                     raw_merchant=str(structured_data["merchant"]),
                     description=review_summary or filename,
+                    amount=float(parsed_amount),
                 )
                 transactions.append(
                     ExtractedTransaction(
@@ -537,7 +554,7 @@ class HouseholdTransactionService:
             flow_type = _classify_statement_flow(description)
             if flow_type != "expense":
                 amount = abs(amount)
-            category, essentiality = _classify_merchant(raw_merchant=description, description=description)
+            category, essentiality = _classify_merchant(raw_merchant=description, description=description, amount=float(abs(amount)))
             rows.append(
                 ExtractedTransaction(
                     transaction_date=transaction_date,
@@ -595,7 +612,7 @@ class HouseholdTransactionService:
                 if amount is not None and parsed_date is not None:
                     description = re.sub(r"\d[\d,]*\.\d{2}", "", rest).strip()
                     flow_type = _classify_wells_flow(description)
-                    category, essentiality = _classify_merchant(raw_merchant=description, description=description)
+                    category, essentiality = _classify_merchant(raw_merchant=description, description=description, amount=float(amount))
                     rows.append(
                         ExtractedTransaction(
                             transaction_date=parsed_date,
@@ -627,7 +644,7 @@ class HouseholdTransactionService:
                     continue
                 description = " ".join(description_parts).strip()
                 flow_type = _classify_wells_flow(description)
-                category, essentiality = _classify_merchant(raw_merchant=description, description=description)
+                category, essentiality = _classify_merchant(raw_merchant=description, description=description, amount=float(amount))
                 rows.append(
                     ExtractedTransaction(
                         transaction_date=current_date,
@@ -656,7 +673,7 @@ class HouseholdTransactionService:
         raw_merchant: str,
         category: str,
         essentiality: str,
-    ) -> tuple[str | None, str, str, str]:
+    ) -> tuple[str | None, str, str, str, bool]:
         alias_keys = sorted(_merchant_aliases(raw_merchant))
         normalized_key = alias_keys[0] if alias_keys else _merchant_root(raw_merchant)
         if not normalized_key:
@@ -678,6 +695,7 @@ class HouseholdTransactionService:
             category = str(existing[2] or category)
             essentiality = str(existing[3] or essentiality)
             metadata = existing[4] if isinstance(existing[4], dict) else {}
+            has_manual_rule = bool(metadata.get("manual_rule")) if isinstance(metadata, dict) else False
             merged_aliases = sorted({*(metadata.get("alias_keys", []) if isinstance(metadata, dict) else []), *alias_keys})
             conn.execute(
                 """
@@ -698,7 +716,7 @@ class HouseholdTransactionService:
                     merchant_id,
                 ],
             )
-            return merchant_id, canonical_name, category, essentiality
+            return merchant_id, canonical_name, category, essentiality, has_manual_rule
 
         merchant_id = str(uuid.uuid4())
         conn.execute(
@@ -720,7 +738,7 @@ class HouseholdTransactionService:
                 datetime.now(UTC).isoformat(),
             ],
         )
-        return merchant_id, canonical_name, category, essentiality
+        return merchant_id, canonical_name, category, essentiality, False
 
     def _dates_to_cadence(self, observed_dates: list[date]) -> dict[str, object] | None:
         ordered_dates = sorted(set(observed_dates))
