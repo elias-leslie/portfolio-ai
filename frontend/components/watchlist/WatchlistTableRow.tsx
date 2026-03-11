@@ -94,8 +94,13 @@ export function WatchlistTableRow({
       >
         <TableCell data-slot="table-cell">
           <button
+            type="button"
             className="rounded p-1 hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
             aria-label={isExpanded ? 'Collapse row' : 'Expand row'}
+            onClick={(event) => {
+              event.stopPropagation()
+              onToggle()
+            }}
           >
             {isExpanded ? (
               <ChevronDown className="h-4 w-4" />

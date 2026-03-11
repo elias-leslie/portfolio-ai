@@ -101,6 +101,10 @@ export function HouseholdDocumentCenter({
     inputRef.current?.click()
   }
 
+  const handleDropzoneClick = () => {
+    inputRef.current?.click()
+  }
+
   const handleUpload = async () => {
     if (files.length === 0) {
       return
@@ -127,11 +131,13 @@ export function HouseholdDocumentCenter({
             <div
               role="button"
               tabIndex={0}
+              aria-label="Paste, drop, or choose household documents to upload"
               onPaste={handlePaste}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
               onKeyDown={handleDropzoneKeyDown}
+              onClick={handleDropzoneClick}
               className={[
                 'rounded-2xl border border-dashed px-4 py-5 text-sm outline-none transition-colors',
                 isDragActive
@@ -175,13 +181,27 @@ export function HouseholdDocumentCenter({
               Jenny will infer the source, document type, and likely account label from the file contents, filename, and screenshot evidence.
               If anything is ambiguous, she will open a short follow-up question in the household plan queue.
             </div>
-            <Button onClick={() => void handleUpload()} disabled={files.length === 0 || upload.isPending}>
-              {upload.isPending
-                ? 'Uploading...'
-                : files.length > 1
-                  ? 'Stage Documents'
-                  : 'Stage Document'}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                onClick={() => void handleUpload()}
+                disabled={files.length === 0 || upload.isPending}
+              >
+                {upload.isPending
+                  ? 'Uploading...'
+                  : files.length > 1
+                    ? 'Upload Documents'
+                    : 'Upload Document'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={resetComposer}
+                disabled={files.length === 0 || upload.isPending}
+              >
+                Clear Queue
+              </Button>
+            </div>
           </div>
         </div>
 

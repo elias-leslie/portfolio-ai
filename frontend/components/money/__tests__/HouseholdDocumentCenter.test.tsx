@@ -1,6 +1,7 @@
 'use client'
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { HouseholdDocumentCenter } from '../HouseholdDocumentCenter'
 
@@ -41,7 +42,7 @@ describe('HouseholdDocumentCenter', () => {
     expect(screen.getByText(/ready to upload: 1 file/i)).toBeInTheDocument()
     expect(screen.getByText('clipboard.png')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /stage document/i }))
+    fireEvent.click(screen.getByRole('button', { name: /upload document/i }))
 
     await waitFor(() => {
       expect(mutateAsync).toHaveBeenCalledWith(
@@ -67,9 +68,9 @@ describe('HouseholdDocumentCenter', () => {
     })
 
     expect(screen.getByText(/ready to upload: 2 files/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /stage documents/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /upload documents/i })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /stage documents/i }))
+    fireEvent.click(screen.getByRole('button', { name: /upload documents/i }))
 
     await waitFor(() => {
       expect(mutateAsync).toHaveBeenCalledTimes(2)
@@ -114,5 +115,26 @@ describe('HouseholdDocumentCenter', () => {
     expect(screen.getByText(/source pending · type pending/i)).toBeInTheDocument()
     expect(screen.getByText(/^staged$/i)).toBeInTheDocument()
     expect(screen.getByText(/older document awaiting re-review/i)).toBeInTheDocument()
+  })
+
+  it('clears the staged file queue without uploading', async () => {
+    const user = userEvent.setup()
+    render(<HouseholdDocumentCenter documents={[]} />)
+
+    const january = new File(['jan'], 'january.pdf', { type: 'application/pdf' })
+    const input = screen.getByLabelText(/file/i)
+
+    fireEvent.change(input, {
+      target: {
+        files: [january],
+      },
+    })
+
+    expect(screen.getByText(/ready to upload: 1 file/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /clear queue/i }))
+
+    expect(screen.queryByText(/ready to upload: 1 file/i)).not.toBeInTheDocument()
+    expect(mutateAsync).not.toHaveBeenCalled()
   })
 })
