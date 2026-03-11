@@ -17,6 +17,15 @@ from ..storage.connection import get_connection_manager
 logger = get_logger(__name__)
 
 
+def _exec(sql: str, params: list[Any]) -> Any:
+    """Execute SQL, commit, and return fetchone result. Raises on error."""
+    conn_mgr = get_connection_manager()
+    with conn_mgr.connection() as conn:
+        result = conn.execute(sql, params).fetchone()
+        conn.commit()
+        return result
+
+
 def log_maintenance_start(task_name: str, dry_run: bool = False) -> int:
     """Log the start of a maintenance task.
 
@@ -27,25 +36,19 @@ def log_maintenance_start(task_name: str, dry_run: bool = False) -> int:
     Returns:
         ID of the created log entry for later update
     """
-    conn_mgr = get_connection_manager()
-
     try:
-        with conn_mgr.connection() as conn:
-            result = conn.execute(
-                """
-                INSERT INTO maintenance_log (task_name, started_at, status, dry_run)
-                VALUES (%s, %s, 'running', %s)
-                RETURNING id
-                """,
-                [task_name, datetime.now(UTC), dry_run],
-            ).fetchone()
-            conn.commit()
-
-            if result and result[0] is not None:
-                return int(result[0])
+        result = _exec(
+            """
+            INSERT INTO maintenance_log (task_name, started_at, status, dry_run)
+            VALUES (%s, %s, 'running', %s)
+            RETURNING id
+            """,
+            [task_name, datetime.now(UTC), dry_run],
+        )
+        if result and result[0] is not None:
+            return int(result[0])
     except Exception as e:
         logger.warning("maintenance_log_start_failed", task_name=task_name, error=str(e))
-
     return 0  # Return 0 if logging fails - task should still proceed
 
 
@@ -63,31 +66,18 @@ def record_maintenance_metric(
         metric_unit: Unit of measurement (e.g., 'bytes', 'percentage', 'count')
         metadata: Optional JSON string with additional context
     """
-    conn_mgr = get_connection_manager()
+    cols = "metric_name, metric_value, metric_unit"
+    placeholders = "%s, %s, %s"
+    params: list[Any] = [metric_name, metric_value, metric_unit]
+    if metadata:
+        cols += ", metadata"
+        placeholders += ", %s"
+        params.append(metadata)
     try:
-        with conn_mgr.connection() as conn:
-            if metadata:
-                conn.execute(
-                    """
-                    INSERT INTO maintenance_stats (metric_name, metric_value, metric_unit, metadata)
-                    VALUES (%s, %s, %s, %s)
-                    """,
-                    [metric_name, metric_value, metric_unit, metadata],
-                )
-            else:
-                conn.execute(
-                    """
-                    INSERT INTO maintenance_stats (metric_name, metric_value, metric_unit)
-                    VALUES (%s, %s, %s)
-                    """,
-                    [metric_name, metric_value, metric_unit],
-                )
-            conn.commit()
+        _exec(f"INSERT INTO maintenance_stats ({cols}) VALUES ({placeholders})", params)
     except Exception as e:
         logger.warning(
-            "maintenance_metric_record_failed",
-            metric_name=metric_name,
-            error=str(e),
+            "maintenance_metric_record_failed", metric_name=metric_name, error=str(e)
         )
 
 
@@ -107,55 +97,40 @@ def log_maintenance_complete(
         summary: Task result summary dict
         error_message: Error message if failed
     """
+    status = "success" if success else "error"
+    summary_json = json.dumps(summary) if summary else None
+
     if log_id == 0:
         # Start logging failed, try to create a complete record instead
-        conn_mgr = get_connection_manager()
+        now = datetime.now(UTC)
+        dry_run = summary.get("dry_run", False) if summary else False
         try:
-            with conn_mgr.connection() as conn:
-                conn.execute(
-                    """
-                    INSERT INTO maintenance_log
-                    (task_name, started_at, completed_at, status, dry_run, summary, error_message)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    """,
-                    [
-                        task_name,
-                        datetime.now(UTC),
-                        datetime.now(UTC),
-                        "success" if success else "error",
-                        summary.get("dry_run", False) if summary else False,
-                        json.dumps(summary) if summary else None,
-                        error_message,
-                    ],
-                )
-                conn.commit()
+            _exec(
+                """
+                INSERT INTO maintenance_log
+                (task_name, started_at, completed_at, status, dry_run, summary, error_message)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """,
+                [task_name, now, now, status, dry_run, summary_json, error_message],
+            )
         except Exception as e:
             logger.warning(
                 "maintenance_log_complete_insert_failed", task_name=task_name, error=str(e)
             )
         return
 
-    conn_mgr = get_connection_manager()
     try:
-        with conn_mgr.connection() as conn:
-            conn.execute(
-                """
-                UPDATE maintenance_log
-                SET completed_at = %s,
-                    status = %s,
-                    summary = %s,
-                    error_message = %s
-                WHERE id = %s
-                """,
-                [
-                    datetime.now(UTC),
-                    "success" if success else "error",
-                    json.dumps(summary) if summary else None,
-                    error_message,
-                    log_id,
-                ],
-            )
-            conn.commit()
+        _exec(
+            """
+            UPDATE maintenance_log
+            SET completed_at = %s,
+                status = %s,
+                summary = %s,
+                error_message = %s
+            WHERE id = %s
+            """,
+            [datetime.now(UTC), status, summary_json, error_message, log_id],
+        )
     except Exception as e:
         logger.warning(
             "maintenance_log_complete_failed", log_id=log_id, task_name=task_name, error=str(e)
