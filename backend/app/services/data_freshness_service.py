@@ -104,7 +104,7 @@ TABLE_FRESHNESS_CONFIG: list[TableFreshnessConfig] = [
     },
     {
         "table_name": "options_market_metrics",
-        "date_column": "date",
+        "date_column": "source_timestamp",
         "expected_hours": 24,
         "critical_hours": 72,
         "market_data": True,
@@ -118,7 +118,7 @@ TABLE_FRESHNESS_CONFIG: list[TableFreshnessConfig] = [
     },
     {
         "table_name": "reference_cache",
-        "date_column": "fetched_at",
+        "date_column": "as_of_date",
         "expected_hours": 24,
         "critical_hours": 72,
         "market_data": False,

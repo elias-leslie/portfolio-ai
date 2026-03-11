@@ -11,6 +11,11 @@ from typing import Any, cast
 from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy, Context
 
 from ..hatchet_app import hatchet
+from .data_refresh_schedules import (
+    FEAR_GREED_CALC_CRONS,
+    FEAR_GREED_INPUTS_CRONS,
+    PUTCALL_RATIO_CRONS,
+)
 from .models import EmptyInput, SymbolsInput
 
 
@@ -76,7 +81,7 @@ async def backfill_indicators_wf(input: EmptyInput, ctx: Context) -> dict[str, A
     execution_timeout="3600s",
     retries=3,
     backoff_factor=2.0,
-    on_crons=["45 2 * * *"],
+    on_crons=FEAR_GREED_INPUTS_CRONS,
     concurrency=ConcurrencyExpression(
         expression="'portfolio-fg-inputs'",
         max_runs=1,
@@ -95,7 +100,7 @@ async def populate_fear_greed_inputs_wf(input: EmptyInput, ctx: Context) -> dict
     execution_timeout="1800s",
     retries=3,
     backoff_factor=2.0,
-    on_crons=["2 3 * * *"],
+    on_crons=FEAR_GREED_CALC_CRONS,
     concurrency=ConcurrencyExpression(
         expression="'portfolio-fg-calc'",
         max_runs=1,
@@ -151,7 +156,7 @@ async def fetch_options_activity_wf(input: EmptyInput, ctx: Context) -> dict[str
     execution_timeout="1800s",
     retries=3,
     backoff_factor=2.0,
-    on_crons=["30 14 * * *"],
+    on_crons=PUTCALL_RATIO_CRONS,
     concurrency=ConcurrencyExpression(
         expression="'portfolio-putcall-ratio'",
         max_runs=1,

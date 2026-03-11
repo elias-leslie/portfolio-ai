@@ -53,3 +53,13 @@ def test_check_table_freshness_treats_market_dates_as_close_time(monkeypatch) ->
     assert result["is_stale"] is True
     assert result["is_critical"] is False
     assert result["age_hours"] == 29.57
+
+
+def test_table_freshness_config_uses_live_options_and_reference_columns() -> None:
+    config_by_table = {
+        config["table_name"]: config["date_column"]
+        for config in data_freshness_service.TABLE_FRESHNESS_CONFIG
+    }
+
+    assert config_by_table["options_market_metrics"] == "source_timestamp"
+    assert config_by_table["reference_cache"] == "as_of_date"
