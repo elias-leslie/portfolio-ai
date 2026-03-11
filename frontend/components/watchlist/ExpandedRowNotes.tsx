@@ -90,6 +90,7 @@ export function ExpandedRowNotes({ item }: ExpandedRowNotesProps) {
                   size="sm"
                   onClick={handleCancelEdit}
                   disabled={updateMutation.isPending}
+                  aria-busy={updateMutation.isPending}
                 >
                   <X className="mr-1 h-3 w-3" />
                   Cancel
@@ -98,6 +99,7 @@ export function ExpandedRowNotes({ item }: ExpandedRowNotesProps) {
                   size="sm"
                   onClick={handleSaveNote}
                   disabled={updateMutation.isPending}
+                  aria-busy={updateMutation.isPending}
                 >
                   <Save className="mr-1 h-3 w-3" />
                   Save

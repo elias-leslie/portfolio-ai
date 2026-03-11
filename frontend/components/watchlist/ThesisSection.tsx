@@ -109,6 +109,7 @@ export function ThesisSection({ symbol, userTimezone }: ThesisSectionProps) {
           <Button
             onClick={() => generateMutation.mutate(false)}
             disabled={generateMutation.isPending}
+            aria-busy={generateMutation.isPending}
             size="sm"
           >
             {generateMutation.isPending ? 'Generating...' : 'Generate Thesis'}
@@ -189,6 +190,7 @@ export function ThesisSection({ symbol, userTimezone }: ThesisSectionProps) {
             <Button
               onClick={() => generateMutation.mutate(true)}
               disabled={generateMutation.isPending}
+              aria-busy={generateMutation.isPending}
               size="sm"
               variant="outline"
             >
@@ -207,6 +209,7 @@ export function ThesisSection({ symbol, userTimezone }: ThesisSectionProps) {
                   invalidateMutation.mutate('Manual invalidation by user')
                 }
                 disabled={invalidateMutation.isPending}
+                aria-busy={invalidateMutation.isPending}
                 size="sm"
                 variant="destructive"
               >
