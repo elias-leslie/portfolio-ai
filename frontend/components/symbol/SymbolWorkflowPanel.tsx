@@ -127,6 +127,7 @@ export function SymbolWorkflowPanel({
                       variant={stage === 'invalidated' ? 'destructive' : 'outline'}
                       onClick={() => transitionWorkflow.mutate({ stage })}
                       disabled={transitionWorkflow.isPending}
+                      aria-busy={transitionWorkflow.isPending}
                     >
                       {stage === 'discover' ? (
                         <RotateCcw className="mr-2 h-4 w-4" />
@@ -167,6 +168,7 @@ export function SymbolWorkflowPanel({
                       })
                     }
                     disabled={recordOutcome.isPending}
+                    aria-busy={recordOutcome.isPending}
                   >
                     {action === 'exit' ? 'Record exit' : action === 'hold' ? 'Record hold' : action === 'trim' ? 'Record trim' : 'Invalidate'}
                   </Button>

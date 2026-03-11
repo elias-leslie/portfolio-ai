@@ -95,7 +95,11 @@ export function EditPositionDialog({
             onPositionTypeChange={onPositionTypeChange}
           />
           <DialogFooter>
-            <Button type="submit" disabled={!canSubmit || isPending}>
+            <Button
+              type="submit"
+              disabled={!canSubmit || isPending}
+              aria-busy={isPending}
+            >
               {isPending ? 'Updating...' : 'Update Position'}
             </Button>
           </DialogFooter>

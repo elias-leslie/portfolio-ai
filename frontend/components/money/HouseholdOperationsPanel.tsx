@@ -270,6 +270,7 @@ export function HouseholdOperationsPanel({
                         })
                       }
                       disabled={categorizeTransaction.isPending}
+                      aria-busy={categorizeTransaction.isPending}
                     >
                       Save this row
                     </Button>
@@ -290,6 +291,7 @@ export function HouseholdOperationsPanel({
                           })
                         }
                         disabled={categorizeTransaction.isPending}
+                        aria-busy={categorizeTransaction.isPending}
                       >
                         Apply to similar
                       </Button>

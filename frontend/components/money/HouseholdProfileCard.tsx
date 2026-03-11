@@ -98,7 +98,11 @@ export function HouseholdProfileCard({
       title="Jenny Household Plan"
       description="Jenny should infer most of this from your documents. Use manual overrides only when you want to steer or confirm the plan directly."
       actions={
-        <Button onClick={handleSubmit} disabled={updateProfile.isPending}>
+        <Button
+          onClick={handleSubmit}
+          disabled={updateProfile.isPending}
+          aria-busy={updateProfile.isPending}
+        >
           {updateProfile.isPending ? 'Saving...' : 'Save Overrides'}
         </Button>
       }

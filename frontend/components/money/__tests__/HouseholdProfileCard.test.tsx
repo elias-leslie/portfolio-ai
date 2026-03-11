@@ -1,15 +1,17 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { HouseholdProfileCard } from '../HouseholdProfileCard'
 
 const mutate = vi.fn()
 const answerMutate = vi.fn()
+const useUpdateHouseholdProfileMock = vi.fn()
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
-  useUpdateHouseholdProfile: () => ({
-    mutate,
-    isPending: false,
-  }),
+  useUpdateHouseholdProfile: () =>
+    useUpdateHouseholdProfileMock() ?? {
+      mutate,
+      isPending: false,
+    },
   useAnswerHouseholdQuestion: () => ({
     mutate: answerMutate,
     isPending: false,
@@ -17,6 +19,10 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
 }))
 
 describe('HouseholdProfileCard', () => {
+  beforeEach(() => {
+    useUpdateHouseholdProfileMock.mockReset()
+  })
+
   it('submits the edited household plan', () => {
     render(
       <HouseholdProfileCard
@@ -139,5 +145,34 @@ describe('HouseholdProfileCard', () => {
     expect(
       screen.getByText(/jenny has not resolved any structured planning values yet/i),
     ).toBeInTheDocument()
+  })
+
+  it('marks the save action busy while overrides are saving', () => {
+    useUpdateHouseholdProfileMock.mockReturnValue({
+      mutate,
+      isPending: true,
+    })
+
+    render(
+      <HouseholdProfileCard
+        profile={{
+          id: 'profile-1',
+          householdName: 'Household',
+          monthlyNetIncomeTarget: null,
+          monthlyEssentialTarget: null,
+          monthlyDiscretionaryTarget: null,
+          monthlySavingsTarget: null,
+          targetRetirementAge: null,
+          targetRetirementSpend: null,
+          notes: null,
+          createdAt: '2026-03-09T00:00:00Z',
+          updatedAt: '2026-03-09T00:00:00Z',
+        }}
+        resolvedValues={[]}
+        questions={[]}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: /saving/i })).toHaveAttribute('aria-busy', 'true')
   })
 })

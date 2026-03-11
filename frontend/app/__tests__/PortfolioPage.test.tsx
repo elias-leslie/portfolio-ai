@@ -203,4 +203,27 @@ describe('PortfolioPage', () => {
       )
     })
   })
+
+  it('marks submit actions busy while portfolio mutations are pending', async () => {
+    const user = userEvent.setup()
+    mockUseAddPosition.mockReturnValue({
+      mutate: addPositionMutate,
+      isPending: true,
+    })
+    mockUseCreateAccount.mockReturnValue({
+      mutate: createAccountMutate,
+      isPending: true,
+    })
+
+    const { default: PortfolioPage } = await import('../portfolio/page')
+
+    render(<PortfolioPage />)
+
+    await user.click(screen.getByRole('button', { name: 'Open Add Account' }))
+    expect(screen.getByRole('button', { name: 'Creating...' })).toHaveAttribute('aria-busy', 'true')
+
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    await user.click(screen.getByRole('button', { name: 'Open Add Position' }))
+    expect(screen.getByRole('button', { name: 'Adding...' })).toHaveAttribute('aria-busy', 'true')
+  })
 })

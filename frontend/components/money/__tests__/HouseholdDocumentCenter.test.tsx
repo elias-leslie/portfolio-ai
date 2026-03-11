@@ -7,19 +7,22 @@ import { HouseholdDocumentCenter } from '../HouseholdDocumentCenter'
 
 const mutate = vi.fn()
 const mutateAsync = vi.fn()
+const useUploadHouseholdDocumentMock = vi.fn()
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
-  useUploadHouseholdDocument: () => ({
-    mutate,
-    mutateAsync,
-    isPending: false,
-  }),
+  useUploadHouseholdDocument: () =>
+    useUploadHouseholdDocumentMock() ?? {
+      mutate,
+      mutateAsync,
+      isPending: false,
+    },
 }))
 
 describe('HouseholdDocumentCenter', () => {
   beforeEach(() => {
     mutate.mockReset()
     mutateAsync.mockReset()
+    useUploadHouseholdDocumentMock.mockReset()
   })
 
   it('stages a pasted screenshot and uploads it', async () => {
@@ -205,5 +208,25 @@ describe('HouseholdDocumentCenter', () => {
     expect(screen.getByText('Match merchants automatically')).toBeInTheDocument()
     expect(screen.getByText(/statement window mar 1, 2026 to mar 31, 2026/i)).toBeInTheDocument()
     expect(screen.getByText(/classifier 87%/i)).toBeInTheDocument()
+  })
+
+  it('marks upload controls busy while household documents are uploading', () => {
+    useUploadHouseholdDocumentMock.mockReturnValue({
+      mutate,
+      mutateAsync,
+      isPending: true,
+    })
+
+    render(<HouseholdDocumentCenter documents={[]} />)
+
+    const january = new File(['jan'], 'january.pdf', { type: 'application/pdf' })
+    fireEvent.change(screen.getByLabelText(/file/i), {
+      target: {
+        files: [january],
+      },
+    })
+
+    expect(screen.getByRole('button', { name: /uploading/i })).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('button', { name: /clear queue/i })).toHaveAttribute('aria-busy', 'true')
   })
 })

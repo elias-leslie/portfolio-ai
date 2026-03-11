@@ -229,6 +229,7 @@ export default function PortfolioPage() {
               <Button
                 type="submit"
                 disabled={!canSubmitAccountForm || createAccount.isPending}
+                aria-busy={createAccount.isPending}
               >
                 {createAccount.isPending ? 'Creating...' : 'Create Account'}
               </Button>
@@ -278,6 +279,7 @@ export default function PortfolioPage() {
               <Button
                 type="submit"
                 disabled={!canSubmitPositionForm || addPosition.isPending}
+                aria-busy={addPosition.isPending}
               >
                 {addPosition.isPending ? 'Adding...' : 'Add Position'}
               </Button>

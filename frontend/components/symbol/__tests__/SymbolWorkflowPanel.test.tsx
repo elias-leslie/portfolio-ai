@@ -6,6 +6,8 @@ import { SymbolWorkflowPanel } from '../SymbolWorkflowPanel'
 const transitionMutate = vi.fn()
 const outcomeMutate = vi.fn()
 const useSymbolWorkflowMock = vi.fn()
+const useTransitionWorkflowMock = vi.fn()
+const useRecordOutcomeMock = vi.fn()
 
 vi.mock('@/lib/hooks/useSymbolIntelligence', () => ({
   useSymbolWorkflow: () =>
@@ -32,19 +34,23 @@ vi.mock('@/lib/hooks/useSymbolIntelligence', () => ({
       isLoading: false,
       error: null,
     },
-  useTransitionSymbolWorkflow: () => ({
-    mutate: transitionMutate,
-    isPending: false,
-  }),
-  useRecordSymbolWorkflowOutcome: () => ({
-    mutate: outcomeMutate,
-    isPending: false,
-  }),
+  useTransitionSymbolWorkflow: () =>
+    useTransitionWorkflowMock() ?? {
+      mutate: transitionMutate,
+      isPending: false,
+    },
+  useRecordSymbolWorkflowOutcome: () =>
+    useRecordOutcomeMock() ?? {
+      mutate: outcomeMutate,
+      isPending: false,
+    },
 }))
 
 describe('SymbolWorkflowPanel', () => {
   it('supports both workflow transitions and outcome capture', async () => {
     useSymbolWorkflowMock.mockReset()
+    useTransitionWorkflowMock.mockReset()
+    useRecordOutcomeMock.mockReset()
     const user = userEvent.setup()
 
     render(
@@ -92,5 +98,22 @@ describe('SymbolWorkflowPanel', () => {
 
     expect(screen.getByText(/no action until earnings/i)).toBeInTheDocument()
     expect(screen.getByText(/no stage transitions are available right now/i)).toBeInTheDocument()
+  })
+
+  it('marks workflow actions busy while a transition is saving', () => {
+    useSymbolWorkflowMock.mockReset()
+    useTransitionWorkflowMock.mockReturnValue({
+      mutate: transitionMutate,
+      isPending: true,
+    })
+    useRecordOutcomeMock.mockReturnValue({
+      mutate: outcomeMutate,
+      isPending: true,
+    })
+
+    render(<SymbolWorkflowPanel symbol="VTI" latestReview={null} />)
+
+    expect(screen.getByRole('button', { name: /move to live/i })).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('button', { name: /record hold/i })).toHaveAttribute('aria-busy', 'true')
   })
 })

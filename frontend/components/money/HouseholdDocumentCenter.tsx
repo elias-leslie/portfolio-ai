@@ -201,6 +201,7 @@ export function HouseholdDocumentCenter({
                 type="button"
                 onClick={() => void handleUpload()}
                 disabled={files.length === 0 || upload.isPending}
+                aria-busy={upload.isPending}
               >
                 {upload.isPending
                   ? 'Uploading...'
@@ -213,6 +214,7 @@ export function HouseholdDocumentCenter({
                 variant="outline"
                 onClick={resetComposer}
                 disabled={files.length === 0 || upload.isPending}
+                aria-busy={upload.isPending}
               >
                 Clear Queue
               </Button>
