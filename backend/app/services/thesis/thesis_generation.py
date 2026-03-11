@@ -64,19 +64,23 @@ class ThesisGenerator:
             logger.error("json_parse_failed", content_preview=content[:500], error=str(e))
             raise ValueError(f"Failed to parse JSON from LLM response: {e}") from e
 
+    def _parse_float_str(self, value: str) -> float | None:
+        """Parse a float from a stripped non-empty string, returning None on failure."""
+        stripped = value.strip()
+        if not stripped:
+            return None
+        try:
+            return float(stripped)
+        except ValueError:
+            return None
+
     def _coerce_float(self, value: Any) -> float | None:
         if value is None or isinstance(value, bool):
             return None
         if isinstance(value, int | float):
             return float(value)
         if isinstance(value, str):
-            stripped = value.strip()
-            if not stripped:
-                return None
-            try:
-                return float(stripped)
-            except ValueError:
-                return None
+            return self._parse_float_str(value)
         return None
 
     def _sanitize_intelligence_for_prompt(self, intelligence: dict[str, Any]) -> dict[str, Any]:
