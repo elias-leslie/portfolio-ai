@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Sparkline } from '@/components/ui/sparkline'
 import { ExpandedRow } from '@/components/watchlist/ExpandedRow'
-import { getDataQualityBgColor, getDataQualityColor, getRiskLevelConfig } from '@/components/watchlist/ExpandedRowUtils'
+import { getDataQualityBgColor, getDataQualityColor, getRiskLevelConfig, getScoreBadgeVariant } from '@/components/watchlist/ExpandedRowUtils'
 import { SourceBadge } from '@/components/watchlist/SourceBadge'
 import { formatDate } from '@/components/watchlist/watchlistTableUtils'
 import type { RefreshStatus, WatchlistItem } from '@/lib/api/watchlist'
@@ -20,18 +20,6 @@ interface WatchlistCardProps {
   userTimezone: string
   onDelete: (itemId: string, symbol: string) => void
   isDeleting: boolean
-}
-
-// Get score badge variant based on score value
-const getScoreBadgeVariant = (
-  score: number,
-): 'viz-0' | 'viz-1' | 'viz-2' | 'viz-3' | 'viz-4' | 'viz-5' => {
-  if (score >= 80) return 'viz-5'
-  if (score >= 60) return 'viz-4'
-  if (score >= 40) return 'viz-3'
-  if (score >= 20) return 'viz-2'
-  if (score >= 10) return 'viz-1'
-  return 'viz-0'
 }
 
 export function WatchlistCard({

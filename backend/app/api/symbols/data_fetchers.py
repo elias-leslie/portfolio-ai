@@ -70,7 +70,7 @@ def get_watchlist_data(symbol: str, watchlist_service: WatchlistService) -> dict
                 return result
         return None
     except Exception as e:
-        logger.warning(f"Failed to get watchlist data for {symbol}: {e}")
+        logger.warning("watchlist_data_fetch_failed", symbol=symbol, error=str(e))
         return None
 
 
@@ -108,7 +108,7 @@ def get_portfolio_data(symbol: str, storage: PortfolioStorage) -> dict[str, Any]
             if sum_row and summary_result.description:
                 summary = row_to_dict(sum_row, summary_result.description)
     except Exception as e:
-        logger.warning(f"Failed to get portfolio data for {symbol}: {e}")
+        logger.warning("portfolio_data_fetch_failed", symbol=symbol, error=str(e))
 
     return {"position": position, "summary": summary}
 
@@ -135,7 +135,7 @@ def get_strategies_data(symbol: str, storage: PortfolioStorage) -> dict[str, Any
             if rows and result.description:
                 strategies = rows_to_dicts(rows, result.description)
     except Exception as e:
-        logger.warning(f"Failed to get strategies data for {symbol}: {e}")
+        logger.warning("strategies_data_fetch_failed", symbol=symbol, error=str(e))
 
     return {
         "strategies": strategies,
@@ -162,7 +162,7 @@ def get_news_data(symbol: str, storage: PortfolioStorage) -> dict[str, Any]:
             if row and result.description:
                 return row_to_dict(row, result.description)
     except Exception as e:
-        logger.warning(f"Failed to get news data for {symbol}: {e}")
+        logger.warning("news_data_fetch_failed", symbol=symbol, error=str(e))
     return {}
 
 
@@ -185,7 +185,7 @@ def get_market_data(storage: PortfolioStorage) -> dict[str, Any]:
             if fg_row and fg_result.description:
                 fear_greed = row_to_dict(fg_row, fg_result.description)
     except Exception as e:
-        logger.warning(f"Failed to get fear/greed data: {e}")
+        logger.warning("fear_greed_data_fetch_failed", error=str(e))
 
     try:
         with storage.connection() as conn:
@@ -206,7 +206,7 @@ def get_market_data(storage: PortfolioStorage) -> dict[str, Any]:
                     if r["symbol"] not in indicators:
                         indicators[r["symbol"]] = r
     except Exception as e:
-        logger.warning(f"Failed to get market indicators: {e}")
+        logger.warning("market_indicators_fetch_failed", error=str(e))
 
     return {
         "fear_greed": fear_greed,

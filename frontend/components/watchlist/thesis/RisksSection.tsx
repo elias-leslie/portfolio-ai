@@ -6,8 +6,8 @@ export function RisksSection({ risks }: { risks: Risk[] }) {
     <div className="border-t border-border pt-3 space-y-2">
       <h5 className="text-xs font-semibold text-text">Risks</h5>
       <div className="space-y-2">
-        {risks.map((risk, idx) => (
-          <div key={idx} className="space-y-1">
+        {risks.map((risk) => (
+          <div key={risk.risk} className="space-y-1">
             <div className="flex items-start gap-2">
               <SeverityBadge severity={risk.severity} />
               <div className="flex-1">

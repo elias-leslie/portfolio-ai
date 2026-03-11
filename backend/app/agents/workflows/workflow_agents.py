@@ -72,7 +72,7 @@ def assign_task_to_agent(
             )
             conn.commit()
 
-        logger.info(f"Assigned task to {agent_type} in workflow {workflow_id}: {task[:100]}")
+        logger.info("task_assigned", agent_type=agent_type, workflow_id=workflow_id, task_preview=task[:100])
 
         return {
             "status": "assigned",
@@ -82,7 +82,7 @@ def assign_task_to_agent(
         }
 
     except Exception as e:
-        logger.error(f"Failed to assign task: {e}")
+        logger.error("task_assignment_failed", error=str(e))
         return {
             "status": "error",
             "error": str(e),
@@ -113,7 +113,7 @@ def record_agent_output(
         )
 
         if result.is_empty():
-            logger.error(f"Workflow {workflow_id} not found")
+            logger.error("workflow_not_found", workflow_id=workflow_id)
             return
 
         shared_context = result.get_column("shared_context")[0]
@@ -143,10 +143,10 @@ def record_agent_output(
             )
             conn.commit()
 
-        logger.info(f"Recorded output from {agent_type} in workflow {workflow_id}")
+        logger.info("agent_output_recorded", agent_type=agent_type, workflow_id=workflow_id)
 
     except Exception as e:
-        logger.error(f"Failed to record agent output: {e}")
+        logger.error("agent_output_recording_failed", error=str(e))
 
 
 def collect_agent_outputs(storage: PortfolioStorage, workflow_id: str) -> dict[str, object]:
@@ -179,5 +179,5 @@ def collect_agent_outputs(storage: PortfolioStorage, workflow_id: str) -> dict[s
         return collected
 
     except Exception as e:
-        logger.error(f"Failed to collect agent outputs: {e}")
+        logger.error("agent_output_collection_failed", error=str(e))
         return {}

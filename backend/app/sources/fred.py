@@ -169,7 +169,7 @@ class FREDSource:
 
         series_id = self.INDICATORS.get(indicator)
         if not series_id:
-            logger.warning(f"Unknown indicator: {indicator}")
+            logger.warning("unknown_indicator", indicator=indicator)
             return None
 
         try:
@@ -193,7 +193,7 @@ class FREDSource:
             return None
 
         except Exception as e:
-            logger.error(f"Failed to fetch {indicator} from FRED: {e}")
+            logger.error("fred_fetch_failed", indicator=indicator, error=str(e))
             return None
 
     def fetch_multiple(self, indicators: list[str]) -> dict[str, FREDDataDict]:
@@ -236,7 +236,7 @@ class FREDSource:
 
         series_id = self.INDICATORS.get(indicator)
         if not series_id:
-            logger.warning(f"Unknown indicator: {indicator}")
+            logger.warning("unknown_indicator", indicator=indicator)
             return []
 
         try:
@@ -274,14 +274,14 @@ class FREDSource:
                         value = float(value_str)
                         results.append((obs_date, value))
                     except (ValueError, KeyError) as e:
-                        logger.warning(f"Skipping invalid observation: {obs}, error: {e}")
+                        logger.warning("skipping_invalid_observation", observation=obs, error=str(e))
                         continue
 
-            logger.info(f"Fetched {len(results)} observations for {indicator} (series {series_id})")
+            logger.info("fred_series_fetched", indicator=indicator, series_id=series_id, count=len(results))
             return results
 
         except Exception as e:
-            logger.error(f"Failed to fetch {indicator} series from FRED: {e}")
+            logger.error("fred_series_fetch_failed", indicator=indicator, error=str(e))
             return []
 
     def get_latest_value(self, indicator: str) -> tuple[date, float] | None:
@@ -302,7 +302,7 @@ class FREDSource:
             value = float(data["value"])
             return (obs_date, value)
         except (ValueError, KeyError) as e:
-            logger.error(f"Failed to parse latest value for {indicator}: {e}")
+            logger.error("fred_parse_latest_failed", indicator=indicator, error=str(e))
             return None
 
     def fetch_yield_curve(self, as_of_date: date | None = None) -> dict[str, float | bool | None]:

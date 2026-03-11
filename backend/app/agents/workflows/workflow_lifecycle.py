@@ -79,8 +79,10 @@ def start_workflow(
             conn.commit()
 
         logger.info(
-            f"Started workflow {workflow_id} ({workflow_type}) "
-            f"with agents: {agents_involved or 'none'}"
+            "workflow_started",
+            workflow_id=workflow_id,
+            workflow_type=workflow_type,
+            agents_involved=agents_involved or [],
         )
 
         return {
@@ -91,7 +93,7 @@ def start_workflow(
         }
 
     except Exception as e:
-        logger.error(f"Failed to start workflow: {e}")
+        logger.error("workflow_start_failed", error=str(e))
         return {
             "status": "error",
             "error": str(e),
@@ -164,7 +166,7 @@ def update_workflow_status(
         )
         conn.commit()
 
-    logger.info(f"Workflow {workflow_id} status updated to {status}")
+    logger.info("workflow_status_updated", workflow_id=workflow_id, status=status)
 
 
 def complete_workflow(
@@ -192,7 +194,7 @@ def complete_workflow(
             )
             conn.commit()
 
-        logger.info(f"Workflow {workflow_id} completed successfully")
+        logger.info("workflow_completed", workflow_id=workflow_id)
 
         return {
             "status": "completed",
@@ -201,7 +203,7 @@ def complete_workflow(
         }
 
     except Exception as e:
-        logger.error(f"Failed to complete workflow: {e}")
+        logger.error("workflow_completion_failed", error=str(e))
         return {
             "status": "error",
             "error": str(e),
@@ -248,7 +250,10 @@ def fail_workflow(
                         conn.commit()
 
                     logger.info(
-                        f"Workflow {workflow_id} queued for retry ({retry_count + 1}/{max_retries})"
+                        "workflow_retry_queued",
+                        workflow_id=workflow_id,
+                        retry_count=retry_count + 1,
+                        max_retries=max_retries,
                     )
 
                     return {
@@ -269,7 +274,7 @@ def fail_workflow(
                 [error, datetime.now(UTC), workflow_id],
             )
 
-        logger.error(f"Workflow {workflow_id} failed: {error}")
+        logger.error("workflow_failed", workflow_id=workflow_id, error=error)
 
         return {
             "status": "failed",
@@ -278,7 +283,7 @@ def fail_workflow(
         }
 
     except Exception as e:
-        logger.error(f"Failed to mark workflow as failed: {e}")
+        logger.error("workflow_fail_marking_failed", error=str(e))
         return {
             "status": "error",
             "error": str(e),
@@ -332,5 +337,5 @@ def get_workflow_status(storage: PortfolioStorage, workflow_id: str) -> dict[str
         }
 
     except Exception as e:
-        logger.error(f"Failed to get workflow status: {e}")
+        logger.error("workflow_status_fetch_failed", error=str(e))
         return None

@@ -69,7 +69,7 @@ class CashManager:
             current_balance = self.get_cash_balance(account_id)
             return current_balance >= amount
         except ValueError:
-            logger.error(f"Account {account_id} not found during cash check")
+            logger.error("account_not_found_during_cash_check", account_id=account_id)
             return False
 
     def deduct_cash(self, account_id: str, amount: float, reason: str) -> bool:
@@ -93,9 +93,11 @@ class CashManager:
         if not self.check_sufficient_cash(account_id, amount):
             current_balance = self.get_cash_balance(account_id)
             logger.warning(
-                f"Insufficient cash for {account_id}: "
-                f"need ${amount:.2f}, have ${current_balance:.2f}. "
-                f"Reason: {reason}"
+                "insufficient_cash",
+                account_id=account_id,
+                needed=amount,
+                available=current_balance,
+                reason=reason,
             )
             return False
 
@@ -117,14 +119,17 @@ class CashManager:
             cash_after = self.get_cash_balance(account_id)
 
             logger.info(
-                f"Deducted ${amount:.2f} from {account_id}. "
-                f"Balance: ${cash_before:.2f} → ${cash_after:.2f}. "
-                f"Reason: {reason}"
+                "cash_deducted",
+                account_id=account_id,
+                amount=amount,
+                cash_before=cash_before,
+                cash_after=cash_after,
+                reason=reason,
             )
             return True
 
         except Exception as e:
-            logger.error(f"Failed to deduct cash from {account_id}: {e}")
+            logger.error("cash_deduction_failed", account_id=account_id, error=str(e))
             return False
 
     def add_cash(self, account_id: str, amount: float, reason: str) -> bool:
@@ -148,7 +153,7 @@ class CashManager:
         try:
             cash_before = self.get_cash_balance(account_id)
         except ValueError:
-            logger.error(f"Cannot add cash to non-existent account: {account_id}")
+            logger.error("cash_add_account_not_found", account_id=account_id)
             return False
 
         # Update balance
@@ -166,14 +171,17 @@ class CashManager:
             cash_after = self.get_cash_balance(account_id)
 
             logger.info(
-                f"Added ${amount:.2f} to {account_id}. "
-                f"Balance: ${cash_before:.2f} → ${cash_after:.2f}. "
-                f"Reason: {reason}"
+                "cash_added",
+                account_id=account_id,
+                amount=amount,
+                cash_before=cash_before,
+                cash_after=cash_after,
+                reason=reason,
             )
             return True
 
         except Exception as e:
-            logger.error(f"Failed to add cash to {account_id}: {e}")
+            logger.error("cash_addition_failed", account_id=account_id, error=str(e))
             return False
 
     def reset_cash_balance(self, account_id: str) -> bool:
@@ -200,9 +208,9 @@ class CashManager:
                 conn.commit()  # Commit UPDATE to database
 
             balance = self.get_cash_balance(account_id)
-            logger.info(f"Reset {account_id} cash balance to ${balance:.2f}")
+            logger.info("cash_balance_reset", account_id=account_id, balance=balance)
             return True
 
         except Exception as e:
-            logger.error(f"Failed to reset cash balance for {account_id}: {e}")
+            logger.error("cash_balance_reset_failed", account_id=account_id, error=str(e))
             return False

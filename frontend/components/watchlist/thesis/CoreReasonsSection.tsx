@@ -14,8 +14,8 @@ export function CoreReasonsSection({ reasons }: { reasons: CoreReason[] }) {
     <div className="space-y-2">
       <h5 className="text-xs font-semibold text-text">Core Reasons</h5>
       <div className="space-y-2">
-        {reasons.map((reason, idx) => (
-          <div key={idx} className="space-y-1">
+        {reasons.map((reason) => (
+          <div key={reason.reason} className="space-y-1">
             <div className="flex items-start justify-between gap-2">
               <p className="text-sm text-text flex-1">{reason.reason}</p>
               <span className="text-xs font-semibold text-text-muted min-w-[40px] text-right">
