@@ -96,7 +96,6 @@ __all__ = [
     "backfill_technical_indicators",
     "calculate_fear_greed",
     "cleanup",
-    # file_scan removed - use SummitFlow for file browsing
     "ingest_historical_ohlcv",
     "ingestion",
     "maintenance_tasks",

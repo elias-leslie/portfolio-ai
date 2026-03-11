@@ -8,8 +8,8 @@ from unittest.mock import Mock
 import polars as pl
 import pytest
 
+from app.analytics.peer_algorithms import validate_and_get_group_data
 from app.analytics.peers import (
-    _validate_and_get_group_data,
     get_peer_comparison,
     get_peer_group_detail,
 )
@@ -21,7 +21,7 @@ def mock_storage() -> Mock:
     return Mock()
 
 
-def test_validate_and_get_group_data_success(mock_storage: Mock) -> None:
+def testvalidate_and_get_group_data_success(mock_storage: Mock) -> None:
     """Test successful validation and group data retrieval."""
     # Mock symbol group data
     ticker_group_data = pl.DataFrame(
@@ -41,30 +41,30 @@ def test_validate_and_get_group_data_success(mock_storage: Mock) -> None:
     mock_storage.query.side_effect = [ticker_group_data, peers_data]
 
     # Execute
-    group_name, peer_tickers = _validate_and_get_group_data(mock_storage, "AAPL", "sector")
+    group_name, peer_tickers = validate_and_get_group_data(mock_storage, "AAPL", "sector")
 
     # Verify
     assert group_name == "Technology"
     assert peer_tickers == ["AAPL", "MSFT", "GOOGL"]
 
 
-def test_validate_and_get_group_data_invalid_group_by(mock_storage: Mock) -> None:
+def testvalidate_and_get_group_data_invalid_group_by(mock_storage: Mock) -> None:
     """Test validation with invalid group_by parameter."""
     # Execute
-    group_name, peer_tickers = _validate_and_get_group_data(mock_storage, "AAPL", "invalid")
+    group_name, peer_tickers = validate_and_get_group_data(mock_storage, "AAPL", "invalid")
 
     # Verify
     assert group_name is None
     assert peer_tickers is None
 
 
-def test_validate_and_get_group_data_no_ticker_data(mock_storage: Mock) -> None:
+def testvalidate_and_get_group_data_no_ticker_data(mock_storage: Mock) -> None:
     """Test when symbol has no group data."""
     # Mock empty symbol group data
     mock_storage.query.return_value = pl.DataFrame()
 
     # Execute
-    group_name, peer_tickers = _validate_and_get_group_data(mock_storage, "AAPL", "sector")
+    group_name, peer_tickers = validate_and_get_group_data(mock_storage, "AAPL", "sector")
 
     # Verify
     assert group_name is None

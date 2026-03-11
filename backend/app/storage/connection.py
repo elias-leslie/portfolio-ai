@@ -12,7 +12,7 @@ import re
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import date, datetime
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
 import pandas as pd
 import polars as pl
@@ -23,9 +23,6 @@ from sqlalchemy.engine import Engine
 from app.constants import DATABASE_URL as CONSTANTS_DATABASE_URL
 
 from ..logging_config import get_logger
-
-if TYPE_CHECKING:
-    pass
 
 # Type alias for database values that can be returned from queries
 # This is necessarily broad since PostgreSQL returns various types

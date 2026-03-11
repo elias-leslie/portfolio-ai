@@ -38,22 +38,13 @@ logger = get_logger(__name__)
 # Track application start time for uptime calculation
 APP_START_TIME = datetime.now(UTC)
 
-# Backward compatibility aliases for renamed models
-APIKeyStatusInfo = APIKeyStatus  # Old name -> new name
-DayBarFreshnessInfo = DayBarFreshness  # Old name -> new name
-CeleryWorkerStatus = WorkerInfo  # Old name -> new name (backward compat)
-
-# Re-export models for backward compatibility with any external imports
 __all__ = [
     "APIKeyStatus",
-    "APIKeyStatusInfo",  # Alias
     "APIQuotaInfo",
     "AgentStats",
     "CacheStats",
-    "CeleryWorkerStatus",  # Alias
     "CheckResult",
     "DayBarFreshness",
-    "DayBarFreshnessInfo",  # Alias
     "DiskUsageInfo",
     "HealthCheckService",
     "SourceHealthCheck",
@@ -173,7 +164,7 @@ class HealthCheckService:
             **base_health,
             # Detailed fields
             "day_bars_freshness": day_bars_freshness,
-            "celery_worker": worker,
+            "worker": worker,
             "api_keys": api_keys,
             "disk_usage": disk_usage,
             "workflow_metrics": workflow_metrics,

@@ -33,7 +33,7 @@ def analyze_health(report_path: str) -> dict:
 
     services = data.get("service_status", {})
     for service, status in services.items():
-        if status != "active" and service in ["backend", "celery_worker", "redis"]:
+        if status != "active" and service in ["backend", "worker", "redis"]:
             issues["P0_critical"].append(
                 {
                     "issue": f"{service} service down",

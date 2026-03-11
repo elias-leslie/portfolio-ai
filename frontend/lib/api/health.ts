@@ -103,6 +103,12 @@ export interface RecentRemediation {
   resolvedAt?: string | null
 }
 
+export interface StaleMaintenanceRun {
+  taskName: string
+  startedAt?: string | null
+  dryRun: boolean
+}
+
 export interface DetailedHealthCheckResponse {
   status: HealthStatus
   timestamp: string
@@ -117,6 +123,7 @@ export interface DetailedHealthCheckResponse {
   workflowHealth?: WorkflowHealthInfo | null
   dataFreshnessStatus?: DataFreshnessStatus
   recentRemediations: RecentRemediation[]
+  staleMaintenanceRuns: StaleMaintenanceRun[]
 }
 
 export async function fetchDetailedHealth(): Promise<DetailedHealthCheckResponse> {

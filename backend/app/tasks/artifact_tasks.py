@@ -1,12 +1,7 @@
 """Tasks for artifact lifecycle management.
 
-DEPRECATED: These tasks will be removed when SummitFlow has task infrastructure.
-Evidence/artifacts are now managed by SummitFlow (port 8001).
-
-Tasks:
-- refresh_expired_artifacts: DISABLED (SummitFlow manages evidence)
-- cleanup_old_versions: DISABLED (SummitFlow manages evidence)
-- cleanup_debug_captures: Still active (local filesystem cleanup)
+Active tasks:
+- cleanup_debug_captures: Delete old debug capture directories (DBG-* pattern)
 """
 
 from __future__ import annotations
@@ -23,39 +18,9 @@ from .maintenance_logging import log_maintenance_complete, log_maintenance_start
 
 logger = get_logger(__name__)
 
-# Constants
-_SUMMITFLOW_SKIP_REASON = "Evidence now managed by SummitFlow"
 _TASK_NAME = "cleanup_debug_captures"
 _ARTIFACTS_DIR = settings.artifacts_dir
 _DBG_PATTERN = re.compile(r"^DBG-(\d{4})-(\d{4,6})$")
-
-
-def refresh_expired_artifacts() -> dict[str, int | str]:
-    """DISABLED: Evidence is now managed by SummitFlow.
-
-    This task is a no-op until SummitFlow has its own task infrastructure.
-    See: portfolio-ai-4tg (SummitFlow: Add task infrastructure)
-    """
-    logger.info(
-        "refresh_expired_artifacts_skipped",
-        reason="Migrated to SummitFlow - awaiting task integration",
-    )
-    return {"status": "skipped", "reason": _SUMMITFLOW_SKIP_REASON}
-
-
-def cleanup_old_versions(
-    max_versions: int = 5, dry_run: bool = False
-) -> dict[str, int | str | bool]:
-    """DISABLED: Evidence is now managed by SummitFlow.
-
-    This task is a no-op until SummitFlow has its own task infrastructure.
-    See: portfolio-ai-4tg (SummitFlow: Add task infrastructure)
-    """
-    logger.info(
-        "cleanup_old_versions_skipped",
-        reason="Migrated to SummitFlow - awaiting task integration",
-    )
-    return {"status": "skipped", "reason": _SUMMITFLOW_SKIP_REASON, "dry_run": dry_run}
 
 
 def _parse_dbg_capture_date(entry: Path) -> datetime | None:

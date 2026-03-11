@@ -3,20 +3,12 @@
  */
 
 import { toCamelCaseKeys, toSnakeCaseKeys } from 'es-toolkit'
-import { getApiBaseUrl as getBaseUrl } from '../api-config'
+import { getApiBaseUrl } from '../api-config'
 
 /**
  * Re-export transformation utilities for WebSocket and other non-REST use cases
  */
 export { toCamelCaseKeys, toSnakeCaseKeys }
-
-/**
- * Get the API base URL from centralized config.
- * Uses window.location to determine dev vs prod environment.
- */
-function getApiBaseUrl(): string {
-  return getBaseUrl()
-}
 
 /**
  * Custom API error class with status code

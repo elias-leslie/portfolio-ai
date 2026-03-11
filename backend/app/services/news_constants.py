@@ -9,11 +9,7 @@ __all__ = [
     "DEFAULT_MAX_ARTICLES",
     "DEFAULT_TTL_HOURS",
     "MARKET_SYMBOL",
-    "MARKET_TICKER",
 ]
-
-# Backwards compatibility alias (deprecated, use MARKET_SYMBOL)
-MARKET_TICKER = MARKET_SYMBOL
 
 # Default configuration
 DEFAULT_TTL_HOURS = 6

@@ -8,16 +8,12 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, date, datetime, timedelta
-from typing import TYPE_CHECKING
 
 import feedparser
 from pydantic import BaseModel
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 from app.storage.types import DatabaseConnection
-
-if TYPE_CHECKING:
-    pass
 
 
 class NewsHeadline(BaseModel):

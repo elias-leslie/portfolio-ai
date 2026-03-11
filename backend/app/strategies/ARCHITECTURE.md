@@ -649,7 +649,6 @@ Current product scope keeps strategy generation separate from broker-execution s
 2. portfolio tracking after manual execution
 3. Jenny-led thesis and management reviews
 
-> **TODO**: The Layer 6 code sample below (line ~689) still references `paper_trade_transactions` in a comment. Update that reference to reflect the current metrics source (e.g., `strategy_performance`).
 
 ---
 
@@ -688,7 +687,7 @@ def evaluate_strategy_performance() -> dict[str, Any]:
 
     results = []
     for strategy in active_strategies:
-        # Calculate 30-day metrics from paper_trade_transactions
+        # Calculate 30-day metrics from strategy_performance
         metrics = calculate_rolling_metrics(
             strategy_id=strategy["id"],
             window_days=30,

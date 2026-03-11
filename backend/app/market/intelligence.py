@@ -6,12 +6,9 @@ labels and grouping sectors by performance.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from app.market import plain_language
-
-if TYPE_CHECKING:
-    pass
 from app.market.sentiment import MarketHealthScore
 from app.models.market_intelligence import EnrichedIndicator, SectorInfo
 from app.portfolio.models import PriceData

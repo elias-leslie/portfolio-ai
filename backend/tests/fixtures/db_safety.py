@@ -9,19 +9,9 @@ from app.storage.connection import PostgreSQLConnectionWrapper
 TEST_DB_NAME = "portfolio_ai_test"
 PROD_DB_NAME = "portfolio_ai"
 OWNERSHIP_REPAIR_COMMAND = "sudo bash backend/scripts/setup-test-db.sh"
-LEGACY_TEST_OBJECTS_WITH_OWNER_DRIFT = (
-    "api_capabilities",
-    "capability_insights",
-    "capability_notes",
-    "celery_capabilities",
-    "celery_feature_mappings",
-    "db_capabilities",
-    "feature_capabilities",
-    "feature_dependencies",
-    "feature_tasks",
-    "feature_vision_goal_mappings",
-    "feature_dependency_view",
-)
+# Legacy capability tables were dropped in migration 5f4a1c6d9e72.
+# Keep the tuple empty — ownership checks remain wired for future drift-prone objects.
+LEGACY_TEST_OBJECTS_WITH_OWNER_DRIFT: tuple[str, ...] = ()
 
 
 def derive_test_db_url(prod_db_url: str, explicit_test_db_url: str | None = None) -> str:

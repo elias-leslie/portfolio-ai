@@ -13,23 +13,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api import (
-    # artifacts removed - migrated to SummitFlow (portfolio-ai-5rz)
-    # claude_progress removed - Beads handles session tracking
-    # disagreements removed - feature disabled (no data, unused)
-    # files removed - use SummitFlow for file browsing
-    # gaps removed - migrated to [DEBT] subtasks on features
     health,
     home,
     household,
-    # ideas removed - deprecated in favor of strategy-seeds (FEAT-218)
     news,
     news_profiling,
     portfolio,
     preferences,
-    # qa removed - issues disconnected from workflow
     recommendations,
     rules,
-    # solution_map removed - Vision tab replaces Dashboard
     symbols,
     thesis,
     watchlist,
@@ -37,8 +29,6 @@ from app.api import (
 from app.api.market import router as market_router
 from app.config import settings
 from app.config.cors import build_cors_origins
-
-# vision_content_router, vision_goals_router removed - migrated to SummitFlow (portfolio-ai-5rz)
 from app.logging_config import SyslogPrefixFormatter, configure_logging, get_logger
 from app.storage import get_storage
 from app.storage.credential_loader import load_credentials_from_database
@@ -143,22 +133,15 @@ app.include_router(health.router)
 app.include_router(home.router)
 app.include_router(household.router)
 app.include_router(portfolio.router)
-# ideas.router removed - deprecated in favor of strategy-seeds (FEAT-218)
 app.include_router(market_router)
 app.include_router(news.router)
 app.include_router(news_profiling.router)
 app.include_router(preferences.router)
 app.include_router(watchlist.router, prefix="/api/watchlist")
-# gaps.router removed - trading requirements migrated to Features
-app.include_router(recommendations.router)  # Task 0087: Trade recommendations
-# disagreements.router removed - feature disabled (no data, unused)
-app.include_router(rules.router)  # Trading rules viewer
-# artifacts.router removed - migrated to SummitFlow (portfolio-ai-5rz)
-# vision_goals_router, vision_content_router removed - migrated to SummitFlow (portfolio-ai-5rz)
-# solution_map, qa, claude_progress routers removed
-app.include_router(symbols.router)  # Symbol intelligence API for agents
-# files.router removed - use SummitFlow for file browsing
-app.include_router(thesis.router)  # Investment thesis generation and management
+app.include_router(recommendations.router)
+app.include_router(rules.router)
+app.include_router(symbols.router)
+app.include_router(thesis.router)
 
 
 @app.get("/")

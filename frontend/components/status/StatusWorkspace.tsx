@@ -651,6 +651,32 @@ export function StatusWorkspace() {
             </SectionCard>
           </div>
 
+          {(healthQuery.data?.staleMaintenanceRuns ?? []).length > 0 ? (
+            <SectionCard
+              variant="surface"
+              title="Stale Maintenance Runs"
+              description="Background tasks stuck in running state past the alert threshold."
+            >
+              <div className="grid gap-3">
+                {healthQuery.data?.staleMaintenanceRuns.map((run) => (
+                  <div
+                    key={`${run.taskName}-${run.startedAt ?? 'unknown'}`}
+                    className="flex items-center justify-between gap-3 rounded-2xl border border-warning/30 bg-warning/10 p-4"
+                  >
+                    <div>
+                      <p className="text-sm font-semibold text-text">{formatLabel(run.taskName)}</p>
+                      <p className="mt-1 text-sm text-text-muted">
+                        Started {formatRelativeTime(run.startedAt)}
+                        {run.dryRun ? ' (dry run)' : ''}
+                      </p>
+                    </div>
+                    <Badge variant="warning">stale</Badge>
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
+          ) : null}
+
           <SectionCard
             variant="surface"
             title="Market Timing"

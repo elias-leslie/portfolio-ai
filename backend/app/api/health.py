@@ -19,16 +19,16 @@ from ..middleware.cache import get_cache_stats as get_response_cache_stats
 from ..storage import get_storage
 from ..utils.health_service import (
     AgentStats,
-    APIKeyStatusInfo,
+    APIKeyStatus,
     APIQuotaInfo,
     CacheStats,
-    CeleryWorkerStatus,
     CheckResult,
-    DayBarFreshnessInfo,
+    DayBarFreshness,
     DiskUsageInfo,
     HealthCheckService,
     SourceHealthCheck,
     WatchlistStats,
+    WorkerInfo,
 )
 from ..utils.health_workflows import WorkflowHealthInfo
 
@@ -133,13 +133,11 @@ async def get_recent_remediations(hours: int = 24) -> list[dict[str, Any]]:
     storage = get_storage()
 
     try:
-        # Query maintenance_log for remediation triggers (last N hours)
-        # Note: Using f-string for INTERVAL as parameter binding doesn't work with INTERVAL multiplication
-        query = f"""
+        query = """
             SELECT task_name, started_at, status, summary, error_message
             FROM maintenance_log
-            WHERE task_name LIKE 'data_freshness_alert_%'
-            AND started_at > NOW() - INTERVAL '{hours} hours'
+            WHERE task_name LIKE 'data_freshness_alert_%%'
+            AND started_at > NOW() - make_interval(hours => ?)
             ORDER BY started_at DESC
             LIMIT 100
         """
@@ -153,7 +151,7 @@ async def get_recent_remediations(hours: int = 24) -> list[dict[str, Any]]:
         """
 
         with storage.connection() as conn:
-            result = conn.execute(query).fetchall()
+            result = conn.execute(query, [hours]).fetchall()
             latest_freshness_row = conn.execute(latest_freshness_query).fetchone()
 
         latest_freshness_summary = (
@@ -276,9 +274,9 @@ class HealthCheckResponse(BaseModel):
 class DetailedHealthCheckResponse(HealthCheckResponse):
     """Extended health check response with additional system details."""
 
-    day_bars_freshness: list[DayBarFreshnessInfo] = Field(default_factory=list)
-    celery_worker: CeleryWorkerStatus | None = None  # Backward compat field name
-    api_keys: list[APIKeyStatusInfo] = Field(default_factory=list)
+    day_bars_freshness: list[DayBarFreshness] = Field(default_factory=list)
+    worker: WorkerInfo | None = None
+    api_keys: list[APIKeyStatus] = Field(default_factory=list)
     disk_usage: DiskUsageInfo | None = None
     workflow_metrics: dict[str, Any] = Field(
         default_factory=dict,
@@ -394,7 +392,7 @@ async def detailed_health_check(response: Response) -> DetailedHealthCheckRespon
         "detailed_health_check_endpoint",
         status=result["status"],
         day_bars_symbols=len(result["day_bars_freshness"]),
-        celery_active=result["celery_worker"].active if result["celery_worker"] else False,
+        worker_active=result["worker"].active if result["worker"] else False,
         api_keys_configured=sum(1 for k in result["api_keys"] if k.configured),
         freshness_status=result["data_freshness_status"].get("status"),
         remediations_count=len(result["recent_remediations"]),
@@ -436,13 +434,12 @@ async def get_deletion_rate(hours: int = 1) -> DeletionRate:
     storage = get_storage()
 
     try:
-        # Query deletion_audit table (requires migration 024)
         query = """
         SELECT
             table_name,
             COUNT(*) as deletion_count
         FROM deletion_audit
-        WHERE deleted_at > NOW() - INTERVAL '1 hour' * ?
+        WHERE deleted_at > NOW() - make_interval(hours => ?)
         GROUP BY table_name
         ORDER BY deletion_count DESC
         """

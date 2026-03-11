@@ -67,7 +67,7 @@ def test_assert_test_database_ownership_rejects_owner_drift() -> None:
     with pytest.raises(RuntimeError, match="ownership drift detected") as exc_info:
         assert_test_database_ownership(
             current_user="portfolio_app",
-            owner_mismatches=[("feature_capabilities", "portfolio_ai_user")],
+            owner_mismatches=[("some_table", "wrong_owner")],
         )
 
     assert OWNERSHIP_REPAIR_COMMAND in str(exc_info.value)

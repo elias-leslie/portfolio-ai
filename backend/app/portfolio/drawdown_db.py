@@ -177,15 +177,15 @@ def get_drawdown_history(
     Returns:
         List of dicts with date, equity, drawdown_pct
     """
-    query = f"""
+    query = """
         SELECT snapshot_date, equity, drawdown_pct, peak_equity
         FROM portfolio_snapshots
         WHERE account_id = $1
-          AND snapshot_date >= CURRENT_DATE - INTERVAL '{days} days'
+          AND snapshot_date >= CURRENT_DATE - make_interval(days => $2)
         ORDER BY snapshot_date ASC
     """
 
-    result = storage.query(query, [account_id])
+    result = storage.query(query, [account_id, days])
 
     if result.is_empty():
         return []

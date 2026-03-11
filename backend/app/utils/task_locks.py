@@ -30,15 +30,11 @@ from __future__ import annotations
 
 from collections.abc import Generator
 from contextlib import contextmanager
-from typing import TYPE_CHECKING
 
 import redis
 
 from ..config import REDIS_URL
 from ..logging_config import get_logger
-
-if TYPE_CHECKING:
-    pass
 
 logger = get_logger(__name__)
 _redis_client: redis.Redis[bytes] | None = None

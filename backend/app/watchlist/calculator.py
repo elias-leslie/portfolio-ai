@@ -10,13 +10,8 @@ This module provides functions for:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from app.analytics.calculation_engine import calculate_position_size_from_risk
 from app.storage.types import DatabaseConnection
-
-if TYPE_CHECKING:
-    pass
 
 
 def get_swing_low(conn: DatabaseConnection, symbol: str, days: int = 10) -> float | None:
