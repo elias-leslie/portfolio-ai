@@ -56,7 +56,7 @@ def _extract_json(content: str) -> dict[str, Any]:
             content = content.split("```", 1)[1].split("```", 1)[0].strip()
         elif "{" in content and "}" in content:
             content = content[content.index("{") : content.rindex("}") + 1]
-        return dict(json.loads(content))  # type: ignore[arg-type]
+        return dict(json.loads(content))
     except (json.JSONDecodeError, ValueError):
         return {
             "verdict": "review",

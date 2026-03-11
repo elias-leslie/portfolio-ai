@@ -78,17 +78,6 @@ class SECEdgarSource(BaseSource):
     # Filing types to fetch
     FILING_TYPES: ClassVar[list[str]] = ["8-K", "10-Q", "10-K", "4"]
 
-    # Material 8-K items (trigger news alerts)
-    MATERIAL_8K_ITEMS: ClassVar[set[str]] = {
-        "1.01",  # Material Agreement
-        "1.02",  # Termination of Agreement
-        "2.01",  # Completion of Acquisition/Disposition
-        "2.02",  # Results of Operations (Earnings)
-        "4.02",  # Non-Reliance on Previous Financial Statements
-        "5.02",  # Departure/Election of Directors or Officers
-        "8.01",  # Other Events (catchall for material news)
-    }
-
     def __init__(self, storage: PortfolioStorage | None = None) -> None:
         """Initialize SEC EDGAR source.
 
@@ -256,8 +245,6 @@ class SECEdgarSource(BaseSource):
         # Determine if material event
         is_material = self._is_material_event(form)
 
-        # TODO: Extract 8-K items if applicable (future enhancement)
-
         # Build record with ALL standard news fields (for schema compatibility)
         record = {
             "symbol": symbol,
@@ -325,7 +312,5 @@ class SECEdgarSource(BaseSource):
         if form == "8-K":
             return True
 
-        # Form 4 (insider trades) are material if significant
-        # For now, mark all as material (will enhance with transaction value check)
-        # Quarterly/annual reports are important but not "breaking news"
+        # Form 4 (insider trades) are material events
         return form == "4"

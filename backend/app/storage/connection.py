@@ -133,7 +133,7 @@ class PostgreSQLConnectionWrapper:
         """
         return self._get_polars_dataframe()
 
-    def pl_dataframe(self) -> "pl.DataFrame":  # type: ignore[name-defined] # noqa: UP037
+    def pl_dataframe(self) -> "pl.DataFrame":  # noqa: UP037
         """Fetch results as Polars DataFrame (compatibility).
 
         Alias for .pl() method to match pl_dataframe() interface.
@@ -143,7 +143,7 @@ class PostgreSQLConnectionWrapper:
         """
         return self.pl()
 
-    def fetchdf(self) -> "pl.DataFrame":  # type: ignore[name-defined] # noqa: UP037
+    def fetchdf(self) -> "pl.DataFrame":  # noqa: UP037
         """Fetch results as Polars DataFrame (compatibility).
 
         Alias for .pl() method to match fetchdf() interface.
@@ -189,7 +189,7 @@ class PostgreSQLConnectionWrapper:
     def insert_dataframe(
         self,
         table_name: str,
-        df: pd.DataFrame | "pl.DataFrame",  # type: ignore[name-defined] # noqa: UP037
+        df: pd.DataFrame | "pl.DataFrame",  # noqa: UP037
         if_exists: Literal["fail", "replace", "append"] = "append",
     ) -> int:
         """Insert pandas/polars DataFrame into table using efficient bulk insert.

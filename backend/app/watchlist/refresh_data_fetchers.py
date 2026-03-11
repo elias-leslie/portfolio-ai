@@ -72,7 +72,7 @@ def detect_missing_historical_data(
             SELECT symbol FROM UNNEST(?) as t(symbol) LEFT JOIN symbol_stats USING (symbol)
             WHERE symbol_stats.symbol IS NULL OR bar_count < ? OR days_since_latest > ?
             """,
-            [symbols, symbols, min_days, stale_threshold_days],  # type: ignore[list-item]
+            [symbols, symbols, min_days, stale_threshold_days],
         ).fetchall()
         symbols_needing_backfill = [str(row[0]) for row in result]
     if symbols_needing_backfill:

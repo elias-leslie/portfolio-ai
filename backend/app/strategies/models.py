@@ -102,7 +102,7 @@ class StrategyParameters(BaseModel):
 
     @field_validator("weight_price_trend")
     @classmethod
-    def validate_weights_sum(cls, v: float, info) -> float:  # type: ignore
+    def validate_weights_sum(cls, v: float, info) -> float:
         """Ensure all confirmation weights sum to 1.0."""
         # Only validate when all fields are set (at end of initialization)
         if info.data.get("weight_sector_alignment") is None:

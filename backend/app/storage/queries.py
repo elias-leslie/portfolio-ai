@@ -85,7 +85,7 @@ class QueryManager(_ResearchQueryMixin):
                 result = conn.execute(sql, params).fetchdf()
             else:
                 result = conn.execute(sql).fetchdf()
-            return result  # type: ignore[no-any-return]
+            return result
 
     def get_watchlist_items_by_account(self, account_id: str) -> pl.DataFrame:
         """Return all watchlist items ordered by symbol.
@@ -157,5 +157,5 @@ class QueryManager(_ResearchQueryMixin):
         See that function for the full parameter list.
         """
         do_upsert_watchlist_snapshot(
-            self.connection_mgr, item_id, fetched_at, **kwargs  # type: ignore[arg-type]
+            self.connection_mgr, item_id, fetched_at, **kwargs
         )

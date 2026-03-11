@@ -113,7 +113,7 @@ async def _on_price_alert_triggered(payload: dict[str, Any]) -> bool:
 
     await refresh_single_symbol_wf.aio_run_no_wait(SymbolInput(symbol=symbol))
     await generate_signal_wf.aio_run_no_wait(
-        SymbolInput(symbol=symbol)  # type: ignore[arg-type]
+        SymbolInput(symbol=symbol)
     )
     logger.info(
         "triggered_from_price_alert",
@@ -135,7 +135,7 @@ async def _on_earnings_released(payload: dict[str, Any]) -> bool:
 
     await refresh_single_symbol_wf.aio_run_no_wait(SymbolInput(symbol=symbol))
     await generate_signal_wf.aio_run_no_wait(
-        SymbolInput(symbol=symbol)  # type: ignore[arg-type]
+        SymbolInput(symbol=symbol)
     )
     logger.info(
         "triggered_from_earnings_release",

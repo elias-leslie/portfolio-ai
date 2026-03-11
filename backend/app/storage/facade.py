@@ -44,7 +44,7 @@ class PortfolioStorage:
             db_path: Path to database file. If None, uses default PostgreSQL connection.
         """
         # Initialize connection manager (singleton)
-        self.connection_mgr = get_connection_manager(db_path)  # type: ignore[arg-type]
+        self.connection_mgr = get_connection_manager(db_path)
 
         # Initialize specialized managers
         self.schema_mgr = SchemaManager(self.connection_mgr)

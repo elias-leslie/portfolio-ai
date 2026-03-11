@@ -6,6 +6,9 @@ import datetime as dt
 from datetime import date, datetime
 from typing import TYPE_CHECKING, cast
 
+# US market close at 4:00 PM ET = 21:00 UTC
+_MARKET_CLOSE_UTC = dt.time(21, 0, 0)
+
 if TYPE_CHECKING:
     from app.portfolio.models import PriceData
     from app.storage.facade import PortfolioStorage as Storage
@@ -179,7 +182,7 @@ def get_actual_data_dates(
                 data_date = row[0]
                 if isinstance(data_date, date):
                     data_timestamp = dt.datetime.combine(
-                        data_date, dt.time(21, 0, 0), tzinfo=dt.UTC
+                        data_date, _MARKET_CLOSE_UTC, tzinfo=dt.UTC
                     )
                     actual_data_dates[symbol] = data_timestamp
     return actual_data_dates
@@ -208,7 +211,7 @@ def get_market_data_timestamp(storage: Storage) -> str:
             # Set time to market close (4:00 PM ET = 21:00 UTC) for consistency
             if isinstance(market_data_date, date):
                 market_close_time = dt.datetime.combine(
-                    market_data_date, dt.time(21, 0, 0), tzinfo=dt.UTC
+                    market_data_date, _MARKET_CLOSE_UTC, tzinfo=dt.UTC
                 )
                 return market_close_time.isoformat()
     # Return empty string if no data found (caller should handle fallback)
@@ -240,7 +243,7 @@ def get_put_call_ratio_data(
                 putcall_date = putcall_date_val
                 # Set time to market close (4:00 PM ET = 21:00 UTC) for consistency
                 putcall_timestamp = dt.datetime.combine(
-                    putcall_date, dt.time(21, 0, 0), tzinfo=dt.UTC
+                    putcall_date, _MARKET_CLOSE_UTC, tzinfo=dt.UTC
                 ).isoformat()
                 return (put_call_ratio, putcall_timestamp)
     return None

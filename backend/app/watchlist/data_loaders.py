@@ -38,7 +38,7 @@ def load_latest_technical(
         WHERE symbol IN ({placeholders})
         ORDER BY symbol, date DESC
         """,
-        symbols,  # type: ignore[arg-type]
+        symbols,
     )
 
     if df.is_empty():

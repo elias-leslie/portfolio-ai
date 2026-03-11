@@ -190,8 +190,7 @@ def upsert_core_snapshot(
         RETURNING id
     """
     snapshot_id = generate_uuid()
-    result = conn.execute(  # type: ignore[union-attr]
-        core_sql,
+    result = conn.execute(        core_sql,
         [
             snapshot_id, item_id, fetched_at, price, change_pct,
             overall_score, technical_score, fundamental_score, news_score,
@@ -231,8 +230,7 @@ def upsert_technical_metrics(
             timeframe_long_aligned = EXCLUDED.timeframe_long_aligned,
             percentile_rank_30d = EXCLUDED.percentile_rank_30d
     """
-    conn.execute(  # type: ignore[union-attr]
-        sql,
+    conn.execute(        sql,
         [snapshot_id, raw_metrics, beta, volatility,
          volume_relative, timeframe_short_aligned, timeframe_long_aligned, percentile_rank_30d],
     )
@@ -285,8 +283,7 @@ def upsert_narrative(
             risk_level = EXCLUDED.risk_level,
             company_health = EXCLUDED.company_health
     """
-    conn.execute(  # type: ignore[union-attr]
-        sql,
+    conn.execute(        sql,
         [snapshot_id, narrative_headline, narrative_why_bullets,
          narrative_company_health, narrative_technical, narrative_action_plan,
          narrative_position_sizing, narrative_special_notes, entry_price,
@@ -320,8 +317,7 @@ def upsert_news_summary(
             earnings_date = EXCLUDED.earnings_date,
             earnings_days_away = EXCLUDED.earnings_days_away
     """
-    conn.execute(  # type: ignore[union-attr]
-        sql,
+    conn.execute(        sql,
         [snapshot_id, news_sentiment_score, recent_news_headlines,
          sector_score, competitor_score, earnings_date, earnings_days_away],
     )

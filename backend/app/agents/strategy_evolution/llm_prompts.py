@@ -60,7 +60,6 @@ Provide a 2-3 sentence diagnosis identifying the most likely cause of underperfo
 Focus on actionable insights (e.g., "too aggressive entries", "holding too long", "ignoring volatility").
 """
 
-    # TODO: Replace with MCP-based agent coordination (see tasks/tasks-0100-multi-agent-mcp-architecture.md)
     client = AgentHubAPIClient(model=GEMINI_FLASH)
     response = client.generate(
         prompt=prompt,
@@ -132,7 +131,6 @@ Return JSON array with this schema:
 """
 
     # Call LLM
-    # TODO: Replace with MCP-based agent coordination (see tasks/tasks-0100-multi-agent-mcp-architecture.md)
     client = AgentHubAPIClient(model=GEMINI_FLASH)
     response = client.generate(
         prompt=prompt,

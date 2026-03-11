@@ -117,7 +117,7 @@ def calculate_market_breadth(storage: PortfolioStorage, target_date: dt.date) ->
             FROM price_data
             WHERE date = %s::date
             """,
-            params,  # type: ignore[arg-type]
+            params,
         )
         rows = result.fetchall()
 

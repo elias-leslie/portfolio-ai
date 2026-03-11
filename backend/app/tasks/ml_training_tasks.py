@@ -49,7 +49,7 @@ def _update_progress(
 
     conn.execute(
         f"UPDATE ml_training_progress SET {', '.join(update_fields)} WHERE session_id = %s",
-        update_values,  # type: ignore[arg-type]
+        update_values,
     )
     conn.commit()
 
