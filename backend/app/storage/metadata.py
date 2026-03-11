@@ -77,7 +77,8 @@ class MetadataManager:
                 ).fetchone()  # validated: table from information_schema
                 count_value = result[0] if result else 0
                 row_count = int(count_value) if count_value is not None else 0
-        except Exception:
+        except Exception as e:
+            logger.debug("table_count_failed", table_name=table_name, error=str(e))
             row_count = 0
 
         # Update table_registry
@@ -115,7 +116,8 @@ class MetadataManager:
                     ).fetchone()  # validated: table from hardcoded list above
                     count_value = result[0] if result else 0
                     counts[table] = int(count_value) if count_value is not None else 0
-                except Exception:
+                except Exception as e:
+                    logger.debug("table_count_failed", table_name=table, error=str(e))
                     counts[table] = 0
             return counts
 

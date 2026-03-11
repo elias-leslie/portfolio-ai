@@ -11,7 +11,10 @@ from datetime import UTC, datetime
 from pydantic import BaseModel, Field
 
 from app.constants import SECTOR_ETFS
+from app.logging_config import get_logger
 from app.storage import get_storage
+
+logger = get_logger(__name__)
 
 
 # Response models for sentiment calculations
@@ -110,9 +113,8 @@ def calculate_sp500_score(sp500_price: float, timestamp: str | None) -> Componen
             row = result.fetchone()
             if row and row[0] is not None:
                 percentile = float(row[0])
-    except Exception:
-        # Fall through to fallback logic if query fails
-        pass
+    except Exception as e:
+        logger.debug("sp500_percentile_query_failed", error=str(e))
 
     # Score based on percentile rank (or fallback to price-based)
     if percentile is not None:

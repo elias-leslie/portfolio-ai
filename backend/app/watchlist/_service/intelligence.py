@@ -86,8 +86,8 @@ def parse_news_article(
                     json.loads(raw_payload) if isinstance(raw_payload, str) else raw_payload
                 )
                 event_category = payload_dict.get("event_category")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("event_category_parse_failed", error=str(e))
 
         key_events.append(
             KeyEvent(
