@@ -212,6 +212,13 @@ def test_get_dashboard_returns_composed_household_view() -> None:
     service.list_documents = Mock(return_value=HouseholdDocumentList(items=[]))
     service.list_questions = Mock(return_value=HouseholdQuestionList(items=[question]))
     service.get_resolved_values = Mock(return_value=[resolved_value])
+    service._get_inferred_value_rows = Mock(return_value={})
+    mock_conn = Mock()
+    mock_conn.execute.return_value.fetchone.return_value = (0, 0.0)
+    mock_conn.__enter__ = Mock(return_value=mock_conn)
+    mock_conn.__exit__ = Mock(return_value=False)
+    service.storage = Mock()
+    service.storage.connection.return_value = mock_conn
     service.portfolio_mgr = Mock()
     service.portfolio_mgr.get_accounts.return_value = []
     service.portfolio_mgr.get_positions.return_value = []
