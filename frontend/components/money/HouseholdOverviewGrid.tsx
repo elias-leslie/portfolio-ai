@@ -9,9 +9,15 @@ const overviewIcons = [Wallet, PiggyBank, ShieldCheck, Target]
 
 export function HouseholdOverviewGrid({
   dashboard,
+  stage,
 }: {
   dashboard: HouseholdFinanceDashboard
+  stage?: 1 | 2 | 3 | 4
 }) {
+  if (stage != null && stage <= 2) {
+    return null
+  }
+
   const metrics = [
     {
       label: 'Tracked assets',

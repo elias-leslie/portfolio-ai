@@ -267,6 +267,13 @@ export interface JennyMoneyBrief {
   prompts: string[]
 }
 
+export interface PortfolioHouseholdContext {
+  totalPortfolioValue: number | null
+  cashReservesMonths: number | null
+  portfolioToAnnualSpendRatio: number | null
+  insights: string[]
+}
+
 export interface HouseholdFinanceDashboard {
   generatedAt: string
   overview: HouseholdOverview
@@ -286,6 +293,7 @@ export interface HouseholdFinanceDashboard {
   sinkingFunds: HouseholdSinkingFund[]
   retirementContributionTracker: HouseholdRetirementContributionTracker
   retirementScenarios: HouseholdRetirementScenario[]
+  portfolioContext?: PortfolioHouseholdContext | null
 }
 
 export interface HouseholdProfileUpdate {

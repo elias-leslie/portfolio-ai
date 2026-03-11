@@ -19,6 +19,8 @@ from app.models.household_finance import (
     ImportCenter,
     ImportFormat,
     JennyMoneyBrief,
+    JennyProgression,
+    PortfolioHouseholdContext,
     RetirementPreparedness,
 )
 from app.services._household_dashboard_builders import (
@@ -214,6 +216,67 @@ def _build_retirement_preparedness(
     )
 
 
+def _build_portfolio_context(
+    *,
+    total_tracked_assets: float,
+    cash_reserve: float,
+    profile: Any,
+    reports: Any,
+) -> PortfolioHouseholdContext | None:
+    """Bridge portfolio data with household spending to produce cross-domain insights."""
+    monthly_essential: float | None = None
+    annual_spend: float | None = None
+
+    # Prefer profile targets; fall back to transaction-derived averages
+    if profile.monthly_essential_target is not None and profile.monthly_essential_target > 0:
+        monthly_essential = profile.monthly_essential_target
+    elif reports.executive.average_monthly_essentials > 0:
+        monthly_essential = reports.executive.average_monthly_essentials
+
+    monthly_discretionary: float | None = None
+    if profile.monthly_discretionary_target is not None and profile.monthly_discretionary_target > 0:
+        monthly_discretionary = profile.monthly_discretionary_target
+    elif reports.executive.average_monthly_discretionary > 0:
+        monthly_discretionary = reports.executive.average_monthly_discretionary
+
+    if monthly_essential is not None:
+        if monthly_discretionary is not None:
+            annual_spend = (monthly_essential + monthly_discretionary) * 12
+        else:
+            annual_spend = monthly_essential * 12
+
+    # Compute metrics — only when both sides have data
+    cash_reserves_months: float | None = None
+    if cash_reserve > 0 and monthly_essential is not None and monthly_essential > 0:
+        cash_reserves_months = cash_reserve / monthly_essential
+
+    portfolio_to_annual_spend_ratio: float | None = None
+    if total_tracked_assets > 0 and annual_spend is not None and annual_spend > 0:
+        portfolio_to_annual_spend_ratio = total_tracked_assets / annual_spend
+
+    total_portfolio_value: float | None = total_tracked_assets if total_tracked_assets > 0 else None
+
+    # Build insight strings only when backed by real numbers
+    insights: list[str] = []
+    if cash_reserves_months is not None:
+        insights.append(f"Your cash reserves cover {cash_reserves_months:.1f} months of essential spending.")
+    if portfolio_to_annual_spend_ratio is not None:
+        insights.append(
+            f"Your portfolio represents {portfolio_to_annual_spend_ratio:.1f}x your annual spending."
+        )
+
+    # Only return context when there is at least one useful data point
+    if total_portfolio_value is None and cash_reserves_months is None and portfolio_to_annual_spend_ratio is None:
+        return None
+
+    return PortfolioHouseholdContext(
+        total_portfolio_value=total_portfolio_value,
+        cash_reserves_months=cash_reserves_months,
+        portfolio_to_annual_spend_ratio=portfolio_to_annual_spend_ratio,
+        insights=insights,
+    )
+
+
 class HouseholdDashboardComposer:
     """Build the household dashboard from existing service dependencies."""
 
@@ -294,6 +357,12 @@ class HouseholdDashboardComposer:
             target_retirement_spend=profile.target_retirement_spend,
             baseline_monthly_spend=reports.executive.average_monthly_spend,
         )
+        portfolio_context = _build_portfolio_context(
+            total_tracked_assets=total_tracked_assets,
+            cash_reserve=cash_reserve,
+            profile=profile,
+            reports=reports,
+        )
         action_items = service._build_action_items(
             questions=visible_questions,
             opportunities=opportunities,
@@ -322,6 +391,7 @@ class HouseholdDashboardComposer:
             import_center=_build_import_center(documents),
             questions=visible_questions,
             jenny_brief=_JENNY_BRIEF,
+            portfolio_context=portfolio_context,
         )
 
     def build_budget_snapshot(

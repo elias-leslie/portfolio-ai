@@ -293,10 +293,24 @@ class HouseholdQuestionAnswer(BaseModel):
     answer_text: str
 
 
+class JennyProgression(BaseModel):
+    found: list[str] = Field(default_factory=list)
+    working_on: str | None = None
+    needs_from_you: list[str] = Field(default_factory=list)
+
+
 class JennyMoneyBrief(BaseModel):
     headline: str
     body: str
     prompts: list[str] = Field(default_factory=list)
+    progression: JennyProgression | None = None
+
+
+class PortfolioHouseholdContext(BaseModel):
+    total_portfolio_value: float | None = None
+    cash_reserves_months: float | None = None
+    portfolio_to_annual_spend_ratio: float | None = None
+    insights: list[str] = Field(default_factory=list)
 
 
 class HouseholdFinanceDashboard(BaseModel):
@@ -318,6 +332,7 @@ class HouseholdFinanceDashboard(BaseModel):
     import_center: ImportCenter
     questions: list[HouseholdQuestion] = Field(default_factory=list)
     jenny_brief: JennyMoneyBrief
+    portfolio_context: PortfolioHouseholdContext | None = None
 
 
 class HouseholdTransactionCategoryUpdate(BaseModel):
