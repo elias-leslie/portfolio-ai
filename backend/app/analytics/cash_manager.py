@@ -49,9 +49,8 @@ class CashManager:
         result = self.storage.query(query, [account_id])
 
         if result.is_empty():
-            error_msg = f"Account not found: {account_id}"
-            logger.error(error_msg)
-            raise ValueError(error_msg)
+            logger.error("account_not_found", account_id=account_id)
+            raise ValueError(f"Account not found: {account_id}")
 
         return float(result.get_column("cash_balance")[0])
 
@@ -69,7 +68,7 @@ class CashManager:
             current_balance = self.get_cash_balance(account_id)
             return current_balance >= amount
         except ValueError:
-            logger.error("account_not_found_during_cash_check", account_id=account_id)
+            logger.error("account_not_found_during_cash_check", account_id=account_id, exc_info=True)
             return False
 
     def deduct_cash(self, account_id: str, amount: float, reason: str) -> bool:
@@ -153,7 +152,7 @@ class CashManager:
         try:
             cash_before = self.get_cash_balance(account_id)
         except ValueError:
-            logger.error("cash_add_account_not_found", account_id=account_id)
+            logger.error("cash_add_account_not_found", account_id=account_id, exc_info=True)
             return False
 
         # Update balance

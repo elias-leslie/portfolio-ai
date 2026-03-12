@@ -127,5 +127,5 @@ def maintain_historical_market_data() -> dict[str, int | str | float]:
         return result
     except Exception as e:
         logger.error("market_data_maintenance_failed", task_id=task_id,
-                     error=str(e), error_type=type(e).__name__)
+                     error=str(e), error_type=type(e).__name__, exc_info=True)
         raise

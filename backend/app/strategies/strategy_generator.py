@@ -253,7 +253,7 @@ Based on this research, generate a trading strategy configuration as valid JSON.
         try:
             strategy_data = json.loads(content)
         except json.JSONDecodeError as e:
-            logger.error("strategy_json_parse_failed", error=str(e), content_preview=content[:100])
+            logger.error("strategy_json_parse_failed", error=str(e), content_preview=content[:100], exc_info=True)
             raise ValueError(f"Invalid JSON response: {e}") from e
 
         # Validate required fields

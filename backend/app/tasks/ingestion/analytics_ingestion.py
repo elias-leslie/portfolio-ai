@@ -168,5 +168,6 @@ def update_earnings_surprises(
             task_id=task_id,
             error=str(e),
             error_type=type(e).__name__,
+            exc_info=True,
         )
         raise

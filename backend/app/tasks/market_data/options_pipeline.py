@@ -99,7 +99,7 @@ def fetch_putcall_ratio(as_of_date: str | None = None) -> dict[str, Any]:
         logger.info("fetch_putcall_ratio_completed", **result)
         return result
     except Exception as e:
-        logger.error("fetch_putcall_ratio_failed", task_id=task_id, error=str(e), error_type=type(e).__name__)
+        logger.error("fetch_putcall_ratio_failed", task_id=task_id, error=str(e), error_type=type(e).__name__, exc_info=True)
         return {"task_id": task_id, "date": as_of_date or today, "error": str(e), "success": False}
 
 
@@ -161,5 +161,5 @@ def fetch_options_activity_metrics() -> dict[str, Any]:
         logger.info("fetch_options_activity_completed", **result)
         return result
     except Exception as e:
-        logger.error("fetch_options_activity_failed", task_id=task_id, error=str(e), error_type=type(e).__name__)
+        logger.error("fetch_options_activity_failed", task_id=task_id, error=str(e), error_type=type(e).__name__, exc_info=True)
         return {"task_id": task_id, "as_of_date": dt.date.today().isoformat(), "error": str(e), "success": False}
