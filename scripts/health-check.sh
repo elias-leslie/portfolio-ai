@@ -26,18 +26,22 @@ echo "Collecting health metrics..." >&2
   curl -sf http://localhost:8000/api/news/health || echo '{"error": "unreachable"}'
   echo ','
 
-  # Capabilities
-  echo '"capabilities_health":'
-  curl -sf http://localhost:8000/api/capabilities/health/summary || echo '{"error": "unreachable"}'
+  # Home automation snapshot
+  echo '"automation_center":'
+  curl -sf http://localhost:8000/api/home/automation-center || echo '{"error": "unreachable"}'
+  echo ','
+
+  # Home action queue
+  echo '"action_queue":'
+  curl -sf http://localhost:8000/api/home/action-queue || echo '{"error": "unreachable"}'
   echo ','
 
   # Service status (user services for portfolio, system service for redis)
   echo '"service_status": {'
   echo '"backend": "'$(systemctl --user is-active portfolio-backend 2>/dev/null || echo "inactive")'",'
-  echo '"celery_worker": "'$(systemctl --user is-active portfolio-celery 2>/dev/null || echo "inactive")'",'
-  echo '"celery_beat": "'$(systemctl --user is-active portfolio-celery-beat 2>/dev/null || echo "inactive")'",'
+  echo '"hatchet_worker": "'$(systemctl --user is-active portfolio-hatchet-worker 2>/dev/null || echo "inactive")'",'
   echo '"frontend": "'$(systemctl --user is-active portfolio-frontend 2>/dev/null || echo "inactive")'",'
-  echo '"redis": "'$(systemctl is-active redis 2>/dev/null || echo "inactive")'"'
+  echo '"redis": "'$(systemctl --user is-active redis 2>/dev/null || echo "inactive")'"'
   echo '}'
 
   echo '}'

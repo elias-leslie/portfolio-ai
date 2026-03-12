@@ -1,7 +1,9 @@
 'use client'
 
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, Loader2, ThumbsDown, ThumbsUp } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { useArticleFeedback, useSubmitArticleFeedback } from '@/lib/hooks/useNews'
 import {
   formatConfidence,
   formatNewsDate,
@@ -10,31 +12,7 @@ import {
   getSentimentBadgeVariant,
   getSentimentScoreOrUndefined,
 } from '@/lib/utils/news-formatting'
-
-interface NewsArticle {
-  symbol?: string
-  headline: string
-  url?: string | null
-  source?: string | null
-  vendor?: string | null
-  publishedAt?: string | null
-  sentimentScore?: number
-  sentimentLabel?: string
-  sentiment?: {
-    score: number
-    label: string
-    confidence?: number
-    model?: string
-  }
-  impactSummary?: string | null
-  actionableInsight?: string | null
-  contentHash?: string
-  qualityPrediction?: boolean | null
-  qualityConfidence?: number | null
-  storyId?: string | null
-  isPrimaryArticle?: boolean
-  coverageCount?: number
-}
+import type { NewsArticle } from './news-card/types'
 
 interface NewsArticleCardProps {
   article: NewsArticle
@@ -59,9 +37,20 @@ export function NewsArticleCard({ article, index }: NewsArticleCardProps) {
       : formatVendorLabel(article.vendor)
 
   const displayHeadline = article.headline
+  const articleHash = article.articleHash ?? article.contentHash ?? null
+  const canRateArticle = Boolean(article.url && articleHash && article.vendor)
+  const { data: feedback } = useArticleFeedback(articleHash ?? undefined, {
+    enabled: canRateArticle,
+  })
+  const submitFeedback = useSubmitArticleFeedback()
+  const isSubmittingFeedback =
+    submitFeedback.isPending &&
+    submitFeedback.variables?.articleHash === articleHash
+  const currentFeedback = feedback?.exists ? feedback.isUseful : undefined
 
   // Generate unique key
   const articleKey =
+    article.articleHash ||
     article.contentHash ||
     article.url ||
     `article-${index}-${article.headline.substring(0, 30)}`
@@ -150,6 +139,65 @@ export function NewsArticleCard({ article, index }: NewsArticleCardProps) {
           )}
         </div>
       </div>
+      {canRateArticle ? (
+        <div className="mt-3 flex items-center justify-between gap-3 border-t border-border/40 pt-3">
+          <span className="text-xs text-text-muted">
+            {currentFeedback === true
+              ? 'Marked useful'
+              : currentFeedback === false
+                ? 'Marked not useful'
+                : 'Was this useful?'}
+          </span>
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              size="sm"
+              variant={currentFeedback === true ? 'default' : 'outline'}
+              className="h-8 px-2"
+              aria-label="Mark article as useful"
+              aria-pressed={currentFeedback === true}
+              disabled={isSubmittingFeedback}
+              onClick={() =>
+                submitFeedback.mutate({
+                  articleUrl: article.url ?? '',
+                  articleHash: articleHash ?? '',
+                  vendor: article.vendor ?? '',
+                  isUseful: true,
+                })
+              }
+            >
+              {isSubmittingFeedback && currentFeedback !== false ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <ThumbsUp className="h-3.5 w-3.5" />
+              )}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={currentFeedback === false ? 'default' : 'outline'}
+              className="h-8 px-2"
+              aria-label="Mark article as not useful"
+              aria-pressed={currentFeedback === false}
+              disabled={isSubmittingFeedback}
+              onClick={() =>
+                submitFeedback.mutate({
+                  articleUrl: article.url ?? '',
+                  articleHash: articleHash ?? '',
+                  vendor: article.vendor ?? '',
+                  isUseful: false,
+                })
+              }
+            >
+              {isSubmittingFeedback && currentFeedback !== true ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <ThumbsDown className="h-3.5 w-3.5" />
+              )}
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

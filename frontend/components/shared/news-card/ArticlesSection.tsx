@@ -64,6 +64,7 @@ export function ArticlesSection({
         {displayedArticles.map((article, idx) => (
           <NewsArticleCard
             key={
+              article.articleHash ||
               article.contentHash ||
               article.url ||
               `article-${idx}-${article.headline.substring(0, 30)}`

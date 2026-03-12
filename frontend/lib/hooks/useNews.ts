@@ -1,9 +1,13 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import {
+  fetchArticleFeedback,
   fetchNewsIntelligence,
-  fetchWatchlistNews,
   type NewsBundle,
   searchNews,
+  submitArticleFeedback,
+  type SubmitArticleFeedbackInput,
+  fetchWatchlistNews,
   type WatchlistNewsResponse,
 } from '@/lib/api/news'
 import { usePortfolio } from './usePortfolio'
@@ -23,6 +27,8 @@ export const newsKeys = {
     [...newsKeys.all, 'watchlist', accountId] as const,
   portfolio: () => [...newsKeys.all, 'portfolio'] as const,
   search: (query: string) => [...newsKeys.all, 'search', query] as const,
+  articleFeedback: (articleHash: string) =>
+    [...newsKeys.all, 'article-feedback', articleHash] as const,
 }
 
 export function useNewsIntelligence(
@@ -106,5 +112,49 @@ export function usePortfolioNews(options?: {
     enabled: symbols.length > 0 && options?.enabled !== false, // Require symbols AND not explicitly disabled
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false, // Disable to prevent continuous polling on focus events
+  })
+}
+
+export function useArticleFeedback(
+  articleHash?: string,
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: newsKeys.articleFeedback(articleHash ?? 'missing'),
+    queryFn: () => fetchArticleFeedback(articleHash ?? ''),
+    enabled: !!articleHash && options?.enabled !== false,
+    staleTime: 1000 * 60 * 30,
+    refetchOnWindowFocus: false,
+  })
+}
+
+export function useSubmitArticleFeedback() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (payload: SubmitArticleFeedbackInput) => submitArticleFeedback(payload),
+
+    onSuccess: (_result, variables) => {
+      queryClient.setQueryData(newsKeys.articleFeedback(variables.articleHash), {
+        exists: true,
+        vendor: variables.vendor,
+        isUseful: variables.isUseful,
+        createdAt: new Date().toISOString(),
+      })
+
+      toast.success(
+        variables.isUseful
+          ? 'Marked article as useful.'
+          : 'Marked article as not useful.',
+      )
+    },
+
+    onError: (error) => {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Failed to save article feedback.',
+      )
+    },
   })
 }

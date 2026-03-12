@@ -103,9 +103,16 @@ class TestNewsSearchEndpoint:
         article = response.json()["articles"][0]
 
         assert "headline" in article
+        assert "article_hash" in article
         assert "published_at" in article
         assert "source" in article
         assert "url" in article
+
+    def test_news_search_exposes_article_hash_for_feedback(self, client: TestClient) -> None:
+        response = client.get("/api/news/search?query=AAPL")
+        article = response.json()["articles"][0]
+
+        assert article["article_hash"] == "AAPL-hash"
 
     def test_news_search_symbol_matches_query(self, client: TestClient) -> None:
         response = client.get("/api/news/search?query=MSFT")

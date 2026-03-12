@@ -12,6 +12,7 @@ export interface KeyEvent {
 export interface NewsArticle {
   symbol?: string
   headline: string
+  articleHash?: string | null
   url?: string | null
   source?: string | null
   vendor?: string | null

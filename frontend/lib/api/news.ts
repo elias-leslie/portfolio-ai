@@ -1,4 +1,4 @@
-import { apiRequest } from './client'
+import { apiRequest, get, post } from './client'
 import type { NewsSentimentDetail, SentimentArticle } from './watchlist'
 
 export interface NewsBundle {
@@ -56,6 +56,28 @@ export interface SourceMetrics {
   articleCount: number
   samplePeriodStart: string
   calculatedAt: string
+}
+
+export interface ArticleFeedback {
+  exists: boolean
+  vendor?: string
+  isUseful?: boolean
+  createdAt?: string
+}
+
+export interface SubmitArticleFeedbackInput {
+  articleUrl: string
+  articleHash: string
+  vendor: string
+  isUseful: boolean
+  sentimentOverride?: number | null
+}
+
+export interface ArticleFeedbackResponse {
+  status: string
+  message: string
+  vendor: string
+  updatedUsefulRate: number | null
 }
 
 type QueryParams = Record<string, string | number | boolean | undefined>
@@ -128,4 +150,16 @@ export async function triggerNewsSourceProfiling(): Promise<{
   return apiRequest('/api/news/profile-sources', {
     method: 'POST',
   })
+}
+
+export async function fetchArticleFeedback(
+  articleHash: string,
+): Promise<ArticleFeedback> {
+  return get<ArticleFeedback>(`/api/news/article-feedback/${encodeURIComponent(articleHash)}`)
+}
+
+export async function submitArticleFeedback(
+  input: SubmitArticleFeedbackInput,
+): Promise<ArticleFeedbackResponse> {
+  return post<ArticleFeedbackResponse>('/api/news/article-feedback', input)
 }

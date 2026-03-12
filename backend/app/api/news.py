@@ -106,6 +106,7 @@ class NewsArticleResponse(BaseModel):
 
     symbol: str
     headline: str
+    article_hash: str | None = None
     url: str | None = None
     summary: str | None = None
     source: str | None = None
@@ -221,6 +222,7 @@ def _serialize_article(article: object) -> NewsArticleResponse:
     return NewsArticleResponse(
         symbol=article.symbol,
         headline=article.headline,
+        article_hash=getattr(article, "content_hash", None),
         url=article.url,
         summary=article.summary,
         source=article.source,
