@@ -44,7 +44,7 @@ export function HouseholdOverviewGrid({
   ]
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1.2fr_repeat(3,minmax(0,1fr))]">
       {metrics.map((metric, index) => {
         const Icon = overviewIcons[index]
         return (
@@ -52,20 +52,22 @@ export function HouseholdOverviewGrid({
             key={metric.label}
             variant="surface"
             className="overflow-hidden"
-            contentClassName="space-y-4"
+            contentClassName="space-y-3"
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-sm font-medium text-text-muted">{metric.label}</p>
-                <p className="mt-3 text-3xl font-semibold tracking-tight text-text">
+                <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+                  {metric.label}
+                </p>
+                <p className="mt-2 text-2xl font-semibold tracking-tight text-text xl:text-[1.75rem]">
                   {metric.value}
                 </p>
               </div>
-              <div className="rounded-2xl bg-primary/10 p-3 text-primary">
-                <Icon className="h-5 w-5" />
+              <div className="rounded-2xl bg-primary/10 p-2.5 text-primary">
+                <Icon className="h-4 w-4" />
               </div>
             </div>
-            <p className="text-sm leading-6 text-text-muted">{metric.detail}</p>
+            <p className="text-sm leading-5 text-text-muted">{metric.detail}</p>
           </SectionCard>
         )
       })}

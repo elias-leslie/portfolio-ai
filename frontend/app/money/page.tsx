@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { ArrowRight, FileUp, Loader2, Search, ThumbsUp } from 'lucide-react'
 import type { HouseholdFinanceDashboard } from '@/lib/api/household'
 import { HouseholdDocumentCenter } from '@/components/money/HouseholdDocumentCenter'
@@ -17,6 +18,7 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { SectionCard } from '@/components/shared/SectionCard'
 import type { WorkspaceTab } from '@/components/shared/WorkspaceTabs'
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs'
+import { Button } from '@/components/ui/button'
 import { useHouseholdDashboard, useHouseholdDocuments } from '@/lib/hooks/useHousehold'
 import { formatRelativeTime } from '@/lib/utils'
 
@@ -54,6 +56,24 @@ function getOnboardingStageLabel(stage: OnboardingStage): string {
       return 'Confirm assumptions'
     case 4:
       return 'Operate'
+  }
+}
+
+function getPrimaryNeedAction(dashboard: HouseholdFinanceDashboard): {
+  href: string
+  label: string
+} | null {
+  const actionableNeed = dashboard.jennyNeeds.find(
+    (need) => need.status === 'unsatisfied' && Boolean(need.actionHref),
+  )
+
+  if (!actionableNeed?.actionHref) {
+    return null
+  }
+
+  return {
+    href: actionableNeed.actionHref,
+    label: actionableNeed.title,
   }
 }
 
@@ -152,6 +172,7 @@ export default function MoneyPage() {
     (question) => !question.answeredAt,
   ).length
   const evidenceMonths = dashboard.reports.executive.coverageMonths
+  const primaryNeedAction = getPrimaryNeedAction(dashboard)
 
   // Stage 1: No data at all — focused onboarding with intake UI only
   if (stage === 1) {
@@ -376,33 +397,56 @@ export default function MoneyPage() {
         description="Budgeting, savings, retirement planning, and document intake in one shared workspace for you and Jenny."
       />
 
-      <div className="rounded-2xl border border-border/40 bg-surface-muted/20 px-4 py-3 text-sm text-text-muted">
-        <div className="flex flex-wrap gap-x-4 gap-y-2">
-          <span>
-            Stage {stage} of 4 · {stageLabel}
-          </span>
-          <span>
-            {dashboard.overview.visibilityLabel} visibility ({dashboard.overview.visibilityScore}/100)
-          </span>
-          <span>
-            {unsatisfiedNeedCount} need{unsatisfiedNeedCount === 1 ? '' : 's'}
-          </span>
-          <span>
-            {openQuestionCount} open question{openQuestionCount === 1 ? '' : 's'}
-          </span>
-          <span>
-            {dashboard.importCenter.parsedDocuments}/{docCount} documents parsed
-          </span>
-          {evidenceMonths > 0 ? (
-            <span>
-              {evidenceMonths} month{evidenceMonths === 1 ? '' : 's'} of evidence
-            </span>
-          ) : null}
-          <span>Updated {formatRelativeTime(dashboard.generatedAt)}</span>
-        </div>
-        <div className="mt-3 border-t border-border/40 pt-3 text-text">
-          <span className="font-semibold">Next best action:</span>{' '}
-          {dashboard.overview.nextBestAction}
+      <div className="rounded-3xl border border-border/40 bg-surface-muted/20 px-5 py-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 space-y-3">
+            <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-text-muted">
+              <span className="rounded-full border border-border/50 bg-background/70 px-2.5 py-1 tracking-[0.18em]">
+                Stage {stage} of 4
+              </span>
+              <span>{stageLabel}</span>
+            </div>
+            <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
+              <h2 className="text-2xl font-semibold tracking-tight text-text">
+                {dashboard.overview.visibilityLabel}
+              </h2>
+              <p className="text-sm text-text-muted">
+                {dashboard.overview.visibilityScore}/100 visibility score
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-sm">
+              <span className="rounded-full bg-background/80 px-3 py-1.5 text-text">
+                {unsatisfiedNeedCount} need{unsatisfiedNeedCount === 1 ? '' : 's'}
+              </span>
+              <span className="rounded-full bg-background/80 px-3 py-1.5 text-text">
+                {openQuestionCount} open question{openQuestionCount === 1 ? '' : 's'}
+              </span>
+              <span className="rounded-full bg-background/80 px-3 py-1.5 text-text">
+                {dashboard.importCenter.parsedDocuments}/{docCount} documents parsed
+              </span>
+              {evidenceMonths > 0 ? (
+                <span className="rounded-full bg-background/80 px-3 py-1.5 text-text">
+                  {evidenceMonths} month{evidenceMonths === 1 ? '' : 's'} of evidence
+                </span>
+              ) : null}
+              <span className="rounded-full bg-background/80 px-3 py-1.5 text-text">
+                Updated {formatRelativeTime(dashboard.generatedAt)}
+              </span>
+            </div>
+          </div>
+          <div className="flex w-full flex-col gap-2 lg:w-auto lg:max-w-sm lg:items-end">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-muted">
+              Next best action
+            </p>
+            <p className="text-sm text-text lg:text-right">
+              {dashboard.overview.nextBestAction}
+            </p>
+            {primaryNeedAction ? (
+              <Button asChild size="sm" className="w-full lg:w-auto">
+                <Link href={primaryNeedAction.href}>{primaryNeedAction.label}</Link>
+              </Button>
+            ) : null}
+          </div>
         </div>
       </div>
 
