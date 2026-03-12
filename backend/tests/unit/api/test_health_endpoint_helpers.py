@@ -178,3 +178,44 @@ async def test_get_stale_maintenance_runs_returns_old_running_jobs(
             "dry_run": False,
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_get_data_freshness_summary_returns_no_data_when_no_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_conn = MagicMock()
+    fake_conn.execute.return_value.fetchone.return_value = None
+
+    @contextmanager
+    def fake_connection():
+        yield fake_conn
+
+    fake_storage = MagicMock()
+    fake_storage.connection.side_effect = fake_connection
+
+    monkeypatch.setattr("app.api.health.get_storage", lambda: fake_storage)
+
+    from app.api.health import get_data_freshness_summary
+
+    summary = await get_data_freshness_summary()
+
+    assert summary == {
+        "last_check": None,
+        "status": "no_data",
+        "message": "No freshness checks have been run yet",
+    }
+
+
+def test_build_deletion_rate_message_uses_threshold_bands() -> None:
+    from app.api.health import _build_deletion_rate_message
+
+    assert _build_deletion_rate_message(0, 1) == ("ok", "✅ OK: 0 deletions in last 1h")
+    assert _build_deletion_rate_message(10, 4) == (
+        "warning",
+        "⚠️  WARNING: 10 deletions in last 4h (threshold: 10)",
+    )
+    assert _build_deletion_rate_message(100, 2) == (
+        "critical",
+        "🔴 CRITICAL: 100 deletions in last 2h (threshold: 100)",
+    )

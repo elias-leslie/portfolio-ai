@@ -1,8 +1,4 @@
-"""Health check endpoints for portfolio-ai.
-
-This module provides comprehensive health checks for monitoring
-system status, dependencies, and service availability including multi-source data fetching.
-"""
+"""Health check endpoints for portfolio-ai."""
 
 from __future__ import annotations
 
@@ -33,237 +29,74 @@ from ..utils.health_service import (
 from ..utils.health_workflows import WorkflowHealthInfo
 
 logger = get_logger(__name__)
-
 router = APIRouter(prefix="/health", tags=["health"])
+health_service = HealthCheckService()
+
+FRESHNESS_TASK_NAME = "check_all_data_freshness"
+FRESHNESS_ALERT_PREFIX = "data_freshness_alert_"
+DEFAULT_HOURS_WINDOW = 24
+DEFAULT_STALE_RUN_HOURS = 2
+MAX_RECENT_REMEDIATIONS = 100
+MAX_RETURNED_REMEDIATIONS = 20
+MAX_STALE_RUNS = 50
+DELETION_RATE_WARNING_THRESHOLD = 10
+DELETION_RATE_CRITICAL_THRESHOLD = 100
+STATUS_OK = "ok"
+STATUS_WARNING = "warning"
+STATUS_CRITICAL = "critical"
+STATUS_DOWN = "down"
+STATUS_SUCCESS = "success"
+STATUS_UNKNOWN = "unknown"
+STATUS_NO_DATA = "no_data"
+STATUS_ERROR = "error"
+MESSAGE_NO_FRESHNESS_DATA = "No freshness checks have been run yet"
+RUNNING_STATUS = "running"
+
+DATA_FRESHNESS_QUERY = """
+    SELECT summary, started_at, status
+    FROM maintenance_log
+    WHERE task_name = 'check_all_data_freshness'
+    ORDER BY started_at DESC
+    LIMIT 1
+"""
+
+RECENT_REMEDIATIONS_QUERY = """
+    SELECT task_name, started_at, status, summary, error_message
+    FROM maintenance_log
+    WHERE task_name LIKE 'data_freshness_alert_%%'
+    AND started_at > NOW() - make_interval(hours => ?)
+    ORDER BY started_at DESC
+    LIMIT 100
+"""
+
+STALE_MAINTENANCE_RUNS_QUERY = """
+    SELECT task_name, started_at, dry_run
+    FROM maintenance_log
+    WHERE status = 'running'
+      AND started_at < NOW() - make_interval(hours => ?)
+    ORDER BY started_at ASC
+    LIMIT 50
+"""
+
+DELETION_RATE_QUERY = """
+    SELECT
+        table_name,
+        COUNT(*) as deletion_count
+    FROM deletion_audit
+    WHERE deleted_at > NOW() - make_interval(hours => ?)
+    GROUP BY table_name
+    ORDER BY deletion_count DESC
+"""
 
 
-def _parse_summary_json(summary_json: Any) -> dict[str, Any]:
-    """Normalize maintenance summary payloads to a dictionary."""
-    if isinstance(summary_json, str):
-        try:
-            parsed = json.loads(summary_json)
-        except json.JSONDecodeError:
-            return {}
-        return parsed if isinstance(parsed, dict) else {}
-    if isinstance(summary_json, dict):
-        return summary_json
-    return {}
-
-
-def _get_remediation_resolution_state(
-    *,
-    triggered_at: datetime | None,
-    freshness_status: str | None,
-    freshness_started_at: datetime | None,
-    freshness_summary: dict[str, Any],
-) -> tuple[bool, str | None]:
-    """Return whether a remediation is now resolved by a later clear freshness check."""
-    if (
-        triggered_at is None
-        or freshness_status != "success"
-        or not isinstance(freshness_started_at, datetime)
-        or freshness_started_at <= triggered_at
-        or freshness_summary.get("stale", 0) != 0
-        or freshness_summary.get("critical", 0) != 0
-    ):
-        return False, None
-    return True, freshness_started_at.isoformat()
-
-
-# Helper functions for status page enhancement
-async def get_data_freshness_summary() -> dict[str, Any]:
-    """Get summary of data freshness status from last check.
-
-    Returns:
-        Dict with last_check, tables_checked, fresh, stale, critical counts
-    """
-    storage = get_storage()
-
-    try:
-        # Query maintenance_log for recent check_all_data_freshness runs
-        query = """
-            SELECT summary, started_at, status
-            FROM maintenance_log
-            WHERE task_name = 'check_all_data_freshness'
-            ORDER BY started_at DESC
-            LIMIT 1
-        """
-
-        with storage.connection() as conn:
-            result = conn.execute(query).fetchone()
-
-        if not result:
-            return {
-                "last_check": None,
-                "status": "no_data",
-                "message": "No freshness checks have been run yet",
-            }
-
-        # Unpack result with proper types
-        summary_json = result[0]  # Can be str, dict, or None
-        started_at = result[1]  # Should be datetime or None
-        status = result[2]  # Should be str
-
-        summary = _parse_summary_json(summary_json)
-
-        return {
-            "last_check": started_at.isoformat() if isinstance(started_at, datetime) else None,
-            "status": str(status) if status else "unknown",
-            "tables_checked": summary.get("tables_checked", 0),
-            "fresh": summary.get("fresh", 0),
-            "stale": summary.get("stale", 0),
-            "critical": summary.get("critical", 0),
-            "remediations_triggered": summary.get("remediations_triggered", 0),
-        }
-
-    except Exception as e:
-        logger.error("get_data_freshness_summary_failed", error=str(e))
-        return {"last_check": None, "status": "error", "error": str(e)}
-
-
-async def get_recent_remediations(hours: int = 24) -> list[dict[str, Any]]:
-    """Get recent auto-remediation actions.
-
-    Args:
-        hours: Time window in hours (default: 24)
-
-    Returns:
-        List of recent remediation events
-    """
-    storage = get_storage()
-
-    try:
-        query = """
-            SELECT task_name, started_at, status, summary, error_message
-            FROM maintenance_log
-            WHERE task_name LIKE 'data_freshness_alert_%%'
-            AND started_at > NOW() - make_interval(hours => ?)
-            ORDER BY started_at DESC
-            LIMIT 100
-        """
-
-        latest_freshness_query = """
-            SELECT summary, started_at, status
-            FROM maintenance_log
-            WHERE task_name = 'check_all_data_freshness'
-            ORDER BY started_at DESC
-            LIMIT 1
-        """
-
-        with storage.connection() as conn:
-            result = conn.execute(query, [hours]).fetchall()
-            latest_freshness_row = conn.execute(latest_freshness_query).fetchone()
-
-        latest_freshness_summary = (
-            _parse_summary_json(latest_freshness_row[0]) if latest_freshness_row else {}
-        )
-        latest_freshness_started_at = (
-            latest_freshness_row[1]
-            if latest_freshness_row and isinstance(latest_freshness_row[1], datetime)
-            else None
-        )
-        latest_freshness_status = (
-            str(latest_freshness_row[2]) if latest_freshness_row and latest_freshness_row[2] else None
-        )
-
-        remediations_by_table: dict[str, dict[str, Any]] = {}
-        for row in result:
-            # Unpack row with explicit types
-            task_name_val = row[0]  # str | int | float | None
-            started_at_val = row[1]  # datetime or other DatabaseValue
-            status_val = row[2]  # str | int | float | None
-            summary_json_val = row[3]  # str | dict | None
-            error_message_val = row[4]  # str | None
-
-            # Extract table name from task_name (format: data_freshness_alert_TABLE_NAME)
-            if isinstance(task_name_val, str):
-                table_name = task_name_val.replace("data_freshness_alert_", "")
-            else:
-                table_name = "unknown"
-
-            summary = _parse_summary_json(summary_json_val)
-            triggered_at = started_at_val if isinstance(started_at_val, datetime) else None
-            resolved, resolved_at = _get_remediation_resolution_state(
-                triggered_at=triggered_at,
-                freshness_status=latest_freshness_status,
-                freshness_started_at=latest_freshness_started_at,
-                freshness_summary=latest_freshness_summary,
-            )
-
-            existing = remediations_by_table.get(table_name)
-            if existing:
-                existing["occurrence_count"] = int(existing.get("occurrence_count", 1)) + 1
-                continue
-
-            remediations_by_table[table_name] = {
-                "table_name": table_name,
-                "triggered_at": triggered_at.isoformat() if triggered_at else None,
-                "status": str(status_val) if status_val else "unknown",
-                "age_hours": summary.get("age_hours"),
-                "threshold_hours": summary.get("threshold_hours"),
-                "reason": summary.get("reason"),
-                "error_message": str(error_message_val) if error_message_val else None,
-                "occurrence_count": 1,
-                "resolved": resolved,
-                "resolved_at": resolved_at,
-            }
-
-        return list(remediations_by_table.values())[:20]
-
-    except Exception as e:
-        logger.error("get_recent_remediations_failed", error=str(e))
-        return []
-
-
-async def get_stale_maintenance_runs(hours: int = 2) -> list[dict[str, Any]]:
-    """Return maintenance runs stuck in running status past the alert threshold."""
-    storage = get_storage()
-
-    try:
-        # Validate hours is a positive integer
-        if not isinstance(hours, int) or hours < 0:
-            raise ValueError(f"hours must be a non-negative integer, got {hours}")
-
-        query = """
-            SELECT task_name, started_at, dry_run
-            FROM maintenance_log
-            WHERE status = 'running'
-              AND started_at < NOW() - make_interval(hours => ?)
-            ORDER BY started_at ASC
-            LIMIT 50
-        """
-
-        with storage.connection() as conn:
-            result = conn.execute(query, [hours]).fetchall()
-
-        return [
-            {
-                "task_name": str(task_name),
-                "started_at": started_at.isoformat() if isinstance(started_at, datetime) else None,
-                "dry_run": bool(dry_run),
-            }
-            for task_name, started_at, dry_run in result
-        ]
-
-    except Exception as e:
-        logger.error("get_stale_maintenance_runs_failed", error=str(e))
-        return []
-
-
-# API Response Models
 class HealthCheckResponse(BaseModel):
-    """Complete health check response."""
-
     status: Literal["healthy", "degraded", "down"]
     timestamp: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
     version: str = "1.0.0"
     uptime_seconds: int
     checks: dict[str, CheckResult]
     sources: dict[str, SourceHealthCheck] = Field(default_factory=dict)
-    services: dict[str, Any] = Field(
-        default_factory=dict,
-        description="Service process status (backend, hatchet worker, frontend, redis)",
-    )
+    services: dict[str, Any] = Field(default_factory=dict)
     cache_stats: CacheStats | None = None
     agent_stats: AgentStats | None = None
     watchlist_stats: WatchlistStats | None = None
@@ -272,45 +105,27 @@ class HealthCheckResponse(BaseModel):
 
 
 class DetailedHealthCheckResponse(HealthCheckResponse):
-    """Extended health check response with additional system details."""
-
     day_bars_freshness: list[DayBarFreshness] = Field(default_factory=list)
     worker: WorkerInfo | None = None
     api_keys: list[APIKeyStatus] = Field(default_factory=list)
     disk_usage: DiskUsageInfo | None = None
-    workflow_metrics: dict[str, Any] = Field(
-        default_factory=dict,
-        description="Workflow metrics for last 7 days",
-    )
-    data_freshness_status: dict[str, Any] = Field(
-        default_factory=dict,
-        description="Pipeline execution status from last freshness check",
-    )
-    recent_remediations: list[dict[str, Any]] = Field(
-        default_factory=list,
-        description="Recent auto-remediation actions (last 24h)",
-    )
-    stale_maintenance_runs: list[dict[str, Any]] = Field(
-        default_factory=list,
-        description="Maintenance jobs stuck in running state past the alert threshold",
-    )
+    workflow_metrics: dict[str, Any] = Field(default_factory=dict)
+    data_freshness_status: dict[str, Any] = Field(default_factory=dict)
+    recent_remediations: list[dict[str, Any]] = Field(default_factory=list)
+    stale_maintenance_runs: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class DeletionRate(BaseModel):
-    """Deletion rate monitoring response."""
-
     status: Literal["ok", "warning", "critical"]
     time_window_hours: int
     deletions_by_table: dict[str, int]
     total_deletions: int
-    alert_threshold_warning: int = 10
-    alert_threshold_critical: int = 100
+    alert_threshold_warning: int = DELETION_RATE_WARNING_THRESHOLD
+    alert_threshold_critical: int = DELETION_RATE_CRITICAL_THRESHOLD
     message: str
 
 
 class ResponseCacheStats(BaseModel):
-    """Response cache statistics."""
-
     enabled: bool
     size: int
     max_size: int
@@ -322,34 +137,215 @@ class ResponseCacheStats(BaseModel):
 
 
 class CacheClearResponse(BaseModel):
-    """Response for cache clear operation."""
-
     status: str
     cleared_entries: int
     message: str
 
 
-# Create singleton health check service instance
-health_service = HealthCheckService()
+def _parse_summary_json(summary_json: Any) -> dict[str, Any]:
+    if isinstance(summary_json, str):
+        try:
+            parsed = json.loads(summary_json)
+        except json.JSONDecodeError:
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+    if isinstance(summary_json, dict):
+        return summary_json
+    return {}
+
+
+def _normalize_datetime(value: Any) -> datetime | None:
+    return value if isinstance(value, datetime) else None
+
+
+def _normalize_status(value: Any) -> str:
+    return str(value) if value else STATUS_UNKNOWN
+
+
+def _format_datetime(value: datetime | None) -> str | None:
+    return value.isoformat() if isinstance(value, datetime) else None
+
+
+def _get_remediation_resolution_state(
+    *,
+    triggered_at: datetime | None,
+    freshness_status: str | None,
+    freshness_started_at: datetime | None,
+    freshness_summary: dict[str, Any],
+) -> tuple[bool, str | None]:
+    if (
+        triggered_at is None
+        or freshness_status != STATUS_SUCCESS
+        or freshness_started_at is None
+        or freshness_started_at <= triggered_at
+        or freshness_summary.get("stale", 0) != 0
+        or freshness_summary.get("critical", 0) != 0
+    ):
+        return False, None
+    return True, freshness_started_at.isoformat()
+
+
+def _extract_table_name(task_name: Any) -> str:
+    return task_name.replace(FRESHNESS_ALERT_PREFIX, "") if isinstance(task_name, str) else STATUS_UNKNOWN
+
+
+def _build_freshness_summary_payload(result: Any) -> dict[str, Any]:
+    if not result:
+        return {
+            "last_check": None,
+            "status": STATUS_NO_DATA,
+            "message": MESSAGE_NO_FRESHNESS_DATA,
+        }
+
+    summary = _parse_summary_json(result[0])
+    started_at = _normalize_datetime(result[1])
+    status = _normalize_status(result[2])
+    return {
+        "last_check": _format_datetime(started_at),
+        "status": status,
+        "tables_checked": summary.get("tables_checked", 0),
+        "fresh": summary.get("fresh", 0),
+        "stale": summary.get("stale", 0),
+        "critical": summary.get("critical", 0),
+        "remediations_triggered": summary.get("remediations_triggered", 0),
+    }
+
+
+def _build_latest_freshness_state(row: Any) -> tuple[dict[str, Any], datetime | None, str | None]:
+    if not row:
+        return {}, None, None
+    return (
+        _parse_summary_json(row[0]),
+        _normalize_datetime(row[1]),
+        _normalize_status(row[2]),
+    )
+
+
+def _build_remediation_entry(
+    *,
+    row: Any,
+    freshness_status: str | None,
+    freshness_started_at: datetime | None,
+    freshness_summary: dict[str, Any],
+) -> tuple[str, dict[str, Any]]:
+    task_name, started_at_raw, status_raw, summary_raw, error_message = row
+    table_name = _extract_table_name(task_name)
+    summary = _parse_summary_json(summary_raw)
+    triggered_at = _normalize_datetime(started_at_raw)
+    resolved, resolved_at = _get_remediation_resolution_state(
+        triggered_at=triggered_at,
+        freshness_status=freshness_status,
+        freshness_started_at=freshness_started_at,
+        freshness_summary=freshness_summary,
+    )
+    return table_name, {
+        "table_name": table_name,
+        "triggered_at": _format_datetime(triggered_at),
+        "status": _normalize_status(status_raw),
+        "age_hours": summary.get("age_hours"),
+        "threshold_hours": summary.get("threshold_hours"),
+        "reason": summary.get("reason"),
+        "error_message": str(error_message) if error_message else None,
+        "occurrence_count": 1,
+        "resolved": resolved,
+        "resolved_at": resolved_at,
+    }
+
+
+def _summarize_deletion_counts(result: Any) -> dict[str, int]:
+    if result.is_empty():
+        return {}
+    return {
+        row["table_name"]: row["deletion_count"]
+        for row in result.iter_rows(named=True)
+    }
+
+
+def _build_deletion_rate_message(total_deletions: int, hours: int) -> tuple[Literal["ok", "warning", "critical"], str]:
+    if total_deletions >= DELETION_RATE_CRITICAL_THRESHOLD:
+        return (
+            STATUS_CRITICAL,
+            f"🔴 CRITICAL: {total_deletions} deletions in last {hours}h (threshold: {DELETION_RATE_CRITICAL_THRESHOLD})",
+        )
+    if total_deletions >= DELETION_RATE_WARNING_THRESHOLD:
+        return (
+            STATUS_WARNING,
+            f"⚠️  WARNING: {total_deletions} deletions in last {hours}h (threshold: {DELETION_RATE_WARNING_THRESHOLD})",
+        )
+    return STATUS_OK, f"✅ OK: {total_deletions} deletions in last {hours}h"
+
+
+async def get_data_freshness_summary() -> dict[str, Any]:
+    storage = get_storage()
+    try:
+        with storage.connection() as conn:
+            result = conn.execute(DATA_FRESHNESS_QUERY).fetchone()
+        return _build_freshness_summary_payload(result)
+    except Exception as e:
+        logger.error("get_data_freshness_summary_failed", error=str(e))
+        return {"last_check": None, "status": STATUS_ERROR, "error": str(e)}
+
+
+async def get_recent_remediations(hours: int = DEFAULT_HOURS_WINDOW) -> list[dict[str, Any]]:
+    storage = get_storage()
+    try:
+        with storage.connection() as conn:
+            result = conn.execute(RECENT_REMEDIATIONS_QUERY, [hours]).fetchall()
+            latest_freshness_row = conn.execute(DATA_FRESHNESS_QUERY).fetchone()
+
+        latest_freshness_summary, latest_freshness_started_at, latest_freshness_status = (
+            _build_latest_freshness_state(latest_freshness_row)
+        )
+        remediations_by_table: dict[str, dict[str, Any]] = {}
+        for row in result:
+            table_name, remediation = _build_remediation_entry(
+                row=row,
+                freshness_status=latest_freshness_status,
+                freshness_started_at=latest_freshness_started_at,
+                freshness_summary=latest_freshness_summary,
+            )
+            existing = remediations_by_table.get(table_name)
+            if existing:
+                existing["occurrence_count"] = int(existing.get("occurrence_count", 1)) + 1
+                continue
+            remediations_by_table[table_name] = remediation
+
+        return list(remediations_by_table.values())[:MAX_RETURNED_REMEDIATIONS]
+    except Exception as e:
+        logger.error("get_recent_remediations_failed", error=str(e))
+        return []
+
+
+async def get_stale_maintenance_runs(hours: int = DEFAULT_STALE_RUN_HOURS) -> list[dict[str, Any]]:
+    storage = get_storage()
+    try:
+        if not isinstance(hours, int) or hours < 0:
+            raise ValueError(f"hours must be a non-negative integer, got {hours}")
+        with storage.connection() as conn:
+            result = conn.execute(STALE_MAINTENANCE_RUNS_QUERY, [hours]).fetchall()
+        return [
+            {
+                "task_name": str(task_name),
+                "started_at": _format_datetime(_normalize_datetime(started_at)),
+                "dry_run": bool(dry_run),
+            }
+            for task_name, started_at, dry_run in result
+        ]
+    except Exception as e:
+        logger.error("get_stale_maintenance_runs_failed", error=str(e))
+        return []
+
+
+def _set_down_status(response: Response, result: dict[str, Any]) -> None:
+    if result["status"] == STATUS_DOWN:
+        response.status_code = 503
 
 
 @router.get("", response_model=HealthCheckResponse)
 async def health_check(response: Response) -> HealthCheckResponse:
-    """Comprehensive health check endpoint.
-
-    Returns health status, uptime, and metrics for all system components including
-    multi-source data fetching health (yfinance, polygon, etc).
-    Returns HTTP 503 if database is down, HTTP 200 otherwise.
-    """
     result = health_service.perform_health_check()
-
-    # Set appropriate HTTP status code
-    if result["status"] == "down":
-        response.status_code = 503
-
-    # Build source status summary for logging
+    _set_down_status(response, result)
     source_status_summary = {name: src.status for name, src in result["sources"].items()}
-
     logger.info(
         "health_check_performed",
         status=result["status"],
@@ -358,36 +354,16 @@ async def health_check(response: Response) -> HealthCheckResponse:
         sources=source_status_summary,
         num_sources=len(result["sources"]),
     )
-
     return HealthCheckResponse(**result)
 
 
 @router.get("/detailed", response_model=DetailedHealthCheckResponse)
 async def detailed_health_check(response: Response) -> DetailedHealthCheckResponse:
-    """Comprehensive health check endpoint with additional system details.
-
-    Returns detailed health status including:
-    - All standard health checks (database, sources, services, etc.)
-    - Day bars data freshness per symbol
-    - Hatchet worker status
-    - API key configuration status
-    - Disk usage statistics
-    - Data freshness monitoring status (pipeline execution)
-    - Recent auto-remediation activity
-
-    Returns HTTP 503 if database is down, HTTP 200 otherwise.
-    """
     result = health_service.perform_detailed_health_check()
-
-    # Set appropriate HTTP status code
-    if result["status"] == "down":
-        response.status_code = 503
-
-    # Add pipeline execution and remediation data
+    _set_down_status(response, result)
     result["data_freshness_status"] = await get_data_freshness_summary()
     result["recent_remediations"] = await get_recent_remediations()
     result["stale_maintenance_runs"] = await get_stale_maintenance_runs()
-
     logger.info(
         "detailed_health_check_endpoint",
         status=result["status"],
@@ -398,75 +374,23 @@ async def detailed_health_check(response: Response) -> DetailedHealthCheckRespon
         remediations_count=len(result["recent_remediations"]),
         stale_maintenance_runs=len(result["stale_maintenance_runs"]),
     )
-
     return DetailedHealthCheckResponse(**result)
 
 
 @router.get("/simple")
 async def simple_health_check() -> dict[str, str]:
-    """Simple health check endpoint (legacy compatibility).
-
-    Returns:
-        Simple status dict
-    """
     return {"status": "healthy"}
 
 
 @router.get("/deletion-rate", response_model=DeletionRate)
 async def get_deletion_rate(hours: int = 1) -> DeletionRate:
-    """Monitor deletion rate for incident detection.
-
-    Created: 2025-11-10 (Response to Nov 9 deletion incident)
-
-    Tracks deletions from critical tables to detect mass deletion events
-    that may indicate data loss incidents, migration issues, or bugs.
-
-    Alert thresholds:
-    - Warning: >10 deletions in time window
-    - Critical: >100 deletions in time window
-
-    Args:
-        hours: Time window in hours (default: 1)
-
-    Returns:
-        Deletion rate summary with alert status
-    """
     storage = get_storage()
-
     try:
-        query = """
-        SELECT
-            table_name,
-            COUNT(*) as deletion_count
-        FROM deletion_audit
-        WHERE deleted_at > NOW() - make_interval(hours => ?)
-        GROUP BY table_name
-        ORDER BY deletion_count DESC
-        """
-
         with storage.connection() as conn:
-            result = conn.execute(query, [hours]).pl()
-
-        # Build deletion summary
-        deletions_by_table = {}
-        if not result.is_empty():
-            for row in result.iter_rows(named=True):
-                deletions_by_table[row["table_name"]] = row["deletion_count"]
-
+            result = conn.execute(DELETION_RATE_QUERY, [hours]).pl()
+        deletions_by_table = _summarize_deletion_counts(result)
         total_deletions = sum(deletions_by_table.values())
-
-        # Determine alert status
-        status: Literal["ok", "warning", "critical"]
-        if total_deletions >= 100:
-            status = "critical"
-            message = f"🔴 CRITICAL: {total_deletions} deletions in last {hours}h (threshold: 100)"
-        elif total_deletions >= 10:
-            status = "warning"
-            message = f"⚠️  WARNING: {total_deletions} deletions in last {hours}h (threshold: 10)"
-        else:
-            status = "ok"
-            message = f"✅ OK: {total_deletions} deletions in last {hours}h"
-
+        status, message = _build_deletion_rate_message(total_deletions, hours)
         logger.info(
             "deletion_rate_check",
             status=status,
@@ -474,7 +398,6 @@ async def get_deletion_rate(hours: int = 1) -> DeletionRate:
             time_window_hours=hours,
             deletions_by_table=deletions_by_table,
         )
-
         return DeletionRate(
             status=status,
             time_window_hours=hours,
@@ -482,14 +405,10 @@ async def get_deletion_rate(hours: int = 1) -> DeletionRate:
             total_deletions=total_deletions,
             message=message,
         )
-
     except Exception as e:
-        # If deletion_audit table doesn't exist (migration 024 not applied),
-        # return OK status with explanation
         logger.warning("deletion_audit_check_failed", error=str(e))
-
         return DeletionRate(
-            status="ok",
+            status=STATUS_OK,
             time_window_hours=hours,
             deletions_by_table={},
             total_deletions=0,
@@ -499,12 +418,7 @@ async def get_deletion_rate(hours: int = 1) -> DeletionRate:
 
 @router.get("/cache/stats", response_model=ResponseCacheStats)
 async def get_cache_statistics() -> ResponseCacheStats:
-    """Get response cache statistics.
-
-    Returns cache size, hit rate, and other metrics for the response caching middleware.
-    """
     stats = get_response_cache_stats()
-
     logger.info(
         "cache_stats_retrieved",
         cache_size=stats["size"],
@@ -512,26 +426,15 @@ async def get_cache_statistics() -> ResponseCacheStats:
         total_hits=stats["hits"],
         total_misses=stats["misses"],
     )
-
     return ResponseCacheStats(**stats)
 
 
 @router.post("/cache/clear", response_model=CacheClearResponse)
 async def clear_response_cache() -> CacheClearResponse:
-    """Clear all response cache entries.
-
-    Clears the entire response cache, forcing fresh data fetches for all cached endpoints.
-    Use this when you need to ensure all data is up-to-date.
-    """
     cleared_count = clear_cache()
-
-    logger.info(
-        "cache_cleared",
-        cleared_entries=cleared_count,
-    )
-
+    logger.info("cache_cleared", cleared_entries=cleared_count)
     return CacheClearResponse(
-        status="success",
+        status=STATUS_SUCCESS,
         cleared_entries=cleared_count,
         message=f"Cleared {cleared_count} cache entries",
     )
