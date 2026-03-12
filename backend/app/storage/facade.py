@@ -97,9 +97,9 @@ class PortfolioStorage:
         """Get row counts for all tables."""
         return self.metadata_mgr.get_table_counts()
 
-    def print_status(self, prefix: str = "[storage]") -> None:
-        """Print current database status with row counts."""
-        return self.metadata_mgr.print_status(prefix)
+    def log_status(self) -> None:
+        """Log current database status with row counts."""
+        return self.metadata_mgr.log_status()
 
     # Query methods (delegate to QueryManager)
     def query(self, sql: str, params: list[ParameterValue] | None = None) -> pl.DataFrame:

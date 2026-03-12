@@ -70,9 +70,7 @@ def create_paper_trade_from_strategy_signal(
         shares, entry_amount, sharpe, win_rate, max_drawdown, backtest_run_id,
     )
     try:
-        insert_strategy_trade_records(
-            storage, idea_id, strategy_id, symbol, signal_strength, signal_reasons, insert_data
-        )
+        insert_strategy_trade_records(storage, strategy_id, insert_data)
         logger.info(
             "paper_trade_created_from_strategy", strategy_id=strategy_id, symbol=symbol,
             entry_price=entry_price, signal_strength=signal_strength,

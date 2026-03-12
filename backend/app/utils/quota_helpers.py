@@ -9,8 +9,12 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING, Any
 
+from ..logging_config import get_logger
+
 if TYPE_CHECKING:
     from ..storage.facade import PortfolioStorage
+
+logger = get_logger(__name__)
 
 
 def is_api_key_configured(
@@ -40,8 +44,8 @@ def is_api_key_configured(
             db_value = cred_df.to_dicts()[0]["value"]
             # Database has a row: return True only if value is valid (non-empty, non-placeholder)
             return bool(db_value and db_value not in ("your_key_here", "PLACEHOLDER"))
-    except Exception:
-        pass  # Database check failed, fall through to env var check
+    except Exception as e:
+        logger.debug("api_key_db_check_failed", source_id=source_id, error=str(e))
 
     # Fall back to environment variable
     key_value = os.getenv(env_var, "")

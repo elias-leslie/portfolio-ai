@@ -141,7 +141,7 @@ def fetch_cik_mapping(timeout: int = 30) -> dict[str, str]:
     # All sources failed
     error_summary = "; ".join(errors)
     logger.error("cik_fetch_all_failed", errors=error_summary)
-    raise Exception(f"All CIK sources failed: {error_summary}")
+    raise RuntimeError(f"All CIK sources failed: {error_summary}")
 
 
 def _parse_cik_data(data: dict[str, Any] | list[Any], source_name: str) -> dict[str, str]:

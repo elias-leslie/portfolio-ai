@@ -11,8 +11,9 @@ import datetime as dt
 import uuid
 
 from ..logging_config import get_logger
+from ..sources._fetch_helpers import fetch_from_source
 from ..sources.alphavantage_source import AlphaVantageSource
-from ..sources.base import DATASET_DAY, DatasetRequest
+from ..sources.base import DATASET_DAY, BaseSource, DatasetRequest
 from ..sources.finnhub_source import FinnhubSource
 from ..sources.fmp_source import FMPSource
 from ..sources.multi_source_fetcher import MultiSourceFetcher
@@ -53,37 +54,36 @@ def _make_test_request() -> DatasetRequest:
 
 
 def _check_single_source(
-    fetcher: MultiSourceFetcher,
-    source: object,
+    source: BaseSource,
     request: DatasetRequest,
     results: dict[str, str],
     errors: dict[str, str],
 ) -> None:
     """Probe one source and update results/errors dicts in place."""
     try:
-        data = fetcher._fetch_from_source(source, request, {_TEST_SYMBOL})  # type: ignore[attr-defined]
+        data = fetch_from_source(source, request, {_TEST_SYMBOL})
 
         if data is not None and len(data) > 0:
-            results[source.name] = "healthy"  # type: ignore[attr-defined]
+            results[source.name] = "healthy"
             logger.info(
                 "source_health_check_healthy",
-                source=source.name,  # type: ignore[attr-defined]
+                source=source.name,
                 rows=len(data),
             )
         else:
-            results[source.name] = "degraded"  # type: ignore[attr-defined]
+            results[source.name] = "degraded"
             logger.warning(
                 "source_health_check_degraded",
-                source=source.name,  # type: ignore[attr-defined]
+                source=source.name,
                 reason="empty_data",
             )
 
     except Exception as e:
-        results[source.name] = "down"  # type: ignore[attr-defined]
-        errors[source.name] = str(e)  # type: ignore[attr-defined]
+        results[source.name] = "down"
+        errors[source.name] = str(e)
         logger.warning(
             "source_health_check_down",
-            source=source.name,  # type: ignore[attr-defined]
+            source=source.name,
             error=str(e),
         )
 
@@ -138,6 +138,6 @@ def check_data_source_health() -> dict[str, object]:
     errors: dict[str, str] = {}
 
     for source in fetcher.sources:
-        _check_single_source(fetcher, source, request, results, errors)
+        _check_single_source(source, request, results, errors)
 
     return _summarise(task_id, results, errors)

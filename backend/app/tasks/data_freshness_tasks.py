@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import datetime as dt
 import uuid
+from typing import TypedDict
 
 from app.logging_config import get_logger
 from app.services.data_freshness_service import check_all_tables_freshness
@@ -20,11 +21,11 @@ logger = get_logger(__name__)
 _STALE_SECONDS = 24 * 3600
 
 
-def _fetch_symbol_rows() -> list[tuple[str | None, object]]:
+def _fetch_symbol_rows() -> list[tuple[str | int | float | bool | None, ...]]:
     """Return (symbol, last_fetched) rows from the watchlist."""
     storage = get_storage()
     with storage.connection() as conn:
-        return conn.execute(  # type: ignore[return-value]
+        return conn.execute(
             """
             SELECT wi.symbol, MAX(ws.fetched_at) as last_fetched
             FROM watchlist_items wi
@@ -42,7 +43,13 @@ def _is_stale(last_fetched: object, now: dt.datetime) -> bool:
     return True
 
 
-def _check_data_freshness_impl() -> dict[str, int | list[str]]:
+class _FreshnessResult(TypedDict):
+    symbols_checked: int
+    stale_found: int
+    stale_symbols: list[str]
+
+
+def _check_data_freshness_impl() -> _FreshnessResult:
     """Identify stale watchlist symbols."""
     rows = _fetch_symbol_rows()
     if not rows:
@@ -80,7 +87,7 @@ def maintain_data_freshness() -> dict[str, object]:
 
     try:
         freshness = _check_data_freshness_impl()
-        stale: list[str] = freshness["stale_symbols"]  # type: ignore[assignment]
+        stale = freshness["stale_symbols"]
 
         if not stale:
             result: dict[str, object] = {

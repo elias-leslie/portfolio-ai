@@ -106,9 +106,8 @@ TABLES_TO_CLEAN = [
     "agent_workflows",
     # Agent tables (no FK dependencies)
     "agent_tool_calls",
-    "agent_ideas",
     "agent_runs",
-    # Idea outcomes (references agent_ideas)
+    # Idea outcomes
     "idea_outcomes",
     # Portfolio positions (references portfolio_accounts)
     "portfolio_positions",

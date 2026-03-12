@@ -116,35 +116,13 @@ def build_strategy_trade_dict(
 
 def insert_strategy_trade_records(
     storage: PortfolioStorage,
-    idea_id: str,
     strategy_id: str,
-    symbol: str,
-    signal_strength: int,
-    signal_reasons: list[str] | None,
     insert_data: PaperTradeDict,
 ) -> None:
-    """Insert agent_run, agent_ideas, and idea_outcomes records for a strategy trade."""
+    """Insert agent_run and idea_outcomes records for a strategy trade."""
     agent_run_id = f"strategy:{strategy_id}"
     now = datetime.now(UTC)
-    thesis = f"Auto-generated from strategy signal. Strength: {signal_strength}/10. "
-    if signal_reasons:
-        thesis += "Reasons: " + ", ".join(signal_reasons[:3])
     _ensure_agent_run(storage, agent_run_id, strategy_id, now)
-    storage.insert_dict(
-        "agent_ideas",
-        {
-            "id": idea_id,
-            "agent_run_id": agent_run_id,
-            "idea_type": "buy",
-            "title": f"Buy {symbol}",
-            "thesis": thesis,
-            "action": f"Buy {symbol}",
-            "confidence_score": signal_strength / 10.0,
-            "risk_level": "medium",
-            "status": "pending",
-            "created_at": now.isoformat(),
-        },
-    )
     storage.insert_dict("idea_outcomes", dict(insert_data))
 
 

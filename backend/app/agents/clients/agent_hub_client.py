@@ -109,7 +109,8 @@ class AgentHubAPIClient(LLMClient):
             # Simple health check - try to list models
             response = self._client._get_client().get("/health")
             return bool(response.is_success)
-        except Exception:
+        except Exception as e:
+            logger.debug("agent_hub_health_check_failed", error=str(e))
             return False
 
     def get_model_name(self) -> str:

@@ -107,7 +107,15 @@ def _extract_valuation_metrics(payload: dict[str, Any]) -> ValuationMetricsDict:
         return _extract_yfinance_metrics(payload)
     if "PERatio" in payload or "PriceToBookRatio" in payload:
         return _extract_alphavantage_metrics(payload)
-    return dict.fromkeys(_VALUATION_COLUMNS)  # type: ignore[return-value]
+    return ValuationMetricsDict(
+        pe_ratio_trailing=None,
+        pe_ratio_forward=None,
+        ps_ratio=None,
+        pb_ratio=None,
+        peg_ratio=None,
+        dividend_yield=None,
+        payout_ratio=None,
+    )
 
 
 def _update_valuation_metrics(symbol: str, source: str, payload: dict[str, Any]) -> None:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import calendar
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from dateutil.relativedelta import relativedelta
 
@@ -74,36 +74,35 @@ def _commitment_due_status(days_until_due: int | None) -> str:
 
 
 def build_recurring_commitment(
-    row: object,
+    row: tuple[object, ...],
     cadence: str,
     cadence_info: dict[str, object],
-    today: object,
+    today: date,
 ) -> HouseholdRecurringCommitment | None:
     """Build a single recurring commitment from a DB row, or return None to skip."""
     if cadence not in _RECURRING_CADENCES:
         return None
-    row_seq = row  # type: ignore[assignment]
-    average_amount = float(row_seq[2] or 0.0)  # type: ignore[index]
-    last_seen = row_seq[4]  # type: ignore[index]
+    average_amount = float(row[2] or 0.0)
+    last_seen = row[4]
     if last_seen is None:
         return None
-    merchant = str(row_seq[0])  # type: ignore[index]
+    merchant = str(row[0])
     annualized_cost = average_amount * _CADENCE_MULTIPLIERS.get(cadence, 12)
     commitment_type = (
-        "subscription" if str(row_seq[1]).lower() in _SUBSCRIPTION_CATEGORIES else "bill"  # type: ignore[index]
+        "subscription" if str(row[1]).lower() in _SUBSCRIPTION_CATEGORIES else "bill"
     )
     next_expected = estimate_next_commitment_date(last_seen, cadence)
     next_expected_date = (
         datetime.fromisoformat(next_expected).date() if next_expected is not None else None
     )
     days_until_due = (
-        (next_expected_date - today).days  # type: ignore[operator]
+        (next_expected_date - today).days
         if next_expected_date is not None
         else None
     )
     return HouseholdRecurringCommitment(
         merchant=merchant,
-        category=str(row_seq[1]),  # type: ignore[index]
+        category=str(row[1]),
         cadence=cadence,
         average_amount=round(average_amount, 2),
         annualized_cost=round(annualized_cost, 2),

@@ -86,8 +86,8 @@ class MetadataManager:
             """
             UPDATE table_registry
             SET last_written = now(),
-                row_count = ?
-            WHERE table_name = ?
+                row_count = %s
+            WHERE table_name = %s
             """,
             [row_count, table_name],
         )
@@ -105,7 +105,6 @@ class MetadataManager:
                 "user_preferences",
                 "price_cache",
                 "agent_runs",
-                "agent_ideas",
                 "agent_tool_calls",
             ]
             counts: dict[str, int] = {}
@@ -121,23 +120,19 @@ class MetadataManager:
                     counts[table] = 0
             return counts
 
-    def print_status(self, prefix: str = "[storage]") -> None:
-        """Print current database status with row counts."""
+    def log_status(self) -> None:
+        """Log current database status with row counts."""
         counts = self.get_table_counts()
-        print(f"{prefix} Database status:")
-        for table, count in counts.items():
-            if count > 0:
-                print(f"{prefix}   {table}: {count:,} rows")
+        logger.info("database_status", counts=counts)
 
         total_portfolio_rows = counts.get("portfolio_accounts", 0) + counts.get(
             "portfolio_positions", 0
         )
         total_agent_rows = (
             counts.get("agent_runs", 0)
-            + counts.get("agent_ideas", 0)
             + counts.get("agent_tool_calls", 0)
         )
         if total_portfolio_rows > 0:
-            print(f"{prefix}   Total portfolio rows: {total_portfolio_rows:,}")
+            logger.info("portfolio_total_rows", total=total_portfolio_rows)
         if total_agent_rows > 0:
-            print(f"{prefix}   Total agent rows: {total_agent_rows:,}")
+            logger.info("agent_total_rows", total=total_agent_rows)

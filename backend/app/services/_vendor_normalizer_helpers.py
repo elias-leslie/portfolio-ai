@@ -40,8 +40,14 @@ def extract_vendor_payload(
 ) -> dict[str, object] | list[object] | None:
     """Extract and parse vendor payload from entry."""
     payload = entry.get("raw_payload") or entry.get("vendor_payload")
+    if payload is None:
+        return None
+    if isinstance(payload, dict):
+        return dict(payload)
+    if isinstance(payload, list):
+        return list(payload)
     if not isinstance(payload, str):
-        return payload  # type: ignore[return-value]
+        return None
     parsed: dict[str, object] | list[object] | None = None
     with suppress(Exception):
         parsed = json.loads(payload)

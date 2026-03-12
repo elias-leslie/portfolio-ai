@@ -32,7 +32,7 @@ class FinancialHealthScores:
 
 def _get_val(series: object, key: str, default: float = 0) -> float:
     """Safely get a value from a pandas Series, returning default if missing/None."""
-    return series.get(key, default) or default  # type: ignore[union-attr]
+    return series.get(key, default) or default
 
 
 def _fetch_f_score_statements(
@@ -247,7 +247,7 @@ def _compute_z_score_components(
     ebit = _get_val(curr_inc, "EBIT") or _get_val(curr_inc, "Operating Income")
     total_revenue = _get_val(curr_inc, "Total Revenue")
     total_liabilities = _get_val(curr_bs, "Total Liabilities Net Minority Interest") or 1
-    market_cap = info.get("marketCap", 0) or 0  # type: ignore[union-attr]
+    market_cap = info.get("marketCap", 0) or 0
 
     x1 = working_capital / total_assets
     x2 = retained_earnings / total_assets

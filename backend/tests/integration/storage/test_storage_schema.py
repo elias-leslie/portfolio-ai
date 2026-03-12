@@ -102,7 +102,6 @@ def test_ensure_schema_creates_all_tables(schema_mgr: SchemaManager) -> None:
             "watchlist_items",
             "watchlist_snapshots",
             "agent_runs",
-            "agent_ideas",
             "agent_tool_calls",
             "validation_results",
             "source_performance",
@@ -220,23 +219,6 @@ def test_agent_runs_table_structure(schema_mgr: SchemaManager) -> None:
         assert "status" in columns
         assert "num_ideas" in columns
         assert "cost_usd" in columns
-
-
-def test_agent_ideas_table_structure(schema_mgr: SchemaManager) -> None:
-    """Test that agent_ideas table has the correct structure."""
-    schema_mgr.ensure_schema()
-
-    with schema_mgr.connection_mgr.connection() as conn:
-        columns = get_table_columns(conn, "agent_ideas")
-
-        assert "id" in columns
-        assert "agent_run_id" in columns
-        assert "idea_type" in columns
-        assert "title" in columns
-        assert "thesis" in columns
-        assert "action" in columns
-        assert "confidence_score" in columns
-        assert "risk_level" in columns
 
 
 def test_table_registry_populated(schema_mgr: SchemaManager) -> None:
