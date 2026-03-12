@@ -68,7 +68,7 @@ class PortfolioManager:
             account.model_dump(),
         )
 
-        logger.info(f"Created account {account_id}: {name} ({account_type})")
+        logger.info("Created account %s: %s (%s)", account_id, name, account_type)
         return account
 
     def update_account_cash_balance(
@@ -94,7 +94,7 @@ class PortfolioManager:
         df_update = pl.DataFrame([account.model_dump()])
         self.storage.upsert_by_id("portfolio_accounts", df_update, "id")
 
-        logger.info(f"Updated cash balance for account {account_id}")
+        logger.info("Updated cash balance for account %s", account_id)
         return account
 
     def get_accounts(self) -> list[Account]:
@@ -157,7 +157,7 @@ class PortfolioManager:
             position.model_dump(),
         )
 
-        logger.info(f"Created position {position_id}: {shares} shares of {symbol} at ${cost_basis}")
+        logger.info("Created position %s: %s shares of %s at $%s", position_id, shares, symbol, cost_basis)
         return position
 
     def update_position(
@@ -215,7 +215,7 @@ class PortfolioManager:
         df_update = pl.DataFrame([position.model_dump()])
         self.storage.upsert_by_id("portfolio_positions", df_update, "id")
 
-        logger.info(f"Updated position {position_id}")
+        logger.info("Updated position %s", position_id)
         return position
 
     def delete_position(self, position_id: str) -> None:
@@ -223,15 +223,25 @@ class PortfolioManager:
 
         Args:
             position_id: ID of the position to delete
+
+        Raises:
+            ValueError: If position not found
         """
+        df = self.storage.query(
+            "SELECT id FROM portfolio_positions WHERE id = ?",
+            [position_id],
+        )
+        if df.is_empty():
+            raise ValueError(f"Position {position_id} not found")
+
         with self.storage.connection() as conn:
             conn.execute(
                 "DELETE FROM portfolio_positions WHERE id = ?",
                 [position_id],
             )
-            conn.commit()  # Commit the deletion
+            conn.commit()
 
-        logger.info(f"Deleted position {position_id}")
+        logger.info("Deleted position %s", position_id)
 
     def get_positions(self, account_id: str | None = None) -> list[Position]:
         """Get positions, optionally filtered by account.

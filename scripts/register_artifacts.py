@@ -1,8 +1,9 @@
 import sys
 import json
+from pathlib import Path
 
 # Add backend to path
-sys.path.append("/home/kasadis/portfolio-ai/backend")
+sys.path.append(str(Path(__file__).resolve().parent.parent / "backend"))
 
 from app.services.artifact_manager import save_artifact
 from app.services.artifact_manager import ARTIFACTS_BASE_DIR

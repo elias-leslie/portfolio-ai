@@ -208,7 +208,11 @@ class HomeActionService:
         return actions
 
     def _workflow_actions(self) -> list[dict[str, object]]:
-        workflow_service = self._workflow_service()
+        try:
+            workflow_service = self._workflow_service()
+        except Exception as exc:
+            logger.warning("home_action_workflow_failed", error=str(exc))
+            return []
 
         actions: list[dict[str, object]] = []
         for workflow in workflow_service.list_priority_workflows(limit=3):

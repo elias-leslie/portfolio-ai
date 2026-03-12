@@ -26,5 +26,5 @@ def fetch_current_prices(symbols: list[str]) -> dict[str, PriceData]:
         price_fetcher = PriceDataFetcher(storage)
         return price_fetcher.fetch_price_data(symbols)
     except Exception as e:
-        logger.warning(f"Failed to fetch real-time prices: {e}")
+        logger.warning("Failed to fetch real-time prices: %s", e)
         return {}

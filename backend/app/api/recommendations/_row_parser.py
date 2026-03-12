@@ -105,13 +105,13 @@ def parse_row(
 
     current_price = _get_fresh_current_price(current_prices, symbol)
     if current_price is None:
-        logger.info(f"Skipping {symbol}: missing fresh live price")
+        logger.info("Skipping %s: missing fresh live price", symbol)
         return None
 
     price_change_pct, signal_status = calculate_signal_status(sig_type, entry_price, current_price)
     if signal_status == "invalidated":
         logger.info(
-            f"Skipping {symbol}: signal invalidated (price change: {price_change_pct:.1f}%)"
+            "Skipping %s: signal invalidated (price change: %.1f%%)", symbol, price_change_pct
         )
         return None
 
@@ -126,7 +126,7 @@ def parse_row(
         position_cap_pct=position_pct,
     )
     if trade_setup is None:
-        logger.info(f"Skipping {symbol}: missing actionable risk levels")
+        logger.info("Skipping %s: missing actionable risk levels", symbol)
         return None
 
     return TradeRecommendation(

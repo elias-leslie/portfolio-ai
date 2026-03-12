@@ -54,8 +54,9 @@ def _build_position_response(
 
     if current_price:
         current_value = position.shares * current_price
-        gain = current_value - (position.shares * position.cost_basis)
-        gain_pct = (gain / (position.shares * position.cost_basis)) * 100
+        cost_total = position.shares * position.cost_basis
+        gain = current_value - cost_total
+        gain_pct = (gain / cost_total) * 100 if cost_total else 0.0
     else:
         current_value = None
         gain = None
@@ -133,7 +134,10 @@ def _update_position_response(position_id: str, position: PositionCreate) -> Pos
 
 
 def _delete_position_payload(position_id: str) -> dict[str, str]:
-    _portfolio_mgr().delete_position(position_id)
+    try:
+        _portfolio_mgr().delete_position(position_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Position not found") from None
     return {"status": "deleted", "position_id": position_id}
 
 
