@@ -12,7 +12,7 @@ class _FakeConnection:
         self.executed: list[tuple[str, list[Any] | None]] = []
         self.committed = 0
 
-    def execute(self, sql: str, parameters: Any = None) -> "_FakeConnection":
+    def execute(self, sql: str, parameters: Any = None) -> _FakeConnection:
         self.executed.append((sql, parameters))
         return self
 

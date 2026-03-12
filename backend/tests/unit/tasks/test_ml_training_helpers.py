@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
 
 import pytest
 
@@ -26,7 +25,7 @@ class _FakeConnection:
         self.executed: list[str] = []
         self._rowcount = 0
 
-    def execute(self, sql: str, parameters: Any = None) -> "_FakeConnection":
+    def execute(self, sql: str, parameters: Any = None) -> _FakeConnection:
         self.executed.append(sql)
         return self
 
