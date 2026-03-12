@@ -148,6 +148,28 @@ def test_baseline_review_detects_wells_fargo_checking_statement() -> None:
     assert payload["structured_data"]["account_hint"] == "Wells Fargo Everyday Checking"
 
 
+def test_baseline_review_detects_529_college_fund_snapshot() -> None:
+    service = HouseholdDocumentReviewService()
+
+    payload = service._baseline_review(
+        filename="image.png",
+        source_type="other",
+        document_type="other",
+        extracted_text=(
+            "College Fnd - Nadia\n"
+            "$3,087.29\n"
+            "529 COLL-ME-Edge22Z-87861\n"
+            "College Fnd - Sophia\n"
+            "$3,089.15\n"
+        ),
+    )
+
+    assert payload["document_type"] == "brokerage_statement"
+    assert payload["source_type"] == "brokerage"
+    assert payload["structured_data"]["account_hint"] == "529 college savings account"
+    assert "529" in payload["summary"]
+
+
 def test_build_signature_candidates_includes_filename_pattern() -> None:
     service = HouseholdDocumentReviewService()
 
@@ -158,6 +180,18 @@ def test_build_signature_candidates_includes_filename_pattern() -> None:
 
     signature_keys = {candidate[1] for candidate in candidates}
     assert "filename_pattern::######_wellsfargo" in signature_keys
+
+
+def test_build_signature_candidates_skips_generic_image_name() -> None:
+    service = HouseholdDocumentReviewService()
+
+    candidates = service.build_signature_candidates(
+        filename="image.png",
+        extracted_text="College Fnd - Nadia\n529 COLL-ME-Edge22Z-87861",
+    )
+
+    signature_keys = {candidate[1] for candidate in candidates}
+    assert "filename_pattern::image" not in signature_keys
 
 
 @patch.object(HouseholdDocumentReviewService, "_touch_signature")
@@ -188,6 +222,21 @@ def test_signature_review_enriches_summary_and_amount(
     assert "Walmart" in payload["summary"]
     assert "11.40" in payload["summary"]
     touch_signature.assert_called_once_with("sig-1")
+
+
+@patch.object(HouseholdDocumentReviewService, "_find_signature")
+def test_signature_review_skips_generic_image_name(
+    find_signature: MagicMock,
+) -> None:
+    service = HouseholdDocumentReviewService()
+
+    payload = service._signature_review(
+        filename="image.png",
+        extracted_text="College Fnd - Nadia\n529 COLL-ME-Edge22Z-87861",
+    )
+
+    assert payload is None
+    find_signature.assert_not_called()
 
 
 @patch.object(HouseholdDocumentReviewService, "_pdf_image_blocks")

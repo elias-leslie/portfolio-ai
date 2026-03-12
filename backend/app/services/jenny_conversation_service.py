@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import UTC, datetime
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+
+import yaml
 
 from app.agents.clients.agent_hub_client import AgentHubAPIClient
 from app.api.portfolio.analytics_routes import _get_analytics_payload
@@ -19,7 +23,10 @@ from app.models.household_finance import (
 from app.portfolio.manager import PortfolioManager
 from app.portfolio.price_fetcher import PriceDataFetcher
 from app.services.household_finance_service import HouseholdFinanceService
+from app.services.jenny_dashboard_reader import JennyDashboardReader
 from app.storage import get_storage
+from app.utils._market_status import get_market_status
+from app.utils.health_service import HealthCheckService
 
 logger = get_logger(__name__)
 
@@ -54,6 +61,11 @@ SYMBOL_STOPWORDS = frozenset(
 )
 MAX_CONTEXT_SYMBOLS = 3
 MAX_PORTFOLIO_POSITIONS = 12
+MAX_RECENT_DOCUMENTS = 6
+MAX_RECENT_ROUTINES = 3
+MAX_OPEN_NOTIFICATIONS = 5
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+PROJECT_INDEX_PATH = PROJECT_ROOT / ".index.yaml"
 
 # ── Behavioral identifiers ────────────────────────────────────────────────────
 _STATUS_OPEN = "open"
@@ -66,10 +78,13 @@ _PURPOSE_PLANNING_EXTRACT = "portfolio_jenny_planning_extract"
 # ── System prompts ─────────────────────────────────────────────────────────────
 _SYSTEM_CHAT = (
     "You are Jenny inside Portfolio-AI. Help with household planning, retirement, "
-    "portfolio accounts, held positions, symbol questions, and any Portfolio-AI workflow context. "
+    "portfolio accounts, held positions, symbol questions, uploads, routines, status, and any "
+    "Portfolio-AI workflow or product context. "
     "Use the supplied context as your live source of truth. If the user asks for data that is not "
     "present in the supplied context, say what is missing instead of inventing it. "
-    "If the user appears to have answered one of Jenny's open household questions, acknowledge it naturally."
+    "If the user appears to have answered one of Jenny's open household questions, acknowledge it naturally. "
+    "Be proactive about diagnosis and the next best corrective step, but do not claim a mutation, ingest, "
+    "or workflow side effect unless the supplied context proves it."
 )
 _SYSTEM_RECONCILE = (
     "Return JSON only. Extract only confident answers that the user's message directly supports."
@@ -218,6 +233,8 @@ class JennyConversationService:
         self.household_service = HouseholdFinanceService()
         self.portfolio_mgr = PortfolioManager(self.storage)
         self.price_fetcher = PriceDataFetcher(self.storage)
+        self.health_service = HealthCheckService()
+        self.jenny_dashboard_reader = JennyDashboardReader()
 
     def chat(self, message: str, session_id: str | None = None) -> dict[str, Any]:
         cleaned_message = message.strip()
@@ -237,7 +254,7 @@ class JennyConversationService:
         except Exception as exc:
             logger.exception("jenny_chat_completion_failed", error=str(exc))
             completion = SimpleNamespace(
-                content=self._fallback_reply(context),
+                content=self._fallback_reply(cleaned_message, context),
                 session_id=session_id or "",
             )
 
@@ -323,8 +340,28 @@ class JennyConversationService:
             "referenced_symbols": context["symbols"]["detected"],
         }
 
-    def _fallback_reply(self, context: dict[str, Any]) -> str:
+    def _fallback_reply(self, message: str, context: dict[str, Any]) -> str:
         household = context.get("household", {})
+        lower_message = message.lower()
+        raw_documents = household.get("documents")
+        documents = raw_documents if isinstance(raw_documents, list) else []
+        if (
+            any(token in lower_message for token in ("upload", "uploaded", "image", "document", "screenshot"))
+            and documents
+        ):
+            latest = documents[0]
+            if isinstance(latest, dict):
+                summary = str(latest.get("review_summary") or latest.get("filename") or "latest upload").strip()
+                document_type = str(latest.get("document_type") or "document").replace("_", " ")
+                status = str(latest.get("status") or "unknown")
+                return (
+                    "Jenny hit an upstream model issue, but I can still confirm the latest intake state. "
+                    f"I do see your latest upload: {summary} "
+                    f"(type: {document_type}, status: {status}). "
+                    "Household uploads do not auto-create portfolio accounts from screenshots, "
+                    "so this should appear in intake context first rather than immediately as a new account."
+                )
+
         raw_needs = household.get("jenny_needs")
         needs = raw_needs if isinstance(raw_needs, list) else []
         top_titles = [
@@ -345,8 +382,133 @@ class JennyConversationService:
     def _client(self) -> AgentHubAPIClient:
         return AgentHubAPIClient(agent_slug="persona", use_memory=True, timeout=120.0)
 
+    def _load_project_index(self) -> dict[str, Any]:
+        try:
+            loaded = yaml.safe_load(PROJECT_INDEX_PATH.read_text(encoding="utf-8")) or {}
+        except Exception as exc:
+            logger.warning("jenny_project_index_load_failed", error=str(exc))
+            return {}
+        return loaded if isinstance(loaded, dict) else {}
+
+    def _build_document_context(self, documents: list[Any]) -> list[dict[str, Any]]:
+        return [
+            {
+                "id": document.id,
+                "filename": document.filename,
+                "source_type": document.source_type,
+                "document_type": document.document_type,
+                "status": document.status,
+                "review_status": document.review_status,
+                "review_summary": document.review_summary,
+                "uploaded_at": document.uploaded_at,
+                "parsed_at": document.parsed_at,
+            }
+            for document in documents
+        ]
+
+    def _build_runtime_context(self) -> dict[str, Any]:
+        index = self._load_project_index()
+        try:
+            health = self.health_service.perform_health_check()
+        except Exception as exc:
+            logger.warning("jenny_runtime_health_failed", error=str(exc))
+            health = {}
+
+        try:
+            recent_routines = self.jenny_dashboard_reader.get_recent_routines(
+                self,
+                limit=MAX_RECENT_ROUTINES,
+            )
+        except Exception as exc:
+            logger.warning("jenny_runtime_routines_failed", error=str(exc))
+            recent_routines = []
+
+        try:
+            open_notifications = self.jenny_dashboard_reader.get_open_notifications(
+                self,
+                limit=MAX_OPEN_NOTIFICATIONS,
+            )
+        except Exception as exc:
+            logger.warning("jenny_runtime_notifications_failed", error=str(exc))
+            open_notifications = []
+
+        workflow_health = health.get("workflow_health")
+        workflow_summary = (
+            workflow_health.model_dump()
+            if hasattr(workflow_health, "model_dump")
+            else workflow_health
+            if isinstance(workflow_health, dict)
+            else {}
+        )
+        services = health.get("services")
+        services_summary = (
+            {
+                name: str((payload or {}).get("status") or "unknown")
+                for name, payload in services.items()
+            }
+            if isinstance(services, dict)
+            else {}
+        )
+        pages = index.get("pages")
+        tasks = index.get("tasks")
+        endpoints = index.get("endpoints")
+        services_index = index.get("services")
+
+        return {
+            "project": index.get("project") or "portfolio-ai",
+            "generated_at": index.get("generated_at"),
+            "ports": (
+                {
+                    "backend": (services_index or {}).get("backend_port", 8000),
+                    "frontend": (services_index or {}).get("frontend_port", 3000),
+                }
+                if isinstance(services_index, dict)
+                else {"backend": 8000, "frontend": 3000}
+            ),
+            "pages": pages if isinstance(pages, list) else [],
+            "api_endpoints": endpoints if isinstance(endpoints, list) else [],
+            "workflow_schedules": tasks if isinstance(tasks, list) else [],
+            "current_status": {
+                "system": health.get("status", "unknown"),
+                "market": str(get_market_status(datetime.now(UTC))),
+                "workflow_health": workflow_summary,
+                "services": services_summary,
+            },
+            "jenny_operations": {
+                "recent_routines": [
+                    {
+                        "routine_type": routine.routine_type,
+                        "status": routine.status,
+                        "summary": routine.summary,
+                        "started_at": routine.started_at,
+                        "completed_at": routine.completed_at,
+                    }
+                    for routine in recent_routines
+                ],
+                "open_notifications": [
+                    {
+                        "symbol": notification.symbol,
+                        "category": notification.category,
+                        "severity": notification.severity,
+                        "title": notification.title,
+                        "status": notification.status,
+                    }
+                    for notification in open_notifications
+                ],
+            },
+            "document_pipeline": {
+                "intake_route": "/money?tab=intake",
+                "behavior": (
+                    "Uploads create household document records and can update document reviews, "
+                    "household transactions, and planning items. They do not auto-create "
+                    "portfolio_accounts from screenshots."
+                ),
+            },
+        }
+
     def _build_context(self, message: str, open_questions: list[HouseholdQuestion]) -> dict[str, Any]:
         household_dashboard = self.household_service.get_dashboard()
+        recent_documents = self.household_service.list_documents(limit=MAX_RECENT_DOCUMENTS).items
         accounts = self.portfolio_mgr.get_accounts()
         positions = self.portfolio_mgr.get_positions()
         live_symbols = sorted({position.symbol.upper() for position in positions if position.symbol})
@@ -363,8 +525,10 @@ class JennyConversationService:
                 "budget_readiness": household_dashboard.budget_readiness.model_dump(),
                 "budget_snapshot": household_dashboard.budget_snapshot.model_dump(),
                 "retirement_preparedness": household_dashboard.retirement_preparedness.model_dump(),
+                "import_center": household_dashboard.import_center.model_dump(),
                 "jenny_needs": [need.model_dump() for need in household_dashboard.jenny_needs],
                 "open_questions": [_question_summary(q) for q in open_questions],
+                "documents": self._build_document_context(recent_documents),
                 "planning": household_dashboard.planning.model_dump(),
             },
             "portfolio": {
@@ -380,6 +544,7 @@ class JennyConversationService:
                 "positions": position_summaries,
                 "analytics": analytics.model_dump(),
             },
+            "portfolio_ai": self._build_runtime_context(),
             "symbols": {
                 "detected": detected_symbols[:MAX_CONTEXT_SYMBOLS],
                 "details": symbol_contexts,

@@ -110,6 +110,23 @@ _FINANCIAL_SIGNAL_TERMS = (
     "$", "order total", "total", "subtotal", "amount due",
     "item", "qty", "payment", "transaction",
 )
+_GENERIC_FILENAME_PATTERN_STEMS = frozenset(
+    {
+        "attachment",
+        "capture",
+        "document",
+        "file",
+        "image",
+        "img",
+        "photo",
+        "picture",
+        "scan",
+        "scanned",
+        "screenshot",
+        "screen_shot",
+        "upload",
+    }
+)
 
 
 # ---------------------------------------------------------------------------
@@ -497,6 +514,12 @@ def _baseline_review(
         confidence = 0.86
         structured_data["account_hint"] = "Chase Amazon card"
         summary = "Chase Amazon credit-card statement with monthly household spending."
+    elif "529" in text_lower or "college fnd" in text_lower or "college fund" in text_lower:
+        inferred_source = "brokerage"
+        inferred_document = "brokerage_statement"
+        confidence = 0.9
+        structured_data["account_hint"] = "529 college savings account"
+        summary = "529 college savings account snapshot with beneficiary balances."
     elif "brokerage" in text_lower or "positions" in text_lower or "dividends" in text_lower:
         inferred_source = "brokerage"
         inferred_document = "brokerage_statement"
@@ -765,7 +788,15 @@ class HouseholdDocumentReviewService:
         normalized = re.sub(r"[^a-z0-9]+", "_", Path(filename).stem.lower())
         normalized = re.sub(r"\d", "#", normalized)
         normalized = re.sub(r"_+", "_", normalized).strip("_")
-        if sum(c.isalpha() for c in normalized) >= 4:
+        tokens = [
+            re.sub(r"#+", "", token)
+            for token in normalized.split("_")
+            if re.sub(r"#+", "", token)
+        ]
+        is_generic_pattern = bool(tokens) and all(
+            token in _GENERIC_FILENAME_PATTERN_STEMS for token in tokens
+        )
+        if sum(c.isalpha() for c in normalized) >= 4 and not is_generic_pattern:
             candidates.append(
                 (
                     "filename_pattern",

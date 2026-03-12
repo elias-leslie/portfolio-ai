@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from app.models.household_finance import (
     HouseholdQuestion,
@@ -167,3 +167,121 @@ def test_chat_returns_fallback_reply_when_completion_fails() -> None:
     assert "Upload statements" in result["reply"]
     assert "Complete housing planning" in result["reply"]
     assert result["session_id"] == ""
+
+
+def test_chat_returns_document_aware_fallback_for_upload_questions() -> None:
+    service = JennyConversationService()
+    service.household_service = Mock()
+    service.household_service.list_questions.return_value = HouseholdQuestionList(items=[])
+    service._build_context = Mock(
+        return_value={
+            "household": {
+                "documents": [
+                    {
+                        "filename": "image.png",
+                        "document_type": "brokerage_statement",
+                        "status": "parsed",
+                        "review_summary": "529 college savings account snapshot with beneficiary balances.",
+                    }
+                ],
+                "jenny_needs": [],
+            },
+            "symbols": {"detected": []},
+        }
+    )
+    service._complete_conversation = Mock(side_effect=RuntimeError("conversation failed"))
+    service._reconcile_message = Mock(return_value=[])
+    service._extract_planning_updates = Mock(
+        return_value={"profile_updates": {}, "planning_items": []}
+    )
+
+    result = service.chat("Did you get the 529 image I uploaded?")
+
+    assert "I do see your latest upload" in result["reply"]
+    assert "529 college savings account snapshot" in result["reply"]
+    assert "do not auto-create portfolio accounts" in result["reply"]
+
+
+@patch("app.services.jenny_conversation_service._get_analytics_payload")
+def test_build_context_includes_recent_documents_and_runtime_status(
+    get_analytics_payload: Mock,
+) -> None:
+    service = JennyConversationService()
+    service.household_service = Mock()
+    service.portfolio_mgr = Mock()
+    service.health_service = Mock()
+    service.jenny_dashboard_reader = Mock()
+    service._load_project_index = Mock(
+        return_value={
+            "project": "portfolio-ai",
+            "generated_at": "2026-03-12 16:00 UTC",
+            "pages": ["/money", "/status"],
+            "endpoints": ["GET /health/simple"],
+            "tasks": ["jenny_daily_operator_wf (cron(15 22 * * 1-5))"],
+            "services": {"backend_port": 8000, "frontend_port": 3000},
+        }
+    )
+
+    def _dumpable(payload: dict[str, object]) -> Mock:
+        return Mock(model_dump=Mock(return_value=payload))
+
+    service.household_service.get_dashboard.return_value = SimpleNamespace(
+        overview=_dumpable({"visibility_score": 90}),
+        profile=_dumpable({"household_name": "Family"}),
+        resolved_values=[],
+        budget_readiness=_dumpable({"status": "ready"}),
+        budget_snapshot=_dumpable({"monthly_income": 8000}),
+        retirement_preparedness=_dumpable({"status": "on_track"}),
+        import_center=_dumpable({"tracked_documents": 1, "parsed_documents": 1}),
+        jenny_needs=[],
+        planning=_dumpable({"members": []}),
+    )
+    service.household_service.list_documents.return_value = SimpleNamespace(
+        items=[
+            SimpleNamespace(
+                id="doc-1",
+                filename="image.png",
+                source_type="brokerage",
+                document_type="brokerage_statement",
+                status="parsed",
+                review_status="complete",
+                review_summary="529 college savings account snapshot with beneficiary balances.",
+                uploaded_at="2026-03-12T15:00:00Z",
+                parsed_at="2026-03-12T15:01:00Z",
+            )
+        ]
+    )
+    service.portfolio_mgr.get_accounts.return_value = []
+    service.portfolio_mgr.get_positions.return_value = []
+    service.health_service.perform_health_check.return_value = {
+        "status": "healthy",
+        "services": {"backend": {"status": "healthy"}},
+        "workflow_health": SimpleNamespace(model_dump=lambda: {"status": "healthy"}),
+    }
+    service.jenny_dashboard_reader.get_recent_routines.return_value = [
+        SimpleNamespace(
+            routine_type="daily_operator",
+            status="complete",
+            summary="Reviewed live symbols.",
+            started_at="2026-03-12T14:15:00Z",
+            completed_at="2026-03-12T14:17:00Z",
+        )
+    ]
+    service.jenny_dashboard_reader.get_open_notifications.return_value = [
+        SimpleNamespace(
+            symbol="AMD",
+            category="review",
+            severity="warning",
+            title="Review AMD thesis",
+            status="open",
+        )
+    ]
+    get_analytics_payload.return_value = SimpleNamespace(model_dump=lambda: {"status": "ok"})
+
+    context = service._build_context("Did you get my 529 upload?", [])
+
+    assert context["household"]["documents"][0]["filename"] == "image.png"
+    assert context["household"]["documents"][0]["review_summary"].startswith("529 college savings")
+    assert context["portfolio_ai"]["current_status"]["system"] == "healthy"
+    assert context["portfolio_ai"]["pages"] == ["/money", "/status"]
+    assert "do not auto-create portfolio_accounts" in context["portfolio_ai"]["document_pipeline"]["behavior"]
