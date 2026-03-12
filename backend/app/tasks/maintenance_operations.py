@@ -182,7 +182,7 @@ def cleanup_old_news(days: int = 90, dry_run: bool = False) -> dict[str, Any]:
             f"DELETE FROM news_cache {where_clause}",
             [cutoff_date, cutoff_date],
         )
-        rows_deleted = conn._cursor.rowcount
+        rows_deleted = conn.rowcount
         conn.commit()
 
     return {
@@ -241,7 +241,7 @@ def cleanup_old_agent_runs(days: int = 30, dry_run: bool = False) -> dict[str, A
                 """,
                 [run_ids],
             )
-            runs_deleted = conn._cursor.rowcount
+            runs_deleted = conn.rowcount
             conn.commit()
         else:
             runs_deleted = 0
@@ -305,7 +305,7 @@ def cleanup_old_watchlist_snapshots(days: int = 60, dry_run: bool = False) -> di
             """,
             [cutoff_date],
         )
-        core_deleted = conn._cursor.rowcount
+        core_deleted = conn.rowcount
 
         # Delete from legacy table
         conn.execute(
@@ -315,7 +315,7 @@ def cleanup_old_watchlist_snapshots(days: int = 60, dry_run: bool = False) -> di
             """,
             [cutoff_date],
         )
-        legacy_deleted = conn._cursor.rowcount
+        legacy_deleted = conn.rowcount
 
         conn.commit()
 
@@ -371,7 +371,7 @@ def cleanup_maintenance_tables(days: int = 90, dry_run: bool = False) -> dict[st
                 f"DELETE FROM {table} WHERE {col} < %s",  # table/col from constant list
                 [cutoff_date],
             )
-            deleted[f"{table}_deleted"] = conn._cursor.rowcount
+            deleted[f"{table}_deleted"] = conn.rowcount
 
         conn.commit()
 
@@ -423,7 +423,7 @@ def cleanup_orphaned_data(dry_run: bool = False) -> dict[str, Any]:
             """,
             [cutoff],
         )
-        zombie_runs_fixed = conn._cursor.rowcount
+        zombie_runs_fixed = conn.rowcount
 
         conn.commit()
 

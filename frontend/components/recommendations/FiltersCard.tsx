@@ -23,23 +23,25 @@ export function FiltersCard({
       <CardContent>
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <div className="space-y-2">
-            <Label>Min Signal Strength: {minStrength}</Label>
+            <Label id="min-strength-label">Min Signal Strength: {minStrength}</Label>
             <Slider
               value={[minStrength]}
               onValueChange={(v) => onMinStrengthChange(v[0])}
               min={1}
               max={10}
               step={1}
+              aria-labelledby="min-strength-label"
             />
           </div>
           <div className="space-y-2">
-            <Label>Portfolio Size: ${portfolioSize.toLocaleString()}</Label>
+            <Label id="portfolio-size-label">Portfolio Size: ${portfolioSize.toLocaleString()}</Label>
             <Slider
               value={[portfolioSize]}
               onValueChange={(v) => onPortfolioSizeChange(v[0])}
               min={10000}
               max={1000000}
               step={10000}
+              aria-labelledby="portfolio-size-label"
             />
           </div>
         </div>

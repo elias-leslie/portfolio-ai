@@ -202,7 +202,7 @@ def test_chat_returns_document_aware_fallback_for_upload_questions() -> None:
     assert "do not auto-create portfolio accounts" in result["reply"]
 
 
-@patch("app.services.jenny_conversation_service._get_analytics_payload")
+@patch("app.services.jenny_conversation_service.get_analytics_payload")
 def test_build_context_includes_recent_documents_and_runtime_status(
     get_analytics_payload: Mock,
 ) -> None:

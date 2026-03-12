@@ -61,7 +61,7 @@ def _workflow_service() -> SymbolWorkflowService:
     return import_module("app.services.symbol_workflow_service").SymbolWorkflowService()
 
 
-def _build_response(
+def build_symbol_intelligence(
     symbol: str, include_market: bool, include_strategies: bool
 ) -> SymbolIntelligenceResponse:
     """Build the full intelligence response synchronously."""
@@ -133,7 +133,7 @@ async def get_symbol_intelligence(
     - Personalized recommendation
     """
     try:
-        return await run_in_threadpool(_build_response, symbol, include_market, include_strategies)
+        return await run_in_threadpool(build_symbol_intelligence, symbol, include_market, include_strategies)
     except Exception as e:
         logger.exception("Error getting symbol intelligence for %s", symbol)
         return SymbolIntelligenceResponse(

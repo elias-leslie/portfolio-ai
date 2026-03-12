@@ -12,8 +12,8 @@ from typing import Any
 import yaml
 
 from app.agents.clients.agent_hub_client import AgentHubAPIClient
-from app.api.portfolio.analytics_routes import _get_analytics_payload
-from app.api.symbols.router import _build_response as build_symbol_intelligence_response
+from app.api.portfolio.analytics_routes import get_analytics_payload
+from app.api.symbols.router import build_symbol_intelligence as build_symbol_intelligence_response
 from app.logging_config import get_logger
 from app.models.household_finance import (
     HouseholdProfileUpdate,
@@ -514,7 +514,7 @@ class JennyConversationService:
         live_symbols = sorted({position.symbol.upper() for position in positions if position.symbol})
         detected_symbols = self._detect_symbols(message, live_symbols)
         symbol_contexts = [_summarize_symbol(sym) for sym in detected_symbols[:MAX_CONTEXT_SYMBOLS]]
-        analytics = _get_analytics_payload(include_paper=True)
+        analytics = get_analytics_payload(include_paper=True)
         position_summaries = self._summarize_positions(positions)
 
         return {

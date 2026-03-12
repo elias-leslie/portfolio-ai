@@ -267,6 +267,15 @@ class PostgreSQLConnectionWrapper:
         return row_count
 
     @property
+    def rowcount(self) -> int:
+        """Number of rows affected by the last execute operation.
+
+        Returns:
+            Row count from the underlying cursor, or -1 if unavailable.
+        """
+        return self._cursor.rowcount
+
+    @property
     def description(self) -> Any:
         """Get cursor description (column metadata).
 

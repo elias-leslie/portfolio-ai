@@ -96,7 +96,7 @@ export default function WatchlistPage() {
     totalCount > 0 ? Math.round((scoredCount / totalCount) * 100) : 0
 
   return (
-    <PageContainer className="py-10">
+    <PageContainer className="watchlist-page py-10">
       <PageHeader
         title="Watchlist"
         description={description}

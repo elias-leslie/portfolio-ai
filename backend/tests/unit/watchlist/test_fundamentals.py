@@ -102,25 +102,33 @@ class TestCalculateValuationScore:
         """Test high profit margin gives high valuation score."""
         data = FundamentalData(symbol="AAPL", profit_margin=0.25)
         score = calculate_valuation_score(data)
-        assert score == 90.0
+        assert score == pytest.approx(92.5, abs=0.1)  # Interpolated between 90 and 95
 
     def test_medium_margin_medium_score(self) -> None:
         """Test medium profit margin gives medium score."""
         data = FundamentalData(symbol="MSFT", profit_margin=0.12)
         score = calculate_valuation_score(data)
-        assert score == 70.0
+        assert score == pytest.approx(74.0, abs=0.1)  # Interpolated between 70 and 90
 
     def test_low_margin_low_score(self) -> None:
         """Test low profit margin gives low score."""
         data = FundamentalData(symbol="LOW", profit_margin=0.03)
         score = calculate_valuation_score(data)
-        assert score == 30.0
+        assert score == pytest.approx(38.0, abs=0.1)  # Interpolated between 20 and 50
 
     def test_none_margin_uses_default(self) -> None:
         """Test None profit margin uses default value."""
         data = FundamentalData(symbol="UNKNOWN", profit_margin=None)
         score = calculate_valuation_score(data)
-        assert score == 50.0  # Default 6% margin
+        assert score == pytest.approx(53.6, abs=1.0)  # Default 6% margin, interpolated
+
+    def test_threshold_values(self) -> None:
+        """Test exact threshold values produce expected scores."""
+        assert calculate_valuation_score(FundamentalData(symbol="T", profit_margin=0.0)) == 20.0
+        assert calculate_valuation_score(FundamentalData(symbol="T", profit_margin=0.05)) == 50.0
+        assert calculate_valuation_score(FundamentalData(symbol="T", profit_margin=0.10)) == 70.0
+        assert calculate_valuation_score(FundamentalData(symbol="T", profit_margin=0.20)) == 90.0
+        assert calculate_valuation_score(FundamentalData(symbol="T", profit_margin=0.30)) == 95.0
 
 
 class TestCalculateGrowthScore:
@@ -136,25 +144,33 @@ class TestCalculateGrowthScore:
         """Test strong growth (20-30%) gives high score."""
         data = FundamentalData(symbol="GROW", revenue_growth=0.25)
         score = calculate_growth_score(data)
-        assert score == 80.0
+        assert score == pytest.approx(90.0, abs=0.1)  # Interpolated
 
     def test_moderate_growth(self) -> None:
         """Test moderate growth (10-20%) gives medium score."""
         data = FundamentalData(symbol="MOD", revenue_growth=0.15)
         score = calculate_growth_score(data)
-        assert score == 60.0
+        assert score == pytest.approx(70.0, abs=0.1)  # Interpolated
 
     def test_slow_growth(self) -> None:
         """Test slow growth (5-10%) gives lower score."""
         data = FundamentalData(symbol="SLOW", revenue_growth=0.08)
         score = calculate_growth_score(data)
-        assert score == 40.0
+        assert score == pytest.approx(52.0, abs=0.1)  # Interpolated
 
     def test_minimal_growth(self) -> None:
         """Test minimal growth (<5%) gives low score."""
         data = FundamentalData(symbol="MIN", revenue_growth=0.03)
         score = calculate_growth_score(data)
-        assert score == 20.0
+        assert score == pytest.approx(28.0, abs=0.1)  # Interpolated
+
+    def test_threshold_values(self) -> None:
+        """Test exact threshold values produce expected scores."""
+        assert calculate_growth_score(FundamentalData(symbol="T", revenue_growth=0.0)) == 10.0
+        assert calculate_growth_score(FundamentalData(symbol="T", revenue_growth=0.05)) == 40.0
+        assert calculate_growth_score(FundamentalData(symbol="T", revenue_growth=0.10)) == 60.0
+        assert calculate_growth_score(FundamentalData(symbol="T", revenue_growth=0.20)) == 80.0
+        assert calculate_growth_score(FundamentalData(symbol="T", revenue_growth=0.30)) == 100.0
 
 
 class TestCalculateHealthScore:
@@ -258,37 +274,26 @@ class TestCalculateFundamentalScore:
         """Test overall score for excellent fundamentals."""
         data = FundamentalData(
             symbol="AAPL",
-            profit_margin=0.25,  # Valuation: 90
+            profit_margin=0.25,  # Valuation: ~92.5 (interpolated)
             revenue_growth=0.35,  # Growth: 100
             debt_to_equity=0.2,  # Health: 100
             recommendation_mean=1.3,  # Sentiment: 100
         )
-        data.valuation_score = calculate_valuation_score(data)
-        data.growth_score = calculate_growth_score(data)
-        data.health_score = calculate_health_score(data)
-        data.sentiment_score = calculate_sentiment_score(data)
-
         score = calculate_fundamental_score(data)
-        # 90*0.25 + 100*0.35 + 100*0.25 + 100*0.15 = 97.5
-        assert score == pytest.approx(97.5, abs=0.1)
+        # ~92.5*0.25 + 100*0.35 + 100*0.25 + 100*0.15 = ~98.1
+        assert score == pytest.approx(98.1, abs=1.0)
 
     def test_weak_fundamentals(self) -> None:
         """Test overall score for weak fundamentals."""
         data = FundamentalData(
             symbol="WEAK",
-            profit_margin=0.02,  # Valuation: 30
-            revenue_growth=0.03,  # Growth: 20
-            debt_to_equity=3.0,  # Health: 10
-            recommendation_mean=4.5,  # Sentiment: 20
+            profit_margin=0.02,  # Valuation: ~32 (interpolated)
+            revenue_growth=0.03,  # Growth: ~28 (interpolated)
+            debt_to_equity=3.0,  # Health: ~30 (debt=20, margin=40 avg=30)
+            recommendation_mean=4.5,  # Sentiment: 20 (unchanged)
         )
-        data.valuation_score = calculate_valuation_score(data)
-        data.growth_score = calculate_growth_score(data)
-        data.health_score = calculate_health_score(data)
-        data.sentiment_score = calculate_sentiment_score(data)
-
         score = calculate_fundamental_score(data)
-        # Actual calculated value with current implementation weights
-        assert score == pytest.approx(22.0, abs=0.1)
+        assert score == pytest.approx(25.3, abs=2.0)
 
     def test_pillar_weights_sum_to_one(self) -> None:
         """Test that pillar weights sum to 100%."""

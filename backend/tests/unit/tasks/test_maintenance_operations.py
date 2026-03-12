@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, PropertyMock
 
 import pytest
 
@@ -83,7 +83,7 @@ def test_cleanup_old_news_respects_recent_refetches(monkeypatch) -> None:
 
 def test_cleanup_old_news_executes_delete_and_commits_on_non_dry_run(monkeypatch) -> None:
     fake_conn = MagicMock()
-    fake_conn._cursor.rowcount = 5
+    type(fake_conn).rowcount = PropertyMock(return_value=5)
 
     @contextmanager
     def fake_connection():
@@ -200,11 +200,9 @@ def test_cleanup_orphaned_data_dry_run_reports_only_stale_runs(monkeypatch) -> N
 
 def test_cleanup_orphaned_data_live_commits_deleted_counts(monkeypatch) -> None:
     fake_conn = MagicMock()
-    fake_conn._cursor.rowcount = 2
+    type(fake_conn).rowcount = PropertyMock(return_value=2)
 
     def execute_side_effect(sql: str, *_args, **_kwargs):
-        if "UPDATE agent_runs" in sql:
-            fake_conn._cursor.rowcount = 2
         return MagicMock()
 
     fake_conn.execute.side_effect = execute_side_effect

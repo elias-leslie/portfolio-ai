@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-import traceback
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -21,6 +21,8 @@ from ._ml_training_helpers import (
     _train_and_save_model,
 )
 
+logger = logging.getLogger(__name__)
+
 STATUS_QUERYING = "querying"
 STATUS_LABELING = "labeling"
 STATUS_TRAINING = "training"
@@ -34,7 +36,7 @@ STEP_INSUFFICIENT_ARTICLES = "Skipped - insufficient articles"
 STEP_MERGE_LABELS = "Merging labels..."
 STEP_TRAINING_PREFIX = "Training on"
 STEP_COMPLETE_PREFIX = "Complete! Accuracy:"
-TRAINING_DATA_FILENAME = "/home/kasadis/portfolio-ai/data/training_data_merged.json"
+TRAINING_DATA_FILENAME = str(Path(__file__).resolve().parent.parent.parent.parent / "data" / "training_data_merged.json")
 NEW_ARTICLE_LIMIT = 100
 MIN_ARTICLES_TO_TRAIN = 10
 PROGRESS_INITIAL = 5
@@ -43,8 +45,11 @@ PROGRESS_LABELING = 20
 PROGRESS_MERGE = 50
 PROGRESS_TRAINING = 70
 PROGRESS_DONE = 100
-TRAINING_BANNER = "=" * 60
-TRAINING_TITLE = "ARTICLE QUALITY MODEL RETRAINING"
+
+_ALLOWED_PROGRESS_COLUMNS = frozenset({
+    "articles_found", "articles_total", "articles_labeled",
+    "model_version", "accuracy", "error_message",
+})
 
 
 @dataclass(frozen=True)
@@ -81,6 +86,8 @@ def _update_progress(
     update_values = [status, current_step, progress_percent]
 
     for key, value in kwargs.items():
+        if key not in _ALLOWED_PROGRESS_COLUMNS:
+            raise ValueError(f"Disallowed progress column: {key}")
         update_fields.append(f"{key} = %s")
         update_values.append(_coerce_progress_value(value))
 
@@ -110,9 +117,7 @@ def retrain_article_quality_model() -> TrainingResult:
 
 def _retrain_article_quality_model_impl(session_id: str | None = None) -> TrainingResult:
     """Retrain article quality model with new Gemini-labeled data."""
-    print(TRAINING_BANNER)
-    print(TRAINING_TITLE)
-    print(TRAINING_BANNER)
+    logger.info("Starting article quality model retraining")
 
     storage = get_storage()
     training_data_path = Path(TRAINING_DATA_FILENAME)
@@ -170,8 +175,10 @@ def _handle_insufficient_articles(
     session_id: str | None,
     article_count: int,
 ) -> TrainingResult:
-    print(
-        f"\n⚠️  Only {article_count} new articles, skipping (need at least {MIN_ARTICLES_TO_TRAIN})"
+    logger.info(
+        "Only %d new articles, skipping (need at least %d)",
+        article_count,
+        MIN_ARTICLES_TO_TRAIN,
     )
     _update_progress(
         conn,
@@ -202,7 +209,8 @@ def _run_training_phase(
         f"{STEP_TRAINING_PREFIX} {len(artifacts.combined_data)} samples...",
         PROGRESS_TRAINING,
     )
-    metrics, model_version, _, training_duration = _train_and_save_model(artifacts.combined_data)
+    metrics, model_version, model_path, training_duration = _train_and_save_model(artifacts.combined_data)
+    metrics["model_path"] = str(model_path)
     _save_model_metrics(conn, model_version, metrics, training_duration)
     _update_progress(
         conn,
@@ -227,9 +235,10 @@ def _run_training_phase(
 
 
 def _write_training_data(training_data_path: Path, combined_data: list[dict[str, Any]]) -> None:
+    training_data_path.parent.mkdir(parents=True, exist_ok=True)
     with training_data_path.open("w") as f:
         json.dump(combined_data, f, indent=2)
-    print(f"\n💾 Updated training data: {len(combined_data)} total samples")
+    logger.info("Updated training data: %d total samples", len(combined_data))
 
 
 def _handle_training_exception(
@@ -237,8 +246,7 @@ def _handle_training_exception(
     session_id: str | None,
     error: Exception,
 ) -> TrainingResult:
-    print(f"\n❌ Retraining failed: {error}")
-    traceback.print_exc()
+    logger.exception("Retraining failed: %s", error)
     _update_progress(
         conn,
         session_id,

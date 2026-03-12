@@ -390,11 +390,11 @@ def reset_source_metrics_task() -> NewsProfilingResultDict:
         with storage.connection() as conn:
             # Delete source metrics
             conn.execute("DELETE FROM source_metrics")
-            metrics_deleted = conn._cursor.rowcount
+            metrics_deleted = conn.rowcount
 
             # Delete user feedback
             conn.execute("DELETE FROM user_article_feedback")
-            feedback_deleted = conn._cursor.rowcount
+            feedback_deleted = conn.rowcount
 
             conn.commit()
 

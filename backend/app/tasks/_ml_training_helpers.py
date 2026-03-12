@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import subprocess
 import tempfile
 from datetime import UTC, datetime
@@ -12,7 +13,9 @@ from typing import Any
 from app.ml.article_quality_classifier import ArticleQualityClassifier
 from app.storage.types import DatabaseConnection
 
-_MODEL_DIR = Path("/home/kasadis/portfolio-ai/backend/models")
+logger = logging.getLogger(__name__)
+
+_MODEL_DIR = Path(__file__).resolve().parent.parent.parent / "models"
 _MODEL_VERSION_FORMAT = "v%Y%m%d"
 _PRODUCTION_MODEL_FILENAME = "article_quality_v1.joblib"
 _MODEL_FILENAME_TEMPLATE = "article_quality_{version}.joblib"
@@ -21,7 +24,7 @@ _QUERY_LIMIT = 500
 _HASH_HEADLINE_LENGTH = 50
 _HEADLINE_MATCH_LENGTH = 40
 _GEMINI_TIMEOUT_SECONDS = 300
-_GEMINI_ENV = {"HOME": "/home/kasadis", "PATH": "/usr/local/bin:/usr/bin:/bin"}
+_GEMINI_ENV = {"HOME": str(Path.home()), "PATH": "/usr/local/bin:/usr/bin:/bin"}
 _QUERY_ARTICLES_SQL = f"""
         SELECT symbol, headline, summary
         FROM news_cache
@@ -48,7 +51,7 @@ _METRICS_INSERT_SQL = """
 def _load_training_data(training_data_path: Path) -> tuple[list[dict[str, Any]], set[str]]:
     """Load existing training data and build a hash set of labeled articles."""
     if not training_data_path.exists():
-        print("\n📖 No existing training data found, starting fresh")
+        logger.info("No existing training data found, starting fresh")
         return [], set()
 
     with training_data_path.open() as f:
@@ -56,7 +59,7 @@ def _load_training_data(training_data_path: Path) -> tuple[list[dict[str, Any]],
 
     existing_data = [_normalize_training_article(article) for article in raw_existing_data]
     labeled_hashes = {_article_hash(article["symbol"], article["headline"]) for article in existing_data}
-    print(f"\n📖 Loaded {len(existing_data)} existing training samples")
+    logger.info("Loaded %d existing training samples", len(existing_data))
     return existing_data, labeled_hashes
 
 
@@ -72,22 +75,22 @@ def _query_new_articles(
     conn: DatabaseConnection, labeled_hashes: set[str], limit: int = 100
 ) -> list[dict[str, Any]]:
     """Query and filter new articles from the database."""
-    print("\n🔍 Querying new articles from database...")
+    logger.info("Querying new articles from database...")
     conn.execute(_QUERY_ARTICLES_SQL)
     all_articles = conn.fetchall()
-    print(f"   Found {len(all_articles)} recent articles")
+    logger.info("Found %d recent articles", len(all_articles))
 
     new_articles = [
         article
         for article in map(_row_to_article, all_articles)
         if _article_hash(article["symbol"], article["headline"]) not in labeled_hashes
     ]
-    print(f"   {len(new_articles)} are NEW (not yet labeled)")
+    logger.info("%d are NEW (not yet labeled)", len(new_articles))
 
     if len(new_articles) <= limit:
         return new_articles
 
-    print(f"   Limiting to {limit} new articles for this training run")
+    logger.info("Limiting to %d new articles for this training run", limit)
     return new_articles[:limit]
 
 
@@ -101,25 +104,28 @@ def _row_to_article(row: Any) -> dict[str, str]:
 
 def _label_articles_with_gemini(new_articles: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Send articles to Gemini for quality labeling."""
-    print(f"\n🤖 Labeling {len(new_articles)} articles with Gemini...")
+    logger.info("Labeling %d articles with Gemini...", len(new_articles))
     tmp_path = _write_articles_to_tempfile(new_articles)
 
-    with Path(tmp_path).open() as tmp_file:
-        result = subprocess.run(
-            ["gemini", "--prompt", _GEMINI_PROMPT],
-            stdin=tmp_file,
-            capture_output=True,
-            text=True,
-            timeout=_GEMINI_TIMEOUT_SECONDS,
-            check=False,
-            env=_GEMINI_ENV,
-        )
+    try:
+        with Path(tmp_path).open() as tmp_file:
+            result = subprocess.run(
+                ["gemini", "--prompt", _GEMINI_PROMPT],
+                stdin=tmp_file,
+                capture_output=True,
+                text=True,
+                timeout=_GEMINI_TIMEOUT_SECONDS,
+                check=False,
+                env=_GEMINI_ENV,
+            )
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
 
     if result.returncode != 0:
         raise RuntimeError(f"Gemini labeling failed: {result.stderr}")
 
     gemini_labels = _parse_gemini_output(result.stdout, result.stderr)
-    print(f"   ✅ Gemini labeled {len(gemini_labels)} articles")
+    logger.info("Gemini labeled %d articles", len(gemini_labels))
     return gemini_labels
 
 
@@ -136,9 +142,11 @@ def _parse_gemini_output(stdout: str, stderr: str) -> list[dict[str, Any]]:
     if start >= 0 and end > start:
         return json.loads(stdout[start:end])
 
-    print("\n❌ Could not parse Gemini output")
-    print(f"   Gemini stdout (first 500 chars): {stdout[:500]}")
-    print(f"   Gemini stderr: {stderr[:500] if stderr else 'None'}")
+    logger.error(
+        "Could not parse Gemini output. stdout (first 500 chars): %s, stderr: %s",
+        stdout[:500],
+        stderr[:500] if stderr else "None",
+    )
     raise ValueError("Could not parse Gemini JSON output")
 
 
@@ -162,7 +170,7 @@ def _merge_gemini_labels(
             }
         )
 
-    print(f"   ✅ Merged {len(newly_labeled)} labeled articles")
+    logger.info("Merged %d labeled articles", len(newly_labeled))
     return newly_labeled
 
 
@@ -178,24 +186,31 @@ def _train_and_save_model(
     combined_data: list[dict[str, Any]],
 ) -> tuple[dict[str, Any], str, Path, float]:
     """Train model, save it to disk, and repoint the production symlink."""
-    print("\n🎓 Retraining model...")
+    logger.info("Retraining model...")
     classifier = ArticleQualityClassifier()
+    labels = [article["is_useful"] for article in combined_data]
     start_time = datetime.now(UTC)
     metrics = classifier.train(
         [article["headline"] for article in combined_data],
         [article["summary"] for article in combined_data],
-        [article["is_useful"] for article in combined_data],
+        labels,
         test_size=0.2,
     )
     training_duration = (datetime.now(UTC) - start_time).total_seconds()
+
+    # Add label distribution to metrics (not returned by classifier.train)
+    metrics["useful_count"] = sum(1 for label in labels if label)
+    metrics["not_useful_count"] = sum(1 for label in labels if not label)
+
     model_version = datetime.now(UTC).strftime(_MODEL_VERSION_FORMAT)
+    _MODEL_DIR.mkdir(parents=True, exist_ok=True)
     model_path = _MODEL_DIR / _MODEL_FILENAME_TEMPLATE.format(version=model_version)
     classifier.save(model_path)
 
     prod_model_path = _MODEL_DIR / _PRODUCTION_MODEL_FILENAME
     prod_model_path.unlink(missing_ok=True)
     prod_model_path.symlink_to(model_path.name)
-    print(f"\n✅ Production model updated: {prod_model_path} -> {model_path.name}")
+    logger.info("Production model updated: %s -> %s", prod_model_path, model_path.name)
     return metrics, model_version, model_path, training_duration
 
 
@@ -220,9 +235,9 @@ def _save_model_metrics(
             metrics["f1_score"],
             metrics.get("useful_count", 0),
             metrics.get("not_useful_count", 0),
-            metrics.get("model_path", ""),
+            str(metrics.get("model_path", "")),
             training_duration,
         ],
     )
     conn.commit()
-    print("\n✅ Metrics saved to database")
+    logger.info("Metrics saved to database")

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+__all__ = ["router"]
+
 from functools import lru_cache
 from importlib import import_module
 from typing import Any
@@ -86,8 +88,9 @@ def _build_position_responses(
 
         if current_price:
             current_value = pos.shares * current_price
-            gain = current_value - (pos.shares * pos.cost_basis)
-            gain_pct = (gain / (pos.shares * pos.cost_basis)) * 100
+            cost_total = pos.shares * pos.cost_basis
+            gain = current_value - cost_total
+            gain_pct = (gain / cost_total) * 100 if cost_total else 0.0
         else:
             current_value = None
             gain = None

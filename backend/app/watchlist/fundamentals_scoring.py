@@ -14,14 +14,39 @@ from __future__ import annotations
 from app.watchlist.fundamentals_models import FundamentalData
 
 
+def _interpolate_score(
+    value: float,
+    thresholds: list[float],
+    scores: list[float],
+) -> float:
+    """Linearly interpolate a score between threshold/score pairs.
+
+    Values below the first threshold get the first score.
+    Values above the last threshold get the last score.
+    """
+    if value <= thresholds[0]:
+        return scores[0]
+    for i in range(1, len(thresholds)):
+        if value <= thresholds[i]:
+            ratio = (value - thresholds[i - 1]) / (thresholds[i] - thresholds[i - 1])
+            return scores[i - 1] + ratio * (scores[i] - scores[i - 1])
+    return scores[-1]
+
+
 def calculate_valuation_score(data: FundamentalData) -> float:
-    """Calculate valuation score (0-100) based on P/E, P/B, profit margin.
+    """Calculate valuation score (0-100) based on profit margin.
 
     Weight: 25% of fundamental score
 
-    Scoring:
-    - Profit margin >20% = 90, >10% = 70, >5% = 50, else 30
-    - TODO: Add P/E, P/B, PEG ratios when available
+    Uses linear interpolation between thresholds for smoother scoring:
+    - margin <= 0%  → 20
+    - margin  5%    → 50
+    - margin 10%    → 70
+    - margin 20%    → 90
+    - margin >= 30% → 95
+
+    When P/E, P/B, PEG ratios are added to FundamentalData, this function
+    should incorporate them as a weighted blend alongside profit margin.
 
     Args:
         data: FundamentalData with company metrics
@@ -29,25 +54,25 @@ def calculate_valuation_score(data: FundamentalData) -> float:
     Returns:
         Valuation score 0-100 (higher = better value)
     """
-    profit_margin = data.profit_margin or 0.06
-
-    # Simple scoring using available data
-    if profit_margin > 0.20:
-        return 90.0
-    if profit_margin > 0.10:
-        return 70.0
-    if profit_margin > 0.05:
-        return 50.0
-    return 30.0
+    profit_margin = data.profit_margin if data.profit_margin is not None else 0.06
+    return _interpolate_score(
+        profit_margin,
+        thresholds=[0.0, 0.05, 0.10, 0.20, 0.30],
+        scores=[20.0, 50.0, 70.0, 90.0, 95.0],
+    )
 
 
 def calculate_growth_score(data: FundamentalData) -> float:
-    """Calculate growth score (0-100) based on revenue and earnings growth.
+    """Calculate growth score (0-100) based on revenue growth.
 
     Weight: 35% of fundamental score
 
-    Scoring:
-    - Revenue growth >30% = 100, 20-30% = 80, 10-20% = 60, 5-10% = 40, <5% = 20
+    Uses linear interpolation:
+    - growth <= 0%  → 10
+    - growth  5%    → 40
+    - growth 10%    → 60
+    - growth 20%    → 80
+    - growth >= 30% → 100
 
     Args:
         data: FundamentalData with company metrics
@@ -55,17 +80,12 @@ def calculate_growth_score(data: FundamentalData) -> float:
     Returns:
         Growth score 0-100 (higher = faster growth)
     """
-    revenue_growth = data.revenue_growth or 0.06
-
-    if revenue_growth > 0.30:
-        return 100.0
-    if revenue_growth > 0.20:
-        return 80.0
-    if revenue_growth > 0.10:
-        return 60.0
-    if revenue_growth > 0.05:
-        return 40.0
-    return 20.0
+    revenue_growth = data.revenue_growth if data.revenue_growth is not None else 0.06
+    return _interpolate_score(
+        revenue_growth,
+        thresholds=[0.0, 0.05, 0.10, 0.20, 0.30],
+        scores=[10.0, 40.0, 60.0, 80.0, 100.0],
+    )
 
 
 def calculate_health_score(data: FundamentalData) -> float:

@@ -97,6 +97,7 @@ export function TodayIdeasSection() {
                 min={10_000}
                 max={500_000}
                 step={5_000}
+                aria-label="Portfolio sizing baseline"
               />
               {isSizingRefreshing ? (
                 <p className="mt-2 text-xs text-text-muted" aria-live="polite">

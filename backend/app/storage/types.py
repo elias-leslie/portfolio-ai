@@ -107,6 +107,15 @@ class DatabaseConnection(Protocol):
         ...
 
     @property
+    def rowcount(self) -> int:
+        """Number of rows affected by the last execute operation.
+
+        Returns:
+            Row count from the underlying cursor, or -1 if unavailable.
+        """
+        ...
+
+    @property
     def raw_connection(self) -> Any:
         """Get underlying raw database connection.
 

@@ -40,9 +40,7 @@
   animation: flash-update 2s ease-out;
 }
 
-/* Pul
-
-se effect for newly updated rows */
+/* Pulse effect for newly updated rows */
 @keyframes pulse-row {
   0%,
   100% {

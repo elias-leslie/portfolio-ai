@@ -144,7 +144,7 @@ def _build_full_analytics_response(
     )
 
 
-def _get_analytics_payload(include_paper: bool) -> AnalyticsResponse:
+def get_analytics_payload(include_paper: bool) -> AnalyticsResponse:
     portfolio_mgr = _portfolio_mgr()
     all_accounts = portfolio_mgr.get_accounts()
     if not include_paper:
@@ -181,4 +181,4 @@ async def get_analytics(request: Request, include_paper: bool = False) -> Analyt
     Args:
         include_paper: If False (default), excludes paper trading accounts.
     """
-    return await run_in_threadpool(_get_analytics_payload, include_paper)
+    return await run_in_threadpool(get_analytics_payload, include_paper)
