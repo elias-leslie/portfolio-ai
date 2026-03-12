@@ -17,6 +17,7 @@ import uuid
 
 from app.logging_config import get_logger
 from app.storage import get_storage
+from app.storage.types import DatabaseConnection
 from app.tasks.indicators.fear_greed_percentiles import (
     _calculate_percentile_breadth,
     _calculate_percentile_credit,
@@ -45,6 +46,109 @@ __all__ = [
 ]
 
 logger = get_logger(__name__)
+
+_WINDOW_DAYS = 252
+
+
+def _compute_percentiles(
+    conn: DatabaseConnection,
+    as_of_date: str,
+    vix_close: float,
+    spy_close: float,
+    spy_sma_200: float,
+    rsi_14: float,
+    hy_spread: float,
+    breadth_pct: float | None,
+    window_days: int,
+) -> tuple[float, float, float, float, float]:
+    """Compute all five component percentiles and return them as a tuple."""
+    vix_pct = _calculate_percentile_vix(conn, as_of_date, vix_close, window_days)
+    momentum_pct = _calculate_percentile_momentum(
+        conn, as_of_date, spy_close, spy_sma_200, window_days
+    )
+    rsi_pct = _calculate_percentile_rsi(conn, as_of_date, rsi_14, window_days)
+    credit_pct = _calculate_percentile_credit(conn, as_of_date, hy_spread, window_days)
+    breadth_percentile = _calculate_percentile_breadth(
+        conn, as_of_date, breadth_pct, window_days
+    )
+    return vix_pct, momentum_pct, rsi_pct, credit_pct, breadth_percentile
+
+
+def _build_success_result(
+    as_of_date: str,
+    composite_score: int,
+    label: str,
+    score_change: int,
+    vix_pct: float,
+    momentum_pct: float,
+    rsi_pct: float,
+    credit_pct: float,
+    breadth_percentile: float,
+) -> FearGreedCalculationDict:
+    """Assemble a successful FearGreedCalculationDict."""
+    result: FearGreedCalculationDict = {
+        "success": True,
+        "date": as_of_date,
+        "score": composite_score,
+        "label": label,
+        "score_change": score_change,
+        "components": {
+            "vix_pct": vix_pct,
+            "momentum_pct": momentum_pct,
+            "rsi_pct": rsi_pct,
+            "credit_pct": credit_pct,
+            "breadth_pct": breadth_percentile,
+        },
+    }
+    return result
+
+
+def _run_calculation(
+    conn: DatabaseConnection,
+    as_of_date: str | None,
+) -> FearGreedCalculationDict:
+    """Execute the full fear & greed calculation within an open connection."""
+    as_of_date, vix_close, spy_close, spy_sma_200, rsi_14, hy_spread, breadth_pct = (
+        _get_fear_greed_inputs(conn, as_of_date)
+    )
+
+    vix_pct, momentum_pct, rsi_pct, credit_pct, breadth_percentile = _compute_percentiles(
+        conn,
+        as_of_date,
+        vix_close,
+        spy_close,
+        spy_sma_200,
+        rsi_14,
+        hy_spread,
+        breadth_pct,
+        _WINDOW_DAYS,
+    )
+
+    composite_score, label, score_change = _store_components_and_score(
+        conn,
+        as_of_date,
+        vix_pct,
+        momentum_pct,
+        rsi_pct,
+        credit_pct,
+        breadth_percentile,
+        _WINDOW_DAYS,
+    )
+
+    conn.commit()
+    _invalidate_redis_cache()
+
+    return _build_success_result(
+        as_of_date,
+        composite_score,
+        label,
+        score_change,
+        vix_pct,
+        momentum_pct,
+        rsi_pct,
+        credit_pct,
+        breadth_percentile,
+    )
 
 
 def calculate_fear_greed(
@@ -78,52 +182,9 @@ def calculate_fear_greed(
 
     try:
         with storage.connection() as conn:
-            as_of_date, vix_close, spy_close, spy_sma_200, rsi_14, hy_spread, breadth_pct = (
-                _get_fear_greed_inputs(conn, as_of_date)
-            )
-
-            window_days = 252
-            vix_pct = _calculate_percentile_vix(conn, as_of_date, vix_close, window_days)
-            momentum_pct = _calculate_percentile_momentum(
-                conn, as_of_date, spy_close, spy_sma_200, window_days
-            )
-            rsi_pct = _calculate_percentile_rsi(conn, as_of_date, rsi_14, window_days)
-            credit_pct = _calculate_percentile_credit(conn, as_of_date, hy_spread, window_days)
-            breadth_percentile = _calculate_percentile_breadth(
-                conn, as_of_date, breadth_pct, window_days
-            )
-
-            composite_score, label, score_change = _store_components_and_score(
-                conn,
-                as_of_date,
-                vix_pct,
-                momentum_pct,
-                rsi_pct,
-                credit_pct,
-                breadth_percentile,
-                window_days,
-            )
-
-            conn.commit()
-            _invalidate_redis_cache()
-
-            result_data: FearGreedCalculationDict = {
-                "success": True,
-                "date": as_of_date,
-                "score": composite_score,
-                "label": label,
-                "score_change": score_change,
-                "components": {
-                    "vix_pct": vix_pct,
-                    "momentum_pct": momentum_pct,
-                    "rsi_pct": rsi_pct,
-                    "credit_pct": credit_pct,
-                    "breadth_pct": breadth_percentile,
-                },
-            }
-
-            logger.info("calculate_fear_greed_completed", task_id=task_id, **result_data)
-            return result_data
+            result_data = _run_calculation(conn, as_of_date)
+        logger.info("calculate_fear_greed_completed", task_id=task_id, **result_data)
+        return result_data
 
     except ValueError as e:
         logger.warning("calculate_fear_greed_input_error", task_id=task_id, error=str(e))
