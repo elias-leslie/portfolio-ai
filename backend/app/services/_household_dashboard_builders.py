@@ -26,6 +26,13 @@ from app.models.household_finance import (
     PortfolioHouseholdContext,
     RetirementPreparedness,
 )
+from app.services._household_jenny_needs_builders import (
+    _jenny_account_question_needs,
+    _jenny_confirmation_needs,
+    _jenny_freshness_needs,
+    _jenny_retirement_category_needs,
+    _jenny_statement_needs,
+)
 
 _CADENCE_MULTIPLIERS: dict[str, int] = {
     "weekly": 52,
@@ -73,16 +80,6 @@ def estimate_next_commitment_date(last_seen: datetime, cadence: str) -> str | No
     return (last_seen + offset).isoformat()
 
 
-def _commitment_due_status(days_until_due: int | None) -> str:
-    if days_until_due is None:
-        return "unknown"
-    if days_until_due < 0:
-        return "overdue"
-    if days_until_due <= 3:
-        return "due_soon"
-    return "upcoming"
-
-
 def build_recurring_commitment(
     row: Any,
     cadence: str,
@@ -108,6 +105,14 @@ def build_recurring_commitment(
     days_until_due = (
         (next_expected_date - today).days if next_expected_date is not None else None
     )
+    if days_until_due is None:
+        due_status = "unknown"
+    elif days_until_due < 0:
+        due_status = "overdue"
+    elif days_until_due <= 3:
+        due_status = "due_soon"
+    else:
+        due_status = "upcoming"
     return HouseholdRecurringCommitment(
         merchant=merchant,
         category=str(row[1]),
@@ -117,7 +122,7 @@ def build_recurring_commitment(
         last_seen=last_seen.isoformat(),
         next_expected=next_expected,
         days_until_due=days_until_due,
-        due_status=_commitment_due_status(days_until_due),
+        due_status=due_status,
         due_confidence=float(cadence_info.get("confidence") or 0.0),
         commitment_type=commitment_type,
     )
@@ -205,49 +210,54 @@ def build_retirement_scenarios(
     ]
 
 
-def _pace_info(
-    *, has_plan: bool, monthly_plan_total: float, month_to_date_spend: float
-) -> tuple[float | None, str, str]:
+def _budget_analysis(
+    *,
+    has_plan: bool,
+    monthly_plan_total: float,
+    month_to_date_spend: float,
+    profile: Any,
+    reports: Any,
+) -> tuple[float | None, str, str, str, str]:
+    """Return (mtd_plan, pace_status, pace_detail, status, summary) for budget snapshot."""
     if not has_plan:
-        return None, "unknown", "Jenny needs a monthly plan before it can judge pacing."
+        return (
+            None, "unknown",
+            "Jenny needs a monthly plan before it can judge pacing.",
+            "setup_needed",
+            "Set the core monthly plan so Jenny can judge whether current spending is on pace.",
+        )
     today = datetime.now(UTC).date()
     days_in_month = calendar.monthrange(today.year, today.month)[1]
-    month_progress = today.day / days_in_month
-    month_to_date_plan = round(monthly_plan_total * month_progress, 2)
+    month_to_date_plan = round(monthly_plan_total * (today.day / days_in_month), 2)
     pace_delta = month_to_date_spend - month_to_date_plan
     tolerance = max(month_to_date_plan * 0.05, 100)
     if abs(pace_delta) <= tolerance:
-        return month_to_date_plan, "on_track", "Month-to-date spend is tracking close to the plan."
-    if pace_delta > 0:
-        detail = (
+        pace_status, pace_detail = "on_track", "Month-to-date spend is tracking close to the plan."
+    elif pace_delta > 0:
+        pace_status = "running_hot"
+        pace_detail = (
             f"Month-to-date spend is ahead of plan by ${pace_delta:,.0f}. "
             "Review discretionary and recurring categories before the month hardens."
         )
-        return month_to_date_plan, "running_hot", detail
-    detail = (
-        f"Month-to-date spend is ${abs(pace_delta):,.0f} below plan. "
-        "The plan still has room for remaining bills and savings."
-    )
-    return month_to_date_plan, "under_plan", detail
-
-
-def _snapshot_status(*, has_plan: bool, profile: Any, reports: Any) -> tuple[str, str]:
-    if not has_plan:
-        return (
-            "setup_needed",
-            "Set the core monthly plan so Jenny can judge whether current spending is on pace.",
+    else:
+        pace_status = "under_plan"
+        pace_detail = (
+            f"Month-to-date spend is ${abs(pace_delta):,.0f} below plan. "
+            "The plan still has room for remaining bills and savings."
         )
     if (
         profile.monthly_essential_target is not None
         and reports.executive.average_monthly_essentials > profile.monthly_essential_target
     ):
-        return "essentials_above_plan", "Essential spending is running above the current target and needs review."
-    if (
+        status, summary = "essentials_above_plan", "Essential spending is running above the current target and needs review."
+    elif (
         profile.monthly_discretionary_target is not None
         and reports.executive.average_monthly_discretionary > profile.monthly_discretionary_target
     ):
-        return "discretionary_above_plan", "Discretionary spending is running above the current cap."
-    return "on_track", "The current monthly spending profile is inside the available budget guardrails."
+        status, summary = "discretionary_above_plan", "Discretionary spending is running above the current cap."
+    else:
+        status, summary = "on_track", "The current monthly spending profile is inside the available budget guardrails."
+    return month_to_date_plan, pace_status, pace_detail, status, summary
 
 
 def build_budget_snapshot(
@@ -273,12 +283,13 @@ def build_budget_snapshot(
         if profile.monthly_discretionary_target is not None
         else None
     )
-    month_to_date_plan, pace_status, pace_detail = _pace_info(
+    month_to_date_plan, pace_status, pace_detail, status, summary = _budget_analysis(
         has_plan=has_plan,
         monthly_plan_total=monthly_plan_total,
         month_to_date_spend=month_to_date_spend,
+        profile=profile,
+        reports=reports,
     )
-    status, summary = _snapshot_status(has_plan=has_plan, profile=profile, reports=reports)
     return HouseholdBudgetSnapshot(
         status=status,
         summary=summary,
@@ -297,35 +308,6 @@ def build_budget_snapshot(
         remaining_cash_after_plan=remaining_cash_after_plan,
         discretionary_headroom=discretionary_headroom,
     )
-
-
-def build_starter_lanes(resolved_numeric_value: Any) -> list[BudgetLane]:
-    """Build the three starter budget lanes from resolved values."""
-    lane_configs = [
-        (
-            "Essentials",
-            "Protect fixed bills and groceries before lifestyle spending expands.",
-            "monthly_essential_target",
-        ),
-        (
-            "Lifestyle",
-            "Cap shopping, dining, convenience, and entertainment with clear guardrails.",
-            "monthly_discretionary_target",
-        ),
-        (
-            "Savings",
-            "Reserve dollars for investing, emergency cash, and future big-ticket items.",
-            "monthly_savings_target",
-        ),
-    ]
-    return [
-        BudgetLane(
-            name=name,
-            objective=objective,
-            status="Configured" if resolved_numeric_value(field) is not None else "Needs target",
-        )
-        for name, objective, field in lane_configs
-    ]
 
 
 # ---------------------------------------------------------------------------
@@ -437,151 +419,6 @@ def _update_overview_action(overview: HouseholdOverview, title: str) -> Househol
     )
 
 
-# --- Jenny needs sub-builders ---
-
-def _jenny_statement_needs(coverage_months: int, days_since_latest: int | None) -> list[JennyNeed]:
-    """Critical: upload statements when coverage is insufficient."""
-    statements_satisfied = (
-        coverage_months >= 3
-        and days_since_latest is not None
-        and days_since_latest < 45
-    )
-    if statements_satisfied:
-        return []
-    if coverage_months > 0 and days_since_latest is not None:
-        detail = (
-            f"Currently {coverage_months} month{'s' if coverage_months != 1 else ''} of data, "
-            f"most recent {days_since_latest} days ago. More coverage improves accuracy."
-        )
-    else:
-        detail = "Jenny needs at least 3 months of recent statements to build accurate spending baselines."
-    return [JennyNeed(
-        id="need_statements", need_type="provide", title="Upload statements",
-        detail=detail, priority="critical", status="unsatisfied",
-        recurrence="periodic", action_href="/money",
-    )]
-
-
-def _jenny_confirmation_needs(
-    confirmed_facts: dict[str, str], planning: Any, profile: Any
-) -> list[JennyNeed]:
-    """High-priority confirmation needs: accounts, scope, income, planning gaps, missing docs."""
-    needs: list[JennyNeed] = []
-    if "account_completeness" not in confirmed_facts:
-        needs.append(JennyNeed(
-            id="need_account_completeness", need_type="confirm",
-            title="Are all accounts covered?",
-            detail="Confirm that the uploaded statements cover all your active bank and credit card accounts.",
-            priority="high", status="unsatisfied", recurrence="one_time",
-            field_name="account_completeness",
-        ))
-    if "household_scope" not in confirmed_facts:
-        needs.append(JennyNeed(
-            id="need_household_scope", need_type="confirm",
-            title="Who is in this household?",
-            detail="Confirm whether this is a single-person or multi-person household so Jenny sizes the budget correctly.",
-            priority="high", status="unsatisfied", recurrence="one_time",
-            field_name="household_scope",
-        ))
-    if "income_sources" not in confirmed_facts and not planning.income_sources:
-        needs.append(JennyNeed(
-            id="need_income_sources", need_type="confirm",
-            title="Confirm income sources",
-            detail="Tell Jenny about your income sources (salary, freelance, etc.) so she can track completeness.",
-            priority="high", status="unsatisfied", recurrence="one_time",
-            field_name="income_sources",
-        ))
-    for section in [s for s in planning.summary.sections if s.status == "missing"][:3]:
-        needs.append(JennyNeed(
-            id=f"need_planning_{section.section}", need_type="set",
-            title=f"Complete {section.label.lower()} planning",
-            detail=section.detail,
-            priority="high" if section.section in {"household", "income", "housing", "debt"} else "medium",
-            status="unsatisfied", recurrence="one_time", action_href="/money",
-        ))
-    for req in [r for r in planning.document_requirements if r.status == "missing"][:4]:
-        needs.append(JennyNeed(
-            id=f"need_document_{req.id}", need_type="provide",
-            title=f"Upload {req.label}",
-            detail=req.rationale or "Jenny needs this document to validate your planning assumptions.",
-            priority=req.priority if req.priority in {"critical", "high", "medium", "low"} else "medium",
-            status="unsatisfied", recurrence="as_needed", action_href="/money",
-        ))
-    return needs
-
-
-def _jenny_account_question_needs(
-    detected_accounts: list[dict[str, str]], questions: list[Any]
-) -> list[JennyNeed]:
-    """High-priority detected-account needs and medium open-question needs."""
-    needs: list[JennyNeed] = []
-    for account in detected_accounts:
-        institution = account.get("institution", "Unknown")
-        partial = account.get("partial_account", "")
-        acct_key = account.get("key", institution)
-        label = f"{institution} ...{partial}" if partial else institution
-        needs.append(JennyNeed(
-            id=f"need_account_{acct_key}", need_type="provide",
-            title=f"Upload {label} statements",
-            detail=f"Jenny spotted references to {label} in your transactions but has no statements for it.",
-            priority="high", status="unsatisfied", recurrence="one_time", action_href="/money",
-        ))
-    for q in [q for q in questions if q.status == "open"][:3]:
-        needs.append(JennyNeed(
-            id=f"need_question_{q.id}", need_type="confirm",
-            title="Review Jenny's finding",
-            detail=q.question, priority="medium", status="unsatisfied",
-            recurrence="as_needed", related_question_id=q.id,
-            question_format=q.question_format if q.question_format != "short_text" else None,
-            options=q.options,
-        ))
-    return needs
-
-
-def _jenny_retirement_category_needs(
-    profile: Any, categorization_queue: list[Any]
-) -> list[JennyNeed]:
-    """Medium-priority retirement and category-review needs."""
-    needs: list[JennyNeed] = []
-    if profile.target_retirement_age is None:
-        needs.append(JennyNeed(
-            id="need_retirement_age", need_type="set",
-            title="Set retirement age",
-            detail="Jenny needs a target retirement age to run scenario planning.",
-            priority="medium", status="unsatisfied", recurrence="one_time",
-            field_name="target_retirement_age",
-        ))
-    if profile.target_retirement_spend is None:
-        needs.append(JennyNeed(
-            id="need_retirement_spend", need_type="set",
-            title="Set retirement spending target",
-            detail="Define a monthly retirement spending target so Jenny can project readiness.",
-            priority="medium", status="unsatisfied", recurrence="one_time",
-            field_name="target_retirement_spend",
-        ))
-    if categorization_queue:
-        count = len(categorization_queue)
-        needs.append(JennyNeed(
-            id="need_category_corrections", need_type="review",
-            title="Review spending categories",
-            detail=f"{count} transaction{'s' if count != 1 else ''} need category confirmation so Jenny can trust the budget lanes.",
-            priority="medium", status="unsatisfied", recurrence="as_needed",
-        ))
-    return needs
-
-
-def _jenny_freshness_needs(documents: list[Any], days_since_latest: int | None) -> list[JennyNeed]:
-    """Low-priority freshness need when documents exist but are stale."""
-    if documents and days_since_latest is not None and days_since_latest >= 45:
-        return [JennyNeed(
-            id="need_freshness", need_type="provide",
-            title="Upload newer statements",
-            detail=f"The most recent transaction is {days_since_latest} days old. Fresher data keeps pacing accurate.",
-            priority="low", status="unsatisfied", recurrence="periodic", action_href="/money",
-        )]
-    return []
-
-
 def _build_jenny_needs(
     *,
     profile: Any,
@@ -607,10 +444,14 @@ def _build_jenny_needs(
     ]
 
 
-# --- Progression builder ---
-
-def _collect_found_items(executive: Any, resolved_values: list[Any]) -> list[str]:
-    """Collect data-backed 'found' bullet points for the Jenny progression."""
+def _build_progression(
+    *,
+    reports: Any,
+    resolved_values: list[Any],
+    profile: Any,
+) -> JennyProgression:
+    """Build the found/working-on progression for the Jenny brief."""
+    executive = reports.executive
     found: list[str] = []
     if executive.recurring_merchant_count > 0:
         found.append(
@@ -637,30 +478,11 @@ def _collect_found_items(executive: Any, resolved_values: list[Any]) -> list[str
             f"{inferred_count} profile value{'s' if inferred_count != 1 else ''} "
             f"auto-resolved from your data"
         )
-    return found
-
-
-def _build_progression(
-    *,
-    reports: Any,
-    resolved_values: list[Any],
-    profile: Any,
-) -> JennyProgression:
-    """Build the found/working-on progression for the Jenny brief."""
-    executive = reports.executive
-    found = _collect_found_items(executive, resolved_values)
     profile_fields = {
-        "monthly_net_income_target",
-        "monthly_essential_target",
-        "monthly_discretionary_target",
-        "monthly_savings_target",
-        "target_retirement_age",
-        "target_retirement_spend",
+        "monthly_net_income_target", "monthly_essential_target", "monthly_discretionary_target",
+        "monthly_savings_target", "target_retirement_age", "target_retirement_spend",
     }
-    confirmed_fields = {
-        rv.field_name for rv in resolved_values
-        if rv.source == "user" and rv.field_name in profile_fields
-    }
+    confirmed_fields = {rv.field_name for rv in resolved_values if rv.source == "user" and rv.field_name in profile_fields}
     all_known = _fields_with_confident_inferences(resolved_values, threshold=0.7) | confirmed_fields
     if executive.coverage_months < 3:
         working_on = "Building spending baselines \u2014 more statement history will improve accuracy"
@@ -671,34 +493,6 @@ def _build_progression(
     return JennyProgression(found=found, working_on=working_on)
 
 
-# --- Portfolio context builder ---
-
-def _derive_spending_estimates(
-    profile: Any, reports: Any
-) -> tuple[float | None, float | None, float | None]:
-    """Return (monthly_essential, monthly_discretionary, annual_spend) from profile/reports."""
-    monthly_essential: float | None = None
-    if profile.monthly_essential_target is not None and profile.monthly_essential_target > 0:
-        monthly_essential = profile.monthly_essential_target
-    elif reports.executive.average_monthly_essentials > 0:
-        monthly_essential = reports.executive.average_monthly_essentials
-
-    monthly_discretionary: float | None = None
-    if profile.monthly_discretionary_target is not None and profile.monthly_discretionary_target > 0:
-        monthly_discretionary = profile.monthly_discretionary_target
-    elif reports.executive.average_monthly_discretionary > 0:
-        monthly_discretionary = reports.executive.average_monthly_discretionary
-
-    annual_spend: float | None = None
-    if monthly_essential is not None:
-        annual_spend = (
-            (monthly_essential + monthly_discretionary) * 12
-            if monthly_discretionary is not None
-            else monthly_essential * 12
-        )
-    return monthly_essential, monthly_discretionary, annual_spend
-
-
 def _build_portfolio_context(
     *,
     total_tracked_assets: float,
@@ -707,15 +501,27 @@ def _build_portfolio_context(
     reports: Any,
 ) -> PortfolioHouseholdContext | None:
     """Bridge portfolio data with household spending to produce cross-domain insights."""
-    monthly_essential, _, annual_spend = _derive_spending_estimates(profile, reports)
+    monthly_essential = (
+        profile.monthly_essential_target
+        if (profile.monthly_essential_target or 0) > 0
+        else reports.executive.average_monthly_essentials or None
+    )
+    monthly_discretionary = (
+        profile.monthly_discretionary_target
+        if (profile.monthly_discretionary_target or 0) > 0
+        else reports.executive.average_monthly_discretionary or None
+    )
+    annual_spend: float | None = None
+    if monthly_essential is not None:
+        annual_spend = (monthly_essential + (monthly_discretionary or 0)) * 12
     cash_reserves_months: float | None = (
         cash_reserve / monthly_essential
-        if cash_reserve > 0 and monthly_essential is not None and monthly_essential > 0
+        if cash_reserve > 0 and monthly_essential and monthly_essential > 0
         else None
     )
     portfolio_to_annual_spend_ratio: float | None = (
         total_tracked_assets / annual_spend
-        if total_tracked_assets > 0 and annual_spend is not None and annual_spend > 0
+        if total_tracked_assets > 0 and annual_spend
         else None
     )
     total_portfolio_value: float | None = total_tracked_assets if total_tracked_assets > 0 else None
@@ -733,8 +539,6 @@ def _build_portfolio_context(
         insights=insights,
     )
 
-
-# --- Overview, readiness, and preparedness builders ---
 
 def _build_overview(
     *,
@@ -793,10 +597,32 @@ def _build_budget_readiness(
     *, service: Any, resolved_values: list[Any], documents: list[Any]
 ) -> BudgetReadiness:
     budget_inputs = service._budget_input_status(resolved_values, documents)
-
-    def resolved_numeric_value(field: Any) -> Any:
-        return service._resolved_numeric_value(resolved_values, field)
-
+    rnv = lambda field: service._resolved_numeric_value(resolved_values, field)  # noqa: E731
+    _lane_configs = [
+        (
+            "Essentials",
+            "Protect fixed bills and groceries before lifestyle spending expands.",
+            "monthly_essential_target",
+        ),
+        (
+            "Lifestyle",
+            "Cap shopping, dining, convenience, and entertainment with clear guardrails.",
+            "monthly_discretionary_target",
+        ),
+        (
+            "Savings",
+            "Reserve dollars for investing, emergency cash, and future big-ticket items.",
+            "monthly_savings_target",
+        ),
+    ]
+    starter_lanes = [
+        BudgetLane(
+            name=name,
+            objective=objective,
+            status="Configured" if rnv(field) is not None else "Needs target",
+        )
+        for name, objective, field in _lane_configs
+    ]
     return BudgetReadiness(
         status="ready_for_budgeting" if budget_inputs["budget_ready"] else "setup_needed",
         summary=(
@@ -806,7 +632,7 @@ def _build_budget_readiness(
         ),
         priorities=budget_inputs["priorities"],
         missing_inputs=budget_inputs["missing_inputs"],
-        starter_lanes=build_starter_lanes(resolved_numeric_value),
+        starter_lanes=starter_lanes,
     )
 
 
@@ -834,8 +660,6 @@ def _build_retirement_preparedness(
         next_steps=service._retirement_next_steps(resolved_values, documents),
     )
 
-
-# --- Service data loading and dashboard assembly ---
 
 def _gather_service_data(service: Any) -> dict[str, Any]:
     """Load all raw data from the service layer in one pass."""
