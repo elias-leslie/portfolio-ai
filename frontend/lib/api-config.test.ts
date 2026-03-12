@@ -43,4 +43,22 @@ describe('api-config', () => {
     expect(getWsUrl('/ws/health')).toBe('wss://port.summitflow.dev/ws/health')
     expect(isDevelopment()).toBe(false)
   })
+
+  it('keeps api and websocket traffic same-origin on non-local browser hosts', () => {
+    Object.defineProperty(global, 'window', {
+      configurable: true,
+      value: {
+        location: {
+          hostname: '192.168.8.233',
+          host: '192.168.8.233:3000',
+          protocol: 'http:',
+        },
+      },
+    })
+
+    expect(getApiBaseUrl()).toBe('')
+    expect(buildApiUrl('/api/portfolio')).toBe('/api/portfolio')
+    expect(getWsUrl('/ws/health')).toBe('ws://192.168.8.233:3000/ws/health')
+    expect(isDevelopment()).toBe(false)
+  })
 })

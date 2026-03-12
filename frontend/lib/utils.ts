@@ -54,7 +54,13 @@ export function formatRelativeTime(
   try {
     const now = new Date()
     const then = new Date(timestamp)
+    if (Number.isNaN(then.getTime())) return 'Unknown'
+
     const diffMs = now.getTime() - then.getTime()
+    if (diffMs < 0) {
+      return formatFutureRelativeTime(Math.abs(diffMs), then)
+    }
+
     const diffMins = Math.floor(diffMs / 60000)
 
     if (diffMins < 1) return 'Just now'
@@ -77,6 +83,22 @@ export function formatRelativeTime(
   } catch {
     return 'Unknown'
   }
+}
+
+function formatFutureRelativeTime(diffMs: number, timestamp: Date): string {
+  const diffMins = Math.ceil(diffMs / 60000)
+  if (diffMins < 1) return 'Just now'
+  if (diffMins < 60) return `In ${diffMins}m`
+
+  const diffHours = Math.ceil(diffMins / 60)
+  if (diffHours < 24) return `In ${diffHours}h`
+
+  return timestamp.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }
 
 /**

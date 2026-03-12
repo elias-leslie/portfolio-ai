@@ -133,16 +133,18 @@ yfinance, FRED, and RSS feeds are free and require no keys.
 ## Testing
 
 ```bash
-# Backend tests
-cd backend
-pytest tests/ -v --cov=app
+# Quick gate
+dt -q
 
-# Type checking
-ty check app/
+# Full repo gate
+dt --check
 
-# Frontend
+# Targeted backend tests
+dt pytest backend/tests/unit
+
+# Frontend unit tests
 cd frontend
-npm run test        # Unit tests (Vitest)
+npm test -- --run
 
 # Browser verification
 AGENT_BROWSER_SESSION=portfolio-ai ~/.local/bin/agent-browser open http://localhost:3000

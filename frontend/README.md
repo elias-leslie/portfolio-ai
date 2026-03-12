@@ -21,8 +21,8 @@ That rebuilds the frontend, clears caches, and restarts the backend/frontend ser
 
 ### API routing
 
-- Local development calls the backend directly at `http://localhost:8000`
-- Production uses same-origin `/api/*` rewrites on `https://port.summitflow.dev`
+- Local development on `localhost` calls the backend directly at `http://localhost:8000`
+- Any non-local browser host stays same-origin on `/api/*` and `/ws/*` so Next.js rewrites can proxy to the backend safely
 - Cloudflare Access handles perimeter auth, so the frontend client stays same-origin and auth-agnostic
 
 ## Watchlist Selective Update Animations

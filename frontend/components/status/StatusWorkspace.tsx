@@ -161,7 +161,11 @@ export function StatusWorkspace() {
             <SummaryStat
               label="System"
               value={healthQuery.data?.status ?? 'unknown'}
-              detail={`Updated ${formatRelativeTime(healthQuery.data?.timestamp)}`}
+              detail={
+                healthQuery.data?.timestamp
+                  ? `Updated ${formatRelativeTime(healthQuery.data.timestamp)}`
+                  : 'Update time unavailable'
+              }
             />
             <SummaryStat
               label="Market"

@@ -123,7 +123,9 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
       ) : null}
 
       <div className="rounded-2xl border border-border/40 bg-surface-muted/20 px-4 py-3 text-sm text-text-muted">
-        Updated {data?.generatedAt ? formatRelativeTime(data.generatedAt) : '—'}
+        {data?.generatedAt
+          ? `Updated ${formatRelativeTime(data.generatedAt)}`
+          : 'Update time unavailable'}
         {' · '}
         {alertCount} alert{alertCount === 1 ? '' : 's'}
         {' · '}

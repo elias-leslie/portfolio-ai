@@ -64,8 +64,9 @@ def test_ask_jenny_creates_user_to_jenny_question() -> None:
 def test_ask_jenny_strips_whitespace() -> None:
     service = HouseholdFinanceService()
     service.storage = MagicMock()
-    service.storage.connection.return_value.__enter__.return_value
+    conn = service.storage.connection.return_value.__enter__.return_value
 
     result = service.ask_jenny("  What is my net worth?  ")
 
     assert result.question == "What is my net worth?"
+    assert conn.execute.call_args_list[0].args[1][1] == "What is my net worth?"

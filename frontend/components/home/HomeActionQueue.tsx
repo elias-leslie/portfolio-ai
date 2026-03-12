@@ -91,7 +91,11 @@ export function HomeActionQueue() {
             {urgentCount > 0 ? ` · ${urgentCount} urgent` : ''}
             {quickActionCount > 0 ? ` · ${quickActionCount} quick action-ready` : ''}
           </span>
-          <span>Updated {formatRelativeTime(data?.generatedAt)}</span>
+          <span>
+            {data?.generatedAt
+              ? `Updated ${formatRelativeTime(data.generatedAt)}`
+              : 'Update time unavailable'}
+          </span>
         </div>
       ) : null}
 

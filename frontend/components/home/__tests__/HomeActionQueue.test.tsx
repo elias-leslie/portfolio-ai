@@ -115,4 +115,22 @@ describe('HomeActionQueue', () => {
       '/money?tab=intake',
     )
   })
+
+  it('shows unavailable copy instead of Updated Never when generatedAt is missing', () => {
+    useHomeActionQueueMock.mockReturnValue({
+      data: {
+        summary: 'Queue clear.',
+        actions: [],
+      },
+      isLoading: false,
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    render(<HomeActionQueue />)
+
+    expect(screen.getByText('Update time unavailable')).toBeInTheDocument()
+    expect(screen.queryByText(/Updated Never/i)).not.toBeInTheDocument()
+  })
 })

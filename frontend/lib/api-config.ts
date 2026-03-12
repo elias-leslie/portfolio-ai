@@ -2,8 +2,8 @@
  * API configuration for Portfolio-AI frontend.
  *
  * Provides consistent URL resolution for:
- * - Development (localhost:8000)
- * - Production (same-origin via Next.js rewrites)
+ * - Development on localhost (direct backend access)
+ * - Any deployed or LAN host (same-origin via Next.js rewrites)
  *
  * REST API calls use same-origin routing in production to avoid CF Access CORS
  * issues. Next.js rewrites proxy /api/* to the backend on localhost.
@@ -11,13 +11,13 @@
  */
 
 const PORTS = { frontend: 3000, backend: 8000 }
-const PROD_DOMAIN = 'port.summitflow.dev'
 
 /**
  * Get the base URL for Portfolio-AI backend API calls.
  *
- * In production, returns empty string (same-origin) so requests go through
- * Next.js rewrites, avoiding CF Access CORS issues.
+ * In the browser, any non-localhost host stays same-origin so requests flow
+ * through Next.js rewrites instead of incorrectly targeting the viewer's
+ * localhost environment.
  *
  * @returns Base URL (e.g., http://localhost:8000 for dev, empty string for prod)
  */
@@ -34,13 +34,8 @@ export function getApiBaseUrl(): string {
     return `http://localhost:${PORTS.backend}`
   }
 
-  // Production: same-origin routing via Next.js rewrites
-  if (host === PROD_DOMAIN) {
-    return ''
-  }
-
-  // Fallback: use localhost (shouldn't happen in normal use)
-  return `http://localhost:${PORTS.backend}`
+  // Any non-local browser host should stay same-origin via rewrites.
+  return ''
 }
 
 /**
@@ -64,13 +59,8 @@ export function getWsUrl(path: string): string {
     return `ws://localhost:${PORTS.backend}${path}`
   }
 
-  // Production: same-origin WebSocket via Next.js rewrites
-  if (host === PROD_DOMAIN) {
-    return `${protocol}//${window.location.host}${path}`
-  }
-
-  // Fallback
-  return `ws://localhost:${PORTS.backend}${path}`
+  // Any non-local browser host should stay same-origin via rewrites.
+  return `${protocol}//${window.location.host}${path}`
 }
 
 /**

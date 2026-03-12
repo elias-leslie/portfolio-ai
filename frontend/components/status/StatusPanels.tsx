@@ -213,7 +213,9 @@ export function ServicePulsePanel({
               {formatInteger(workflowHealth.blockedWorkflows)} blocked
             </p>
             <p className="mt-2 text-sm text-text-muted">
-              Last success {formatRelativeTime(workflowHealth.lastSuccessfulWorkflow)}
+              {workflowHealth.lastSuccessfulWorkflow
+                ? `Last success ${formatRelativeTime(workflowHealth.lastSuccessfulWorkflow)}`
+                : 'No successful workflow recorded yet.'}
             </p>
             {workflowHealth.lastSuccessfulType ? (
               <p className="mt-2 text-sm text-text-muted">
@@ -256,7 +258,12 @@ export function SourceHealthPanel({
               <div className="mt-3 grid gap-2 text-sm text-text-muted md:grid-cols-3">
                 <p>Success rate: {formatPercent(source.successRate)}</p>
                 <p>Latency: {formatInteger(source.avgLatencyMs)}ms</p>
-                <p>Last success: {formatRelativeTime(source.lastSuccess)}</p>
+                <p>
+                  Last success:{' '}
+                  {source.lastSuccess
+                    ? formatRelativeTime(source.lastSuccess)
+                    : 'No successful fetch recorded'}
+                </p>
               </div>
               {(source.rateLimitHits != null || source.inCooldown) && (
                 <div className="mt-2 grid gap-2 text-sm text-text-muted md:grid-cols-2">

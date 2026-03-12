@@ -557,4 +557,79 @@ describe('StatusWorkspace', () => {
     expect(screen.getByText(/notes: fallback engaged briefly during ingest/i)).toBeInTheDocument()
     expect(screen.getByText(/14 fallback headlines/i)).toBeInTheDocument()
   })
+
+  it('uses explicit unavailable copy when status timestamps are missing', () => {
+    useDetailedHealthMock.mockReturnValue(
+      createQueryResult({
+        data: {
+          status: 'healthy',
+          timestamp: null,
+          checks: {},
+          sources: {
+            polygon: {
+              status: 'degraded',
+              lastSuccess: null,
+              successRate: 25,
+              avgLatencyMs: 1800,
+            },
+          },
+          services: {},
+          apiQuotas: [],
+          recentRemediations: [],
+          workflowHealth: {
+            status: 'warning',
+            successRate: 70,
+            totalWorkflows24H: 10,
+            failedWorkflows: 2,
+            blockedWorkflows: 1,
+            lastSuccessfulWorkflow: null,
+          },
+          dataFreshnessStatus: {
+            status: 'warning',
+            lastCheck: '2026-03-10T23:00:00.000000Z',
+            fresh: 7,
+            stale: 2,
+            critical: 0,
+          },
+          watchlistStats: {
+            itemsWithScores: 5,
+            totalItems: 8,
+            lastRefresh: '2026-03-10T23:14:01.484006Z',
+          },
+        },
+      }),
+    )
+
+    useMarketStatusMock.mockReturnValue(
+      createQueryResult({
+        data: {
+          status: 'closed',
+          currentTimeEt: '6:00 PM ET',
+          expectedDataDate: '2026-03-10',
+          lastTradingDay: '2026-03-10',
+          nextTradingDay: '2026-03-11',
+          isHoliday: false,
+          isEarlyClose: false,
+        },
+      }),
+    )
+
+    useNewsHealthMock.mockReturnValue(
+      createQueryResult({
+        data: {
+          headlines24H: 0,
+          fallbackRate24H: 0,
+          vendors: {},
+          marketLastRefreshedAt: null,
+        },
+      }),
+    )
+
+    render(<StatusWorkspace />)
+
+    expect(screen.getByText('Update time unavailable')).toBeInTheDocument()
+    expect(screen.getByText('No successful workflow recorded yet.')).toBeInTheDocument()
+    expect(screen.getByText('Last success: No successful fetch recorded')).toBeInTheDocument()
+    expect(screen.queryByText(/Updated Never/i)).not.toBeInTheDocument()
+  })
 })

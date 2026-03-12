@@ -80,7 +80,11 @@ export function AutomationCenter() {
             {data.guardrails.length} guardrail{data.guardrails.length === 1 ? '' : 's'} ·{' '}
             {data.recentRuns.length} recent run{data.recentRuns.length === 1 ? '' : 's'}
           </span>
-          <span>Updated {formatRelativeTime(data.generatedAt)}</span>
+          <span>
+            {data.generatedAt
+              ? `Updated ${formatRelativeTime(data.generatedAt)}`
+              : 'Update time unavailable'}
+          </span>
         </div>
       ) : null}
 
