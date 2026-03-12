@@ -191,6 +191,31 @@ describe('WorkspaceTabs', () => {
     expect(screen.queryByText('Planning Content')).not.toBeInTheDocument()
   })
 
+  it('reacts to same-page query changes from navigation links', async () => {
+    render(
+      <WorkspaceTabs
+        defaultValue="operate"
+        tabs={[
+          {
+            value: 'operate',
+            label: 'Operate',
+            description: 'Run the day-to-day queue.',
+            content: <div>Operate Content</div>,
+          },
+          {
+            value: 'intake',
+            label: 'Intake',
+            description: 'Upload documents.',
+            content: <div>Intake Content</div>,
+          },
+        ]}
+      />,
+    )
+
+    window.history.replaceState({}, '', '/money?tab=intake')
+    await screen.findByText('Intake Content')
+  })
+
   it('keeps badge counts out of the tab accessible name', () => {
     render(
       <WorkspaceTabs

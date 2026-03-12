@@ -126,19 +126,21 @@ export function JennyChatPanel({
       variant="surface"
       title={title}
       description={description}
+      className="overflow-hidden"
+      contentClassName="grid gap-4"
       actions={
         <Badge variant={chatMutation.isPending ? 'warning' : 'secondary'}>
           {chatMutation.isPending ? 'Jenny is thinking' : 'Portfolio-wide context'}
         </Badge>
       }
     >
-      <div className="space-y-4">
+      <div className="grid gap-4">
         {messages.length === 0 ? (
           <div className="rounded-2xl border border-border/40 bg-surface/70 px-4 py-3 text-sm text-text-muted">
             Try: &quot;What does Jenny think about AMD?&quot;, &quot;How much cash is in our IRA?&quot;, or &quot;I want to retire at 60.&quot;
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="max-h-[26rem] space-y-3 overflow-y-auto pr-1">
             {messages.map((entry) => (
               <div
                 key={`${entry.role}-${entry.timestamp ?? 0}`}
@@ -168,7 +170,7 @@ export function JennyChatPanel({
             value={message}
             onChange={(event) => setMessage(event.target.value)}
             placeholder="Ask anything about Portfolio-AI, or answer Jenny in plain English."
-            rows={4}
+            rows={3}
           />
           <div className="flex justify-end">
             <Button

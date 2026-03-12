@@ -113,3 +113,57 @@ def test_chat_applies_profile_and_planning_updates_from_free_form_message() -> N
     assert update_payload.emergency_fund_target_amount == 30000
     service.household_service.merge_planning_items.assert_called_once()
     assert "planned_expenses" in result["updated_fields"]
+
+
+def test_chat_survives_planning_extract_failure() -> None:
+    service = JennyConversationService()
+    service.household_service = Mock()
+    service.household_service.list_questions.return_value = HouseholdQuestionList(items=[])
+    service._build_context = Mock(
+        return_value={
+            "household": {"jenny_needs": [{"title": "Upload statements"}]},
+            "symbols": {"detected": []},
+        }
+    )
+    service._complete_conversation = Mock(
+        return_value=SimpleNamespace(
+            content="I can still help with the rest of the workspace.",
+            session_id="session-3",
+        )
+    )
+    service._reconcile_message = Mock(return_value=[])
+    service._extract_planning_updates = Mock(side_effect=RuntimeError("extract failed"))
+
+    result = service.chat("hello")
+
+    assert result["reply"] == "I can still help with the rest of the workspace."
+    assert result["session_id"] == "session-3"
+    assert result["updated_fields"] == []
+
+
+def test_chat_returns_fallback_reply_when_completion_fails() -> None:
+    service = JennyConversationService()
+    service.household_service = Mock()
+    service.household_service.list_questions.return_value = HouseholdQuestionList(items=[])
+    service._build_context = Mock(
+        return_value={
+            "household": {
+                "jenny_needs": [
+                    {"title": "Upload statements"},
+                    {"title": "Complete housing planning"},
+                ]
+            },
+            "symbols": {"detected": []},
+        }
+    )
+    service._complete_conversation = Mock(side_effect=RuntimeError("conversation failed"))
+    service._reconcile_message = Mock(return_value=[])
+    service._extract_planning_updates = Mock(
+        return_value={"profile_updates": {}, "planning_items": []}
+    )
+
+    result = service.chat("What should I do next?")
+
+    assert "Upload statements" in result["reply"]
+    assert "Complete housing planning" in result["reply"]
+    assert result["session_id"] == ""

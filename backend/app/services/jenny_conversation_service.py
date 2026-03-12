@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from types import SimpleNamespace
 from typing import Any
 
 from app.agents.clients.agent_hub_client import AgentHubAPIClient
@@ -226,17 +227,29 @@ class JennyConversationService:
             and (q.direction is None or q.direction == _DIRECTION_JENNY_TO_USER)
         ]
         context = self._build_context(cleaned_message, open_questions)
-        completion = self._complete_conversation(
-            message=cleaned_message,
-            session_id=session_id,
-            context=context,
-            open_questions=open_questions,
-        )
-        reconciled_answers = self._reconcile_message(
-            message=cleaned_message,
-            open_questions=open_questions,
-            context=context,
-        )
+        try:
+            completion = self._complete_conversation(
+                message=cleaned_message,
+                session_id=session_id,
+                context=context,
+                open_questions=open_questions,
+            )
+        except Exception as exc:
+            logger.exception("jenny_chat_completion_failed", error=str(exc))
+            completion = SimpleNamespace(
+                content=self._fallback_reply(context),
+                session_id=session_id or "",
+            )
+
+        try:
+            reconciled_answers = self._reconcile_message(
+                message=cleaned_message,
+                open_questions=open_questions,
+                context=context,
+            )
+        except Exception as exc:
+            logger.exception("jenny_chat_reconciliation_failed", error=str(exc))
+            reconciled_answers = []
         resolved_questions: list[dict[str, Any]] = []
         updated_fields: list[str] = []
         for answer in reconciled_answers:
@@ -261,11 +274,15 @@ class JennyConversationService:
             if answered.field_name and answered.field_name not in updated_fields:
                 updated_fields.append(answered.field_name)
 
-        planning_updates = self._extract_planning_updates(
-            message=cleaned_message,
-            context=context,
-            open_questions=open_questions,
-        )
+        try:
+            planning_updates = self._extract_planning_updates(
+                message=cleaned_message,
+                context=context,
+                open_questions=open_questions,
+            )
+        except Exception as exc:
+            logger.exception("jenny_chat_planning_updates_failed", error=str(exc))
+            planning_updates = {"profile_updates": {}, "planning_items": []}
         profile_updates = planning_updates.get("profile_updates") if isinstance(planning_updates, dict) else None
         if isinstance(profile_updates, dict):
             cleaned_profile_updates = {k: v for k, v in profile_updates.items() if v is not None}
@@ -305,6 +322,25 @@ class JennyConversationService:
             "updated_fields": updated_fields,
             "referenced_symbols": context["symbols"]["detected"],
         }
+
+    def _fallback_reply(self, context: dict[str, Any]) -> str:
+        household = context.get("household", {})
+        raw_needs = household.get("jenny_needs")
+        needs = raw_needs if isinstance(raw_needs, list) else []
+        top_titles = [
+            str(need.get("title"))
+            for need in needs[:3]
+            if isinstance(need, dict) and need.get("title")
+        ]
+        if top_titles:
+            return (
+                "Jenny hit an upstream model issue, but your workspace is still available. "
+                f"Top priorities right now: {', '.join(top_titles)}."
+            )
+        return (
+            "Jenny hit an upstream model issue, but your household and portfolio "
+            "workspace is still available. Try again in a moment."
+        )
 
     def _client(self) -> AgentHubAPIClient:
         return AgentHubAPIClient(agent_slug="persona", use_memory=True, timeout=120.0)

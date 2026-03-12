@@ -68,9 +68,13 @@ export function WorkspaceTabs({
   const activeTab = tabs.find((tab) => tab.value === value) ?? tabs[0]
 
   useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
     const syncFromLocation = () => {
       const requestedValue = readRequestedValue()
-      const nextValue = resolveValue(readRequestedValue())
+      const nextValue = resolveValue(requestedValue)
       if (requestedValue !== nextValue) {
         syncLocationToValue(nextValue)
       }
@@ -79,10 +83,33 @@ export function WorkspaceTabs({
       )
     }
 
+    const { history } = window
+    const originalPushState = history.pushState.bind(history)
+    const originalReplaceState = history.replaceState.bind(history)
+    const emitLocationChange = () => {
+      window.dispatchEvent(new Event('locationchange'))
+    }
+
+    history.pushState = function pushState(...args) {
+      const result = originalPushState(...args)
+      emitLocationChange()
+      return result
+    }
+    history.replaceState = function replaceState(...args) {
+      const result = originalReplaceState(...args)
+      emitLocationChange()
+      return result
+    }
+
+    window.addEventListener('locationchange', syncFromLocation)
+    window.addEventListener('popstate', emitLocationChange)
     syncFromLocation()
-    window.addEventListener('popstate', syncFromLocation)
+
     return () => {
-      window.removeEventListener('popstate', syncFromLocation)
+      history.pushState = originalPushState
+      history.replaceState = originalReplaceState
+      window.removeEventListener('locationchange', syncFromLocation)
+      window.removeEventListener('popstate', emitLocationChange)
     }
   }, [fallbackValue, queryKey, tabs])
 
@@ -110,7 +137,7 @@ export function WorkspaceTabs({
 
   return (
     <Tabs value={value} onValueChange={handleValueChange} className={className}>
-      <div className="sticky top-20 z-10 rounded-2xl border border-border/50 bg-bg/90 p-3 backdrop-blur">
+      <div className="sticky top-0 z-20 rounded-2xl border border-border/50 bg-bg/95 p-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-bg/85">
         <TabsList
           aria-label={ariaLabel}
           className="flex h-auto w-full flex-wrap justify-start gap-2 bg-transparent p-0"
