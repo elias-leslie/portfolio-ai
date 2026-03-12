@@ -277,6 +277,8 @@ describe('MoneyPage', () => {
             actionHref: null,
             relatedQuestionId: 'question-1',
             fieldName: null,
+            questionFormat: null,
+            options: null,
           },
         ],
         reports: {

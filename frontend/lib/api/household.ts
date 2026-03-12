@@ -305,6 +305,8 @@ export interface JennyNeed {
   actionHref: string | null
   relatedQuestionId: string | null
   fieldName: string | null
+  questionFormat: string | null
+  options: string[] | null
 }
 
 export interface HouseholdConfirmedFact {
@@ -457,6 +459,10 @@ export async function confirmFact(
   factValue: string,
 ): Promise<HouseholdConfirmedFact> {
   return post<HouseholdConfirmedFact>('/api/household/facts', { factKey, factValue })
+}
+
+export async function askJenny(question: string): Promise<HouseholdQuestion> {
+  return post<HouseholdQuestion>('/api/household/ask', { question })
 }
 
 export async function categorizeHouseholdTransaction(

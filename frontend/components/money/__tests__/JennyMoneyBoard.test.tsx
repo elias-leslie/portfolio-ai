@@ -90,6 +90,8 @@ describe('JennyMoneyBoard', () => {
               actionHref: null,
               relatedQuestionId: null,
               fieldName: null,
+              questionFormat: null,
+              options: null,
             },
           ],
           categorizationQueue: [],

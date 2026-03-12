@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -10,10 +11,13 @@ import { useJennyChat } from '@/lib/hooks/usePortfolio'
 type ChatMessage = {
   role: 'user' | 'assistant'
   content: string
+  timestamp: number
 }
 
 const SESSION_KEY = 'portfolio-ai:jenny-chat:session'
 const HISTORY_KEY = 'portfolio-ai:jenny-chat:history'
+const MAX_STORED_MESSAGES = 100
+const MAX_MESSAGE_LENGTH = 5000
 
 function loadStoredMessages(): ChatMessage[] {
   if (typeof window === 'undefined') {
@@ -28,13 +32,19 @@ function loadStoredMessages(): ChatMessage[] {
     if (!Array.isArray(parsed)) {
       return []
     }
-    return parsed.filter(
-      (message): message is ChatMessage =>
-        typeof message === 'object' &&
-        message !== null &&
-        (message.role === 'user' || message.role === 'assistant') &&
-        typeof message.content === 'string',
-    )
+    return parsed
+      .filter(
+        (message): message is ChatMessage =>
+          typeof message === 'object' &&
+          message !== null &&
+          (message.role === 'user' || message.role === 'assistant') &&
+          typeof message.content === 'string',
+      )
+      .map((m) => ({
+        ...m,
+        timestamp: typeof m.timestamp === 'number' ? m.timestamp : Date.now(),
+      }))
+      .slice(-MAX_STORED_MESSAGES)
   } catch {
     return []
   }
@@ -74,23 +84,41 @@ export function JennyChatPanel({
     if (typeof window === 'undefined') {
       return
     }
-    window.localStorage.setItem(HISTORY_KEY, JSON.stringify(messages))
+    try {
+      const capped = messages.slice(-MAX_STORED_MESSAGES)
+      window.localStorage.setItem(HISTORY_KEY, JSON.stringify(capped))
+    } catch {
+      // localStorage full — clear old history and retry
+      try {
+        window.localStorage.removeItem(HISTORY_KEY)
+      } catch {
+        // ignore
+      }
+    }
   }, [messages])
 
   const handleSend = async () => {
-    const trimmed = message.trim()
+    const trimmed = message.trim().slice(0, MAX_MESSAGE_LENGTH)
     if (!trimmed || chatMutation.isPending) {
       return
     }
-    setMessages((current) => [...current, { role: 'user', content: trimmed }])
+    const now = Date.now()
+    setMessages((current) => [...current, { role: 'user', content: trimmed, timestamp: now }])
     setMessage('')
-    const response = await chatMutation.mutateAsync({
-      message: trimmed,
-      sessionId,
-    })
-    setSessionId(response.sessionId)
-    setMessages((current) => [...current, { role: 'assistant', content: response.reply }])
-    setLastResolvedCount(response.resolvedQuestions.length)
+    try {
+      const response = await chatMutation.mutateAsync({
+        message: trimmed,
+        sessionId,
+      })
+      setSessionId(response.sessionId)
+      setMessages((current) => [
+        ...current,
+        { role: 'assistant', content: response.reply, timestamp: Date.now() },
+      ])
+      setLastResolvedCount(response.resolvedQuestions.length)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Jenny could not process that message')
+    }
   }
 
   return (
@@ -111,9 +139,9 @@ export function JennyChatPanel({
           </div>
         ) : (
           <div className="space-y-3">
-            {messages.map((entry, index) => (
+            {messages.map((entry) => (
               <div
-                key={`${entry.role}-${index}`}
+                key={`${entry.role}-${entry.timestamp ?? 0}`}
                 className={`rounded-2xl border px-4 py-3 text-sm ${
                   entry.role === 'user'
                     ? 'border-primary/20 bg-primary/5 text-text'

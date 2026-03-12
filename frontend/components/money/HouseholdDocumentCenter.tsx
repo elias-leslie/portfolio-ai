@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react'
 import type { ClipboardEvent, DragEvent, KeyboardEvent } from 'react'
+import { toast } from 'sonner'
 import type {
   HouseholdDocument,
   HouseholdDocumentRequirement,
@@ -15,6 +16,8 @@ import { Label } from '@/components/ui/label'
 import { useUploadHouseholdDocument } from '@/lib/hooks/useHousehold'
 import { formatDate, formatRelativeTime } from '@/lib/utils'
 import { formatEnumLabel, formatFileSize } from './formatters'
+
+const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024 // 50 MB
 
 export function HouseholdDocumentCenter({
   documents,
@@ -44,7 +47,16 @@ export function HouseholdDocumentCenter({
     if (!incoming || incoming.length === 0) {
       return []
     }
-    return Array.from(incoming).filter((file) => file.size > 0)
+    const valid: File[] = []
+    for (const file of Array.from(incoming)) {
+      if (file.size === 0) continue
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        toast.error(`${file.name} exceeds the 50 MB limit and was skipped.`)
+        continue
+      }
+      valid.push(file)
+    }
+    return valid
   }
 
   const pickDraggedFiles = (event: DragEvent<HTMLDivElement>): File[] => {

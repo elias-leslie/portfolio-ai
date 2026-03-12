@@ -223,7 +223,7 @@ def _insert_questions(
             created_at=now,
             answered_at=None,
         )
-        resolution = service._question_reconciler().infer_question_resolution_from_existing_context(
+        resolution = service.question_reconciler.infer_question_resolution_from_existing_context(
             service, conn=conn, question=candidate
         )
         if resolution is not None:

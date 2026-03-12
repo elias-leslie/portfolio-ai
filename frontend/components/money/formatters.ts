@@ -17,7 +17,8 @@ export function formatEnumLabel(
   if (!value) {
     return fallback
   }
-  return value.replaceAll('_', ' ')
+  const words = value.replaceAll('_', ' ').toLowerCase()
+  return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
 export function formatPercent(value: number | null | undefined): string {
@@ -29,11 +30,17 @@ export function formatPercent(value: number | null | undefined): string {
 }
 
 export function formatFileSize(bytes: number): string {
+  if (bytes <= 0) {
+    return '0 B'
+  }
   if (bytes < 1024) {
     return `${bytes} B`
   }
   if (bytes < 1024 * 1024) {
     return `${(bytes / 1024).toFixed(1)} KB`
   }
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  if (bytes < 1024 * 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
 }

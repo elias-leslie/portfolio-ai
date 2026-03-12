@@ -264,17 +264,18 @@ class HomeActionService:
             return []
 
         actions: list[dict[str, object]] = []
-        for index, item in enumerate(dashboard.action_items[:3], start=1):
+        unsatisfied = [n for n in dashboard.jenny_needs if n.status == "unsatisfied"]
+        for index, need in enumerate(unsatisfied[:3], start=1):
             actions.append(
                 {
-                    "id": f"household-{index}-{item.source}",
+                    "id": f"household-{index}-{need.need_type}",
                     "source": "household",
                     "category": "household",
-                    "priority": item.priority,
-                    "title": item.title,
-                    "detail": item.detail,
-                    "action_label": item.action_label,
-                    "href": item.href,
+                    "priority": need.priority,
+                    "title": need.title,
+                    "detail": need.detail,
+                    "action_label": "Resolve",
+                    "href": need.action_href or "/money",
                     "symbol": None,
                     "badge": "Household",
                 }

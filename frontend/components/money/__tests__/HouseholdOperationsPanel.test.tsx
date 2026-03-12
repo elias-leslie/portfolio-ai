@@ -179,6 +179,8 @@ describe('HouseholdOperationsPanel', () => {
               actionHref: null,
               relatedQuestionId: null,
               fieldName: null,
+              questionFormat: null,
+              options: null,
             },
           ],
         })}
@@ -264,6 +266,8 @@ describe('HouseholdOperationsPanel', () => {
               actionHref: null,
               relatedQuestionId: null,
               fieldName: null,
+              questionFormat: null,
+              options: null,
             },
           ],
         })}

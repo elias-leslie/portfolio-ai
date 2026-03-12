@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
   answerHouseholdQuestion,
+  askJenny,
   categorizeHouseholdTransaction,
   confirmFact,
   type HouseholdDocumentUpload,
@@ -16,11 +17,20 @@ import {
   uploadHouseholdDocument,
 } from '@/lib/api/household'
 
+/** Dashboard rebuilds server-side; 60 s keeps the UI fresh without over-fetching. */
+const DASHBOARD_STALE_MS = 1000 * 60
+
+/** Profile rarely changes mid-session; 60 s matches the dashboard cadence. */
+const PROFILE_STALE_MS = 1000 * 60
+
+/** Documents and questions change on user action; 30 s balances freshness with server load. */
+const VOLATILE_STALE_MS = 1000 * 30
+
 export function useHouseholdDashboard() {
   return useQuery({
     queryKey: ['household', 'dashboard'],
     queryFn: fetchHouseholdDashboard,
-    staleTime: 1000 * 60,
+    staleTime: DASHBOARD_STALE_MS,
   })
 }
 
@@ -28,7 +38,7 @@ export function useHouseholdProfile() {
   return useQuery({
     queryKey: ['household', 'profile'],
     queryFn: fetchHouseholdProfile,
-    staleTime: 1000 * 60,
+    staleTime: PROFILE_STALE_MS,
   })
 }
 
@@ -36,7 +46,7 @@ export function useHouseholdDocuments() {
   return useQuery({
     queryKey: ['household', 'documents'],
     queryFn: fetchHouseholdDocuments,
-    staleTime: 1000 * 30,
+    staleTime: VOLATILE_STALE_MS,
   })
 }
 
@@ -44,7 +54,7 @@ export function useHouseholdQuestions() {
   return useQuery({
     queryKey: ['household', 'questions'],
     queryFn: fetchHouseholdQuestions,
-    staleTime: 1000 * 30,
+    staleTime: VOLATILE_STALE_MS,
   })
 }
 
@@ -126,6 +136,21 @@ export function useConfirmFact() {
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Failed to confirm fact')
+    },
+  })
+}
+
+export function useAskJenny() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (question: string) => askJenny(question),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['household'], refetchType: 'active' })
+      toast.success('Question sent to Jenny.')
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Failed to send question to Jenny')
     },
   })
 }

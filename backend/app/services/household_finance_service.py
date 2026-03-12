@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
@@ -128,57 +129,9 @@ class HouseholdFinanceService:
         self.question_command_service = HouseholdQuestionCommandService()
         self.transaction_rule_service = HouseholdTransactionRuleService()
 
-    def _dashboard_builder(self) -> HouseholdDashboardComposer:
-        composer = getattr(self, "dashboard_composer", None)
-        if composer is None:
-            composer = HouseholdDashboardComposer()
-            self.dashboard_composer = composer
-        return composer
-
-    def _document_pipeline(self) -> HouseholdDocumentPipeline:
-        pipeline = getattr(self, "document_pipeline", None)
-        if pipeline is None:
-            pipeline = HouseholdDocumentPipeline()
-            self.document_pipeline = pipeline
-        return pipeline
-
-    def _question_reconciler(self) -> HouseholdQuestionReconciler:
-        reconciler = getattr(self, "question_reconciler", None)
-        if reconciler is None:
-            reconciler = HouseholdQuestionReconciler()
-            self.question_reconciler = reconciler
-        return reconciler
-
-    def _profile_service(self) -> HouseholdProfileService:
-        helper = getattr(self, "profile_service", None)
-        if helper is None:
-            helper = HouseholdProfileService()
-            self.profile_service = helper
-        return helper
-
-    def _question_command_service(self) -> HouseholdQuestionCommandService:
-        helper = getattr(self, "question_command_service", None)
-        if helper is None:
-            helper = HouseholdQuestionCommandService()
-            self.question_command_service = helper
-        return helper
-
-    def _planning_service(self) -> HouseholdPlanningService:
-        helper = getattr(self, "planning_service", None)
-        if helper is None:
-            helper = HouseholdPlanningService()
-            self.planning_service = helper
-        return helper
-
-    def _transaction_rule_service(self) -> HouseholdTransactionRuleService:
-        helper = getattr(self, "transaction_rule_service", None)
-        if helper is None:
-            helper = HouseholdTransactionRuleService()
-            self.transaction_rule_service = helper
-        return helper
 
     def get_dashboard(self) -> HouseholdFinanceDashboard:
-        return self._dashboard_builder().build_dashboard(self)
+        return self.dashboard_composer.build_dashboard(self)
 
     def _build_budget_snapshot(
         self,
@@ -186,20 +139,20 @@ class HouseholdFinanceService:
         profile: HouseholdProfile,
         reports: Any,
     ) -> HouseholdBudgetSnapshot:
-        return self._dashboard_builder().build_budget_snapshot(self, profile=profile, reports=reports)
+        return self.dashboard_composer.build_budget_snapshot(self, profile=profile, reports=reports)
 
     def _build_categorization_queue(self, limit: int = 6) -> list[HouseholdCategorizationCandidate]:
-        return self._dashboard_builder().build_categorization_queue(self, limit=limit)
+        return self.dashboard_composer.build_categorization_queue(self, limit=limit)
 
     def _build_recurring_commitments(self, limit: int = 6) -> list[HouseholdRecurringCommitment]:
-        return self._dashboard_builder().build_recurring_commitments(self, limit=limit)
+        return self.dashboard_composer.build_recurring_commitments(self, limit=limit)
 
     def _build_sinking_funds(
         self,
         *,
         recurring_commitments: list[HouseholdRecurringCommitment],
     ) -> list[HouseholdSinkingFund]:
-        return self._dashboard_builder().build_sinking_funds(
+        return self.dashboard_composer.build_sinking_funds(
             recurring_commitments=recurring_commitments
         )
 
@@ -209,7 +162,7 @@ class HouseholdFinanceService:
         profile: HouseholdProfile,
         estimated_monthly_contributions: float,
     ) -> HouseholdRetirementContributionTracker:
-        return self._dashboard_builder().build_retirement_contribution_tracker(
+        return self.dashboard_composer.build_retirement_contribution_tracker(
             profile=profile,
             estimated_monthly_contributions=estimated_monthly_contributions,
         )
@@ -221,14 +174,14 @@ class HouseholdFinanceService:
         target_retirement_spend: float | None,
         baseline_monthly_spend: float,
     ) -> list[HouseholdRetirementScenario]:
-        return self._dashboard_builder().build_retirement_scenarios(
+        return self.dashboard_composer.build_retirement_scenarios(
             retirement_assets=retirement_assets,
             target_retirement_spend=target_retirement_spend,
             baseline_monthly_spend=baseline_monthly_spend,
         )
 
     def _estimate_monthly_retirement_contributions(self) -> float:
-        return self._dashboard_builder().estimate_monthly_retirement_contributions(self)
+        return self.dashboard_composer.estimate_monthly_retirement_contributions(self)
 
     def _estimate_next_commitment_date(self, last_seen: datetime, cadence: str) -> str | None:
         return estimate_next_commitment_date(last_seen, cadence)
@@ -277,26 +230,26 @@ class HouseholdFinanceService:
         transaction_id: str,
         payload: HouseholdTransactionCategoryUpdate,
     ) -> bool:
-        return self._transaction_rule_service().update_transaction_category(
+        return self.transaction_rule_service.update_transaction_category(
             self,
             transaction_id,
             payload,
         )
 
     def _current_month_spend(self) -> float:
-        return self._dashboard_builder().current_month_spend(self)
+        return self.dashboard_composer.current_month_spend(self)
 
     def get_profile(self) -> HouseholdProfile:
-        return self._profile_service().get_profile(self)
+        return self.profile_service.get_profile(self)
 
     def update_profile(self, payload: HouseholdProfileUpdate) -> HouseholdProfile:
-        return self._profile_service().update_profile(self, payload)
+        return self.profile_service.update_profile(self, payload)
 
     def get_planning_snapshot(self) -> HouseholdPlanningSnapshot:
-        return self._planning_service().get_snapshot(self)
+        return self.planning_service.get_snapshot(self)
 
     def update_planning_snapshot(self, payload: HouseholdPlanningUpdate) -> HouseholdPlanningSnapshot:
-        return self._planning_service().update_snapshot(self, payload)
+        return self.planning_service.update_snapshot(self, payload)
 
     def merge_planning_items(
         self,
@@ -305,7 +258,7 @@ class HouseholdFinanceService:
         provenance: str,
         source_document_id: str | None = None,
     ) -> None:
-        self._planning_service().merge_planning_items(
+        self.planning_service.merge_planning_items(
             self,
             items=items,
             provenance=provenance,
@@ -341,10 +294,44 @@ class HouseholdFinanceService:
         )
 
     def _reconcile_open_questions(self) -> None:
-        self._question_reconciler().reconcile_open_questions(self)
+        self.question_reconciler.reconcile_open_questions(self)
 
     def answer_question(self, question_id: str, payload: HouseholdQuestionAnswer) -> HouseholdQuestion | None:
-        return self._question_command_service().answer_question(self, question_id, payload)
+        return self.question_command_service.answer_question(self, question_id, payload)
+
+    def ask_jenny(self, question_text: str) -> HouseholdQuestion:
+        """Create a user-initiated question directed at Jenny."""
+        question_id = str(uuid.uuid4())
+        now = datetime.now(UTC).isoformat()
+        with self.storage.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO household_questions
+                    (id, field_name, status, priority, question, rationale,
+                     question_format, options, direction, metadata, created_at)
+                VALUES (%s, NULL, 'open', 'medium', %s, NULL,
+                        'short_text', NULL, 'user_to_jenny', '{}', %s)
+                """,
+                [question_id, question_text.strip(), now],
+            )
+            conn.commit()
+        return HouseholdQuestion(
+            id=question_id,
+            field_name=None,
+            status="open",
+            priority="medium",
+            question=question_text.strip(),
+            rationale=None,
+            recommendation=None,
+            answer_text=None,
+            source_document_id=None,
+            metadata={},
+            question_format="short_text",
+            options=None,
+            direction="user_to_jenny",
+            created_at=now,
+            answered_at=None,
+        )
 
     async def ingest_document(
         self,
@@ -354,7 +341,7 @@ class HouseholdFinanceService:
         document_type: str | None = None,
         account_label: str | None = None,
     ) -> HouseholdDocument:
-        return await self._document_pipeline().ingest_document(
+        return await self.document_pipeline.ingest_document(
             self,
             upload=upload,
             source_type=source_type,
@@ -513,7 +500,7 @@ class HouseholdFinanceService:
             ).fetchone()
 
     def _find_duplicate_document_by_hash(self, content_sha256: str) -> HouseholdDocument | None:
-        return self._document_pipeline().find_duplicate_document_by_hash(self, content_sha256)
+        return self.document_pipeline.find_duplicate_document_by_hash(self, content_sha256)
 
     def _get_profile_row(self) -> tuple[Any, ...] | None:
         with self.storage.connection() as conn:
@@ -651,7 +638,7 @@ class HouseholdFinanceService:
         source_type: str | None,
         document_type: str | None,
     ) -> tuple[str, str, float]:
-        return self._document_pipeline().classify_document(
+        return self.document_pipeline.classify_document(
             filename=filename,
             content_type=content_type,
             source_type=source_type,
@@ -659,10 +646,10 @@ class HouseholdFinanceService:
         )
 
     def review_document(self, document_id: str) -> None:
-        self._document_pipeline().review_document(self, document_id)
+        self.document_pipeline.review_document(self, document_id)
 
     def _process_document_review(self, document: HouseholdDocument) -> None:
-        self._document_pipeline().process_document_review(self, document)
+        self.document_pipeline.process_document_review(self, document)
 
     def _resolve_related_open_questions(
         self,
@@ -672,7 +659,7 @@ class HouseholdFinanceService:
         answer_text: str,
         answered_at: str,
     ) -> None:
-        self._question_reconciler().resolve_related_open_questions(
+        self.question_reconciler.resolve_related_open_questions(
             self,
             conn=conn,
             question=question,
@@ -688,7 +675,7 @@ class HouseholdFinanceService:
         answer_text: str,
         answered_family: str,
     ) -> bool:
-        return self._question_reconciler().question_is_answered_by_context(
+        return self.question_reconciler.question_is_answered_by_context(
             answered_question=answered_question,
             candidate_question=candidate_question,
             answer_text=answer_text,
@@ -700,7 +687,7 @@ class HouseholdFinanceService:
         first: HouseholdQuestion,
         second: HouseholdQuestion,
     ) -> bool:
-        return self._question_reconciler().questions_are_semantic_duplicates(first, second)
+        return self.question_reconciler.questions_are_semantic_duplicates(first, second)
 
     def _question_sort_key(self, question: HouseholdQuestion) -> tuple[int, str]:
         return _question_sort_key_fn(question)
@@ -721,7 +708,7 @@ class HouseholdFinanceService:
         conn: Any,
         question: HouseholdQuestion,
     ) -> dict[str, object] | None:
-        return self._question_reconciler().infer_question_resolution_from_existing_context(
+        return self.question_reconciler.infer_question_resolution_from_existing_context(
             self,
             conn=conn,
             question=question,
@@ -736,7 +723,7 @@ class HouseholdFinanceService:
         document: HouseholdDocument,
         reviewed: dict[str, Any],
     ) -> None:
-        self._document_pipeline().upsert_document_signatures(self, document=document, reviewed=reviewed)
+        self.document_pipeline.upsert_document_signatures(self, document=document, reviewed=reviewed)
 
     def _import_document_rows(
         self,
@@ -744,7 +731,7 @@ class HouseholdFinanceService:
         document: HouseholdDocument,
         reviewed: dict[str, Any],
     ) -> None:
-        self._document_pipeline().import_document_rows(self, document=document, reviewed=reviewed)
+        self.document_pipeline.import_document_rows(self, document=document, reviewed=reviewed)
 
     def _detect_import_dataset(
         self,
@@ -752,7 +739,7 @@ class HouseholdFinanceService:
         document: HouseholdDocument,
         reviewed: dict[str, Any],
     ) -> str | None:
-        return self._document_pipeline().detect_import_dataset(document=document, reviewed=reviewed)
+        return self.document_pipeline.detect_import_dataset(document=document, reviewed=reviewed)
 
     def _build_import_row_hash(
         self,
@@ -760,16 +747,16 @@ class HouseholdFinanceService:
         dataset_type: str,
         row: dict[str, str | None],
     ) -> str | None:
-        return self._document_pipeline().build_import_row_hash(dataset_type=dataset_type, row=row)
+        return self.document_pipeline.build_import_row_hash(dataset_type=dataset_type, row=row)
 
     def _parse_row_date(self, value: str | None) -> str | None:
-        return self._document_pipeline().parse_row_date(value)
+        return self.document_pipeline.parse_row_date(value)
 
     def _parse_decimal(self, value: str | None) -> str | None:
-        return self._document_pipeline().parse_decimal(value)
+        return self.document_pipeline.parse_decimal(value)
 
     def _apply_answer_to_profile(self, question: HouseholdQuestion, answer_text: str) -> None:
-        self._question_reconciler().apply_answer_to_profile(self, question, answer_text)
+        self.question_reconciler.apply_answer_to_profile(self, question, answer_text)
 
     def _parse_answer_value(self, field_name: str, answer_text: str) -> str | float | int | None:
         return _parse_answer_value_fn(field_name, answer_text)

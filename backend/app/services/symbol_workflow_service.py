@@ -7,6 +7,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from app.logging_config import get_logger
 from app.models.symbol_workflow import (
     SymbolWorkflow,
     SymbolWorkflowEvent,
@@ -16,6 +17,8 @@ from app.models.symbol_workflow import (
 from app.portfolio.totals import get_live_portfolio_totals
 from app.services.thesis_service import ThesisService
 from app.storage import get_storage
+
+logger = get_logger(__name__)
 
 WORKFLOW_STAGES = (
     "discover",
@@ -393,6 +396,7 @@ class SymbolWorkflowService:
             if market_value is not None and totals.cash_inclusive_total_value > 0:
                 weight_pct = round((market_value / totals.cash_inclusive_total_value) * 100, 2)
         except Exception:
+            logger.debug("portfolio_weight_calc_failed", exc_info=True)
             weight_pct = None
 
         return SymbolWorkflowPositionContext(

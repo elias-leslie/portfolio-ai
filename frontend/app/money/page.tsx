@@ -127,6 +127,9 @@ export default function MoneyPage() {
   const docCount =
     documents?.items.length ?? dashboard.importCenter.trackedDocuments
   const stage = getOnboardingStage(dashboard, docCount)
+  const unsatisfiedNeedCount = dashboard.jennyNeeds.filter(
+    (n) => n.status === 'unsatisfied',
+  ).length
 
   // Stage 1: No data at all — focused onboarding with intake UI only
   if (stage === 1) {
@@ -243,13 +246,8 @@ export default function MoneyPage() {
               description:
                 'Handle what Jenny needs while she processes your documents.',
               badge:
-                dashboard.jennyNeeds.filter((n) => n.status === 'unsatisfied')
-                  .length > 0
-                  ? String(
-                      dashboard.jennyNeeds.filter(
-                        (n) => n.status === 'unsatisfied',
-                      ).length,
-                    )
+                unsatisfiedNeedCount > 0
+                  ? String(unsatisfiedNeedCount)
                   : undefined,
               content: (
                 <HouseholdOperationsPanel dashboard={dashboard} />
@@ -329,9 +327,6 @@ export default function MoneyPage() {
     ),
   }
 
-  const unsatisfiedNeedCount = dashboard.jennyNeeds.filter(
-    (n) => n.status === 'unsatisfied',
-  ).length
   const operateTab: WorkspaceTab = {
     value: 'operate',
     label: 'Operate',
@@ -359,8 +354,8 @@ export default function MoneyPage() {
       <div className="rounded-2xl border border-border/40 bg-surface-muted/20 px-4 py-3 text-sm text-text-muted">
         Updated {formatRelativeTime(dashboard.generatedAt)}
         {' \u00b7 '}
-        {dashboard.jennyNeeds.filter((n) => n.status === 'unsatisfied').length} need
-        {dashboard.jennyNeeds.filter((n) => n.status === 'unsatisfied').length === 1 ? '' : 's'}
+        {unsatisfiedNeedCount} need
+        {unsatisfiedNeedCount === 1 ? '' : 's'}
         {' \u00b7 '}
         {docCount} document
         {docCount === 1 ? '' : 's'}

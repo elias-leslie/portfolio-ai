@@ -331,6 +331,8 @@ class JennyNeed(BaseModel):
     action_href: str | None = None
     related_question_id: str | None = None
     field_name: str | None = None
+    question_format: str | None = None
+    options: list[str] | None = None
 
 
 class HouseholdConfirmedFact(BaseModel):

@@ -238,6 +238,8 @@ def _build_jenny_needs(
             status="unsatisfied",
             recurrence="as_needed",
             related_question_id=q.id,
+            question_format=q.question_format if q.question_format != "short_text" else None,
+            options=q.options,
         ))
 
     # 7. Retirement age (medium)

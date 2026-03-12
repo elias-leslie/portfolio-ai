@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
+from pydantic import BaseModel
 
 from app.models.household_finance import (
     ConfirmFactRequest,
@@ -120,6 +121,19 @@ async def list_confirmed_facts() -> list[HouseholdConfirmedFact]:
 async def confirm_fact(payload: ConfirmFactRequest) -> HouseholdConfirmedFact:
     """Upsert a confirmed household fact by key."""
     return await run_in_threadpool(_service().confirm_fact, payload.fact_key, payload.fact_value)
+
+
+class AskJennyRequest(BaseModel):
+    question: str
+
+
+@router.post("/ask", response_model=HouseholdQuestion)
+async def ask_jenny(payload: AskJennyRequest) -> HouseholdQuestion:
+    """Create a user-initiated question directed at Jenny."""
+    question_text = payload.question.strip()
+    if not question_text:
+        raise HTTPException(status_code=422, detail="Question text cannot be empty")
+    return await run_in_threadpool(_service().ask_jenny, question_text)
 
 
 @router.post("/transactions/{transaction_id}/categorize")

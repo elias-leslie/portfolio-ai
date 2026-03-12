@@ -54,7 +54,23 @@ export function JennyQuestionInbox({
     if (!trimmed) {
       return
     }
-    answerQuestion.mutate({ questionId, answerText: trimmed })
+    answerQuestion.mutate(
+      { questionId, answerText: trimmed },
+      {
+        onSuccess: () => {
+          setDrafts((current) => {
+            const next = { ...current }
+            delete next[questionId]
+            return next
+          })
+          setMultiSelectDrafts((current) => {
+            const next = { ...current }
+            delete next[questionId]
+            return next
+          })
+        },
+      },
+    )
   }
 
   return (

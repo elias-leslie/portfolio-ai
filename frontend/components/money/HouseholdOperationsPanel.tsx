@@ -7,6 +7,8 @@ import type {
   JennyNeed,
 } from '@/lib/api/household'
 import {
+  useAnswerHouseholdQuestion,
+  useAskJenny,
   useCategorizeHouseholdTransaction,
   useConfirmFact,
   useUpdateHouseholdProfile,
@@ -49,6 +51,7 @@ function JennyNeedCard({
   const confirmFact = useConfirmFact()
   const updateProfile = useUpdateHouseholdProfile()
   const categorizeTransaction = useCategorizeHouseholdTransaction()
+  const answerQuestion = useAnswerHouseholdQuestion()
   const [draft, setDraft] = useState('')
   const [categorizationDrafts, setCategorizationDrafts] = useState<
     Record<string, { category: string; essentiality: string }>
@@ -84,6 +87,9 @@ function JennyNeedCard({
       const question = dashboard.questions.find(
         (q) => q.id === need.relatedQuestionId,
       )
+      const format = need.questionFormat ?? question?.questionFormat ?? 'short_text'
+      const options = need.options ?? question?.options ?? []
+
       return (
         <div className={`rounded-2xl border p-4 ${priorityColor}`}>
           <p className="text-sm font-semibold text-text">{need.title}</p>
@@ -93,9 +99,82 @@ function JennyNeedCard({
               {question.recommendation}
             </p>
           ) : null}
-          <p className="mt-3 text-xs text-text-muted">
-            Answer this in Jenny&apos;s question inbox below.
-          </p>
+
+          {format === 'boolean' || format === 'yes_no' ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                onClick={() =>
+                  answerQuestion.mutate({
+                    questionId: need.relatedQuestionId!,
+                    answerText: 'yes',
+                  })
+                }
+                disabled={answerQuestion.isPending}
+              >
+                Yes
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  answerQuestion.mutate({
+                    questionId: need.relatedQuestionId!,
+                    answerText: 'no',
+                  })
+                }
+                disabled={answerQuestion.isPending}
+              >
+                No
+              </Button>
+            </div>
+          ) : format === 'single_select' || format === 'multiple_choice' ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {options.map((option) => (
+                <Button
+                  key={option}
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    answerQuestion.mutate({
+                      questionId: need.relatedQuestionId!,
+                      answerText: option,
+                    })
+                  }
+                  disabled={answerQuestion.isPending}
+                >
+                  {option}
+                </Button>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-3 flex flex-col gap-3 md:flex-row">
+              <Input
+                type={format === 'integer' || format === 'currency' || format === 'number' ? 'number' : 'text'}
+                step={format === 'currency' ? '0.01' : undefined}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                placeholder={
+                  format === 'integer' ? 'e.g. 65' : format === 'currency' ? 'e.g. 5000' : 'Your answer'
+                }
+              />
+              <Button
+                size="sm"
+                disabled={answerQuestion.isPending || !draft.trim()}
+                onClick={() =>
+                  answerQuestion.mutate(
+                    {
+                      questionId: need.relatedQuestionId!,
+                      answerText: draft.trim(),
+                    },
+                    { onSuccess: () => setDraft('') },
+                  )
+                }
+              >
+                Confirm
+              </Button>
+            </div>
+          )}
         </div>
       )
     }
@@ -114,10 +193,13 @@ function JennyNeedCard({
           <Button
             disabled={confirmFact.isPending || !draft.trim()}
             onClick={() =>
-              confirmFact.mutate({
-                factKey: need.fieldName ?? need.id,
-                factValue: draft.trim(),
-              })
+              confirmFact.mutate(
+                {
+                  factKey: need.fieldName ?? need.id,
+                  factValue: draft.trim(),
+                },
+                { onSuccess: () => setDraft('') },
+              )
             }
           >
             Confirm
@@ -156,7 +238,7 @@ function JennyNeedCard({
                 c.toUpperCase(),
               )
               payload[camelKey] = value
-              updateProfile.mutate(payload)
+              updateProfile.mutate(payload, { onSuccess: () => setDraft('') })
             }}
           >
             Save
@@ -315,6 +397,40 @@ function JennyNeedCard({
   )
 }
 
+function AskJennyCard() {
+  const askJenny = useAskJenny()
+  const [askDraft, setAskDraft] = useState('')
+
+  return (
+    <SectionCard
+      variant="surface"
+      title="Ask Jenny"
+      description="Ask Jenny anything about your household finances, budget, or planning."
+    >
+      <div className="flex flex-col gap-3 md:flex-row">
+        <Input
+          value={askDraft}
+          onChange={(e) => setAskDraft(e.target.value)}
+          placeholder="Ask Jenny anything about your finances..."
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && askDraft.trim() && !askJenny.isPending) {
+              askJenny.mutate(askDraft.trim(), { onSuccess: () => setAskDraft('') })
+            }
+          }}
+        />
+        <Button
+          disabled={askJenny.isPending || !askDraft.trim()}
+          onClick={() =>
+            askJenny.mutate(askDraft.trim(), { onSuccess: () => setAskDraft('') })
+          }
+        >
+          Ask
+        </Button>
+      </div>
+    </SectionCard>
+  )
+}
+
 export function HouseholdOperationsPanel({
   dashboard,
 }: {
@@ -369,6 +485,8 @@ export function HouseholdOperationsPanel({
         ) : null}
 
         <JennyChatPanel />
+
+        <AskJennyCard />
       </div>
 
       <SectionCard

@@ -11,6 +11,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from app.logging_config import get_logger
 from app.models.household_planning import (
     HouseholdDebtObligationInput,
     HouseholdDocumentRequirementUpdate,
@@ -35,6 +36,8 @@ from app.services.household_planning_rows import (
     row_to_planned_expense,
     row_to_retirement_income_source,
 )
+
+logger = get_logger(__name__)
 
 _DOCUMENT_MATCHERS: dict[str, set[str]] = {
     "pay_stub": {"pay_stub"},
@@ -266,6 +269,7 @@ class HouseholdPlanningService:
             section = str(raw_item.get("section") or "").strip()
             config = _SECTIONS.get(section)
             if config is None:
+                logger.debug("planning_merge_unknown_section", section=section)
                 continue
             payload = {key: value for key, value in raw_item.items() if key != "section" and value is not None}
             if "rationale" in payload and "evidence_note" not in payload:
@@ -418,7 +422,8 @@ class HouseholdPlanningService:
         for raw_row in rows:
             try:
                 item = config.input_model.model_validate(raw_row)
-            except ValidationError:
+            except ValidationError as exc:
+                logger.debug("planning_upsert_validation_failed", table=config.table, error=str(exc))
                 continue
             payload = item.model_dump()
             row_id = payload.pop("id") or str(uuid.uuid4())
@@ -446,7 +451,8 @@ class HouseholdPlanningService:
         for raw_row in rows:
             try:
                 item = config.input_model.model_validate(raw_row)
-            except ValidationError:
+            except ValidationError as exc:
+                logger.debug("planning_merge_validation_failed", table=config.table, error=str(exc))
                 continue
             payload = item.model_dump(exclude_unset=True)
             row_id = payload.pop("id", None)
