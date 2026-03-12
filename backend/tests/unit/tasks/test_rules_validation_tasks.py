@@ -115,7 +115,7 @@ class TestDailyRulesValidation:
         with patch("asyncio.run", return_value=mock_validation_report):
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
-            mock_conn._conn.cursor.return_value.__enter__.return_value = mock_cursor
+            mock_conn.raw_connection.cursor.return_value.__enter__.return_value = mock_cursor
             mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = mock_conn
 
             # Execute task
@@ -159,7 +159,7 @@ class TestDailyRulesValidation:
         with patch("asyncio.run", return_value=report):
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
-            mock_conn._conn.cursor.return_value.__enter__.return_value = mock_cursor
+            mock_conn.raw_connection.cursor.return_value.__enter__.return_value = mock_cursor
             mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = mock_conn
 
             result = daily_rules_validation()
@@ -179,7 +179,7 @@ class TestDailyRulesValidation:
         with patch("asyncio.run", return_value=mock_validation_report_with_errors):
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
-            mock_conn._conn.cursor.return_value.__enter__.return_value = mock_cursor
+            mock_conn.raw_connection.cursor.return_value.__enter__.return_value = mock_cursor
             mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = mock_conn
 
             result = daily_rules_validation()
@@ -206,19 +206,19 @@ class TestDailyRulesValidation:
         with patch("asyncio.run", return_value=mock_validation_report_with_errors):
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
-            mock_conn._conn.cursor.return_value.__enter__.return_value = mock_cursor
+            mock_conn.raw_connection.cursor.return_value.__enter__.return_value = mock_cursor
             mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = mock_conn
 
             daily_rules_validation()
 
             # Verify JSON serialization of errors
             call_args = mock_cursor.execute.call_args_list[0][0]
-            # Check that Json() was used (from psycopg2.extras)
-            from psycopg2.extras import Json
+            # Check that Jsonb() was used (from psycopg.types.json)
+            from psycopg.types.json import Jsonb
 
             params = call_args[1]
             validation_errors_param = params[6]
-            assert isinstance(validation_errors_param, Json)
+            assert isinstance(validation_errors_param, Jsonb)
 
     @patch("app.tasks.rules_validation_tasks.get_connection_manager")
     @patch("app.tasks.rules_validation_tasks.RulesValidatorAgent")
@@ -245,7 +245,7 @@ class TestDailyRulesValidation:
         with patch("asyncio.run", return_value=mock_validation_report_with_errors):
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
-            mock_conn._conn.cursor.return_value.__enter__.return_value = mock_cursor
+            mock_conn.raw_connection.cursor.return_value.__enter__.return_value = mock_cursor
             mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = mock_conn
 
             daily_rules_validation()
@@ -283,7 +283,7 @@ class TestWeeklyOptimizationReview:
         with patch("asyncio.run", return_value=mock_recommendations):
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
-            mock_conn._conn.cursor.return_value.__enter__.return_value = mock_cursor
+            mock_conn.raw_connection.cursor.return_value.__enter__.return_value = mock_cursor
             mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = mock_conn
 
             result = weekly_optimization_review()
@@ -312,7 +312,7 @@ class TestWeeklyOptimizationReview:
         with patch("asyncio.run", return_value=[]):
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
-            mock_conn._conn.cursor.return_value.__enter__.return_value = mock_cursor
+            mock_conn.raw_connection.cursor.return_value.__enter__.return_value = mock_cursor
             mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = mock_conn
 
             result = weekly_optimization_review()
@@ -339,18 +339,18 @@ class TestWeeklyOptimizationReview:
         with patch("asyncio.run", return_value=[]):
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
-            mock_conn._conn.cursor.return_value.__enter__.return_value = mock_cursor
+            mock_conn.raw_connection.cursor.return_value.__enter__.return_value = mock_cursor
             mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = mock_conn
 
             weekly_optimization_review()
 
             # Verify performance_data was stored
             call_args = mock_cursor.execute.call_args[0]
-            from psycopg2.extras import Json
+            from psycopg.types.json import Jsonb
 
             params = call_args[1]
             perf_data_param = params[1]
-            assert isinstance(perf_data_param, Json)
+            assert isinstance(perf_data_param, Jsonb)
 
     @patch("app.tasks.rules_validation_tasks.get_connection_manager")
     @patch("app.tasks.rules_validation_tasks._get_recent_performance_data")
@@ -403,7 +403,7 @@ class TestPerformanceDataRetrieval:
         mock_cursor.fetchone.return_value = trade_stats_row
         mock_cursor.fetchall.return_value = signal_stats_rows
 
-        mock_conn._conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_conn.raw_connection.cursor.return_value.__enter__.return_value = mock_cursor
         mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = mock_conn
 
         result = _get_recent_performance_data()
@@ -417,7 +417,7 @@ class TestPerformanceDataRetrieval:
     def test_get_recent_performance_data_handles_exception(self, mock_conn_mgr: MagicMock) -> None:
         """Performance data retrieval should handle exceptions."""
         mock_conn = MagicMock()
-        mock_conn._conn.cursor.side_effect = Exception("Connection error")
+        mock_conn.raw_connection.cursor.side_effect = Exception("Connection error")
         mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = mock_conn
 
         result = _get_recent_performance_data()
@@ -449,7 +449,7 @@ class TestPerformanceDataRetrieval:
             }
         )
         mock_cursor.fetchall.return_value = []
-        mock_conn._conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_conn.raw_connection.cursor.return_value.__enter__.return_value = mock_cursor
         mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = mock_conn
 
         result = _get_recent_performance_data()
@@ -482,7 +482,7 @@ class TestTaskIntegration:
         ):
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
-            mock_conn._conn.cursor.return_value.__enter__.return_value = mock_cursor
+            mock_conn.raw_connection.cursor.return_value.__enter__.return_value = mock_cursor
             mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = mock_conn
 
             weekly_optimization_review()

@@ -14,9 +14,9 @@ import logging
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
-import psycopg2
-from psycopg2.extensions import connection as PgConnection
+from psycopg import Connection, connect
 
 # Add backend to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "backend"))
@@ -25,14 +25,14 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
-def connect_to_postgres() -> PgConnection:
+def connect_to_postgres() -> Connection[Any]:
     """Connect to PostgreSQL using DATABASE_URL from environment."""
     database_url = os.getenv(
         "DATABASE_URL",
         "postgresql://portfolio_app:$PGPASSWORD@localhost:5432/portfolio_ai",
     )
     try:
-        conn = psycopg2.connect(database_url)
+        conn = connect(database_url)
         logger.info("Connected to PostgreSQL database")
         return conn
     except Exception as e:
@@ -40,7 +40,7 @@ def connect_to_postgres() -> PgConnection:
         sys.exit(1)
 
 
-def create_config_tables(conn: PgConnection) -> None:
+def create_config_tables(conn: Connection[Any]) -> None:
     """Create configuration tables (6 tables)."""
     cur = conn.cursor()
 
@@ -137,7 +137,7 @@ def create_config_tables(conn: PgConnection) -> None:
     cur.close()
 
 
-def create_timeseries_tables(conn: PgConnection) -> None:
+def create_timeseries_tables(conn: Connection[Any]) -> None:
     """Create time-series data tables (4 tables)."""
     cur = conn.cursor()
 
@@ -222,7 +222,7 @@ def create_timeseries_tables(conn: PgConnection) -> None:
     cur.close()
 
 
-def create_watchlist_tables(conn: PgConnection) -> None:
+def create_watchlist_tables(conn: Connection[Any]) -> None:
     """Create watchlist and reference tables (3 tables)."""
     cur = conn.cursor()
 
@@ -282,7 +282,7 @@ def create_watchlist_tables(conn: PgConnection) -> None:
     cur.close()
 
 
-def create_metadata_tables(conn: PgConnection) -> None:
+def create_metadata_tables(conn: Connection[Any]) -> None:
     """Create metadata and tracking tables (6 tables)."""
     cur = conn.cursor()
 
@@ -412,7 +412,7 @@ def create_metadata_tables(conn: PgConnection) -> None:
     cur.close()
 
 
-def create_indexes(conn: PgConnection) -> None:
+def create_indexes(conn: Connection[Any]) -> None:
     """Create performance indexes."""
     cur = conn.cursor()
 

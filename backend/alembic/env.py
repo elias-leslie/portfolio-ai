@@ -1,7 +1,7 @@
 """Alembic migration environment configuration for Portfolio-AI.
 
-Portfolio-AI uses raw SQL queries (psycopg2) without SQLAlchemy models,
-so we don't use autogenerate. Migrations are written manually.
+Portfolio-AI uses raw SQL queries without SQLAlchemy ORM models, so we don't use
+autogenerate. Migrations are written manually.
 """
 
 from logging.config import fileConfig
@@ -11,6 +11,7 @@ from sqlalchemy import engine_from_config, pool
 
 # Import config which handles ~/.env.local loading via dotenv
 # Uses PORTFOLIO_DB_URL env var. Override by setting PORTFOLIO_DB_URL before running.
+from app.config import sqlalchemy_database_url
 from app.constants import DATABASE_URL as _APP_DB_URL
 
 assert _APP_DB_URL is not None, "PORTFOLIO_DB_URL env var required"
@@ -19,13 +20,13 @@ assert _APP_DB_URL is not None, "PORTFOLIO_DB_URL env var required"
 config = context.config
 
 # Use DATABASE_URL from app config (reads PORTFOLIO_DB_URL env var)
-config.set_main_option("sqlalchemy.url", _APP_DB_URL)
+config.set_main_option("sqlalchemy.url", sqlalchemy_database_url(_APP_DB_URL))
 
 # Interpret the config file for Python logging.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# No SQLAlchemy models - Portfolio-AI uses raw psycopg2 queries
+# No SQLAlchemy models - Portfolio-AI uses raw SQL queries
 # All migrations are written manually (no autogenerate)
 target_metadata = None
 

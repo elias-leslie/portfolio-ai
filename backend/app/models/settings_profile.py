@@ -6,11 +6,12 @@ from collections.abc import Mapping, Sequence
 from datetime import datetime
 from typing import Any, Protocol, cast
 
-from psycopg2.extras import Json, RealDictCursor
+from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 
 
 class CursorProtocol(Protocol):
-    """Subset of psycopg2 cursor behaviour we rely on."""
+    """Subset of psycopg cursor behaviour we rely on."""
 
     rowcount: int
 
@@ -28,7 +29,7 @@ class CursorProtocol(Protocol):
 
 
 class ConnectionProtocol(Protocol):
-    """Minimal connection contract for psycopg2 connection objects."""
+    """Minimal connection contract for psycopg connection objects."""
 
     def cursor(self, *args: object, **kwargs: object) -> CursorProtocol: ...
 
@@ -74,7 +75,7 @@ class SettingsProfile:
 
 def get_all_profiles(conn: ConnectionProtocol, user_id: int = 1) -> list[SettingsProfile]:
     """Get all profiles for a user."""
-    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+    with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
             """
             SELECT id, user_id, name, description, profile_data, is_active,
@@ -93,7 +94,7 @@ def get_profile_by_id(
     conn: ConnectionProtocol, profile_id: int, user_id: int = 1
 ) -> SettingsProfile | None:
     """Get a specific profile by ID."""
-    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+    with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
             """
             SELECT id, user_id, name, description, profile_data, is_active,
@@ -109,7 +110,7 @@ def get_profile_by_id(
 
 def get_active_profile(conn: ConnectionProtocol, user_id: int = 1) -> SettingsProfile | None:
     """Get the currently active profile for a user."""
-    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+    with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
             """
             SELECT id, user_id, name, description, profile_data, is_active,
@@ -133,7 +134,7 @@ def create_profile(
     is_active: bool = False,
 ) -> SettingsProfile:
     """Create a new settings profile."""
-    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+    with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
             """
             INSERT INTO settings_profiles (user_id, name, description, profile_data, is_active)
@@ -141,7 +142,7 @@ def create_profile(
             RETURNING id, user_id, name, description, profile_data, is_active,
                       created_at, updated_at
             """,
-            (user_id, name, description, Json(profile_data), is_active),
+            (user_id, name, description, Jsonb(profile_data), is_active),
         )
         row = cur.fetchone()
         conn.commit()
@@ -172,7 +173,7 @@ def update_profile(
         params.append(description)
     if profile_data is not None:
         updates.append("profile_data = %s")
-        params.append(Json(profile_data))
+        params.append(Jsonb(profile_data))
     if is_active is not None:
         updates.append("is_active = %s")
         params.append(is_active)
@@ -182,7 +183,7 @@ def update_profile(
 
     params.extend([profile_id, user_id])
 
-    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+    with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
             f"""
             UPDATE settings_profiles

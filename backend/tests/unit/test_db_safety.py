@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 
 from app.storage.connection import ConnectionManager
@@ -50,6 +52,19 @@ def test_connection_manager_prefers_runtime_portfolio_db_url(monkeypatch: pytest
     manager = ConnectionManager()
 
     assert manager.database_url.endswith("/portfolio_ai_test_runtime")
+
+
+def test_connection_manager_uses_psycopg_sqlalchemy_driver(monkeypatch: pytest.MonkeyPatch) -> None:
+    """SQLAlchemy should be forced onto psycopg even for plain PostgreSQL URLs."""
+    monkeypatch.setenv(
+        "PORTFOLIO_DB_URL",
+        "postgresql://portfolio_app:secret@localhost:5432/portfolio_ai_test_runtime",
+    )
+
+    with patch("app.storage.connection.create_engine") as mock_create_engine:
+        ConnectionManager()
+
+    assert mock_create_engine.call_args.args[0].startswith("postgresql+psycopg://")
 
 
 def test_assert_test_database_writable_rejects_missing_permissions() -> None:

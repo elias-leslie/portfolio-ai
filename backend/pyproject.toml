@@ -13,10 +13,10 @@ dependencies = [
     # Database & data processing
     "alembic>=1.13.0",
     "sqlalchemy==2.0.45",
-    "psycopg2-binary==2.9.11",
+    "psycopg[binary]==3.3.2",
     "polars==1.36.1",
     "pandas==2.3.3",
-    "numpy==2.3.5",
+    "numpy==2.2.6",
     "pyarrow==22.0.0",
 
     # Data sources & API clients
@@ -25,7 +25,7 @@ dependencies = [
     "feedparser==6.0.12",
     "httpx==0.28.1",
     "python-multipart>=0.0.20",
-    "agent-hub-client @ git+https://github.com/agent-hub/agent-hub.git@main#subdirectory=packages/agent-hub-client",
+    "agent-hub-client @ file:///home/kasadis/agent-hub/packages/agent-hub-client",
 
     # Caching & message broker
     "redis==7.1.0",
@@ -92,6 +92,9 @@ ml = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]

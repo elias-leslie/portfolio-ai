@@ -7,7 +7,7 @@ from dataclasses import asdict
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Protocol
 
-import psycopg2
+import psycopg
 
 from app.logging_config import get_logger
 from app.strategies.optimizer import get_strategy_optimizer
@@ -196,7 +196,7 @@ def store_strategy_and_backtest(
             strategy_id=strategy_id,
         )
         logger.info("Backtest persisted", workflow_id=workflow_id, backtest_run_id=backtest_run_id)
-    except (psycopg2.IntegrityError, psycopg2.OperationalError, TimeoutError) as e:
+    except (psycopg.IntegrityError, psycopg.OperationalError, TimeoutError) as e:
         logger.warning(
             "Failed to persist backtest run",
             workflow_id=workflow_id,

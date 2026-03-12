@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.config import Settings
+from app.config import Settings, sqlalchemy_database_url
 
 
 def test_agent_hub_enabled_defaults_true_when_credentials_present() -> None:
@@ -27,3 +27,8 @@ def test_agent_hub_enabled_respects_explicit_false() -> None:
     )
 
     assert settings.agent_hub_enabled is False
+
+
+def test_sqlalchemy_database_url_uses_psycopg_driver() -> None:
+    """SQLAlchemy URLs should be normalized to psycopg3."""
+    assert sqlalchemy_database_url("postgresql://test") == "postgresql+psycopg://test"

@@ -19,6 +19,8 @@ import polars as pl
 from sqlalchemy import create_engine, pool
 from sqlalchemy.engine import Engine
 
+from app.config import sqlalchemy_database_url
+
 # Import DATABASE_URL from constants (which handles dotenv loading)
 from app.constants import DATABASE_URL as CONSTANTS_DATABASE_URL
 
@@ -37,7 +39,7 @@ _connection_mgr: ConnectionManager | None = None
 
 
 class PostgreSQLConnectionWrapper:
-    """Wrapper to make psycopg2 connections behave like connections.
+    """Wrapper to make psycopg connections behave like connections.
 
     This allows existing code using conn.execute() to work with PostgreSQL
     without modification. The wrapper translates ? placeholders
@@ -49,10 +51,10 @@ class PostgreSQLConnectionWrapper:
         pg_conn: Any,
         engine: Engine | None = None,
     ) -> None:
-        """Initialize wrapper around psycopg2 connection.
+        """Initialize wrapper around psycopg connection.
 
         Args:
-            pg_conn: psycopg2 connection object (raw connection, not wrapper)
+            pg_conn: psycopg connection object (raw connection, not wrapper)
             engine: Optional SQLAlchemy engine (needed for DataFrame operations)
         """
         self._conn = pg_conn
@@ -211,7 +213,7 @@ class PostgreSQLConnectionWrapper:
         Raises:
             ValueError: If table_name contains SQL injection characters
             ImportError: If pandas not installed
-            psycopg2.Error: If database operation fails
+            Exception: If database operation fails
 
         Example:
             >>> with mgr.connection() as conn:
@@ -286,13 +288,13 @@ class PostgreSQLConnectionWrapper:
 
     @property
     def raw_connection(self) -> Any:
-        """Get underlying psycopg2 connection.
+        """Get underlying psycopg connection.
 
-        This property exposes the raw psycopg2 connection for use cases that need
+        This property exposes the raw psycopg connection for use cases that need
         direct access (e.g., passing to functions expecting a ConnectionProtocol).
 
         Returns:
-            Raw psycopg2 connection object.
+            Raw psycopg connection object.
         """
         return self._conn
 
@@ -327,6 +329,7 @@ class ConnectionManager:
         if url is None:
             raise RuntimeError("DATABASE_URL must be set")
         self.database_url: str = url
+        self.sqlalchemy_database_url: str = sqlalchemy_database_url(url)
 
         # Get pool size settings from environment or use defaults
         # Tests should use smaller values to avoid connection exhaustion
@@ -335,7 +338,7 @@ class ConnectionManager:
 
         # Create SQLAlchemy engine with connection pooling
         self.engine: Engine = create_engine(
-            self.database_url,
+            self.sqlalchemy_database_url,
             poolclass=pool.QueuePool,
             pool_size=pool_size_value,  # Max connections to keep open
             max_overflow=max_overflow_value,  # Max extra connections beyond pool_size

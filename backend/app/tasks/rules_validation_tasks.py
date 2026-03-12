@@ -9,7 +9,8 @@ from __future__ import annotations
 import asyncio
 from datetime import UTC, datetime
 
-from psycopg2.extras import Json
+from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 
 from app.agents.rules_validator_agent import (
     Recommendation,
@@ -43,18 +44,20 @@ def _store_validation_report(report: ValidationReport) -> None:
         }
         for e in report.errors
     ]
-    with get_connection_manager().connection() as conn, conn._conn.cursor() as cur:
-        cur.execute(
-            _SQL_INSERT_REPORT,
-            (
-                report.rules_version, report.timestamp, report.overall_status,
-                sum(1 for e in report.errors if e.severity == "critical"),
-                sum(1 for e in report.errors if e.severity == "warning"),
-                sum(1 for e in report.errors if e.severity == "info"),
-                Json(error_dicts), Json([]), report.summary,
-            ),
-        )
-        conn._conn.commit()
+    with get_connection_manager().connection() as conn:
+        raw_conn = conn.raw_connection
+        with raw_conn.cursor() as cur:
+            cur.execute(
+                _SQL_INSERT_REPORT,
+                (
+                    report.rules_version, report.timestamp, report.overall_status,
+                    sum(1 for e in report.errors if e.severity == "critical"),
+                    sum(1 for e in report.errors if e.severity == "warning"),
+                    sum(1 for e in report.errors if e.severity == "info"),
+                    Jsonb(error_dicts), Jsonb([]), report.summary,
+                ),
+            )
+        raw_conn.commit()
 
 
 def _store_optimization_results(
@@ -69,10 +72,12 @@ def _store_optimization_results(
         }
         for r in recommendations
     ]
-    with get_connection_manager().connection() as conn, conn._conn.cursor() as cur:
-        perf_json = Json(performance_data) if performance_data else None
-        cur.execute(_SQL_UPDATE_RECS, (Json(rec_dicts), perf_json))
-        conn._conn.commit()
+    with get_connection_manager().connection() as conn:
+        raw_conn = conn.raw_connection
+        with raw_conn.cursor() as cur:
+            perf_json = Jsonb(performance_data) if performance_data else None
+            cur.execute(_SQL_UPDATE_RECS, (Jsonb(rec_dicts), perf_json))
+        raw_conn.commit()
 
 
 def _log_validation_result(report: ValidationReport) -> None:
@@ -107,11 +112,14 @@ def _log_validation_result(report: ValidationReport) -> None:
                "critical_count": sum(1 for e in report.errors if e.severity == "critical"),
                "errors": critical_errors},
     )
-    with get_connection_manager().connection() as conn, conn._conn.cursor() as cur:
-        cur.execute(_SQL_INSERT_ALERT,
-                    ("daily_rules_validation", "critical_failure",
-                     f"Rules validation failed: {report.summary}"))
-        conn._conn.commit()
+    with get_connection_manager().connection() as conn:
+        raw_conn = conn.raw_connection
+        with raw_conn.cursor() as cur:
+            cur.execute(
+                _SQL_INSERT_ALERT,
+                ("daily_rules_validation", "critical_failure", f"Rules validation failed: {report.summary}"),
+            )
+        raw_conn.commit()
 
 
 def daily_rules_validation() -> TaskResult:
@@ -184,7 +192,9 @@ def _get_recent_performance_data() -> PerformanceData:
         Performance metrics for last 30 days
     """
     try:
-        with get_connection_manager().connection() as conn, conn._conn.cursor() as cur:
+        with get_connection_manager().connection() as conn, conn.raw_connection.cursor(
+            row_factory=dict_row
+        ) as cur:
             cur.execute(_SQL_TRADE_STATS)
             trade_stats = cur.fetchone()
             cur.execute(_SQL_SIGNAL_STATS)

@@ -12,9 +12,9 @@ import logging
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
-import psycopg2
-from psycopg2.extensions import connection as PgConnection
+from psycopg import Connection, connect
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -31,14 +31,14 @@ IMPORT_ORDER = [
 ]
 
 
-def connect_to_postgres() -> PgConnection:
+def connect_to_postgres() -> Connection[Any]:
     """Connect to PostgreSQL using DATABASE_URL from environment."""
     database_url = os.getenv(
         "DATABASE_URL",
         "postgresql://portfolio_app:$PGPASSWORD@localhost:5432/portfolio_ai",
     )
     try:
-        conn = psycopg2.connect(database_url)
+        conn = connect(database_url)
         logger.info("Connected to PostgreSQL database")
         return conn
     except Exception as e:
@@ -47,7 +47,7 @@ def connect_to_postgres() -> PgConnection:
 
 
 def import_table_from_json(
-    conn: PgConnection, table_name: str, input_file: Path
+    conn: Connection[Any], table_name: str, input_file: Path
 ) -> None:
     """Import a table from JSON lines format."""
     if not input_file.exists():
@@ -124,7 +124,7 @@ def import_table_from_json(
         cur.close()
 
 
-def validate_foreign_keys(conn: PgConnection) -> None:
+def validate_foreign_keys(conn: Connection[Any]) -> None:
     """Validate that all foreign key constraints are satisfied."""
     cur = conn.cursor()
 
