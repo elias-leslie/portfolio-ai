@@ -1,4 +1,4 @@
-"""Monitoring, QA, and thesis workflows.
+"""Monitoring and thesis workflows.
 
 Thin async wrappers around existing business logic in tasks/.
 """
@@ -12,24 +12,6 @@ from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy, Context
 
 from ..hatchet_app import hatchet
 from .models import EmptyInput
-
-
-@hatchet.task(
-    name="portfolio-qa-scan",
-    input_validator=EmptyInput,
-    execution_timeout="3600s",
-    retries=1,
-    on_crons=["0 4 * * *"],
-    concurrency=ConcurrencyExpression(
-        expression="'portfolio-qa-scan'",
-        max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
-    ),
-)
-async def qa_scan_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.qa_tasks import daily_qa_scan
-
-    return await asyncio.to_thread(daily_qa_scan)
 
 
 @hatchet.task(

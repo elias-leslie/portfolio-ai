@@ -42,24 +42,19 @@ no_criteria=$(curl -s "$BACKEND_URL/api/capabilities/features/?limit=500" 2>/dev
     jq '[.features[] | select(.acceptance_criteria == null or (.acceptance_criteria | length) == 0)] | length' 2>/dev/null || echo "0")
 add_result "features_no_criteria" "$no_criteria"
 
-# 5. QA issues count
-qa_issues=$(curl -s "$BACKEND_URL/api/qa/issues?limit=100" 2>/dev/null | \
-    jq '[.issues // [] | .[] | select(.resolved_at == null)] | length' 2>/dev/null || echo "0")
-add_result "open_qa_issues" "${qa_issues:-0}"
-
-# 6. Cleanup candidates
+# 5. Cleanup candidates
 cleanup=$(curl -s "$BACKEND_URL/api/capabilities/cleanup-candidates" 2>/dev/null || echo '{}')
 cleanup_db=$(echo "$cleanup" | jq '.database | length // 0')
 cleanup_celery=$(echo "$cleanup" | jq '.celery | length // 0')
 cleanup_total=$((cleanup_db + cleanup_celery))
 add_result "cleanup_candidates" "$cleanup_total"
 
-# 7. Completed fix tasks (can be cleaned)
+# 6. Completed fix tasks (can be cleaned)
 completed_fix=$(curl -s "$BACKEND_URL/api/capabilities/features/?limit=500" 2>/dev/null | \
     jq '[.features[] | .tasks[]? | select(.task_id | startswith("fix-")) | select(.completed == true)] | length' 2>/dev/null || echo "0")
 add_result "completed_fix_tasks" "$completed_fix"
 
-# 8. Data freshness (check for stale tables)
+# 7. Data freshness (check for stale tables)
 stale_tables=$(curl -s "$BACKEND_URL/api/capabilities/db-capabilities" 2>/dev/null | \
     jq '[.tables[] | select(.freshness_status == "critical" or .freshness_status == "stale")] | length' 2>/dev/null || echo "0")
 add_result "stale_data_tables" "${stale_tables:-0}"

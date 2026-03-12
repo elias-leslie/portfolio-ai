@@ -50,10 +50,7 @@ from app.workflows.maintenance import (
     rotate_logs_wf,
     vacuum_db_wf,
 )
-from app.workflows.monitoring import (
-    monitor_theses_wf,
-    qa_scan_wf,
-)
+from app.workflows.monitoring import monitor_theses_wf
 from app.workflows.reference import (
     corporate_actions_wf,
     earnings_surprises_wf,
@@ -165,8 +162,7 @@ def main() -> None:
             run_discovery_agent_wf,
             run_portfolio_analyzer_wf,
             schedule_new_symbol_wf,
-            # Monitoring (3)
-            qa_scan_wf,
+            # Monitoring (1)
             monitor_theses_wf,
             # Jenny (2)
             jenny_daily_operator_wf,
