@@ -38,11 +38,13 @@ def _handle_task_error(
     """Log error and return standardized error result for a failed task."""
     duration = calculate_duration(start_time)
     logger.error(
-        f"{task_name}_failed",
+        "log_cleanup_failed",
+        task_name=task_name,
         task_id=task_id,
         error=str(error),
         error_type=type(error).__name__,
         duration_seconds=round(duration, 2),
+        exc_info=True,
     )
     error_result = build_error_result(task_id, error, duration, dry_run=dry_run)
     log_maintenance_complete(log_id, task_name, False, error_result, str(error))

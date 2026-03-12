@@ -127,6 +127,7 @@ def cleanup_files(
                 cleanup_type=logger_event,
                 file=str(file_path),
                 error=str(file_error),
+                exc_info=True,
             )
 
     return files_deleted, bytes_freed, would_delete
@@ -250,6 +251,7 @@ def _process_cache_target(
             target=target_name,
             path=str(target_path),
             error=str(target_error),
+            exc_info=True,
         )
         details.append(
             {"name": target_name, "path": str(target_path), "action": "error", "error": str(target_error)}

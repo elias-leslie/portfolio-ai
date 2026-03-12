@@ -183,6 +183,7 @@ def populate_fear_greed_inputs(days: int = 7) -> FearGreedPipelineResultDict:
             task_id=task_id,
             error=str(e),
             error_type=type(e).__name__,
+            exc_info=True,
         )
         return {
             "task_id": task_id,

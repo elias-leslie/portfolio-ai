@@ -80,6 +80,7 @@ def update_technical_indicators(
                 symbol=symbol,
                 error=str(e),
                 error_type=type(e).__name__,
+                exc_info=True,
             )
 
     task_result: TechnicalIndicatorResultDict = {
@@ -147,6 +148,7 @@ def _process_backfill_date(
             date=date,
             error=str(e),
             error_type=type(e).__name__,
+            exc_info=True,
         )
         return False
 
@@ -241,6 +243,7 @@ def _backfill_all_symbols(
                 symbol=symbol,
                 error=str(e),
                 error_type=type(e).__name__,
+                exc_info=True,
             )
             errors += 1
     return {

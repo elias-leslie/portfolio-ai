@@ -84,7 +84,7 @@ class DataTools:
                 "count": len(bundle.articles),
             }
         except Exception as exc:
-            logger.error("agent_get_news_failed", query=query, error=str(exc))
+            logger.error("agent_get_news_failed", query=query, error=str(exc), exc_info=True)
             raise
 
     def execute_get_economic_data(self, indicators: list[str]) -> dict[str, object]:

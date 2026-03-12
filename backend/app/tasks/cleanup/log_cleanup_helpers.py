@@ -71,6 +71,7 @@ def _rotate_log_file(
             "log_rotation_failed",
             file=str(log_file),
             error=str(file_error),
+            exc_info=True,
         )
         return files_rotated
 

@@ -82,6 +82,7 @@ def fetch_buyback_data(symbol: str) -> list[dict[str, Any]]:
             symbol=symbol,
             error=str(e),
             error_type=type(e).__name__,
+            exc_info=True,
         )
         return []
 
@@ -160,6 +161,7 @@ def fetch_and_store_buybacks(
                 "symbol_buyback_failed",
                 symbol=symbol,
                 error=str(e),
+                exc_info=True,
             )
             failed_symbols.append(symbol)
 

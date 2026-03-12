@@ -91,6 +91,7 @@ def _process_all_accounts(
                 "portfolio_snapshot_error",
                 account_id=account_id,
                 error=str(e),
+                exc_info=True,
             )
 
     return {

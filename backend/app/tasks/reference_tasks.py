@@ -83,6 +83,7 @@ def parse_valuation_metrics() -> dict[str, int | str | float]:
             task_id=task_id,
             error=str(e),
             duration_seconds=duration,
+            exc_info=True,
         )
         return {"task_id": task_id, "status": "failed", "error": str(e), "duration_seconds": int(duration)}
 

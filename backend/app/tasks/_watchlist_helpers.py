@@ -96,7 +96,7 @@ def trigger_auto_backfill(storage: PortfolioStorage) -> None:
     try:
         _run_auto_backfill(storage)
     except Exception as e:
-        logger.error("auto_backfill_failed_from_task", error=str(e), error_type=type(e).__name__)
+        logger.error("auto_backfill_failed_from_task", error=str(e), error_type=type(e).__name__, exc_info=True)
 
 
 def _run_auto_backfill(storage: PortfolioStorage) -> None:
@@ -232,5 +232,5 @@ def refresh_single_symbol_impl(task_id: str, symbol: str, start_time: float) -> 
             "duration_seconds": duration,
         }
     except Exception as exc:
-        logger.error("refresh_single_symbol_failed", task_id=task_id, symbol=symbol, error=str(exc))
+        logger.error("refresh_single_symbol_failed", task_id=task_id, symbol=symbol, error=str(exc), exc_info=True)
         raise

@@ -661,7 +661,7 @@ Current product scope keeps strategy generation separate from broker-execution s
 ### Daily Task: Evaluate Strategy Performance
 
 ```python
-@celery_app.task(name="app.tasks.strategy_monitoring_tasks.evaluate_strategy_performance")
+# Scheduled via Hatchet cron workflow
 def evaluate_strategy_performance() -> dict[str, Any]:
     """Evaluate all active strategies and archive underperformers.
 
@@ -746,18 +746,9 @@ def evaluate_strategy_performance() -> dict[str, Any]:
     }
 ```
 
-### Celery Beat Schedule
+### Hatchet Cron Schedule
 
-```python
-# backend/app/celery_schedules.py
-
-"evaluate-strategy-performance": {
-    "task": "app.tasks.strategy_monitoring_tasks.evaluate_strategy_performance",
-    "schedule": crontab(hour=4, minute=0),  # Daily at 04:00 UTC
-    "options": {"expires": 3600},
-},
-
-```
+The strategy performance evaluation is scheduled as a Hatchet cron workflow running daily at 04:00 UTC.
 
 ---
 
@@ -950,7 +941,7 @@ Response: {
 
 ### Phase B.6: Performance Tracking (Task 4.8)
 **Deliverables**:
-- `evaluate_strategy_performance` Celery task
+- `evaluate_strategy_performance` Hatchet workflow task
 - Daily metrics calculation
 - Archival logic for underperformers
 
@@ -986,7 +977,7 @@ Response: {
 
 **Operational**:
 - ✅ Strategy generation workflow completes in <10 minutes
-- ✅ Weekly strategy generation runs autonomously via Celery beat
+- ✅ Weekly strategy generation runs autonomously via Hatchet cron
 - ✅ Git commits contain complete strategy context
 - ✅ UI can display strategy metrics (via API)
 

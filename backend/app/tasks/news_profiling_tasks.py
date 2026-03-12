@@ -217,6 +217,7 @@ def _process_all_vendors(
                 "vendor_metrics_calculation_failed",
                 vendor=vendor,
                 error=str(exc),
+                exc_info=True,
             )
 
     return metrics_results, errors
@@ -324,7 +325,7 @@ def profile_news_sources_task(
                 _store_metrics(metrics_results)
                 logger.info("metrics_stored_successfully", task_id=task_id, num_vendors=len(metrics_results))
             except Exception as exc:
-                logger.error("metrics_storage_failed", task_id=task_id, error=str(exc))
+                logger.error("metrics_storage_failed", task_id=task_id, error=str(exc), exc_info=True)
                 errors.append(f"Storage failed: {exc!s}")
 
         duration = round(time.time() - start_time, 2)
@@ -359,6 +360,7 @@ def profile_news_sources_task(
             user_id=user_id,
             error=str(exc),
             duration_seconds=duration,
+            exc_info=True,
         )
         error_result = NewsProfilingResultDict(
             status="error",
@@ -421,6 +423,7 @@ def reset_source_metrics_task() -> NewsProfilingResultDict:
             task_id=task_id,
             error=str(exc),
             duration_seconds=duration,
+            exc_info=True,
         )
         result = NewsProfilingResultDict(
             status="error",

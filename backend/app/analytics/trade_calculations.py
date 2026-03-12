@@ -119,6 +119,7 @@ def get_atr_for_symbol(storage: PortfolioStorage, symbol: str) -> float | None:
             symbol=symbol,
             error=str(e),
             error_type=type(e).__name__,
+            exc_info=True,
         )
         return None
 

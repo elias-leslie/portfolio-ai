@@ -53,6 +53,7 @@ def _refresh_watchlist_scores_impl(
             task_id=task_id,
             account_id=account_id,
             error=str(exc),
+            exc_info=True,
         )
         raise
 

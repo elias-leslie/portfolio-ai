@@ -124,7 +124,7 @@ def run_agent_task(
         return run_id
 
     except Exception as e:
-        logger.error("agent_task_failed", task_name=task_name, task_id=task_id, error=str(e), error_type=type(e).__name__)
+        logger.error("agent_task_failed", task_name=task_name, task_id=task_id, error=str(e), error_type=type(e).__name__, exc_info=True)
         raise
     finally:
         if llm_client is not None:

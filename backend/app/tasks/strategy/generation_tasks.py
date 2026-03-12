@@ -382,7 +382,7 @@ def trigger_strategy_from_seed(seed_id: str, symbol: str) -> dict[str, Any]:
         seed_data = storage.get_strategy_seed(seed_id)
 
         if not seed_data:
-            logger.error("Seed not found", seed_id=seed_id)
+            logger.error("seed_not_found", seed_id=seed_id)
             return {"status": "failed", "error": f"Seed {seed_id} not found"}
 
         seed_thesis, seed_confidence = seed_data

@@ -201,7 +201,7 @@ def resolve_validation(
             return result
 
     except Exception as e:
-        logger.error("resolve_validation_failed", error=str(e), validation_id=validation_id)
+        logger.error("resolve_validation_failed", error=str(e), validation_id=validation_id, exc_info=True)
         return None
 
 

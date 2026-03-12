@@ -87,7 +87,7 @@ def task_logger(
         error_traceback = traceback.format_exc()
 
         logger.error(
-            f"{task_name}_failed",
+            "task_failed",
             task_name=task_name,
             task_id=task_id,
             status="failed",
@@ -95,6 +95,7 @@ def task_logger(
             error=str(e),
             error_type=type(e).__name__,
             traceback=error_traceback,
+            exc_info=True,
             **params,
         )
         raise  # Re-raise to preserve error handling

@@ -100,6 +100,7 @@ def trigger_auto_backfill(storage: PortfolioStorage, symbols: list[str]) -> None
                 "auto_backfill_failed_to_trigger",
                 error=str(e),
                 error_type=type(e).__name__,
+                exc_info=True,
             )
 
 

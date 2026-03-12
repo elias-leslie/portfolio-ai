@@ -109,4 +109,5 @@ def load_credentials_from_database() -> None:
             "credential_loader_failed",
             error=str(e),
             message="Failed to load credentials from database",
+            exc_info=True,
         )

@@ -107,10 +107,11 @@ def _log_validation_result(report: ValidationReport) -> None:
         for e in report.errors if e.severity == "critical"
     ]
     logger.error(
-        f"CRITICAL: Rules validation failed: {report.summary}",
-        extra={"rules_version": report.rules_version,
-               "critical_count": sum(1 for e in report.errors if e.severity == "critical"),
-               "errors": critical_errors},
+        "rules_validation_critical_failure",
+        summary=report.summary,
+        rules_version=report.rules_version,
+        critical_count=sum(1 for e in report.errors if e.severity == "critical"),
+        errors=critical_errors,
     )
     with get_connection_manager().connection() as conn:
         raw_conn = conn.raw_connection

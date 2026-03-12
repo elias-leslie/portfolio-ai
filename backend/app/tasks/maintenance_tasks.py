@@ -200,6 +200,7 @@ def get_database_size_task() -> dict[str, int | str | float | bool | list[dict[s
             error=str(e),
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
+            exc_info=True,
         )
         error_result = {
             "task_id": task_id,
@@ -215,6 +216,7 @@ def get_database_size_task() -> dict[str, int | str | float | bool | list[dict[s
                 task_id=task_id,
                 error=str(record_err),
                 error_type=type(record_err).__name__,
+                exc_info=True,
             )
         return error_result
 
@@ -267,6 +269,7 @@ def refresh_sec_cik_cache() -> dict[str, Any]:
             error=str(e),
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
+            exc_info=True,
         )
         error_result = {
             "task_id": task_id,

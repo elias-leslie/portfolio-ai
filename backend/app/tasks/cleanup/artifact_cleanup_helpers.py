@@ -140,7 +140,7 @@ def process_backup_file(
             logger.info("backup_file_deleted", file=str(file_path), size_bytes=file_size)
         return 1, file_size
     except Exception as file_error:
-        logger.error("backup_deletion_failed", file=str(file_path), error=str(file_error))
+        logger.error("backup_deletion_failed", file=str(file_path), error=str(file_error), exc_info=True)
         return 0, 0
 
 
@@ -157,7 +157,7 @@ def process_model_file(
             logger.info("model_file_deleted", file=str(file_path), model_name=model_name, version_date=date_str, size_bytes=file_size)
         return 1, file_size
     except Exception as file_error:
-        logger.error("model_deletion_failed", file=str(file_path), error=str(file_error))
+        logger.error("model_deletion_failed", file=str(file_path), error=str(file_error), exc_info=True)
         return 0, 0
 
 
@@ -178,7 +178,7 @@ def process_solution_state_entry(
             logger.info("solution_state_deleted", directory=str(entry), size_bytes=dir_size)
         return 1, dir_size
     except Exception as dir_error:
-        logger.error("solution_state_deletion_failed", directory=str(entry), error=str(dir_error))
+        logger.error("solution_state_deletion_failed", directory=str(entry), error=str(dir_error), exc_info=True)
         return 0, 0
 
 

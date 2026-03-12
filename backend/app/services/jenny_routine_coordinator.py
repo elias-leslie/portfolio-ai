@@ -103,7 +103,7 @@ class JennyRoutineCoordinator:
                 },
             )
         except Exception as exc:
-            logger.error("jenny_daily_operator_failed", error=str(exc))
+            logger.error("jenny_daily_operator_failed", error=str(exc), exc_info=True)
             routine_completer = service.__dict__.get("_complete_routine")
             if callable(routine_completer):
                 routine_completer(
@@ -193,7 +193,7 @@ class JennyRoutineCoordinator:
                 },
             )
         except Exception as exc:
-            logger.error("jenny_weekly_learning_failed", error=str(exc))
+            logger.error("jenny_weekly_learning_failed", error=str(exc), exc_info=True)
             routine_completer = service.__dict__.get("_complete_routine")
             if callable(routine_completer):
                 routine_completer(

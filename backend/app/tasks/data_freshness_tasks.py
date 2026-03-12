@@ -119,7 +119,7 @@ def maintain_data_freshness() -> dict[str, object]:
         duration = (dt.datetime.now(dt.UTC) - start).total_seconds()
         error_result = _error_response(e, duration)
         record_maintenance_completion(log_id, "error", error_result, str(e))
-        logger.error("maintain_data_freshness_failed", task_id=task_id, error=str(e), duration_seconds=round(duration, 2))
+        logger.error("maintain_data_freshness_failed", task_id=task_id, error=str(e), duration_seconds=round(duration, 2), exc_info=True)
         return error_result
 
 
@@ -156,5 +156,5 @@ def check_all_data_freshness(auto_remediate: bool = True) -> dict[str, object]:
             log_id=log_id, status="error",
             summary={"execution_time_sec": round(duration, 2)}, error_message=str(e),
         )
-        logger.error("check_all_data_freshness_failed", task_id=task_id, error=str(e), duration_seconds=round(duration, 2))
+        logger.error("check_all_data_freshness_failed", task_id=task_id, error=str(e), duration_seconds=round(duration, 2), exc_info=True)
         return _error_response(e, duration)

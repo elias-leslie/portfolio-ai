@@ -209,6 +209,7 @@ def _parse_cik_data(data: dict[str, Any] | list[Any], source_name: str) -> dict[
             source=source_name,
             error=str(exc),
             data_type=type(data).__name__,
+            exc_info=True,
         )
         raise
 

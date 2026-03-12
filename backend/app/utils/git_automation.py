@@ -79,7 +79,9 @@ def commit_workflow_results(
                 datetime.strptime(date_str, "%Y-%m-%d")
             except ValueError as e:
                 logger.error(
-                    f"Invalid date format: {date_str}. Expected YYYY-MM-DD",
+                    "invalid_date_format",
+                    date_str=date_str,
+                    expected="YYYY-MM-DD",
                     error=str(e),
                 )
                 return False
@@ -99,9 +101,10 @@ def commit_workflow_results(
 
     except Exception as e:
         logger.error(
-            "Unexpected error during git automation",
+            "git_automation_unexpected_error",
             error=str(e),
             error_type=type(e).__name__,
+            exc_info=True,
         )
         return False
 

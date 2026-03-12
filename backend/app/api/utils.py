@@ -43,9 +43,10 @@ def handle_api_errors(operation_name: str) -> Callable[[F], F]:
                 raise  # Re-raise HTTP exceptions as-is
             except Exception as e:
                 logger.error(
-                    f"api_error_{operation_name.replace(' ', '_')}",
+                    "api_error",
                     operation=operation_name,
                     error=str(e),
+                    exc_info=True,
                 )
                 raise HTTPException(
                     status_code=500, detail=f"Failed to {operation_name}: {e}"

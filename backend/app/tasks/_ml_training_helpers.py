@@ -143,9 +143,9 @@ def _parse_gemini_output(stdout: str, stderr: str) -> list[dict[str, Any]]:
         return json.loads(stdout[start:end])
 
     logger.error(
-        "Could not parse Gemini output. stdout (first 500 chars): %s, stderr: %s",
-        stdout[:500],
-        stderr[:500] if stderr else "None",
+        "gemini_output_parse_failed",
+        stdout_preview=stdout[:500],
+        stderr_preview=stderr[:500] if stderr else "None",
     )
     raise ValueError("Could not parse Gemini JSON output")
 

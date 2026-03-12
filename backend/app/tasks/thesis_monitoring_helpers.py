@@ -362,4 +362,5 @@ def archive_strategies_for_symbol(
                 strategy_id=strategy_id,
                 symbol=symbol,
                 error=str(e),
+                exc_info=True,
             )

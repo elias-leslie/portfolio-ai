@@ -114,6 +114,7 @@ def check_disk_space_impl(alert_threshold_percent: int) -> dict[str, Any]:
                 "disk_space_check_failed",
                 partition=path,
                 error=str(partition_error),
+                exc_info=True,
             )
 
     return {
@@ -165,6 +166,7 @@ def check_disk_space_task(
             error=str(e),
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
+            exc_info=True,
         )
         error_result = build_error_result(task_id, e, duration)
         log_maintenance_complete(log_id, "check_disk_space_task", False, error_result, str(e))

@@ -156,6 +156,7 @@ class CBOEMostActiveSource:
                 "cboe_most_active_fetch_failed",
                 error=str(e),
                 error_type=type(e).__name__,
+                exc_info=True,
             )
             raise RuntimeError(f"CBOE Most Active fetch failed: {e}") from e
 

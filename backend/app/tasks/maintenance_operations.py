@@ -124,7 +124,7 @@ def vacuum_tables(tables: list[str] | None = None, dry_run: bool = False) -> dic
                     raw_conn.autocommit = old_autocommit
 
         except Exception as table_error:
-            logger.error("table_vacuum_failed", table=table, error=str(table_error))
+            logger.error("table_vacuum_failed", table=table, error=str(table_error), exc_info=True)
             failed_tables.append(table)
 
     result = {

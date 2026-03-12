@@ -42,9 +42,9 @@ Overall Status: WARNINGS
 Summary: Found: 1 warning(s)
 ```
 
-### 2. Celery Tasks (`tasks/rules_validation_tasks.py`)
+### 2. Scheduled Tasks (`tasks/rules_validation_tasks.py`)
 
-Scheduled tasks that run validation and optimization analysis automatically.
+Scheduled tasks that run validation and optimization analysis automatically (via Hatchet cron workflows).
 
 #### daily_rules_validation
 - **Schedule**: Daily at 03:00 UTC
@@ -198,5 +198,5 @@ EOF
 
 - **Rules Config**: `/home/kasadis/portfolio-ai/backend/app/rules/rules.yaml`
 - **Rules Models**: `/home/kasadis/portfolio-ai/backend/app/rules/models.py`
-- **Celery Schedules**: `/home/kasadis/portfolio-ai/backend/app/celery_schedules.py` (lines 791-815)
+- **Hatchet Workflows**: Cron schedules defined in Hatchet workflow definitions
 - **Architecture Docs**: `/home/kasadis/portfolio-ai/docs/core/ARCHITECTURE.md`

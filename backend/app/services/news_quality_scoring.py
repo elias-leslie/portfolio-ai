@@ -30,7 +30,7 @@ class NewsQualityScorer:
             else:
                 logger.warning("quality_model_not_found", model_path=str(model_path))
         except Exception as e:
-            logger.error("quality_model_load_failed", error=str(e), model_path=str(model_path))
+            logger.error("quality_model_load_failed", error=str(e), model_path=str(model_path), exc_info=True)
 
     def score_articles(self, articles: list[Any]) -> list[Any]:
         """Score article quality using ML model.
@@ -58,6 +58,7 @@ class NewsQualityScorer:
                     symbol=article.symbol,
                     headline=article.headline[:50],
                     error=str(e),
+                    exc_info=True,
                 )
                 article.quality_prediction = None
                 article.quality_confidence = None

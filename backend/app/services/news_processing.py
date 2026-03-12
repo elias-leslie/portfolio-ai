@@ -202,10 +202,11 @@ class NewsProcessor:
                 "error": str(exc),
             }
             logger.error(
-                "FinBERT scoring failed; falling back to VADER",
+                "finbert_scoring_failed_fallback_to_vader",
                 error=str(exc),
                 symbol=symbol,
                 latency_ms=fallback_details["latency_ms"],
+                exc_info=True,
             )
             sentiments = self.fallback_analyzer.score_batch(texts)
             analyzer_used = "vader"

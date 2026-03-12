@@ -61,11 +61,13 @@ def execute_maintenance_task(
     except Exception as e:
         duration = calculate_duration(start_time)
         logger.error(
-            f"{task_name}_failed",
+            "maintenance_task_failed",
+            task_name=task_name,
             task_id=task_id,
             error=str(e),
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
+            exc_info=True,
         )
         error_result = {
             "task_id": task_id,

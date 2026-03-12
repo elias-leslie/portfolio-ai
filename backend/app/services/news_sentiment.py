@@ -98,7 +98,7 @@ class FinBertSentimentAnalyzer:
                 self._model.to(self.device)
                 self._model.eval()
             except Exception as exc:  # pragma: no cover - heavy dependency handling
-                logger.error("Failed to load FinBERT model", error=str(exc))
+                logger.error("finbert_model_load_failed", error=str(exc), exc_info=True)
                 raise FinBertUnavailableError(str(exc)) from exc
 
     def is_available(self) -> bool:

@@ -50,6 +50,7 @@ def _ingest_historical_ohlcv_impl(
             ingest_run_id=ingest_run_id,
             error=str(e),
             error_type=type(e).__name__,
+            exc_info=True,
         )
         raise
 
@@ -92,6 +93,7 @@ def refresh_daily_ohlcv(
             task_id=task_id,
             error=str(e),
             error_type=type(e).__name__,
+            exc_info=True,
         )
         raise
     finally:
@@ -116,6 +118,7 @@ def refresh_watchlist_ohlcv() -> dict[str, int | str | float]:
             ingest_run_id=ingest_run_id,
             error=str(e),
             error_type=type(e).__name__,
+            exc_info=True,
         )
         raise
     finally:

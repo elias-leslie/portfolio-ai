@@ -111,7 +111,7 @@ def cleanup_debug_captures(max_age_days: int = 7, dry_run: bool = False) -> dict
                 deleted_size += sz
             except (ValueError, OSError) as e:
                 errors.append({"path": str(entry), "error": str(e)})
-                logger.error("cleanup_debug_capture_error", path=str(entry), error=str(e))
+                logger.error("cleanup_debug_capture_error", path=str(entry), error=str(e), exc_info=True)
 
         duration_seconds = round((datetime.now(UTC) - started_at).total_seconds(), 2)
         logger.info(
@@ -144,6 +144,7 @@ def cleanup_debug_captures(max_age_days: int = 7, dry_run: bool = False) -> dict
             error=str(e),
             error_type=type(e).__name__,
             duration_seconds=duration_seconds,
+            exc_info=True,
         )
         error_result: dict[str, object] = {
             "task_id": task_id,

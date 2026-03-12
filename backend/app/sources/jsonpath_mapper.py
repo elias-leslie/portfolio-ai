@@ -155,7 +155,7 @@ def map_response_to_schema(
     try:
         df = pl.DataFrame(data_list, strict=False)
     except Exception as e:
-        logger.error("dataframe_creation_failed", error=str(e), error_type=type(e).__name__)
+        logger.error("dataframe_creation_failed", error=str(e), error_type=type(e).__name__, exc_info=True)
         raise ValueError(f"Failed to create DataFrame from response data: {e}") from e
 
     # Validate and apply field mapping
@@ -259,6 +259,7 @@ def convert_timestamp_column(
             target_col=target_col,
             unit=unit,
             error=str(e),
+            exc_info=True,
         )
         raise
 
