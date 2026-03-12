@@ -277,16 +277,19 @@ def run_backtest_task(
                     else ""
                 )
             except Exception as bench_err:
-                logger.warning(f"Benchmark comparison failed (non-fatal): {bench_err}")
+                logger.warning("benchmark_comparison_failed", error=str(bench_err))
                 benchmark_metrics = None
 
         # Save results
         _save_backtest_results(storage_mgr, state, metrics_dict, run_id, benchmark_metrics)
 
         logger.info(
-            f"Backtest complete: {run_id} | Return: {metrics_dict['total_return_pct']:.2f}% | "
-            f"Sharpe: {metrics_dict['sharpe_ratio']:.2f} | Trades: {metrics_dict['num_trades']} | "
-            f"Win Rate: {metrics_dict['win_rate']:.1f}%"
+            "backtest_complete",
+            run_id=run_id,
+            total_return_pct=round(float(metrics_dict["total_return_pct"]), 2),
+            sharpe_ratio=round(float(metrics_dict["sharpe_ratio"]), 2),
+            num_trades=metrics_dict["num_trades"],
+            win_rate=round(float(metrics_dict["win_rate"]), 1),
         )
 
         # Build response with benchmark fields
@@ -309,9 +312,13 @@ def run_backtest_task(
 
     except InsufficientDataError as e:
         logger.warning(
-            f"Backtest needs more data: {run_id} | {symbol} | "
-            f"Available: {e.available_start} to {e.available_end} | "
-            f"Requested: {e.requested_start} to {e.requested_end}"
+            "backtest_insufficient_data",
+            run_id=run_id,
+            symbol=symbol,
+            available_start=str(e.available_start),
+            available_end=str(e.available_end),
+            requested_start=str(e.requested_start),
+            requested_end=str(e.requested_end),
         )
 
         # Trigger historical data backfill
@@ -319,7 +326,7 @@ def run_backtest_task(
             ingest_historical_ohlcv,
         )
 
-        logger.info(f"Triggering historical data backfill for {symbol} ({BACKFILL_DAYS} days)")
+        logger.info("historical_backfill_triggered", symbol=symbol, days=BACKFILL_DAYS)
         ingest_historical_ohlcv([symbol], days=BACKFILL_DAYS)
 
         # Update status to show we're waiting for data
@@ -334,7 +341,7 @@ def run_backtest_task(
         raise  # Retry in 2 minutes
 
     except Exception as e:
-        logger.error(f"Backtest failed: {run_id} | Error: {e}", exc_info=True)
+        logger.error("backtest_failed", run_id=run_id, error=str(e), exc_info=True)
 
         # Update status to failed with error message
         storage.update_backtest_status(

@@ -147,7 +147,7 @@ def daily_rules_validation() -> TaskResult:
             ],
         }
     except Exception as exc:
-        logger.error(f"Rules validation task failed: {exc}", exc_info=True)
+        logger.error("rules_validation_failed", error=str(exc), exc_info=True)
         return {"status": "error", "error": str(exc)}
 
 
@@ -166,7 +166,7 @@ def weekly_optimization_review() -> TaskResult:
         )
         _store_optimization_results(recommendations, performance_data)
         if recommendations:
-            logger.info(f"Generated {len(recommendations)} optimization recommendations")
+            logger.info("optimization_recommendations_generated", count=len(recommendations))
         else:
             logger.info("No optimization recommendations generated")
         return {
@@ -181,7 +181,7 @@ def weekly_optimization_review() -> TaskResult:
             ],
         }
     except Exception as exc:
-        logger.error(f"Optimization review task failed: {exc}", exc_info=True)
+        logger.error("optimization_review_failed", error=str(exc), exc_info=True)
         return {"status": "error", "error": str(exc)}
 
 
@@ -205,5 +205,5 @@ def _get_recent_performance_data() -> PerformanceData:
                 "signal_stats": [dict(row) for row in signal_stats],
             }
     except Exception as exc:
-        logger.error(f"Failed to fetch performance data: {exc}", exc_info=True)
+        logger.error("performance_data_fetch_failed", error=str(exc), exc_info=True)
         return {}

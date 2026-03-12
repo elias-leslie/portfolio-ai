@@ -236,7 +236,7 @@ def _run_training_phase(
 
 def _write_training_data(training_data_path: Path, combined_data: list[dict[str, Any]]) -> None:
     training_data_path.parent.mkdir(parents=True, exist_ok=True)
-    with training_data_path.open("w") as f:
+    with training_data_path.open("w", encoding="utf-8") as f:
         json.dump(combined_data, f, indent=2)
     logger.info("Updated training data: %d total samples", len(combined_data))
 

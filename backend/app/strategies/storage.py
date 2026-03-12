@@ -116,7 +116,7 @@ class StrategyStorage(StrategyStorageDelegator):
                 expected_max_drawdown, created_by, version, status,
             )
             conn.commit()
-        logger.info(f"Strategy stored: {symbol} {strategy_type} v{version} (id={strategy_id})")
+        logger.info("strategy_stored", symbol=symbol, strategy_type=strategy_type, version=version, strategy_id=strategy_id)
         return strategy_id
 
     def get_strategy_by_id(self, strategy_id: str) -> StrategyDefinition | None:
@@ -240,7 +240,7 @@ class StrategyStorage(StrategyStorageDelegator):
             )
             conn.commit()
 
-        logger.info(f"Strategy activated: {strategy_id}")
+        logger.info("strategy_activated", strategy_id=strategy_id)
 
     def archive_strategy(self, strategy_id: str, reason: str) -> None:
         """Archive strategy (sets status to 'archived')."""
@@ -257,7 +257,7 @@ class StrategyStorage(StrategyStorageDelegator):
             )
             conn.commit()
 
-        logger.info(f"Strategy archived: {strategy_id} (reason: {reason})")
+        logger.info("strategy_archived", strategy_id=strategy_id, reason=reason)
 
 
 # Singleton instance

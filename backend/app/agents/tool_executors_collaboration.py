@@ -93,7 +93,7 @@ class CollaborationTools:
             }
 
         except Exception as e:
-            logger.error(f"Failed to send message: {e}")
+            logger.error("send_message_failed", error=str(e), exc_info=True)
             return {
                 "status": "error",
                 "error": str(e),
@@ -141,7 +141,7 @@ class CollaborationTools:
             }
 
         except Exception as e:
-            logger.error(f"Failed to query workflow memory: {e}")
+            logger.error("workflow_memory_query_failed", error=str(e), exc_info=True)
             return {
                 "status": "error",
                 "error": str(e),
@@ -221,7 +221,7 @@ class CollaborationTools:
             }
 
         except Exception as e:
-            logger.error(f"Failed to record vote: {e}")
+            logger.error("vote_recording_failed", error=str(e), exc_info=True)
             return {
                 "status": "error",
                 "error": str(e),
@@ -280,7 +280,7 @@ class CollaborationTools:
             }
 
         except Exception as e:
-            logger.error(f"Failed to check message response: {e}")
+            logger.error("message_response_check_failed", error=str(e), exc_info=True)
             return {
                 "status": "error",
                 "error": str(e),

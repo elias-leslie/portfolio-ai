@@ -89,7 +89,7 @@ def generate_daily_strategy_signals() -> dict[str, Any]:
         logger.info("No active strategies found")
         return make_empty_signal_results(0)
 
-    logger.info(f"Evaluating {len(active_strategies)} active strategies")
+    logger.info("evaluating_strategies", count=len(active_strategies))
     results = make_empty_signal_results(len(active_strategies))
 
     with conn_mgr.connection() as conn:
@@ -181,7 +181,7 @@ def auto_paper_trade_from_signals(min_signal_strength: int = 5) -> dict[str, Any
     with conn_mgr.connection() as conn:
         signals = query_todays_buy_signals(conn, min_signal_strength)
         results["signals_evaluated"] = len(signals)
-        logger.info(f"Found {len(signals)} BUY signals to evaluate")
+        logger.info("buy_signals_found", count=len(signals))
 
         for signal in signals:
             process_paper_trade_signal(conn, storage, signal, results)

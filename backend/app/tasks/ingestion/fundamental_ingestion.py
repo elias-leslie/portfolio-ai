@@ -121,7 +121,7 @@ def _process_symbol(
         stats["symbols_processed"] += 1
 
     except Exception as e:
-        logger.error(f"Failed to process fundamental data for {symbol}: {e}")
+        logger.error("fundamental_data_failed", symbol=symbol, error=str(e), exc_info=True)
         stats["errors"].append({"symbol": symbol, "error": str(e)})
 
 

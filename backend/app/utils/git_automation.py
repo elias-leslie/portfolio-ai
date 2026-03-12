@@ -124,7 +124,7 @@ def _get_repo_root() -> Path | None:
             return Path(result.stdout.strip())
         return None
     except Exception as e:
-        logger.error(f"Failed to get git repository root: {e}")
+        logger.error("git_root_failed", error=str(e))
         return None
 
 
@@ -157,11 +157,11 @@ def _execute_git_workflow(
     snapshot_filename = f"{date_str}-{workflow_type}.json"
     snapshot_path = reports_dir / snapshot_filename
 
-    with snapshot_path.open("w") as f:
+    with snapshot_path.open("w", encoding="utf-8") as f:
         json.dump(snapshot_data, f, indent=2, default=str)
         f.write("\n")  # Ensure file ends with newline (pre-commit requirement)
 
-    logger.debug(f"Created snapshot file: {snapshot_path}")
+    logger.debug("snapshot_file_created", path=str(snapshot_path))
 
     # Stage file with git add
     if not _git_add(repo_root, str(snapshot_path)):
@@ -174,7 +174,7 @@ def _execute_git_workflow(
         logger.warning("Failed to create git commit")
         return False
 
-    logger.info(f"Created git commit: {commit_message}")
+    logger.info("git_commit_created", message=commit_message)
 
     # Pull before push to handle merge conflicts
     if not _git_pull(repo_root):
@@ -186,7 +186,7 @@ def _execute_git_workflow(
         logger.warning("Failed to push to remote")
         return False
 
-    logger.info(f"Pushed workflow results to remote: {snapshot_filename}")
+    logger.info("git_push_completed", filename=snapshot_filename)
     return True
 
 
@@ -210,7 +210,8 @@ def _git_add(repo_root: Path, file_path: str) -> bool:
         )
         if result.returncode != 0:
             logger.warning(
-                f"git add failed: {result.stderr}",
+                "git_add_failed",
+                stderr=result.stderr,
                 returncode=result.returncode,
             )
             return False
@@ -219,7 +220,7 @@ def _git_add(repo_root: Path, file_path: str) -> bool:
         logger.error("git add timed out after 5 seconds")
         return False
     except Exception as e:
-        logger.error(f"Error running git add: {e}")
+        logger.error("git_add_error", error=str(e), exc_info=True)
         return False
 
 
@@ -247,7 +248,8 @@ def _git_commit(repo_root: Path, message: str) -> bool:
                 logger.debug("No changes to commit (nothing staged)")
                 return True
             logger.warning(
-                f"git commit failed: {result.stderr}",
+                "git_commit_failed",
+                stderr=result.stderr,
                 returncode=result.returncode,
             )
             return False
@@ -256,7 +258,7 @@ def _git_commit(repo_root: Path, message: str) -> bool:
         logger.error("git commit timed out after 5 seconds")
         return False
     except Exception as e:
-        logger.error(f"Error running git commit: {e}")
+        logger.error("git_commit_error", error=str(e), exc_info=True)
         return False
 
 
@@ -295,7 +297,8 @@ def _git_pull(repo_root: Path) -> bool:
             return False
 
         logger.warning(
-            f"git pull failed: {result.stderr}",
+            "git_pull_failed",
+            stderr=result.stderr,
             returncode=result.returncode,
         )
         return False
@@ -304,7 +307,7 @@ def _git_pull(repo_root: Path) -> bool:
         logger.error("git pull timed out after 10 seconds")
         return False
     except Exception as e:
-        logger.error(f"Error running git pull: {e}")
+        logger.error("git_pull_error", error=str(e), exc_info=True)
         return False
 
 
@@ -338,7 +341,8 @@ def _git_push(repo_root: Path) -> bool:
             return True
 
         logger.warning(
-            f"git push failed: {result.stderr}",
+            "git_push_failed",
+            stderr=result.stderr,
             returncode=result.returncode,
         )
         return False
@@ -347,5 +351,5 @@ def _git_push(repo_root: Path) -> bool:
         logger.error("git push timed out after 10 seconds")
         return False
     except Exception as e:
-        logger.error(f"Error running git push: {e}")
+        logger.error("git_push_error", error=str(e), exc_info=True)
         return False

@@ -235,24 +235,25 @@ class FinnhubSource(BaseSource):
 
                 # Parse OHLCV data
                 records = []
-                for i in range(len(timestamps)):
+                for i, (ts, o, h, lo, c, v) in enumerate(
+                    zip(timestamps, opens, highs, lows, closes, volumes, strict=False)
+                ):
                     try:
-                        # Convert Unix timestamp to date
-                        bar_date = dt.datetime.fromtimestamp(timestamps[i], tz=dt.UTC).date()
+                        bar_date = dt.datetime.fromtimestamp(ts, tz=dt.UTC).date()
                         records.append(
                             {
                                 "date": bar_date,
                                 "symbol": symbol,
-                                "open": float(opens[i]),
-                                "high": float(highs[i]),
-                                "low": float(lows[i]),
-                                "close": float(closes[i]),
-                                "volume": int(volumes[i]),
+                                "open": float(o),
+                                "high": float(h),
+                                "low": float(lo),
+                                "close": float(c),
+                                "volume": int(v),
                                 "vwap": None,  # Finnhub doesn't provide VWAP
                                 "source": "finnhub",
                             }
                         )
-                    except (IndexError, ValueError) as e:
+                    except (ValueError, TypeError) as e:
                         logger.warning(
                             "finnhub_bar_parse_error",
                             symbol=symbol,

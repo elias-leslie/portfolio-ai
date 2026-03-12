@@ -202,7 +202,7 @@ def fetch_cash_flow_data(symbol: str) -> dict[str, Any] | None:
         info = yf_obj.info
         return parse_cash_flow_data(cf, info, symbol)
     except Exception as e:
-        logger.warning(f"Failed to fetch cash flow for {symbol}: {e}")
+        logger.warning("cash_flow_fetch_failed", symbol=symbol, error=str(e))
         return None
 
 
@@ -212,10 +212,10 @@ def fetch_insider_transactions(symbol: str) -> list[dict[str, Any]]:
         yf_obj = yf.Ticker(symbol)
         insiders = yf_obj.insider_transactions
         transactions = parse_insider_transactions(insiders, symbol)
-        logger.debug(f"Fetched {len(transactions)} insider transactions for {symbol}")
+        logger.debug("insider_transactions_fetched", symbol=symbol, count=len(transactions))
         return transactions
     except Exception as e:
-        logger.warning(f"Failed to fetch insider transactions for {symbol}: {e}")
+        logger.warning("insider_transactions_fetch_failed", symbol=symbol, error=str(e))
         return []
 
 
@@ -226,10 +226,10 @@ def fetch_institutional_holders(symbol: str) -> tuple[list[dict[str, Any]], dict
         holders_df = yf_obj.institutional_holders
         info = yf_obj.info
         holders, summary = parse_institutional_holders(holders_df, info, symbol)
-        logger.debug(f"Fetched {len(holders)} institutional holders for {symbol}")
+        logger.debug("institutional_holders_fetched", symbol=symbol, count=len(holders))
         return holders, summary
     except Exception as e:
-        logger.warning(f"Failed to fetch institutional holders for {symbol}: {e}")
+        logger.warning("institutional_holders_fetch_failed", symbol=symbol, error=str(e))
         return [], {}
 
 
@@ -240,7 +240,7 @@ def fetch_short_interest(symbol: str) -> dict[str, Any] | None:
         info = yf_obj.info
         return parse_short_interest(info, symbol)
     except Exception as e:
-        logger.warning(f"Failed to fetch short interest for {symbol}: {e}")
+        logger.warning("short_interest_fetch_failed", symbol=symbol, error=str(e))
         return None
 
 

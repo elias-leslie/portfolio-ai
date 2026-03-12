@@ -49,9 +49,9 @@ def _compute_avg_pairwise_similarity(headlines: list[str]) -> float:
     """Return average pairwise Jaccard similarity across all headline pairs."""
     total_similarity = 0.0
     comparisons = 0
-    for i in range(len(headlines)):
-        for j in range(i + 1, len(headlines)):
-            total_similarity += _token_overlap_similarity(headlines[i], headlines[j])
+    for i, headline_a in enumerate(headlines):
+        for headline_b in headlines[i + 1:]:
+            total_similarity += _token_overlap_similarity(headline_a, headline_b)
             comparisons += 1
     if comparisons == 0:
         return 0.0

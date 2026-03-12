@@ -91,7 +91,7 @@ def fetch_and_store_yield_curve(
             stats["indicators_inserted"] += YIELD_CURVE_FIELD_COUNT
     except Exception as e:
         stats["errors"].append({"indicator": "yield_curve", "error": str(e)})
-        logger.error(f"Failed to fetch yield curve: {e}")
+        logger.error("yield_curve_fetch_failed", error=str(e), exc_info=True)
 
 
 def fetch_and_store_indicators(
@@ -116,4 +116,4 @@ def fetch_and_store_indicators(
             stats[stat_key] = True
     except Exception as e:
         stats["errors"].append({"indicator": stat_key, "error": str(e)})
-        logger.error(f"Failed to fetch {stat_key}: {e}")
+        logger.error("indicator_fetch_failed", indicator=stat_key, error=str(e), exc_info=True)

@@ -240,7 +240,7 @@ class PostgreSQLConnectionWrapper:
             raise TypeError(f"Expected pandas or polars DataFrame, got {type(df)}")
 
         if pdf.empty:
-            logger.debug(f"Skipping empty DataFrame for table {table_name}")
+            logger.debug("empty_dataframe_skipped", table=table_name)
             return 0
 
         # Build INSERT statement
@@ -265,7 +265,7 @@ class PostgreSQLConnectionWrapper:
             raise e
 
         row_count = len(data)
-        logger.debug(f"Inserted {row_count} rows into {table_name}")
+        logger.debug("rows_inserted", table=table_name, count=row_count)
         return row_count
 
     @property

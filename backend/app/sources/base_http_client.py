@@ -276,7 +276,7 @@ class BaseHTTPClient(ABC):
         """Close HTTP client and release resources."""
         self._client.close()
         client_name = self.get_client_name()
-        logger.debug(f"{client_name}_closed", request_count=self.request_count)
+        logger.debug("http_client_closed", client=client_name, request_count=self.request_count)
 
     @retry(
         stop=stop_after_attempt(5),

@@ -63,4 +63,4 @@ class SchemaManager:
                     "  alembic upgrade head"
                 )
 
-            logger.info(f"Schema validation passed: {core_table_count} core tables exist")
+            logger.info("schema_validation_passed", core_tables=core_table_count)

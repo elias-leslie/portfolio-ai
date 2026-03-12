@@ -186,7 +186,7 @@ def collect_daily_strategy_metrics() -> dict[str, object]:
     """Collect strategy performance metrics for the previous day."""
     storage = get_storage()
     yesterday = str((datetime.now(UTC) - timedelta(days=1)).date())
-    logger.info(f"Collecting strategy metrics for {yesterday}")
+    logger.info("collecting_strategy_metrics", date=yesterday)
     try:
         signal_counts, avg_scores, score_stdev = _get_signal_metrics(storage, yesterday)
         trades_stats, win_rate = _get_trades_metrics(storage, yesterday)
@@ -208,14 +208,12 @@ def collect_daily_strategy_metrics() -> dict[str, object]:
             cumulative_return,
         )
         logger.info(
-            f"Strategy metrics collected for {yesterday}",
-            extra={
-                "date": yesterday,
-                "signals": sum(signal_counts.values()),
-                "win_rate": win_rate,
-                "disagreement_rate": disagreement_rate,
-                "provider_disagreement_rate": provider_disagreement_rate,
-            },
+            "strategy_metrics_collected",
+            date=yesterday,
+            signals=sum(signal_counts.values()),
+            win_rate=win_rate,
+            disagreement_rate=disagreement_rate,
+            provider_disagreement_rate=provider_disagreement_rate,
         )
         return {
             "status": "success",
@@ -231,5 +229,5 @@ def collect_daily_strategy_metrics() -> dict[str, object]:
             },
         }
     except Exception as e:
-        logger.error(f"Failed to collect strategy metrics: {e}", exc_info=True)
+        logger.error("strategy_metrics_collection_failed", error=str(e), exc_info=True)
         return {"status": "error", "error": str(e)}

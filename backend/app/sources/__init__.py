@@ -69,7 +69,7 @@ def initialize_data_sources() -> list[BaseSource]:
             source = source_class()
             sources.append(source)
             source_names.append(name)
-            logger.debug(f"data_source_initialized source={source_class.__name__}")
+            logger.debug("data_source_initialized", source=source_class.__name__)
         except (RuntimeError, ValueError) as e:
             # API key not configured - skip this source
             skipped_sources.append(name)

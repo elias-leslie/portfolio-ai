@@ -34,7 +34,7 @@ def fetch_strategy_metrics(
                     float(row[2]) if row[2] else None,
                 )
     except Exception as e:
-        logger.warning(f"Failed to fetch strategy metrics: {e}")
+        logger.warning("strategy_metrics_fetch_failed", error=str(e))
     return (None, None, None)
 
 

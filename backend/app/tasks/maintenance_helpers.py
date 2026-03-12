@@ -40,7 +40,7 @@ def execute_maintenance_task(
     start_time = dt.datetime.now(dt.UTC)
     log_id = log_maintenance_start(task_name, dry_run)
 
-    logger.info(f"{task_name}_started", task_id=task_id, dry_run=dry_run)
+    logger.info("maintenance_task_started", task_name=task_name, task_id=task_id, dry_run=dry_run)
 
     try:
         result = task_func()
@@ -54,7 +54,7 @@ def execute_maintenance_task(
             "success": True,
         }
 
-        logger.info(f"{task_name}_completed", **result_dict)
+        logger.info("maintenance_task_completed", task_name=task_name, **result_dict)
         log_maintenance_complete(log_id, task_name, True, result_dict)
         return result_dict
 

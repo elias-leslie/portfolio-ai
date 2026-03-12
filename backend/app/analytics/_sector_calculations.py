@@ -5,6 +5,7 @@ Pure computation functions with no storage dependencies.
 
 from __future__ import annotations
 
+import math
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
@@ -119,7 +120,7 @@ def _rank_sectors(
 ) -> tuple[list[str], list[str]]:
     """Sort sectors by 60-day RS and assign ranks; return leaders and laggards."""
     sectors.sort(
-        key=lambda s: s.rs_60d if s.rs_60d is not None else float("-inf"),
+        key=lambda s: s.rs_60d if s.rs_60d is not None else -math.inf,
         reverse=True,
     )
     leaders: list[str] = []

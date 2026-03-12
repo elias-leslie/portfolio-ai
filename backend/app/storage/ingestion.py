@@ -177,7 +177,7 @@ class IngestionManager:
                 if self.metadata_mgr:
                     self.metadata_mgr.update_table_metadata(conn, table_name)
 
-                logger.info(f"Upserted {row_count} rows into {table_name}")
+                logger.info("rows_upserted", table=table_name, count=row_count)
                 return row_count
 
             # Use explicit DataFrame insertion instead of variable reference
@@ -192,7 +192,7 @@ class IngestionManager:
             if self.metadata_mgr:
                 self.metadata_mgr.update_table_metadata(conn, table_name)
 
-            logger.info(f"Inserted {row_count} rows into {table_name}")
+            logger.info("rows_inserted", table=table_name, count=row_count)
             return row_count
 
     def upsert_by_id(
@@ -248,7 +248,7 @@ class IngestionManager:
             if self.metadata_mgr:
                 self.metadata_mgr.update_table_metadata(conn, table_name)
 
-            logger.info(f"Upserted {row_count} rows in {table_name}")
+            logger.info("rows_upserted", table=table_name, count=row_count)
             return row_count
 
     def insert_dict(

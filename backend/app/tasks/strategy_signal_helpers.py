@@ -114,7 +114,7 @@ def fetch_current_market_data(conn: Any, symbol: str) -> dict[str, Any] | None:
     """
     result = _query_price_and_indicators(conn, symbol)
     if not result or len(result) < 2:
-        logger.warning(f"Insufficient market data for {symbol}")
+        logger.warning("insufficient_market_data", symbol=symbol)
         return None
 
     return _build_market_data_dict(

@@ -161,7 +161,7 @@ class SECEdgarSource(BaseSource):
 
                 # Process each filing
                 # Work around pyarrow version issue by accessing data directly
-                for i in range(len(filings.data)):
+                for i, _ in enumerate(filings.data):
                     try:
                         filing_record = self._process_filing(filings, i, symbol)
                         if filing_record:

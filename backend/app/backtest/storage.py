@@ -68,7 +68,7 @@ def create_backtest_run(
         conn.execute(query, params)
         conn.commit()
 
-    logger.info(f"Created backtest run: {run_id} | {symbol} | {start_date} to {end_date}")
+    logger.info("backtest_run_created", run_id=run_id, symbol=symbol, start_date=str(start_date), end_date=str(end_date))
 
     return run_id
 
@@ -100,7 +100,7 @@ def update_backtest_status(
         conn.execute(query, params)
         conn.commit()
 
-    logger.debug(f"Updated backtest {run_id} status: {status}")
+    logger.debug("backtest_status_updated", run_id=run_id, status=status)
 
 
 def update_backtest_result(
@@ -472,7 +472,7 @@ def delete_backtest_run(storage: ConnectionManager, run_id: str) -> bool:
         conn.commit()
 
     if not df.is_empty():
-        logger.info(f"Deleted backtest run: {run_id}")
+        logger.info("backtest_run_deleted", run_id=run_id)
         return True
 
     return False

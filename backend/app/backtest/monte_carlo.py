@@ -234,11 +234,11 @@ def create_histogram_data(
 
     return [
         {
-            "bin_start": round(float(bin_edges[i]), 2),
-            "bin_end": round(float(bin_edges[i + 1]), 2),
-            "frequency": round(float(hist[i]), 4),
+            "bin_start": round(float(edge_start), 2),
+            "bin_end": round(float(edge_end), 2),
+            "frequency": round(float(freq), 4),
         }
-        for i in range(len(hist))
+        for freq, edge_start, edge_end in zip(hist, bin_edges[:-1], bin_edges[1:], strict=True)
     ]
 
 
