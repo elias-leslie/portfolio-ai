@@ -67,6 +67,24 @@ def test_connection_manager_uses_psycopg_sqlalchemy_driver(monkeypatch: pytest.M
     assert mock_create_engine.call_args.args[0].startswith("postgresql+psycopg://")
 
 
+def test_connection_manager_preserves_existing_psycopg_driver(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Already-normalized psycopg URLs should pass through unchanged."""
+    monkeypatch.setenv(
+        "PORTFOLIO_DB_URL",
+        "postgresql+psycopg://portfolio_app:secret@localhost:5432/portfolio_ai_test_runtime",
+    )
+
+    with patch("app.storage.connection.create_engine") as mock_create_engine:
+        ConnectionManager()
+
+    assert (
+        mock_create_engine.call_args.args[0]
+        == "postgresql+psycopg://portfolio_app:secret@localhost:5432/portfolio_ai_test_runtime"
+    )
+
+
 def test_assert_test_database_writable_rejects_missing_permissions() -> None:
     """Mis-granted test databases should fail immediately with a clear error."""
     with pytest.raises(RuntimeError, match="permissions are incomplete"):

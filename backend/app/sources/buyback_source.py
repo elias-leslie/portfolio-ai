@@ -7,6 +7,7 @@ FEAT-175: Share Buybacks
 
 from __future__ import annotations
 
+from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
 
 import yfinance as yf
@@ -17,6 +18,15 @@ if TYPE_CHECKING:
     from app.storage.facade import PortfolioStorage
 
 logger = get_logger(__name__)
+
+
+def _normalize_action_date(column: object) -> date | object:
+    """Convert datetime-like columns to dates while preserving other labels."""
+    if isinstance(column, datetime):
+        return column.date()
+    if isinstance(column, date):
+        return column
+    return column
 
 
 def fetch_buyback_data(symbol: str) -> list[dict[str, Any]]:
@@ -49,12 +59,11 @@ def fetch_buyback_data(symbol: str) -> list[dict[str, Any]]:
         for col in cf.columns:
             value = cf.loc[row_name, col]
             if value is not None and value < 0:  # Repurchases are negative (cash outflow)
-                action_date = col.date() if hasattr(col, "date") else col
                 buybacks.append(
                     {
                         "symbol": symbol,
                         "action_type": "buyback",
-                        "action_date": action_date,
+                        "action_date": _normalize_action_date(col),
                         "repurchase_amount": abs(float(value)),  # Store as positive
                         "source": "yfinance",
                     }

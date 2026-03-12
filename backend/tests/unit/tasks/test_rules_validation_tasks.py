@@ -14,6 +14,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+from psycopg.rows import dict_row
 
 from app.agents.rules_validator_agent import (
     Recommendation,
@@ -369,6 +370,21 @@ class TestWeeklyOptimizationReview:
 
 class TestPerformanceDataRetrieval:
     """Test _get_recent_performance_data helper function."""
+
+    @patch("app.tasks.rules_validation_tasks.get_connection_manager")
+    def test_get_recent_performance_data_uses_dict_row_factory(self, mock_conn_mgr: MagicMock) -> None:
+        """Performance queries should request dict rows from psycopg."""
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone.return_value = None
+        mock_cursor.fetchall.return_value = []
+
+        mock_conn.raw_connection.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_conn_mgr.return_value.connection.return_value.__enter__.return_value = mock_conn
+
+        _get_recent_performance_data()
+
+        mock_conn.raw_connection.cursor.assert_called_once_with(row_factory=dict_row)
 
     @patch("app.tasks.rules_validation_tasks.get_connection_manager")
     def test_get_recent_performance_data_success(self, mock_conn_mgr: MagicMock) -> None:
