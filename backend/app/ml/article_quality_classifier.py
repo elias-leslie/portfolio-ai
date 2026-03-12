@@ -15,8 +15,12 @@ import numpy.typing as npt
 import sklearn
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics import accuracy_score, classification_report, precision_recall_fscore_support
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 from sklearn.model_selection import train_test_split
+
+from app.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 CURRENT_SKLEARN_VERSION = sklearn.__version__
 
@@ -191,17 +195,15 @@ class ArticleQualityClassifier:
         accuracy = accuracy_score(y_test, y_pred)
         precision, recall, f1, _ = precision_recall_fscore_support(y_test, y_pred, average="binary")
 
-        print("\n" + "=" * 60)
-        print("TRAINING RESULTS")
-        print("=" * 60)
-        print(f"Training samples: {len(y_train)}")
-        print(f"Test samples: {len(y_test)}")
-        print(f"\nAccuracy:  {accuracy:.3f}")
-        print(f"Precision: {precision:.3f}")
-        print(f"Recall:    {recall:.3f}")
-        print(f"F1 Score:  {f1:.3f}")
-        print("\nDetailed Classification Report:")
-        print(classification_report(y_test, y_pred, target_names=["Not Useful", "Useful"]))
+        logger.info(
+            "training_results",
+            train_samples=len(y_train),
+            test_samples=len(y_test),
+            accuracy=round(accuracy, 3),
+            precision=round(precision, 3),
+            recall=round(recall, 3),
+            f1_score=round(f1, 3),
+        )
 
         return {
             "accuracy": accuracy,
@@ -260,7 +262,7 @@ class ArticleQualityClassifier:
             model_path,
         )
 
-        print(f"\n✅ Model saved to: {model_path}")
+        logger.info("model_saved", path=str(model_path))
 
     @classmethod
     def load(cls, model_path: str | Path) -> "ArticleQualityClassifier":
@@ -304,6 +306,6 @@ class ArticleQualityClassifier:
         classifier.model = data["model"]
         classifier.is_trained = data["is_trained"]
 
-        print(f"✅ Model loaded from: {model_path}")
+        logger.info("model_loaded", path=str(model_path))
 
         return classifier

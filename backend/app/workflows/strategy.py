@@ -26,7 +26,7 @@ _SKIP_NON_TRADING_DAY = {"status": "skipped", "reason": "Not a trading day (week
 def _skip_if_not_trading_day(task_name: str) -> dict[str, Any] | None:
     """Return skip result if today is not a trading day, else None."""
     if not is_trading_day():
-        logger.info("Skipping %s: not a trading day", task_name)
+        logger.info("skipping_non_trading_day", task_name=task_name)
         return _SKIP_NON_TRADING_DAY
     return None
 
@@ -45,7 +45,7 @@ def _skip_weekly_with_holiday_fallback(task_name: str) -> dict[str, Any] | None:
         # Monday: run only if it's a trading day
         if is_trading_day():
             return None
-        logger.info("Skipping %s: Monday is not a trading day", task_name)
+        logger.info("skipping_monday_not_trading_day", task_name=task_name)
         return _SKIP_NON_TRADING_DAY
 
     if weekday == 1:
@@ -53,15 +53,15 @@ def _skip_weekly_with_holiday_fallback(task_name: str) -> dict[str, Any] | None:
         monday = (now - timedelta(days=1)).date()
         if not is_trading_day(check_date=monday):
             if is_trading_day():
-                logger.info("Running %s: Tuesday holiday-fallback (Monday was not a trading day)", task_name)
+                logger.info("running_tuesday_holiday_fallback", task_name=task_name)
                 return None
-            logger.info("Skipping %s: Tuesday is also not a trading day", task_name)
+            logger.info("skipping_tuesday_not_trading_day", task_name=task_name)
             return _SKIP_NON_TRADING_DAY
-        logger.info("Skipping %s: Tuesday fallback not needed, Monday was a trading day", task_name)
+        logger.info("skipping_tuesday_fallback_not_needed", task_name=task_name)
         return {"status": "skipped", "reason": "Tuesday fallback not needed"}
 
     # Should not happen with Mon/Tue cron, but guard anyway
-    logger.info("Skipping %s: not Monday or Tuesday", task_name)
+    logger.info("skipping_not_scheduled_day", task_name=task_name)
     return {"status": "skipped", "reason": "Not scheduled day"}
 
 

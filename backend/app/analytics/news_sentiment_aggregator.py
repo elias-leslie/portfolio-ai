@@ -204,7 +204,7 @@ def get_symbol_sentiment(
         )
 
     except Exception as e:
-        logger.error("news_sentiment_error", symbol=symbol, error=str(e))
+        logger.error("news_sentiment_error", symbol=symbol, error=str(e), exc_info=True)
         return NewsSentimentScore(
             symbol=symbol,
             error=str(e),

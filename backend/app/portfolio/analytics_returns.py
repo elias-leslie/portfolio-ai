@@ -40,7 +40,7 @@ def calculate_portfolio_value(
     for position in positions:
         price = price_data.get(position.symbol)
         if not price:
-            logger.warning("No price data for %s, skipping from value calculation", position.symbol)
+            logger.warning("no_price_data_skipping", symbol=position.symbol)
             continue
 
         # Skip positions with price errors

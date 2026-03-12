@@ -68,7 +68,7 @@ class PortfolioManager:
             account.model_dump(),
         )
 
-        logger.info("Created account %s: %s (%s)", account_id, name, account_type)
+        logger.info("account_created", account_id=account_id, name=name, account_type=account_type)
         return account
 
     def update_account_cash_balance(
@@ -94,7 +94,7 @@ class PortfolioManager:
         df_update = pl.DataFrame([account.model_dump()])
         self.storage.upsert_by_id("portfolio_accounts", df_update, "id")
 
-        logger.info("Updated cash balance for account %s", account_id)
+        logger.info("cash_balance_updated", account_id=account_id)
         return account
 
     def get_accounts(self) -> list[Account]:
@@ -157,7 +157,7 @@ class PortfolioManager:
             position.model_dump(),
         )
 
-        logger.info("Created position %s: %s shares of %s at $%s", position_id, shares, symbol, cost_basis)
+        logger.info("position_created", position_id=position_id, shares=shares, symbol=symbol, cost_basis=cost_basis)
         return position
 
     def update_position(
@@ -215,7 +215,7 @@ class PortfolioManager:
         df_update = pl.DataFrame([position.model_dump()])
         self.storage.upsert_by_id("portfolio_positions", df_update, "id")
 
-        logger.info("Updated position %s", position_id)
+        logger.info("position_updated", position_id=position_id)
         return position
 
     def delete_position(self, position_id: str) -> None:
@@ -241,7 +241,7 @@ class PortfolioManager:
             )
             conn.commit()
 
-        logger.info("Deleted position %s", position_id)
+        logger.info("position_deleted", position_id=position_id)
 
     def get_positions(self, account_id: str | None = None) -> list[Position]:
         """Get positions, optionally filtered by account.

@@ -70,7 +70,7 @@ class SourceHealthPolicy:
 def _load_api_sources_registry() -> dict[str, Any]:
     """Load the provider capability registry."""
     config_path = Path(__file__).resolve().parent.parent / "config" / "api-sources-registry.yaml"
-    with config_path.open() as registry_file:
+    with config_path.open(encoding="utf-8") as registry_file:
         loaded = yaml.safe_load(registry_file)
     return loaded if isinstance(loaded, dict) else {}
 

@@ -262,5 +262,5 @@ def add_symbol_to_watchlist(
                 return item_id
             return None
     except Exception as e:
-        logger.error("watchlist_discovery_add_failed", symbol=symbol, error=str(e))
+        logger.error("watchlist_discovery_add_failed", symbol=symbol, error=str(e), exc_info=True)
         return None

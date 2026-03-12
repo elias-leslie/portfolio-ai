@@ -77,5 +77,5 @@ def create_paper_trade_from_strategy_signal(
         )
         return insert_data
     except Exception as e:
-        logger.error("paper_trade_create_error", strategy_id=strategy_id, symbol=symbol, error=str(e))
+        logger.error("paper_trade_create_error", strategy_id=strategy_id, symbol=symbol, error=str(e), exc_info=True)
         return None

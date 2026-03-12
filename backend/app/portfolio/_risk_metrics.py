@@ -67,21 +67,21 @@ def compute_local_risk_metrics(
     )
 
     if df.is_empty():
-        logger.warning("No day_bars data found for symbol=%s benchmark=%s", symbol, market_benchmark)
+        logger.warning("no_day_bars_data", symbol=symbol, benchmark=market_benchmark)
         return (None, None)
 
     try:
         symbol_df = _build_return_series(df, symbol, "symbol_return")
         market_df = _build_return_series(df, market_benchmark, "market_return")
     except pl.exceptions.ComputeError:
-        logger.warning("ComputeError building return series for symbol=%s", symbol)
+        logger.warning("return_series_compute_error", symbol=symbol)
         return (None, None)
 
     if symbol_df.is_empty() or market_df.is_empty():
         logger.warning(
-            "Empty return series after pct_change: symbol_empty=%s market_empty=%s",
-            symbol_df.is_empty(),
-            market_df.is_empty(),
+            "empty_return_series",
+            symbol_empty=symbol_df.is_empty(),
+            market_empty=market_df.is_empty(),
         )
         return (None, None)
 

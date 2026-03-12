@@ -54,12 +54,12 @@ def _load_training_data(training_data_path: Path) -> tuple[list[dict[str, Any]],
         logger.info("No existing training data found, starting fresh")
         return [], set()
 
-    with training_data_path.open() as f:
+    with training_data_path.open(encoding="utf-8") as f:
         raw_existing_data = json.load(f)
 
     existing_data = [_normalize_training_article(article) for article in raw_existing_data]
     labeled_hashes = {_article_hash(article["symbol"], article["headline"]) for article in existing_data}
-    logger.info("Loaded %d existing training samples", len(existing_data))
+    logger.info("training_data_loaded", sample_count=len(existing_data))
     return existing_data, labeled_hashes
 
 
@@ -78,19 +78,19 @@ def _query_new_articles(
     logger.info("Querying new articles from database...")
     conn.execute(_QUERY_ARTICLES_SQL)
     all_articles = conn.fetchall()
-    logger.info("Found %d recent articles", len(all_articles))
+    logger.info("recent_articles_found", count=len(all_articles))
 
     new_articles = [
         article
         for article in map(_row_to_article, all_articles)
         if _article_hash(article["symbol"], article["headline"]) not in labeled_hashes
     ]
-    logger.info("%d are NEW (not yet labeled)", len(new_articles))
+    logger.info("new_unlabeled_articles", count=len(new_articles))
 
     if len(new_articles) <= limit:
         return new_articles
 
-    logger.info("Limiting to %d new articles for this training run", limit)
+    logger.info("limiting_new_articles", limit=limit)
     return new_articles[:limit]
 
 
@@ -104,11 +104,11 @@ def _row_to_article(row: Any) -> dict[str, str]:
 
 def _label_articles_with_gemini(new_articles: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Send articles to Gemini for quality labeling."""
-    logger.info("Labeling %d articles with Gemini...", len(new_articles))
+    logger.info("labeling_articles_with_gemini", count=len(new_articles))
     tmp_path = _write_articles_to_tempfile(new_articles)
 
     try:
-        with Path(tmp_path).open() as tmp_file:
+        with Path(tmp_path).open(encoding="utf-8") as tmp_file:
             result = subprocess.run(
                 ["gemini", "--prompt", _GEMINI_PROMPT],
                 stdin=tmp_file,
@@ -125,7 +125,7 @@ def _label_articles_with_gemini(new_articles: list[dict[str, Any]]) -> list[dict
         raise RuntimeError(f"Gemini labeling failed: {result.stderr}")
 
     gemini_labels = _parse_gemini_output(result.stdout, result.stderr)
-    logger.info("Gemini labeled %d articles", len(gemini_labels))
+    logger.info("gemini_labeling_complete", count=len(gemini_labels))
     return gemini_labels
 
 
@@ -170,7 +170,7 @@ def _merge_gemini_labels(
             }
         )
 
-    logger.info("Merged %d labeled articles", len(newly_labeled))
+    logger.info("labeled_articles_merged", count=len(newly_labeled))
     return newly_labeled
 
 
@@ -210,7 +210,7 @@ def _train_and_save_model(
     prod_model_path = _MODEL_DIR / _PRODUCTION_MODEL_FILENAME
     prod_model_path.unlink(missing_ok=True)
     prod_model_path.symlink_to(model_path.name)
-    logger.info("Production model updated: %s -> %s", prod_model_path, model_path.name)
+    logger.info("production_model_updated", prod_model_path=str(prod_model_path), new_model=model_path.name)
     return metrics, model_version, model_path, training_duration
 
 

@@ -49,5 +49,5 @@ class IntelligenceFetcher:
             return data
 
         except httpx.HTTPError as e:
-            logger.error("intelligence_fetch_failed", symbol=symbol, error=str(e))
+            logger.error("intelligence_fetch_failed", symbol=symbol, error=str(e), exc_info=True)
             raise RuntimeError(f"Failed to fetch intelligence for {symbol}: {e}") from e

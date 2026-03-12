@@ -236,7 +236,7 @@ def _check_one_table(
     try:
         result = check_table_freshness(storage, config, now)
     except Exception as e:
-        logger.error("table_freshness_check_failed", table=config["table_name"], error=str(e))
+        logger.error("table_freshness_check_failed", table=config["table_name"], error=str(e), exc_info=True)
         return (
             {"table_name": config["table_name"], "last_update": None, "age_hours": None,
              "is_stale": True, "is_critical": True, "reason": f"check_failed: {e}"},

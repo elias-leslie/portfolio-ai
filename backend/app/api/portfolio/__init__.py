@@ -71,7 +71,7 @@ def _fetch_prices_with_sync(symbols: list[str]) -> dict[str, Any]:
     try:
         portfolio_mgr.sync_portfolio_to_watchlist(symbols)
     except Exception as e:
-        logger.error("Failed to sync portfolio to watchlist: %s", e)
+        logger.error("portfolio_watchlist_sync_failed", error=str(e), exc_info=True)
 
     return _price_fetcher().fetch_price_data(symbols)
 

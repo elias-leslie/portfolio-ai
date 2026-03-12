@@ -135,7 +135,7 @@ async def get_symbol_intelligence(
     try:
         return await run_in_threadpool(build_symbol_intelligence, symbol, include_market, include_strategies)
     except Exception as e:
-        logger.exception("Error getting symbol intelligence for %s", symbol)
+        logger.exception("symbol_intelligence_failed", symbol=symbol)
         return SymbolIntelligenceResponse(
             symbol=symbol.upper(), generated_at=datetime.now(UTC), error=str(e)
         )

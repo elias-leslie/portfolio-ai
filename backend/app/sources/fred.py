@@ -193,7 +193,7 @@ class FREDSource:
             return None
 
         except Exception as e:
-            logger.error("fred_fetch_failed", indicator=indicator, error=str(e))
+            logger.error("fred_fetch_failed", indicator=indicator, error=str(e), exc_info=True)
             return None
 
     def fetch_multiple(self, indicators: list[str]) -> dict[str, FREDDataDict]:
@@ -281,7 +281,7 @@ class FREDSource:
             return results
 
         except Exception as e:
-            logger.error("fred_series_fetch_failed", indicator=indicator, error=str(e))
+            logger.error("fred_series_fetch_failed", indicator=indicator, error=str(e), exc_info=True)
             return []
 
     def get_latest_value(self, indicator: str) -> tuple[date, float] | None:
@@ -302,7 +302,7 @@ class FREDSource:
             value = float(data["value"])
             return (obs_date, value)
         except (ValueError, KeyError) as e:
-            logger.error("fred_parse_latest_failed", indicator=indicator, error=str(e))
+            logger.error("fred_parse_latest_failed", indicator=indicator, error=str(e), exc_info=True)
             return None
 
     def fetch_yield_curve(self, as_of_date: date | None = None) -> dict[str, float | bool | None]:

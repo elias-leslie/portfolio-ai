@@ -298,7 +298,7 @@ def _load_rules_from_yaml(path: Path) -> TradingRules:
         logger.warning("rules_file_not_found", path=str(path))
         return TradingRules()
 
-    with path.open() as f:
+    with path.open(encoding="utf-8") as f:
         data = yaml.safe_load(f)
 
     if not data:

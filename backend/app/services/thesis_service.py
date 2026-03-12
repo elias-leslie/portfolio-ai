@@ -82,7 +82,7 @@ class ThesisService:
             return thesis
 
         except Exception as e:
-            logger.error("thesis_generation_failed", symbol=symbol, error=str(e))
+            logger.error("thesis_generation_failed", symbol=symbol, error=str(e), exc_info=True)
             raise RuntimeError(f"Failed to generate thesis for {symbol}: {e}") from e
 
     def get_thesis(self, symbol: str) -> Thesis | None:
@@ -144,5 +144,5 @@ class ThesisService:
             return triggers
 
         except Exception as e:
-            logger.error("invalidation_trigger_check_failed", symbol=symbol, error=str(e))
+            logger.error("invalidation_trigger_check_failed", symbol=symbol, error=str(e), exc_info=True)
             return []

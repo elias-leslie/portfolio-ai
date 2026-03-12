@@ -99,7 +99,7 @@ def load_quota_config() -> dict[str, dict[str, Any]]:
 
     config_path = Path(__file__).parent.parent / "config" / "quota_config.json"
     try:
-        with config_path.open() as f:
+        with config_path.open(encoding="utf-8") as f:
             config_data: dict[str, Any] = json.load(f)
             sources: dict[str, dict[str, Any]] = config_data.get("sources", {})
             return sources

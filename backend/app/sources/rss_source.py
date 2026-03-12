@@ -122,7 +122,7 @@ class RssNewsSource(BaseSource):
         try:
             return [self.symbol_feed_template.format(**template_kwargs)]
         except Exception as exc:
-            logger.debug("%s_symbol_template_failed", self.name, symbol=symbol, error=str(exc))
+            logger.debug("symbol_template_failed", source=self.name, symbol=symbol, error=str(exc))
             return []
 
     def _rate_limit_wait(self) -> None:
@@ -144,10 +144,10 @@ class RssNewsSource(BaseSource):
             with urlopen(request, timeout=self.request_timeout) as response:
                 data = response.read()
         except (HTTPError, URLError, TimeoutError) as exc:
-            logger.warning("%s_feed_fetch_failed", self.name, url=url, error=str(exc))
+            logger.warning("feed_fetch_failed", source=self.name, url=url, error=str(exc))
             return []
         except Exception as exc:  # pragma: no cover
-            logger.warning("%s_feed_fetch_failed", self.name, url=url, error=str(exc))
+            logger.warning("feed_fetch_failed", source=self.name, url=url, error=str(exc))
             return []
         parsed = parse_feed(data)
         return parsed.entries or []

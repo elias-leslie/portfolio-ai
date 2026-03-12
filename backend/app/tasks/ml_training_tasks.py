@@ -238,7 +238,7 @@ def _write_training_data(training_data_path: Path, combined_data: list[dict[str,
     training_data_path.parent.mkdir(parents=True, exist_ok=True)
     with training_data_path.open("w", encoding="utf-8") as f:
         json.dump(combined_data, f, indent=2)
-    logger.info("Updated training data: %d total samples", len(combined_data))
+    logger.info("training_data_updated", total_samples=len(combined_data))
 
 
 def _handle_training_exception(
@@ -246,7 +246,7 @@ def _handle_training_exception(
     session_id: str | None,
     error: Exception,
 ) -> TrainingResult:
-    logger.exception("Retraining failed: %s", error)
+    logger.exception("retraining_failed", error=str(error))
     _update_progress(
         conn,
         session_id,

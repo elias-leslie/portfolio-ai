@@ -214,7 +214,7 @@ def get_trading_rules() -> dict[str, Any]:
             },
         }
     except Exception as e:
-        logger.error("Failed to load trading rules: %s", e)
+        logger.error("rules_load_failed", error=str(e), exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to load trading rules: {e!s}") from e
 
 
@@ -258,5 +258,5 @@ def export_trading_rules(format: ExportFormat = ExportFormat.yaml) -> Response:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("Failed to export trading rules: %s", e)
+        logger.error("rules_export_failed", error=str(e), exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to export trading rules: {e!s}") from e

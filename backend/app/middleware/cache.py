@@ -155,7 +155,7 @@ def cache_response(
 
             if request is None:
                 # No request object, skip caching
-                logger.warning("No request object found for %s, skipping cache", func.__name__)
+                logger.warning("cache_no_request_object", func_name=func.__name__)
                 result = await func(*args, **kwargs)  # type: ignore[misc]
                 return result
 
@@ -181,7 +181,7 @@ def cache_response(
                     "Cache-Control": "no-store, max-age=0",
                 }
 
-                logger.debug("Cache HIT: %s", cache_key)
+                logger.debug("cache_hit", cache_key=cache_key)
                 return JSONResponse(
                     content=cached_data,
                     status_code=status_code,
@@ -190,7 +190,7 @@ def cache_response(
 
             # Cache miss - execute function
             _cache_stats["misses"] += 1
-            logger.debug("Cache MISS: %s", cache_key)
+            logger.debug("cache_miss", cache_key=cache_key)
 
             result = await func(*args, **kwargs)  # type: ignore[misc]
 
@@ -269,13 +269,13 @@ def invalidate_cache_pattern(pattern: str) -> int:
     # Delete keys
     for key in keys_to_delete:
         del _cache[key]
-        logger.debug("Cache invalidated: %s", key)
+        logger.debug("cache_invalidated", cache_key=key)
 
     count = len(keys_to_delete)
     _cache_stats["invalidations"] += count
 
     if count > 0:
-        logger.info("Invalidated %d cache entries matching pattern: %s", count, pattern)
+        logger.info("cache_entries_invalidated", count=count, pattern=pattern)
 
     return count
 
@@ -293,7 +293,7 @@ def clear_cache() -> int:
     _cache.clear()
     _cache_stats["invalidations"] += count
 
-    logger.info("Cleared all %d cache entries", count)
+    logger.info("cache_cleared", count=count)
     return count
 
 
@@ -375,7 +375,7 @@ def invalidate_market_data_cache() -> int:
     total = 0
     for pattern in patterns:
         total += invalidate_cache_pattern(pattern)
-    logger.info("Invalidated %d market data cache entries", total)
+    logger.info("market_data_cache_invalidated", count=total)
     return total
 
 
@@ -395,5 +395,5 @@ def invalidate_fear_greed_cache() -> int:
     total = 0
     for pattern in patterns:
         total += invalidate_cache_pattern(pattern)
-    logger.info("Invalidated %d Fear & Greed cache entries", total)
+    logger.info("fear_greed_cache_invalidated", count=total)
     return total

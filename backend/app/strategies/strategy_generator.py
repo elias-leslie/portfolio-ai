@@ -154,14 +154,16 @@ Based on this research, generate a trading strategy configuration as valid JSON.
             result = self._construct_strategy_result(strategy_data)
 
             logger.info(
-                f"Strategy generated successfully: {research.symbol} -> {result.strategy_type} "
-                f"(confidence={result.confidence:.2f})"
+                "strategy_generated",
+                symbol=research.symbol,
+                strategy_type=result.strategy_type,
+                confidence=round(result.confidence, 2),
             )
 
             return result
 
         except Exception as e:
-            logger.exception(f"Strategy generation failed: {e}")
+            logger.exception("strategy_generation_failed", error=str(e))
             raise ValueError(f"Strategy generation failed: {e}") from e
 
     def _format_research_prompt(self, research: ResearchInsights) -> str:
@@ -303,7 +305,7 @@ Based on this research, generate a trading strategy configuration as valid JSON.
             return result
 
         except Exception as e:
-            logger.error("strategy_validation_failed", error=str(e))
+            logger.error("strategy_validation_failed", error=str(e), exc_info=True)
             raise ValueError(f"Invalid strategy configuration: {e}") from e
 
 

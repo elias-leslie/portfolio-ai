@@ -61,7 +61,7 @@ class ThesisGenerator:
             return parsed
 
         except (json.JSONDecodeError, ValueError, IndexError) as e:
-            logger.error("json_parse_failed", content_preview=content[:500], error=str(e))
+            logger.error("json_parse_failed", content_preview=content[:500], error=str(e), exc_info=True)
             raise ValueError(f"Failed to parse JSON from LLM response: {e}") from e
 
     @staticmethod

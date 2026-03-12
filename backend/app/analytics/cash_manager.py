@@ -129,7 +129,7 @@ class CashManager:
             return True
 
         except Exception as e:
-            logger.error("cash_deduction_failed", account_id=account_id, error=str(e))
+            logger.error("cash_deduction_failed", account_id=account_id, error=str(e), exc_info=True)
             return False
 
     def add_cash(self, account_id: str, amount: float, reason: str) -> bool:
@@ -181,7 +181,7 @@ class CashManager:
             return True
 
         except Exception as e:
-            logger.error("cash_addition_failed", account_id=account_id, error=str(e))
+            logger.error("cash_addition_failed", account_id=account_id, error=str(e), exc_info=True)
             return False
 
     def reset_cash_balance(self, account_id: str) -> bool:
@@ -212,5 +212,5 @@ class CashManager:
             return True
 
         except Exception as e:
-            logger.error("cash_balance_reset_failed", account_id=account_id, error=str(e))
+            logger.error("cash_balance_reset_failed", account_id=account_id, error=str(e), exc_info=True)
             return False

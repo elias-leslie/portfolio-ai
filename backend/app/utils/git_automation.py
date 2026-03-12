@@ -124,7 +124,7 @@ def _get_repo_root() -> Path | None:
             return Path(result.stdout.strip())
         return None
     except Exception as e:
-        logger.error("git_root_failed", error=str(e))
+        logger.error("git_root_failed", error=str(e), exc_info=True)
         return None
 
 

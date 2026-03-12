@@ -108,9 +108,6 @@ class MarketIntelligenceResponse(BaseModel):
     Combines Market Health, Fear & Greed, Indicators, Sector Rotation, and Options Activity.
     """
 
-    # Narrative (deprecated - kept for backward compatibility)
-    narrative: str = Field(default="", description="Deprecated - no longer used")
-
     # Dual scoring
     market_health: MarketHealthScore = Field(..., description="Market Health score (4 indicators)")
     fear_greed: FearGreedScore = Field(..., description="Fear & Greed Index (5 signals)")

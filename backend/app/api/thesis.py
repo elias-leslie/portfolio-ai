@@ -71,7 +71,7 @@ async def get_thesis(symbol: str) -> ThesisResponse:
         )
 
     except Exception as e:
-        logger.exception(f"Error getting thesis for {symbol}", error=str(e))
+        logger.exception("thesis_get_failed", symbol=symbol, error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to get thesis: {e!s}") from e
 
 
@@ -113,7 +113,7 @@ async def generate_thesis(
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception(f"Error generating thesis for {symbol}", error=str(e))
+        logger.exception("thesis_generation_failed", symbol=symbol, error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to generate thesis: {e!s}") from e
 
 
@@ -165,7 +165,7 @@ async def invalidate_thesis(
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception(f"Error invalidating thesis for {symbol}", error=str(e))
+        logger.exception("thesis_invalidation_failed", symbol=symbol, error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to invalidate thesis: {e!s}") from e
 
 
@@ -194,7 +194,7 @@ async def get_thesis_versions(
         return versions
 
     except Exception as e:
-        logger.exception(f"Error getting thesis versions for {symbol}", error=str(e))
+        logger.exception("thesis_versions_get_failed", symbol=symbol, error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to get versions: {e!s}") from e
 
 
@@ -218,7 +218,7 @@ async def check_invalidation_triggers(symbol: str) -> dict[str, list[str] | bool
         return {"triggered": len(triggers) > 0, "reasons": triggers}
 
     except Exception as e:
-        logger.exception(f"Error checking invalidation triggers for {symbol}", error=str(e))
+        logger.exception("thesis_invalidation_check_failed", symbol=symbol, error=str(e))
         raise HTTPException(
             status_code=500, detail=f"Failed to check invalidation triggers: {e!s}"
         ) from e

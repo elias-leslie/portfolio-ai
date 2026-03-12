@@ -98,7 +98,7 @@ def _check_technical_quality(storage: PortfolioStorage, symbol: str, now: dateti
             details += f", calc {int((now - row['calculated_at']).total_seconds() / 3600)}h ago"
         return PillarQuality(status=status, score=score, details=details)
     except Exception as e:
-        logger.error("technical_quality_check_failed", symbol=symbol, error=str(e))
+        logger.error("technical_quality_check_failed", symbol=symbol, error=str(e), exc_info=True)
         return _na(f"Error: {e!s}")
 
 
@@ -127,7 +127,7 @@ def _check_fundamental_quality(storage: PortfolioStorage, symbol: str, now: date
         details = f"{non_null}/{total} metrics" + (f", {days_old}d old" if aod else "")
         return PillarQuality(status=status, score=score, details=details)
     except Exception as e:
-        logger.error("fundamental_quality_check_failed", symbol=symbol, error=str(e))
+        logger.error("fundamental_quality_check_failed", symbol=symbol, error=str(e), exc_info=True)
         return _na(f"Error: {e!s}")
 
 
@@ -162,7 +162,7 @@ def _check_catalyst_quality(storage: PortfolioStorage, symbol: str, now: datetim
             details += f" ({ic} insider)"
         return PillarQuality(status=status, score=score, details=details)
     except Exception as e:
-        logger.error("catalyst_quality_check_failed", symbol=symbol, error=str(e))
+        logger.error("catalyst_quality_check_failed", symbol=symbol, error=str(e), exc_info=True)
         return _na(f"Error: {e!s}")
 
 
@@ -194,7 +194,7 @@ def _check_options_quality(storage: PortfolioStorage, symbol: str, now: datetime
                 return PillarQuality(status=status, score=score, details=detail)
         return PillarQuality(status="stale", score=0.0, details=detail)
     except Exception as e:
-        logger.error("options_quality_check_failed", symbol=symbol, error=str(e))
+        logger.error("options_quality_check_failed", symbol=symbol, error=str(e), exc_info=True)
         return _na(f"Error: {e!s}")
 
 
@@ -230,7 +230,7 @@ def _check_price_quality(storage: PortfolioStorage, symbol: str, now: datetime) 
             details += f", vol {vol:,.0f}" if vol >= 1000 else f", vol {vol:.0f}"
         return PillarQuality(status=status, score=score, details=details)
     except Exception as e:
-        logger.error("price_quality_check_failed", symbol=symbol, error=str(e))
+        logger.error("price_quality_check_failed", symbol=symbol, error=str(e), exc_info=True)
         return _na(f"Error: {e!s}")
 
 
@@ -276,7 +276,7 @@ def calculate_data_quality(storage: PortfolioStorage, symbols: list[str]) -> dic
                 **{f"{p}_status": raw_pillars[p].status for p in raw_pillars},
             )
         except Exception as e:
-            logger.error("symbol_quality_calculation_failed", symbol=symbol, error=str(e))
+            logger.error("symbol_quality_calculation_failed", symbol=symbol, error=str(e), exc_info=True)
             results[symbol] = _error_quality()
     logger.info(
         "data_quality_calculation_complete",

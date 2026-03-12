@@ -141,7 +141,7 @@ class StrategyEvolutionAgent:
                     best_metrics = metrics
 
             except Exception as e:
-                logger.exception(f"Walk-forward backtest failed for mutation {i}: {e}")
+                logger.exception("walk_forward_backtest_failed", mutation_index=i, error=str(e))
                 continue
 
         # 4. Check MAS (Minimum Acceptable Score)

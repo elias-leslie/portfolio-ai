@@ -96,7 +96,7 @@ def remove_symbol_from_watchlist(
                 return True
             return False
     except Exception as e:
-        logger.error("watchlist_trim_failed", symbol=symbol, error=str(e))
+        logger.error("watchlist_trim_failed", symbol=symbol, error=str(e), exc_info=True)
         return False
 
 

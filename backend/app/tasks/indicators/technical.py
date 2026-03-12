@@ -138,7 +138,7 @@ def _process_backfill_date(
                 error=str(e),
             )
             return False
-        logger.error("backfill_date_failed", symbol=symbol, date=date, error=str(e))
+        logger.error("backfill_date_failed", symbol=symbol, date=date, error=str(e), exc_info=True)
         return False
     except Exception as e:
         logger.error(

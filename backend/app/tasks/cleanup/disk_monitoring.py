@@ -45,7 +45,7 @@ def _load_disk_alert_threshold() -> int:
         return _DEFAULT_DISK_ALERT_THRESHOLD_PERCENT
 
     try:
-        with config_path.open() as config_file:
+        with config_path.open(encoding="utf-8") as config_file:
             config = yaml.safe_load(config_file) or {}
     except Exception as exc:
         logger.warning("disk_threshold_load_failed", error=str(exc), path=str(config_path))
