@@ -49,6 +49,41 @@ __all__ = [
 
 logger = get_logger(__name__)
 
+_VALID_DISAGREEMENT_VALUES = {e.value for e in DisagreementReason}
+
+
+def _extract_json_str(content: str) -> str | None:
+    """Extract JSON string from content, handling markdown fences."""
+    if "```json" in content:
+        return content.split("```json")[1].split("```")[0].strip()
+    if "```" in content:
+        return content.split("```")[1].split("```")[0].strip()
+    if "{" not in content:
+        return None
+    start = content.index("{")
+    end = content.rindex("}") + 1
+    return content[start:end]
+
+
+def _make_failed_result(
+    generator_output: str,
+    error: Exception,
+    context_type: str,
+    context_symbol: str | None,
+    metadata: dict[str, Any] | None,
+) -> ValidationResult:
+    """Build a ValidationResult for when validation errors out."""
+    return ValidationResult(
+        generator_output=generator_output,
+        validator_review=f"Validation failed: {error}",
+        validator_approved=False,
+        has_disagreement=True,
+        status=ValidationStatus.PENDING,
+        context_type=context_type,
+        context_symbol=context_symbol,
+        metadata=metadata or {},
+    )
+
 
 class CrossValidationService:
     """Service for cross-validating AI outputs between providers."""
@@ -64,10 +99,6 @@ class CrossValidationService:
         self._validator = validator_client
         self._generator_initialized = False
         self._validator_initialized = False
-
-    # ------------------------------------------------------------------
-    # Client lazy-initialisation
-    # ------------------------------------------------------------------
 
     def _ensure_generator(self) -> LLMClient:
         """Ensure generator client is initialized."""
@@ -94,10 +125,6 @@ class CrossValidationService:
         if self._validator is None:
             raise RuntimeError("Validator client (Claude) not available")
         return self._validator
-
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
 
     def validate(
         self,
@@ -150,16 +177,7 @@ class CrossValidationService:
             )
         except Exception as e:
             logger.error("cross_validation_failed", error=str(e))
-            return ValidationResult(
-                generator_output=generator_output,
-                validator_review=f"Validation failed: {e}",
-                validator_approved=False,
-                has_disagreement=True,
-                status=ValidationStatus.PENDING,
-                context_type=context_type,
-                context_symbol=context_symbol,
-                metadata=metadata or {},
-            )
+            return _make_failed_result(generator_output, e, context_type, context_symbol, metadata)
 
     def generate_and_validate(
         self,
@@ -182,16 +200,7 @@ class CrossValidationService:
             )
         except Exception as e:
             logger.error("cross_validation_failed", error=str(e))
-            result = ValidationResult(
-                generator_output=response.content,
-                validator_review=f"Validation failed: {e}",
-                validator_approved=False,
-                has_disagreement=True,
-                status=ValidationStatus.PENDING,
-                context_type=context_type,
-                context_symbol=context_symbol,
-                metadata=metadata or {},
-            )
+            result = _make_failed_result(response.content, e, context_type, context_symbol, metadata)
         return response, result
 
     def get_pending_validations(self, limit: int = 50) -> list[ValidationResult]:
@@ -213,24 +222,13 @@ class CrossValidationService:
             resolved_by=resolved_by,
         )
 
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
-
     @staticmethod
     def _parse_review_response(content: str) -> dict[str, Any]:
         """Parse JSON review response from validator."""
+        json_str = _extract_json_str(content)
+        if json_str is None:
+            return {"approved": False, "review_summary": content}
         try:
-            if "```json" in content:
-                json_str = content.split("```json")[1].split("```")[0].strip()
-            elif "```" in content:
-                json_str = content.split("```")[1].split("```")[0].strip()
-            elif "{" in content:
-                start = content.index("{")
-                end = content.rindex("}") + 1
-                json_str = content[start:end]
-            else:
-                return {"approved": False, "review_summary": content}
             parsed: dict[str, Any] = json.loads(json_str)
             return parsed
         except (json.JSONDecodeError, ValueError, IndexError):
@@ -249,6 +247,12 @@ class CrossValidationService:
     ) -> ValidationResult:
         """Build and persist a ValidationResult from a validator response."""
         review_data = self._parse_review_response(response.content)
+        approved = review_data.get("approved", False)
+        disagreement_reasons = [
+            DisagreementReason(r)
+            for r in review_data.get("disagreement_reasons", [])
+            if r in _VALID_DISAGREEMENT_VALUES
+        ]
         result = ValidationResult(
             generator_provider="gemini",
             generator_model=self._generator.get_model_name() if self._generator else "",
@@ -257,28 +261,21 @@ class CrossValidationService:
             validator_provider="claude",
             validator_model=validator.get_model_name() if hasattr(validator, "get_model_name") else "",
             validator_review=review_data.get("review_summary", response.content),
-            validator_approved=review_data.get("approved", False),
+            validator_approved=approved,
             validator_confidence=review_data.get("confidence"),
-            has_disagreement=not review_data.get("approved", False),
-            disagreement_reasons=[
-                DisagreementReason(r)
-                for r in review_data.get("disagreement_reasons", [])
-                if r in [e.value for e in DisagreementReason]
-            ],
+            has_disagreement=not approved,
+            disagreement_reasons=disagreement_reasons,
             disagreement_details=json.dumps(review_data.get("issues_found", [])),
             context_type=context_type,
             context_symbol=context_symbol,
             metadata=metadata or {},
         )
-
         result.status = self._determine_status(result)
         if result.status == ValidationStatus.AUTO_APPLIED:
             result.final_output = generator_output
             result.resolved_at = datetime.now(UTC).isoformat()
             result.resolved_by = "auto"
-
         _save_result(result)
-
         logger.info(
             "cross_validation_completed",
             result_id=result.id,
