@@ -3,536 +3,53 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import uuid
 from csv import DictReader
 from datetime import UTC, datetime
-from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from fastapi import UploadFile
 
-from app.models.household_finance import HouseholdDocument, HouseholdQuestion
+from app.models.household_finance import HouseholdDocument
+from app.services._household_document_pipeline_db import (
+    archive_prior_document_data,
+    insert_document_db,
+    insert_inferred_values,
+    insert_questions,
+    save_upload_to_disk,
+    update_document_and_log_review,
+    update_import_summary,
+    upsert_import_row,
+    upsert_signature_record,
+)
+from app.services._household_document_pipeline_utils import (
+    build_import_row_hash,
+    classify_document,
+    detect_import_dataset,
+    parse_decimal,
+    parse_row_date,
+)
 from app.services.household_finance_rows import row_to_document
-from app.storage.types import DatabaseConnection
 
 if TYPE_CHECKING:
     from app.services.household_finance_service import HouseholdFinanceService
 
-
-# ---------------------------------------------------------------------------
-# Pure utilities (module-level)
-# ---------------------------------------------------------------------------
-
-
-def classify_document(
-    *,
-    filename: str,
-    content_type: str | None,
-    source_type: str | None,
-    document_type: str | None,
-) -> tuple[str, str, float]:
-    """Return (inferred_source, inferred_type, confidence) for an upload."""
-    if source_type and document_type:
-        return source_type, document_type, 0.99
-
-    lowered = filename.lower()
-    inferred_source = source_type or "other"
-    inferred_type = document_type or "other"
-    confidence = 0.55
-
-    rules: list[tuple[list[str], str, str, float]] = [
-        (["checking", "bank", "statement"], "bank", "statement", 0.82),
-        (["visa", "mastercard", "amex", "credit"], "credit_card", "statement", 0.88),
-        (["brokerage", "fidelity", "schwab", "vanguard"], "brokerage", "brokerage_statement", 0.9),
-        (["ira", "401k", "roth", "retirement"], "retirement", "retirement_statement", 0.9),
-        (["pay stub", "paystub", "payroll"], "income", "pay_stub", 0.92),
-        (["w-2", "w2", "1099"], "tax", "w2_1099", 0.94),
-        (["1040", "tax return", "taxreturn"], "tax", "tax_return", 0.94),
-        (["mortgage"], "housing", "mortgage_statement", 0.92),
-        (["heloc"], "debt", "heloc_statement", 0.92),
-        (["student loan", "nelnet", "mohela", "aidvantage"], "debt", "student_loan_statement", 0.92),
-        (["auto loan", "car loan"], "debt", "auto_loan_statement", 0.92),
-        (["declarations", "policy summary"], "insurance", "insurance_declarations", 0.92),
-        (["insurance policy", "policy"], "insurance", "insurance_policy", 0.86),
-        (["social security", "ssa"], "retirement_income", "social_security_statement", 0.94),
-        (["pension"], "retirement_income", "pension_statement", 0.92),
-        (["benefits summary", "open enrollment", "benefits"], "benefits", "benefits_summary", 0.9),
-        (["estimate", "quote", "contract"], "billing", "major_expense_support", 0.82),
-        (["receipt", "walmart", "target", "costco"], "receipt", "receipt", 0.8),
-        (["invoice", "bill", "utility", "insurance"], "billing", "invoice", 0.8),
-    ]
-    for tokens, src, doc_type, conf in rules:
-        if any(t in lowered for t in tokens) and conf >= confidence:
-            inferred_source = source_type or src
-            inferred_type = document_type or doc_type
-            confidence = conf
-
-    if content_type and content_type.startswith("image/") and inferred_type == "other":
-        inferred_type = "receipt"
-        inferred_source = source_type or "receipt"
-        confidence = max(confidence, 0.72)
-
-    return inferred_source, inferred_type, confidence
-
-
-def parse_row_date(value: str | None) -> str | None:
-    """Parse an ISO-ish date string; return None on failure."""
-    if not value:
-        return None
-    normalized = value.strip()
-    if not normalized:
-        return None
-    if normalized.endswith("Z"):
-        normalized = normalized.replace("Z", "+00:00")
-    try:
-        return datetime.fromisoformat(normalized).isoformat()
-    except ValueError:
-        return None
-
-
-def parse_decimal(value: str | None) -> str | None:
-    """Parse a currency string to a plain Decimal string; return None on failure."""
-    if value is None:
-        return None
-    normalized = value.strip().replace(",", "").replace("$", "")
-    if not normalized or normalized.lower() in {"not available", "not applicable"}:
-        return None
-    if normalized.startswith("'") and normalized.endswith("'"):
-        normalized = normalized[1:-1]
-    if normalized.startswith("(") and normalized.endswith(")"):
-        normalized = f"-{normalized[1:-1]}"
-    try:
-        return str(Decimal(normalized))
-    except InvalidOperation:
-        return None
-
-
-def detect_import_dataset(
-    *,
-    document: HouseholdDocument,
-    reviewed: dict[str, object],
-) -> str | None:
-    """Return dataset type key if the document should be imported as CSV rows."""
-    if not document.filename.lower().endswith(".csv"):
-        return None
-    structured_data = reviewed.get("structured_data")
-    if not isinstance(structured_data, dict):
-        structured_data = {}
-    merchant = structured_data.get("merchant")
-    if document.filename.lower() == "order history.csv" and merchant == "Amazon":
-        return "amazon_order_history"
-    return None
-
-
-def build_import_row_hash(
-    *,
-    dataset_type: str,
-    row: dict[str, str | None],
-) -> str | None:
-    """Compute a dedup hash for a CSV import row; return None if key fields are missing."""
-    if dataset_type != "amazon_order_history":
-        return None
-    order_id = (row.get("Order ID") or "").strip()
-    asin = (row.get("ASIN") or "").strip()
-    order_date = (row.get("Order Date") or "").strip()
-    if not order_id or not asin or not order_date:
-        return None
-    quantity = (row.get("Original Quantity") or "").strip()
-    fingerprint = "|".join([dataset_type, order_id, asin, order_date, quantity])
-    return hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()
-
-
-# ---------------------------------------------------------------------------
-# Private helpers
-# ---------------------------------------------------------------------------
-
-
-def _insert_inferred_values(
-    conn: DatabaseConnection,
-    service: HouseholdFinanceService,
-    *,
-    document: HouseholdDocument,
-    reviewed: dict[str, object],
-    now: str,
-) -> None:
-    for inferred in cast(list[dict[str, object]], reviewed.get("inferred_values") or []):
-        field_name = str(inferred.get("field_name") or "").strip()
-        if field_name not in service.FIELD_LABELS:
-            continue
-        conn.execute(
-            """
-            INSERT INTO household_inferred_values (
-                id, field_name, value_text, confidence, status, rationale,
-                source_document_id, metadata, created_at, updated_at
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
-            """,
-            [
-                str(uuid.uuid4()), field_name,
-                str(inferred.get("value") or "").strip() or None,
-                service._to_float(inferred.get("confidence")),
-                "inferred",
-                inferred.get("rationale"),
-                document.id,
-                json.dumps({"document_id": document.id}),
-                now, now,
-            ],
-        )
-
-
-def _build_question_candidate(
-    service: HouseholdFinanceService,
-    *,
-    question: dict[str, object],
-    document: HouseholdDocument,
-    resolved_source_type: str,
-    resolved_document_type: str,
-    structured_data: dict[str, object],
-    account_hint: object,
-    review_summary: object,
-    now: str,
-) -> HouseholdQuestion:
-    """Build a HouseholdQuestion from a raw question dict and document context."""
-    return HouseholdQuestion(
-        id=str(uuid.uuid4()),
-        field_name=str(question.get("field_name") or "").strip() or None,
-        status="open",
-        priority=service._normalize_priority(question.get("priority")),
-        question=str(question.get("question") or "").strip(),
-        rationale=str(question.get("rationale")) if question.get("rationale") is not None else None,
-        recommendation=str(question.get("recommendation")) if question.get("recommendation") is not None else None,
-        answer_text=None,
-        source_document_id=document.id,
-        question_format=service._normalize_question_format(question.get("question_format")),
-        options=service._normalize_question_options(question.get("options")),
-        direction=service._normalize_question_direction(question.get("direction")),
-        metadata={
-            "document_id": document.id,
-            "recommendation": question.get("recommendation"),
-            "source_document": {
-                "id": document.id,
-                "filename": document.filename,
-                "source_type": resolved_source_type,
-                "document_type": resolved_document_type,
-                "account_label": str(account_hint) if account_hint is not None else document.account_label,
-                "review_summary": str(review_summary) if review_summary is not None else None,
-                "merchant": structured_data.get("merchant"),
-                "account_hint": structured_data.get("account_hint"),
-            },
-        },
-        created_at=now,
-        answered_at=None,
-    )
-
-
-def _insert_questions(
-    conn: DatabaseConnection,
-    service: HouseholdFinanceService,
-    *,
-    document: HouseholdDocument,
-    reviewed: dict[str, object],
-    now: str,
-    resolved_source_type: str,
-    resolved_document_type: str,
-    structured_data: dict[str, object],
-    account_hint: object,
-) -> None:
-    review_summary = reviewed.get("summary")
-    for question in cast(list[dict[str, object]], reviewed.get("questions") or []):
-        prompt = str(question.get("question") or "").strip()
-        if not prompt:
-            continue
-        candidate = _build_question_candidate(
-            service,
-            question=question, document=document,
-            resolved_source_type=resolved_source_type,
-            resolved_document_type=resolved_document_type,
-            structured_data=structured_data,
-            account_hint=account_hint,
-            review_summary=review_summary,
-            now=now,
-        )
-        if service.question_reconciler.infer_question_resolution_from_existing_context(
-            service, conn=conn, question=candidate
-        ) is not None:
-            continue
-        conn.execute(
-            """
-            INSERT INTO household_questions (
-                id, field_name, status, priority, question, rationale,
-                source_document_id, metadata, question_format, options, direction, created_at
-            ) VALUES (%s, %s, 'open', %s, %s, %s, %s, %s::jsonb, %s, %s::jsonb, %s, %s)
-            """,
-            [
-                candidate.id, candidate.field_name,
-                candidate.priority, prompt,
-                question.get("rationale"),
-                document.id,
-                json.dumps({"document_id": document.id, "recommendation": question.get("recommendation")}),
-                candidate.question_format,
-                json.dumps(candidate.options) if candidate.options is not None else None,
-                candidate.direction,
-                now,
-            ],
-        )
-
-
-def _save_upload_to_disk(
-    content: bytes,
-    *,
-    document_id: str,
-    filename: str,
-    upload_dir: Path,
-) -> Path:
-    """Write upload bytes to disk and return the stored path."""
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    suffix = Path(filename).suffix or ".bin"
-    stored_path = upload_dir / f"{document_id}{suffix.lower()}"
-    stored_path.write_bytes(content)
-    return stored_path
-
-
-def _insert_document_db(
-    conn: DatabaseConnection,
-    *,
-    document_id: str,
-    filename: str,
-    stored_path: Path,
-    inferred_source: str,
-    inferred_type: str,
-    account_label: str | None,
-    content_type: str | None,
-    file_size: int,
-    confidence: float,
-    now: str,
-    metadata: dict[str, object],
-) -> None:
-    """Insert the household_documents row and commit."""
-    conn.execute(
-        """
-        INSERT INTO household_documents (
-            id, filename, stored_path, source_type, document_type, status,
-            account_label, content_type, file_size_bytes, classification_confidence,
-            uploaded_at, metadata
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
-        """,
-        [
-            document_id, filename, str(stored_path),
-            inferred_source, inferred_type, "staged",
-            account_label, content_type, file_size,
-            confidence, now, json.dumps(metadata),
-        ],
-    )
-    conn.commit()
-
-
-def _update_document_and_log_review(
-    conn: DatabaseConnection,
-    *,
-    document: HouseholdDocument,
-    resolved_source_type: str,
-    resolved_document_type: str,
-    document_status: str,
-    review_status: str,
-    review_confidence: float | None,
-    account_hint: object,
-    structured_data: dict[str, object],
-    reviewed: dict[str, object],
-    extracted_text: object,
-    now: str,
-) -> None:
-    """Update the document record and insert a review audit row."""
-    conn.execute(
-        """
-        UPDATE household_documents
-        SET source_type = %s, document_type = %s, status = %s, review_status = %s,
-            review_summary = %s, review_confidence = %s,
-            account_label = COALESCE(%s, account_label), parsed_at = %s,
-            metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
-        WHERE id = %s
-        """,
-        [
-            resolved_source_type, resolved_document_type,
-            document_status, review_status, reviewed.get("summary"), review_confidence,
-            str(account_hint) if account_hint is not None else None,
-            now, json.dumps({"structured_data": structured_data}), document.id,
-        ],
-    )
-    conn.execute(
-        """
-        INSERT INTO household_document_reviews (
-            id, document_id, status, summary, confidence,
-            extracted_text, structured_data, created_at, updated_at
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
-        """,
-        [
-            str(uuid.uuid4()), document.id, review_status, reviewed.get("summary"),
-            review_confidence, extracted_text, json.dumps(structured_data), now, now,
-        ],
-    )
-
-
-def _archive_prior_document_data(
-    conn: DatabaseConnection,
-    document_id: str,
-    now: str,
-) -> None:
-    """Supersede old inferred values and dismiss prior questions for a document."""
-    conn.execute(
-        """
-        UPDATE household_inferred_values
-        SET status = CASE WHEN status = 'confirmed' THEN status ELSE 'superseded' END,
-            updated_at = %s
-        WHERE source_document_id = %s
-        """,
-        [now, document_id],
-    )
-    conn.execute(
-        """
-        UPDATE household_questions
-        SET status = CASE WHEN status = 'answered' THEN status ELSE 'dismissed' END,
-            answered_at = COALESCE(answered_at, %s)
-        WHERE source_document_id = %s
-        """,
-        [now, document_id],
-    )
-
-
-def _upsert_signature_record(
-    conn: DatabaseConnection,
-    *,
-    signature_type: str,
-    signature_key: str,
-    metadata: dict[str, object],
-    source_type: str,
-    document_type: str,
-    structured_data: dict[str, object],
-    confidence: float | None,
-    document_id: str,
-    now: str,
-) -> None:
-    """Upsert one document signature row."""
-    conn.execute(
-        """
-        INSERT INTO household_document_signatures (
-            id, signature_key, signature_type, source_type, document_type,
-            merchant, account_hint, confidence, sample_document_id,
-            metadata, match_count, created_at, updated_at, last_seen_at
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, 1, %s, %s, %s)
-        ON CONFLICT (signature_key) DO UPDATE SET
-            source_type = EXCLUDED.source_type,
-            document_type = EXCLUDED.document_type,
-            merchant = COALESCE(EXCLUDED.merchant, household_document_signatures.merchant),
-            account_hint = COALESCE(EXCLUDED.account_hint, household_document_signatures.account_hint),
-            confidence = GREATEST(
-                COALESCE(household_document_signatures.confidence, 0),
-                COALESCE(EXCLUDED.confidence, 0)
-            ),
-            sample_document_id = EXCLUDED.sample_document_id,
-            metadata = household_document_signatures.metadata || EXCLUDED.metadata,
-            match_count = household_document_signatures.match_count + 1,
-            updated_at = EXCLUDED.updated_at,
-            last_seen_at = EXCLUDED.last_seen_at
-        """,
-        [
-            str(uuid.uuid4()), signature_key, signature_type,
-            source_type, document_type,
-            structured_data.get("merchant"),
-            structured_data.get("account_hint"),
-            confidence,
-            document_id, json.dumps(metadata), now, now, now,
-        ],
-    )
-
-
-def _upsert_import_row(
-    conn: DatabaseConnection,
-    *,
-    row: dict[str, str | None],
-    document_id: str,
-    dataset_type: str,
-    now: str,
-) -> bool | None:
-    """Upsert one CSV import row. Returns True=inserted, False=duplicate, None=skipped."""
-    row_hash = build_import_row_hash(dataset_type=dataset_type, row=row)
-    if row_hash is None:
-        return None
-    result = conn.execute(
-        """
-        INSERT INTO household_import_rows (
-            id, document_id, dataset_type, row_hash, external_row_id,
-            row_date, merchant, description, amount, currency, row_metadata,
-            created_at, updated_at
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
-        ON CONFLICT (row_hash) DO UPDATE SET
-            document_id = EXCLUDED.document_id,
-            external_row_id = COALESCE(EXCLUDED.external_row_id, household_import_rows.external_row_id),
-            row_date = COALESCE(EXCLUDED.row_date, household_import_rows.row_date),
-            merchant = COALESCE(EXCLUDED.merchant, household_import_rows.merchant),
-            description = COALESCE(EXCLUDED.description, household_import_rows.description),
-            amount = COALESCE(EXCLUDED.amount, household_import_rows.amount),
-            currency = COALESCE(EXCLUDED.currency, household_import_rows.currency),
-            row_metadata = household_import_rows.row_metadata || EXCLUDED.row_metadata,
-            updated_at = EXCLUDED.updated_at
-        RETURNING (xmax = 0) AS was_inserted
-        """,
-        [
-            str(uuid.uuid4()), document_id, dataset_type, row_hash,
-            row.get("Order ID"),
-            parse_row_date(row.get("Order Date")),
-            "Amazon",
-            row.get("Product Name") or row.get("ASIN"),
-            parse_decimal(
-                row.get("Total Amount")
-                or row.get("Shipment Item Subtotal")
-                or row.get("Unit Price")
-            ),
-            row.get("Currency"),
-            json.dumps(row),
-            now, now,
-        ],
-    ).fetchone()
-    return result is not None and bool(result[0])
-
-
-def _update_import_summary(
-    conn: DatabaseConnection,
-    *,
-    document_id: str,
-    dataset_type: str,
-    inserted: int,
-    duplicates: int,
-) -> None:
-    """Patch the document metadata with a CSV import summary."""
-    conn.execute(
-        """
-        UPDATE household_documents
-        SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
-        WHERE id = %s
-        """,
-        [
-            json.dumps({
-                "import_summary": {
-                    "dataset_type": dataset_type,
-                    "inserted_rows": inserted,
-                    "duplicate_rows": duplicates,
-                }
-            }),
-            document_id,
-        ],
-    )
-
-
-# ---------------------------------------------------------------------------
-# Pipeline class (≤10 methods)
-# ---------------------------------------------------------------------------
+# Re-export pure utilities at module level for any direct importers.
+__all__ = [
+    "HouseholdDocumentPipeline",
+    "build_import_row_hash",
+    "classify_document",
+    "detect_import_dataset",
+    "parse_decimal",
+    "parse_row_date",
+]
 
 
 class HouseholdDocumentPipeline:
     """Persist household uploads and review outcomes."""
 
-    # Expose module-level pure helpers as instance attributes for backward compat.
+    # Expose pure helpers as instance attributes for backward compatibility.
     classify_document = staticmethod(classify_document)
     parse_row_date = staticmethod(parse_row_date)
     parse_decimal = staticmethod(parse_decimal)
@@ -565,7 +82,7 @@ class HouseholdDocumentPipeline:
             source_type=source_type,
             document_type=document_type,
         )
-        stored_path = _save_upload_to_disk(
+        stored_path = save_upload_to_disk(
             content, document_id=document_id, filename=filename,
             upload_dir=service._upload_root(),
         )
@@ -576,7 +93,7 @@ class HouseholdDocumentPipeline:
             "content_sha256": content_sha256,
         }
         with service.storage.connection() as conn:
-            _insert_document_db(
+            insert_document_db(
                 conn,
                 document_id=document_id, filename=filename, stored_path=stored_path,
                 inferred_source=inferred_source, inferred_type=inferred_type,
@@ -647,7 +164,9 @@ class HouseholdDocumentPipeline:
                 )
                 conn.commit()
 
-    def process_document_review(self, service: HouseholdFinanceService, document: HouseholdDocument) -> None:
+    def process_document_review(
+        self, service: HouseholdFinanceService, document: HouseholdDocument
+    ) -> None:
         stored_path = document.metadata.get("stored_path")
         if not isinstance(stored_path, str) or not stored_path:
             return
@@ -699,7 +218,7 @@ class HouseholdDocumentPipeline:
                 "UPDATE household_questions SET status = 'dismissed', answered_at = %s WHERE source_document_id = %s AND status = 'open'",
                 [now, document.id],
             )
-            _update_document_and_log_review(
+            update_document_and_log_review(
                 conn,
                 document=document,
                 resolved_source_type=resolved_source_type,
@@ -713,8 +232,8 @@ class HouseholdDocumentPipeline:
                 extracted_text=extracted_text,
                 now=now,
             )
-            _insert_inferred_values(conn, service, document=document, reviewed=reviewed, now=now)
-            _insert_questions(
+            insert_inferred_values(conn, service, document=document, reviewed=reviewed, now=now)
+            insert_questions(
                 conn, service,
                 document=document, reviewed=reviewed, now=now,
                 resolved_source_type=resolved_source_type,
@@ -722,7 +241,7 @@ class HouseholdDocumentPipeline:
                 structured_data=structured_data,
                 account_hint=account_hint,
             )
-            _archive_prior_document_data(conn, document.id, now)
+            archive_prior_document_data(conn, document.id, now)
             conn.commit()
 
     def upsert_document_signatures(
@@ -752,7 +271,7 @@ class HouseholdDocumentPipeline:
         now = datetime.now(UTC).isoformat()
         with service.storage.connection() as conn:
             for signature_type, signature_key, metadata in signature_candidates:
-                _upsert_signature_record(
+                upsert_signature_record(
                     conn,
                     signature_type=signature_type,
                     signature_key=signature_key,
@@ -787,14 +306,14 @@ class HouseholdDocumentPipeline:
         duplicates = 0
         with service.storage.connection() as conn:
             for row in rows:
-                result = _upsert_import_row(
+                result = upsert_import_row(
                     conn, row=row, document_id=document.id, dataset_type=dataset_type, now=now,
                 )
                 if result is True:
                     inserted += 1
                 elif result is False:
                     duplicates += 1
-            _update_import_summary(
+            update_import_summary(
                 conn, document_id=document.id, dataset_type=dataset_type,
                 inserted=inserted, duplicates=duplicates,
             )
