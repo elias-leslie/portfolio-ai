@@ -42,6 +42,8 @@ describe('StatusWorkspace', () => {
         data: {
           status: 'healthy',
           timestamp: '2026-03-10T23:26:56.894882+00:00',
+          version: '2026.03.10',
+          uptimeSeconds: 14400,
           checks: {
             database: {
               status: 'ok',
@@ -111,8 +113,11 @@ describe('StatusWorkspace', () => {
     render(<StatusWorkspace />)
 
     expect(screen.getByText('0ms')).toBeInTheDocument()
+    expect(screen.getByText('62.5%')).toBeInTheDocument()
     expect(screen.getByText('5 of 8 symbols scored')).toBeInTheDocument()
     expect(screen.getByText('91.2%')).toBeInTheDocument()
+    expect(screen.getByText('4.0h')).toBeInTheDocument()
+    expect(screen.getByText('Version 2026.03.10')).toBeInTheDocument()
     expect(screen.getByText('Size 12 / 50 · age 1.5h')).toBeInTheDocument()
     expect(screen.getByText('No service status entries are available right now.')).toBeInTheDocument()
     expect(screen.getByText('No source health signals are available right now.')).toBeInTheDocument()

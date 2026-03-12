@@ -72,7 +72,6 @@ describe('HouseholdPlanningPanels', () => {
             blockers: ['Contribution rate is below target.'],
             nextSteps: [],
           },
-          actionItems: [],
           jennyNeeds: [],
           reports: {
             executive: {
@@ -206,7 +205,6 @@ describe('HouseholdPlanningPanels', () => {
               'Review asset allocation annually',
             ],
           },
-          actionItems: [],
           jennyNeeds: [],
           reports: {
             executive: {

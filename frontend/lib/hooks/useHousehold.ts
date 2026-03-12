@@ -66,10 +66,10 @@ export function useUpdateHouseholdProfile() {
     onSuccess: (profile) => {
       queryClient.setQueryData(['household', 'profile'], profile)
       queryClient.invalidateQueries({ queryKey: ['household'], refetchType: 'active' })
-      toast.success('Household plan updated.')
+      toast.success('Household profile updated.')
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Failed to update household plan')
+      toast.error(error instanceof Error ? error.message : 'Failed to update household profile')
     },
   })
 }

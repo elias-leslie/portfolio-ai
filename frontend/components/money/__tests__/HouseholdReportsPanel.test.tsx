@@ -65,7 +65,6 @@ describe('HouseholdReportsPanel', () => {
             blockers: [],
             nextSteps: [],
           },
-          actionItems: [],
           jennyNeeds: [],
           categorizationQueue: [],
           recurringCommitments: [],

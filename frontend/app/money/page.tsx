@@ -44,6 +44,19 @@ function getOnboardingStage(
   return 3
 }
 
+function getOnboardingStageLabel(stage: OnboardingStage): string {
+  switch (stage) {
+    case 1:
+      return 'Intake setup'
+    case 2:
+      return 'Document processing'
+    case 3:
+      return 'Confirm assumptions'
+    case 4:
+      return 'Operate'
+  }
+}
+
 function LoadingState() {
   return (
     <div
@@ -131,9 +144,14 @@ export default function MoneyPage() {
   const docCount =
     documents?.items.length ?? dashboard.importCenter.trackedDocuments
   const stage = getOnboardingStage(dashboard, docCount)
+  const stageLabel = getOnboardingStageLabel(stage)
   const unsatisfiedNeedCount = dashboard.jennyNeeds.filter(
     (n) => n.status === 'unsatisfied',
   ).length
+  const openQuestionCount = dashboard.questions.filter(
+    (question) => !question.answeredAt,
+  ).length
+  const evidenceMonths = dashboard.reports.executive.coverageMonths
 
   // Stage 1: No data at all — focused onboarding with intake UI only
   if (stage === 1) {
@@ -295,6 +313,7 @@ export default function MoneyPage() {
     label: 'Analysis',
     description:
       "Review the transaction reports and Jenny\u2019s synthesized money brief together.",
+    badge: evidenceMonths > 0 ? `${evidenceMonths} mo` : undefined,
     content: (
       <div className="space-y-6">
         <HouseholdReportsPanel dashboard={dashboard} />
@@ -309,8 +328,10 @@ export default function MoneyPage() {
     description:
       'Keep profile assumptions and long-range planning in one place.',
     badge:
-      dashboard.resolvedValues.length > 0
-        ? String(dashboard.resolvedValues.length)
+      openQuestionCount > 0
+        ? String(openQuestionCount)
+        : dashboard.resolvedValues.length > 0
+          ? String(dashboard.resolvedValues.length)
         : undefined,
     content: (
       <div className="space-y-6">
@@ -356,15 +377,33 @@ export default function MoneyPage() {
       />
 
       <div className="rounded-2xl border border-border/40 bg-surface-muted/20 px-4 py-3 text-sm text-text-muted">
-        Updated {formatRelativeTime(dashboard.generatedAt)}
-        {' \u00b7 '}
-        {unsatisfiedNeedCount} need
-        {unsatisfiedNeedCount === 1 ? '' : 's'}
-        {' \u00b7 '}
-        {docCount} document
-        {docCount === 1 ? '' : 's'}
-        {' \u00b7 '}
-        Next best action: {dashboard.overview.nextBestAction}
+        <div className="flex flex-wrap gap-x-4 gap-y-2">
+          <span>
+            Stage {stage} of 4 · {stageLabel}
+          </span>
+          <span>
+            {dashboard.overview.visibilityLabel} visibility ({dashboard.overview.visibilityScore}/100)
+          </span>
+          <span>
+            {unsatisfiedNeedCount} need{unsatisfiedNeedCount === 1 ? '' : 's'}
+          </span>
+          <span>
+            {openQuestionCount} open question{openQuestionCount === 1 ? '' : 's'}
+          </span>
+          <span>
+            {dashboard.importCenter.parsedDocuments}/{docCount} documents parsed
+          </span>
+          {evidenceMonths > 0 ? (
+            <span>
+              {evidenceMonths} month{evidenceMonths === 1 ? '' : 's'} of evidence
+            </span>
+          ) : null}
+          <span>Updated {formatRelativeTime(dashboard.generatedAt)}</span>
+        </div>
+        <div className="mt-3 border-t border-border/40 pt-3 text-text">
+          <span className="font-semibold">Next best action:</span>{' '}
+          {dashboard.overview.nextBestAction}
+        </div>
       </div>
 
       {stage === 3 ? (

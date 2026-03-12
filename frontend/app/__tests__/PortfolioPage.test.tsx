@@ -212,4 +212,23 @@ describe('PortfolioPage', () => {
     await user.click(screen.getByRole('button', { name: 'Open Add Position' }))
     expect(screen.getByRole('button', { name: 'Adding...' })).toHaveAttribute('aria-busy', 'true')
   })
+
+  it('keeps the header add-position action disabled until an account exists', async () => {
+    mockUseAccounts.mockReturnValue({
+      data: [],
+      isLoading: false,
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    const { default: PortfolioPage } = await import('../portfolio/page')
+
+    render(<PortfolioPage />)
+
+    expect(screen.getByRole('button', { name: 'Add Position' })).toBeDisabled()
+    expect(
+      screen.getByText(/create an account before adding your first position/i),
+    ).toBeInTheDocument()
+  })
 })

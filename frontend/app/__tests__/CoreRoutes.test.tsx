@@ -109,7 +109,6 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
         blockers: [],
         nextSteps: [],
       },
-      actionItems: [],
       jennyNeeds: [],
       reports: {
         executive: {

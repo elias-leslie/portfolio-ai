@@ -74,6 +74,12 @@ export function StatusWorkspace() {
 
   const watchlistItemsWithScores = healthQuery.data?.watchlistStats?.itemsWithScores ?? null
   const watchlistTotalItems = healthQuery.data?.watchlistStats?.totalItems ?? null
+  const watchlistCoveragePct =
+    watchlistItemsWithScores !== null &&
+    watchlistTotalItems !== null &&
+    watchlistTotalItems > 0
+      ? (watchlistItemsWithScores / watchlistTotalItems) * 100
+      : null
   const watchlistCoverageDetail =
     watchlistItemsWithScores !== null && watchlistTotalItems !== null
       ? `${formatInteger(watchlistItemsWithScores)} of ${formatInteger(watchlistTotalItems)} symbols scored`
@@ -134,7 +140,8 @@ export function StatusWorkspace() {
               Failed to load the operations snapshot.
             </div>
             <p className="mt-2 text-loss/90">
-              Check backend availability and try the refresh action again.
+              We could not refresh {failedSections.join(', ')}. Check backend availability and try the
+              refresh action again.
             </p>
           </div>
         </SectionCard>
@@ -174,13 +181,30 @@ export function StatusWorkspace() {
             />
             <SummaryStat
               label="Watchlist"
-              value={formatInteger(healthQuery.data?.watchlistStats?.itemsWithScores)}
+              value={
+                watchlistCoveragePct !== null
+                  ? formatPercent(watchlistCoveragePct)
+                  : formatInteger(healthQuery.data?.watchlistStats?.itemsWithScores)
+              }
               detail={watchlistCoverageDetail}
             />
             <SummaryStat
               label="News Pipeline"
               value={formatInteger(newsHealthQuery.data?.headlines24H)}
               detail={newsPipelineDetail}
+            />
+            <SummaryStat
+              label="Runtime"
+              value={formatHours(
+                healthQuery.data?.uptimeSeconds != null
+                  ? healthQuery.data.uptimeSeconds / 3600
+                  : null,
+              )}
+              detail={
+                healthQuery.data?.version
+                  ? `Version ${healthQuery.data.version}`
+                  : 'Version unavailable'
+              }
             />
             <SummaryStat label="Cache" value={cacheValue} detail={cacheDetail} />
             <SummaryStat

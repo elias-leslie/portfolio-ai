@@ -76,7 +76,6 @@ describe('JennyMoneyBoard', () => {
             blockers: [],
             nextSteps: [],
           },
-          actionItems: [],
           jennyNeeds: [
             {
               id: 'need-1',
@@ -211,7 +210,6 @@ describe('JennyMoneyBoard', () => {
             blockers: [],
             nextSteps: [],
           },
-          actionItems: [],
           jennyNeeds: [],
           categorizationQueue: [],
           recurringCommitments: [],

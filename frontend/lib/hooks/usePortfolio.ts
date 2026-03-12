@@ -23,7 +23,7 @@ import {
 
 /**
  * Hook to fetch portfolio positions with current values
- * Automatically refetches every 15 minutes to update prices
+ * Automatically refetches every 5 minutes to keep price-sensitive coaching current
  */
 export function usePortfolio(options?: { enabled?: boolean }) {
   return useQuery({
@@ -37,7 +37,7 @@ export function usePortfolio(options?: { enabled?: boolean }) {
 
 /**
  * Hook to fetch portfolio analytics
- * Automatically refetches every 15 minutes to update with latest prices
+ * Automatically refetches every 5 minutes to keep analytics aligned with latest prices
  */
 export function usePortfolioAnalytics() {
   return useQuery({

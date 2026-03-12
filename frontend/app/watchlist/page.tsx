@@ -92,6 +92,8 @@ export default function WatchlistPage() {
       ).length ?? 0,
     [watchlistData?.items]
   )
+  const scoreCoveragePct =
+    totalCount > 0 ? Math.round((scoredCount / totalCount) * 100) : 0
 
   return (
     <PageContainer className="py-10">
@@ -122,23 +124,29 @@ export default function WatchlistPage() {
 
       {!isLoading && !error && totalCount > 0 ? (
         <div className="mb-6 rounded-2xl border border-border/40 bg-surface-muted/20 px-4 py-3 text-sm text-text-muted">
-          {totalCount} symbol{totalCount === 1 ? '' : 's'}
-          {' · '}
-          {scoredCount} scored
-          {' · '}
-          {alertCount} flagged
-          {' · '}
-          {staleCount} with stale inputs
-          {refreshStatus?.isRefreshing ? (
-            <>
-              {' · '}
-              Refreshing
-              {refreshStatus.processedItems !== undefined && refreshStatus.totalItems !== undefined
-                ? ` ${refreshStatus.processedItems}/${refreshStatus.totalItems}`
-                : ''}
-              {refreshStatus.currentSymbol ? ` · ${refreshStatus.currentSymbol}` : ''}
-            </>
-          ) : null}
+          <div className="flex flex-wrap gap-x-4 gap-y-2">
+            <span>{totalCount} symbol{totalCount === 1 ? '' : 's'}</span>
+            <span>{scoredCount} scored ({scoreCoveragePct}%)</span>
+            <span>{alertCount} flagged</span>
+            <span>{staleCount} with stale inputs</span>
+            {hasActiveFilters && filteredItems.length !== totalCount ? (
+              <span>{filteredItems.length} visible after filters</span>
+            ) : null}
+            {refreshStatus?.isRefreshing ? (
+              <span>
+                Refreshing
+                {refreshStatus.percentComplete != null
+                  ? ` ${Math.round(refreshStatus.percentComplete)}%`
+                  : refreshStatus.processedItems !== undefined &&
+                      refreshStatus.totalItems !== undefined
+                    ? ` ${refreshStatus.processedItems}/${refreshStatus.totalItems}`
+                    : ''}
+              </span>
+            ) : null}
+            {refreshStatus?.currentSymbol ? (
+              <span>Current symbol {refreshStatus.currentSymbol}</span>
+            ) : null}
+          </div>
         </div>
       ) : null}
 

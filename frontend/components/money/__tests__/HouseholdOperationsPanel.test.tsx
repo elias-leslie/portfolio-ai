@@ -65,7 +65,6 @@ function buildDashboard(overrides: Record<string, unknown> = {}) {
       starterLanes: [],
     },
     questions: [],
-    actionItems: [],
     jennyNeeds: [],
     reports: {
       executive: {

@@ -222,5 +222,4 @@ def test_get_dashboard_returns_composed_household_view() -> None:
     assert dashboard.retirement_preparedness.status == "scenario_ready"
     assert dashboard.questions[0].id == "question-1"
     assert isinstance(dashboard.jenny_needs, list)
-    assert dashboard.action_items == []
     assert datetime.fromisoformat(dashboard.generated_at).tzinfo == UTC

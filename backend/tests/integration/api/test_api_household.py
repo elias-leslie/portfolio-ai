@@ -352,8 +352,8 @@ def test_household_dashboard_uses_profile_documents_and_portfolio(
     assert dashboard["retirement_preparedness"]["status"] == "scenario_ready"
     assert dashboard["budget_snapshot"]["monthly_income_target"] == 12500
     assert dashboard["budget_snapshot"]["monthly_plan_total"] == 9600
-    assert dashboard["action_items"]
-    assert dashboard["action_items"][0]["href"] in {"/money", "/portfolio", "/watchlist"}
+    assert dashboard["overview"]["next_best_action"]
+    assert isinstance(dashboard["jenny_needs"], list)
     assert dashboard["import_center"]["tracked_documents"] == 1
     assert dashboard["reports"]["executive"]["tracked_expense_count"] == 0
 

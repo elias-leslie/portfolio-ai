@@ -74,6 +74,7 @@ export default function PortfolioPage() {
   const canSubmitPositionForm = isPositionFormValid(positionFormErrors)
   const accountNameError = getAccountNameError(accountName)
   const canSubmitAccountForm = !accountNameError
+  const hasAccounts = (accounts?.length ?? 0) > 0
 
   const resetPositionForm = (nextAccountId: string = '') => {
     setAccountId(nextAccountId)
@@ -163,12 +164,21 @@ export default function PortfolioPage() {
             <Button variant="outline" onClick={() => setAccountOpen(true)}>
               Add Account
             </Button>
-            <Button onClick={() => openPositionDialog()}>
+            <Button
+              onClick={() => openPositionDialog()}
+              disabled={!hasAccounts || accountsLoading}
+            >
               Add Position
             </Button>
           </div>
         }
       />
+
+      {!accountsLoading && !hasAccounts ? (
+        <div className="rounded-2xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning-foreground">
+          Create an account before adding your first position so portfolio coaching has account context.
+        </div>
+      ) : null}
 
       <PortfolioOverview />
 
@@ -276,8 +286,8 @@ export default function PortfolioPage() {
               errors={positionSubmitAttempted ? positionFormErrors : undefined}
               accountHint={
                 !accounts?.length && !accountsLoading ? (
-                  <p className="text-xs text-text-muted">
-                    Create an account first using the &quot;Add Account&quot; button.
+                  <p className="text-xs text-warning-foreground">
+                    Create an account first so the position is tracked in the right tax and ownership bucket.
                   </p>
                 ) : undefined
               }

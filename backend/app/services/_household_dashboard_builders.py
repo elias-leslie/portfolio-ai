@@ -717,7 +717,7 @@ def _assemble_finance_dashboard(
         budget_readiness=budget_readiness,
         budget_snapshot=service._build_budget_snapshot(profile=profile, reports=reports),
         retirement_preparedness=retirement_preparedness,
-        jenny_needs=jenny_needs, action_items=[], reports=reports,
+        jenny_needs=jenny_needs, reports=reports,
         categorization_queue=categorization_queue, recurring_commitments=recurring_commitments,
         sinking_funds=build_sinking_funds(recurring_commitments=recurring_commitments),
         retirement_contribution_tracker=build_retirement_contribution_tracker(

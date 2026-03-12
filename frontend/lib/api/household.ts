@@ -95,16 +95,6 @@ export interface RetirementPreparedness {
   nextSteps: string[]
 }
 
-/** @deprecated Use JennyNeed instead */
-export interface HouseholdActionItem {
-  title: string
-  detail: string
-  actionLabel: string
-  href: string
-  priority: string
-  source: string
-}
-
 export interface HouseholdExecutiveReport {
   headline: string
   summary: string
@@ -343,7 +333,6 @@ export interface HouseholdFinanceDashboard {
   budgetSnapshot: HouseholdBudgetSnapshot
   retirementPreparedness: RetirementPreparedness
   jennyNeeds: JennyNeed[]
-  actionItems: HouseholdActionItem[]
   importCenter: ImportCenter
   questions: HouseholdQuestion[]
   jennyBrief: JennyMoneyBrief

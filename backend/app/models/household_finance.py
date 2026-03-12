@@ -106,15 +106,6 @@ class HouseholdOpportunity(BaseModel):
     next_step: str
 
 
-class HouseholdActionItem(BaseModel):
-    title: str
-    detail: str
-    action_label: str
-    href: str
-    priority: str
-    source: str
-
-
 class HouseholdExecutiveReport(BaseModel):
     headline: str
     summary: str
@@ -374,7 +365,6 @@ class HouseholdFinanceDashboard(BaseModel):
     budget_snapshot: HouseholdBudgetSnapshot
     retirement_preparedness: RetirementPreparedness
     jenny_needs: list[JennyNeed] = Field(default_factory=list)
-    action_items: list[HouseholdActionItem] = Field(default_factory=list)  # deprecated — empty
     reports: HouseholdReports
     categorization_queue: list[HouseholdCategorizationCandidate] = Field(default_factory=list)
     recurring_commitments: list[HouseholdRecurringCommitment] = Field(default_factory=list)

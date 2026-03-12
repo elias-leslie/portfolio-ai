@@ -133,16 +133,16 @@ yfinance, FRED, and RSS feeds are free and require no keys.
 ## Testing
 
 ```bash
-# Quick gate
-dt -q
+# Quick gate for current edits
+dt -q -d
 
 # Full repo gate
 dt --check
 
-# Targeted backend tests
-dt pytest backend/tests/unit
+# Targeted backend tests without tripping the repo-wide coverage threshold
+dt pytest backend/tests/unit/services/test_household_finance_service_dashboard.py -- --no-cov
 
-# Frontend unit tests
+# Frontend behavior tests (dt does not wrap Vitest yet)
 cd frontend
 npm test -- --run
 

@@ -210,6 +210,10 @@ describe('WatchlistPage', () => {
 
     render(<WatchlistPage />)
 
-    expect(screen.getByText(/2 symbols · 2 scored · 1 flagged · 1 with stale inputs · Refreshing 1\/2 · NVDA/i)).toBeInTheDocument()
+    expect(screen.getByText(/2 scored \(100%\)/i)).toBeInTheDocument()
+    expect(screen.getByText(/1 flagged/i)).toBeInTheDocument()
+    expect(screen.getByText(/1 with stale inputs/i)).toBeInTheDocument()
+    expect(screen.getByText(/Refreshing 1\/2/i)).toBeInTheDocument()
+    expect(screen.getByText(/Current symbol NVDA/i)).toBeInTheDocument()
   })
 })
