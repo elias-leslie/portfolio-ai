@@ -65,7 +65,7 @@ def execute_buy_order(
     # P2: Check position size and sector exposure limits
     valid, limit_error = validate_position_limits(storage, symbol, amount, account_id)
     if not valid:
-        logger.warning(f"Position limits exceeded for {symbol}: {limit_error}")
+        logger.warning("position_limits_exceeded", symbol=symbol, error=limit_error)
         return False, limit_error
 
     # Deduct cash

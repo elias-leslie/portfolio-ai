@@ -3,17 +3,17 @@
 from __future__ import annotations
 
 import json
-import logging
 import subprocess
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from app.logging_config import get_logger
 from app.ml.article_quality_classifier import ArticleQualityClassifier
 from app.storage.types import DatabaseConnection
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _MODEL_DIR = Path(__file__).resolve().parent.parent.parent / "models"
 _MODEL_VERSION_FORMAT = "v%Y%m%d"

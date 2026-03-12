@@ -6,14 +6,14 @@ This module handles storage and retrieval of strategy trading signals.
 from __future__ import annotations
 
 import json
-import logging
 from datetime import date
 from typing import Any
 
+from app.logging_config import get_logger
 from app.storage.connection import get_connection_manager
 from app.utils.db_helpers import rows_to_dicts
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SignalStorage:

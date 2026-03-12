@@ -87,7 +87,7 @@ def handle_missing_directory(
     """Return an early result dict if directory doesn't exist, else None."""
     if directory_path.exists():
         return None
-    logger.warning(f"{task_name}_directory_not_found", directory=str(directory_path))
+    logger.warning("directory_not_found", task_name=task_name, directory=str(directory_path))
     early_result: CleanupResult = {
         "task_id": task_id,
         "dry_run": dry_run,

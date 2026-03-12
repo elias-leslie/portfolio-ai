@@ -12,10 +12,10 @@ Output: ResearchInsights dataclass with confidence scores for each dimension.
 
 from __future__ import annotations
 
-import logging
 from datetime import UTC, date, datetime, timedelta
 from typing import Literal
 
+from app.logging_config import get_logger
 from app.storage import PortfolioStorage
 
 from .models import ResearchInsights
@@ -27,7 +27,7 @@ from .research import (
     aggregate_technical_analysis,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ResearchAggregationService:

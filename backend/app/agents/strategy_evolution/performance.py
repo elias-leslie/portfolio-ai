@@ -27,7 +27,7 @@ async def analyze_strategy_performance(
     Returns:
         StrategyAnalysis with LLM-generated diagnosis
     """
-    logger.info(f"Analyzing strategy performance: {strategy.id} ({days} days)")
+    logger.info("analyzing_strategy_performance", strategy_id=strategy.id, days=days)
 
     # Get performance metrics from strategy_performance table
     cutoff_date = date.today() - timedelta(days=days)
@@ -130,7 +130,7 @@ async def calculate_buy_hold_sharpe(symbol: str, days: int) -> float:
         ).fetchall()
 
     if len(result) < 2:
-        logger.warning(f"Insufficient data for buy-hold calculation ({len(result)} days)")
+        logger.warning("insufficient_buyhold_data", data_points=len(result))
         return 0.0
 
     # Calculate daily returns - type narrowing for row[0]

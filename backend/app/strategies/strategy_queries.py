@@ -6,12 +6,12 @@ and strategies that are underperforming.
 
 from __future__ import annotations
 
-import logging
 from typing import Any
 
+from app.logging_config import get_logger
 from app.storage.connection import get_connection_manager
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # Strategy performance thresholds

@@ -5,7 +5,6 @@ This module handles saving backtest results to the database.
 
 from __future__ import annotations
 
-import logging
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -17,12 +16,13 @@ from app.backtest.storage import (
     update_backtest_result,
 )
 from app.backtest.strategies import SignalStrategy
+from app.logging_config import get_logger
 from app.storage import PortfolioStorage
 
 from .models import ResearchInsights, StrategyParameters
 from .optimizer_metrics import calculate_metrics_from_state
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def persist_best_backtest(
@@ -127,7 +127,7 @@ def persist_best_backtest(
         return run_id
 
     except Exception as e:
-        logger.error(f"Failed to persist backtest {run_id}: {e}")
+        logger.error("backtest_persist_failed", run_id=run_id, error=str(e), exc_info=True)
         # Mark as failed
         with storage.connection() as conn:
             conn.execute(

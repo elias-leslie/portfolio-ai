@@ -7,7 +7,6 @@ Tasks:
 - run_backtest_task: Execute backtest replay and store results
 """
 
-import logging
 from datetime import date
 from decimal import Decimal
 from typing import Any
@@ -21,9 +20,10 @@ from app.backtest.additional_strategies import (
 from app.backtest.benchmark import BenchmarkComparisonEngine
 from app.backtest.enhanced_strategy import EnhancedSignalStrategy
 from app.backtest.replay import InsufficientDataError
+from app.logging_config import get_logger
 from app.storage.facade import get_storage
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # How many days of data to fetch when backfilling (covers 5 years of trading days)
 # 252 trading days/year * 5 years ≈ 1260 trading days, using 1300 to be safe

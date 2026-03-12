@@ -8,11 +8,12 @@ Phase A MVP: Single-symbol backtests with closing prices only (no slippage).
 Phase B: Multi-symbol portfolio backtests with realistic fill simulation.
 """
 
-import logging
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING, Protocol
+
+from app.logging_config import get_logger
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -23,7 +24,7 @@ from app.analytics.indicators import _fetch_ohlcv_data, calculate_indicators_fro
 from app.backtest.models import BacktestEquity, BacktestTrade
 from app.storage.facade import PortfolioStorage
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -307,7 +308,7 @@ def exit_trade(
         BacktestTrade record
     """
     if symbol not in state.positions:
-        logger.warning(f"Attempted to exit non-existent position: {symbol}")
+        logger.warning("exit_nonexistent_position", symbol=symbol)
         return None
 
     position = state.positions.pop(symbol)
@@ -488,7 +489,7 @@ def replay_backtest(
     # 1. Fetch ALL data at once (optimization)
     # We need data from (start_date - lookback) to end_date
     # 365 days lookback ensures we have enough for 200-day MA even with weekends/holidays
-    logger.info(f"Fetching bulk OHLCV data for {symbol} up to {end_date}")
+    logger.info("fetching_bulk_ohlcv", symbol=symbol, end_date=str(end_date))
 
     # Use the internal fetcher from indicators module or direct query
     # We'll use a direct query here for efficiency to get a DataFrame
@@ -502,7 +503,7 @@ def replay_backtest(
     )
 
     if full_df.empty:
-        logger.error(f"No data found for {symbol}")
+        logger.error("no_data_found", symbol=symbol)
         raise ValueError(f"No trading data found for {symbol}")
 
     # Filter for our specific range if needed, though _fetch_ohlcv_data does some limiting
@@ -514,11 +515,11 @@ def replay_backtest(
     trading_days_df = full_df.loc[mask]
 
     if trading_days_df.empty:
-        logger.error(f"No trading days found between {start_date} and {end_date}")
+        logger.error("no_trading_days", start_date=str(start_date), end_date=str(end_date))
         raise ValueError(f"No trading data found for {symbol} in requested period")
 
     trading_days = [d.date() for d in trading_days_df.index]
-    logger.info(f"Running backtest over {len(trading_days)} trading days")
+    logger.info("backtest_running", trading_days=len(trading_days))
 
     # Main Loop
     for backtest_date in trading_days:

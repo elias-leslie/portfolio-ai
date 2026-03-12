@@ -162,5 +162,5 @@ def validate_position_limits(
         return True, None
 
     except Exception as e:
-        logger.error(f"Failed to validate position limits for {symbol}: {e}")
+        logger.error("position_limits_validation_failed", symbol=symbol, error=str(e), exc_info=True)
         return True, None  # Allow trade if validation fails (fail-open)

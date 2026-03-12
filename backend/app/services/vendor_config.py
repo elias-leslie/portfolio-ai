@@ -74,7 +74,7 @@ def init_free_vendor(
         except Exception as exc:
             reason = f"init_failed: {exc}"
             enabled = False
-            logger.warning(f"{vendor_name}_source_init_failed", error=str(exc))
+            logger.warning("source_init_failed", vendor=vendor_name, error=str(exc))
 
     register_callback(vendor_name, configured=True, enabled=enabled, notes=notes, reason=reason)
 
@@ -120,7 +120,7 @@ def init_api_vendor(
         except Exception as exc:
             reason = f"init_failed: {exc}"
             enabled = False
-            logger.warning(f"{vendor_name}_news_source_init_failed", error=str(exc))
+            logger.warning("news_source_init_failed", vendor=vendor_name, error=str(exc))
 
     register_callback(
         vendor_name, configured=configured, enabled=enabled, notes=notes, reason=reason

@@ -86,7 +86,7 @@ def execute_add_symbol(
             },
         )
 
-        logger.info(f"Agent {agent_run_id} added {symbol} to watchlist: {reason}")
+        logger.info("watchlist_symbol_added", agent_run_id=agent_run_id, symbol=symbol, reason=reason)
 
         return {
             "status": "added",
@@ -96,7 +96,7 @@ def execute_add_symbol(
         }
 
     except Exception as e:
-        logger.error(f"Failed to add {symbol} to watchlist: {e}")
+        logger.error("watchlist_add_failed", symbol=symbol, error=str(e), exc_info=True)
         return {
             "status": "error",
             "symbol": symbol,
@@ -182,7 +182,7 @@ def execute_remove_symbol(
         }
 
     except Exception as e:
-        logger.error(f"Failed to remove {symbol}: {e}")
+        logger.error("watchlist_remove_failed", symbol=symbol, error=str(e), exc_info=True)
         return {
             "status": "error",
             "symbol": symbol,

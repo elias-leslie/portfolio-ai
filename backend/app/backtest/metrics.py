@@ -7,13 +7,13 @@ Reuses existing analytics patterns from:
 - paper_trading_portfolio.py: Trade return patterns
 """
 
-import logging
 import math
 from decimal import Decimal
 
 from app.backtest.models import BacktestEquity, BacktestTrade
+from app.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def calculate_total_return(initial_capital: Decimal, final_equity: Decimal) -> Decimal:
@@ -136,7 +136,7 @@ def calculate_sharpe_ratio(
 
     # Guard against NaN/inf values
     if math.isnan(sharpe) or math.isinf(sharpe):
-        logger.warning(f"Sharpe calculation produced invalid value: {sharpe}")
+        logger.warning("sharpe_invalid_value", sharpe=sharpe)
         return Decimal("0.0")
 
     return Decimal(str(round(sharpe, 4)))

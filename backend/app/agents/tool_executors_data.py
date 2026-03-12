@@ -215,7 +215,7 @@ class DataTools:
                 "date": str(row["date"]),
             }
         except Exception as e:
-            logger.warning(f"Failed to fetch indicators for {symbol}: {e}")
+            logger.warning("indicators_fetch_failed", symbol=symbol, error=str(e))
             return None
 
     def _format_indicator_analysis(

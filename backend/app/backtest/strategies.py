@@ -5,15 +5,15 @@ Phase A MVP: SignalStrategy (wraps signal_classifier.py for BUY/HOLD/AVOID logic
 Phase B: Custom strategies with parameter optimization and walk-forward validation
 """
 
-import logging
 from datetime import date
 from decimal import Decimal
 
 from app.backtest.replay import Position
+from app.logging_config import get_logger
 from app.watchlist.models import SignalType
 from app.watchlist.signal_classifier import classify_signal
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SignalStrategy:

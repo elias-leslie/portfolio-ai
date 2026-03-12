@@ -58,7 +58,7 @@ def calculate_max_shares(
         return max_shares
 
     except Exception as e:
-        logger.error(f"Failed to calculate max shares for {symbol}: {e}")
+        logger.error("max_shares_calc_failed", symbol=symbol, error=str(e), exc_info=True)
         return 0
 
 
@@ -152,6 +152,6 @@ def calculate_risk_based_shares(
         return shares, details
 
     except Exception as e:
-        logger.error(f"Failed to calculate risk-based shares for {symbol}: {e}")
+        logger.error("risk_shares_calc_failed", symbol=symbol, error=str(e), exc_info=True)
         details["error"] = str(e)
         return 0, details

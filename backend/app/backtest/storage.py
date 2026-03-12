@@ -9,16 +9,16 @@ CRUD operations for:
 Follows existing storage patterns from watchlist/portfolio modules.
 """
 
-import logging
 import uuid
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
 from app.backtest.models import BacktestEquity, BacktestRun, BacktestTrade
+from app.logging_config import get_logger
 from app.storage.connection import ConnectionManager
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def create_backtest_run(

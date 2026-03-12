@@ -6,17 +6,18 @@ Thin async wrappers around existing business logic in tasks/.
 from __future__ import annotations
 
 import asyncio
-import logging
 from datetime import datetime, timedelta
 from typing import Any, cast
 
 from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy, Context
 
+from app.logging_config import get_logger
+
 from ..hatchet_app import hatchet
 from ..utils.market_hours import NY_TZ, is_trading_day
 from .models import EmptyInput, SeedInput, StrategyInput
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Shared skip result for non-trading-day early exits
 _SKIP_NON_TRADING_DAY = {"status": "skipped", "reason": "Not a trading day (weekend/holiday)"}

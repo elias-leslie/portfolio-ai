@@ -344,7 +344,7 @@ def _fetch_ohlcv_data(
     result_df = storage.query(query, params)
 
     if result_df.is_empty():
-        logger.warning(f"No OHLCV data found for symbol {symbol}")
+        logger.warning("no_ohlcv_data", symbol=symbol)
         return pd.DataFrame()
 
     # Convert Polars to pandas and set date index

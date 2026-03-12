@@ -7,10 +7,10 @@ to avoid overfitting to historical data.
 
 from __future__ import annotations
 
-import logging
 from datetime import date, timedelta
 from typing import Any
 
+from app.logging_config import get_logger
 from app.storage import PortfolioStorage
 
 from .models import (
@@ -24,7 +24,7 @@ from .optimizer_params import generate_param_grid
 from .optimizer_persistence import extract_fundamental_data, persist_best_backtest
 from .optimizer_validation import create_walk_forward_windows, test_params_across_windows
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class StrategyOptimizer:
@@ -68,20 +68,20 @@ class StrategyOptimizer:
         # Generate parameter combinations
         param_combinations = generate_param_grid(strategy_template, max_combinations)
 
-        logger.info(f"Generated {len(param_combinations)} parameter combinations to test")
+        logger.info("param_combinations_generated", count=len(param_combinations))
 
         # Create walk-forward validation windows
         end_date = date.today()
         start_date = end_date - timedelta(days=lookback_days)
         windows = create_walk_forward_windows(start_date, end_date)
 
-        logger.info(f"Created {len(windows)} validation windows")
+        logger.info("validation_windows_created", count=len(windows))
 
         # Test each parameter combination across all windows
         results = []
         for idx, params in enumerate(param_combinations):
             logger.info(
-                f"Testing combination {idx + 1}/{len(param_combinations)}: {self._summarize_params(params)}"
+                "testing_combination", index=idx + 1, total=len(param_combinations), params=self._summarize_params(params)
             )
 
             try:

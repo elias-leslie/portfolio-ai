@@ -6,12 +6,13 @@ This module provides parameter range creation and grid generation.
 from __future__ import annotations
 
 import itertools
-import logging
 from decimal import Decimal
+
+from app.logging_config import get_logger
 
 from .models import StrategyGenerationResult, StrategyParameters
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def create_range(base_value: float | int, options: list[float | int]) -> list[float | int]:
@@ -137,8 +138,8 @@ def generate_param_grid(
             param_objects.append(params)
         except ValueError as e:
             # Skip invalid combinations (weights don't sum to 1.0)
-            logger.debug(f"Skipping invalid combination: {e}")
+            logger.debug("invalid_combination_skipped", error=str(e))
             continue
 
-    logger.info(f"Generated {len(param_objects)} valid parameter combinations")
+    logger.info("valid_combinations_generated", count=len(param_objects))
     return param_objects

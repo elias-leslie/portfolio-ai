@@ -120,10 +120,11 @@ def cleanup_files(
                 file_path.unlink()
                 files_deleted += 1
                 bytes_freed += file_size
-                logger.info(f"{logger_event}_deleted", file=str(file_path), size_bytes=file_size)
+                logger.info("file_deleted", cleanup_type=logger_event, file=str(file_path), size_bytes=file_size)
         except Exception as file_error:
             logger.error(
-                f"{logger_event}_deletion_failed",
+                "file_deletion_failed",
+                cleanup_type=logger_event,
                 file=str(file_path),
                 error=str(file_error),
             )

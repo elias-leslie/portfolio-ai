@@ -5,7 +5,6 @@ This module provides validation window creation and parameter testing.
 
 from __future__ import annotations
 
-import logging
 import uuid
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -13,12 +12,13 @@ from decimal import Decimal
 
 from app.backtest.replay import replay_backtest
 from app.backtest.strategies import SignalStrategy
+from app.logging_config import get_logger
 from app.storage import PortfolioStorage
 
 from .models import StrategyParameters
 from .optimizer_metrics import BacktestMetrics, calculate_metrics_from_state
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass

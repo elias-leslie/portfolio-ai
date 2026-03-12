@@ -5,9 +5,9 @@ This module provides database operations for strategy definitions and performanc
 
 from __future__ import annotations
 
-import logging
 from typing import Any, Literal
 
+from app.logging_config import get_logger
 from app.storage.connection import get_connection_manager
 from app.utils.db_helpers import rows_to_dicts
 
@@ -22,7 +22,7 @@ from .storage_helpers import (
     serialize_strategy_fields,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # Strategy definitions table columns (matches CREATE TABLE order in migration 047)

@@ -5,13 +5,13 @@ Loads and caches trading rules from YAML configuration.
 Supports hot reload via TTL-based cache invalidation.
 """
 
-import logging
 import time
 from pathlib import Path
 from typing import Any
 
 import yaml
 
+from app.logging_config import get_logger
 from app.rules.models import (
     CatalystImpact,
     ComplianceRules,
@@ -29,7 +29,7 @@ from app.rules.models import (
     WatchlistManagementRules,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Cache settings
 _CACHE_TTL_SECONDS = 300  # 5 minutes
@@ -295,14 +295,14 @@ def _load_thesis_management(data: dict[str, Any]) -> ThesisManagementRules:
 def _load_rules_from_yaml(path: Path) -> TradingRules:
     """Load and parse trading rules from YAML file."""
     if not path.exists():
-        logger.warning(f"Rules file not found: {path}, using defaults")
+        logger.warning("rules_file_not_found", path=str(path))
         return TradingRules()
 
     with path.open() as f:
         data = yaml.safe_load(f)
 
     if not data:
-        logger.warning(f"Empty rules file: {path}, using defaults")
+        logger.warning("rules_file_empty", path=str(path))
         return TradingRules()
 
     return TradingRules(
@@ -344,12 +344,12 @@ def get_rules(version: str = _CURRENT_VERSION) -> TradingRules:
 
     # Load from YAML
     path = _get_rules_path(version)
-    logger.info(f"Loading trading rules from {path}")
+    logger.info("loading_trading_rules", path=str(path))
 
     _cached_rules = _load_rules_from_yaml(path)
     _cache_timestamp = now
 
-    logger.info(f"Loaded trading rules v{_cached_rules.version}")
+    logger.info("trading_rules_loaded", version=_cached_rules.version)
     return _cached_rules
 
 
@@ -365,7 +365,7 @@ def reload_rules(version: str = _CURRENT_VERSION) -> TradingRules:
     global _cached_rules, _cache_timestamp  # noqa: PLW0603
 
     path = _get_rules_path(version)
-    logger.info(f"Force reloading trading rules from {path}")
+    logger.info("force_reloading_trading_rules", path=str(path))
 
     _cached_rules = _load_rules_from_yaml(path)
     _cache_timestamp = time.time()

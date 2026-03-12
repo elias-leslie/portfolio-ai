@@ -167,7 +167,7 @@ class Agent(
             return self._run_with_llm_client(run_id, started_at, user_prompt, max_iterations)
 
         except Exception as e:
-            logger.error(f"Agent run {run_id} failed: {e}")
+            logger.error("agent_run_failed", run_id=run_id, error=str(e), exc_info=True)
             self._record_run_complete(
                 run_id, datetime.now(UTC), AgentRunStatus.ERROR.value, 0, str(e)
             )

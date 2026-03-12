@@ -14,7 +14,6 @@ Key features:
 
 from __future__ import annotations
 
-import logging
 import statistics
 import uuid
 from dataclasses import dataclass
@@ -29,9 +28,10 @@ from app.backtest.enhanced_strategy import EnhancedSignalStrategy
 from app.backtest.models import BacktestEquity
 from app.backtest.replay import BacktestState, replay_backtest
 from app.backtest.strategies import SignalStrategy
+from app.logging_config import get_logger
 from app.storage import PortfolioStorage
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -219,11 +219,11 @@ class WalkForwardEngine:
 
         if not windows:
             logger.warning(
-                f"No walk-forward windows created for {symbol} from {start_date} to {end_date}"
+                "no_walk_forward_windows", symbol=symbol, start_date=str(start_date), end_date=str(end_date)
             )
             return self._empty_result()
 
-        logger.info(f"Running walk-forward with {len(windows)} folds for {symbol}")
+        logger.info("walk_forward_running", symbol=symbol, folds=len(windows))
 
         fold_metrics: list[FoldMetrics] = []
 
@@ -241,11 +241,11 @@ class WalkForwardEngine:
                 )
                 fold_metrics.append(metrics)
             except Exception as e:
-                logger.warning(f"Fold {window.fold_number} failed: {e}")
+                logger.warning("fold_failed", fold=window.fold_number, error=str(e))
                 continue
 
         if not fold_metrics:
-            logger.warning(f"All folds failed for {symbol}")
+            logger.warning("all_folds_failed", symbol=symbol)
             return self._empty_result()
 
         return self._aggregate_results(fold_metrics)
@@ -423,7 +423,7 @@ class WalkForwardEngine:
                 "beta": float(comparison.metrics.beta) if comparison.metrics.beta else None,
             }
         except Exception as e:
-            logger.warning(f"B&H comparison failed: {e}")
+            logger.warning("bnh_comparison_failed", error=str(e))
             return default
 
     def _aggregate_results(self, folds: list[FoldMetrics]) -> WalkForwardResult:
@@ -488,7 +488,7 @@ class WalkForwardEngine:
                     else:
                         sig_level = "none"
             except Exception as e:
-                logger.warning(f"Wilcoxon test failed: {e}")
+                logger.warning("wilcoxon_test_failed", error=str(e))
 
         return WalkForwardResult(
             folds=folds,

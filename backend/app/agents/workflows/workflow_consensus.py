@@ -57,7 +57,7 @@ def resolve_conflicts(
         )
 
         if result.is_empty():
-            logger.warning(f"Workflow {workflow_id} not found, using first output as fallback")
+            logger.warning("workflow_not_found_fallback", workflow_id=workflow_id)
             first_agent = next(iter(conflicting_outputs.keys()))
             return {
                 "status": "resolved",
@@ -78,7 +78,7 @@ def resolve_conflicts(
         # Fallback: Use first agent's output
         first_agent = next(iter(conflicting_outputs.keys()))
         logger.warning(
-            f"Using fallback resolution for workflow {workflow_id}: first agent ({first_agent})"
+            "fallback_resolution_used", workflow_id=workflow_id, resolved_by=first_agent
         )
 
         return {
@@ -89,7 +89,7 @@ def resolve_conflicts(
         }
 
     except Exception as e:
-        logger.error(f"Failed to resolve conflicts: {e}")
+        logger.error("conflict_resolution_failed", error=str(e), exc_info=True)
         # Ultimate fallback
         if conflicting_outputs:
             first_agent = next(iter(conflicting_outputs.keys()))

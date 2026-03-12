@@ -84,7 +84,7 @@ async def propose_mutations(
     Returns:
         List of proposed mutations (max 5)
     """
-    logger.info(f"Proposing mutations for {strategy.symbol} (Sharpe: {analysis.actual_sharpe:.2f})")
+    logger.info("proposing_mutations", symbol=strategy.symbol, actual_sharpe=round(analysis.actual_sharpe, 2))
 
     # Build LLM prompt
     prompt = f"""You are a quantitative trading strategist analyzing an underperforming strategy.
@@ -151,8 +151,8 @@ Return JSON array with this schema:
             )
             for m in mutations_data
         ]
-        logger.info(f"LLM proposed {len(mutations)} mutations")
+        logger.info("mutations_proposed", count=len(mutations))
         return mutations[:5]  # Limit to 5
     except Exception as e:
-        logger.exception(f"Failed to parse LLM mutations: {e}")
+        logger.exception("llm_mutations_parse_failed", error=str(e))
         return []

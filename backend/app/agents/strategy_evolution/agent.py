@@ -66,7 +66,7 @@ class StrategyEvolutionAgent:
         Returns:
             EvolutionResult with success status and new strategy ID
         """
-        logger.info(f"Starting strategy evolution: {strategy_id} (reason: {reason})")
+        logger.info("strategy_evolution_started", strategy_id=strategy_id, reason=reason)
 
         # Get strategy
         strategy = self.strategy_storage.get_strategy_by_id(strategy_id)
@@ -97,7 +97,7 @@ class StrategyEvolutionAgent:
                 buy_hold_sharpe=analysis.buy_hold_sharpe,
             )
 
-        logger.info(f"Testing {len(mutations)} mutations via walk-forward backtest")
+        logger.info("testing_mutations", count=len(mutations))
 
         # 3. Test each mutation
         best_mutation: StrategyMutation | None = None
@@ -105,7 +105,7 @@ class StrategyEvolutionAgent:
         best_metrics: BacktestMetrics | None = None
 
         for i, mutation in enumerate(mutations, 1):
-            logger.info(f"Testing mutation {i}/{len(mutations)}: {mutation.mutation_type}")
+            logger.info("testing_mutation", index=i, total=len(mutations), mutation_type=mutation.mutation_type)
 
             # Apply mutation to parameters
             mutated_params = strategy.parameters.copy()
@@ -115,7 +115,7 @@ class StrategyEvolutionAgent:
             try:
                 StrategyParameters(**mutated_params)
             except Exception as e:
-                logger.warning(f"Invalid mutation parameters: {e}")
+                logger.warning("invalid_mutation_params", error=str(e))
                 continue
 
             # Run walk-forward backtest (3 windows, 180/60 days each)
@@ -228,7 +228,7 @@ class StrategyEvolutionAgent:
             reason=f"Superseded by evolved version (v{strategy.version + 1})",
         )
 
-        logger.info(f"Evolution complete: {strategy_id} → {new_strategy_id}")
+        logger.info("evolution_complete", parent_id=strategy_id, child_id=new_strategy_id)
 
         return build_success_result(
             original_strategy_id=strategy_id,
@@ -284,7 +284,7 @@ class StrategyEvolutionAgent:
             )
             conn.commit()
 
-        logger.info(f"Lineage saved: {parent_strategy_id} → {child_strategy_id}")
+        logger.info("lineage_saved", parent_id=parent_strategy_id, child_id=child_strategy_id)
 
 
 # Singleton instance

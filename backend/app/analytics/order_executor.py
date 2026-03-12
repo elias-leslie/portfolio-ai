@@ -118,7 +118,7 @@ class OrderExecutor:
             price_data_dict = self.price_fetcher.fetch_price_data([symbol])
             expected_price = price_data_dict[symbol].price
         except Exception as e:
-            logger.error(f"Failed to fetch price for {symbol}: {e}")
+            logger.error("price_fetch_failed", symbol=symbol, error=str(e), exc_info=True)
             return {
                 "filled": False,
                 "error": f"Failed to fetch price for {symbol}: {e}",

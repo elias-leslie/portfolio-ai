@@ -9,14 +9,14 @@ Unlike SignalStrategy, this uses direct technical scoring that doesn't require
 fundamental/analyst data to generate BUY signals.
 """
 
-import logging
 from datetime import date
 from decimal import Decimal
 from typing import Any
 
 from app.backtest.replay import Position
+from app.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class EnhancedSignalStrategy:
@@ -220,7 +220,7 @@ class EnhancedSignalStrategy:
 
         # 1. Max holding period
         if holding_days >= self.max_holding_days:
-            logger.debug(f"EXIT (TIME): {position.symbol} | Held {holding_days} days")
+            logger.debug("exit_time", symbol=position.symbol, holding_days=holding_days)
             return (True, "time")
 
         # 2. Stop loss (2x ATR)
@@ -229,7 +229,7 @@ class EnhancedSignalStrategy:
             stop_loss = position.entry_price - (self.stop_loss_atr_multiplier * atr)
             if current_price <= stop_loss:
                 logger.debug(
-                    f"EXIT (STOP): {position.symbol} | ${current_price:.2f} <= ${stop_loss:.2f}"
+                    "exit_stop", symbol=position.symbol, price=float(current_price), stop_loss=float(stop_loss)
                 )
                 return (True, "stop")
 
@@ -240,7 +240,7 @@ class EnhancedSignalStrategy:
 
         # RSI overbought exit - use "signal" as valid exit reason
         if rsi_14 > 75:
-            logger.debug(f"EXIT (RSI): {position.symbol} | RSI {rsi_14:.1f} > 75")
+            logger.debug("exit_rsi", symbol=position.symbol, rsi=round(rsi_14, 1))
             return (True, "signal")
 
         # Price fallen below EMA significantly (trend reversal) - use "signal"

@@ -6,7 +6,6 @@ GET /api/rules/export - Export rules in JSON or YAML format
 """
 
 import json
-import logging
 from enum import StrEnum
 from typing import Any
 
@@ -14,9 +13,10 @@ import yaml
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 
+from app.logging_config import get_logger
 from app.rules.loader import get_rules
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter()
 

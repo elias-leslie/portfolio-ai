@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from app.logging_config import get_logger
 from app.storage import get_storage
 from app.storage.types import DatabaseConnection
 
@@ -21,7 +21,7 @@ from ._ml_training_helpers import (
     _train_and_save_model,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 STATUS_QUERYING = "querying"
 STATUS_LABELING = "labeling"

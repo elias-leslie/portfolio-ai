@@ -67,7 +67,7 @@ def execute_store_strategy_seed(
         },
     )
 
-    logger.info(f"Stored strategy seed {seed_id}: {symbol} (confidence: {confidence})")
+    logger.info("strategy_seed_stored", seed_id=seed_id, symbol=symbol, confidence=confidence)
 
     # Emit seed_created event for downstream triggers (auto-003)
     # This replaces direct task calls with centralized event handling
@@ -95,10 +95,10 @@ def execute_store_strategy_seed(
                 },
             )
             workflow_triggered = True
-            logger.info(f"Emitted seed_created event for {seed_id} (confidence: {confidence})")
+            logger.info("seed_created_event_emitted", seed_id=seed_id, confidence=confidence)
 
         except Exception as e:
-            logger.warning(f"Failed to trigger strategy workflow for seed {seed_id}: {e}")
+            logger.warning("strategy_workflow_trigger_failed", seed_id=seed_id, error=str(e))
 
     return {
         "seed_id": seed_id,

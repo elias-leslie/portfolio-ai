@@ -131,7 +131,7 @@ class TransactionLogger:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to log entry transaction for {trade_id}: {e}")
+            logger.error("entry_transaction_log_failed", trade_id=trade_id, error=str(e), exc_info=True)
             return False
 
     def log_exit(
@@ -244,7 +244,7 @@ class TransactionLogger:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to log exit transaction for {trade_id}: {e}")
+            logger.error("exit_transaction_log_failed", trade_id=trade_id, error=str(e), exc_info=True)
             return False
 
     def get_transactions(

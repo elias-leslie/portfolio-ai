@@ -7,10 +7,10 @@ trading strategy configurations with weighted confirmations and risk parameters.
 from __future__ import annotations
 
 import json
-import logging
 from typing import Any
 
 from app.agents.llm_client import DualProviderClient, LLMResponse
+from app.logging_config import get_logger
 
 from .models import (
     ExpectedCharacteristics,
@@ -19,7 +19,7 @@ from .models import (
     StrategyParameters,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # System prompt template for strategy generation
 STRATEGY_GENERATOR_PROMPT = """You are a quantitative trading strategist. Your job is to analyze market research and generate a trading strategy configuration.
@@ -251,7 +251,7 @@ Based on this research, generate a trading strategy configuration as valid JSON.
         try:
             strategy_data = json.loads(content)
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse strategy JSON: {e} (content: {content[:100]}...)")
+            logger.error("strategy_json_parse_failed", error=str(e), content_preview=content[:100])
             raise ValueError(f"Invalid JSON response: {e}") from e
 
         # Validate required fields
@@ -303,7 +303,7 @@ Based on this research, generate a trading strategy configuration as valid JSON.
             return result
 
         except Exception as e:
-            logger.error(f"Strategy validation failed: {e}")
+            logger.error("strategy_validation_failed", error=str(e))
             raise ValueError(f"Invalid strategy configuration: {e}") from e
 
 

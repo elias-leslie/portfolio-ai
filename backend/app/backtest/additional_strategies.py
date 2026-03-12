@@ -10,16 +10,16 @@ Each strategy is tunable via __init__ parameters and can be used standalone
 or combined in portfolio backtests.
 """
 
-import logging
 from datetime import date
 from decimal import Decimal
 from typing import Any
 
 from app.analytics.momentum import calculate_momentum, calculate_momentum_score
 from app.backtest.replay import Position
+from app.logging_config import get_logger
 from app.storage.facade import PortfolioStorage
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class MomentumStrategy:
@@ -156,7 +156,7 @@ class MomentumStrategy:
 
         # 3. Max holding period
         if holding_days >= self.max_holding_days:
-            logger.debug(f"EXIT (TIME): {position.symbol} | Held {holding_days} days")
+            logger.debug("exit_time", symbol=position.symbol, holding_days=holding_days)
             return (True, "time")
 
         # 4. Trend broken (price < SMA_50)
@@ -311,7 +311,7 @@ class MeanReversionStrategy:
 
         # 4. Max holding period
         if holding_days >= self.max_holding_days:
-            logger.debug(f"EXIT (TIME): {position.symbol} | Held {holding_days} days")
+            logger.debug("exit_time", symbol=position.symbol, holding_days=holding_days)
             return (True, "time")
 
         return (False, "")
@@ -415,7 +415,7 @@ class TrendFollowingStrategy:
 
         # 1. Max holding period
         if holding_days >= self.max_holding_days:
-            logger.debug(f"EXIT (TIME): {position.symbol} | Held {holding_days} days")
+            logger.debug("exit_time", symbol=position.symbol, holding_days=holding_days)
             return (True, "time")
 
         # 2. Trend broken (price < SMA_20)
