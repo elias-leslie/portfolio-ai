@@ -53,6 +53,32 @@ SYMBOL_STOPWORDS = frozenset(
 )
 MAX_CONTEXT_SYMBOLS = 3
 MAX_PORTFOLIO_POSITIONS = 12
+
+# ── Behavioral identifiers ────────────────────────────────────────────────────
+_STATUS_OPEN = "open"
+_DIRECTION_JENNY_TO_USER = "jenny_to_user"
+_PROVENANCE_JENNY_CHAT = "jenny_chat"
+_PURPOSE_CHAT = "portfolio_jenny_chat"
+_PURPOSE_RECONCILE = "portfolio_jenny_reconcile"
+_PURPOSE_PLANNING_EXTRACT = "portfolio_jenny_planning_extract"
+
+# ── System prompts ─────────────────────────────────────────────────────────────
+_SYSTEM_CHAT = (
+    "You are Jenny inside Portfolio-AI. Help with household planning, retirement, "
+    "portfolio accounts, held positions, symbol questions, and any Portfolio-AI workflow context. "
+    "Use the supplied context as your live source of truth. If the user asks for data that is not "
+    "present in the supplied context, say what is missing instead of inventing it. "
+    "If the user appears to have answered one of Jenny's open household questions, acknowledge it naturally."
+)
+_SYSTEM_RECONCILE = (
+    "Return JSON only. Extract only confident answers that the user's message directly supports."
+)
+_SYSTEM_PLANNING_EXTRACT = (
+    "Return JSON only. Extract only information the user clearly stated and that should update"
+    " the household planning record."
+)
+
+# ── Response schemas ──────────────────────────────────────────────────────────
 RECONCILIATION_RESPONSE_FORMAT = {
     "type": "json_object",
     "schema": {
@@ -151,6 +177,38 @@ PLANNING_UPDATE_SCHEMA = {
 }
 
 
+# ── Module-level pure helpers ─────────────────────────────────────────────────
+
+def _question_summary(question: HouseholdQuestion) -> dict[str, Any]:
+    return {
+        "id": question.id,
+        "field_name": question.field_name,
+        "question": question.question,
+        "priority": question.priority,
+        "question_format": question.question_format,
+        "options": question.options,
+        "rationale": question.rationale,
+        "recommendation": question.recommendation,
+    }
+
+
+def _summarize_symbol(symbol: str) -> dict[str, Any]:
+    intelligence = build_symbol_intelligence_response(symbol, include_market=True, include_strategies=False)
+    payload = intelligence.model_dump(mode="json")
+    return {
+        "symbol": payload.get("symbol"),
+        "recommendation": payload.get("recommendation"),
+        "signal": payload.get("signal"),
+        "scores": payload.get("scores"),
+        "portfolio": payload.get("portfolio"),
+        "alerts": payload.get("alerts"),
+        "news": payload.get("news"),
+        "error": payload.get("error"),
+    }
+
+
+# ── Service ───────────────────────────────────────────────────────────────────
+
 class JennyConversationService:
     """Portfolio-wide Jenny chat with household question reconciliation."""
 
@@ -163,10 +221,9 @@ class JennyConversationService:
     def chat(self, message: str, session_id: str | None = None) -> dict[str, Any]:
         cleaned_message = message.strip()
         open_questions = [
-            question
-            for question in self.household_service.list_questions().items
-            if question.status == "open"
-            and (question.direction is None or question.direction == "jenny_to_user")
+            q for q in self.household_service.list_questions().items
+            if q.status == _STATUS_OPEN
+            and (q.direction is None or q.direction == _DIRECTION_JENNY_TO_USER)
         ]
         context = self._build_context(cleaned_message, open_questions)
         completion = self._complete_conversation(
@@ -211,27 +268,16 @@ class JennyConversationService:
         )
         profile_updates = planning_updates.get("profile_updates") if isinstance(planning_updates, dict) else None
         if isinstance(profile_updates, dict):
-            cleaned_profile_updates = {
-                key: value
-                for key, value in profile_updates.items()
-                if value is not None
-            }
+            cleaned_profile_updates = {k: v for k, v in profile_updates.items() if v is not None}
             if cleaned_profile_updates:
                 self.household_service.update_profile(HouseholdProfileUpdate.model_validate(cleaned_profile_updates))
-                for field_name in cleaned_profile_updates:
-                    if field_name not in updated_fields:
-                        updated_fields.append(field_name)
+                updated_fields.extend(k for k in cleaned_profile_updates if k not in updated_fields)
 
         planning_items = planning_updates.get("planning_items") if isinstance(planning_updates, dict) else None
         if isinstance(planning_items, list) and planning_items:
-            self.household_service.merge_planning_items(
-                items=[item for item in planning_items if isinstance(item, dict)],
-                provenance="jenny_chat",
-            )
-            for item in planning_items:
-                if not isinstance(item, dict):
-                    continue
-                section = str(item.get("section") or "").strip()
+            dict_items = [item for item in planning_items if isinstance(item, dict)]
+            self.household_service.merge_planning_items(items=dict_items, provenance=_PROVENANCE_JENNY_CHAT)
+            for section in (str(i.get("section") or "").strip() for i in dict_items):
                 if section and section not in updated_fields:
                     updated_fields.append(section)
 
@@ -269,10 +315,7 @@ class JennyConversationService:
         positions = self.portfolio_mgr.get_positions()
         live_symbols = sorted({position.symbol.upper() for position in positions if position.symbol})
         detected_symbols = self._detect_symbols(message, live_symbols)
-        symbol_contexts = [
-            self._summarize_symbol(symbol)
-            for symbol in detected_symbols[:MAX_CONTEXT_SYMBOLS]
-        ]
+        symbol_contexts = [_summarize_symbol(sym) for sym in detected_symbols[:MAX_CONTEXT_SYMBOLS]]
         analytics = _get_analytics_payload(include_paper=True)
         position_summaries = self._summarize_positions(positions)
 
@@ -280,12 +323,12 @@ class JennyConversationService:
             "household": {
                 "overview": household_dashboard.overview.model_dump(),
                 "profile": household_dashboard.profile.model_dump(),
-                "resolved_values": [value.model_dump() for value in household_dashboard.resolved_values],
+                "resolved_values": [v.model_dump() for v in household_dashboard.resolved_values],
                 "budget_readiness": household_dashboard.budget_readiness.model_dump(),
                 "budget_snapshot": household_dashboard.budget_snapshot.model_dump(),
                 "retirement_preparedness": household_dashboard.retirement_preparedness.model_dump(),
                 "jenny_needs": [need.model_dump() for need in household_dashboard.jenny_needs],
-                "open_questions": [self._question_summary(question) for question in open_questions],
+                "open_questions": [_question_summary(q) for q in open_questions],
                 "planning": household_dashboard.planning.model_dump(),
             },
             "portfolio": {
@@ -315,26 +358,19 @@ class JennyConversationService:
         context: dict[str, Any],
         open_questions: list[HouseholdQuestion],
     ) -> Any:
-        system_prompt = (
-            "You are Jenny inside Portfolio-AI. Help with household planning, retirement, "
-            "portfolio accounts, held positions, symbol questions, and any Portfolio-AI workflow context. "
-            "Use the supplied context as your live source of truth. If the user asks for data that is not "
-            "present in the supplied context, say what is missing instead of inventing it. "
-            "If the user appears to have answered one of Jenny's open household questions, acknowledge it naturally."
-        )
         prompt = (
             f"Portfolio-AI context:\n{json.dumps(context, indent=2)}\n\n"
-            f"Open household questions:\n{json.dumps([self._question_summary(q) for q in open_questions], indent=2)}\n\n"
+            f"Open household questions:\n{json.dumps([_question_summary(q) for q in open_questions], indent=2)}\n\n"
             f"User message:\n{message}"
         )
         client = self._client()
         try:
             return client.complete_messages(
                 messages=[{"role": "user", "content": prompt}],
-                purpose="portfolio_jenny_chat",
+                purpose=_PURPOSE_CHAT,
                 session_id=session_id,
                 thinking_level="low",
-                system_prompt=system_prompt,
+                system_prompt=_SYSTEM_CHAT,
             )
         finally:
             client.close()
@@ -351,7 +387,7 @@ class JennyConversationService:
         prompt = (
             "Decide which open household questions are directly answered by the user's latest message. "
             "Return only answers that are clearly supported.\n\n"
-            f"Open questions:\n{json.dumps([self._question_summary(q) for q in open_questions], indent=2)}\n\n"
+            f"Open questions:\n{json.dumps([_question_summary(q) for q in open_questions], indent=2)}\n\n"
             f"Relevant portfolio-ai context:\n{json.dumps(context, indent=2)}\n\n"
             f"User message:\n{message}"
         )
@@ -359,11 +395,9 @@ class JennyConversationService:
         try:
             response = client.complete_messages(
                 messages=[{"role": "user", "content": prompt}],
-                purpose="portfolio_jenny_reconcile",
+                purpose=_PURPOSE_RECONCILE,
                 thinking_level="minimal",
-                system_prompt=(
-                    "Return JSON only. Extract only confident answers that the user's message directly supports."
-                ),
+                system_prompt=_SYSTEM_RECONCILE,
                 response_format=RECONCILIATION_RESPONSE_FORMAT,
                 use_memory=False,
             )
@@ -377,15 +411,13 @@ class JennyConversationService:
         answers = payload.get("answers")
         if not isinstance(answers, list):
             return []
-        cleaned_answers: list[dict[str, str]] = []
-        for answer in answers:
-            if not isinstance(answer, dict):
-                continue
-            question_id = str(answer.get("question_id") or "").strip()
-            answer_text = str(answer.get("answer_text") or "").strip()
-            if question_id and answer_text:
-                cleaned_answers.append({"question_id": question_id, "answer_text": answer_text})
-        return cleaned_answers
+        return [
+            {"question_id": str(a.get("question_id") or "").strip(), "answer_text": str(a.get("answer_text") or "").strip()}
+            for a in answers
+            if isinstance(a, dict)
+            and str(a.get("question_id") or "").strip()
+            and str(a.get("answer_text") or "").strip()
+        ]
 
     def _extract_planning_updates(
         self,
@@ -398,18 +430,16 @@ class JennyConversationService:
             "Extract only durable household planning changes that the user directly stated. "
             "Use profile_updates for scalar assumptions and planning_items for typed section rows.\n\n"
             f"Current context:\n{json.dumps(context, indent=2)}\n\n"
-            f"Open questions:\n{json.dumps([self._question_summary(q) for q in open_questions], indent=2)}\n\n"
+            f"Open questions:\n{json.dumps([_question_summary(q) for q in open_questions], indent=2)}\n\n"
             f"User message:\n{message}"
         )
         client = self._client()
         try:
             response = client.complete_messages(
                 messages=[{"role": "user", "content": prompt}],
-                purpose="portfolio_jenny_planning_extract",
+                purpose=_PURPOSE_PLANNING_EXTRACT,
                 thinking_level="minimal",
-                system_prompt=(
-                    "Return JSON only. Extract only information the user clearly stated and that should update the household planning record."
-                ),
+                system_prompt=_SYSTEM_PLANNING_EXTRACT,
                 response_format={"type": "json_object", "schema": PLANNING_UPDATE_SCHEMA},
                 use_memory=False,
             )
@@ -439,8 +469,7 @@ class JennyConversationService:
         if not candidates:
             return []
         validated = self._lookup_symbols(sorted(candidates))
-        combined = sorted(validated | (candidates & live_symbol_set))
-        return combined
+        return sorted(validated | (candidates & live_symbol_set))
 
     def _lookup_symbols(self, candidates: list[str]) -> set[str]:
         if not candidates:
@@ -452,24 +481,12 @@ class JennyConversationService:
             ).fetchall()
         return {str(row[0]).upper() for row in rows if row and row[0]}
 
-    def _summarize_symbol(self, symbol: str) -> dict[str, Any]:
-        intelligence = build_symbol_intelligence_response(symbol, include_market=True, include_strategies=False)
-        payload = intelligence.model_dump(mode="json")
-        return {
-            "symbol": payload.get("symbol"),
-            "recommendation": payload.get("recommendation"),
-            "signal": payload.get("signal"),
-            "scores": payload.get("scores"),
-            "portfolio": payload.get("portfolio"),
-            "alerts": payload.get("alerts"),
-            "news": payload.get("news"),
-            "error": payload.get("error"),
-        }
-
     def _summarize_positions(self, positions: list[Any]) -> list[dict[str, Any]]:
         if not positions:
             return []
-        price_data = self.price_fetcher.fetch_price_data(list({position.symbol for position in positions if position.symbol}))
+        price_data = self.price_fetcher.fetch_price_data(
+            list({position.symbol for position in positions if position.symbol})
+        )
         summaries: list[dict[str, Any]] = []
         for position in positions[:MAX_PORTFOLIO_POSITIONS]:
             price_info = price_data.get(position.symbol)
@@ -491,15 +508,3 @@ class JennyConversationService:
                 }
             )
         return summaries
-
-    def _question_summary(self, question: HouseholdQuestion) -> dict[str, Any]:
-        return {
-            "id": question.id,
-            "field_name": question.field_name,
-            "question": question.question,
-            "priority": question.priority,
-            "question_format": question.question_format,
-            "options": question.options,
-            "rationale": question.rationale,
-            "recommendation": question.recommendation,
-        }
