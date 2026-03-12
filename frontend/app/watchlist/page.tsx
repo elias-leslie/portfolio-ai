@@ -99,7 +99,7 @@ export default function WatchlistPage() {
         title="Watchlist"
         description={description}
         size="md"
-        actions={
+        actions={totalCount > 0 ? (
           <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
@@ -117,7 +117,7 @@ export default function WatchlistPage() {
               Add Symbol
             </Button>
           </div>
-        }
+        ) : undefined}
       />
 
       {!isLoading && !error && totalCount > 0 ? (

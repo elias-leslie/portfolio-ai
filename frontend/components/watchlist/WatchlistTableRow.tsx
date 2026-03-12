@@ -31,7 +31,11 @@ import {
 } from '@/components/watchlist/ExpandedRowUtils'
 import { SourceBadge } from '@/components/watchlist/SourceBadge'
 import { SparklineWithHistory } from '@/components/watchlist/SparklineWithHistory'
-import { formatDate, formatPillarStatus } from '@/components/watchlist/watchlistTableUtils'
+import {
+  formatDate,
+  formatPillarStatus,
+  getWatchlistPriceSnapshot,
+} from '@/components/watchlist/watchlistTableUtils'
 import type { RefreshStatus, WatchlistItem } from '@/lib/api/watchlist'
 import { cn } from '@/lib/utils'
 
@@ -66,6 +70,7 @@ export function WatchlistTableRow({
 }: WatchlistTableRowProps) {
   const hasScore = !!item.currentScore
   const overall = item.currentScore?.overall ?? 0
+  const priceSnapshot = getWatchlistPriceSnapshot(item.currentScore?.price.metadata)
 
   return (
     <Fragment key={item.id}>
@@ -159,36 +164,24 @@ export function WatchlistTableRow({
           data-slot="table-cell"
           data-changed={changedCells[item.id]?.price ? 'true' : undefined}
         >
-          {item.currentScore?.price.metadata?.price ? (
+          {priceSnapshot ? (
             <div
               className="text-sm price-display"
               data-changed={
                 changedCells[item.id]?.price ? 'true' : undefined
               }
             >
-              <div className="font-medium">
-                $
-                {typeof item.currentScore.price.metadata.price === 'number'
-                  ? item.currentScore.price.metadata.price.toFixed(2)
-                  : String(item.currentScore.price.metadata.price)}
-              </div>
-              {item.currentScore.price.metadata.rawChangePct !== undefined && (
+              <div className="font-medium">{priceSnapshot.priceLabel}</div>
+              {priceSnapshot.changeLabel ? (
                 <div
                   className={cn(
                     'text-xs',
-                    typeof item.currentScore.price.metadata.rawChangePct ===
-                      'number' &&
-                      item.currentScore.price.metadata.rawChangePct >= 0
-                      ? 'text-gain'
-                      : 'text-loss',
+                    priceSnapshot.isPositiveChange ? 'text-gain' : 'text-loss',
                   )}
                 >
-                  {typeof item.currentScore.price.metadata.rawChangePct ===
-                  'number'
-                    ? `${item.currentScore.price.metadata.rawChangePct >= 0 ? '+' : ''}${item.currentScore.price.metadata.rawChangePct.toFixed(2)}%`
-                    : `${String(item.currentScore.price.metadata.rawChangePct)}%`}
+                  {priceSnapshot.changeLabel}
                 </div>
-              )}
+              ) : null}
             </div>
           ) : (
             <span className="text-text-muted">—</span>

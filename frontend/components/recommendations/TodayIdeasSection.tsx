@@ -2,7 +2,7 @@
 
 import { Loader2 } from 'lucide-react'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useDeferredValue, useState } from 'react'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { Button } from '@/components/ui/button'
@@ -15,6 +15,7 @@ import { TrackInPortfolioModal } from './TrackInPortfolioModal'
 
 export function TodayIdeasSection() {
   const [portfolioSize, setPortfolioSize] = useState(100_000)
+  const deferredPortfolioSize = useDeferredValue(portfolioSize)
   const [selectedRecommendation, setSelectedRecommendation] =
     useState<TradeRecommendation | null>(null)
   const [trackModalOpen, setTrackModalOpen] = useState(false)
@@ -23,12 +24,13 @@ export function TodayIdeasSection() {
     minStrength: 6,
     limit: 6,
     signalType: 'BUY',
-    portfolioSize,
+    portfolioSize: deferredPortfolioSize,
     positionPct: 0.05,
   })
   const trackMutation = useTrackInPortfolio()
   const recommendations = data?.recommendations ?? []
   const summary = data?.summary
+  const isSizingRefreshing = deferredPortfolioSize !== portfolioSize
   const latestGeneratedAt =
     recommendations.find((r) => r.generatedAt)?.generatedAt ?? null
 
@@ -91,17 +93,22 @@ export function TodayIdeasSection() {
               </div>
               <Slider
                 value={[portfolioSize]}
-                onValueChange={(values) => setPortfolioSize(values[0])}
+                onValueChange={(values) => setPortfolioSize(values[0] ?? portfolioSize)}
                 min={10_000}
                 max={500_000}
                 step={5_000}
               />
+              {isSizingRefreshing ? (
+                <p className="mt-2 text-xs text-text-muted" aria-live="polite">
+                  Updating sizing guidance...
+                </p>
+              ) : null}
             </div>
           </div>
         </div>
 
         {isLoading && (
-          <div className="flex items-center gap-2 text-sm text-text-muted">
+          <div className="flex items-center gap-2 text-sm text-text-muted" role="status" aria-live="polite">
             <Loader2 className="h-4 w-4 animate-spin" />
             Looking for current ideas...
           </div>
@@ -122,7 +129,11 @@ export function TodayIdeasSection() {
         )}
 
         {!isLoading && !error && isFetching ? (
-          <div className="mb-4 flex items-center gap-2 text-sm text-text-muted">
+          <div
+            className="mb-4 flex items-center gap-2 text-sm text-text-muted"
+            role="status"
+            aria-live="polite"
+          >
             <Loader2 className="h-4 w-4 animate-spin" />
             Refreshing ideas with the latest prices and strategy scores...
           </div>

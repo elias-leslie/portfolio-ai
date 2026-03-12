@@ -46,7 +46,11 @@ function getOnboardingStage(
 
 function LoadingState() {
   return (
-    <div className="flex min-h-96 items-center justify-center rounded-3xl border border-border/40 bg-surface-muted/20">
+    <div
+      className="flex min-h-96 items-center justify-center rounded-3xl border border-border/40 bg-surface-muted/20"
+      role="status"
+      aria-live="polite"
+    >
       <div className="flex items-center gap-3 text-sm font-medium text-text-muted">
         <Loader2 className="h-4 w-4 animate-spin text-primary" />
         Building your household finance workspace...

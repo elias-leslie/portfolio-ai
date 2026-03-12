@@ -36,7 +36,7 @@ function SectionLoadingState({
   rows?: number
 }) {
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4" role="status" aria-live="polite">
       <div className="flex items-center gap-2 text-sm font-semibold text-text-muted">
         <Loader2 className="h-4 w-4 animate-spin text-accent" />
         {label}

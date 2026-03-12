@@ -151,71 +151,79 @@ export function ServicePulsePanel({
           )}
         </div>
 
-        <div className="rounded-2xl border border-border/40 bg-surface/60 p-4">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-semibold text-text">Data freshness</p>
-            <Badge
-              variant={
-                dataFreshnessStatus?.status === 'success' ? 'success' : 'warning'
-              }
-            >
-              {dataFreshnessStatus?.status ?? 'unknown'}
-            </Badge>
-          </div>
-          <p className="mt-2 text-sm text-text-muted">
-            Last check {formatRelativeTime(dataFreshnessStatus?.lastCheck)}
-          </p>
-          <p className="mt-2 text-sm text-text-muted">
-            {formatInteger(dataFreshnessStatus?.fresh)} fresh,{' '}
-            {formatInteger(dataFreshnessStatus?.stale)} stale,{' '}
-            {formatInteger(dataFreshnessStatus?.critical)} critical
-          </p>
-          {dataFreshnessStatus?.remediationsTriggered ? (
+        {dataFreshnessStatus ? (
+          <div className="rounded-2xl border border-border/40 bg-surface/60 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-text">Data freshness</p>
+              <Badge
+                variant={
+                  dataFreshnessStatus.status === 'success' ? 'success' : 'warning'
+                }
+              >
+                {dataFreshnessStatus.status}
+              </Badge>
+            </div>
             <p className="mt-2 text-sm text-text-muted">
-              {formatInteger(dataFreshnessStatus.remediationsTriggered)} remediation
-              {dataFreshnessStatus.remediationsTriggered === 1 ? '' : 's'} triggered in the latest
-              pass.
+              Last check {formatRelativeTime(dataFreshnessStatus.lastCheck)}
             </p>
-          ) : null}
-          {dataFreshnessStatus?.error ? (
-            <p className="mt-2 text-sm text-loss">
-              Freshness error: {dataFreshnessStatus.error}
+            <p className="mt-2 text-sm text-text-muted">
+              {formatInteger(dataFreshnessStatus.fresh)} fresh,{' '}
+              {formatInteger(dataFreshnessStatus.stale)} stale,{' '}
+              {formatInteger(dataFreshnessStatus.critical)} critical
             </p>
-          ) : null}
-        </div>
+            {dataFreshnessStatus.remediationsTriggered ? (
+              <p className="mt-2 text-sm text-text-muted">
+                {formatInteger(dataFreshnessStatus.remediationsTriggered)} remediation
+                {dataFreshnessStatus.remediationsTriggered === 1 ? '' : 's'} triggered in the latest
+                pass.
+              </p>
+            ) : null}
+            {dataFreshnessStatus.error ? (
+              <p className="mt-2 text-sm text-loss">
+                Freshness error: {dataFreshnessStatus.error}
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <EmptyPanelMessage message="No data freshness summary is available right now." />
+        )}
 
-        <div className="rounded-2xl border border-border/40 bg-surface/60 p-4">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-semibold text-text">Workflow health</p>
-            <Badge
-              variant={
-                workflowHealth?.status === 'healthy'
-                  ? 'success'
-                  : workflowHealth?.status === 'critical'
-                    ? 'error'
-                    : 'warning'
-              }
-            >
-              {workflowHealth?.status ?? 'unknown'}
-            </Badge>
-          </div>
-          <p className="mt-2 text-sm text-text-muted">
-            {formatPercent(workflowHealth?.successRate)} success rate over{' '}
-            {formatInteger(getWorkflowCount(workflowHealth))} workflows in the last 24h.
-          </p>
-          <p className="mt-2 text-sm text-text-muted">
-            {formatInteger(workflowHealth?.failedWorkflows)} failed ·{' '}
-            {formatInteger(workflowHealth?.blockedWorkflows)} blocked
-          </p>
-          <p className="mt-2 text-sm text-text-muted">
-            Last success {formatRelativeTime(workflowHealth?.lastSuccessfulWorkflow)}
-          </p>
-          {workflowHealth?.lastSuccessfulType ? (
+        {workflowHealth ? (
+          <div className="rounded-2xl border border-border/40 bg-surface/60 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-text">Workflow health</p>
+              <Badge
+                variant={
+                  workflowHealth.status === 'healthy'
+                    ? 'success'
+                    : workflowHealth.status === 'critical'
+                      ? 'error'
+                      : 'warning'
+                }
+              >
+                {workflowHealth.status}
+              </Badge>
+            </div>
             <p className="mt-2 text-sm text-text-muted">
-              Last successful workflow type: {formatLabel(workflowHealth.lastSuccessfulType)}
+              {formatPercent(workflowHealth.successRate)} success rate over{' '}
+              {formatInteger(getWorkflowCount(workflowHealth))} workflows in the last 24h.
             </p>
-          ) : null}
-        </div>
+            <p className="mt-2 text-sm text-text-muted">
+              {formatInteger(workflowHealth.failedWorkflows)} failed ·{' '}
+              {formatInteger(workflowHealth.blockedWorkflows)} blocked
+            </p>
+            <p className="mt-2 text-sm text-text-muted">
+              Last success {formatRelativeTime(workflowHealth.lastSuccessfulWorkflow)}
+            </p>
+            {workflowHealth.lastSuccessfulType ? (
+              <p className="mt-2 text-sm text-text-muted">
+                Last successful workflow type: {formatLabel(workflowHealth.lastSuccessfulType)}
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <EmptyPanelMessage message="No workflow health summary is available right now." />
+        )}
       </div>
     </SectionCard>
   )
@@ -334,10 +342,12 @@ export function QuotaCoveragePanel({
       title="Quota Coverage"
       description="Configured providers and their expected request ceilings."
     >
-      <div className="mb-3 rounded-2xl border border-border/40 bg-surface/40 px-4 py-3 text-sm text-text-muted">
-        {formatInteger(configuredCount)} of {formatInteger(totalCount)} provider
-        {totalCount === 1 ? '' : 's'} configured
-      </div>
+      {totalCount > 0 ? (
+        <div className="mb-3 rounded-2xl border border-border/40 bg-surface/40 px-4 py-3 text-sm text-text-muted">
+          {formatInteger(configuredCount)} of {formatInteger(totalCount)} provider
+          {totalCount === 1 ? '' : 's'} configured
+        </div>
+      ) : null}
       <div className="grid gap-3">
         {apiQuotas.length === 0 ? (
           <EmptyPanelMessage message="No API quota configuration is available right now." />
@@ -463,34 +473,40 @@ export function MarketTimingPanel({
       title="Market Timing"
       description="Useful when stale data warnings show up or when deciding whether today's signals are actionable."
     >
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <SummaryStat
-          label="Current Session"
-          value={marketLabel(marketData?.status)}
-          detail={
-            marketData?.isHoliday ? marketData.holidayName ?? 'Holiday session' : 'Regular session'
-          }
-        />
-        <SummaryStat
-          label="Expected Data Date"
-          value={marketData?.expectedDataDate ?? '—'}
-          detail={`Last trading day ${marketData?.lastTradingDay ?? '—'}`}
-        />
-        <SummaryStat
-          label="Next Trading Day"
-          value={marketData?.nextTradingDay ?? '—'}
-          detail={
-            marketData?.isEarlyClose
-              ? marketData.earlyCloseName ?? 'Early close'
-              : 'Standard close schedule'
-          }
-        />
-        <SummaryStat
-          label="News Refresh"
-          value={marketLastRefreshedAt ? 'live' : 'idle'}
-          detail={`Market feed last refreshed ${formatRelativeTime(marketLastRefreshedAt)}`}
-        />
-      </div>
+      {!marketData && !marketLastRefreshedAt ? (
+        <EmptyPanelMessage message="Market timing data is unavailable right now." />
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <SummaryStat
+            label="Current Session"
+            value={marketLabel(marketData?.status)}
+            detail={
+              marketData?.isHoliday
+                ? marketData.holidayName ?? 'Holiday session'
+                : 'Regular session'
+            }
+          />
+          <SummaryStat
+            label="Expected Data Date"
+            value={marketData?.expectedDataDate ?? '—'}
+            detail={`Last trading day ${marketData?.lastTradingDay ?? '—'}`}
+          />
+          <SummaryStat
+            label="Next Trading Day"
+            value={marketData?.nextTradingDay ?? '—'}
+            detail={
+              marketData?.isEarlyClose
+                ? marketData.earlyCloseName ?? 'Early close'
+                : 'Standard close schedule'
+            }
+          />
+          <SummaryStat
+            label="News Refresh"
+            value={marketLastRefreshedAt ? 'live' : 'idle'}
+            detail={`Market feed last refreshed ${formatRelativeTime(marketLastRefreshedAt)}`}
+          />
+        </div>
+      )}
     </SectionCard>
   )
 }

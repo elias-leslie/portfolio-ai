@@ -140,8 +140,13 @@ describe('JennyMoneyBoard', () => {
       />,
     )
 
-    expect(screen.getByText(/1 prompt · 1 need · 1 resolved value · 3 months of evidence/i)).toBeInTheDocument()
+    expect(screen.getByText('Prompts ready')).toBeInTheDocument()
+    expect(screen.getByText('Open needs')).toBeInTheDocument()
+    expect(screen.getByText('Evidence coverage')).toBeInTheDocument()
+    expect(screen.getByText(/3 months of normalized spend evidence\./i)).toBeInTheDocument()
     expect(screen.getByText(/confirm take-home pay\./i)).toBeInTheDocument()
+    expect(screen.getByText(/what jenny needs next/i)).toBeInTheDocument()
+    expect(screen.getByText(/open questions/i)).toBeInTheDocument()
   })
 
   it('shows empty-state messages when prompts, needs, resolved values, and evidence coverage are zero', () => {
@@ -254,7 +259,9 @@ describe('JennyMoneyBoard', () => {
       />,
     )
 
-    expect(screen.getByText(/0 prompts · 0 needs · 0 resolved values · 0 months of evidence/i)).toBeInTheDocument()
+    expect(screen.getByText(/no follow-up prompts right now\./i)).toBeInTheDocument()
+    expect(screen.getByText(/no unresolved needs are currently blocking the system\./i)).toBeInTheDocument()
     expect(screen.getByText(/Jenny does not need a follow-up prompt right now\./i)).toBeInTheDocument()
+    expect(screen.getByText(/upload statements to give jenny real household evidence/i)).toBeInTheDocument()
   })
 })

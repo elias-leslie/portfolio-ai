@@ -1,5 +1,11 @@
 // Utility functions for WatchlistTable
 
+export interface WatchlistPriceSnapshot {
+  priceLabel: string
+  changeLabel: string | null
+  isPositiveChange: boolean
+}
+
 // Format pillar status
 export function formatPillarStatus(status: string): string {
   const statusMap: Record<string, string> = {
@@ -35,4 +41,57 @@ export function formatDate(dateStr: string, timezone: string): string {
   })
   const tzAbbr = getTimezoneAbbreviation(timezone)
   return `${formatted} ${tzAbbr}`
+}
+
+function toFiniteNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) {
+      return parsed
+    }
+  }
+
+  return null
+}
+
+export function getWatchlistPriceSnapshot(
+  metadata?: Record<string, unknown>,
+): WatchlistPriceSnapshot | null {
+  if (!metadata) {
+    return null
+  }
+
+  const rawPrice = metadata.price
+  const numericPrice = toFiniteNumber(rawPrice)
+  const priceLabel =
+    numericPrice !== null
+      ? `$${numericPrice.toFixed(2)}`
+      : typeof rawPrice === 'string' && rawPrice.trim()
+        ? `$${rawPrice.trim()}`
+        : null
+
+  if (!priceLabel) {
+    return null
+  }
+
+  const rawChange = metadata.rawChangePct
+  const numericChange = toFiniteNumber(rawChange)
+  const changeLabel =
+    numericChange !== null
+      ? `${numericChange >= 0 ? '+' : ''}${numericChange.toFixed(2)}%`
+      : typeof rawChange === 'string' && rawChange.trim()
+        ? rawChange.trim().endsWith('%')
+          ? rawChange.trim()
+          : `${rawChange.trim()}%`
+        : null
+
+  return {
+    priceLabel,
+    changeLabel,
+    isPositiveChange: numericChange !== null ? numericChange >= 0 : !String(rawChange).trim().startsWith('-'),
+  }
 }

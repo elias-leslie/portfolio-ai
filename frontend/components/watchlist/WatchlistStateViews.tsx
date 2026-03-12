@@ -35,7 +35,7 @@ export function WatchlistErrorView({
 
 export function WatchlistLoadingSkeleton() {
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" role="status" aria-live="polite">
       {[1, 2, 3].map((i) => (
         <div key={i} className="h-16 animate-pulse rounded-md bg-surface-muted" />
       ))}

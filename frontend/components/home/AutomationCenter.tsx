@@ -85,7 +85,7 @@ export function AutomationCenter() {
       ) : null}
 
       {isLoading ? (
-        <div className="grid gap-3 lg:grid-cols-2">
+        <div className="grid gap-3 lg:grid-cols-2" role="status" aria-live="polite">
           {[...Array(4)].map((_, index) => (
             <div
               key={`automation-skeleton-${index}`}

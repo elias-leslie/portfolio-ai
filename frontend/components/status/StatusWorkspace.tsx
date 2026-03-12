@@ -70,6 +70,7 @@ export function StatusWorkspace() {
   const apiQuotas = healthQuery.data?.apiQuotas ?? []
   const configuredQuotaCount = apiQuotas.filter((q) => q.configured).length
   const totalQuotaCount = apiQuotas.length
+  const staleMaintenanceCount = healthQuery.data?.staleMaintenanceRuns?.length ?? 0
 
   const watchlistItemsWithScores = healthQuery.data?.watchlistStats?.itemsWithScores ?? null
   const watchlistTotalItems = healthQuery.data?.watchlistStats?.totalItems ?? null
@@ -178,6 +179,24 @@ export function StatusWorkspace() {
               detail={newsPipelineDetail}
             />
             <SummaryStat label="Cache" value={cacheValue} detail={cacheDetail} />
+            <SummaryStat
+              label="Quotas"
+              value={`${formatInteger(configuredQuotaCount)}/${formatInteger(totalQuotaCount)}`}
+              detail={
+                totalQuotaCount > 0
+                  ? `${formatInteger(configuredQuotaCount)} provider${configuredQuotaCount === 1 ? '' : 's'} configured`
+                  : 'No provider quota telemetry yet'
+              }
+            />
+            <SummaryStat
+              label="Maintenance Alerts"
+              value={formatInteger(staleMaintenanceCount)}
+              detail={
+                staleMaintenanceCount > 0
+                  ? 'Background maintenance runs need attention'
+                  : 'No stale maintenance runs reported'
+              }
+            />
           </section>
 
           <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">

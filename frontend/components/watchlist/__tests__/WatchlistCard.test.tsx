@@ -1,13 +1,23 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { WatchlistCard } from '../WatchlistCard'
 
+const expandedRowMock = vi.fn()
+
 vi.mock('@/components/watchlist/ExpandedRow', () => ({
-  ExpandedRow: () => <div>Expanded Row</div>,
+  ExpandedRow: (props: unknown) => {
+    expandedRowMock(props)
+    return <div>Expanded Row</div>
+  },
 }))
 
 vi.mock('@/components/watchlist/SourceBadge', () => ({
   SourceBadge: () => <div>Source Badge</div>,
+}))
+
+vi.mock('@/components/watchlist/SparklineWithHistory', () => ({
+  SparklineWithHistory: ({ itemId }: { itemId: string }) => <div>History {itemId}</div>,
 }))
 
 function buildItem() {
@@ -19,7 +29,18 @@ function buildItem() {
     createdAt: '2026-03-11T12:00:00Z',
     updatedAt: '2026-03-11T12:05:00Z',
     riskLevel: 'Medium' as const,
+    signalType: 'BUY' as const,
+    recommendedStyle: 'Trend' as const,
     scoreAlert: true,
+    priorityIndicators: [
+      {
+        icon: '!',
+        label: 'Earnings soon',
+        tooltip: 'An earnings date is approaching.',
+        priority: 3,
+        category: 'time_sensitive' as const,
+      },
+    ],
     dataQuality: {
       overallPct: 91,
       pillars: {
@@ -53,6 +74,10 @@ function buildItem() {
 }
 
 describe('WatchlistCard', () => {
+  beforeEach(() => {
+    expandedRowMock.mockClear()
+  })
+
   it('shows workspace navigation and mobile parity context', () => {
     render(
       <WatchlistCard
@@ -75,6 +100,13 @@ describe('WatchlistCard', () => {
     expect(screen.getByText('Portfolio')).toBeInTheDocument()
     expect(screen.getByText('DQ 91%')).toBeInTheDocument()
     expect(screen.getByText(/Refreshing 2\/5/i)).toBeInTheDocument()
+    expect(screen.getByText('Live price snapshot')).toBeInTheDocument()
+    expect(screen.getByText('$410.12')).toBeInTheDocument()
+    expect(screen.getByText('+1.25%')).toBeInTheDocument()
+    expect(screen.getByText('🟢 BUY')).toBeInTheDocument()
+    expect(screen.getByText('Style Trend')).toBeInTheDocument()
+    expect(screen.getByText('Earnings soon')).toBeInTheDocument()
+    expect(screen.getByText('History item-1')).toBeInTheDocument()
   })
 
   it('handles undefined refreshStatus and isRefreshing false', () => {
@@ -170,5 +202,37 @@ describe('WatchlistCard', () => {
     )
 
     expect(screen.getByRole('link', { name: 'MSFT' })).toBeInTheDocument()
+  })
+
+  it('passes refresh status into the expanded mobile details view', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <WatchlistCard
+        item={buildItem()}
+        portfolioSymbols={new Set(['MSFT'])}
+        refreshStatus={{
+          isRefreshing: true,
+          currentSymbol: 'MSFT',
+          processedItems: 2,
+          totalItems: 5,
+        }}
+        userTimezone="America/New_York"
+        onDelete={vi.fn()}
+        isDeleting={false}
+      />,
+    )
+
+    await user.click(screen.getByTestId('watchlist-card-expand'))
+
+    expect(expandedRowMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        refreshStatus: expect.objectContaining({
+          currentSymbol: 'MSFT',
+          processedItems: 2,
+          totalItems: 5,
+        }),
+      }),
+    )
   })
 })

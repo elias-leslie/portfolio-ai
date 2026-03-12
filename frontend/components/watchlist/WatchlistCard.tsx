@@ -1,15 +1,31 @@
 'use client'
 
-import { AlertCircle, Briefcase, ChevronDown, ChevronRight, Loader2, Trash2 } from 'lucide-react'
+import {
+  AlertCircle,
+  Briefcase,
+  ChevronDown,
+  ChevronRight,
+  Loader2,
+  Trash2,
+} from 'lucide-react'
 import Link from 'next/link'
 import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Sparkline } from '@/components/ui/sparkline'
 import { ExpandedRow } from '@/components/watchlist/ExpandedRow'
-import { getDataQualityBgColor, getDataQualityColor, getRiskLevelConfig, getScoreBadgeVariant } from '@/components/watchlist/ExpandedRowUtils'
+import {
+  getDataQualityBgColor,
+  getDataQualityColor,
+  getRiskLevelConfig,
+  getScoreBadgeVariant,
+  getSignalDisplay,
+} from '@/components/watchlist/ExpandedRowUtils'
+import { SparklineWithHistory } from '@/components/watchlist/SparklineWithHistory'
 import { SourceBadge } from '@/components/watchlist/SourceBadge'
-import { formatDate } from '@/components/watchlist/watchlistTableUtils'
+import {
+  formatDate,
+  getWatchlistPriceSnapshot,
+} from '@/components/watchlist/watchlistTableUtils'
 import type { RefreshStatus, WatchlistItem } from '@/lib/api/watchlist'
 import { cn } from '@/lib/utils'
 
@@ -41,6 +57,13 @@ export function WatchlistCard({
     refreshStatus?.isRefreshing && refreshStatus.currentSymbol === item.symbol
   const latestUpdatedAt = item.currentScore?.price.updatedAt ?? item.updatedAt
   const riskConfig = item.riskLevel ? getRiskLevelConfig(item.riskLevel) : null
+  const signalDisplay = item.signalType ? getSignalDisplay(item.signalType) : null
+  const priceSnapshot = getWatchlistPriceSnapshot(item.currentScore?.price.metadata)
+  const highlightedIndicators =
+    item.priorityIndicators
+      ?.slice()
+      .sort((left, right) => right.priority - left.priority)
+      .slice(0, 2) ?? []
 
   return (
     <div
@@ -124,6 +147,21 @@ export function WatchlistCard({
       </div>
 
       <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-text-muted">
+        {signalDisplay ? (
+          <span
+            className={cn(
+              'inline-flex items-center rounded-full border px-2 py-1 font-semibold',
+              signalDisplay.color,
+            )}
+          >
+            {signalDisplay.icon} {signalDisplay.label}
+          </span>
+        ) : null}
+        {item.recommendedStyle ? (
+          <span className="rounded-full border border-border/40 bg-surface/80 px-2 py-1">
+            Style {item.recommendedStyle}
+          </span>
+        ) : null}
         {riskConfig ? (
           <span className={cn('font-medium', riskConfig.color)}>
             {riskConfig.icon} {riskConfig.label}
@@ -140,12 +178,40 @@ export function WatchlistCard({
             DQ {item.dataQuality.overallPct.toFixed(0)}%
           </span>
         ) : null}
+        {highlightedIndicators.map((indicator) => (
+          <span
+            key={`${indicator.category}-${indicator.label}`}
+            className="rounded-full border border-border/40 bg-surface/80 px-2 py-1"
+            title={indicator.tooltip}
+          >
+            {indicator.label}
+          </span>
+        ))}
         {isRefreshing && refreshStatus?.processedItems !== undefined && refreshStatus?.totalItems !== undefined ? (
           <span>
             Refreshing {refreshStatus.processedItems}/{refreshStatus.totalItems}
           </span>
         ) : null}
       </div>
+
+      {priceSnapshot ? (
+        <div className="mb-3 rounded-2xl border border-border/40 bg-surface-muted/20 px-3 py-2.5">
+          <p className="text-xs text-text-muted">Live price snapshot</p>
+          <div className="mt-1 flex items-baseline justify-between gap-3">
+            <p className="text-base font-semibold text-text">{priceSnapshot.priceLabel}</p>
+            {priceSnapshot.changeLabel ? (
+              <p
+                className={cn(
+                  'text-sm font-medium',
+                  priceSnapshot.isPositiveChange ? 'text-gain' : 'text-loss',
+                )}
+              >
+                {priceSnapshot.changeLabel}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       {/* Score Grid */}
       <div className="mb-3 grid grid-cols-3 gap-3">
@@ -201,23 +267,19 @@ export function WatchlistCard({
       {hasScore && (
         <div className="mb-2">
           <p className="mb-1 text-xs text-text-muted">7-Day Trend</p>
-          <Sparkline
-            data={[65, 68, 72, 70, 73, 71, overall]}
-            width={120}
-            height={32}
-          />
+          <SparklineWithHistory itemId={item.id} width={120} height={32} />
         </div>
       )}
 
       {/* Updated Timestamp */}
       <p className="text-xs text-text-muted">
-        Updated {formatDate(latestUpdatedAt, userTimezone)}
+        {hasScore ? 'Scored' : 'Updated'} {formatDate(latestUpdatedAt, userTimezone)}
       </p>
 
       {/* Expanded Content */}
       {isExpanded && (
         <div className="mt-4 border-t border-border pt-4">
-          <ExpandedRow item={item} />
+          <ExpandedRow item={item} refreshStatus={refreshStatus} />
         </div>
       )}
     </div>
