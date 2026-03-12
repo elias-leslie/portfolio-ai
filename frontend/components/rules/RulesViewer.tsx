@@ -6,11 +6,10 @@
 
 'use client'
 
-import { ChevronDown, ChevronRight, Download, Loader2 } from 'lucide-react'
+import { Download, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -20,6 +19,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { buildApiUrl } from '@/lib/api-config'
 import { useRules } from '@/lib/hooks/useRules'
+import { CatalystImpactsCard } from './CatalystImpactsCard'
+import { RuleSectionCard } from './RuleSectionCard'
 
 interface ExpandedSections {
   [key: string]: boolean
@@ -36,11 +37,8 @@ export function RulesViewer() {
       const response = await fetch(
         buildApiUrl(`/api/rules/export?format=${format}`),
       )
-      if (!response.ok) {
-        throw new Error('Export failed')
-      }
+      if (!response.ok) throw new Error('Export failed')
 
-      // Get the blob and trigger download
       const blob = await response.blob()
       const filename =
         response.headers
@@ -65,177 +63,7 @@ export function RulesViewer() {
   }
 
   const toggleSection = (section: string) => {
-    setExpandedSections((prev) => ({
-      ...prev,
-      [section]: !prev[section],
-    }))
-  }
-
-  // Format field names to readable labels
-  const formatLabel = (key: string): string => {
-    return key
-      .replace(/_/g, ' ')
-      .split(' ')
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ')
-  }
-
-  // Format values for display
-  const formatValue = (value: unknown): string => {
-    if (typeof value === 'boolean') {
-      return value ? 'Yes' : 'No'
-    }
-    if (typeof value === 'number') {
-      // Check if it's a percentage (< 1 or explicitly named as such)
-      if (value < 1 && value > -1 && value !== 0) {
-        return `${(value * 100).toFixed(2)}%`
-      }
-      return value.toString()
-    }
-    if (Array.isArray(value)) {
-      return value.join(', ')
-    }
-    if (typeof value === 'string') {
-      return value
-    }
-    return JSON.stringify(value)
-  }
-
-  // Render a rule section with key-value pairs
-  const renderRuleSection = (title: string, data: Record<string, unknown>) => {
-    const isExpanded = expandedSections[title]
-
-    return (
-      <div
-        key={title}
-        className="rounded-lg border border-border bg-surface overflow-hidden"
-      >
-        {/* Header */}
-        <button
-          type="button"
-          onClick={() => toggleSection(title)}
-          className="w-full flex items-center justify-between p-4 hover:bg-surface-hover transition-colors text-left"
-        >
-          <div className="flex items-center gap-3">
-            {isExpanded ? (
-              <ChevronDown className="h-5 w-5 text-muted-foreground" />
-            ) : (
-              <ChevronRight className="h-5 w-5 text-muted-foreground" />
-            )}
-            <span className="font-semibold text-foreground">
-              {formatLabel(title)}
-            </span>
-            <Badge variant="outline" className="text-xs">
-              {Object.keys(data).length} rules
-            </Badge>
-          </div>
-        </button>
-
-        {/* Expanded Content */}
-        {isExpanded && (
-          <div className="border-t border-border bg-surface-muted/30 p-4">
-            <div className="grid gap-3 sm:grid-cols-2">
-              {Object.entries(data).map(([key, value]) => (
-                <div
-                  key={key}
-                  className="rounded border border-border bg-surface p-3"
-                >
-                  <div className="text-sm font-medium text-muted-foreground mb-1">
-                    {formatLabel(key)}
-                  </div>
-                  <div className="text-base font-semibold text-foreground">
-                    {formatValue(value)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  // Render catalyst impacts section (special handling for nested structure)
-  const renderCatalystImpacts = (
-    data: Record<string, { impact: number; durationDays: number }>,
-  ) => {
-    const title = 'catalyst_impacts'
-    const isExpanded = expandedSections[title]
-
-    return (
-      <div
-        key={title}
-        className="rounded-lg border border-border bg-surface overflow-hidden"
-      >
-        {/* Header */}
-        <button
-          type="button"
-          onClick={() => toggleSection(title)}
-          className="w-full flex items-center justify-between p-4 hover:bg-surface-hover transition-colors text-left"
-        >
-          <div className="flex items-center gap-3">
-            {isExpanded ? (
-              <ChevronDown className="h-5 w-5 text-muted-foreground" />
-            ) : (
-              <ChevronRight className="h-5 w-5 text-muted-foreground" />
-            )}
-            <span className="font-semibold text-foreground">
-              Catalyst Impacts
-            </span>
-            <Badge variant="outline" className="text-xs">
-              {Object.keys(data).length} events
-            </Badge>
-          </div>
-        </button>
-
-        {/* Expanded Content */}
-        {isExpanded && (
-          <div className="border-t border-border bg-surface-muted/30 p-4">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {Object.entries(data)
-                .sort((a, b) => b[1].impact - a[1].impact) // Sort by impact (highest first)
-                .map(([eventType, catalyst]) => (
-                  <div
-                    key={eventType}
-                    className="rounded border border-border bg-surface p-3"
-                  >
-                    <div className="text-sm font-medium text-foreground mb-2">
-                      {formatLabel(eventType)}
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div>
-                        <div className="text-xs text-muted-foreground">
-                          Impact
-                        </div>
-                        <div
-                          className={`text-base font-semibold ${
-                            catalyst.impact > 0
-                              ? 'text-gain'
-                              : catalyst.impact < 0
-                                ? 'text-loss'
-                                : 'text-muted-foreground'
-                          }`}
-                        >
-                          {catalyst.impact > 0 ? '+' : ''}
-                          {catalyst.impact.toFixed(1)}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-muted-foreground">
-                          Duration
-                        </div>
-                        <div className="text-base font-semibold text-foreground">
-                          {catalyst.durationDays}d
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-            </div>
-          </div>
-        )}
-      </div>
-    )
+    setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }))
   }
 
   if (isLoading) {
@@ -251,15 +79,26 @@ export function RulesViewer() {
       <LoadErrorState
         title="Failed to load trading rules."
         detail="Retry to refresh the current risk, sizing, and watchlist rules."
-        onRetry={() => {
-          void refetch()
-        }}
+        onRetry={() => { void refetch() }}
         isRetrying={isFetching}
       />
     )
   }
 
   if (!rules) return null
+
+  const sections: [string, Record<string, unknown>][] = [
+    ['position_sizing', rules.positionSizing as Record<string, unknown>],
+    ['risk_management', rules.riskManagement as Record<string, unknown>],
+    ['technical_thresholds', rules.technicalThresholds as Record<string, unknown>],
+    ['scoring', rules.scoring as Record<string, unknown>],
+    ['fundamentals', rules.fundamentals as Record<string, unknown>],
+    ['signals', rules.signals as Record<string, unknown>],
+    ['fees', rules.fees as Record<string, unknown>],
+    ['compliance', rules.compliance as Record<string, unknown>],
+    ['market', rules.market as Record<string, unknown>],
+    ['paper_trading', rules.paperTrading as Record<string, unknown>],
+  ]
 
   return (
     <div className="space-y-6">
@@ -268,8 +107,7 @@ export function RulesViewer() {
         <div>
           <h2 className="text-2xl font-bold text-foreground">Trading Rules</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Version {rules.version} - Updated {rules.updated} by{' '}
-            {rules.updatedBy}
+            Version {rules.version} - Updated {rules.updated} by {rules.updatedBy}
           </p>
         </div>
         <DropdownMenu>
@@ -300,9 +138,7 @@ export function RulesViewer() {
           <div className="text-2xl font-bold text-gain">
             {(rules.positionSizing.defaultRiskPercent * 100).toFixed(1)}%
           </div>
-          <div className="text-sm text-muted-foreground">
-            Default Risk/Trade
-          </div>
+          <div className="text-sm text-muted-foreground">Default Risk/Trade</div>
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="text-2xl font-bold text-loss">
@@ -326,39 +162,26 @@ export function RulesViewer() {
 
       {/* Rule Sections */}
       <div className="space-y-3">
-        {renderRuleSection(
-          'position_sizing',
-          rules.positionSizing as Record<string, unknown>,
-        )}
-        {renderRuleSection(
-          'risk_management',
-          rules.riskManagement as Record<string, unknown>,
-        )}
-        {renderRuleSection(
-          'technical_thresholds',
-          rules.technicalThresholds as Record<string, unknown>,
-        )}
-        {renderRuleSection('scoring', rules.scoring as Record<string, unknown>)}
-        {renderRuleSection(
-          'fundamentals',
-          rules.fundamentals as Record<string, unknown>,
-        )}
-        {renderRuleSection('signals', rules.signals as Record<string, unknown>)}
-        {renderRuleSection('fees', rules.fees as Record<string, unknown>)}
-        {renderRuleSection(
-          'compliance',
-          rules.compliance as Record<string, unknown>,
-        )}
-        {renderRuleSection('market', rules.market as Record<string, unknown>)}
-        {renderRuleSection(
-          'paper_trading',
-          rules.paperTrading as Record<string, unknown>,
-        )}
-        {renderCatalystImpacts(rules.catalystImpacts)}
-        {renderRuleSection(
-          'watchlist_management',
-          rules.watchlistManagement as Record<string, unknown>,
-        )}
+        {sections.map(([title, data]) => (
+          <RuleSectionCard
+            key={title}
+            title={title}
+            data={data}
+            isExpanded={!!expandedSections[title]}
+            onToggle={toggleSection}
+          />
+        ))}
+        <CatalystImpactsCard
+          data={rules.catalystImpacts}
+          isExpanded={!!expandedSections.catalyst_impacts}
+          onToggle={toggleSection}
+        />
+        <RuleSectionCard
+          title="watchlist_management"
+          data={rules.watchlistManagement as Record<string, unknown>}
+          isExpanded={!!expandedSections.watchlist_management}
+          onToggle={toggleSection}
+        />
       </div>
     </div>
   )
