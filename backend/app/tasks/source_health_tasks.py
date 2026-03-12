@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import datetime as dt
 import uuid
-from typing import Any
 
 from ..logging_config import get_logger
 from ..sources.alphavantage_source import AlphaVantageSource
@@ -24,25 +23,13 @@ from ..storage import PortfolioStorage
 
 logger = get_logger(__name__)
 
+_TEST_SYMBOL = "SPY"
+_TEST_LOOKBACK_DAYS = 5
 
-def check_data_source_health() -> dict[str, Any]:
-    """Periodically test each configured data source.
 
-    Tests each source by fetching OHLCV data for SPY (reliable test symbol).
-    Categorizes sources as:
-    - healthy: Returns valid data with rows
-    - degraded: No error but empty data
-    - down: Exception raised during fetch
-
-    Returns:
-        dict: Health status per source and summary counts
-    """
-    task_id = str(uuid.uuid4())
-    logger.info("source_health_check_started", task_id=task_id)
-
+def _build_fetcher() -> MultiSourceFetcher:
+    """Instantiate all available sources and wrap them in a MultiSourceFetcher."""
     storage = PortfolioStorage()
-
-    # Initialize all available sources (same as price_fetcher.py)
     sources = [
         YFinanceSource(),
         TwelveDataSource(),
@@ -51,58 +38,65 @@ def check_data_source_health() -> dict[str, Any]:
         FinnhubSource(),
         AlphaVantageSource(),
     ]
+    return MultiSourceFetcher(sources, storage)
 
-    fetcher = MultiSourceFetcher(sources, storage)
-    results: dict[str, str] = {}
-    errors: dict[str, str] = {}
 
-    # Test each source individually with SPY (reliable market indicator)
-    test_symbol = "SPY"
-    test_date_start = dt.date.today() - dt.timedelta(days=5)
-    test_date_end = dt.date.today()
+def _make_test_request() -> DatasetRequest:
+    """Build a DatasetRequest for the SPY health-check probe."""
+    return DatasetRequest(
+        dataset=DATASET_DAY,
+        profile=None,
+        symbols=[_TEST_SYMBOL],
+        start=dt.date.today() - dt.timedelta(days=_TEST_LOOKBACK_DAYS),
+        end=dt.date.today(),
+    )
 
-    for source in fetcher.sources:
-        try:
-            # Create test request for day bars
-            request = DatasetRequest(
-                dataset=DATASET_DAY,
-                profile=None,
-                symbols=[test_symbol],
-                start=test_date_start,
-                end=test_date_end,
+
+def _check_single_source(
+    fetcher: MultiSourceFetcher,
+    source: object,
+    request: DatasetRequest,
+    results: dict[str, str],
+    errors: dict[str, str],
+) -> None:
+    """Probe one source and update results/errors dicts in place."""
+    try:
+        data = fetcher._fetch_from_source(source, request, {_TEST_SYMBOL})  # type: ignore[attr-defined]
+
+        if data is not None and len(data) > 0:
+            results[source.name] = "healthy"  # type: ignore[attr-defined]
+            logger.info(
+                "source_health_check_healthy",
+                source=source.name,  # type: ignore[attr-defined]
+                rows=len(data),
             )
-
-            # Attempt fetch
-            data = fetcher._fetch_from_source(source, request, {test_symbol})
-
-            if data is not None and len(data) > 0:
-                results[source.name] = "healthy"
-                logger.info(
-                    "source_health_check_healthy",
-                    source=source.name,
-                    rows=len(data),
-                )
-            else:
-                results[source.name] = "degraded"
-                logger.warning(
-                    "source_health_check_degraded",
-                    source=source.name,
-                    reason="empty_data",
-                )
-
-        except Exception as e:
-            results[source.name] = "down"
-            errors[source.name] = str(e)
+        else:
+            results[source.name] = "degraded"  # type: ignore[attr-defined]
             logger.warning(
-                "source_health_check_down",
-                source=source.name,
-                error=str(e),
+                "source_health_check_degraded",
+                source=source.name,  # type: ignore[attr-defined]
+                reason="empty_data",
             )
 
-    # Calculate summary metrics
-    healthy_count = sum(1 for status in results.values() if status == "healthy")
-    degraded_count = sum(1 for status in results.values() if status == "degraded")
-    down_count = sum(1 for status in results.values() if status == "down")
+    except Exception as e:
+        results[source.name] = "down"  # type: ignore[attr-defined]
+        errors[source.name] = str(e)  # type: ignore[attr-defined]
+        logger.warning(
+            "source_health_check_down",
+            source=source.name,  # type: ignore[attr-defined]
+            error=str(e),
+        )
+
+
+def _summarise(
+    task_id: str,
+    results: dict[str, str],
+    errors: dict[str, str],
+) -> dict[str, object]:
+    """Compute summary counts, emit a completion log, and return the result dict."""
+    healthy_count = sum(1 for s in results.values() if s == "healthy")
+    degraded_count = sum(1 for s in results.values() if s == "degraded")
+    down_count = sum(1 for s in results.values() if s == "down")
 
     logger.info(
         "source_health_check_completed",
@@ -121,3 +115,29 @@ def check_data_source_health() -> dict[str, Any]:
         "down_count": down_count,
         "total_sources": len(results),
     }
+
+
+def check_data_source_health() -> dict[str, object]:
+    """Periodically test each configured data source.
+
+    Tests each source by fetching OHLCV data for SPY (reliable test symbol).
+    Categorizes sources as:
+    - healthy: Returns valid data with rows
+    - degraded: No error but empty data
+    - down: Exception raised during fetch
+
+    Returns:
+        dict: Health status per source and summary counts
+    """
+    task_id = str(uuid.uuid4())
+    logger.info("source_health_check_started", task_id=task_id)
+
+    fetcher = _build_fetcher()
+    request = _make_test_request()
+    results: dict[str, str] = {}
+    errors: dict[str, str] = {}
+
+    for source in fetcher.sources:
+        _check_single_source(fetcher, source, request, results, errors)
+
+    return _summarise(task_id, results, errors)
