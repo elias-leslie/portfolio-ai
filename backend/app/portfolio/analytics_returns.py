@@ -46,7 +46,9 @@ def calculate_portfolio_value(
         # Skip positions with price errors
         if price.error:
             logger.warning(
-                f"Price error for {position.symbol}: {price.error}, skipping from value calculation"
+                "price_error_skipping_value_calculation",
+                symbol=position.symbol,
+                error=price.error,
             )
             continue
 

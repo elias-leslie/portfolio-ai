@@ -91,7 +91,7 @@ def commit_workflow_results(
         # Ensure reports/autonomous directory exists
         repo_root = _get_repo_root()
         if not repo_root:
-            logger.warning("Not running in a git repository, skipping commit")
+            logger.warning("git_not_in_repository")
             return False
 
         # Execute git workflow (file creation, add, commit, pull, push)
@@ -168,25 +168,25 @@ def _execute_git_workflow(
 
     # Stage file with git add
     if not _git_add(repo_root, str(snapshot_path)):
-        logger.warning("Failed to stage snapshot file with git add")
+        logger.warning("git_add_stage_failed")
         return False
 
     # Create and commit with git commit
     commit_message = f"[AUTONOMOUS] {date_str} - {workflow_type} - {result_summary}"
     if not _git_commit(repo_root, commit_message):
-        logger.warning("Failed to create git commit")
+        logger.warning("git_commit_failed")
         return False
 
     logger.info("git_commit_created", message=commit_message)
 
     # Pull before push to handle merge conflicts
     if not _git_pull(repo_root):
-        logger.warning("Failed to pull from remote before push")
+        logger.warning("git_pull_failed")
         return False
 
     # Push to remote (origin/main)
     if not _git_push(repo_root):
-        logger.warning("Failed to push to remote")
+        logger.warning("git_push_failed")
         return False
 
     logger.info("git_push_completed", filename=snapshot_filename)
@@ -220,7 +220,7 @@ def _git_add(repo_root: Path, file_path: str) -> bool:
             return False
         return True
     except subprocess.TimeoutExpired:
-        logger.error("git add timed out after 5 seconds")
+        logger.error("git_add_timeout", timeout_seconds=5)
         return False
     except Exception as e:
         logger.error("git_add_error", error=str(e), exc_info=True)
@@ -248,7 +248,7 @@ def _git_commit(repo_root: Path, message: str) -> bool:
         if result.returncode != 0:
             # Check if "nothing to commit" (not an error for our purposes)
             if "nothing to commit" in result.stdout:
-                logger.debug("No changes to commit (nothing staged)")
+                logger.debug("git_nothing_to_commit")
                 return True
             logger.warning(
                 "git_commit_failed",
@@ -258,7 +258,7 @@ def _git_commit(repo_root: Path, message: str) -> bool:
             return False
         return True
     except subprocess.TimeoutExpired:
-        logger.error("git commit timed out after 5 seconds")
+        logger.error("git_commit_timeout", timeout_seconds=5)
         return False
     except Exception as e:
         logger.error("git_commit_error", error=str(e), exc_info=True)
@@ -291,12 +291,12 @@ def _git_pull(repo_root: Path) -> bool:
 
         # If no remote configured, that's okay
         if "no remote" in output or "does not appear to be a" in output:
-            logger.info("No remote configured (standalone repository)")
+            logger.info("git_no_remote_configured")
             return True
 
         # Check for fast-forward merge conflicts
         if "fatal: Not possible to fast-forward" in result.stderr:
-            logger.warning("Merge conflict detected, cannot fast-forward pull")
+            logger.warning("git_merge_conflict_detected")
             return False
 
         logger.warning(
@@ -307,7 +307,7 @@ def _git_pull(repo_root: Path) -> bool:
         return False
 
     except subprocess.TimeoutExpired:
-        logger.error("git pull timed out after 10 seconds")
+        logger.error("git_pull_timeout", timeout_seconds=10)
         return False
     except Exception as e:
         logger.error("git_pull_error", error=str(e), exc_info=True)
@@ -340,7 +340,7 @@ def _git_push(repo_root: Path) -> bool:
 
         # If no remote configured, that's okay (local dev)
         if "no remote" in output or "does not appear to be a" in output:
-            logger.info("No remote configured (local development)")
+            logger.info("git_no_remote_configured")
             return True
 
         logger.warning(
@@ -351,7 +351,7 @@ def _git_push(repo_root: Path) -> bool:
         return False
 
     except subprocess.TimeoutExpired:
-        logger.error("git push timed out after 10 seconds")
+        logger.error("git_push_timeout", timeout_seconds=10)
         return False
     except Exception as e:
         logger.error("git_push_error", error=str(e), exc_info=True)
