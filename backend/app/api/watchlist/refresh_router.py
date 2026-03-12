@@ -89,7 +89,7 @@ async def get_refresh_status() -> RefreshStatusResponse:
         )
 
     except Exception as e:
-        logger.error("Failed to get refresh status", error=str(e))
+        logger.error("Failed to get refresh status", error=str(e), exc_info=True)
         # Return no refresh in progress on error
         return _build_not_refreshing_response()
 

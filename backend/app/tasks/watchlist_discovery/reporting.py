@@ -157,5 +157,5 @@ def generate_daily_watchlist_report_task() -> dict[str, Any]:
             "score_changes_count": len(score_changes),
         }
     except Exception as e:
-        logger.error("watchlist_daily_report_failed", error=str(e))
+        logger.error("watchlist_daily_report_failed", error=str(e), exc_info=True)
         return {"status": "error", "error": str(e)}

@@ -82,7 +82,7 @@ def assign_task_to_agent(
         }
 
     except Exception as e:
-        logger.error("task_assignment_failed", error=str(e))
+        logger.error("task_assignment_failed", error=str(e), exc_info=True)
         return {
             "status": "error",
             "error": str(e),
@@ -146,7 +146,7 @@ def record_agent_output(
         logger.info("agent_output_recorded", agent_type=agent_type, workflow_id=workflow_id)
 
     except Exception as e:
-        logger.error("agent_output_recording_failed", error=str(e))
+        logger.error("agent_output_recording_failed", error=str(e), exc_info=True)
 
 
 def collect_agent_outputs(storage: PortfolioStorage, workflow_id: str) -> dict[str, object]:
@@ -179,5 +179,5 @@ def collect_agent_outputs(storage: PortfolioStorage, workflow_id: str) -> dict[s
         return collected
 
     except Exception as e:
-        logger.error("agent_output_collection_failed", error=str(e))
+        logger.error("agent_output_collection_failed", error=str(e), exc_info=True)
         return {}

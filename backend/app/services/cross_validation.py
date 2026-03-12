@@ -176,7 +176,7 @@ class CrossValidationService:
                 metadata=metadata,
             )
         except Exception as e:
-            logger.error("cross_validation_failed", error=str(e))
+            logger.error("cross_validation_failed", error=str(e), exc_info=True)
             return _make_failed_result(generator_output, e, context_type, context_symbol, metadata)
 
     def generate_and_validate(
@@ -199,7 +199,7 @@ class CrossValidationService:
                 metadata=metadata,
             )
         except Exception as e:
-            logger.error("cross_validation_failed", error=str(e))
+            logger.error("cross_validation_failed", error=str(e), exc_info=True)
             result = _make_failed_result(response.content, e, context_type, context_symbol, metadata)
         return response, result
 

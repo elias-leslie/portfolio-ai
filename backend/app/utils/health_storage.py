@@ -85,7 +85,7 @@ def get_cache_stats(storage: PortfolioStorage) -> CacheStats:
         )
 
     except Exception as e:
-        logger.error("get_cache_stats_failed", error=str(e))
+        logger.error("get_cache_stats_failed", error=str(e), exc_info=True)
         return CacheStats(total_cached=0)
 
 
@@ -139,7 +139,7 @@ def get_api_quotas(storage: PortfolioStorage) -> list[APIQuotaInfo]:
             quotas.append(APIQuotaInfo(**quota_data))
 
     except Exception as e:
-        logger.error("get_api_quotas_failed", error=str(e))
+        logger.error("get_api_quotas_failed", error=str(e), exc_info=True)
 
     return quotas
 
@@ -200,7 +200,7 @@ def get_day_bars_freshness(storage: PortfolioStorage) -> list[DayBarFreshness]:
         logger.info("get_day_bars_freshness_success", symbol_count=len(freshness_list))
 
     except Exception as e:
-        logger.error("get_day_bars_freshness_failed", error=str(e))
+        logger.error("get_day_bars_freshness_failed", error=str(e), exc_info=True)
 
     return freshness_list
 
@@ -231,6 +231,6 @@ def get_api_key_statuses(storage: PortfolioStorage) -> list[APIKeyStatus]:
         statuses.sort(key=lambda x: x.source)
 
     except Exception as e:
-        logger.error("get_api_key_statuses_failed", error=str(e))
+        logger.error("get_api_key_statuses_failed", error=str(e), exc_info=True)
 
     return statuses

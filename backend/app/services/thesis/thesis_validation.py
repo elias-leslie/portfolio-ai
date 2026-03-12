@@ -70,7 +70,7 @@ class ThesisValidator:
             )
 
         except Exception as e:
-            logger.error("thesis_validation_failed", error=str(e))
+            logger.error("thesis_validation_failed", error=str(e), exc_info=True)
             # Return failed validation instead of raising
             return ThesisValidation(
                 provider="risk-manager",

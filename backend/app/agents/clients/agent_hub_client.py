@@ -212,11 +212,11 @@ class AgentHubAPIClient(LLMClient):
             )
 
         except AgentHubError as e:
-            logger.error("agent_hub_error", error=str(e))
+            logger.error("agent_hub_error", error=str(e), exc_info=True)
             raise RuntimeError(f"Agent Hub API error: {e}") from e
 
         except Exception as e:
-            logger.error("agent_hub_unexpected_error", error=str(e))
+            logger.error("agent_hub_unexpected_error", error=str(e), exc_info=True)
             raise RuntimeError(f"Unexpected Agent Hub error: {e}") from e
 
     def complete_messages(

@@ -89,7 +89,7 @@ def monitor_thesis_health_task() -> dict[str, Any]:
         return {"status": "success", **results}
 
     except Exception as e:
-        logger.error("thesis_health_check_failed", error=str(e))
+        logger.error("thesis_health_check_failed", error=str(e), exc_info=True)
         return {"status": "error", "error": str(e)}
 
 
@@ -141,7 +141,7 @@ def process_invalidated_theses_task() -> dict[str, Any]:
         return {"status": "success", **results}
 
     except Exception as e:
-        logger.error("process_invalidated_failed", error=str(e))
+        logger.error("process_invalidated_failed", error=str(e), exc_info=True)
         return {"status": "error", "error": str(e)}
 
 
@@ -184,5 +184,5 @@ def archive_strategies_for_invalidated_theses_task() -> dict[str, Any]:
         return {"status": "success", **results}
 
     except Exception as e:
-        logger.error("archive_strategies_failed", error=str(e))
+        logger.error("archive_strategies_failed", error=str(e), exc_info=True)
         return {"status": "error", "error": str(e)}

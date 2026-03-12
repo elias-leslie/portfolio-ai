@@ -163,5 +163,5 @@ def trim_underperforming_watchlist_task() -> dict[str, Any]:
         }
 
     except Exception as e:
-        logger.error("watchlist_trim_failed", error=str(e))
+        logger.error("watchlist_trim_failed", error=str(e), exc_info=True)
         return {"status": "error", "error": str(e)}

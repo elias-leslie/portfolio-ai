@@ -93,7 +93,7 @@ def start_workflow(
         }
 
     except Exception as e:
-        logger.error("workflow_start_failed", error=str(e))
+        logger.error("workflow_start_failed", error=str(e), exc_info=True)
         return {
             "status": "error",
             "error": str(e),
@@ -203,7 +203,7 @@ def complete_workflow(
         }
 
     except Exception as e:
-        logger.error("workflow_completion_failed", error=str(e))
+        logger.error("workflow_completion_failed", error=str(e), exc_info=True)
         return {
             "status": "error",
             "error": str(e),
@@ -283,7 +283,7 @@ def fail_workflow(
         }
 
     except Exception as e:
-        logger.error("workflow_fail_marking_failed", error=str(e))
+        logger.error("workflow_fail_marking_failed", error=str(e), exc_info=True)
         return {
             "status": "error",
             "error": str(e),
@@ -337,5 +337,5 @@ def get_workflow_status(storage: PortfolioStorage, workflow_id: str) -> dict[str
         }
 
     except Exception as e:
-        logger.error("workflow_status_fetch_failed", error=str(e))
+        logger.error("workflow_status_fetch_failed", error=str(e), exc_info=True)
         return None

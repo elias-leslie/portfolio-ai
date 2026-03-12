@@ -103,7 +103,7 @@ class PortDiscovery:
         except subprocess.TimeoutExpired:
             logger.warning("systemd_command_timeout")
         except Exception as e:
-            logger.error("systemd_discovery_failed", error=str(e))
+            logger.error("systemd_discovery_failed", error=str(e), exc_info=True)
 
         return discovered
 

@@ -172,5 +172,5 @@ class ThesisGenerator:
             return thesis_data
 
         except Exception as e:
-            logger.error("thesis_generation_failed", error=str(e))
+            logger.error("thesis_generation_failed", error=str(e), exc_info=True)
             raise RuntimeError(f"Thesis generation failed: {e}") from e

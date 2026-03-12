@@ -282,7 +282,7 @@ async def get_data_freshness_summary() -> dict[str, Any]:
             result = conn.execute(DATA_FRESHNESS_QUERY).fetchone()
         return _build_freshness_summary_payload(result)
     except Exception as e:
-        logger.error("get_data_freshness_summary_failed", error=str(e))
+        logger.error("get_data_freshness_summary_failed", error=str(e), exc_info=True)
         return {"last_check": None, "status": STATUS_ERROR, "error": str(e)}
 
 
@@ -312,7 +312,7 @@ async def get_recent_remediations(hours: int = DEFAULT_HOURS_WINDOW) -> list[dic
 
         return list(remediations_by_table.values())[:MAX_RETURNED_REMEDIATIONS]
     except Exception as e:
-        logger.error("get_recent_remediations_failed", error=str(e))
+        logger.error("get_recent_remediations_failed", error=str(e), exc_info=True)
         return []
 
 
@@ -332,7 +332,7 @@ async def get_stale_maintenance_runs(hours: int = DEFAULT_STALE_RUN_HOURS) -> li
             for task_name, started_at, dry_run in result
         ]
     except Exception as e:
-        logger.error("get_stale_maintenance_runs_failed", error=str(e))
+        logger.error("get_stale_maintenance_runs_failed", error=str(e), exc_info=True)
         return []
 
 

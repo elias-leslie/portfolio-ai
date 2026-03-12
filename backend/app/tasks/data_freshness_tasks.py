@@ -67,7 +67,7 @@ def _refresh_stale(stale_symbols: list[str]) -> tuple[int, int]:
         logger.info("watchlist_refreshed", stale_count=len(stale_symbols))
         return len(stale_symbols), 0
     except Exception as e:
-        logger.error("watchlist_refresh_failed", error=str(e))
+        logger.error("watchlist_refresh_failed", error=str(e), exc_info=True)
         return 0, len(stale_symbols)
 
 

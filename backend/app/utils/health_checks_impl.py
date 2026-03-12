@@ -197,7 +197,7 @@ def check_sources(storage: PortfolioStorage) -> dict[str, SourceHealthCheck]:
             )
 
     except Exception as e:
-        logger.error("check_sources_failed", error=str(e))
+        logger.error("check_sources_failed", error=str(e), exc_info=True)
 
     return sources
 
@@ -246,7 +246,7 @@ def get_agent_stats(storage: PortfolioStorage) -> AgentStats:
         )
 
     except Exception as e:
-        logger.error("get_agent_stats_failed", error=str(e))
+        logger.error("get_agent_stats_failed", error=str(e), exc_info=True)
         return AgentStats(
             total_runs=0,
             completed_runs=0,
@@ -300,7 +300,7 @@ def get_watchlist_stats(storage: PortfolioStorage) -> WatchlistStats:
         )
 
     except Exception as e:
-        logger.error("get_watchlist_stats_failed", error=str(e))
+        logger.error("get_watchlist_stats_failed", error=str(e), exc_info=True)
         return WatchlistStats(total_items=0)
 
 
@@ -318,5 +318,5 @@ def get_worker_info() -> WorkerInfo:
         active = result.stdout.strip() == "active"
         return WorkerInfo(active=active, message="Hatchet worker active" if active else "Hatchet worker not active")
     except Exception as e:
-        logger.error("get_worker_info_failed", error=str(e))
+        logger.error("get_worker_info_failed", error=str(e), exc_info=True)
         return WorkerInfo(active=False, message=f"Worker check failed: {e!s}")

@@ -136,5 +136,5 @@ def save_portfolio_snapshots_task() -> dict[str, Any]:
         return result
 
     except Exception as e:
-        logger.error("portfolio_snapshots_task_failed", error=str(e))
+        logger.error("portfolio_snapshots_task_failed", error=str(e), exc_info=True)
         raise

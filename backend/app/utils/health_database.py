@@ -54,7 +54,7 @@ def check_database(storage: PortfolioStorage) -> CheckResult:
         )
 
     except Exception as e:
-        logger.error("database_health_check_failed", error=str(e))
+        logger.error("database_health_check_failed", error=str(e), exc_info=True)
         return CheckResult(
             status="down",
             message=f"Database error: {e!s}",

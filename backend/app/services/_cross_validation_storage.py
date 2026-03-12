@@ -58,7 +58,7 @@ def save_result(result: ValidationResult) -> None:
             )
             conn.commit()
     except Exception as e:
-        logger.error("save_validation_result_failed", error=str(e))
+        logger.error("save_validation_result_failed", error=str(e), exc_info=True)
 
 
 def row_to_result(row: Any) -> ValidationResult:
@@ -135,7 +135,7 @@ def get_pending_validations(limit: int = 50) -> list[ValidationResult]:
             for db_row in cursor.fetchall():
                 results.append(row_to_result(db_row))
     except Exception as e:
-        logger.error("get_pending_validations_failed", error=str(e))
+        logger.error("get_pending_validations_failed", error=str(e), exc_info=True)
     return results
 
 

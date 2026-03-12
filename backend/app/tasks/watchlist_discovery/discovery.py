@@ -118,5 +118,5 @@ def discover_watchlist_candidates_task() -> dict[str, Any]:
         }
 
     except Exception as e:
-        logger.error("watchlist_discovery_failed", error=str(e))
+        logger.error("watchlist_discovery_failed", error=str(e), exc_info=True)
         return {"status": "error", "error": str(e)}
