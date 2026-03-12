@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useState } from 'react'
 import type {
   HouseholdFinanceDashboard,
+  HouseholdPlanningUpdate,
   JennyNeed,
 } from '@/lib/api/household'
 import {
@@ -11,6 +12,7 @@ import {
   useAskJenny,
   useCategorizeHouseholdTransaction,
   useConfirmFact,
+  useUpdateHouseholdPlanning,
   useUpdateHouseholdProfile,
 } from '@/lib/hooks/useHousehold'
 import { SectionCard } from '@/components/shared/SectionCard'
@@ -40,6 +42,125 @@ const HOUSEHOLD_CATEGORY_OPTIONS = [
 ] as const
 
 const ESSENTIALITY_OPTIONS = ['essential', 'discretionary', 'mixed'] as const
+const QUICK_SAVE_NOTE = 'Added from What Jenny Needs quick save.'
+
+function getPlanningSectionNeed(need: JennyNeed): string | null {
+  return need.id.startsWith('need_planning_')
+    ? need.id.slice('need_planning_'.length)
+    : null
+}
+
+function stripPlanningItemMeta<T extends { createdAt: string; updatedAt: string }>(
+  item: T,
+): Omit<T, 'createdAt' | 'updatedAt'> {
+  const { createdAt: _createdAt, updatedAt: _updatedAt, ...rest } = item
+  return rest
+}
+
+function buildQuickPlanningPayload(
+  section: string,
+  value: number,
+  planning: HouseholdFinanceDashboard['planning'] | null | undefined,
+): HouseholdPlanningUpdate | null {
+  switch (section) {
+    case 'debt':
+      return {
+        debtObligations: [
+          ...(planning?.debtObligations ?? []).map(stripPlanningItemMeta),
+          {
+            label: 'Household debt',
+            debtType: 'other',
+            monthlyPayment: value,
+            notes: QUICK_SAVE_NOTE,
+          },
+        ],
+      }
+    case 'housing':
+      return {
+        housingCosts: [
+          ...(planning?.housingCosts ?? []).map(stripPlanningItemMeta),
+          {
+            label: 'Primary housing',
+            housingType: 'primary_residence',
+            occupancyRole: 'primary',
+            monthlyPayment: value,
+            notes: QUICK_SAVE_NOTE,
+          },
+        ],
+      }
+    case 'insurance':
+      return {
+        insurancePolicies: [
+          ...(planning?.insurancePolicies ?? []).map(stripPlanningItemMeta),
+          {
+            label: 'Primary insurance',
+            coverageType: 'unknown',
+            premiumMonthly: value,
+            notes: QUICK_SAVE_NOTE,
+          },
+        ],
+      }
+    case 'retirement_income':
+      return {
+        retirementIncomeSources: [
+          ...(planning?.retirementIncomeSources ?? []).map(stripPlanningItemMeta),
+          {
+            label: 'Retirement income',
+            sourceType: 'other',
+            monthlyAmount: value,
+            notes: QUICK_SAVE_NOTE,
+          },
+        ],
+      }
+    case 'planned_expenses':
+      return {
+        plannedExpenses: [
+          ...(planning?.plannedExpenses ?? []).map(stripPlanningItemMeta),
+          {
+            label: 'Major expense',
+            expenseKind: 'major_expense',
+            category: 'planned',
+            targetAmount: value,
+            priority: 'medium',
+            notes: QUICK_SAVE_NOTE,
+          },
+        ],
+      }
+    case 'goal_buckets':
+      return {
+        plannedExpenses: [
+          ...(planning?.plannedExpenses ?? []).map(stripPlanningItemMeta),
+          {
+            label: 'Goal bucket',
+            expenseKind: 'goal_bucket',
+            category: 'goal_bucket',
+            monthlySavingTarget: value,
+            priority: 'medium',
+            notes: QUICK_SAVE_NOTE,
+          },
+        ],
+      }
+    default:
+      return null
+  }
+}
+
+function getSetNeedPlaceholder(need: JennyNeed, planningSection: string | null): string {
+  if (need.fieldName === 'target_retirement_age') {
+    return 'e.g. 65'
+  }
+
+  switch (planningSection) {
+    case 'household':
+      return 'e.g. 4'
+    case 'income':
+      return 'e.g. 8500'
+    case 'taxes':
+      return 'e.g. 24'
+    default:
+      return 'e.g. 5000'
+  }
+}
 
 function JennyNeedCard({
   need,
@@ -50,6 +171,7 @@ function JennyNeedCard({
 }) {
   const confirmFact = useConfirmFact()
   const updateProfile = useUpdateHouseholdProfile()
+  const updatePlanning = useUpdateHouseholdPlanning()
   const categorizeTransaction = useCategorizeHouseholdTransaction()
   const answerQuestion = useAnswerHouseholdQuestion()
   const [draft, setDraft] = useState('')
@@ -63,6 +185,7 @@ function JennyNeedCard({
       : need.priority === 'high'
         ? 'border-warning/30 bg-warning/10'
         : 'border-border/50 bg-surface-muted/20'
+  const planningSection = getPlanningSectionNeed(need)
 
   // Provide type: link to intake
   if (need.needType === 'provide') {
@@ -211,39 +334,94 @@ function JennyNeedCard({
 
   // Set type: profile field input
   if (need.needType === 'set') {
+    const placeholder = getSetNeedPlaceholder(need, planningSection)
+    const canSaveInline = Boolean(need.fieldName || planningSection)
+
+    const saveSetNeed = () => {
+      const value = Number(draft)
+      if (Number.isNaN(value)) {
+        return
+      }
+
+      if (need.fieldName) {
+        const payload: Record<string, number> = {}
+        const camelKey = need.fieldName.replace(/_([a-z])/g, (_, c: string) =>
+          c.toUpperCase(),
+        )
+        payload[camelKey] = value
+        updateProfile.mutate(payload, { onSuccess: () => setDraft('') })
+        return
+      }
+
+      if (planningSection === 'household') {
+        updateProfile.mutate(
+          { adultCount: Math.max(1, Math.round(value)) },
+          { onSuccess: () => setDraft('') },
+        )
+        return
+      }
+
+      if (planningSection === 'income') {
+        updateProfile.mutate(
+          { monthlyNetIncomeTarget: value },
+          { onSuccess: () => setDraft('') },
+        )
+        return
+      }
+
+      if (planningSection === 'taxes') {
+        updateProfile.mutate(
+          { effectiveTaxRate: value },
+          { onSuccess: () => setDraft('') },
+        )
+        return
+      }
+
+      const payload = planningSection
+        ? buildQuickPlanningPayload(planningSection, value, dashboard.planning)
+        : null
+      if (!payload) {
+        return
+      }
+
+      updatePlanning.mutate(payload, { onSuccess: () => setDraft('') })
+    }
+
     return (
       <div className={`rounded-2xl border p-4 ${priorityColor}`}>
         <p className="text-sm font-semibold text-text">{need.title}</p>
         <p className="mt-1 text-sm text-text-muted">{need.detail}</p>
-        <div className="mt-3 flex flex-col gap-3 md:flex-row">
-          <Input
-            type="number"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder={
-              need.fieldName === 'target_retirement_age'
-                ? 'e.g. 65'
-                : 'e.g. 5000'
-            }
-          />
-          <Button
-            disabled={updateProfile.isPending || !draft.trim()}
-            onClick={() => {
-              if (!need.fieldName) return
-              const value = Number(draft)
-              if (Number.isNaN(value)) return
-              const payload: Record<string, number> = {}
-              // Convert snake_case field to camelCase for the API
-              const camelKey = need.fieldName.replace(/_([a-z])/g, (_, c: string) =>
-                c.toUpperCase(),
-              )
-              payload[camelKey] = value
-              updateProfile.mutate(payload, { onSuccess: () => setDraft('') })
-            }}
-          >
-            Save
-          </Button>
-        </div>
+        {canSaveInline ? (
+          <div className="mt-3 flex flex-col gap-3 md:flex-row">
+            <Input
+              type="number"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder={placeholder}
+            />
+            <Button
+              disabled={
+                updateProfile.isPending ||
+                updatePlanning.isPending ||
+                !draft.trim()
+              }
+              onClick={saveSetNeed}
+            >
+              Save
+            </Button>
+            {need.actionHref ? (
+              <Button asChild variant="outline">
+                <Link href={need.actionHref}>Open Planning</Link>
+              </Button>
+            ) : null}
+          </div>
+        ) : need.actionHref ? (
+          <div className="mt-3">
+            <Button asChild size="sm" variant="outline">
+              <Link href={need.actionHref}>Open Planning</Link>
+            </Button>
+          </div>
+        ) : null}
       </div>
     )
   }

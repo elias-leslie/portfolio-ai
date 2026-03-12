@@ -25,7 +25,7 @@ def _jenny_statement_needs(coverage_months: int, days_since_latest: int | None) 
     return [JennyNeed(
         id="need_statements", need_type="provide", title="Upload statements",
         detail=detail, priority="critical", status="unsatisfied",
-        recurrence="periodic", action_href="/money",
+        recurrence="periodic", action_href="/money?tab=intake",
     )]
 
 
@@ -64,7 +64,7 @@ def _jenny_confirmation_needs(
             title=f"Complete {section.label.lower()} planning",
             detail=section.detail,
             priority="high" if section.section in {"household", "income", "housing", "debt"} else "medium",
-            status="unsatisfied", recurrence="one_time", action_href="/money",
+            status="unsatisfied", recurrence="one_time", action_href="/money?tab=planning",
         ))
     for req in [r for r in planning.document_requirements if r.status == "missing"][:4]:
         needs.append(JennyNeed(
@@ -72,7 +72,7 @@ def _jenny_confirmation_needs(
             title=f"Upload {req.label}",
             detail=req.rationale or "Jenny needs this document to validate your planning assumptions.",
             priority=req.priority if req.priority in {"critical", "high", "medium", "low"} else "medium",
-            status="unsatisfied", recurrence="as_needed", action_href="/money",
+            status="unsatisfied", recurrence="as_needed", action_href="/money?tab=intake",
         ))
     return needs
 
@@ -91,7 +91,7 @@ def _jenny_account_question_needs(
             id=f"need_account_{acct_key}", need_type="provide",
             title=f"Upload {label} statements",
             detail=f"Jenny spotted references to {label} in your transactions but has no statements for it.",
-            priority="high", status="unsatisfied", recurrence="one_time", action_href="/money",
+            priority="high", status="unsatisfied", recurrence="one_time", action_href="/money?tab=intake",
         ))
     for q in [q for q in questions if q.status == "open"][:3]:
         needs.append(JennyNeed(
@@ -144,6 +144,6 @@ def _jenny_freshness_needs(documents: list[Any], days_since_latest: int | None) 
             id="need_freshness", need_type="provide",
             title="Upload newer statements",
             detail=f"The most recent transaction is {days_since_latest} days old. Fresher data keeps pacing accurate.",
-            priority="low", status="unsatisfied", recurrence="periodic", action_href="/money",
+            priority="low", status="unsatisfied", recurrence="periodic", action_href="/money?tab=intake",
         )]
     return []

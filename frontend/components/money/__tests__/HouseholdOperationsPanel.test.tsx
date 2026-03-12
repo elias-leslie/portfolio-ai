@@ -4,6 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { HouseholdOperationsPanel } from '../HouseholdOperationsPanel'
 
 const categorizeMutate = vi.fn()
+const confirmFactMutate = vi.fn()
+const updateProfileMutate = vi.fn()
+const updatePlanningMutate = vi.fn()
+const answerQuestionMutate = vi.fn()
+const askJennyMutate = vi.fn()
 const useCategorizeHouseholdTransactionMock = vi.fn()
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
@@ -13,11 +18,23 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
       isPending: false,
     },
   useConfirmFact: () => ({
-    mutate: vi.fn(),
+    mutate: confirmFactMutate,
     isPending: false,
   }),
   useUpdateHouseholdProfile: () => ({
-    mutate: vi.fn(),
+    mutate: updateProfileMutate,
+    isPending: false,
+  }),
+  useUpdateHouseholdPlanning: () => ({
+    mutate: updatePlanningMutate,
+    isPending: false,
+  }),
+  useAnswerHouseholdQuestion: () => ({
+    mutate: answerQuestionMutate,
+    isPending: false,
+  }),
+  useAskJenny: () => ({
+    mutate: askJennyMutate,
     isPending: false,
   }),
 }))
@@ -115,6 +132,24 @@ function buildDashboard(overrides: Record<string, unknown> = {}) {
       body: 'Body',
       prompts: [],
     },
+    planning: {
+      summary: {
+        completionScore: 0,
+        readySections: 0,
+        totalSections: 0,
+        missingDocumentCount: 0,
+        highPriorityDocumentCount: 0,
+        sections: [],
+      },
+      members: [],
+      incomeSources: [],
+      debtObligations: [],
+      housingCosts: [],
+      insurancePolicies: [],
+      retirementIncomeSources: [],
+      plannedExpenses: [],
+      documentRequirements: [],
+    },
     budgetSnapshot: {
       summary: 'On track',
       status: 'on_track',
@@ -141,6 +176,11 @@ describe('HouseholdOperationsPanel', () => {
   beforeEach(() => {
     useCategorizeHouseholdTransactionMock.mockReset()
     categorizeMutate.mockReset()
+    confirmFactMutate.mockReset()
+    updateProfileMutate.mockReset()
+    updatePlanningMutate.mockReset()
+    answerQuestionMutate.mockReset()
+    askJennyMutate.mockReset()
   })
 
   it('applies a categorization decision across similar merchant rows', async () => {
@@ -225,6 +265,166 @@ describe('HouseholdOperationsPanel', () => {
 
     expect(screen.getByText('Jenny Question Inbox')).toBeInTheDocument()
     expect(screen.getByText('Jenny Chat Panel')).toBeInTheDocument()
+  })
+
+  it('routes intake needs to the intake tab', () => {
+    render(
+      <HouseholdOperationsPanel
+        dashboard={buildDashboard({
+          jennyNeeds: [
+            {
+              id: 'need-statements',
+              needType: 'provide',
+              title: 'Upload statements',
+              detail: 'Jenny needs more evidence.',
+              priority: 'critical',
+              status: 'unsatisfied',
+              recurrence: 'periodic',
+              satisfactionDetail: null,
+              actionHref: '/money?tab=intake',
+              relatedQuestionId: null,
+              fieldName: null,
+              questionFormat: null,
+              options: null,
+            },
+          ],
+        })}
+      />,
+    )
+
+    expect(screen.getByRole('link', { name: /go to intake/i })).toHaveAttribute(
+      'href',
+      '/money?tab=intake',
+    )
+  })
+
+  it('saves household planning shortcuts through the profile mutation', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <HouseholdOperationsPanel
+        dashboard={buildDashboard({
+          jennyNeeds: [
+            {
+              id: 'need_planning_household',
+              needType: 'set',
+              title: 'Complete household planning',
+              detail: 'Add adults, dependents, or household counts so Jenny sizes the plan correctly.',
+              priority: 'high',
+              status: 'unsatisfied',
+              recurrence: 'one_time',
+              satisfactionDetail: null,
+              actionHref: '/money?tab=planning',
+              relatedQuestionId: null,
+              fieldName: null,
+              questionFormat: null,
+              options: null,
+            },
+          ],
+        })}
+      />,
+    )
+
+    await user.type(screen.getByPlaceholderText('e.g. 4'), '4')
+    await user.click(screen.getByRole('button', { name: /^save$/i }))
+
+    expect(updateProfileMutate).toHaveBeenCalledWith(
+      { adultCount: 4 },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    )
+    expect(screen.getByRole('link', { name: /open planning/i })).toHaveAttribute(
+      'href',
+      '/money?tab=planning',
+    )
+  })
+
+  it('saves debt planning shortcuts through the planning mutation', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <HouseholdOperationsPanel
+        dashboard={buildDashboard({
+          jennyNeeds: [
+            {
+              id: 'need_planning_debt',
+              needType: 'set',
+              title: 'Complete debt planning',
+              detail: 'Add mortgage, HELOC, student, auto, or other debt obligations.',
+              priority: 'high',
+              status: 'unsatisfied',
+              recurrence: 'one_time',
+              satisfactionDetail: null,
+              actionHref: '/money?tab=planning',
+              relatedQuestionId: null,
+              fieldName: null,
+              questionFormat: null,
+              options: null,
+            },
+          ],
+        })}
+      />,
+    )
+
+    await user.type(screen.getByPlaceholderText('e.g. 5000'), '5000')
+    await user.click(screen.getByRole('button', { name: /^save$/i }))
+
+    expect(updatePlanningMutate).toHaveBeenCalledWith(
+      {
+        debtObligations: [
+          expect.objectContaining({
+            label: 'Household debt',
+            debtType: 'other',
+            monthlyPayment: 5000,
+          }),
+        ],
+      },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    )
+  })
+
+  it('saves housing planning shortcuts through the planning mutation', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <HouseholdOperationsPanel
+        dashboard={buildDashboard({
+          jennyNeeds: [
+            {
+              id: 'need_planning_housing',
+              needType: 'set',
+              title: 'Complete housing planning',
+              detail: 'Add rent or ownership costs so Jenny can anchor essential spending.',
+              priority: 'high',
+              status: 'unsatisfied',
+              recurrence: 'one_time',
+              satisfactionDetail: null,
+              actionHref: '/money?tab=planning',
+              relatedQuestionId: null,
+              fieldName: null,
+              questionFormat: null,
+              options: null,
+            },
+          ],
+        })}
+      />,
+    )
+
+    await user.type(screen.getByPlaceholderText('e.g. 5000'), '5000')
+    await user.click(screen.getByRole('button', { name: /^save$/i }))
+
+    expect(updatePlanningMutate).toHaveBeenCalledWith(
+      {
+        housingCosts: [
+          expect.objectContaining({
+            label: 'Primary housing',
+            housingType: 'primary_residence',
+            occupancyRole: 'primary',
+            monthlyPayment: 5000,
+          }),
+        ],
+      },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    )
   })
 
   it('marks categorization actions busy while a save is in flight', () => {
