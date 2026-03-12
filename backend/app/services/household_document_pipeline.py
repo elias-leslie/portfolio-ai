@@ -144,6 +144,11 @@ def build_import_row_hash(
     return hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()
 
 
+# ---------------------------------------------------------------------------
+# Private helpers
+# ---------------------------------------------------------------------------
+
+
 def _insert_inferred_values(
     conn: DatabaseConnection,
     service: HouseholdFinanceService,
@@ -176,6 +181,51 @@ def _insert_inferred_values(
         )
 
 
+def _build_question_candidate(
+    service: HouseholdFinanceService,
+    *,
+    question: dict[str, object],
+    document: HouseholdDocument,
+    resolved_source_type: str,
+    resolved_document_type: str,
+    structured_data: dict[str, object],
+    account_hint: object,
+    review_summary: object,
+    now: str,
+) -> HouseholdQuestion:
+    """Build a HouseholdQuestion from a raw question dict and document context."""
+    return HouseholdQuestion(
+        id=str(uuid.uuid4()),
+        field_name=str(question.get("field_name") or "").strip() or None,
+        status="open",
+        priority=service._normalize_priority(question.get("priority")),
+        question=str(question.get("question") or "").strip(),
+        rationale=str(question.get("rationale")) if question.get("rationale") is not None else None,
+        recommendation=str(question.get("recommendation")) if question.get("recommendation") is not None else None,
+        answer_text=None,
+        source_document_id=document.id,
+        question_format=service._normalize_question_format(question.get("question_format")),
+        options=service._normalize_question_options(question.get("options")),
+        direction=service._normalize_question_direction(question.get("direction")),
+        metadata={
+            "document_id": document.id,
+            "recommendation": question.get("recommendation"),
+            "source_document": {
+                "id": document.id,
+                "filename": document.filename,
+                "source_type": resolved_source_type,
+                "document_type": resolved_document_type,
+                "account_label": str(account_hint) if account_hint is not None else document.account_label,
+                "review_summary": str(review_summary) if review_summary is not None else None,
+                "merchant": structured_data.get("merchant"),
+                "account_hint": structured_data.get("account_hint"),
+            },
+        },
+        created_at=now,
+        answered_at=None,
+    )
+
+
 def _insert_questions(
     conn: DatabaseConnection,
     service: HouseholdFinanceService,
@@ -188,45 +238,24 @@ def _insert_questions(
     structured_data: dict[str, object],
     account_hint: object,
 ) -> None:
+    review_summary = reviewed.get("summary")
     for question in cast(list[dict[str, object]], reviewed.get("questions") or []):
         prompt = str(question.get("question") or "").strip()
         if not prompt:
             continue
-        field_name = str(question.get("field_name") or "").strip() or None
-        candidate = HouseholdQuestion(
-            id=str(uuid.uuid4()),
-            field_name=field_name,
-            status="open",
-            priority=service._normalize_priority(question.get("priority")),
-            question=prompt,
-            rationale=str(question.get("rationale")) if question.get("rationale") is not None else None,
-            recommendation=str(question.get("recommendation")) if question.get("recommendation") is not None else None,
-            answer_text=None,
-            source_document_id=document.id,
-            question_format=service._normalize_question_format(question.get("question_format")),
-            options=service._normalize_question_options(question.get("options")),
-            direction=service._normalize_question_direction(question.get("direction")),
-            metadata={
-                "document_id": document.id,
-                "recommendation": question.get("recommendation"),
-                "source_document": {
-                    "id": document.id,
-                    "filename": document.filename,
-                    "source_type": resolved_source_type,
-                    "document_type": resolved_document_type,
-                    "account_label": str(account_hint) if account_hint is not None else document.account_label,
-                    "review_summary": str(reviewed.get("summary")) if reviewed.get("summary") is not None else None,
-                    "merchant": structured_data.get("merchant"),
-                    "account_hint": structured_data.get("account_hint"),
-                },
-            },
-            created_at=now,
-            answered_at=None,
+        candidate = _build_question_candidate(
+            service,
+            question=question, document=document,
+            resolved_source_type=resolved_source_type,
+            resolved_document_type=resolved_document_type,
+            structured_data=structured_data,
+            account_hint=account_hint,
+            review_summary=review_summary,
+            now=now,
         )
-        resolution = service.question_reconciler.infer_question_resolution_from_existing_context(
+        if service.question_reconciler.infer_question_resolution_from_existing_context(
             service, conn=conn, question=candidate
-        )
-        if resolution is not None:
+        ) is not None:
             continue
         conn.execute(
             """
@@ -236,9 +265,8 @@ def _insert_questions(
             ) VALUES (%s, %s, 'open', %s, %s, %s, %s, %s::jsonb, %s, %s::jsonb, %s, %s)
             """,
             [
-                candidate.id, field_name,
-                service._normalize_priority(question.get("priority")),
-                prompt,
+                candidate.id, candidate.field_name,
+                candidate.priority, prompt,
                 question.get("rationale"),
                 document.id,
                 json.dumps({"document_id": document.id, "recommendation": question.get("recommendation")}),
@@ -248,6 +276,252 @@ def _insert_questions(
                 now,
             ],
         )
+
+
+def _save_upload_to_disk(
+    content: bytes,
+    *,
+    document_id: str,
+    filename: str,
+    upload_dir: Path,
+) -> Path:
+    """Write upload bytes to disk and return the stored path."""
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    suffix = Path(filename).suffix or ".bin"
+    stored_path = upload_dir / f"{document_id}{suffix.lower()}"
+    stored_path.write_bytes(content)
+    return stored_path
+
+
+def _insert_document_db(
+    conn: DatabaseConnection,
+    *,
+    document_id: str,
+    filename: str,
+    stored_path: Path,
+    inferred_source: str,
+    inferred_type: str,
+    account_label: str | None,
+    content_type: str | None,
+    file_size: int,
+    confidence: float,
+    now: str,
+    metadata: dict[str, object],
+) -> None:
+    """Insert the household_documents row and commit."""
+    conn.execute(
+        """
+        INSERT INTO household_documents (
+            id, filename, stored_path, source_type, document_type, status,
+            account_label, content_type, file_size_bytes, classification_confidence,
+            uploaded_at, metadata
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
+        """,
+        [
+            document_id, filename, str(stored_path),
+            inferred_source, inferred_type, "staged",
+            account_label, content_type, file_size,
+            confidence, now, json.dumps(metadata),
+        ],
+    )
+    conn.commit()
+
+
+def _update_document_and_log_review(
+    conn: DatabaseConnection,
+    *,
+    document: HouseholdDocument,
+    resolved_source_type: str,
+    resolved_document_type: str,
+    document_status: str,
+    review_status: str,
+    review_confidence: float | None,
+    account_hint: object,
+    structured_data: dict[str, object],
+    reviewed: dict[str, object],
+    extracted_text: object,
+    now: str,
+) -> None:
+    """Update the document record and insert a review audit row."""
+    conn.execute(
+        """
+        UPDATE household_documents
+        SET source_type = %s, document_type = %s, status = %s, review_status = %s,
+            review_summary = %s, review_confidence = %s,
+            account_label = COALESCE(%s, account_label), parsed_at = %s,
+            metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
+        WHERE id = %s
+        """,
+        [
+            resolved_source_type, resolved_document_type,
+            document_status, review_status, reviewed.get("summary"), review_confidence,
+            str(account_hint) if account_hint is not None else None,
+            now, json.dumps({"structured_data": structured_data}), document.id,
+        ],
+    )
+    conn.execute(
+        """
+        INSERT INTO household_document_reviews (
+            id, document_id, status, summary, confidence,
+            extracted_text, structured_data, created_at, updated_at
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
+        """,
+        [
+            str(uuid.uuid4()), document.id, review_status, reviewed.get("summary"),
+            review_confidence, extracted_text, json.dumps(structured_data), now, now,
+        ],
+    )
+
+
+def _archive_prior_document_data(
+    conn: DatabaseConnection,
+    document_id: str,
+    now: str,
+) -> None:
+    """Supersede old inferred values and dismiss prior questions for a document."""
+    conn.execute(
+        """
+        UPDATE household_inferred_values
+        SET status = CASE WHEN status = 'confirmed' THEN status ELSE 'superseded' END,
+            updated_at = %s
+        WHERE source_document_id = %s
+        """,
+        [now, document_id],
+    )
+    conn.execute(
+        """
+        UPDATE household_questions
+        SET status = CASE WHEN status = 'answered' THEN status ELSE 'dismissed' END,
+            answered_at = COALESCE(answered_at, %s)
+        WHERE source_document_id = %s
+        """,
+        [now, document_id],
+    )
+
+
+def _upsert_signature_record(
+    conn: DatabaseConnection,
+    *,
+    signature_type: str,
+    signature_key: str,
+    metadata: dict[str, object],
+    source_type: str,
+    document_type: str,
+    structured_data: dict[str, object],
+    confidence: float | None,
+    document_id: str,
+    now: str,
+) -> None:
+    """Upsert one document signature row."""
+    conn.execute(
+        """
+        INSERT INTO household_document_signatures (
+            id, signature_key, signature_type, source_type, document_type,
+            merchant, account_hint, confidence, sample_document_id,
+            metadata, match_count, created_at, updated_at, last_seen_at
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, 1, %s, %s, %s)
+        ON CONFLICT (signature_key) DO UPDATE SET
+            source_type = EXCLUDED.source_type,
+            document_type = EXCLUDED.document_type,
+            merchant = COALESCE(EXCLUDED.merchant, household_document_signatures.merchant),
+            account_hint = COALESCE(EXCLUDED.account_hint, household_document_signatures.account_hint),
+            confidence = GREATEST(
+                COALESCE(household_document_signatures.confidence, 0),
+                COALESCE(EXCLUDED.confidence, 0)
+            ),
+            sample_document_id = EXCLUDED.sample_document_id,
+            metadata = household_document_signatures.metadata || EXCLUDED.metadata,
+            match_count = household_document_signatures.match_count + 1,
+            updated_at = EXCLUDED.updated_at,
+            last_seen_at = EXCLUDED.last_seen_at
+        """,
+        [
+            str(uuid.uuid4()), signature_key, signature_type,
+            source_type, document_type,
+            structured_data.get("merchant"),
+            structured_data.get("account_hint"),
+            confidence,
+            document_id, json.dumps(metadata), now, now, now,
+        ],
+    )
+
+
+def _upsert_import_row(
+    conn: DatabaseConnection,
+    *,
+    row: dict[str, str | None],
+    document_id: str,
+    dataset_type: str,
+    now: str,
+) -> bool | None:
+    """Upsert one CSV import row. Returns True=inserted, False=duplicate, None=skipped."""
+    row_hash = build_import_row_hash(dataset_type=dataset_type, row=row)
+    if row_hash is None:
+        return None
+    result = conn.execute(
+        """
+        INSERT INTO household_import_rows (
+            id, document_id, dataset_type, row_hash, external_row_id,
+            row_date, merchant, description, amount, currency, row_metadata,
+            created_at, updated_at
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
+        ON CONFLICT (row_hash) DO UPDATE SET
+            document_id = EXCLUDED.document_id,
+            external_row_id = COALESCE(EXCLUDED.external_row_id, household_import_rows.external_row_id),
+            row_date = COALESCE(EXCLUDED.row_date, household_import_rows.row_date),
+            merchant = COALESCE(EXCLUDED.merchant, household_import_rows.merchant),
+            description = COALESCE(EXCLUDED.description, household_import_rows.description),
+            amount = COALESCE(EXCLUDED.amount, household_import_rows.amount),
+            currency = COALESCE(EXCLUDED.currency, household_import_rows.currency),
+            row_metadata = household_import_rows.row_metadata || EXCLUDED.row_metadata,
+            updated_at = EXCLUDED.updated_at
+        RETURNING (xmax = 0) AS was_inserted
+        """,
+        [
+            str(uuid.uuid4()), document_id, dataset_type, row_hash,
+            row.get("Order ID"),
+            parse_row_date(row.get("Order Date")),
+            "Amazon",
+            row.get("Product Name") or row.get("ASIN"),
+            parse_decimal(
+                row.get("Total Amount")
+                or row.get("Shipment Item Subtotal")
+                or row.get("Unit Price")
+            ),
+            row.get("Currency"),
+            json.dumps(row),
+            now, now,
+        ],
+    ).fetchone()
+    return result is not None and bool(result[0])
+
+
+def _update_import_summary(
+    conn: DatabaseConnection,
+    *,
+    document_id: str,
+    dataset_type: str,
+    inserted: int,
+    duplicates: int,
+) -> None:
+    """Patch the document metadata with a CSV import summary."""
+    conn.execute(
+        """
+        UPDATE household_documents
+        SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
+        WHERE id = %s
+        """,
+        [
+            json.dumps({
+                "import_summary": {
+                    "dataset_type": dataset_type,
+                    "inserted_rows": inserted,
+                    "duplicate_rows": duplicates,
+                }
+            }),
+            document_id,
+        ],
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -291,35 +565,24 @@ class HouseholdDocumentPipeline:
             source_type=source_type,
             document_type=document_type,
         )
-        suffix = Path(filename).suffix or ".bin"
-        upload_dir = service._upload_root()
-        upload_dir.mkdir(parents=True, exist_ok=True)
-        stored_path = upload_dir / f"{document_id}{suffix.lower()}"
-        stored_path.write_bytes(content)
-
+        stored_path = _save_upload_to_disk(
+            content, document_id=document_id, filename=filename,
+            upload_dir=service._upload_root(),
+        )
         now = datetime.now(UTC).isoformat()
-        metadata = {
+        metadata: dict[str, object] = {
             "original_filename": filename,
             "stored_path": str(stored_path),
             "content_sha256": content_sha256,
         }
         with service.storage.connection() as conn:
-            conn.execute(
-                """
-                INSERT INTO household_documents (
-                    id, filename, stored_path, source_type, document_type, status,
-                    account_label, content_type, file_size_bytes, classification_confidence,
-                    uploaded_at, metadata
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
-                """,
-                [
-                    document_id, filename, str(stored_path),
-                    inferred_source, inferred_type, "staged",
-                    account_label, upload.content_type, len(content),
-                    confidence, now, json.dumps(metadata),
-                ],
+            _insert_document_db(
+                conn,
+                document_id=document_id, filename=filename, stored_path=stored_path,
+                inferred_source=inferred_source, inferred_type=inferred_type,
+                account_label=account_label, content_type=upload.content_type,
+                file_size=len(content), confidence=confidence, now=now, metadata=metadata,
             )
-            conn.commit()
 
         document = service.get_document(document_id)
         if document is None:
@@ -407,11 +670,7 @@ class HouseholdDocumentPipeline:
         planning_items = reviewed.get("planning_items")
         if isinstance(planning_items, list):
             service.merge_planning_items(
-                items=[
-                    item
-                    for item in planning_items
-                    if isinstance(item, dict)
-                ],
+                items=[item for item in planning_items if isinstance(item, dict)],
                 provenance="document_review",
                 source_document_id=document.id,
             )
@@ -440,51 +699,19 @@ class HouseholdDocumentPipeline:
                 "UPDATE household_questions SET status = 'dismissed', answered_at = %s WHERE source_document_id = %s AND status = 'open'",
                 [now, document.id],
             )
-            conn.execute(
-                """
-                UPDATE household_documents
-                SET source_type = %s, document_type = %s, status = %s, review_status = %s,
-                    review_summary = %s, review_confidence = %s,
-                    account_label = COALESCE(%s, account_label), parsed_at = %s,
-                    metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
-                WHERE id = %s
-                """,
-                [
-                    resolved_source_type, resolved_document_type,
-                    document_status, review_status, reviewed.get("summary"), review_confidence,
-                    str(account_hint) if account_hint is not None else None,
-                    now, json.dumps({"structured_data": structured_data}), document.id,
-                ],
-            )
-            conn.execute(
-                """
-                INSERT INTO household_document_reviews (
-                    id, document_id, status, summary, confidence,
-                    extracted_text, structured_data, created_at, updated_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
-                """,
-                [
-                    str(uuid.uuid4()), document.id, review_status, reviewed.get("summary"),
-                    review_confidence, extracted_text, json.dumps(structured_data), now, now,
-                ],
-            )
-            conn.execute(
-                """
-                UPDATE household_inferred_values
-                SET status = CASE WHEN status = 'confirmed' THEN status ELSE 'superseded' END,
-                    updated_at = %s
-                WHERE source_document_id = %s
-                """,
-                [now, document.id],
-            )
-            conn.execute(
-                """
-                UPDATE household_questions
-                SET status = CASE WHEN status = 'answered' THEN status ELSE 'dismissed' END,
-                    answered_at = COALESCE(answered_at, %s)
-                WHERE source_document_id = %s
-                """,
-                [now, document.id],
+            _update_document_and_log_review(
+                conn,
+                document=document,
+                resolved_source_type=resolved_source_type,
+                resolved_document_type=resolved_document_type,
+                document_status=document_status,
+                review_status=review_status,
+                review_confidence=review_confidence,
+                account_hint=account_hint,
+                structured_data=structured_data,
+                reviewed=reviewed,
+                extracted_text=extracted_text,
+                now=now,
             )
             _insert_inferred_values(conn, service, document=document, reviewed=reviewed, now=now)
             _insert_questions(
@@ -495,6 +722,7 @@ class HouseholdDocumentPipeline:
                 structured_data=structured_data,
                 account_hint=account_hint,
             )
+            _archive_prior_document_data(conn, document.id, now)
             conn.commit()
 
     def upsert_document_signatures(
@@ -518,41 +746,23 @@ class HouseholdDocumentPipeline:
         structured_data = reviewed.get("structured_data")
         if not isinstance(structured_data, dict):
             structured_data = {}
-
+        source_type = str(reviewed.get("source_type") or document.source_type)
+        document_type = str(reviewed.get("document_type") or document.document_type)
+        confidence = service._to_float(reviewed.get("confidence"))
         now = datetime.now(UTC).isoformat()
         with service.storage.connection() as conn:
             for signature_type, signature_key, metadata in signature_candidates:
-                conn.execute(
-                    """
-                    INSERT INTO household_document_signatures (
-                        id, signature_key, signature_type, source_type, document_type,
-                        merchant, account_hint, confidence, sample_document_id,
-                        metadata, match_count, created_at, updated_at, last_seen_at
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, 1, %s, %s, %s)
-                    ON CONFLICT (signature_key) DO UPDATE SET
-                        source_type = EXCLUDED.source_type,
-                        document_type = EXCLUDED.document_type,
-                        merchant = COALESCE(EXCLUDED.merchant, household_document_signatures.merchant),
-                        account_hint = COALESCE(EXCLUDED.account_hint, household_document_signatures.account_hint),
-                        confidence = GREATEST(
-                            COALESCE(household_document_signatures.confidence, 0),
-                            COALESCE(EXCLUDED.confidence, 0)
-                        ),
-                        sample_document_id = EXCLUDED.sample_document_id,
-                        metadata = household_document_signatures.metadata || EXCLUDED.metadata,
-                        match_count = household_document_signatures.match_count + 1,
-                        updated_at = EXCLUDED.updated_at,
-                        last_seen_at = EXCLUDED.last_seen_at
-                    """,
-                    [
-                        str(uuid.uuid4()), signature_key, signature_type,
-                        str(reviewed.get("source_type") or document.source_type),
-                        str(reviewed.get("document_type") or document.document_type),
-                        structured_data.get("merchant"),
-                        structured_data.get("account_hint"),
-                        service._to_float(reviewed.get("confidence")),
-                        document.id, json.dumps(metadata), now, now, now,
-                    ],
+                _upsert_signature_record(
+                    conn,
+                    signature_type=signature_type,
+                    signature_key=signature_key,
+                    metadata=metadata,
+                    source_type=source_type,
+                    document_type=document_type,
+                    structured_data=structured_data,
+                    confidence=confidence,
+                    document_id=document.id,
+                    now=now,
                 )
             conn.commit()
 
@@ -577,63 +787,15 @@ class HouseholdDocumentPipeline:
         duplicates = 0
         with service.storage.connection() as conn:
             for row in rows:
-                row_hash = build_import_row_hash(dataset_type=dataset_type, row=row)
-                if row_hash is None:
-                    continue
-                result = conn.execute(
-                    """
-                    INSERT INTO household_import_rows (
-                        id, document_id, dataset_type, row_hash, external_row_id,
-                        row_date, merchant, description, amount, currency, row_metadata,
-                        created_at, updated_at
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
-                    ON CONFLICT (row_hash) DO UPDATE SET
-                        document_id = EXCLUDED.document_id,
-                        external_row_id = COALESCE(EXCLUDED.external_row_id, household_import_rows.external_row_id),
-                        row_date = COALESCE(EXCLUDED.row_date, household_import_rows.row_date),
-                        merchant = COALESCE(EXCLUDED.merchant, household_import_rows.merchant),
-                        description = COALESCE(EXCLUDED.description, household_import_rows.description),
-                        amount = COALESCE(EXCLUDED.amount, household_import_rows.amount),
-                        currency = COALESCE(EXCLUDED.currency, household_import_rows.currency),
-                        row_metadata = household_import_rows.row_metadata || EXCLUDED.row_metadata,
-                        updated_at = EXCLUDED.updated_at
-                    RETURNING (xmax = 0) AS was_inserted
-                    """,
-                    [
-                        str(uuid.uuid4()), document.id, dataset_type, row_hash,
-                        row.get("Order ID"),
-                        parse_row_date(row.get("Order Date")),
-                        "Amazon",
-                        row.get("Product Name") or row.get("ASIN"),
-                        parse_decimal(
-                            row.get("Total Amount")
-                            or row.get("Shipment Item Subtotal")
-                            or row.get("Unit Price")
-                        ),
-                        row.get("Currency"),
-                        json.dumps(row),
-                        now, now,
-                    ],
-                ).fetchone()
-                if result is not None and result[0]:
+                result = _upsert_import_row(
+                    conn, row=row, document_id=document.id, dataset_type=dataset_type, now=now,
+                )
+                if result is True:
                     inserted += 1
-                else:
+                elif result is False:
                     duplicates += 1
-            conn.execute(
-                """
-                UPDATE household_documents
-                SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
-                WHERE id = %s
-                """,
-                [
-                    json.dumps({
-                        "import_summary": {
-                            "dataset_type": dataset_type,
-                            "inserted_rows": inserted,
-                            "duplicate_rows": duplicates,
-                        }
-                    }),
-                    document.id,
-                ],
+            _update_import_summary(
+                conn, document_id=document.id, dataset_type=dataset_type,
+                inserted=inserted, duplicates=duplicates,
             )
             conn.commit()
