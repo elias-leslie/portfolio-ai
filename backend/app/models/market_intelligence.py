@@ -9,6 +9,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from app.market.sentiment import MarketHealthScore
+
 
 class EnrichedIndicator(BaseModel):
     """Market indicator enriched with plain-language labels."""
@@ -47,20 +49,6 @@ class SectorRotationSummary(BaseModel):
     leading_count: int = Field(..., description="Number of leading sectors")
     neutral_count: int = Field(..., description="Number of neutral sectors")
     lagging_count: int = Field(..., description="Number of lagging sectors")
-
-
-class MarketHealthScore(BaseModel):
-    """Market health scoring from 4 indicators with 7-day trend."""
-
-    overall_score: int = Field(..., ge=0, le=100, description="Overall health score 0-100")
-    overall_label: str = Field(
-        ..., description="Very Bullish | Bullish | Neutral | Bearish | Extreme Fear"
-    )
-    last_updated: str = Field(..., description="Last update timestamp")
-    trend: Literal["up", "down", "flat"] | None = Field(
-        None, description="7-day trend: up (improved), down (declined), flat (unchanged)"
-    )
-    trend_change: int | None = Field(None, description="Point change over 7 days")
 
 
 class FearGreedScore(BaseModel):

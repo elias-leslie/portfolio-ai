@@ -16,7 +16,11 @@ from app.logging_config import get_logger
 from app.models.household_finance import (
     HouseholdReports,
 )
-from app.services._household_report_builder import build_household_reports
+from app.services._household_report_builder import (
+    _merchant_aliases,
+    _merchant_root,
+    build_household_reports,
+)
 from app.storage import get_storage
 
 logger = get_logger(__name__)
@@ -25,26 +29,6 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 # Pure module-level helpers (no instance state)
 # ---------------------------------------------------------------------------
-
-
-def _merchant_root(merchant: str) -> str:
-    normalized = merchant.strip().lower()
-    normalized = re.sub(r"\([^)]*\)", "", normalized)
-    normalized = re.sub(r"[^a-z0-9]+", " ", normalized)
-    return re.sub(r"\s+", " ", normalized).strip()
-
-
-def _merchant_aliases(raw_merchant: str) -> set[str]:
-    root = _merchant_root(raw_merchant)
-    aliases: set[str] = {root, root.replace(" ", "")} if root else set()
-    collapsed = root.replace(" ", "") if root else ""
-    if "walmart" in collapsed or "wmsupercenter" in collapsed:
-        aliases.update({"walmart", "wal mart", "walmart supercenter", "wm supercenter", "wmsupercenter"})
-    if "amazon" in collapsed or "amzn" in collapsed:
-        aliases.update({"amazon", "amzn", "amazon mktpl", "amazoncom", "amazon com"})
-    if "wholefoods" in collapsed:
-        aliases.update({"whole foods", "wholefoods"})
-    return {alias for alias in aliases if alias}
 
 
 def _canonical_merchant_name(raw_merchant: str) -> str:

@@ -39,6 +39,7 @@ export function NewsCardHeader({
           type="button"
           className="flex items-center gap-2 hover:opacity-80 transition-opacity"
           onClick={onToggleExpanded}
+          aria-label={isExpanded ? 'Collapse news section' : 'Expand news section'}
         >
           {isMarketNews && <Newspaper className="h-5 w-5 text-accent" />}
           <CardTitle
@@ -66,6 +67,7 @@ export function NewsCardHeader({
               value={sortBy}
               onChange={(e) => onSortChange(e.target.value as SortOption)}
               className="text-xs border border-border rounded px-2 py-1 bg-surface text-text focus:outline-none focus:ring-1 focus:ring-primary"
+              aria-label="Sort articles by"
             >
               <option value="recent">Recent</option>
               <option value="positive">Most Positive</option>
