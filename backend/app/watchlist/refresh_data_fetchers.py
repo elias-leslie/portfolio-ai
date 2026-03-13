@@ -26,8 +26,6 @@ from .fundamentals import (
 
 logger = get_logger(__name__)
 
-WATCHLIST_NEWS_ARTICLE_LIMIT = 5
-
 
 def calculate_price_change(
     storage: PortfolioStorage, symbol: str, price: float | None, item_id: str | None = None

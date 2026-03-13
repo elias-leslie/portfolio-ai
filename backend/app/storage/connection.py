@@ -105,7 +105,7 @@ class PostgreSQLConnectionWrapper:
         result: tuple[DatabaseValue, ...] | None = self._cursor.fetchone()
         return result
 
-    def _get_polars_dataframe(self) -> "pl.DataFrame":  # noqa: UP037
+    def _get_polars_dataframe(self) -> pl.DataFrame:
         """Convert query results to Polars DataFrame (compatibility).
 
         Returns:
@@ -127,7 +127,7 @@ class PostgreSQLConnectionWrapper:
         data = {col: [row[i] for row in rows] for i, col in enumerate(columns)}
         return pl.DataFrame(data, strict=False)
 
-    def pl(self) -> "pl.DataFrame":  # noqa: UP037
+    def pl(self) -> pl.DataFrame:
         """Convert query results to Polars DataFrame (compatibility).
 
         Returns:
@@ -135,7 +135,7 @@ class PostgreSQLConnectionWrapper:
         """
         return self._get_polars_dataframe()
 
-    def pl_dataframe(self) -> "pl.DataFrame":  # noqa: UP037
+    def pl_dataframe(self) -> pl.DataFrame:
         """Fetch results as Polars DataFrame (compatibility).
 
         Alias for .pl() method to match pl_dataframe() interface.
@@ -145,7 +145,7 @@ class PostgreSQLConnectionWrapper:
         """
         return self.pl()
 
-    def fetchdf(self) -> "pl.DataFrame":  # noqa: UP037
+    def fetchdf(self) -> pl.DataFrame:
         """Fetch results as Polars DataFrame (compatibility).
 
         Alias for .pl() method to match fetchdf() interface.
@@ -191,7 +191,7 @@ class PostgreSQLConnectionWrapper:
     def insert_dataframe(
         self,
         table_name: str,
-        df: pd.DataFrame | "pl.DataFrame",  # noqa: UP037
+        df: pd.DataFrame | pl.DataFrame,
         if_exists: Literal["fail", "replace", "append"] = "append",
     ) -> int:
         """Insert pandas/polars DataFrame into table using efficient bulk insert.
