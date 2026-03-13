@@ -119,7 +119,7 @@ class WatchlistService:
 
         snapshot = build_score_snapshot(self.storage, item_id, symbol, price_data, change_pct)
         self.repo.upsert_snapshot(snapshot.to_upsert_params())
-        logger.info("Watchlist item scores refreshed", item_id=item_id, symbol=symbol)
+        logger.info("watchlist_item_scores_refreshed", item_id=item_id, symbol=symbol)
 
 
 __all__ = ["WatchlistService"]

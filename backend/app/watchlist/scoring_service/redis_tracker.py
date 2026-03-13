@@ -58,7 +58,7 @@ def init_refresh_status(account_id: str | None, symbols: list[str], total_items:
             ),
         )
     except Exception as e:
-        logger.warning("Failed to initialize Redis refresh status", error=str(e))
+        logger.warning("redis_refresh_init_failed", error=str(e))
     return redis_key
 
 
@@ -82,7 +82,7 @@ def update_progress(redis_key: str, symbol: str, processed: int) -> None:
         )
         redis_client.setex(redis_key, 900, json.dumps(status_data))
     except Exception as e:
-        logger.debug("Failed to update Redis refresh status", error=str(e))
+        logger.debug("redis_refresh_update_failed", error=str(e))
 
 
 def complete_refresh(redis_key: str, total_items: int, processed: int) -> None:
@@ -107,4 +107,4 @@ def complete_refresh(redis_key: str, total_items: int, processed: int) -> None:
         }
         redis_client.setex(redis_key, 5, json.dumps(completed_data))
     except Exception as e:
-        logger.warning("Failed to update Redis refresh completion status", error=str(e))
+        logger.warning("redis_refresh_completion_update_failed", error=str(e))

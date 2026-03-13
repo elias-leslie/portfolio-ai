@@ -32,23 +32,23 @@ def schedule_new_symbol_tasks(symbol: str) -> None:
         )
 
         ingest_fundamental_data(symbols=[symbol])
-        logger.info("Triggered fundamental data ingestion", symbol=symbol)
+        logger.info("fundamental_data_ingestion_triggered", symbol=symbol)
 
         update_earnings_surprises([symbol])
-        logger.info("Triggered earnings surprises fetch", symbol=symbol)
+        logger.info("earnings_surprises_fetch_triggered", symbol=symbol)
 
         refresh_yfinance_reference_data()
-        logger.info("Triggered yfinance reference data refresh", symbol=symbol)
+        logger.info("yfinance_reference_refresh_triggered", symbol=symbol)
 
         update_technical_indicators([symbol])
-        logger.info("Triggered technical indicators calculation", symbol=symbol)
+        logger.info("technical_indicators_calculation_triggered", symbol=symbol)
 
         refresh_single_symbol_scores_task(symbol)
-        logger.info("Triggered single-symbol score refresh", symbol=symbol)
+        logger.info("single_symbol_score_refresh_triggered", symbol=symbol)
 
     except Exception as bg_error:
         logger.warning(
-            "Failed to trigger background tasks for new symbol", symbol=symbol, error=str(bg_error)
+            "background_tasks_trigger_failed", symbol=symbol, error=str(bg_error)
         )
 
 
@@ -63,13 +63,13 @@ def schedule_refresh_tasks(symbols: list[str]) -> None:
     """
     try:
         ingest_historical_ohlcv(symbols=symbols, days=DEFAULT_DAILY_REFRESH_DAYS)
-        logger.info("Triggered OHLCV data refresh", symbols=symbols)
+        logger.info("ohlcv_data_refresh_triggered", symbols=symbols)
 
         update_technical_indicators(symbols)
-        logger.info("Triggered technical indicators update", symbols=symbols)
+        logger.info("technical_indicators_update_triggered", symbols=symbols)
 
         refresh_watchlist_scores_task()
-        logger.info("Triggered watchlist score refresh")
+        logger.info("watchlist_score_refresh_triggered")
 
     except Exception as bg_error:
-        logger.warning("Failed to trigger background refresh tasks", error=str(bg_error))
+        logger.warning("background_refresh_tasks_trigger_failed", error=str(bg_error))

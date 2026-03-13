@@ -374,7 +374,7 @@ class ConnectionManager:
             ...     result = conn.execute("SELECT * FROM portfolio_accounts").fetchall()
             ...     # connection automatically returned to pool after block
         """
-        logger.debug("Getting connection from PostgreSQL pool")
+        logger.debug("pool_connection_checkout")
         pg_conn = self.engine.raw_connection()
         # Rollback any implicit transaction to start fresh and see latest committed data
         # This fixes stale reads when worker processes commit data that FastAPI doesn't see
@@ -384,7 +384,7 @@ class ConnectionManager:
             yield wrapper
         finally:
             wrapper.close()  # Returns connection to pool
-            logger.debug("Connection returned to pool")
+            logger.debug("pool_connection_returned")
 
 
 def get_connection_manager(database_url: str | None = None) -> ConnectionManager:
@@ -404,5 +404,5 @@ def get_connection_manager(database_url: str | None = None) -> ConnectionManager
     global _connection_mgr  # noqa: PLW0603
     if _connection_mgr is None:
         _connection_mgr = ConnectionManager(database_url=database_url)
-        logger.info("Created new ConnectionManager singleton")
+        logger.info("connection_manager_singleton_created")
     return _connection_mgr

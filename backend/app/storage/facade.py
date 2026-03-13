@@ -55,7 +55,7 @@ class PortfolioStorage:
         # Ensure schema is initialized
         self.schema_mgr.ensure_schema()
 
-        logger.info("PortfolioStorage initialized with modular managers")
+        logger.info("portfolio_storage_initialized")
 
     # Expose connection manager's connection method
     def connection(self) -> AbstractContextManager[PostgreSQLConnectionWrapper]:
@@ -163,5 +163,5 @@ def get_storage(db_path: str | Path | None = None) -> PortfolioStorage:
     global _storage  # noqa: PLW0603
     if _storage is None:
         _storage = PortfolioStorage(db_path=db_path)
-        logger.info("Created new PortfolioStorage singleton")
+        logger.info("portfolio_storage_singleton_created")
     return _storage

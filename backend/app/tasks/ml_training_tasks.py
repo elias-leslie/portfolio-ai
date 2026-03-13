@@ -117,7 +117,7 @@ def retrain_article_quality_model() -> TrainingResult:
 
 def _retrain_article_quality_model_impl(session_id: str | None = None) -> TrainingResult:
     """Retrain article quality model with new Gemini-labeled data."""
-    logger.info("Starting article quality model retraining")
+    logger.info("article_quality_model_retraining_started")
 
     storage = get_storage()
     training_data_path = Path(TRAINING_DATA_FILENAME)

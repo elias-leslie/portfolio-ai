@@ -84,13 +84,13 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Lifespan context manager for startup and shutdown events."""
     # Startup
-    logger.info("Starting Portfolio AI Platform")
+    logger.info("platform_starting")
 
     # Initialize storage and ensure schema exists
     storage = get_storage()
     storage.ensure_schema()
 
-    logger.info("Database schema initialized")
+    logger.info("database_schema_initialized")
 
     # Load API credentials from database into environment variables
     load_credentials_from_database()
@@ -98,7 +98,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
 
     # Shutdown (placeholder for future cleanup logic)
-    logger.info("Shutting down Portfolio AI Platform")
+    logger.info("platform_shutting_down")
 
 
 # Create FastAPI app

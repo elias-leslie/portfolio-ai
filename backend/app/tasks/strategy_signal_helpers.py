@@ -197,7 +197,7 @@ def store_signal(conn: Any, signal_data: dict[str, Any]) -> str | None:
         ).fetchone()
         return str(result[0]) if result else None
     except Exception as e:
-        logger.exception("Failed to store signal", error=str(e))
+        logger.exception("signal_store_failed", error=str(e))
         return None
 
 
@@ -304,7 +304,7 @@ def _attempt_paper_trade(
         )
     else:
         results["rejected_validation"] += 1
-        logger.info("Trade rejected by validation", strategy_id=strategy_id, symbol=symbol)
+        logger.info("trade_rejected_by_validation", strategy_id=strategy_id, symbol=symbol)
 
 
 def process_paper_trade_signal(
@@ -322,12 +322,12 @@ def process_paper_trade_signal(
 
     try:
         if has_open_position(conn, strategy_id, symbol):
-            logger.info("Skipping - open position exists", strategy_id=strategy_id, symbol=symbol)
+            logger.info("skipping_open_position_exists", strategy_id=strategy_id, symbol=symbol)
             results["skipped_existing_position"] += 1
             return
         _attempt_paper_trade(storage, strategy_id, symbol, strategy_name, signal_strength, reasons, results)
     except Exception as e:
-        logger.exception("Error processing signal", strategy_id=strategy_id, symbol=symbol, error=str(e))
+        logger.exception("signal_processing_error", strategy_id=strategy_id, symbol=symbol, error=str(e))
         results["errors"].append({"strategy_id": strategy_id, "symbol": symbol, "error": str(e)})
 
 

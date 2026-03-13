@@ -51,7 +51,7 @@ _METRICS_INSERT_SQL = """
 def _load_training_data(training_data_path: Path) -> tuple[list[dict[str, Any]], set[str]]:
     """Load existing training data and build a hash set of labeled articles."""
     if not training_data_path.exists():
-        logger.info("No existing training data found, starting fresh")
+        logger.info("no_existing_training_data")
         return [], set()
 
     with training_data_path.open(encoding="utf-8") as f:
@@ -75,7 +75,7 @@ def _query_new_articles(
     conn: DatabaseConnection, labeled_hashes: set[str], limit: int = 100
 ) -> list[dict[str, Any]]:
     """Query and filter new articles from the database."""
-    logger.info("Querying new articles from database...")
+    logger.info("querying_new_articles")
     conn.execute(_QUERY_ARTICLES_SQL)
     all_articles = conn.fetchall()
     logger.info("recent_articles_found", count=len(all_articles))
@@ -186,7 +186,7 @@ def _train_and_save_model(
     combined_data: list[dict[str, Any]],
 ) -> tuple[dict[str, Any], str, Path, float]:
     """Train model, save it to disk, and repoint the production symlink."""
-    logger.info("Retraining model...")
+    logger.info("retraining_model")
     classifier = ArticleQualityClassifier()
     labels = [article["is_useful"] for article in combined_data]
     start_time = datetime.now(UTC)

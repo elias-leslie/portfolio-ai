@@ -79,14 +79,14 @@ def generate_daily_strategy_signals() -> dict[str, Any]:
     Returns:
         Summary dict with counts and any errors
     """
-    logger.info("Starting daily strategy signal generation")
+    logger.info("daily_strategy_signal_generation_started")
 
     conn_mgr = get_connection_manager()
     strategy_storage = get_strategy_storage()
     active_strategies = strategy_storage.list_strategies(status="active", limit=100)
 
     if not active_strategies:
-        logger.info("No active strategies found")
+        logger.info("no_active_strategies_found")
         return make_empty_signal_results(0)
 
     logger.info("evaluating_strategies", count=len(active_strategies))
@@ -163,7 +163,7 @@ def auto_paper_trade_from_signals(min_signal_strength: int = 5) -> dict[str, Any
     """
     from app.storage import get_storage
 
-    logger.info("Starting auto paper trade from signals", min_strength=min_signal_strength)
+    logger.info("auto_paper_trade_from_signals_started", min_strength=min_signal_strength)
 
     conn_mgr = get_connection_manager()
     storage = get_storage()

@@ -129,7 +129,7 @@ def daily_rules_validation() -> TaskResult:
     Returns:
         Validation report summary
     """
-    logger.info("Starting daily rules validation")
+    logger.info("daily_rules_validation_started")
     try:
         validator = RulesValidatorAgent()
         report: ValidationReport = asyncio.run(validator.validate_rules())
@@ -158,7 +158,7 @@ def weekly_optimization_review() -> TaskResult:
     Returns:
         Optimization recommendations summary
     """
-    logger.info("Starting weekly optimization review")
+    logger.info("weekly_optimization_review_started")
     try:
         performance_data = _get_recent_performance_data()
         validator = RulesValidatorAgent()
@@ -169,7 +169,7 @@ def weekly_optimization_review() -> TaskResult:
         if recommendations:
             logger.info("optimization_recommendations_generated", count=len(recommendations))
         else:
-            logger.info("No optimization recommendations generated")
+            logger.info("no_optimization_recommendations")
         return {
             "status": "completed",
             "timestamp": datetime.now(UTC).isoformat(),

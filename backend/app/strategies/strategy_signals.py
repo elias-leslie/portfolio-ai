@@ -115,7 +115,7 @@ class SignalStorage:
                 conn.commit()
                 return str(result[0]) if result else None
         except Exception:
-            logger.exception("Failed to store signal")
+            logger.exception("signal_store_failed")
             return None
 
 

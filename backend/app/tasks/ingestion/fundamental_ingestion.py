@@ -139,7 +139,7 @@ def ingest_macro_indicators() -> dict[str, Any]:
     fred = FREDSource()
 
     if not fred.is_enabled():
-        logger.warning("FRED API key not configured, skipping macro ingestion")
+        logger.warning("fred_api_key_not_configured")
         return {"status": "skipped", "reason": "no_api_key"}
 
     stats: dict[str, Any] = {

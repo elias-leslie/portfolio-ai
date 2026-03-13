@@ -123,7 +123,7 @@ class NewsCacheRefresher:
             max_articles: Maximum number of articles to fetch
             now: Current timestamp
         """
-        logger.info("Refreshing news cache", symbol=symbol, query=query, max_articles=max_articles)
+        logger.info("news_cache_refreshing", symbol=symbol, query=query, max_articles=max_articles)
 
         fetch_limit = max(
             max_articles, min(max_articles * self.selection_overfetch, ARTICLE_OVERFETCH_CAP)
@@ -150,7 +150,7 @@ class NewsCacheRefresher:
         )
 
         if not combined_entries:
-            logger.info("No headlines returned from sources", symbol=symbol)
+            logger.info("no_headlines_from_sources", symbol=symbol)
             return
 
         # Update mix summary

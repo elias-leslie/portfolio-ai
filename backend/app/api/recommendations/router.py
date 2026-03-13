@@ -99,7 +99,7 @@ async def get_recommendations(
         )
 
     except Exception as e:
-        logger.exception("Failed to get recommendations", error=str(e))
+        logger.exception("get_recommendations_failed", error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to get recommendations: {e!s}") from e
 
 
@@ -122,7 +122,7 @@ async def get_recommended_symbols(
         }
 
     except Exception as e:
-        logger.exception("Failed to get recommended symbols", error=str(e))
+        logger.exception("get_recommended_symbols_failed", error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to get symbols: {e!s}") from e
 
 
@@ -214,5 +214,5 @@ async def track_in_portfolio(
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception("Failed to track in portfolio", symbol=symbol, error=str(e))
+        logger.exception("track_in_portfolio_failed", symbol=symbol, error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to track: {e!s}") from e
