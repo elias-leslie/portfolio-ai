@@ -256,7 +256,7 @@ def test_write_articles_to_tempfile_creates_file() -> None:
     ]
     path = _write_articles_to_tempfile(articles)
     try:
-        content = Path(path).read_text()
+        content = Path(path).read_text(encoding="utf-8")
         assert "AAPL|Test headline|Test summary" in content
     finally:
         Path(path).unlink(missing_ok=True)
@@ -269,7 +269,7 @@ def test_write_articles_to_tempfile_multiple_articles() -> None:
     ]
     path = _write_articles_to_tempfile(articles)
     try:
-        lines = Path(path).read_text().strip().split("\n")
+        lines = Path(path).read_text(encoding="utf-8").strip().split("\n")
         assert len(lines) == 2
         assert lines[0] == "AAPL|H1|S1"
         assert lines[1] == "MSFT|H2|S2"

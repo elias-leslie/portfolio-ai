@@ -50,7 +50,7 @@ def test_configure_logging_with_file_rotation(tmp_path: Path) -> None:
     assert log_file.exists()
 
     # Read log file and verify JSON format
-    log_contents = log_file.read_text()
+    log_contents = log_file.read_text(encoding="utf-8")
     assert len(log_contents) > 0
 
     # Parse first line as JSON
@@ -80,7 +80,7 @@ def test_log_levels(tmp_path: Path) -> None:
 
     # Read log file
     log_file = log_dir / "test-levels.log"
-    log_contents = log_file.read_text()
+    log_contents = log_file.read_text(encoding="utf-8")
     lines = log_contents.strip().split("\n")
 
     # Verify at least info and higher were logged
@@ -119,13 +119,13 @@ def test_structured_fields(tmp_path: Path) -> None:
 
     # Read log file
     log_file = log_dir / "test-fields.log"
-    log_entry = json.loads(log_file.read_text().strip())
+    log_entry = json.loads(log_file.read_text(encoding="utf-8").strip())
 
     # Verify basic fields exist (the exact format may vary)
     assert "message" in log_entry or "event" in log_entry
     # The actual field values depend on how structlog/pythonjsonlogger serialize them
     # Just verify the log was created successfully
-    assert len(log_file.read_text()) > 0
+    assert len(log_file.read_text(encoding="utf-8")) > 0
 
 
 def test_contextvars_binding(tmp_path: Path) -> None:
@@ -143,7 +143,7 @@ def test_contextvars_binding(tmp_path: Path) -> None:
 
     # Read log file
     log_file = log_dir / "test-context.log"
-    log_contents = log_file.read_text().strip()
+    log_contents = log_file.read_text(encoding="utf-8").strip()
 
     # Verify log was created
     assert len(log_contents) > 0

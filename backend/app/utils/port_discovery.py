@@ -126,7 +126,7 @@ class PortDiscovery:
             return None
 
         try:
-            content = service_file.read_text()
+            content = service_file.read_text(encoding="utf-8")
         except Exception as e:
             logger.debug("service_file_read_failed", service=service_name, error=str(e))
             return None

@@ -632,7 +632,7 @@ async def strategy_research_workflow(
         )
 
     except Exception as e:
-        logger.exception(f"Strategy research workflow failed: {e}")
+        logger.exception("strategy_research_workflow_failed", error=str(e))
         return WorkflowResult(
             workflow_id=workflow_id,
             status="failed",

@@ -348,7 +348,9 @@ class ConnectionManager:
         )
 
         logger.info(
-            f"ConnectionManager initialized with PostgreSQL (pool_size={pool_size_value}, max_overflow={max_overflow_value})"
+            "connection_manager_initialized",
+            pool_size=pool_size_value,
+            max_overflow=max_overflow_value,
         )
 
     @contextmanager

@@ -87,6 +87,7 @@ export function WatchlistTable({ items, refreshStatus }: WatchlistTableProps) {
     <button
       type="button"
       onClick={() => handleSort(field)}
+      aria-label={`Sort by ${label}`}
       className="flex items-center gap-1 font-medium hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
     >
       {label}

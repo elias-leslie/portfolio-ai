@@ -161,7 +161,7 @@ class FMPSource(BaseFundamentalSource):
             data = response.json()
 
             # FMP returns array, take most recent (first item)
-            if not data or len(data) == 0:
+            if not data:
                 return None
 
             ratios = data[0]

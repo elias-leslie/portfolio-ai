@@ -175,7 +175,7 @@ export function HouseholdDocumentCenter({
             >
               <p className="font-medium text-text">Paste or drop screenshots or files here</p>
               <p className="mt-1">
-                Use <span className="font-medium text-text">Ctrl+V</span> after a screenshot, drag files in,
+                Use <span className="font-medium text-text">{typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent) ? '⌘V' : 'Ctrl+V'}</span> after a screenshot, drag files in,
                 or use the picker below.
               </p>
               {files.length > 0 ? (

@@ -11,7 +11,7 @@ from importlib import import_module
 from typing import TYPE_CHECKING, Any, cast
 
 from app.logging_config import get_logger
-from app.storage import PortfolioStorage
+from app.storage import PortfolioStorage, get_storage
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -447,7 +447,7 @@ def calculate_indicators_for_symbol(
 ) -> dict[str, Any]:
     """Calculate technical indicators for a symbol (wrapper function).
 
-    This is a convenience wrapper that creates a PortfolioStorage instance
+    Convenience wrapper that uses the singleton PortfolioStorage
     and calls calculate_indicators.
 
     Args:
@@ -461,5 +461,5 @@ def calculate_indicators_for_symbol(
     Raises:
         ValueError: If symbol not found or insufficient data
     """
-    storage = PortfolioStorage()
+    storage = get_storage()
     return calculate_indicators(storage, symbol, indicators, as_of_date)

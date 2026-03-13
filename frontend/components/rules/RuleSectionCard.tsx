@@ -40,6 +40,8 @@ export function RuleSectionCard({
       <button
         type="button"
         onClick={() => onToggle(title)}
+        aria-expanded={isExpanded}
+        aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${title}`}
         className="w-full flex items-center justify-between p-4 hover:bg-surface-hover transition-colors text-left"
       >
         <div className="flex items-center gap-3">

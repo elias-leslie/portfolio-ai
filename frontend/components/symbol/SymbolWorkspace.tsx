@@ -9,6 +9,7 @@ import { SectionCard } from '@/components/shared/SectionCard'
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs'
 import { Button } from '@/components/ui/button'
 import { useJennyDashboard } from '@/lib/hooks/usePortfolio'
+import { usePreferences } from '@/lib/hooks/usePreferences'
 import { useSymbolIntelligence } from '@/lib/hooks/useSymbolIntelligence'
 import { formatRelativeTime } from '@/lib/utils'
 import { SymbolWorkflowPanel } from '@/components/symbol/SymbolWorkflowPanel'
@@ -39,6 +40,8 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
     uppercaseSymbol,
   )
   const { data: jennyDashboard, error: jennyError } = useJennyDashboard()
+  const { data: preferences } = usePreferences()
+  const userTimezone = preferences?.displayTimezone ?? 'America/New_York'
   const latestReview = jennyDashboard?.symbolReviews.find(
     (review) => review.symbol === uppercaseSymbol,
   )
@@ -350,7 +353,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                     managementAction: latestReview?.managementAction ?? null,
                   }}
                 />
-                <ThesisSection symbol={uppercaseSymbol} userTimezone="America/New_York" />
+                <ThesisSection symbol={uppercaseSymbol} userTimezone={userTimezone} />
               </div>
             ),
           },

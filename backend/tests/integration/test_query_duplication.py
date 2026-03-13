@@ -561,7 +561,7 @@ class TestBaselineMeasurement:
 
         # Save to tests/integration directory
         baseline_file = Path(__file__).parent / "baseline_metrics.json"
-        with baseline_file.open("w") as f:
+        with baseline_file.open("w", encoding="utf-8") as f:
             json.dump(baseline_data, f, indent=2)
 
         print(f"\nBaseline metrics saved to: {baseline_file}")
@@ -657,7 +657,7 @@ class TestIssue1OverlappingNewsFetches:
         from pathlib import Path
 
         baseline_file = Path(__file__).parent / "baseline_metrics.json"
-        with baseline_file.open() as f:
+        with baseline_file.open(encoding="utf-8") as f:
             baseline = json.load(f)
 
         print("\n" + "=" * 70)
@@ -785,7 +785,7 @@ class TestIssue2PerSymbolNewsFetching:
         }
 
         results_file = Path(__file__).parent / "issue2_validation.json"
-        with results_file.open("w") as f:
+        with results_file.open("w", encoding="utf-8") as f:
             json.dump(result, f, indent=2)
 
         print(f"\nValidation results saved to: {results_file}")
@@ -904,7 +904,7 @@ class TestIssue3UserPreferencesQueries:
         from pathlib import Path
 
         results_file = Path(__file__).parent / "issue3_validation.json"
-        with results_file.open("w") as f:
+        with results_file.open("w", encoding="utf-8") as f:
             json.dump(result, f, indent=2)
 
         print(f"\nValidation results saved to: {results_file}")
@@ -1013,7 +1013,7 @@ class TestIssue4WatchlistItemsQueries:
         from pathlib import Path
 
         results_file = Path(__file__).parent / "issue4_validation.json"
-        with results_file.open("w") as f:
+        with results_file.open("w", encoding="utf-8") as f:
             json.dump(result, f, indent=2)
 
         print(f"\nValidation results saved to: {results_file}")
@@ -1129,7 +1129,7 @@ class TestIssue5N1QueryPattern:
         from pathlib import Path
 
         results_file = Path(__file__).parent / "issue5_validation.json"
-        with results_file.open("w") as f:
+        with results_file.open("w", encoding="utf-8") as f:
             json.dump(result, f, indent=2)
 
         print(f"\nValidation results saved to: {results_file}")

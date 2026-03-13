@@ -71,8 +71,6 @@ def derive_default_stage(
         return "review_due"
     if has_thesis:
         return "thesis_ready"
-    if has_watchlist_item:
-        return "discover"
     return "discover"
 
 

@@ -284,7 +284,7 @@ class TestCommitWorkflowResults:
 
             # Verify file contents
             snapshot_file = reports_dir / "2025-11-18-daily_gap_analysis.json"
-            with snapshot_file.open() as f:
+            with snapshot_file.open(encoding="utf-8") as f:
                 saved_data = json.load(f)
             assert saved_data == snapshot_data
 
@@ -538,7 +538,7 @@ class TestCommitWorkflowResults:
             assert result is True
             # Verify file can be read and deserialized
             snapshot_file = repo_path / "reports" / "autonomous" / "2025-11-18-test_workflow.json"
-            with snapshot_file.open() as f:
+            with snapshot_file.open(encoding="utf-8") as f:
                 saved_data = json.load(f)
             assert saved_data["timestamp"] == str(datetime(2025, 11, 18, 10, 30))
             assert saved_data["metrics"]["sharpe"] == 1.2
