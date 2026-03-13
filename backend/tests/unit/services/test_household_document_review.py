@@ -7,14 +7,19 @@ from unittest.mock import MagicMock, patch
 
 from agent_hub.models.content import ImageContent
 
-from app.services.household_document_review import HouseholdDocumentReviewService
+from app.services.household_document_review import (
+    HouseholdDocumentReviewService,
+    _baseline_review,
+    _build_messages,
+    _extract_csv_text,
+    _extract_text,
+    _parse_review_payload,
+)
 from app.services.household_review_agent_service import HOUSEHOLD_REVIEW_AGENT_SLUG
 
 
 def test_parse_review_payload_handles_fenced_json() -> None:
-    service = HouseholdDocumentReviewService()
-
-    payload = service._parse_review_payload(
+    payload = _parse_review_payload(
         """
         Here is the review.
 
@@ -37,9 +42,7 @@ def test_parse_review_payload_handles_fenced_json() -> None:
 
 
 def test_parse_review_payload_handles_plain_text_wrapped_json() -> None:
-    service = HouseholdDocumentReviewService()
-
-    payload = service._parse_review_payload(
+    payload = _parse_review_payload(
         'Review result: {"summary":"Receipt","document_type":"receipt","source_type":"receipt","confidence":0.8,"structured_data":{},"inferred_values":[],"questions":[]}'
     )
 
@@ -48,9 +51,7 @@ def test_parse_review_payload_handles_plain_text_wrapped_json() -> None:
 
 
 def test_baseline_review_detects_walmart_order_details() -> None:
-    service = HouseholdDocumentReviewService()
-
-    payload = service._baseline_review(
+    payload = _baseline_review(
         filename="Order details - Walmart.com.pdf",
         source_type="other",
         document_type="other",
@@ -63,9 +64,7 @@ def test_baseline_review_detects_walmart_order_details() -> None:
 
 
 def test_baseline_review_detects_amazon_order_history_csv() -> None:
-    service = HouseholdDocumentReviewService()
-
-    payload = service._baseline_review(
+    payload = _baseline_review(
         filename="Order History.csv",
         source_type="other",
         document_type="other",
@@ -78,7 +77,6 @@ def test_baseline_review_detects_amazon_order_history_csv() -> None:
 
 
 def test_extract_csv_text_preserves_amazon_price_columns(tmp_path: Path) -> None:
-    service = HouseholdDocumentReviewService()
     csv_path = tmp_path / "Order History.csv"
     csv_path.write_text(
         (
@@ -88,7 +86,7 @@ def test_extract_csv_text_preserves_amazon_price_columns(tmp_path: Path) -> None
         encoding="utf-8",
     )
 
-    extracted = service._extract_csv_text(csv_path)
+    extracted = _extract_csv_text(csv_path)
 
     assert "Shipping Charge" in extracted
     assert "Total Amount" in extracted
@@ -96,14 +94,15 @@ def test_extract_csv_text_preserves_amazon_price_columns(tmp_path: Path) -> None
     assert "40.93" in extracted
 
 
-@patch.object(HouseholdDocumentReviewService, "_extract_pdf_image_text")
+@patch("app.services.household_document_review._extract_pdf_image_text")
 @patch("app.services.household_document_review.PdfReader")
 def test_extract_pdf_text_uses_ocr_fallback_for_low_signal_pages(
     mock_pdf_reader: MagicMock,
     pdf_image_text: MagicMock,
     tmp_path: Path,
 ) -> None:
-    service = HouseholdDocumentReviewService()
+    from app.services.household_document_review import _extract_pdf_text
+
     pdf_path = tmp_path / "walmart.pdf"
     pdf_path.write_bytes(b"%PDF-1.4 fake")
 
@@ -112,7 +111,7 @@ def test_extract_pdf_text_uses_ocr_fallback_for_low_signal_pages(
     mock_pdf_reader.return_value.pages = [mock_page]
     pdf_image_text.return_value = "Fresh Whole Brussels Sprouts\nOrder total $83.21"
 
-    extracted = service._extract_pdf_text(pdf_path)
+    extracted = _extract_pdf_text(pdf_path)
 
     pdf_image_text.assert_called_once_with(pdf_path)
     assert extracted is not None
@@ -120,23 +119,20 @@ def test_extract_pdf_text_uses_ocr_fallback_for_low_signal_pages(
     assert "Order total $83.21" in extracted
 
 
-@patch.object(HouseholdDocumentReviewService, "_extract_image_text")
+@patch("app.services.household_document_review._extract_image_text")
 def test_extract_text_uses_image_ocr(image_ocr: MagicMock, tmp_path: Path) -> None:
-    service = HouseholdDocumentReviewService()
     image_ocr.return_value = "Walmart 23.41 VISA"
     image_path = tmp_path / "receipt.png"
     image_path.write_bytes(b"fake-image")
 
-    extracted = service._extract_text(image_path, "image/png")
+    extracted = _extract_text(image_path, "image/png")
 
     image_ocr.assert_called_once_with(image_path)
     assert extracted == "Walmart 23.41 VISA"
 
 
 def test_baseline_review_detects_wells_fargo_checking_statement() -> None:
-    service = HouseholdDocumentReviewService()
-
-    payload = service._baseline_review(
+    payload = _baseline_review(
         filename="022726 WellsFargo.pdf",
         source_type="other",
         document_type="other",
@@ -149,9 +145,7 @@ def test_baseline_review_detects_wells_fargo_checking_statement() -> None:
 
 
 def test_baseline_review_detects_529_college_fund_snapshot() -> None:
-    service = HouseholdDocumentReviewService()
-
-    payload = service._baseline_review(
+    payload = _baseline_review(
         filename="image.png",
         source_type="other",
         document_type="other",
@@ -239,12 +233,11 @@ def test_signature_review_skips_generic_image_name(
     find_signature.assert_not_called()
 
 
-@patch.object(HouseholdDocumentReviewService, "_pdf_image_blocks")
+@patch("app.services.household_document_review._pdf_image_blocks")
 def test_build_messages_includes_pdf_preview_images(pdf_image_blocks: MagicMock) -> None:
-    service = HouseholdDocumentReviewService()
     pdf_image_blocks.return_value = [ImageContent.from_base64("ZmFrZQ==", media_type="image/png")]
 
-    messages = service._build_messages(
+    messages = _build_messages(
         payload={
             "document_id": "doc-1",
             "filename": "statement.pdf",

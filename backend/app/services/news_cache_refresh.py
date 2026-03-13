@@ -109,7 +109,7 @@ class NewsCacheRefresher:
                     if candidate in ALLOWED_LOOKBACK_HOURS or candidate > 0:
                         hours = candidate
                 except (TypeError, ValueError):
-                    pass
+                    logger.debug("news_lookback_hours_parse_failed", raw_value=str(raw_value))
 
         self.set_ttl_hours(hours)
         return self.lookback_hours

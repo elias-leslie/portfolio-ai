@@ -40,14 +40,14 @@ def _format_run(run: Any) -> dict[str, Any]:
                 finished_at = datetime.fromisoformat(finished_at.replace("Z", "+00:00"))
             duration = (finished_at - started_at).total_seconds()
         except (ValueError, TypeError):
-            pass
+            logger.debug("workflow_duration_parse_failed", started_at=str(started_at), finished_at=str(finished_at))
     elif started_at and status == "RUNNING":
         try:
             if isinstance(started_at, str):
                 started_at = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
             duration = (datetime.now(UTC) - started_at).total_seconds()
         except (ValueError, TypeError):
-            pass
+            logger.debug("workflow_running_duration_parse_failed", started_at=str(started_at))
 
     started_str = None
     if started_at:

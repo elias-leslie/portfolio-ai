@@ -11,6 +11,9 @@ import psutil
 from pydantic import BaseModel, Field
 
 from app.constants.services import SERVICE_PROCESS_PATTERNS
+from app.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class ServiceStatus(BaseModel):
@@ -49,7 +52,8 @@ def get_process_by_pattern(pattern: str) -> int | None:
 
         return None
 
-    except (subprocess.TimeoutExpired, ValueError, subprocess.SubprocessError):
+    except (subprocess.TimeoutExpired, ValueError, subprocess.SubprocessError) as e:
+        logger.debug("process_lookup_failed", pattern=pattern, error=str(e))
         return None
 
 

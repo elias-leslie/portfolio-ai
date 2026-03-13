@@ -5,6 +5,10 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from app.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 
 def normalize_confidence(raw_confidence: float | int | str | bool | None) -> float | None:
     if raw_confidence is None:
@@ -58,6 +62,7 @@ def _extract_json(content: str) -> dict[str, Any]:
             content = content[content.index("{") : content.rindex("}") + 1]
         return dict(json.loads(content))
     except (json.JSONDecodeError, ValueError):
+        logger.warning("jenny_review_json_parse_failed", content_length=len(content))
         return {
             "verdict": "review",
             "confidence": _FALLBACK_CONFIDENCE,
