@@ -3,6 +3,7 @@ name = "portfolio-ai"
 version = "0.1.0"
 description = "AI-Led Portfolio Intelligence Platform"
 requires-python = ">=3.13"
+license = "Apache-2.0"
 dependencies = [
     # Core API framework
     "fastapi==0.124.4",

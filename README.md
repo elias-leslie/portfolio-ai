@@ -120,7 +120,7 @@ npm run dev
 
 ### Environment
 
-API keys are configured in `~/.env.local`. Optional data source keys:
+Use [`.env.example`](/home/kasadis/portfolio-ai/.env.example) and [`backend/.env.example`](/home/kasadis/portfolio-ai/backend/.env.example) as templates. Local secrets live in `~/.env.local`. Optional data source keys:
 
 - `POLYGON_API_KEY` - Polygon.io (5 req/min, 15m delay)
 - `TWELVEDATA_API_KEY` - TwelveData (8 req/min)
@@ -183,4 +183,14 @@ scripts/rebuild.sh    # Full rebuild and restart
 
 ## License
 
-Private project - All rights reserved
+Licensed under the Apache License, Version 2.0. See `LICENSE` for the full text.
+
+## Security
+
+If you discover a security issue, do not open a public issue. Report it privately to `summitflow42@gmail.com` with the affected area, reproduction steps, and any suggested mitigation.
+
+## Commercial
+
+Commercial use is permitted under Apache 2.0.
+
+For commercial support, custom development, partnerships, or private licensing for future versions, contact `summitflow42@gmail.com`.
