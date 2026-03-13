@@ -56,7 +56,7 @@ def _parse_published_utc(raw: Any) -> dt.datetime | None:
         return None
     try:
         return dt.datetime.fromisoformat(raw.replace("Z", "+00:00"))
-    except Exception:
+    except (ValueError, TypeError):
         return None
 
 

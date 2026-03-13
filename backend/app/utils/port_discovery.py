@@ -203,7 +203,7 @@ class PortDiscovery:
                                 description=f"HTTP service on port {port}",
                             )
                         )
-                except Exception:
+                except (httpx.HTTPError, OSError):
                     pass  # Port not responding
 
         return discovered

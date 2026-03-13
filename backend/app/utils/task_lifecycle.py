@@ -48,7 +48,7 @@ def log_task_memory(task_name: str) -> None:
 def _get_current_rss_mb() -> float:
     """Read current RSS from /proc/self/statm (Linux-specific)."""
     try:
-        with Path("/proc/self/statm").open() as f:
+        with Path("/proc/self/statm").open(encoding="utf-8") as f:
             # statm fields: size resident shared text lib data dt (all in pages)
             parts = f.read().split()
             resident_pages = int(parts[1])

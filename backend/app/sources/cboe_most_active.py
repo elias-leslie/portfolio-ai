@@ -253,7 +253,7 @@ class CBOEMostActiveSource:
                     days_to_exp = (exp_date - today).days
                     if days_to_exp <= 30:
                         near_term_count += 1
-            except Exception:
+            except (ValueError, TypeError):
                 continue  # Skip unparseable dates
 
         near_term_pct = round((near_term_count / total_contracts) * 100, 2)

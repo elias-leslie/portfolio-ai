@@ -11,21 +11,9 @@ import datetime as dt
 from app.logging_config import get_logger
 from app.storage import PortfolioStorage
 
+from ._date_utils import parse_target_date as _parse_target_date
+
 logger = get_logger(__name__)
-
-
-def _parse_target_date(date: dt.date | str) -> dt.date:
-    """Convert date input to date object.
-
-    Args:
-        date: Date as string (YYYY-MM-DD) or date object
-
-    Returns:
-        Date object
-    """
-    if isinstance(date, str):
-        return dt.datetime.strptime(date, "%Y-%m-%d").date()
-    return date
 
 
 def _calculate_lookback_start(target_date: dt.date, lookback_days: int) -> dt.date:
