@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { useJennyDashboard } from '@/lib/hooks/usePortfolio'
 import { usePreferences } from '@/lib/hooks/usePreferences'
 import { useSymbolIntelligence } from '@/lib/hooks/useSymbolIntelligence'
-import { formatRelativeTime } from '@/lib/utils'
+import { cn, formatRelativeTime } from '@/lib/utils'
 import { SymbolWorkflowPanel } from '@/components/symbol/SymbolWorkflowPanel'
 import { ThesisSection } from '@/components/watchlist/ThesisSection'
 
@@ -109,7 +109,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
               disabled={isFetching}
               aria-busy={isFetching}
             >
-              <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
+              <RefreshCw className={cn('mr-2 h-4 w-4', isFetching && 'animate-spin')} />
               Refresh
             </Button>
           </>

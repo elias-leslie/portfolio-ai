@@ -3,7 +3,9 @@
 import { Brain, CheckCircle2, RefreshCw, Siren, TrendingUp } from 'lucide-react'
 import Link from 'next/link'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
+import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 import type {
   JennyAgentScorecard,
   JennyNotification,
@@ -186,28 +188,27 @@ export function JennyOperatorPanel() {
         </div>
 
         <div className="flex gap-2">
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/10 px-3 py-2 text-sm font-medium text-text transition hover:bg-primary/15 disabled:opacity-50"
+          <Button
+            size="sm"
             onClick={() => runRoutine.mutate('dailyOperator')}
             disabled={runRoutine.isPending}
             aria-busy={runRoutine.isPending}
           >
             <RefreshCw
-              className={`h-4 w-4 ${runRoutine.isPending ? 'animate-spin' : ''}`}
+              className={cn('mr-2 h-4 w-4', runRoutine.isPending && 'animate-spin')}
             />
             Run Review
-          </button>
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 rounded-lg border border-surface-border px-3 py-2 text-sm font-medium text-text transition hover:bg-surface-muted/40 disabled:opacity-50"
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
             onClick={() => runRoutine.mutate('weeklyLearning')}
             disabled={runRoutine.isPending}
             aria-busy={runRoutine.isPending}
           >
-            <TrendingUp className="h-4 w-4" />
+            <TrendingUp className="mr-2 h-4 w-4" />
             Refresh Learning
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -243,7 +244,7 @@ export function JennyOperatorPanel() {
             topNotifications.map((notification) => (
               <div
                 key={notification.id}
-                className={`rounded-xl border p-4 ${severityTone(notification.severity)}`}
+                className={cn('rounded-xl border p-4', severityTone(notification.severity))}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -261,14 +262,14 @@ export function JennyOperatorPanel() {
                     ) : null}
                   </div>
 
-                  <button
-                    type="button"
-                    className="rounded-lg border border-surface-border px-3 py-1.5 text-xs font-medium text-text transition hover:bg-surface-muted/40 disabled:opacity-50"
+                  <Button
+                    size="sm"
+                    variant="outline"
                     onClick={() => acknowledge.mutate(notification.id)}
                     disabled={acknowledge.isPending}
                   >
                     {notificationActionLabel(notification)}
-                  </button>
+                  </Button>
                 </div>
               </div>
             ))
@@ -285,14 +286,14 @@ export function JennyOperatorPanel() {
             <h3 className="text-sm font-semibold text-text">Top symbol reviews</h3>
             <div className="mt-3 space-y-3">
               {topReviews.length === 0 ? (
-                <div className="rounded-xl border border-surface-border bg-surface-muted/20 p-4 text-sm text-text-muted">
+                <div className="rounded-xl border border-border/40 bg-surface-muted/20 p-4 text-sm text-text-muted">
                   Jenny has not reviewed any symbols yet.
                 </div>
               ) : (
                 topReviews.map((review) => (
                   <div
                     key={review.symbol}
-                    className="rounded-xl border border-surface-border bg-surface-muted/20 p-4"
+                    className="rounded-xl border border-border/40 bg-surface-muted/20 p-4"
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div>
@@ -341,7 +342,7 @@ export function JennyOperatorPanel() {
             <h3 className="text-sm font-semibold text-text">Agent scorecards</h3>
             <div className="mt-3 space-y-3">
               {topScorecards.length === 0 ? (
-                <div className="rounded-xl border border-surface-border bg-surface-muted/20 p-4 text-sm text-text-muted">
+                <div className="rounded-xl border border-border/40 bg-surface-muted/20 p-4 text-sm text-text-muted">
                   Jenny needs more completed trades before agent scorecards mean
                   anything.
                 </div>
@@ -349,7 +350,7 @@ export function JennyOperatorPanel() {
                 topScorecards.map((scorecard) => (
                   <div
                     key={scorecard.agentName}
-                    className="rounded-xl border border-surface-border bg-surface-muted/20 p-4"
+                    className="rounded-xl border border-border/40 bg-surface-muted/20 p-4"
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2 text-sm font-semibold text-text">
@@ -367,7 +368,7 @@ export function JennyOperatorPanel() {
                       {scoreItems(scorecard).map(([label, value]) => (
                         <div
                           key={label}
-                          className="rounded-lg border border-surface-border bg-surface/40 px-2.5 py-2"
+                          className="rounded-lg border border-border/40 bg-surface/40 px-2.5 py-2"
                         >
                           <div>{label}</div>
                           <div className="mt-1 text-sm font-semibold text-text">

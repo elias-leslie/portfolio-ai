@@ -2,6 +2,7 @@ import { Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { TableCell, TableRow } from '@/components/ui/table'
 import type { PositionWithValue } from '@/lib/api/portfolio'
+import { cn } from '@/lib/utils'
 import {
   formatCurrency,
   formatPercent,
@@ -42,14 +43,12 @@ export function PositionTableRow({
         {position.currentValue ? formatCurrency(position.currentValue) : '—'}
       </TableCell>
       <TableCell
-        className={`text-right font-semibold ${
-          pnlDollars >= 0 ? 'text-gain' : 'text-loss'
-        }`}
+        className={cn('text-right font-semibold', pnlDollars >= 0 ? 'text-gain' : 'text-loss')}
       >
         {position.currentValue ? formatPnlDollars(pnlDollars) : '—'}
       </TableCell>
       <TableCell
-        className={`text-right ${pnlPercent >= 0 ? 'text-gain' : 'text-loss'}`}
+        className={cn('text-right', pnlPercent >= 0 ? 'text-gain' : 'text-loss')}
       >
         {position.currentValue ? formatPercent(pnlPercent) : '—'}
       </TableCell>

@@ -56,10 +56,20 @@ export function MarketIntelligence() {
   return (
     <Card className="p-6 shadow-lg">
       {/* Header */}
-      <div className="mb-6">
-        <h2 className="text-lg font-semibold text-text bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+      <div className="mb-6 flex items-center justify-between">
+        <h2 className="text-lg font-semibold tracking-tight text-text">
           Market Conditions
         </h2>
+        {lastUpdated ? (
+          <span className="text-xs text-text-muted">
+            Updated {new Date(lastUpdated).toLocaleString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              hour: 'numeric',
+              minute: '2-digit',
+            })}
+          </span>
+        ) : null}
       </div>
 
       {/* Fear & Greed Alert if stale */}

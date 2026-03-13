@@ -137,7 +137,7 @@ export function WorkspaceTabs({
 
   return (
     <Tabs value={value} onValueChange={handleValueChange} className={className}>
-      <div className="sticky top-0 z-20 rounded-2xl border border-border/50 bg-bg/95 p-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-bg/85">
+      <div className="sticky top-0 z-20 -mx-px rounded-2xl border border-border/50 bg-bg/95 p-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-bg/85">
         <TabsList
           aria-label={ariaLabel}
           className="flex h-auto w-full flex-wrap justify-start gap-2 bg-transparent p-0"

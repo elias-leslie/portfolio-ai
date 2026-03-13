@@ -2,6 +2,7 @@
 
 import { Loader2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { cn } from '@/lib/utils'
 import {
   Line,
   LineChart,
@@ -199,11 +200,10 @@ export function IndicatorsTrendChart() {
                 type="button"
                 aria-pressed={highlighted === key}
                 onClick={() => setHighlighted(highlighted === key ? null : key)}
-                className={`flex items-center gap-1 rounded-md px-1.5 py-0.5 transition-all hover:bg-surface-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
-                  highlighted !== null && highlighted !== key
-                    ? 'opacity-40'
-                    : ''
-                }`}
+                className={cn(
+                  'flex items-center gap-1 rounded-md px-1.5 py-0.5 transition-all hover:bg-surface-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
+                  highlighted !== null && highlighted !== key && 'opacity-40',
+                )}
               >
                 <span
                   className="w-2 h-2 rounded-full"

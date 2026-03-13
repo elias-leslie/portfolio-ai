@@ -3,6 +3,7 @@
 import { Target } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import type { DiversificationScore as DiversificationScoreType } from '@/lib/api/portfolio'
+import { cn } from '@/lib/utils'
 
 interface DiversificationScoreProps {
   diversification: DiversificationScoreType
@@ -65,7 +66,11 @@ export function DiversificationScore({
           <h3 className="text-sm font-semibold text-text">Diversification</h3>
         </div>
         <span
-          className={`rounded-full px-3 py-1 text-xs font-medium ${getBgColor(diversification.level)} ${getLevelColor(diversification.level)}`}
+          className={cn(
+            'rounded-full px-3 py-1 text-xs font-medium',
+            getBgColor(diversification.level),
+            getLevelColor(diversification.level),
+          )}
         >
           {diversification.level}
         </span>
@@ -79,9 +84,16 @@ export function DiversificationScore({
           </span>
           <span className="text-xs text-text-muted">/ 100</span>
         </div>
-        <div className="h-2 w-full overflow-hidden rounded-full bg-surface-muted">
+        <div
+          className="h-2 w-full overflow-hidden rounded-full bg-surface-muted"
+          role="progressbar"
+          aria-valuenow={diversification.score}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="Diversification score"
+        >
           <div
-            className={`h-full transition-all duration-500 ${getProgressColor(diversification.level)}`}
+            className={cn('h-full transition-all duration-500', getProgressColor(diversification.level))}
             style={{ width: `${diversification.score}%` }}
           />
         </div>

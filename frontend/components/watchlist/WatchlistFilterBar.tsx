@@ -7,7 +7,12 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { WatchlistCounts } from './useWatchlistFilters'
+import { cn } from '@/lib/utils'
 import type { RiskFilter, SignalFilter, StyleFilter } from './watchlistFilters'
+
+function SignalDot({ className }: { className: string }) {
+  return <span className={cn('inline-block size-2 rounded-full', className)} />
+}
 
 interface WatchlistFilterBarProps {
   totalCount: number
@@ -40,17 +45,25 @@ export function WatchlistFilterBar({
         value={signalFilter}
         onValueChange={(value) => onSignalChange(value as SignalFilter)}
       >
-        <SelectTrigger className="w-[160px]">
+        <SelectTrigger className="w-[160px]" aria-label="Filter by signal">
           <SelectValue placeholder="Signal: All" />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All Signals ({totalCount})</SelectItem>
-          <SelectItem value="BUY">🟢 BUY ({counts.signal.BUY || 0})</SelectItem>
+          <SelectItem value="BUY">
+            <span className="inline-flex items-center gap-1.5">
+              <SignalDot className="bg-gain" /> BUY ({counts.signal.BUY || 0})
+            </span>
+          </SelectItem>
           <SelectItem value="HOLD">
-            🟡 HOLD ({counts.signal.HOLD || 0})
+            <span className="inline-flex items-center gap-1.5">
+              <SignalDot className="bg-warning" /> HOLD ({counts.signal.HOLD || 0})
+            </span>
           </SelectItem>
           <SelectItem value="AVOID">
-            🔴 AVOID ({counts.signal.AVOID || 0})
+            <span className="inline-flex items-center gap-1.5">
+              <SignalDot className="bg-loss" /> AVOID ({counts.signal.AVOID || 0})
+            </span>
           </SelectItem>
         </SelectContent>
       </Select>
@@ -59,26 +72,16 @@ export function WatchlistFilterBar({
         value={styleFilter}
         onValueChange={(value) => onStyleChange(value as StyleFilter)}
       >
-        <SelectTrigger className="w-[160px]">
+        <SelectTrigger className="w-[160px]" aria-label="Filter by style">
           <SelectValue placeholder="Style: All" />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All Styles ({totalCount})</SelectItem>
-          <SelectItem value="Index">
-            📈 Index ({counts.style.Index || 0})
-          </SelectItem>
-          <SelectItem value="Trend">
-            🔥 Trend ({counts.style.Trend || 0})
-          </SelectItem>
-          <SelectItem value="Value">
-            💎 Value ({counts.style.Value || 0})
-          </SelectItem>
-          <SelectItem value="Swing">
-            ⚡ Swing ({counts.style.Swing || 0})
-          </SelectItem>
-          <SelectItem value="Event">
-            📅 Event ({counts.style.Event || 0})
-          </SelectItem>
+          <SelectItem value="Index">Index ({counts.style.Index || 0})</SelectItem>
+          <SelectItem value="Trend">Trend ({counts.style.Trend || 0})</SelectItem>
+          <SelectItem value="Value">Value ({counts.style.Value || 0})</SelectItem>
+          <SelectItem value="Swing">Swing ({counts.style.Swing || 0})</SelectItem>
+          <SelectItem value="Event">Event ({counts.style.Event || 0})</SelectItem>
         </SelectContent>
       </Select>
 
@@ -86,20 +89,30 @@ export function WatchlistFilterBar({
         value={riskFilter}
         onValueChange={(value) => onRiskChange(value as RiskFilter)}
       >
-        <SelectTrigger className="w-[160px]">
+        <SelectTrigger className="w-[160px]" aria-label="Filter by risk level">
           <SelectValue placeholder="Risk: All" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">All Risk Levels ({totalCount})</SelectItem>
-          <SelectItem value="Low">✓ Low ({counts.risk.Low || 0})</SelectItem>
+          <SelectItem value="all">All Risk ({totalCount})</SelectItem>
+          <SelectItem value="Low">
+            <span className="inline-flex items-center gap-1.5">
+              <SignalDot className="bg-gain" /> Low ({counts.risk.Low || 0})
+            </span>
+          </SelectItem>
           <SelectItem value="Medium-Low">
-            ⚠ Med-Low ({counts.risk['Medium-Low'] || 0})
+            <span className="inline-flex items-center gap-1.5">
+              <SignalDot className="bg-warning" /> Med-Low ({counts.risk['Medium-Low'] || 0})
+            </span>
           </SelectItem>
           <SelectItem value="Medium">
-            ⚠ Medium ({counts.risk.Medium || 0})
+            <span className="inline-flex items-center gap-1.5">
+              <SignalDot className="bg-warning" /> Medium ({counts.risk.Medium || 0})
+            </span>
           </SelectItem>
           <SelectItem value="High">
-            ⚠⚠ High ({counts.risk.High || 0})
+            <span className="inline-flex items-center gap-1.5">
+              <SignalDot className="bg-loss" /> High ({counts.risk.High || 0})
+            </span>
           </SelectItem>
         </SelectContent>
       </Select>

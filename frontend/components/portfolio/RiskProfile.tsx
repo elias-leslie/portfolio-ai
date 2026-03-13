@@ -3,6 +3,7 @@
 import { AlertTriangle, Shield } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import type { RiskProfile as RiskProfileType } from '@/lib/api/portfolio'
+import { cn } from '@/lib/utils'
 
 interface RiskProfileProps {
   riskProfile: RiskProfileType
@@ -56,7 +57,11 @@ export function RiskProfile({ riskProfile }: RiskProfileProps) {
           <h3 className="text-sm font-semibold text-text">Risk Profile</h3>
         </div>
         <span
-          className={`rounded-full px-3 py-1 text-xs font-medium ${getBgColor(riskProfile.level)} ${getLevelColor(riskProfile.level)}`}
+          className={cn(
+            'rounded-full px-3 py-1 text-xs font-medium',
+            getBgColor(riskProfile.level),
+            getLevelColor(riskProfile.level),
+          )}
         >
           {riskProfile.level}
         </span>

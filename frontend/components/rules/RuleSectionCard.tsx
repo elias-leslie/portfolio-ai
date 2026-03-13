@@ -46,11 +46,11 @@ export function RuleSectionCard({
       >
         <div className="flex items-center gap-3">
           {isExpanded ? (
-            <ChevronDown className="h-5 w-5 text-muted-foreground" />
+            <ChevronDown className="h-5 w-5 text-text-muted" />
           ) : (
-            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            <ChevronRight className="h-5 w-5 text-text-muted" />
           )}
-          <span className="font-semibold text-foreground">
+          <span className="font-semibold text-text">
             {formatLabel(title)}
           </span>
           <Badge variant="outline" className="text-xs">
@@ -67,10 +67,10 @@ export function RuleSectionCard({
                 key={key}
                 className="rounded border border-border bg-surface p-3"
               >
-                <div className="text-sm font-medium text-muted-foreground mb-1">
+                <div className="text-sm font-medium text-text-muted mb-1">
                   {formatLabel(key)}
                 </div>
-                <div className="text-base font-semibold text-foreground">
+                <div className="text-base font-semibold text-text">
                   {formatValue(value)}
                 </div>
               </div>

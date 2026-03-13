@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 import { formatLabel } from './RuleSectionCard'
 
 interface CatalystImpactsCardProps {
@@ -26,11 +27,11 @@ export function CatalystImpactsCard({
       >
         <div className="flex items-center gap-3">
           {isExpanded ? (
-            <ChevronDown className="h-5 w-5 text-muted-foreground" />
+            <ChevronDown className="h-5 w-5 text-text-muted" />
           ) : (
-            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            <ChevronRight className="h-5 w-5 text-text-muted" />
           )}
-          <span className="font-semibold text-foreground">Catalyst Impacts</span>
+          <span className="font-semibold text-text">Catalyst Impacts</span>
           <Badge variant="outline" className="text-xs">
             {Object.keys(data).length} events
           </Badge>
@@ -47,28 +48,29 @@ export function CatalystImpactsCard({
                   key={eventType}
                   className="rounded border border-border bg-surface p-3"
                 >
-                  <div className="text-sm font-medium text-foreground mb-2">
+                  <div className="text-sm font-medium text-text mb-2">
                     {formatLabel(eventType)}
                   </div>
                   <div className="flex items-center gap-3">
                     <div>
-                      <div className="text-xs text-muted-foreground">Impact</div>
+                      <div className="text-xs text-text-muted">Impact</div>
                       <div
-                        className={`text-base font-semibold ${
+                        className={cn(
+                          'text-base font-semibold',
                           catalyst.impact > 0
                             ? 'text-gain'
                             : catalyst.impact < 0
                               ? 'text-loss'
-                              : 'text-muted-foreground'
-                        }`}
+                              : 'text-text-muted',
+                        )}
                       >
                         {catalyst.impact > 0 ? '+' : ''}
                         {catalyst.impact.toFixed(1)}
                       </div>
                     </div>
                     <div>
-                      <div className="text-xs text-muted-foreground">Duration</div>
-                      <div className="text-base font-semibold text-foreground">
+                      <div className="text-xs text-text-muted">Duration</div>
+                      <div className="text-base font-semibold text-text">
                         {catalyst.durationDays}d
                       </div>
                     </div>

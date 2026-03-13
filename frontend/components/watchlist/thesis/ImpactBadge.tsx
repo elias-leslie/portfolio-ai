@@ -1,4 +1,5 @@
 import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 
 export function ImpactBadge({
   impact,
@@ -23,7 +24,7 @@ export function ImpactBadge({
   const { color, icon } = config[impact]
 
   return (
-    <Badge variant="outline" className={`${color} text-xs px-1.5 py-0 h-5`}>
+    <Badge variant="outline" className={cn(color, 'text-xs px-1.5 py-0 h-5')}>
       {icon}
     </Badge>
   )

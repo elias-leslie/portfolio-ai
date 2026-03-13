@@ -69,7 +69,7 @@ export function RulesViewer() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Loader2 className="h-8 w-8 animate-spin text-text-muted" />
       </div>
     )
   }
@@ -105,8 +105,8 @@ export function RulesViewer() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Trading Rules</h2>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h2 className="text-2xl font-bold text-text">Trading Rules</h2>
+          <p className="text-sm text-text-muted mt-1">
             Version {rules.version} - Updated {rules.updated} by {rules.updatedBy}
           </p>
         </div>
@@ -138,25 +138,25 @@ export function RulesViewer() {
           <div className="text-2xl font-bold text-gain">
             {(rules.positionSizing.defaultRiskPercent * 100).toFixed(1)}%
           </div>
-          <div className="text-sm text-muted-foreground">Default Risk/Trade</div>
+          <div className="text-sm text-text-muted">Default Risk/Trade</div>
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="text-2xl font-bold text-loss">
             {rules.riskManagement.portfolioDrawdownHaltPct.toFixed(0)}%
           </div>
-          <div className="text-sm text-muted-foreground">Drawdown Halt</div>
+          <div className="text-sm text-text-muted">Drawdown Halt</div>
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="text-2xl font-bold text-accent">
             {rules.watchlistManagement.maxWatchlistSize}
           </div>
-          <div className="text-sm text-muted-foreground">Max Watchlist</div>
+          <div className="text-sm text-text-muted">Max Watchlist</div>
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="text-2xl font-bold text-accent">
             {Object.keys(rules.catalystImpacts).length}
           </div>
-          <div className="text-sm text-muted-foreground">Catalyst Events</div>
+          <div className="text-sm text-text-muted">Catalyst Events</div>
         </div>
       </div>
 

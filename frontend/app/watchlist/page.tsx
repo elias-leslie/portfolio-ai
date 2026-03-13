@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { AddSymbolModal } from '@/components/watchlist/AddSymbolModal'
 import { useWatchlistFilters } from '@/components/watchlist/useWatchlistFilters'
 import { WatchlistFilterBar } from '@/components/watchlist/WatchlistFilterBar'
@@ -96,7 +97,7 @@ export default function WatchlistPage() {
     totalCount > 0 ? Math.round((scoredCount / totalCount) * 100) : 0
 
   return (
-    <PageContainer className="watchlist-page py-10">
+    <PageContainer className="watchlist-page space-y-6 py-10">
       <PageHeader
         title="Watchlist"
         description={description}
@@ -110,7 +111,7 @@ export default function WatchlistPage() {
               aria-busy={refreshMutation.isPending}
             >
               <RefreshCw
-                className={`mr-2 h-4 w-4 ${refreshMutation.isPending ? 'animate-spin' : ''}`}
+                className={cn('mr-2 h-4 w-4', refreshMutation.isPending && 'animate-spin')}
               />
               Refresh
             </Button>
@@ -123,7 +124,7 @@ export default function WatchlistPage() {
       />
 
       {!isLoading && !error && totalCount > 0 ? (
-        <div className="mb-6 rounded-2xl border border-border/40 bg-surface-muted/20 px-4 py-3 text-sm text-text-muted">
+        <div className="rounded-2xl border border-border/40 bg-surface-muted/20 px-4 py-3 text-sm text-text-muted">
           <div className="flex flex-wrap gap-x-4 gap-y-2">
             <span>{totalCount} symbol{totalCount === 1 ? '' : 's'}</span>
             <span>{scoredCount} scored ({scoreCoveragePct}%)</span>

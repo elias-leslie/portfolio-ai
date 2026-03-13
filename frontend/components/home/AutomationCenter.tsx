@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch'
 import { useRunJennyRoutine } from '@/lib/hooks/usePortfolio'
 import { useAutomationCenter } from '@/lib/hooks/useHomeActionQueue'
 import { useUpdatePreferences } from '@/lib/hooks/usePreferences'
-import { formatRelativeTime } from '@/lib/utils'
+import { cn, formatRelativeTime } from '@/lib/utils'
 
 const GUARDRAIL_TO_PREFERENCE_FIELD = {
   thesis_generation_enabled: 'thesisGenerationEnabled',
@@ -51,7 +51,7 @@ export function AutomationCenter() {
             disabled={isFetching || isMutating}
             aria-busy={isFetching}
           >
-            <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
+            <RefreshCw className={cn('mr-2 h-4 w-4', isFetching && 'animate-spin')} />
             Refresh
           </Button>
           <Button

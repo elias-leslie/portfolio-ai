@@ -6,7 +6,7 @@ import type { NewsHealthResponse } from '@/lib/api/news'
 import { useDetailedHealth } from '@/lib/hooks/useHealth'
 import { useMarketStatus } from '@/lib/hooks/useMarketIntelligence'
 import { useNewsHealth } from '@/lib/hooks/useNewsHealth'
-import { formatRelativeTime } from '@/lib/utils'
+import { cn, formatRelativeTime } from '@/lib/utils'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { SectionCard } from '@/components/shared/SectionCard'
@@ -117,7 +117,7 @@ export function StatusWorkspace() {
             disabled={isFetching}
             aria-busy={isFetching}
           >
-            <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
+            <RefreshCw className={cn('mr-2 h-4 w-4', isFetching && 'animate-spin')} />
             Refresh
           </Button>
         }

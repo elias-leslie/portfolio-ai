@@ -58,7 +58,7 @@ export function UnifiedNewsIntelligenceCard({
   if (!newsIntelligence && !marketNewsData && !recentNews) return null
 
   const isMarketNews = !symbol
-  const cardTitle = title || (symbol ? '📰 News Intelligence' : 'Market News')
+  const cardTitle = title || (symbol ? 'News Intelligence' : 'Market News')
 
   return (
     <Card className={isMarketNews ? 'p-6 shadow-lg' : 'border-border'}>

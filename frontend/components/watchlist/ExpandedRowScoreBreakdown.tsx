@@ -7,6 +7,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion'
 import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 import {
   Tooltip,
   TooltipContent,
@@ -145,7 +146,7 @@ function PillarCard({ pillarKey, pillar, userTimezone }: PillarCardProps) {
             </Tooltip>
             <div className="flex-1 h-2 bg-surface-muted rounded-full overflow-hidden">
               <div
-                className={`h-full ${getScoreBarColor(pillar.score)} transition-all`}
+                className={cn('h-full transition-all', getScoreBarColor(pillar.score))}
                 style={{
                   width: `${Math.max(0, Math.min(100, pillar.score))}%`,
                 }}

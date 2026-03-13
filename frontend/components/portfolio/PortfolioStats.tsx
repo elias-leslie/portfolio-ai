@@ -3,6 +3,7 @@
 import { BarChart3 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import type { PortfolioAnalytics } from '@/lib/api/portfolio'
+import { cn } from '@/lib/utils'
 
 interface PortfolioStatsProps {
   analytics: PortfolioAnalytics
@@ -74,13 +75,14 @@ export function PortfolioStats({ analytics }: PortfolioStatsProps) {
             <span className="text-sm text-text-muted">Return Quality</span>
             {analytics.sharpeRatio !== null && Number.isFinite(analytics.sharpeRatio) ? (
               <span
-                className={`text-sm font-medium ${
+                className={cn(
+                  'text-sm font-medium',
                   analytics.sharpeRatio >= 1
                     ? 'text-gain'
                     : analytics.sharpeRatio >= 0
                       ? 'text-accent'
-                      : 'text-loss'
-                }`}
+                      : 'text-loss',
+                )}
               >
                 {analytics.sharpeRatio.toFixed(2)}
               </span>

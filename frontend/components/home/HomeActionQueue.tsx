@@ -10,7 +10,7 @@ import type { HomeActionItem } from '@/lib/api/home'
 import { useHomeActionQueue } from '@/lib/hooks/useHomeActionQueue'
 import { useAcknowledgeJennyNotification } from '@/lib/hooks/usePortfolio'
 import { useTransitionSymbolWorkflow } from '@/lib/hooks/useSymbolIntelligence'
-import { formatRelativeTime } from '@/lib/utils'
+import { cn, formatRelativeTime } from '@/lib/utils'
 
 const categoryIcons = {
   household: House,
@@ -152,7 +152,10 @@ export function HomeActionQueue() {
             return (
               <div
                 key={action.id}
-                className={`rounded-2xl border p-4 transition hover:border-primary/40 hover:bg-surface-muted/30 ${tone}`}
+                className={cn(
+                  'rounded-2xl border p-4 transition hover:border-primary/40 hover:bg-surface-muted/30',
+                  tone,
+                )}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-2">

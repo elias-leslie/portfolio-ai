@@ -103,12 +103,14 @@ export function DecisionMemoCard({
           </p>
         </div>
 
-        <Button onClick={onTrackInPortfolio}>
-          Track in Portfolio
-        </Button>
-        <Button asChild variant="outline">
-          <Link href={`/symbols/${recommendation.symbol}`}>Open Symbol Workspace</Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={onTrackInPortfolio}>
+            Track in Portfolio
+          </Button>
+          <Button asChild variant="outline">
+            <Link href={`/symbols/${recommendation.symbol}`}>Symbol Workspace</Link>
+          </Button>
+        </div>
       </CardContent>
     </Card>
   )

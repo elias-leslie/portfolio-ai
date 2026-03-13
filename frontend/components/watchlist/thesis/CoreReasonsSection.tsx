@@ -1,4 +1,5 @@
 import type { CoreReason } from '@/lib/api/thesis'
+import { cn } from '@/lib/utils'
 
 function getConfidenceColor(confidence: number): string {
   if (confidence >= 0.8) return 'bg-gain'
@@ -24,7 +25,7 @@ export function CoreReasonsSection({ reasons }: { reasons: CoreReason[] }) {
             </div>
             <div className="h-1.5 bg-surface-muted rounded-full overflow-hidden">
               <div
-                className={`h-full ${getConfidenceColor(reason.confidence)} transition-all`}
+                className={cn('h-full transition-all', getConfidenceColor(reason.confidence))}
                 style={{ width: `${reason.confidence * 100}%` }}
               />
             </div>

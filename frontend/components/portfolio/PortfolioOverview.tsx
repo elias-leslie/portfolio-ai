@@ -4,6 +4,7 @@ import { Activity, DollarSign, Gauge, TrendingUp } from 'lucide-react'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { Card } from '@/components/ui/card'
 import { usePortfolio, usePortfolioAnalytics } from '@/lib/hooks/usePortfolio'
+import { cn } from '@/lib/utils'
 import { AssetAllocation } from './AssetAllocation'
 import { JennyOperatorPanel } from './JennyOperatorPanel'
 import { PortfolioCoachAlerts } from './PortfolioCoachAlerts'
@@ -96,9 +97,9 @@ export function PortfolioOverview() {
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card className="group p-6 transition-all hover:scale-[1.02] hover:shadow-lg">
+        <Card className="group p-6 transition-shadow duration-200 hover:shadow-lg">
           <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-primary/10 p-3">
+            <div className="rounded-lg bg-primary/10 p-3 transition-colors duration-200 group-hover:bg-primary/15">
               <DollarSign className="h-5 w-5 text-primary" />
             </div>
             <div className="flex-1">
@@ -118,30 +119,35 @@ export function PortfolioOverview() {
           </div>
         </Card>
 
-        <Card className="group p-6 transition-all hover:scale-[1.02] hover:shadow-lg">
+        <Card className="group p-6 transition-shadow duration-200 hover:shadow-lg">
           <div className="flex items-center gap-3">
             <div
-              className={`rounded-lg p-3 ${(portfolio?.totalGain ?? 0) >= 0 ? 'bg-gain/10' : 'bg-loss/10'}`}
+              className={cn(
+                'rounded-lg p-3 transition-colors duration-200',
+                (portfolio?.totalGain ?? 0) >= 0
+                  ? 'bg-gain/10 group-hover:bg-gain/15'
+                  : 'bg-loss/10 group-hover:bg-loss/15',
+              )}
             >
-              <TrendingUp className={`h-5 w-5 ${gainColor}`} />
+              <TrendingUp className={cn('h-5 w-5', gainColor)} />
             </div>
             <div className="flex-1">
               <div className="text-sm font-medium text-text-muted">
                 Total Gain/Loss
               </div>
-              <div className={`mt-1 text-2xl font-bold ${gainColor}`}>
+              <div className={cn('mt-1 text-2xl font-bold', gainColor)}>
                 {formatCurrency(portfolio?.totalGain ?? 0)}
               </div>
-              <div className={`mt-1 text-xs ${gainColor}`}>
+              <div className={cn('mt-1 text-xs', gainColor)}>
                 {formatPercent(portfolio?.totalGainPct ?? 0)}
               </div>
             </div>
           </div>
         </Card>
 
-        <Card className="group p-6 transition-all hover:scale-[1.02] hover:shadow-lg">
+        <Card className="group p-6 transition-shadow duration-200 hover:shadow-lg">
           <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-accent/10 p-3">
+            <div className="rounded-lg bg-accent/10 p-3 transition-colors duration-200 group-hover:bg-accent/15">
               <Activity className="h-5 w-5 text-accent" />
             </div>
             <div className="flex-1">
@@ -158,9 +164,9 @@ export function PortfolioOverview() {
           </div>
         </Card>
 
-        <Card className="group p-6 transition-all hover:scale-[1.02] hover:shadow-lg">
+        <Card className="group p-6 transition-shadow duration-200 hover:shadow-lg">
           <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-accent/10 p-3">
+            <div className="rounded-lg bg-accent/10 p-3 transition-colors duration-200 group-hover:bg-accent/15">
               <Gauge className="h-5 w-5 text-accent" />
             </div>
             <div className="flex-1">

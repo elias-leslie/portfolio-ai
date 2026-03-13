@@ -3,6 +3,7 @@
 import { ArrowUpDown, ChevronDown, Newspaper } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { CardHeader, CardTitle } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 import type { NewsArticle, NewsSentimentDetail, SortOption } from './types'
 
 interface NewsCardHeaderProps {
@@ -45,14 +46,14 @@ export function NewsCardHeader({
           <CardTitle
             className={
               isMarketNews
-                ? 'text-lg font-semibold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent'
+                ? 'text-lg font-semibold text-text'
                 : 'text-base'
             }
           >
             {cardTitle}
           </CardTitle>
           <ChevronDown
-            className={`h-4 w-4 text-text-muted transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+            className={cn('h-4 w-4 text-text-muted transition-transform', isExpanded && 'rotate-180')}
           />
           {!isExpanded && summary && (
             <Badge variant="outline" className="ml-2 text-xs">

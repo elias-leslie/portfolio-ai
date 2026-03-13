@@ -2,6 +2,7 @@
 
 import { Loader2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { cn } from '@/lib/utils'
 import {
   Line,
   LineChart,
@@ -191,12 +192,10 @@ export function SectorPerformanceChart() {
                   highlightedSector === sector.symbol ? null : sector.symbol,
                 )
               }
-              className={`rounded-md px-1.5 py-0.5 transition-all hover:bg-surface-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
-                highlightedSector !== null &&
-                highlightedSector !== sector.symbol
-                  ? 'opacity-40'
-                  : ''
-              }`}
+              className={cn(
+                'rounded-md px-1.5 py-0.5 transition-all hover:bg-surface-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
+                highlightedSector !== null && highlightedSector !== sector.symbol && 'opacity-40',
+              )}
             >
               <span
                 className="font-medium"

@@ -3,6 +3,7 @@
 import { AlertTriangle, CheckCircle2, ScissorsLineDashed } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import type { PortfolioAnalytics, PortfolioResponse } from '@/lib/api/portfolio'
+import { cn } from '@/lib/utils'
 import { formatDisplayLabel } from './portfolio-utils'
 
 interface PortfolioCoachAlertsProps {
@@ -134,10 +135,10 @@ export function PortfolioCoachAlerts({
           return (
             <div
               key={alert.title}
-              className={`rounded-xl border p-4 ${styles.border}`}
+              className={cn('rounded-xl border p-4', styles.border)}
             >
               <div className="flex items-start gap-3">
-                <div className={`mt-0.5 ${styles.icon}`}>{styles.iconNode}</div>
+                <div className={cn('mt-0.5', styles.icon)}>{styles.iconNode}</div>
                 <div>
                   <p className="text-sm font-semibold text-text">{alert.title}</p>
                   <p className="mt-1 text-sm text-text-muted">{alert.detail}</p>

@@ -3,6 +3,7 @@
 import { PieChart } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import type { PositionPerformance } from '@/lib/api/portfolio'
+import { cn } from '@/lib/utils'
 
 interface AssetAllocationProps {
   topPerformers: PositionPerformance[]
@@ -57,7 +58,7 @@ export function AssetAllocation({ topPerformers }: AssetAllocationProps) {
               </div>
               <div className="mb-1 h-2 w-full overflow-hidden rounded-full bg-surface-muted">
                 <div
-                  className={`h-full transition-all duration-500 ${getBarColor(index)}`}
+                  className={cn('h-full transition-all duration-500', getBarColor(index))}
                   style={{ width: `${position.weightPct}%` }}
                 />
               </div>

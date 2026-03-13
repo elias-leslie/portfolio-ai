@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useJennyChat } from '@/lib/hooks/usePortfolio'
+import { cn } from '@/lib/utils'
 
 type ChatMessage = {
   role: 'user' | 'assistant'
@@ -144,11 +145,12 @@ export function JennyChatPanel({
             {messages.map((entry) => (
               <div
                 key={`${entry.role}-${entry.timestamp ?? 0}`}
-                className={`rounded-2xl border px-4 py-3 text-sm ${
+                className={cn(
+                  'rounded-2xl border px-4 py-3 text-sm',
                   entry.role === 'user'
                     ? 'border-primary/20 bg-primary/5 text-text'
-                    : 'border-border/40 bg-surface-muted/20 text-text'
-                }`}
+                    : 'border-border/40 bg-surface-muted/20 text-text',
+                )}
               >
                 <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-text-muted">
                   {entry.role === 'user' ? 'You' : 'Jenny'}

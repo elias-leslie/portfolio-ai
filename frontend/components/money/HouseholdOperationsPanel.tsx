@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { cn } from '@/lib/utils'
 import { formatCurrency } from './formatters'
 import { JennyChatPanel } from './JennyChatPanel'
 import { JennyQuestionInbox } from './JennyQuestionInbox'
@@ -190,7 +191,7 @@ function JennyNeedCard({
   // Provide type: link to intake
   if (need.needType === 'provide') {
     return (
-      <div className={`rounded-2xl border p-4 ${priorityColor}`}>
+      <div className={cn('rounded-2xl border p-4', priorityColor)}>
         <p className="text-sm font-semibold text-text">{need.title}</p>
         <p className="mt-1 text-sm text-text-muted">{need.detail}</p>
         {need.actionHref ? (
@@ -214,7 +215,7 @@ function JennyNeedCard({
       const options = need.options ?? question?.options ?? []
 
       return (
-        <div className={`rounded-2xl border p-4 ${priorityColor}`}>
+        <div className={cn('rounded-2xl border p-4', priorityColor)}>
           <p className="text-sm font-semibold text-text">{need.title}</p>
           <p className="mt-1 text-sm text-text-muted">{need.detail}</p>
           {question?.recommendation ? (
@@ -304,7 +305,7 @@ function JennyNeedCard({
 
     // Fact confirmation (yes/no)
     return (
-      <div className={`rounded-2xl border p-4 ${priorityColor}`}>
+      <div className={cn('rounded-2xl border p-4', priorityColor)}>
         <p className="text-sm font-semibold text-text">{need.title}</p>
         <p className="mt-1 text-sm text-text-muted">{need.detail}</p>
         <div className="mt-3 flex flex-col gap-3 md:flex-row">
@@ -388,7 +389,7 @@ function JennyNeedCard({
     }
 
     return (
-      <div className={`rounded-2xl border p-4 ${priorityColor}`}>
+      <div className={cn('rounded-2xl border p-4', priorityColor)}>
         <p className="text-sm font-semibold text-text">{need.title}</p>
         <p className="mt-1 text-sm text-text-muted">{need.detail}</p>
         {canSaveInline ? (
@@ -429,7 +430,7 @@ function JennyNeedCard({
   // Review type: inline categorization
   if (need.needType === 'review') {
     return (
-      <div className={`rounded-2xl border p-4 ${priorityColor}`}>
+      <div className={cn('rounded-2xl border p-4', priorityColor)}>
         <p className="text-sm font-semibold text-text">{need.title}</p>
         <p className="mt-1 text-sm text-text-muted">{need.detail}</p>
         {dashboard.categorizationQueue.length > 0 ? (
@@ -568,7 +569,7 @@ function JennyNeedCard({
 
   // Fallback
   return (
-    <div className={`rounded-2xl border p-4 ${priorityColor}`}>
+    <div className={cn('rounded-2xl border p-4', priorityColor)}>
       <p className="text-sm font-semibold text-text">{need.title}</p>
       <p className="mt-1 text-sm text-text-muted">{need.detail}</p>
     </div>
@@ -668,7 +669,7 @@ export function HouseholdOperationsPanel({
           title="Budget Tracker"
           description={dashboard.budgetSnapshot.summary}
         >
-          <div className={`rounded-2xl border p-4 ${paceTone}`}>
+          <div className={cn('rounded-2xl border p-4', paceTone)}>
             <p className="text-sm font-semibold text-text">Mid-month pacing</p>
             <p className="mt-2 text-sm text-text-muted">
               {dashboard.budgetSnapshot.paceDetail}

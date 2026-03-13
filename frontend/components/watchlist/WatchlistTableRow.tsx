@@ -199,7 +199,14 @@ export function WatchlistTableRow({
               >
                 {overall.toFixed(0)}
               </Badge>
-              <div className="flex-1 h-2 bg-surface-muted rounded-full overflow-hidden min-w-[60px]">
+              <div
+                className="flex-1 h-2 bg-surface-muted rounded-full overflow-hidden min-w-[60px]"
+                role="progressbar"
+                aria-valuenow={Math.round(overall)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={`Score ${Math.round(overall)} out of 100`}
+              >
                 <div
                   className={cn(
                     'h-full transition-all',
@@ -303,7 +310,7 @@ export function WatchlistTableRow({
               onDelete(item.id, item.symbol)
             }}
             disabled={isDeleting}
-            className="h-8 w-8 p-0"
+            className="h-8 w-8 p-0 text-text-muted hover:bg-loss/10 hover:text-loss"
             aria-label={`Delete ${item.symbol}`}
           >
             <Trash2 className="h-4 w-4" />

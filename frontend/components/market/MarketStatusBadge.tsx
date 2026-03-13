@@ -89,8 +89,8 @@ export function MarketStatusBadge() {
         </TooltipTrigger>
         <TooltipContent side="bottom" className="max-w-xs">
           <div className="space-y-1 text-xs">
-            {tooltipLines.map((line, i) => (
-              <p key={i}>{line}</p>
+            {tooltipLines.map((line) => (
+              <p key={line}>{line}</p>
             ))}
           </div>
         </TooltipContent>

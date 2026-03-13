@@ -5,6 +5,7 @@ import {
   formatSentimentScore,
   getSentimentBadgeVariant,
 } from '@/lib/utils/news-formatting'
+import { cn } from '@/lib/utils'
 
 interface NewsSentimentDetail {
   score: number | null
@@ -52,7 +53,7 @@ export function SentimentBreakdownSection({
 
   return (
     <div
-      className={`flex flex-wrap items-start justify-between gap-4 px-6 py-3 ${isExpanded ? 'border-b border-border' : ''}`}
+      className={cn('flex flex-wrap items-start justify-between gap-4 px-6 py-3', isExpanded && 'border-b border-border')}
     >
       <div>
         <p className="text-xs uppercase tracking-wide text-text-muted">
@@ -65,9 +66,10 @@ export function SentimentBreakdownSection({
           {summary.scoreChange !== null &&
             summary.scoreChange !== undefined && (
               <span
-                className={`inline-flex items-center text-xs font-medium ${
-                  summary.scoreChange >= 0 ? 'text-gain' : 'text-loss'
-                }`}
+                className={cn(
+                  'inline-flex items-center text-xs font-medium',
+                  summary.scoreChange >= 0 ? 'text-gain' : 'text-loss',
+                )}
               >
                 {summary.scoreChange >= 0 ? '▲' : '▼'}
                 {Math.abs(summary.scoreChange).toFixed(2)}

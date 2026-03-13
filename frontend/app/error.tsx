@@ -1,6 +1,7 @@
 'use client'
 
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, ArrowLeft } from 'lucide-react'
+import Link from 'next/link'
 import { useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 
@@ -30,9 +31,17 @@ export default function GlobalError({
           <p className="text-xs text-text-muted/60">Error ID: {error.digest}</p>
         ) : null}
       </div>
-      <Button type="button" onClick={reset}>
-        Try again
-      </Button>
+      <div className="flex items-center gap-3">
+        <Button type="button" variant="outline" asChild>
+          <Link href="/">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Dashboard
+          </Link>
+        </Button>
+        <Button type="button" onClick={reset}>
+          Try again
+        </Button>
+      </div>
     </div>
   )
 }

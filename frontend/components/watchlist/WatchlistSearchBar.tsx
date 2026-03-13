@@ -1,4 +1,4 @@
-import { Search } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 
 interface WatchlistSearchBarProps {
@@ -20,7 +20,7 @@ export function WatchlistSearchBar({
       : 'Search symbol, note, thesis headline, or signal'
 
   return (
-    <div className="mb-6">
+    <div>
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
         <Input
@@ -35,10 +35,10 @@ export function WatchlistSearchBar({
           <button
             type="button"
             onClick={() => onChange('')}
-            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full text-text-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-text-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
             aria-label="Clear search"
           >
-            ✕
+            <X className="h-3.5 w-3.5" />
           </button>
         )}
       </div>

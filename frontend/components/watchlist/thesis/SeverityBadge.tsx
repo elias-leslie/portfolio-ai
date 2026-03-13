@@ -1,4 +1,5 @@
 import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 
 export function SeverityBadge({
   severity,
@@ -23,7 +24,7 @@ export function SeverityBadge({
   const { color, label } = config[severity]
 
   return (
-    <Badge variant="outline" className={`${color} text-xs px-1.5 py-0 h-5`}>
+    <Badge variant="outline" className={cn(color, 'text-xs px-1.5 py-0 h-5')}>
       {label}
     </Badge>
   )
