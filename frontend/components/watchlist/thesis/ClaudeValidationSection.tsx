@@ -15,8 +15,8 @@ export function ClaudeValidationSection({
             variant="outline"
             className={
               validation.approved
-                ? 'bg-status-success/10 text-status-success border-status-success/20'
-                : 'bg-status-error/10 text-status-error border-status-error/20'
+                ? 'bg-gain/10 text-gain border-gain/20'
+                : 'bg-loss/10 text-loss border-loss/20'
             }
           >
             {validation.approved ? 'Approved' : 'Not Approved'}

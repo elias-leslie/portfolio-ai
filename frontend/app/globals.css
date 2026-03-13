@@ -66,6 +66,40 @@
   --color-chart-purple: var(--chart-purple);
   --color-chart-cyan: var(--chart-cyan);
   --color-chart-orange: var(--chart-orange);
+  --color-chart-blue: var(--chart-blue);
+  --color-chart-red: var(--chart-red);
+  --color-chart-green: var(--chart-green);
+
+  /* Semantic status aliases (map to financial tokens) */
+  --color-success: var(--gain);
+  --color-error: var(--loss);
+  --color-info: var(--accent);
+
+  /* Sector colors */
+  --color-sector-tech: var(--sector-tech);
+  --color-sector-finance: var(--sector-finance);
+  --color-sector-energy: var(--sector-energy);
+  --color-sector-health: var(--sector-health);
+  --color-sector-disc: var(--sector-disc);
+  --color-sector-staples: var(--sector-staples);
+  --color-sector-industrial: var(--sector-industrial);
+  --color-sector-utility: var(--sector-utility);
+  --color-sector-realestate: var(--sector-realestate);
+  --color-sector-materials: var(--sector-materials);
+  --color-sector-comm: var(--sector-comm);
+
+  /* Sentiment zones */
+  --color-sentiment-fear: var(--sentiment-fear);
+  --color-sentiment-caution: var(--sentiment-caution);
+  --color-sentiment-neutral: var(--sentiment-neutral);
+  --color-sentiment-optimism: var(--sentiment-optimism);
+  --color-sentiment-greed: var(--sentiment-greed);
+
+  /* Event types */
+  --color-event-fomc: var(--event-fomc);
+  --color-event-cpi: var(--event-cpi);
+  --color-event-nfp: var(--event-nfp);
+  --color-event-gdp: var(--event-gdp);
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
@@ -165,6 +199,37 @@
   --chart-purple: oklch(0.65 0.2 293);
   --chart-cyan: oklch(0.75 0.15 195);
   --chart-orange: oklch(0.75 0.18 55);
+
+  /* Chart indicator colors - for multi-line financial charts */
+  --chart-blue: oklch(0.62 0.18 255);
+  --chart-red: oklch(0.62 0.21 27);
+  --chart-green: oklch(0.7 0.18 149);
+
+  /* Sector palette - 11 distinct hues for sector performance charts */
+  --sector-tech: oklch(0.62 0.2 293);
+  --sector-finance: oklch(0.62 0.18 255);
+  --sector-energy: oklch(0.72 0.18 55);
+  --sector-health: oklch(0.68 0.18 160);
+  --sector-disc: oklch(0.68 0.2 340);
+  --sector-staples: oklch(0.6 0.18 277);
+  --sector-industrial: oklch(0.75 0.18 85);
+  --sector-utility: oklch(0.68 0.14 180);
+  --sector-realestate: oklch(0.64 0.2 15);
+  --sector-materials: oklch(0.72 0.18 130);
+  --sector-comm: oklch(0.72 0.15 195);
+
+  /* Sentiment zone colors - for fear/greed background areas */
+  --sentiment-fear: oklch(0.62 0.21 27);
+  --sentiment-caution: oklch(0.72 0.18 55);
+  --sentiment-neutral: oklch(0.75 0.18 85);
+  --sentiment-optimism: oklch(0.68 0.18 130);
+  --sentiment-greed: oklch(0.7 0.18 149);
+
+  /* Event type colors */
+  --event-fomc: oklch(0.62 0.18 255);
+  --event-cpi: oklch(0.62 0.21 27);
+  --event-nfp: oklch(0.7 0.18 149);
+  --event-gdp: oklch(0.72 0.15 195);
 
   --space-px: 1px;
   --space-0: 0px;

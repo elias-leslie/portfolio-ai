@@ -4,19 +4,19 @@ import { Minus, TrendingDown, TrendingUp } from 'lucide-react'
 import { useMarketStatus } from '@/lib/hooks/useMarketIntelligence'
 import { checkDataFreshness, cn, formatDate } from '@/lib/utils'
 
-// Sector colors matching SectorPerformanceChart
+// Sector colors from design tokens — shared with SectorPerformanceChart
 const SECTOR_COLORS: Record<string, string> = {
-  XLK: '#8B5CF6', // Purple - Technology
-  XLF: '#3B82F6', // Blue - Financials
-  XLE: '#F97316', // Orange - Energy
-  XLV: '#10B981', // Green - Healthcare
-  XLY: '#EC4899', // Pink - Consumer Discretionary
-  XLP: '#6366F1', // Indigo - Consumer Staples
-  XLI: '#EAB308', // Yellow - Industrials
-  XLU: '#14B8A6', // Teal - Utilities
-  XLRE: '#F43F5E', // Rose - Real Estate
-  XLB: '#84CC16', // Lime - Materials
-  XLC: '#06B6D4', // Cyan - Communication Services
+  XLK: 'var(--color-sector-tech)',
+  XLF: 'var(--color-sector-finance)',
+  XLE: 'var(--color-sector-energy)',
+  XLV: 'var(--color-sector-health)',
+  XLY: 'var(--color-sector-disc)',
+  XLP: 'var(--color-sector-staples)',
+  XLI: 'var(--color-sector-industrial)',
+  XLU: 'var(--color-sector-utility)',
+  XLRE: 'var(--color-sector-realestate)',
+  XLB: 'var(--color-sector-materials)',
+  XLC: 'var(--color-sector-comm)',
 }
 
 interface SectorInfo {
@@ -103,7 +103,7 @@ export function SectorMoversTable({
                     <span
                       className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                       style={{
-                        backgroundColor: SECTOR_COLORS[sector.symbol] || '#888',
+                        backgroundColor: SECTOR_COLORS[sector.symbol] || 'var(--color-neutral)',
                       }}
                     />
                     <span className="font-medium text-text">{sector.name}</span>

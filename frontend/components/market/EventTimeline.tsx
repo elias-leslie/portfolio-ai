@@ -66,14 +66,14 @@ function EventMarker({ event, position }: EventMarkerProps) {
             />
             {/* Event marker dot */}
             <div
-              className="absolute -top-1 -translate-x-1/2 w-3 h-3 rounded-full border-2 border-surface-card shadow-sm group-hover:scale-125 transition-transform"
+              className="absolute -top-1 -translate-x-1/2 w-3 h-3 rounded-full border-2 border-surface shadow-sm group-hover:scale-125 transition-transform"
               style={{ backgroundColor: event.color }}
             />
           </div>
         </TooltipTrigger>
         <TooltipContent
           side="top"
-          className="bg-surface-card border border-border-subtle p-3 max-w-xs"
+          className="bg-surface-overlay border border-border-subtle p-3 max-w-xs"
         >
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
@@ -90,7 +90,7 @@ function EventMarker({ event, position }: EventMarkerProps) {
                 {formatEventDate(event.date)}
               </span>
             </div>
-            <p className="text-sm font-medium text-text-primary">
+            <p className="text-sm font-medium text-text">
               {event.title}
             </p>
             {(event.actualValue !== null || event.expectedValue !== null) && (
@@ -101,7 +101,7 @@ function EventMarker({ event, position }: EventMarkerProps) {
                   </span>
                 )}
                 {event.actualValue !== null && (
-                  <span className="text-text-primary">
+                  <span className="text-text">
                     Act: {event.actualValue.toFixed(2)}
                   </span>
                 )}
@@ -109,9 +109,9 @@ function EventMarker({ event, position }: EventMarkerProps) {
                   <span
                     className={cn(
                       event.surprisePct > 0
-                        ? 'text-success'
+                        ? 'text-gain'
                         : event.surprisePct < 0
-                          ? 'text-error'
+                          ? 'text-loss'
                           : 'text-text-muted',
                     )}
                   >
@@ -127,9 +127,9 @@ function EventMarker({ event, position }: EventMarkerProps) {
                 <span
                   className={cn(
                     event.impactScore > 0
-                      ? 'text-success'
+                      ? 'text-gain'
                       : event.impactScore < 0
-                        ? 'text-error'
+                        ? 'text-loss'
                         : 'text-text-muted',
                   )}
                 >
@@ -191,10 +191,10 @@ export function EventTimeline({ days, className }: EventTimelineProps) {
  */
 export function EventLegend({ className }: { className?: string }) {
   const eventTypes = [
-    { label: 'FOMC', color: '#3B82F6' },
-    { label: 'CPI', color: '#EF4444' },
-    { label: 'NFP', color: '#22C55E' },
-    { label: 'GDP', color: '#06B6D4' },
+    { label: 'FOMC', color: 'var(--color-event-fomc)' },
+    { label: 'CPI', color: 'var(--color-event-cpi)' },
+    { label: 'NFP', color: 'var(--color-event-nfp)' },
+    { label: 'GDP', color: 'var(--color-event-gdp)' },
   ]
 
   return (

@@ -7,16 +7,15 @@ export function SeverityBadge({
 }) {
   const config = {
     high: {
-      color: 'bg-status-error/10 text-status-error border-status-error/20',
+      color: 'bg-loss/10 text-loss border-loss/20',
       label: 'High',
     },
     medium: {
-      color:
-        'bg-status-warning/10 text-status-warning border-status-warning/20',
+      color: 'bg-warning/10 text-warning border-warning/20',
       label: 'Med',
     },
     low: {
-      color: 'bg-status-info/10 text-status-info border-status-info/20',
+      color: 'bg-accent/10 text-accent border-accent/20',
       label: 'Low',
     },
   }

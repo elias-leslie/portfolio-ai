@@ -3,17 +3,15 @@ import { Badge } from '@/components/ui/badge'
 export function ActionBadge({ action }: { action: 'BUY' | 'HOLD' | 'SELL' }) {
   const config = {
     BUY: {
-      color:
-        'bg-status-success/10 text-status-success border-status-success/20',
+      color: 'bg-gain/10 text-gain border-gain/20',
       icon: '📈',
     },
     HOLD: {
-      color:
-        'bg-status-warning/10 text-status-warning border-status-warning/20',
+      color: 'bg-warning/10 text-warning border-warning/20',
       icon: '⏸️',
     },
     SELL: {
-      color: 'bg-status-error/10 text-status-error border-status-error/20',
+      color: 'bg-loss/10 text-loss border-loss/20',
       icon: '📉',
     },
   }

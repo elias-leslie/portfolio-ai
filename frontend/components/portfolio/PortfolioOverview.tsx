@@ -37,7 +37,7 @@ export function PortfolioOverview() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {[...Array(6)].map((_, i) => (
           <Card key={i} className="p-6">
-            <div className="h-24 animate-pulse rounded bg-surface-muted/60" />
+            <div className="h-24 animate-pulse rounded-xl bg-surface-muted/60" />
           </Card>
         ))}
       </div>
@@ -81,7 +81,7 @@ export function PortfolioOverview() {
   return (
     <div className="space-y-6">
       {hasPartialError ? (
-        <div className="rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning-foreground">
+        <div className="rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning">
           Some portfolio signals are unavailable right now. Core balances are still shown below.
         </div>
       ) : null}

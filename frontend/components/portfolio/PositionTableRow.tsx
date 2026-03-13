@@ -43,13 +43,13 @@ export function PositionTableRow({
       </TableCell>
       <TableCell
         className={`text-right font-semibold ${
-          pnlDollars >= 0 ? 'text-profit' : 'text-loss'
+          pnlDollars >= 0 ? 'text-gain' : 'text-loss'
         }`}
       >
         {position.currentValue ? formatPnlDollars(pnlDollars) : '—'}
       </TableCell>
       <TableCell
-        className={`text-right ${pnlPercent >= 0 ? 'text-profit' : 'text-loss'}`}
+        className={`text-right ${pnlPercent >= 0 ? 'text-gain' : 'text-loss'}`}
       >
         {position.currentValue ? formatPercent(pnlPercent) : '—'}
       </TableCell>

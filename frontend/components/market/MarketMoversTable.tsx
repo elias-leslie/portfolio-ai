@@ -70,7 +70,7 @@ export function MarketMoversTable() {
             aria-pressed={activeTab === 'gainers'}
             onClick={() => setActiveTab('gainers')}
             className={cn(
-              'flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors',
+              'flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
               activeTab === 'gainers'
                 ? 'bg-surface text-gain shadow-sm'
                 : 'text-text-muted hover:text-text',
@@ -84,7 +84,7 @@ export function MarketMoversTable() {
             aria-pressed={activeTab === 'losers'}
             onClick={() => setActiveTab('losers')}
             className={cn(
-              'flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors',
+              'flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
               activeTab === 'losers'
                 ? 'bg-surface text-loss shadow-sm'
                 : 'text-text-muted hover:text-text',
@@ -98,7 +98,7 @@ export function MarketMoversTable() {
             aria-pressed={activeTab === 'volume'}
             onClick={() => setActiveTab('volume')}
             className={cn(
-              'flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors',
+              'flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
               activeTab === 'volume'
                 ? 'bg-surface text-text shadow-sm'
                 : 'text-text-muted hover:text-text',
@@ -112,7 +112,7 @@ export function MarketMoversTable() {
             aria-pressed={activeTab === 'rvol'}
             onClick={() => setActiveTab('rvol')}
             className={cn(
-              'flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors',
+              'flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
               activeTab === 'rvol'
                 ? 'bg-surface text-text shadow-sm'
                 : 'text-text-muted hover:text-text',

@@ -149,7 +149,7 @@ export function StatusWorkspace() {
 
       {!isLoading && hasPartialError ? (
         <SectionCard variant="surface">
-          <div className="rounded-2xl border border-warning/30 bg-warning/10 p-5 text-sm text-warning-foreground">
+          <div className="rounded-2xl border border-warning/30 bg-warning/10 p-5 text-sm text-warning">
             <div className="flex items-center gap-2 font-medium">
               <AlertCircle className="h-4 w-4" />
               Partial snapshot

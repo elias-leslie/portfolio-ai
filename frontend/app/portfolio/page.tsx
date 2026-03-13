@@ -175,7 +175,7 @@ export default function PortfolioPage() {
       />
 
       {!accountsLoading && !hasAccounts ? (
-        <div className="rounded-2xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning-foreground">
+        <div className="rounded-2xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
           Create an account before adding your first position so portfolio coaching has account context.
         </div>
       ) : null}
@@ -286,7 +286,7 @@ export default function PortfolioPage() {
               errors={positionSubmitAttempted ? positionFormErrors : undefined}
               accountHint={
                 !accounts?.length && !accountsLoading ? (
-                  <p className="text-xs text-warning-foreground">
+                  <p className="text-xs text-warning">
                     Create an account first so the position is tracked in the right tax and ownership bucket.
                   </p>
                 ) : undefined

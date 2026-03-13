@@ -25,19 +25,19 @@ import {
   timeframeToDays,
 } from './TimeframeSelector'
 
-// Distinct colors for each sector
+// Sector colors from design tokens — shared with SectorMoversTable
 const SECTOR_COLORS: Record<string, string> = {
-  XLK: '#8B5CF6', // Purple - Technology
-  XLF: '#3B82F6', // Blue - Financials
-  XLE: '#F97316', // Orange - Energy
-  XLV: '#10B981', // Green - Healthcare
-  XLY: '#EC4899', // Pink - Consumer Discretionary
-  XLP: '#6366F1', // Indigo - Consumer Staples
-  XLI: '#EAB308', // Yellow - Industrials
-  XLU: '#14B8A6', // Teal - Utilities
-  XLRE: '#F43F5E', // Rose - Real Estate
-  XLB: '#84CC16', // Lime - Materials
-  XLC: '#06B6D4', // Cyan - Communication Services
+  XLK: 'var(--color-sector-tech)',
+  XLF: 'var(--color-sector-finance)',
+  XLE: 'var(--color-sector-energy)',
+  XLV: 'var(--color-sector-health)',
+  XLY: 'var(--color-sector-disc)',
+  XLP: 'var(--color-sector-staples)',
+  XLI: 'var(--color-sector-industrial)',
+  XLU: 'var(--color-sector-utility)',
+  XLRE: 'var(--color-sector-realestate)',
+  XLB: 'var(--color-sector-materials)',
+  XLC: 'var(--color-sector-comm)',
 }
 
 export function SectorPerformanceChart() {
@@ -163,7 +163,7 @@ export function SectorPerformanceChart() {
                 key={sector.symbol}
                 type="monotone"
                 dataKey={sector.symbol}
-                stroke={SECTOR_COLORS[sector.symbol] || '#888'}
+                stroke={SECTOR_COLORS[sector.symbol] || 'var(--color-neutral)'}
                 strokeWidth={highlightedSector === sector.symbol ? 3 : 1.5}
                 dot={false}
                 opacity={
@@ -191,7 +191,7 @@ export function SectorPerformanceChart() {
                   highlightedSector === sector.symbol ? null : sector.symbol,
                 )
               }
-              className={`transition-opacity ${
+              className={`rounded-md px-1.5 py-0.5 transition-all hover:bg-surface-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
                 highlightedSector !== null &&
                 highlightedSector !== sector.symbol
                   ? 'opacity-40'
@@ -200,7 +200,7 @@ export function SectorPerformanceChart() {
             >
               <span
                 className="font-medium"
-                style={{ color: SECTOR_COLORS[sector.symbol] || '#888' }}
+                style={{ color: SECTOR_COLORS[sector.symbol] || 'var(--color-neutral)' }}
               >
                 {sector.name}
               </span>

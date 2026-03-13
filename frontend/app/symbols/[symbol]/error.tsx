@@ -1,6 +1,8 @@
 'use client'
 
+import { AlertTriangle } from 'lucide-react'
 import { useEffect } from 'react'
+import { Button } from '@/components/ui/button'
 
 export default function SymbolError({
   error,
@@ -14,21 +16,22 @@ export default function SymbolError({
   }, [error])
 
   return (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 p-8">
-      <h2 className="text-xl font-semibold text-text">
-        Failed to load symbol data
-      </h2>
-      <p className="max-w-md text-center text-sm text-text-muted">
-        Could not load the requested symbol. The data source may be temporarily
-        unavailable.
-      </p>
-      <button
-        type="button"
-        onClick={reset}
-        className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-      >
+    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-5 p-8">
+      <div className="rounded-full bg-loss/10 p-4">
+        <AlertTriangle className="h-8 w-8 text-loss" />
+      </div>
+      <div className="text-center space-y-2">
+        <h2 className="text-xl font-semibold text-text">
+          Failed to load symbol data
+        </h2>
+        <p className="max-w-md text-sm text-text-muted leading-relaxed">
+          Could not load the requested symbol. The data source may be temporarily
+          unavailable.
+        </p>
+      </div>
+      <Button type="button" onClick={reset}>
         Retry
-      </button>
+      </Button>
     </div>
   )
 }

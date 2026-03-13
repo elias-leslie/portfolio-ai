@@ -234,7 +234,7 @@ NVDA`}
               {symbols.length > 0 && (
                 <>
                   {valid.length > 0 && (
-                    <p className="text-profit">
+                    <p className="text-gain">
                       ✓ {valid.length} valid symbol{valid.length > 1 ? 's' : ''}
                       : {valid.join(', ')}
                     </p>
@@ -255,13 +255,13 @@ NVDA`}
 
             {/* Progress indicator */}
             {isProcessing && (
-              <div className="rounded-md border bg-background-secondary p-3">
-                <p className="text-sm font-medium">
+              <div className="rounded-xl border border-border/50 bg-surface-muted/30 p-3">
+                <p className="text-sm font-medium text-text">
                   Adding symbols... {progress.current}/{progress.total}
                 </p>
-                <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-background-tertiary">
+                <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-surface-muted">
                   <div
-                    className="h-full bg-profit transition-all duration-300"
+                    className="h-full bg-primary transition-all duration-300"
                     style={{
                       width: `${(progress.current / progress.total) * 100}%`,
                     }}

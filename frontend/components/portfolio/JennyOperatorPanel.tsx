@@ -158,7 +158,7 @@ export function JennyOperatorPanel() {
   return (
     <Card className="p-6">
       {error ? (
-        <div className="mb-4 rounded-xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning-foreground">
+        <div className="mb-4 rounded-xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning">
           Jenny data is partially stale. The latest cached operator view is shown below.
         </div>
       ) : null}

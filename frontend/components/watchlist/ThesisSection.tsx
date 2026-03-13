@@ -82,9 +82,9 @@ export function ThesisSection({ symbol, userTimezone }: ThesisSectionProps) {
 
   if (error) {
     return (
-      <Card className="border-border border-status-error/20">
+      <Card className="border-border border-loss/20">
         <CardContent className="p-6">
-          <p className="text-sm text-status-error">
+          <p className="text-sm text-loss">
             Error loading thesis:{' '}
             {error instanceof Error ? error.message : 'Unknown error'}
           </p>

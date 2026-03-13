@@ -8,7 +8,7 @@ export function StatusBadge({
 }) {
   const config = {
     active: {
-      color: 'bg-status-info/10 text-status-info border-status-info/20',
+      color: 'bg-accent/10 text-accent border-accent/20',
       label: 'Active',
     },
     invalidated: {
@@ -16,8 +16,7 @@ export function StatusBadge({
       label: 'Invalidated',
     },
     flagged_for_review: {
-      color:
-        'bg-status-warning/10 text-status-warning border-status-warning/20',
+      color: 'bg-warning/10 text-warning border-warning/20',
       label: 'Flagged',
     },
   }

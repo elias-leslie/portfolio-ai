@@ -118,7 +118,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
 
       {jennyError ? (
         <SectionCard variant="surface">
-          <div className="rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning-foreground">
+          <div className="rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning">
             Jenny review data is temporarily unavailable. Live symbol intelligence is still shown
             below.
           </div>

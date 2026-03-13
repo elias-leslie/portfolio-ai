@@ -7,12 +7,11 @@ export function ImpactBadge({
 }) {
   const config = {
     positive: {
-      color:
-        'bg-status-success/10 text-status-success border-status-success/20',
+      color: 'bg-gain/10 text-gain border-gain/20',
       icon: '+',
     },
     negative: {
-      color: 'bg-status-error/10 text-status-error border-status-error/20',
+      color: 'bg-loss/10 text-loss border-loss/20',
       icon: '-',
     },
     neutral: {

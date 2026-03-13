@@ -64,12 +64,14 @@ export function TimeframeSelector({
       {TIMEFRAMES.map((tf) => (
         <button
           key={tf.value}
+          type="button"
+          aria-pressed={value === tf.value}
           onClick={() => onChange(tf.value)}
           className={cn(
-            'px-2 py-0.5 text-xs font-medium rounded transition-colors',
+            'px-2 py-0.5 text-xs font-medium rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
             value === tf.value
               ? 'bg-primary text-primary-foreground'
-              : 'bg-surface-muted/50 text-text-muted hover:bg-surface-muted',
+              : 'bg-surface-muted/50 text-text-muted hover:bg-surface-muted hover:text-text',
           )}
         >
           {tf.label}

@@ -26,10 +26,10 @@ import {
 } from './TimeframeSelector'
 
 const INDICATOR_CONFIG = {
-  sp500: { name: 'S&P 500', color: '#3B82F6' },
-  vix: { name: 'VIX', color: '#EF4444' },
-  tnx: { name: '10Y Yield', color: '#F97316' },
-  dxy: { name: 'Dollar', color: '#10B981' },
+  sp500: { name: 'S&P 500', color: 'var(--color-chart-blue)' },
+  vix: { name: 'VIX', color: 'var(--color-chart-red)' },
+  tnx: { name: '10Y Yield', color: 'var(--color-chart-orange)' },
+  dxy: { name: 'Dollar', color: 'var(--color-chart-green)' },
 }
 
 type IndicatorKey = keyof typeof INDICATOR_CONFIG
@@ -199,7 +199,7 @@ export function IndicatorsTrendChart() {
                 type="button"
                 aria-pressed={highlighted === key}
                 onClick={() => setHighlighted(highlighted === key ? null : key)}
-                className={`flex items-center gap-1 transition-opacity ${
+                className={`flex items-center gap-1 rounded-md px-1.5 py-0.5 transition-all hover:bg-surface-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
                   highlighted !== null && highlighted !== key
                     ? 'opacity-40'
                     : ''
@@ -212,7 +212,7 @@ export function IndicatorsTrendChart() {
                 <span className="text-text-muted">
                   {config.name}{' '}
                   <span
-                    className={pct >= 0 ? 'text-success' : 'text-destructive'}
+                    className={pct >= 0 ? 'text-gain' : 'text-loss'}
                   >
                     {pct >= 0 ? '+' : ''}
                     {pct.toFixed(1)}%

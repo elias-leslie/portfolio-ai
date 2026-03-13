@@ -75,7 +75,7 @@ export function AccountAccordionItem({
                     </span>
                     {positions.length > 0 && (
                       <span
-                        className={totalGain >= 0 ? 'text-profit' : 'text-loss'}
+                        className={totalGain >= 0 ? 'text-gain' : 'text-loss'}
                       >
                         {formatPercent(totalGain)}
                       </span>

@@ -26,10 +26,10 @@ export function MarketIntelligence() {
     return (
       <Card className="p-6 shadow-lg">
         <div className="space-y-6 animate-pulse">
-          <div className="h-24 bg-surface-muted/60 rounded" />
-          <div className="h-48 bg-surface-muted/60 rounded" />
-          <div className="h-48 bg-surface-muted/60 rounded" />
-          <div className="h-64 bg-surface-muted/60 rounded" />
+          <div className="h-24 bg-surface-muted/60 rounded-xl" />
+          <div className="h-48 bg-surface-muted/60 rounded-xl" />
+          <div className="h-48 bg-surface-muted/60 rounded-xl" />
+          <div className="h-64 bg-surface-muted/60 rounded-xl" />
         </div>
       </Card>
     )

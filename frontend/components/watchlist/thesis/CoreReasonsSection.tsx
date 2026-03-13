@@ -1,10 +1,10 @@
 import type { CoreReason } from '@/lib/api/thesis'
 
 function getConfidenceColor(confidence: number): string {
-  if (confidence >= 0.8) return 'bg-status-success'
-  if (confidence >= 0.6) return 'bg-status-info'
-  if (confidence >= 0.4) return 'bg-status-warning'
-  return 'bg-status-error'
+  if (confidence >= 0.8) return 'bg-gain'
+  if (confidence >= 0.6) return 'bg-accent'
+  if (confidence >= 0.4) return 'bg-warning'
+  return 'bg-loss'
 }
 
 export function CoreReasonsSection({ reasons }: { reasons: CoreReason[] }) {

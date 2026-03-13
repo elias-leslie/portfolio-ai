@@ -14,18 +14,18 @@ import { cn } from '@/lib/utils'
 const STATUS_CONFIG = {
   open: {
     label: 'Market Open',
-    dotColor: 'bg-success',
-    badgeVariant: 'success' as const,
+    dotColor: 'bg-gain',
+    badgeVariant: 'default' as const,
   },
   pre_market: {
     label: 'Pre-Market',
     dotColor: 'bg-warning',
-    badgeVariant: 'warning' as const,
+    badgeVariant: 'secondary' as const,
   },
   after_hours: {
     label: 'After Hours',
     dotColor: 'bg-warning',
-    badgeVariant: 'warning' as const,
+    badgeVariant: 'secondary' as const,
   },
   closed: {
     label: 'Market Closed',
