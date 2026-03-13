@@ -13,8 +13,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-import fitz
 import numpy as np
+import pypdfium2 as pdfium
 from agent_hub.models.content import ImageContent, MessageInput, TextContent
 from PIL import Image, ImageOps
 from pypdf import PdfReader
@@ -181,13 +181,31 @@ def _merge_text_fragments(*fragments: str) -> str:
     return "\n".join(lines).strip()
 
 
+def _render_pdf_pages_to_png(stored_path: Path, *, scale: float, max_pages: int) -> list[bytes]:
+    png_pages: list[bytes] = []
+    pdf = pdfium.PdfDocument(str(stored_path))
+    try:
+        for page_index in range(min(len(pdf), max_pages)):
+            page = pdf.get_page(page_index)
+            bitmap = None
+            try:
+                bitmap = page.render(scale=scale)
+                image = bitmap.to_pil()
+                with io.BytesIO() as buffer:
+                    image.save(buffer, format="PNG")
+                    png_pages.append(buffer.getvalue())
+            finally:
+                if bitmap is not None:
+                    bitmap.close()
+                page.close()
+    finally:
+        pdf.close()
+    return png_pages
+
+
 def _extract_pdf_image_text(stored_path: Path) -> str | None:
     try:
-        with fitz.open(stored_path) as pdf:
-            png_pages = [
-                pdf.load_page(i).get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False).tobytes("png")
-                for i in range(min(len(pdf), 3))
-            ]
+        png_pages = _render_pdf_pages_to_png(stored_path, scale=2, max_pages=3)
     except Exception as exc:
         logger.warning("household_pdf_ocr_failed", path=str(stored_path), error=str(exc))
         return None
@@ -262,16 +280,13 @@ def _extract_text(stored_path: Path, content_type: str | None) -> str | None:
 def _pdf_image_blocks(stored_path: Path) -> list[ImageContent]:
     blocks: list[ImageContent] = []
     try:
-        with fitz.open(stored_path) as pdf:
-            for page_index in range(min(len(pdf), 2)):
-                page = pdf.load_page(page_index)
-                pixmap = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5), alpha=False)
-                blocks.append(
-                    ImageContent.from_base64(
-                        base64.b64encode(pixmap.tobytes("png")).decode("utf-8"),
-                        media_type="image/png",
-                    )
+        for png_bytes in _render_pdf_pages_to_png(stored_path, scale=1.5, max_pages=2):
+            blocks.append(
+                ImageContent.from_base64(
+                    base64.b64encode(png_bytes).decode("utf-8"),
+                    media_type="image/png",
                 )
+            )
     except Exception as exc:
         logger.warning("household_pdf_preview_failed", path=str(stored_path), error=str(exc))
         return []
