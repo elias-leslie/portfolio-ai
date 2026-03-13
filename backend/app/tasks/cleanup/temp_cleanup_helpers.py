@@ -29,7 +29,6 @@ SECONDS_PER_HOUR = 3600
 # Temp file patterns to clean up
 TEMP_FILE_PATTERNS = [
     "portfolio-ai-*",
-    "celery-*",
     "tmpfile*",
     "*.tmp",
 ]

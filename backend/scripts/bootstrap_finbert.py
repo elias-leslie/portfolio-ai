@@ -90,8 +90,7 @@ def main() -> int:
         )
         logger.info(
             "finbert_usage_hint",
-            command="celery -A app.celery_app.celery_app worker --loglevel=info",
-            note="Once workers are running, headlines fetched by NewsService will use FinBERT scores.",
+            note="FinBERT model downloaded. Headlines fetched by NewsService will use FinBERT scores.",
         )
 
     return 0

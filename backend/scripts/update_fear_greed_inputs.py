@@ -268,7 +268,7 @@ def main() -> None:
 
     print(f"\n✅ Updated {updates_count} dates in fear_greed_inputs table")
     print("\n📊 Next steps:")
-    print("1. Run Fear & Greed calculation: celery -A app.celery_app call calculate_fear_greed")
+    print("1. Fear & Greed calculation will run on the next scheduled Hatchet workflow cycle")
     print("2. Verify dashboard shows current data")
 
 
