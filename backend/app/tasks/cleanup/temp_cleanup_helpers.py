@@ -237,14 +237,15 @@ def run_cache_cleanup(task_id: str, dry_run: bool) -> dict[str, Any]:
 
     record_cleanup_metric("cache_cleanup_bytes_freed", bytes_freed, dry_run)
 
-    return {
-        "task_id": task_id,
-        "dry_run": dry_run,
-        "directories_cleaned": directories_cleaned,
-        "files_deleted": files_deleted,
-        "bytes_freed": bytes_freed,
-        "bytes_freed_mb": bytes_to_mb(bytes_freed),
-        "details": all_details,
-        "duration_seconds": 0.0,
-        "success": True,
-    }
+    return build_cleanup_result(
+        task_id=task_id,
+        dry_run=dry_run,
+        duration_seconds=0.0,
+        task_specific_fields={
+            "directories_cleaned": directories_cleaned,
+            "files_deleted": files_deleted,
+            "bytes_freed": bytes_freed,
+            "bytes_freed_mb": bytes_to_mb(bytes_freed),
+            "details": all_details,
+        },
+    )

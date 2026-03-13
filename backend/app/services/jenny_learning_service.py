@@ -10,6 +10,14 @@ from typing import Any
 from app.models.jenny import JennyAgentEvaluation, JennyAgentScorecard, JennyTradeReview
 from app.services._jenny_scoring import build_scorecard
 
+# Query limits
+_UNREVIEWED_TRADES_LIMIT = 50
+_RECENT_REVIEWS_LIMIT = 200
+
+# Return percentage thresholds for trade lesson classification
+_WINNING_TRADE_THRESHOLD = 10  # % gain for strong-win lesson
+_LARGE_LOSS_THRESHOLD = -10  # % loss for large-loss lesson
+
 
 class JennyLearningService:
     """Persist and summarize Jenny's post-trade learning outputs."""
@@ -26,8 +34,9 @@ class JennyLearningService:
                       SELECT 1 FROM jenny_trade_reviews jtr WHERE jtr.idea_id = io.idea_id
                   )
                 ORDER BY io.updated_at DESC
-                LIMIT 50
-                """
+                LIMIT %s
+                """,
+                (_UNREVIEWED_TRADES_LIMIT,),
             ).fetchall()
 
         count = 0
@@ -55,7 +64,7 @@ class JennyLearningService:
 
     def refresh_scorecards(self, service: Any) -> int:
         evaluations = service._fetch_all_evaluations()
-        reviews = service._get_recent_trade_reviews(limit=200)
+        reviews = service._get_recent_trade_reviews(limit=_RECENT_REVIEWS_LIMIT)
         reviews_by_symbol: dict[str, list[JennyTradeReview]] = {}
         for review in reviews:
             reviews_by_symbol.setdefault(review.symbol, []).append(review)
@@ -74,11 +83,11 @@ class JennyLearningService:
     def build_trade_lesson(self, return_pct: float | None, exit_reason: str | None) -> str:
         if return_pct is None:
             return "The trade closed without a usable return record, so Jenny could not learn much from it."
-        if return_pct >= 10:
+        if return_pct >= _WINNING_TRADE_THRESHOLD:
             return "Winning trades tend to come from theses that stayed intact long enough for the move to play out."
         if return_pct > 0:
             return "The trade worked, but the edge was modest. Sizing and timing mattered more than raw conviction."
-        if return_pct <= -10:
+        if return_pct <= _LARGE_LOSS_THRESHOLD:
             return "Large losses usually mean the thesis broke faster than expected or the position stayed too large after weakness appeared."
         return "Small losses are acceptable when they confirm the invalidation process is working early."
 
