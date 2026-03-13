@@ -61,8 +61,13 @@ def calculate_cutoff_timestamp(
 
 def calculate_directory_size(directory: Path) -> tuple[int, int]:
     """Return (total_bytes, file_count) for a directory."""
-    files = [f for f in directory.rglob("*") if f.is_file()]
-    return sum(f.stat().st_size for f in files), len(files)
+    total_bytes = 0
+    file_count = 0
+    for f in directory.rglob("*"):
+        if f.is_file():
+            total_bytes += f.stat().st_size
+            file_count += 1
+    return total_bytes, file_count
 
 
 def record_cleanup_metric(metric_name: str, bytes_freed: int, dry_run: bool) -> None:

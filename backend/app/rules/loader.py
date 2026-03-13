@@ -299,7 +299,11 @@ def _load_rules_from_yaml(path: Path) -> TradingRules:
         return TradingRules()
 
     with path.open(encoding="utf-8") as f:
-        data = yaml.safe_load(f)
+        try:
+            data = yaml.safe_load(f)
+        except yaml.YAMLError as e:
+            logger.warning("rules_file_parse_error", path=str(path), error=str(e))
+            return TradingRules()
 
     if not data:
         logger.warning("rules_file_empty", path=str(path))

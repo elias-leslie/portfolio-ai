@@ -9,11 +9,8 @@ from datetime import date
 from decimal import Decimal
 from typing import Any, Literal
 
-from app.logging_config import get_logger
 from app.storage.connection import get_connection_manager
 from app.utils.db_helpers import rows_to_dicts
-
-logger = get_logger(__name__)
 
 
 class PerformanceStorage:

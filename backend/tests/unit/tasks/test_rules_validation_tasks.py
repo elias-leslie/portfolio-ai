@@ -15,6 +15,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 
 from app.agents.rules_validator_agent import (
     Recommendation,
@@ -215,8 +216,6 @@ class TestDailyRulesValidation:
             # Verify JSON serialization of errors
             call_args = mock_cursor.execute.call_args_list[0][0]
             # Check that Jsonb() was used (from psycopg.types.json)
-            from psycopg.types.json import Jsonb
-
             params = call_args[1]
             validation_errors_param = params[6]
             assert isinstance(validation_errors_param, Jsonb)
@@ -347,8 +346,6 @@ class TestWeeklyOptimizationReview:
 
             # Verify performance_data was stored
             call_args = mock_cursor.execute.call_args[0]
-            from psycopg.types.json import Jsonb
-
             params = call_args[1]
             perf_data_param = params[1]
             assert isinstance(perf_data_param, Jsonb)

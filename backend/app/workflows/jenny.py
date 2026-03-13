@@ -6,6 +6,7 @@ Thin async wrappers around Jenny operator routines.
 from __future__ import annotations
 
 import asyncio
+from datetime import date
 from typing import Any
 
 from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy, Context
@@ -33,7 +34,7 @@ logger = get_logger(__name__)
 )
 async def jenny_daily_operator_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
     if not is_trading_day():
-        logger.info("jenny_daily_operator_skipped_non_trading_day")
+        logger.info("jenny_daily_operator_skipped_non_trading_day", evaluated_date=str(date.today()))
         return {"status": "skipped", "reason": "Not a trading day (holiday)"}
     from ..tasks.jenny_operator_tasks import run_daily_operator_task
 

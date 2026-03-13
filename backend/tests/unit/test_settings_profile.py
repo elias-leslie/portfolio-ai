@@ -29,7 +29,7 @@ class FakeCursor:
         return self
 
     def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
-        return None
+        pass
 
     def execute(self, query: str, params: object = None) -> None:
         self.execute_calls.append((query, params))

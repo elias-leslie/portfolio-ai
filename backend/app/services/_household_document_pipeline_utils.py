@@ -67,8 +67,6 @@ def parse_row_date(value: str | None) -> str | None:
     normalized = value.strip()
     if not normalized:
         return None
-    if normalized.endswith("Z"):
-        normalized = normalized.replace("Z", "+00:00")
     try:
         return datetime.fromisoformat(normalized).isoformat()
     except ValueError:

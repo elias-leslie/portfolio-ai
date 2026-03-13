@@ -202,7 +202,7 @@ def fetch_cash_flow_data(symbol: str) -> dict[str, Any] | None:
         info = yf_obj.info
         return parse_cash_flow_data(cf, info, symbol)
     except Exception as e:
-        logger.warning("cash_flow_fetch_failed", symbol=symbol, error=str(e))
+        logger.warning("cash_flow_fetch_failed", symbol=symbol, error=str(e), error_type=type(e).__name__)
         return None
 
 
@@ -215,7 +215,7 @@ def fetch_insider_transactions(symbol: str) -> list[dict[str, Any]]:
         logger.debug("insider_transactions_fetched", symbol=symbol, count=len(transactions))
         return transactions
     except Exception as e:
-        logger.warning("insider_transactions_fetch_failed", symbol=symbol, error=str(e))
+        logger.warning("insider_transactions_fetch_failed", symbol=symbol, error=str(e), error_type=type(e).__name__)
         return []
 
 
@@ -229,7 +229,7 @@ def fetch_institutional_holders(symbol: str) -> tuple[list[dict[str, Any]], dict
         logger.debug("institutional_holders_fetched", symbol=symbol, count=len(holders))
         return holders, summary
     except Exception as e:
-        logger.warning("institutional_holders_fetch_failed", symbol=symbol, error=str(e))
+        logger.warning("institutional_holders_fetch_failed", symbol=symbol, error=str(e), error_type=type(e).__name__)
         return [], {}
 
 
@@ -240,7 +240,7 @@ def fetch_short_interest(symbol: str) -> dict[str, Any] | None:
         info = yf_obj.info
         return parse_short_interest(info, symbol)
     except Exception as e:
-        logger.warning("short_interest_fetch_failed", symbol=symbol, error=str(e))
+        logger.warning("short_interest_fetch_failed", symbol=symbol, error=str(e), error_type=type(e).__name__)
         return None
 
 

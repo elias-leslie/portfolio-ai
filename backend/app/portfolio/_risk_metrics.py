@@ -74,7 +74,7 @@ def compute_local_risk_metrics(
         symbol_df = _build_return_series(df, symbol, "symbol_return")
         market_df = _build_return_series(df, market_benchmark, "market_return")
     except pl.exceptions.ComputeError:
-        logger.warning("return_series_compute_error", symbol=symbol)
+        logger.warning("return_series_compute_error", symbol=symbol, exc_info=True)
         return (None, None)
 
     if symbol_df.is_empty() or market_df.is_empty():

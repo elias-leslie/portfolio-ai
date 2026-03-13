@@ -8,11 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.logging_config import get_logger
 from app.storage.connection import get_connection_manager
-
-logger = get_logger(__name__)
-
 
 # Strategy performance thresholds
 UNDERPERFORMING_SHARPE_THRESHOLD = 0.5

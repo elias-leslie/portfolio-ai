@@ -35,7 +35,7 @@ def connect_to_postgres() -> Connection[Any]:
     """Connect to PostgreSQL using DATABASE_URL from environment."""
     database_url = os.getenv(
         "DATABASE_URL",
-        "postgresql://portfolio_app:$PGPASSWORD@localhost:5432/portfolio_ai",
+        os.path.expandvars("postgresql://portfolio_app:$PGPASSWORD@localhost:5432/portfolio_ai"),
     )
     try:
         conn = connect(database_url)

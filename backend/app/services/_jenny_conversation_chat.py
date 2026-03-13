@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from pydantic import ValidationError
+
 from app.logging_config import get_logger
 from app.models.household_finance import (
     HouseholdProfileUpdate,
@@ -58,7 +60,16 @@ def apply_profile_updates(
         return updated_fields
     cleaned = {k: v for k, v in profile_updates.items() if v is not None}
     if cleaned:
-        household_service.update_profile(HouseholdProfileUpdate.model_validate(cleaned))
+        try:
+            validated = HouseholdProfileUpdate.model_validate(cleaned)
+        except ValidationError as exc:
+            logger.warning(
+                "profile_update_validation_failed",
+                error=str(exc),
+                keys=list(cleaned.keys()),
+            )
+            return updated_fields
+        household_service.update_profile(validated)
         updated_fields.extend(k for k in cleaned if k not in updated_fields)
     return updated_fields
 

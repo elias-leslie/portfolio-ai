@@ -32,6 +32,15 @@ from .result_builder import build_failure_result, build_success_result
 logger = get_logger(__name__)
 
 
+def _try_validate_mutation(mutated_params: dict) -> StrategyParameters | None:
+    """Validate mutated parameters; return StrategyParameters on success or None on failure."""
+    try:
+        return StrategyParameters(**mutated_params)
+    except Exception as e:
+        logger.warning("invalid_mutation_params", error=str(e))
+        return None
+
+
 class StrategyEvolutionAgent:
     """LLM-powered agent that evolves underperforming strategies."""
 
@@ -112,10 +121,7 @@ class StrategyEvolutionAgent:
             mutated_params.update(mutation.parameter_changes)
 
             # Validate mutated parameters
-            try:
-                StrategyParameters(**mutated_params)
-            except Exception as e:
-                logger.warning("invalid_mutation_params", error=str(e))
+            if _try_validate_mutation(mutated_params) is None:
                 continue
 
             # Run walk-forward backtest (3 windows, 180/60 days each)

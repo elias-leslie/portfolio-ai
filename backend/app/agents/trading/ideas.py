@@ -95,10 +95,10 @@ def execute_store_strategy_seed(
                 },
             )
             workflow_triggered = True
-            logger.info("seed_created_event_emitted", seed_id=seed_id, confidence=confidence)
+            logger.info("seed_created_event_emitted", seed_id=seed_id, symbol=symbol, confidence=confidence)
 
         except Exception as e:
-            logger.warning("strategy_workflow_trigger_failed", seed_id=seed_id, error=str(e))
+            logger.warning("strategy_workflow_trigger_failed", seed_id=seed_id, symbol=symbol, error=str(e), exc_info=True)
 
     return {
         "seed_id": seed_id,

@@ -60,6 +60,8 @@ def _extract_json_str(content: str) -> str | None:
         return content.split("```")[1].split("```")[0].strip()
     if "{" not in content:
         return None
+    if "}" not in content:
+        return None
     start = content.index("{")
     end = content.rindex("}") + 1
     return content[start:end]

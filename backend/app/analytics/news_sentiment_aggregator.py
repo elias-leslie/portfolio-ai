@@ -310,5 +310,5 @@ def get_batch_sentiment(
         return results
 
     except Exception as e:
-        logger.error("batch_sentiment_error", error=str(e), exc_info=True)
+        logger.error("batch_sentiment_error", error=str(e), symbols_count=len(symbols), exc_info=True)
         return {s: NewsSentimentScore(symbol=s, error=str(e)) for s in symbols}

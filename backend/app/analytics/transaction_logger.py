@@ -119,14 +119,16 @@ class TransactionLogger:
                 )
                 conn.commit()  # Commit INSERT to database
 
-            slippage_info = ""
-            if slippage_bps is not None:
-                slippage_info = f" [slippage: {slippage_bps:.1f}bps, ${slippage_amount:.2f}]"
-
             logger.info(
-                f"Logged ENTRY transaction: {trade_id} - {symbol} "
-                f"{shares} shares @ ${price:.2f} (${amount:.2f}){slippage_info}"
-                + (f" [agent: {agent_run_id[:8]}...]" if agent_run_id else "")
+                "entry_transaction_logged",
+                trade_id=trade_id,
+                symbol=symbol,
+                shares=shares,
+                price=price,
+                amount=amount,
+                slippage_bps=slippage_bps,
+                slippage_amount=slippage_amount,
+                agent_run_id=agent_run_id,
             )
             return True
 
@@ -232,14 +234,17 @@ class TransactionLogger:
                 )
                 conn.commit()  # Commit INSERT to database
 
-            slippage_info = ""
-            if slippage_bps is not None:
-                slippage_info = f" [slippage: {slippage_bps:.1f}bps, ${slippage_amount:.2f}]"
-
             logger.info(
-                f"Logged EXIT transaction: {trade_id} - {symbol} "
-                f"{shares} shares @ ${price:.2f} (${amount:.2f}, P&L: ${pnl:.2f}){slippage_info}"
-                + (f" [agent: {agent_run_id[:8]}...]" if agent_run_id else "")
+                "exit_transaction_logged",
+                trade_id=trade_id,
+                symbol=symbol,
+                shares=shares,
+                price=price,
+                amount=amount,
+                pnl=pnl,
+                slippage_bps=slippage_bps,
+                slippage_amount=slippage_amount,
+                agent_run_id=agent_run_id,
             )
             return True
 

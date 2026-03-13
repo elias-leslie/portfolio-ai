@@ -14,6 +14,7 @@ Phase 1: Foundation for intelligent news source quality monitoring and personali
 from __future__ import annotations
 
 from datetime import datetime
+from itertools import combinations
 
 from ..logging_config import get_logger
 from ..storage import PortfolioStorage
@@ -49,10 +50,9 @@ def _compute_avg_pairwise_similarity(headlines: list[str]) -> float:
     """Return average pairwise Jaccard similarity across all headline pairs."""
     total_similarity = 0.0
     comparisons = 0
-    for i, headline_a in enumerate(headlines):
-        for headline_b in headlines[i + 1:]:
-            total_similarity += _token_overlap_similarity(headline_a, headline_b)
-            comparisons += 1
+    for headline_a, headline_b in combinations(headlines, 2):
+        total_similarity += _token_overlap_similarity(headline_a, headline_b)
+        comparisons += 1
     if comparisons == 0:
         return 0.0
     return total_similarity / comparisons

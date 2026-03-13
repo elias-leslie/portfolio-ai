@@ -282,7 +282,7 @@ def _build_portfolio_context(
     )
     cash_reserves_months: float | None = (
         cash_reserve / monthly_essential
-        if cash_reserve > 0 and monthly_essential and monthly_essential > 0
+        if cash_reserve > 0 and monthly_essential is not None and monthly_essential > 0
         else None
     )
     portfolio_to_annual_spend_ratio: float | None = (
@@ -355,7 +355,8 @@ def _build_budget_readiness(
     *, service: Any, resolved_values: list[HouseholdResolvedValue], documents: list[Any]
 ) -> BudgetReadiness:
     budget_inputs = service._budget_input_status(resolved_values, documents)
-    rnv = lambda field: service._resolved_numeric_value(resolved_values, field)  # noqa: E731
+    def rnv(field: str) -> float | None:
+        return service._resolved_numeric_value(resolved_values, field)
     starter_lanes = [
         BudgetLane(
             name=name,

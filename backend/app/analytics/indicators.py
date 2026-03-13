@@ -356,13 +356,11 @@ def _fetch_ohlcv_data(
     pandas_df = pandas_df.sort_index()
 
     logger.info(
-        f"Fetched {len(pandas_df)} days of OHLCV data for {symbol}",
-        extra={
-            "symbol": symbol,
-            "days": len(pandas_df),
-            "start_date": pandas_df.index[0].strftime("%Y-%m-%d"),
-            "end_date": pandas_df.index[-1].strftime("%Y-%m-%d"),
-        },
+        "ohlcv_data_fetched",
+        symbol=symbol,
+        days=len(pandas_df),
+        start_date=pandas_df.index[0].strftime("%Y-%m-%d"),
+        end_date=pandas_df.index[-1].strftime("%Y-%m-%d"),
     )
 
     return pandas_df

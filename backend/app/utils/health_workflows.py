@@ -128,7 +128,7 @@ def get_workflow_health(storage: PortfolioStorage) -> WorkflowHealthInfo:
         )
 
     except Exception as e:
-        logger.warning("workflow_health_failed", error=str(e))
+        logger.warning("workflow_health_failed", error=str(e), exc_info=True)
         return WorkflowHealthInfo(
             status="warning",
             total_workflows_24h=0,
@@ -205,7 +205,7 @@ def get_workflow_metrics(storage: PortfolioStorage) -> dict[str, object]:
         }
 
     except Exception as e:
-        logger.warning("workflow_metrics_failed", error=str(e))
+        logger.warning("workflow_metrics_failed", error=str(e), exc_info=True)
         return {
             "recent_workflows": [],
             "summary_by_type": {},

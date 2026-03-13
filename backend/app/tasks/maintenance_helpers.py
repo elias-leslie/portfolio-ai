@@ -54,7 +54,8 @@ def execute_maintenance_task(
             "success": True,
         }
 
-        logger.info("maintenance_task_completed", task_name=task_name, **result_dict)
+        filtered = {k: v for k, v in result_dict.items() if k != "task_name"}
+        logger.info("maintenance_task_completed", task_name=task_name, **filtered)
         log_maintenance_complete(log_id, task_name, True, result_dict)
         return result_dict
 

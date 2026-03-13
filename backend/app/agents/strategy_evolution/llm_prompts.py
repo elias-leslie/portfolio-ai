@@ -153,6 +153,9 @@ Return JSON array with this schema:
         ]
         logger.info("mutations_proposed", count=len(mutations))
         return mutations[:5]  # Limit to 5
-    except Exception as e:
-        logger.exception("llm_mutations_parse_failed", error=str(e))
+    except json.JSONDecodeError as e:
+        logger.exception("llm_mutations_json_invalid", error=str(e))
+        return []
+    except (KeyError, TypeError) as e:
+        logger.exception("llm_mutations_schema_invalid", error=str(e))
         return []

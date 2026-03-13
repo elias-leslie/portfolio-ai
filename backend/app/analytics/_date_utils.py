@@ -15,5 +15,8 @@ def parse_target_date(date: dt.date | str) -> dt.date:
         Date object
     """
     if isinstance(date, str):
-        return dt.datetime.strptime(date, "%Y-%m-%d").date()
+        try:
+            return dt.datetime.strptime(date, "%Y-%m-%d").date()
+        except ValueError as e:
+            raise ValueError(f"Invalid date format: '{date}'. Expected YYYY-MM-DD.") from e
     return date

@@ -104,23 +104,8 @@ def build_runtime_context(
     recent_routines = _safe_get_routines(jenny_dashboard_reader, jenny_service)
     open_notifications = _safe_get_notifications(jenny_dashboard_reader, jenny_service)
 
-    workflow_health = health.get("workflow_health")
-    workflow_summary = (
-        workflow_health.model_dump()
-        if hasattr(workflow_health, "model_dump")
-        else workflow_health
-        if isinstance(workflow_health, dict)
-        else {}
-    )
-    services = health.get("services")
-    services_summary = (
-        {
-            name: str((payload or {}).get("status") or "unknown")
-            for name, payload in services.items()
-        }
-        if isinstance(services, dict)
-        else {}
-    )
+    workflow_summary = _summarize_workflow_health(health.get("workflow_health"))
+    services_summary = _summarize_services(health.get("services"))
 
     index = project_index
     pages = index.get("pages")
@@ -178,6 +163,23 @@ def build_runtime_context(
                 "portfolio_accounts from screenshots."
             ),
         },
+    }
+
+
+def _summarize_workflow_health(workflow_health: Any) -> dict[str, Any]:
+    if hasattr(workflow_health, "model_dump"):
+        return workflow_health.model_dump()
+    if isinstance(workflow_health, dict):
+        return workflow_health
+    return {}
+
+
+def _summarize_services(services: Any) -> dict[str, str]:
+    if not isinstance(services, dict):
+        return {}
+    return {
+        name: str((payload or {}).get("status") or "unknown")
+        for name, payload in services.items()
     }
 
 
@@ -247,6 +249,46 @@ def _compute_gain_pct(current_price: float | None, cost_basis: float | None) -> 
     return None
 
 
+def _build_household_context(
+    household_dashboard: Any,
+    open_questions: list[HouseholdQuestion],
+    recent_documents: list[Any],
+) -> dict[str, Any]:
+    return {
+        "overview": household_dashboard.overview.model_dump(),
+        "profile": household_dashboard.profile.model_dump(),
+        "resolved_values": [v.model_dump() for v in household_dashboard.resolved_values],
+        "budget_readiness": household_dashboard.budget_readiness.model_dump(),
+        "budget_snapshot": household_dashboard.budget_snapshot.model_dump(),
+        "retirement_preparedness": household_dashboard.retirement_preparedness.model_dump(),
+        "import_center": household_dashboard.import_center.model_dump(),
+        "jenny_needs": [need.model_dump() for need in household_dashboard.jenny_needs],
+        "open_questions": [question_summary(q) for q in open_questions],
+        "documents": build_document_context(recent_documents),
+        "planning": household_dashboard.planning.model_dump(),
+    }
+
+
+def _build_portfolio_context(
+    accounts: list[Any],
+    position_summaries: list[dict[str, Any]],
+    analytics: Any,
+) -> dict[str, Any]:
+    return {
+        "accounts": [
+            {
+                "id": account.id,
+                "name": account.name,
+                "account_type": account.account_type,
+                "cash_balance": account.cash_balance,
+            }
+            for account in accounts
+        ],
+        "positions": position_summaries,
+        "analytics": analytics.model_dump(),
+    }
+
+
 def build_full_context(
     message: str,
     open_questions: list[HouseholdQuestion],
@@ -274,32 +316,8 @@ def build_full_context(
     project_index = _index_fn()
 
     return {
-        "household": {
-            "overview": household_dashboard.overview.model_dump(),
-            "profile": household_dashboard.profile.model_dump(),
-            "resolved_values": [v.model_dump() for v in household_dashboard.resolved_values],
-            "budget_readiness": household_dashboard.budget_readiness.model_dump(),
-            "budget_snapshot": household_dashboard.budget_snapshot.model_dump(),
-            "retirement_preparedness": household_dashboard.retirement_preparedness.model_dump(),
-            "import_center": household_dashboard.import_center.model_dump(),
-            "jenny_needs": [need.model_dump() for need in household_dashboard.jenny_needs],
-            "open_questions": [question_summary(q) for q in open_questions],
-            "documents": build_document_context(recent_documents),
-            "planning": household_dashboard.planning.model_dump(),
-        },
-        "portfolio": {
-            "accounts": [
-                {
-                    "id": account.id,
-                    "name": account.name,
-                    "account_type": account.account_type,
-                    "cash_balance": account.cash_balance,
-                }
-                for account in accounts
-            ],
-            "positions": position_summaries,
-            "analytics": analytics.model_dump(),
-        },
+        "household": _build_household_context(household_dashboard, open_questions, recent_documents),
+        "portfolio": _build_portfolio_context(accounts, position_summaries, analytics),
         "portfolio_ai": build_runtime_context(
             health_service, jenny_dashboard_reader, jenny_service, project_index
         ),
