@@ -5,13 +5,18 @@ from typing import Any
 
 from app.models.household_finance import JennyNeed
 
+# Minimum months of statement coverage before Jenny considers data sufficient
+MIN_COVERAGE_MONTHS = 3
+# Maximum days since latest statement before data is considered stale
+STATEMENT_STALENESS_DAYS = 45
+
 
 def _jenny_statement_needs(coverage_months: int, days_since_latest: int | None) -> list[JennyNeed]:
     """Critical: upload statements when coverage is insufficient."""
     statements_satisfied = (
-        coverage_months >= 3
+        coverage_months >= MIN_COVERAGE_MONTHS
         and days_since_latest is not None
-        and days_since_latest < 45
+        and days_since_latest < STATEMENT_STALENESS_DAYS
     )
     if statements_satisfied:
         return []
@@ -139,7 +144,7 @@ def _jenny_retirement_category_needs(
 
 def _jenny_freshness_needs(documents: list[Any], days_since_latest: int | None) -> list[JennyNeed]:
     """Low-priority freshness need when documents exist but are stale."""
-    if documents and days_since_latest is not None and days_since_latest >= 45:
+    if documents and days_since_latest is not None and days_since_latest >= STATEMENT_STALENESS_DAYS:
         return [JennyNeed(
             id="need_freshness", need_type="provide",
             title="Upload newer statements",

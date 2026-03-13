@@ -8,6 +8,21 @@ from app.models.household_finance import HouseholdDocument
 
 ResolvedNumericValue = Callable[[str], float | int | None]
 
+# Visibility score weights
+_VISIBILITY_WEIGHT_ACCOUNTS = 20
+_VISIBILITY_WEIGHT_POSITIONS = 20
+_VISIBILITY_WEIGHT_RETIREMENT_ASSETS = 10
+_VISIBILITY_WEIGHT_TAXABLE_ASSETS = 10
+_VISIBILITY_WEIGHT_CASH_RESERVE = 10
+_VISIBILITY_WEIGHT_INCOME_TARGET = 10
+_VISIBILITY_WEIGHT_SPENDING_TARGETS = 10
+_VISIBILITY_WEIGHT_RETIREMENT_PLANNING = 5
+_VISIBILITY_WEIGHT_DOCUMENTS = 5
+
+# Visibility thresholds
+VISIBILITY_STRONG_THRESHOLD = 80
+VISIBILITY_PARTIAL_THRESHOLD = 50
+
 
 def compute_visibility_score(
     *,
@@ -21,36 +36,36 @@ def compute_visibility_score(
 ) -> int:
     score = 0
     if account_count > 0:
-        score += 20
+        score += _VISIBILITY_WEIGHT_ACCOUNTS
     if position_count > 0:
-        score += 20
+        score += _VISIBILITY_WEIGHT_POSITIONS
     if retirement_assets > 0:
-        score += 10
+        score += _VISIBILITY_WEIGHT_RETIREMENT_ASSETS
     if taxable_assets > 0:
-        score += 10
+        score += _VISIBILITY_WEIGHT_TAXABLE_ASSETS
     if cash_reserve > 0:
-        score += 10
+        score += _VISIBILITY_WEIGHT_CASH_RESERVE
     if resolved_numeric_value("monthly_net_income_target") is not None:
-        score += 10
+        score += _VISIBILITY_WEIGHT_INCOME_TARGET
     if (
         resolved_numeric_value("monthly_essential_target") is not None
         and resolved_numeric_value("monthly_discretionary_target") is not None
     ):
-        score += 10
+        score += _VISIBILITY_WEIGHT_SPENDING_TARGETS
     if (
         resolved_numeric_value("target_retirement_spend") is not None
         and resolved_numeric_value("target_retirement_age") is not None
     ):
-        score += 5
+        score += _VISIBILITY_WEIGHT_RETIREMENT_PLANNING
     if document_count > 0:
-        score += 5
+        score += _VISIBILITY_WEIGHT_DOCUMENTS
     return score
 
 
 def visibility_label(score: int) -> str:
-    if score >= 80:
+    if score >= VISIBILITY_STRONG_THRESHOLD:
         return "Strong household visibility"
-    if score >= 50:
+    if score >= VISIBILITY_PARTIAL_THRESHOLD:
         return "Partial money visibility"
     return "Early household setup"
 
@@ -81,7 +96,7 @@ def next_best_action(
         or resolved_numeric_value("target_retirement_age") is None
     ):
         action = "Set a retirement age and spending target so Jenny can model readiness."
-    elif visibility_score < 80:
+    elif visibility_score < VISIBILITY_STRONG_THRESHOLD:
         action = "Jenny is refining your financial picture as more data flows in."
     return action
 
@@ -189,6 +204,4 @@ def retirement_next_steps(
     if not next_steps:
         next_steps.append("Start scenario planning: early retirement, higher health costs, and lower-return years.")
     return next_steps
-
-
 

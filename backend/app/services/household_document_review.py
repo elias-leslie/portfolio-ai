@@ -30,6 +30,11 @@ from app.storage import get_storage
 
 logger = get_logger(__name__)
 
+# Text preview length for structured_data summaries
+TEXT_PREVIEW_LENGTH = 500
+# Default confidence for baseline (non-LLM) document reviews
+BASELINE_REVIEW_CONFIDENCE = 0.45
+
 JSON_REVIEW_INSTRUCTIONS = """Return strict JSON only for this household finance document review.
 
 Schema:
@@ -473,11 +478,11 @@ def _baseline_review(
     extracted_text: str | None,
 ) -> dict[str, Any]:
     structured_data: dict[str, Any] = {
-        "text_preview": extracted_text[:500] if extracted_text else None,
+        "text_preview": extracted_text[:TEXT_PREVIEW_LENGTH] if extracted_text else None,
     }
     inferred_source = source_type
     inferred_document = document_type
-    confidence = 0.45
+    confidence = BASELINE_REVIEW_CONFIDENCE
     summary = f"Uploaded {document_type.replace('_', ' ')} from {source_type.replace('_', ' ')}."
 
     filename_lower = filename.lower()
@@ -750,7 +755,7 @@ class HouseholdDocumentReviewService:
         structured_data: dict[str, Any] = {
             "merchant": signature["merchant"],
             "account_hint": signature["account_hint"],
-            "text_preview": extracted_text[:500] if extracted_text else None,
+            "text_preview": extracted_text[:TEXT_PREVIEW_LENGTH] if extracted_text else None,
         }
         statement_period, total_amount = _extract_amounts(extracted_text)
         if statement_period:

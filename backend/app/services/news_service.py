@@ -154,7 +154,7 @@ class NewsService:
                     if candidate > 0:
                         max_articles = candidate
                 except (TypeError, ValueError):
-                    pass
+                    logger.debug("news_max_articles_parse_failed", raw_value=str(raw_value))
 
         # Clamp to avoid unbounded fetches
         max_articles = max(1, min(max_articles, ARTICLE_OVERFETCH_CAP))

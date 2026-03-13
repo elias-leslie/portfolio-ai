@@ -3,6 +3,7 @@
 import { TrendingDown, TrendingUp } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import type { PositionPerformance } from '@/lib/api/portfolio'
+import { formatCurrency, formatPercent } from './portfolio-utils'
 
 interface TopPerformersProps {
   topPerformers: PositionPerformance[]
@@ -13,18 +14,6 @@ export function TopPerformers({
   topPerformers,
   bottomPerformers,
 }: TopPerformersProps) {
-  const formatPercent = (value: number) => {
-    return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
-  }
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-    }).format(value)
-  }
-
   return (
     <Card className="p-6">
       <h3 className="mb-4 text-sm font-semibold text-text">Top Performers</h3>

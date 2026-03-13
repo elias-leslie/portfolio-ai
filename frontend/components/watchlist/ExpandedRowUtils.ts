@@ -4,6 +4,10 @@
  * Extracted from ExpandedRow.tsx to reduce file size and improve modularity.
  */
 
+import { getTimezoneAbbreviation } from './watchlistTableUtils'
+
+export { getTimezoneAbbreviation }
+
 /**
  * Sanitize HTML/text input to prevent XSS
  */
@@ -52,20 +56,6 @@ export function getScoreBadgeVariant(
   if (score >= 20) return 'viz-2'
   if (score >= 10) return 'viz-1'
   return 'viz-0'
-}
-
-/**
- * Get timezone abbreviation (EST, PST, etc.)
- */
-export function getTimezoneAbbreviation(timezone: string): string {
-  const date = new Date()
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    timeZoneName: 'short',
-  })
-  const parts = formatter.formatToParts(date)
-  const timeZonePart = parts.find((part) => part.type === 'timeZoneName')
-  return timeZonePart?.value ?? ''
 }
 
 /**

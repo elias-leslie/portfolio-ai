@@ -25,6 +25,33 @@ from app.storage import get_storage
 
 logger = get_logger(__name__)
 
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+# Amount-range heuristics for classifying unrecognized merchants
+MIN_SUBSCRIPTION_AMOUNT = 5.0
+MAX_SUBSCRIPTION_AMOUNT = 25.0
+BILLS_AMOUNT_THRESHOLD = 800.0
+
+# Confidence levels assigned to extracted transactions by source
+MANUAL_RULE_CONFIDENCE = 0.90
+RECEIPT_CONFIDENCE = 0.9
+CHASE_STATEMENT_CONFIDENCE = 0.88
+WELLS_FARGO_STATEMENT_CONFIDENCE = 0.82
+
+# Cadence inference thresholds (median interval in days)
+WEEKLY_INTERVAL_MAX = 10
+BIWEEKLY_INTERVAL_MAX = 20
+MONTHLY_INTERVAL_MAX = 45
+
+# Minimum observed dates needed before inferring a billing cadence
+MIN_DATES_FOR_CADENCE = 3
+
+# Cadence confidence based on sample size
+CADENCE_CONFIDENCE_MINIMAL = 0.72  # exactly MIN_DATES_FOR_CADENCE observations
+CADENCE_CONFIDENCE_STANDARD = 0.82  # more than MIN_DATES_FOR_CADENCE observations
+
 
 # ---------------------------------------------------------------------------
 # Pure module-level helpers (no instance state)
@@ -92,9 +119,9 @@ def _classify_merchant(*, raw_merchant: str, description: str, amount: float | N
 
     # Amount-range heuristics as a secondary signal for unrecognized merchants
     if amount is not None:
-        if 5.0 <= amount <= 25.0:
+        if MIN_SUBSCRIPTION_AMOUNT <= amount <= MAX_SUBSCRIPTION_AMOUNT:
             return ("Subscriptions", "discretionary")
-        if amount >= 800.0:
+        if amount >= BILLS_AMOUNT_THRESHOLD:
             return ("Bills", "essential")
 
     return ("Household", "mixed")
@@ -213,7 +240,7 @@ class HouseholdTransactionService:
                 )
                 # Auto-apply prior manual categorization with high confidence
                 if has_manual_rule:
-                    transaction.confidence = max(transaction.confidence, 0.90)
+                    transaction.confidence = max(transaction.confidence, MANUAL_RULE_CONFIDENCE)
                 row_hash = hashlib.sha256(
                     "|".join([
                         document.id,
@@ -436,7 +463,7 @@ class HouseholdTransactionService:
                     row_dates.append(parsed_period)
 
         row_dates = sorted(set(row_dates))
-        if len(row_dates) < 3:
+        if len(row_dates) < MIN_DATES_FOR_CADENCE:
             return None
         return self._dates_to_cadence(row_dates)
 
@@ -486,7 +513,7 @@ class HouseholdTransactionService:
                         flow_type="expense",
                         category=category,
                         essentiality=essentiality,
-                        confidence=0.9,
+                        confidence=RECEIPT_CONFIDENCE,
                         account_label=account_label or str(structured_data.get("account_hint") or ""),
                         metadata={"source": "receipt_summary"},
                     )
@@ -548,7 +575,7 @@ class HouseholdTransactionService:
                     flow_type=flow_type,
                     category=category,
                     essentiality=essentiality,
-                    confidence=0.88,
+                    confidence=CHASE_STATEMENT_CONFIDENCE,
                     account_label=account_label,
                     metadata={"source": "statement_activity"},
                 )
@@ -606,7 +633,7 @@ class HouseholdTransactionService:
                             flow_type=flow_type,
                             category=category,
                             essentiality=essentiality,
-                            confidence=0.82,
+                            confidence=WELLS_FARGO_STATEMENT_CONFIDENCE,
                             account_label=account_label,
                             metadata={"source": "bank_statement"},
                         )
@@ -726,7 +753,7 @@ class HouseholdTransactionService:
 
     def _dates_to_cadence(self, observed_dates: list[date]) -> dict[str, object] | None:
         ordered_dates = sorted(set(observed_dates))
-        if len(ordered_dates) < 3:
+        if len(ordered_dates) < MIN_DATES_FOR_CADENCE:
             return None
 
         intervals = [
@@ -738,16 +765,16 @@ class HouseholdTransactionService:
             return None
 
         median_interval = sorted(intervals)[len(intervals) // 2]
-        if median_interval <= 10:
+        if median_interval <= WEEKLY_INTERVAL_MAX:
             label = "likely weekly"
-        elif median_interval <= 20:
+        elif median_interval <= BIWEEKLY_INTERVAL_MAX:
             label = "likely bi-weekly"
-        elif median_interval <= 45:
+        elif median_interval <= MONTHLY_INTERVAL_MAX:
             label = "likely monthly"
         else:
             label = "less frequent"
 
-        confidence = 0.72 if len(ordered_dates) == 3 else 0.82
+        confidence = CADENCE_CONFIDENCE_MINIMAL if len(ordered_dates) == MIN_DATES_FOR_CADENCE else CADENCE_CONFIDENCE_STANDARD
         return {
             "label": label,
             "confidence": confidence,

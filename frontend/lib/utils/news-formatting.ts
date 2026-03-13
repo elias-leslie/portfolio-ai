@@ -8,7 +8,7 @@ import { formatDistanceToNow } from 'date-fns'
 /**
  * Standard vendor labels for news sources
  */
-export const VENDOR_LABELS: Record<string, string> = {
+const VENDOR_LABELS: Record<string, string> = {
   polygon: 'Polygon',
   finnhub: 'Finnhub',
   fmp: 'FMP',
