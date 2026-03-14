@@ -91,7 +91,11 @@ export function ConfirmActionDialog({
       <DialogContent data-testid="confirm-action-dialog">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          {description && <DialogDescription>{description}</DialogDescription>}
+          {description ? (
+            <DialogDescription>{description}</DialogDescription>
+          ) : (
+            <DialogDescription className="sr-only">Confirm action dialog</DialogDescription>
+          )}
         </DialogHeader>
         {submitError ? (
           <LoadErrorState

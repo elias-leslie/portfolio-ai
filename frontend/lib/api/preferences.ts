@@ -109,15 +109,15 @@ export function getWatchlistRefreshMinutes(
     return DEFAULT_WATCHLIST_REFRESH_MINUTES
   }
 
-  if (typeof preferences.watchlistRefreshOverride === 'number') {
+  if (typeof preferences.watchlistRefreshOverride === 'number' && preferences.watchlistRefreshOverride > 0) {
     return preferences.watchlistRefreshOverride
   }
 
-  if (typeof preferences.defaultRefreshMinutes === 'number') {
+  if (typeof preferences.defaultRefreshMinutes === 'number' && preferences.defaultRefreshMinutes > 0) {
     return preferences.defaultRefreshMinutes
   }
 
-  return preferences.watchlistRefreshMinutes
+  return preferences.watchlistRefreshMinutes || DEFAULT_WATCHLIST_REFRESH_MINUTES
 }
 
 /**

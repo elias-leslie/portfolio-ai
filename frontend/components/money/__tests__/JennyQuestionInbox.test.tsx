@@ -51,10 +51,10 @@ describe('JennyQuestionInbox', () => {
 
     await user.click(screen.getByRole('button', { name: 'Yes' }))
 
-    expect(answerMutate).toHaveBeenCalledWith({
-      questionId: 'question-1',
-      answerText: 'yes',
-    })
+    expect(answerMutate).toHaveBeenCalledWith(
+      { questionId: 'question-1', answerText: 'yes' },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    )
   })
 
   it('renders select options and submits the chosen answer', async () => {
@@ -86,9 +86,9 @@ describe('JennyQuestionInbox', () => {
 
     await user.click(screen.getByRole('button', { name: 'Dual income' }))
 
-    expect(answerMutate).toHaveBeenCalledWith({
-      questionId: 'question-2',
-      answerText: 'Dual income',
-    })
+    expect(answerMutate).toHaveBeenCalledWith(
+      { questionId: 'question-2', answerText: 'Dual income' },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    )
   })
 })

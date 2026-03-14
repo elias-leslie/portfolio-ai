@@ -17,6 +17,9 @@ vi.mock('@/lib/hooks/useSymbolIntelligence', () => ({
 vi.mock('@/lib/hooks/usePortfolio', () => ({
   useJennyDashboard: vi.fn(),
 }))
+vi.mock('@/lib/hooks/usePreferences', () => ({
+  usePreferences: () => ({ data: undefined, isLoading: false }),
+}))
 
 describe('SymbolWorkspace', () => {
   beforeEach(() => {
