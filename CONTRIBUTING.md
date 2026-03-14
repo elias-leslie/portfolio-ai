@@ -7,6 +7,7 @@ Thanks for your interest in improving Portfolio AI.
 - Open an issue or start a discussion before larger changes.
 - Keep changes focused and avoid mixing unrelated work.
 - Expect review to be best-effort rather than immediate.
+- No CLA is required at this time.
 
 ## Development
 
