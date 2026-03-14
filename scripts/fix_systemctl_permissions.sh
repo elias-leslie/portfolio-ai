@@ -4,31 +4,33 @@
 
 set -e
 
+TARGET_USER="${SUDO_USER:-$(whoami)}"
+
 echo "================================"
 echo "Fixing Portfolio AI Service Permissions"
 echo "================================"
 
 # Ensure user is in portfolio-ai group
-if ! groups kasadis | grep -q portfolio-ai; then
-    echo "Adding kasadis to portfolio-ai group..."
-    sudo usermod -a -G portfolio-ai kasadis
+if ! groups $TARGET_USER | grep -q portfolio-ai; then
+    echo "Adding $TARGET_USER to portfolio-ai group..."
+    sudo usermod -a -G portfolio-ai $TARGET_USER
 else
     echo "✓ User already in portfolio-ai group"
 fi
 
 # Create sudoers file for portfolio services (NOPASSWD for all systemctl commands)
 echo "Creating sudoers configuration..."
-sudo tee /etc/sudoers.d/portfolio-ai > /dev/null <<'EOF'
-# Portfolio AI - Allow kasadis to manage services without password
-kasadis ALL=(ALL) NOPASSWD: /bin/systemctl start portfolio-*
-kasadis ALL=(ALL) NOPASSWD: /bin/systemctl stop portfolio-*
-kasadis ALL=(ALL) NOPASSWD: /bin/systemctl restart portfolio-*
-kasadis ALL=(ALL) NOPASSWD: /bin/systemctl reload portfolio-*
-kasadis ALL=(ALL) NOPASSWD: /bin/systemctl status portfolio-*
-kasadis ALL=(ALL) NOPASSWD: /bin/systemctl is-active portfolio-*
-kasadis ALL=(ALL) NOPASSWD: /bin/systemctl enable portfolio-*
-kasadis ALL=(ALL) NOPASSWD: /bin/systemctl disable portfolio-*
-kasadis ALL=(ALL) NOPASSWD: /bin/systemctl daemon-reload
+sudo tee /etc/sudoers.d/portfolio-ai > /dev/null <<EOF
+# Portfolio AI - Allow $TARGET_USER to manage services without password
+$TARGET_USER ALL=(ALL) NOPASSWD: /bin/systemctl start portfolio-*
+$TARGET_USER ALL=(ALL) NOPASSWD: /bin/systemctl stop portfolio-*
+$TARGET_USER ALL=(ALL) NOPASSWD: /bin/systemctl restart portfolio-*
+$TARGET_USER ALL=(ALL) NOPASSWD: /bin/systemctl reload portfolio-*
+$TARGET_USER ALL=(ALL) NOPASSWD: /bin/systemctl status portfolio-*
+$TARGET_USER ALL=(ALL) NOPASSWD: /bin/systemctl is-active portfolio-*
+$TARGET_USER ALL=(ALL) NOPASSWD: /bin/systemctl enable portfolio-*
+$TARGET_USER ALL=(ALL) NOPASSWD: /bin/systemctl disable portfolio-*
+$TARGET_USER ALL=(ALL) NOPASSWD: /bin/systemctl daemon-reload
 EOF
 
 # Set correct permissions on sudoers file
@@ -49,7 +51,7 @@ chmod +x ~/portfolio-ai/scripts/*.sh 2>/dev/null || true
 
 # Ensure log directory permissions
 if [ -d /var/log/portfolio-ai ]; then
-    sudo chown -R kasadis:portfolio-ai /var/log/portfolio-ai
+    sudo chown -R $TARGET_USER:portfolio-ai /var/log/portfolio-ai
     sudo chmod -R 775 /var/log/portfolio-ai
     echo "✓ Log directory permissions fixed"
 fi
