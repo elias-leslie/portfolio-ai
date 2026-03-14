@@ -83,7 +83,7 @@ class HouseholdReviewAgentService:
 
     def __init__(self) -> None:
         self._sdk = SDKClient(
-            base_url="http://localhost:8003",
+            base_url=settings.agent_hub_url,
             client_name="portfolio-ai",
             client_id=settings.portfolio_client_id or None,
             request_source=settings.portfolio_request_source,

@@ -48,10 +48,15 @@ class Settings(BaseSettings):
     cache_default_ttl: int = 300
 
     # Agent Hub integration
+    agent_hub_url: str = "http://localhost:8003"
     agent_hub_enabled: bool | None = None
     portfolio_client_id: str = ""
     portfolio_client_secret: str = ""
     portfolio_request_source: str = "portfolio-ai"
+
+    # Self-referencing URLs (for internal service calls)
+    backend_url: str = "http://localhost:8000"
+    frontend_url: str = "http://localhost:3000"
 
     # Filesystem paths
     artifacts_dir: Path = Path(__file__).resolve().parents[3] / "data" / "artifacts"

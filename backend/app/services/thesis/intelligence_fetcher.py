@@ -6,6 +6,7 @@ from typing import Any
 
 import httpx
 
+from ...config import settings
 from ...logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -14,13 +15,13 @@ logger = get_logger(__name__)
 class IntelligenceFetcher:
     """Fetches intelligence data from internal symbols API."""
 
-    def __init__(self, api_base_url: str = "http://localhost:8000") -> None:
+    def __init__(self, api_base_url: str | None = None) -> None:
         """Initialize fetcher.
 
         Args:
             api_base_url: Base URL for internal API calls
         """
-        self._api_base_url = api_base_url
+        self._api_base_url = api_base_url or settings.backend_url
 
     def fetch(self, symbol: str) -> dict[str, Any]:
         """Fetch intelligence data from internal API.

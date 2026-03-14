@@ -18,8 +18,8 @@ from .base_client import LLMClient, LLMResponse
 
 logger = get_logger(__name__)
 
-# Default Agent Hub URL
-DEFAULT_AGENT_HUB_URL = "http://localhost:8003"
+# Default Agent Hub URL (from centralized settings)
+DEFAULT_AGENT_HUB_URL = settings.agent_hub_url
 DEFAULT_AGENT_SLUG = "chat"
 
 # Portfolio-AI client credentials from centralized settings

@@ -10,6 +10,7 @@ import httpx
 import psutil
 from pydantic import BaseModel, Field
 
+from app.config import settings
 from app.constants.services import SERVICE_PROCESS_PATTERNS
 from app.logging_config import get_logger
 
@@ -120,7 +121,7 @@ def check_backend_api(skip_http_check: bool = False) -> ServiceStatus:
         # Additional health check: try to ping /health/simple endpoint (avoid circular dependency)
         try:
             start_time = time.time()
-            response = httpx.get("http://localhost:8000/health/simple", timeout=2.0)
+            response = httpx.get(f"{settings.backend_url}/health/simple", timeout=2.0)
             latency_ms = int((time.time() - start_time) * 1000)
 
             if response.status_code == 200:
@@ -171,7 +172,7 @@ def check_frontend() -> ServiceStatus:
         # Additional check: try to connect to port 3000
         # Next.js dev server runs on HTTP (nginx handles HTTPS externally)
         try:
-            response = httpx.get("http://localhost:3000", timeout=2.0)
+            response = httpx.get(settings.frontend_url, timeout=2.0)
             if response.status_code not in [200, 304]:
                 status.status = "degraded"
                 status.message = f"Frontend returned {response.status_code}"

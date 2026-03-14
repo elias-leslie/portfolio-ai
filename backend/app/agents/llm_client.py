@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
+from ..config import settings
 from ..constants import CLAUDE_SONNET, GEMINI_FLASH
 from ..logging_config import get_logger
 from .clients.agent_hub_client import AgentHubAPIClient
@@ -41,7 +42,7 @@ class DualProviderClient(LLMClient):
         gemini_model: str = GEMINI_FLASH,
         agent_slug: str | None = None,
         use_agent_hub: bool = True,  # Kept for API compatibility, always True
-        agent_hub_url: str = "http://localhost:8003",
+        agent_hub_url: str | None = None,
     ) -> None:
         """Initialize Agent Hub client.
 
@@ -55,6 +56,7 @@ class DualProviderClient(LLMClient):
         """
         del use_agent_hub  # Always uses Agent Hub now
 
+        resolved_url = agent_hub_url or settings.agent_hub_url
         self.primary = primary
 
         # Only force a model when the caller explicitly chooses a provider lane.
@@ -68,14 +70,14 @@ class DualProviderClient(LLMClient):
         self._client = AgentHubAPIClient(
             agent_slug=agent_slug,
             model=model,
-            base_url=agent_hub_url,
+            base_url=resolved_url,
         )
 
         logger.info(
             "agent_hub_client_initialized",
             primary=primary,
             model=model,
-            url=agent_hub_url,
+            url=resolved_url,
         )
 
     def is_available(self) -> bool:
