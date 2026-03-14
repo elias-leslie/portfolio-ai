@@ -4,11 +4,14 @@
 
 Please do not open public issues for security problems.
 
-Send reports to `summitflow42@gmail.com` with:
+Report vulnerabilities using
+[GitHub's private vulnerability reporting](https://github.com/summitflow-solutions/portfolio-ai/security/advisories/new).
+
+Include:
 
 - a clear description of the issue
 - affected components or files
 - reproduction steps or a proof of concept
 - any suggested mitigation or fix
 
-I will review reports on a best-effort basis and coordinate remediation privately before public disclosure when appropriate.
+Reports are reviewed on a best-effort basis and remediation is coordinated privately before public disclosure when appropriate.
