@@ -7,7 +7,7 @@
 
 set -e
 
-BASE_URL="http://192.168.8.233:3000"
+BASE_URL="${UI_HOST:-http://localhost:3000}"
 OUT="$HOME/portfolio-ai/solution_state/$(date +%Y%m%d-%H%M%S)"
 S="$HOME/portfolio-ai/.claude/skills/browser-automation/scripts"
 REGRESSION="node $S/regression-check.js"

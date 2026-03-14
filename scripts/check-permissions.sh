@@ -6,7 +6,7 @@ echo "Portfolio AI - Permission Check"
 echo "======================================"
 echo ""
 
-BACKEND_DIR="/home/kasadis/portfolio-ai/backend"
+BACKEND_DIR="$(cd "$(dirname "$0")/../backend" && pwd)"
 
 echo "Checking for files with 600 permissions (owner-only)..."
 echo ""

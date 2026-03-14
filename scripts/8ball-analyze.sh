@@ -5,7 +5,7 @@
 set -e
 
 BACKEND_URL="${BACKEND_URL:-http://localhost:8000}"
-PROJECT_DIR="${PROJECT_DIR:-/home/kasadis/portfolio-ai}"
+PROJECT_DIR="${PROJECT_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
 
 # Initialize result object
 result="{}"

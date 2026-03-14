@@ -49,8 +49,8 @@ describe('api-config', () => {
       configurable: true,
       value: {
         location: {
-          hostname: '192.168.8.233',
-          host: '192.168.8.233:3000',
+          hostname: '192.168.1.100',
+          host: '192.168.1.100:3000',
           protocol: 'http:',
         },
       },
@@ -58,7 +58,7 @@ describe('api-config', () => {
 
     expect(getApiBaseUrl()).toBe('')
     expect(buildApiUrl('/api/portfolio')).toBe('/api/portfolio')
-    expect(getWsUrl('/ws/health')).toBe('ws://192.168.8.233:3000/ws/health')
+    expect(getWsUrl('/ws/health')).toBe('ws://192.168.1.100:3000/ws/health')
     expect(isDevelopment()).toBe(false)
   })
 })
