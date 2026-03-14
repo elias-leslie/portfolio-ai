@@ -28,7 +28,7 @@ dependencies = [
     "feedparser==6.0.12",
     "httpx==0.28.1",
     "python-multipart>=0.0.20",
-    "agent-hub-client @ file:///home/kasadis/agent-hub/packages/agent-hub-client",
+    "agent-hub-client @ git+https://github.com/summitflow-solutions/agent-hub.git#subdirectory=packages/agent-hub-client",
     "cachetools==5.5.0",
 
     # Caching & message broker
