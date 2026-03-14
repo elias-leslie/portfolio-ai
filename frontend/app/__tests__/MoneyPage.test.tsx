@@ -195,7 +195,7 @@ describe('MoneyPage', () => {
     expect(screen.getByText(/^Next best action$/i)).toBeInTheDocument()
     expect(screen.getByText(/Review uncategorized spending\./i)).toBeInTheDocument()
     expect(screen.getByText(/stage 4 of 4/i)).toBeInTheDocument()
-    expect(screen.getByText(/^operate$/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Operate' })).toBeInTheDocument()
     expect(screen.getByText(/60\/100 visibility score/i)).toBeInTheDocument()
     expect(screen.getByText(/0\/0 documents parsed/i)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Intake' }))
