@@ -56,7 +56,7 @@ def fetch_peer_returns(
             SELECT symbol, close as close_now
             FROM day_bars
             WHERE date = ?
-                AND symbol IN (SELECT UNNEST(?))
+                AND symbol IN (SELECT UNNEST(?::text[]))
         ),
         price_5d AS (
             SELECT symbol, close as close_5d
@@ -65,7 +65,7 @@ def fetch_peer_returns(
                 FROM day_bars
                 WHERE date >= ?
                     AND date < ?
-                    AND symbol IN (SELECT UNNEST(?))
+                    AND symbol IN (SELECT UNNEST(?::text[]))
             ) ranked
             WHERE rn = 1
         ),
@@ -76,7 +76,7 @@ def fetch_peer_returns(
                 FROM day_bars
                 WHERE date >= ?
                     AND date < ?
-                    AND symbol IN (SELECT UNNEST(?))
+                    AND symbol IN (SELECT UNNEST(?::text[]))
             ) ranked
             WHERE rn = 1
         )

@@ -66,8 +66,8 @@ def detect_missing_historical_data(
             """
             WITH symbol_stats AS (SELECT symbol, COUNT(*) as bar_count,
                 MAX(date) as latest_date, CURRENT_DATE - MAX(date) as days_since_latest
-                FROM day_bars WHERE symbol = ANY(?) GROUP BY symbol)
-            SELECT symbol FROM UNNEST(?) as t(symbol) LEFT JOIN symbol_stats USING (symbol)
+                FROM day_bars WHERE symbol = ANY(?::text[]) GROUP BY symbol)
+            SELECT symbol FROM UNNEST(?::text[]) as t(symbol) LEFT JOIN symbol_stats USING (symbol)
             WHERE symbol_stats.symbol IS NULL OR bar_count < ? OR days_since_latest > ?
             """,
             [symbols, symbols, min_days, stale_threshold_days],
