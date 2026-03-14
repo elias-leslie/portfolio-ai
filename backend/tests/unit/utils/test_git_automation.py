@@ -33,10 +33,10 @@ class TestGetRepoRoot:
         """Test successful retrieval of repo root."""
         mock_run.return_value = MagicMock(
             returncode=0,
-            stdout="/home/kasadis/portfolio-ai\n",
+            stdout="/home/testuser/portfolio-ai\n",
         )
         result = _get_repo_root()
-        assert result == Path("/home/kasadis/portfolio-ai")
+        assert result == Path("/home/testuser/portfolio-ai")
 
     @patch("app.utils.git_automation.subprocess.run")
     def test_returns_none_on_git_failure(self, mock_run: Mock) -> None:

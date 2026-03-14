@@ -196,7 +196,7 @@ EOF
 
 ## References
 
-- **Rules Config**: `/home/kasadis/portfolio-ai/backend/app/rules/rules.yaml`
-- **Rules Models**: `/home/kasadis/portfolio-ai/backend/app/rules/models.py`
+- **Rules Config**: `backend/app/rules/rules.yaml`
+- **Rules Models**: `backend/app/rules/models.py`
 - **Hatchet Workflows**: Cron schedules defined in Hatchet workflow definitions
-- **Architecture Docs**: `/home/kasadis/portfolio-ai/docs/core/ARCHITECTURE.md`
+- **Architecture Docs**: `docs/core/ARCHITECTURE.md`
