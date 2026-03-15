@@ -211,6 +211,9 @@ class PortDiscovery:
     def get_all_ports(self) -> dict[int, DiscoveredPort]:
         """Get all discovered ports, combining systemd and cached results.
 
+        In container mode, returns well-known defaults since systemd is not available
+        and cross-container service discovery happens via Docker DNS.
+
         Returns:
             Dict mapping port number to DiscoveredPort info
         """
@@ -219,9 +222,18 @@ class PortDiscovery:
 
         ports = {}
 
-        # Discover from systemd
-        for port_info in self.discover_from_systemd():
-            ports[port_info.port] = port_info
+        if Path("/.dockerenv").exists():
+            # In Docker, services are on well-known ports via compose networking
+            defaults = [
+                DiscoveredPort(8000, "portfolio-backend", "backend", "docker"),
+                DiscoveredPort(3000, "portfolio-frontend", "frontend", "docker"),
+            ]
+            for dp in defaults:
+                ports[dp.port] = dp
+        else:
+            # Discover from systemd on bare-metal
+            for port_info in self.discover_from_systemd():
+                ports[port_info.port] = port_info
 
         self._cached_ports = ports
         return ports

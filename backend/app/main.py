@@ -38,20 +38,22 @@ if not os.getenv("PYTEST_RUNNING"):
     configure_logging()
 
     # Configure uvicorn loggers to use syslog prefixes for journald
-    import logging
+    # Only apply syslog prefixes when running under systemd (INVOCATION_ID present);
+    # in Docker/standalone mode plain log lines are cleaner for `docker logs`.
+    if os.getenv("INVOCATION_ID"):
+        import logging
 
-    uvicorn_access_logger = logging.getLogger("uvicorn.access")
-    uvicorn_error_logger = logging.getLogger("uvicorn.error")
-    uvicorn_logger = logging.getLogger("uvicorn")
+        uvicorn_access_logger = logging.getLogger("uvicorn.access")
+        uvicorn_error_logger = logging.getLogger("uvicorn.error")
+        uvicorn_logger = logging.getLogger("uvicorn")
 
-    # Apply syslog formatter to all uvicorn handlers
-    for uvicorn_log in [uvicorn_access_logger, uvicorn_error_logger, uvicorn_logger]:
-        for handler in uvicorn_log.handlers:
-            handler.setFormatter(
-                SyslogPrefixFormatter(
-                    "%(levelname)s:     %(message)s"  # Match uvicorn's format
+        for uvicorn_log in [uvicorn_access_logger, uvicorn_error_logger, uvicorn_logger]:
+            for handler in uvicorn_log.handlers:
+                handler.setFormatter(
+                    SyslogPrefixFormatter(
+                        "%(levelname)s:     %(message)s"  # Match uvicorn's format
+                    )
                 )
-            )
 
 logger = get_logger(__name__)
 

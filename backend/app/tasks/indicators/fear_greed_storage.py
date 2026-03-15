@@ -10,6 +10,7 @@ import datetime as dt
 
 import redis
 
+from app.config import REDIS_URL
 from app.logging_config import get_logger
 from app.storage.types import DatabaseConnection
 
@@ -137,7 +138,7 @@ def _store_components_and_score(
 def _invalidate_redis_cache() -> None:
     """Invalidate Redis cache for fear_greed:latest key."""
     try:
-        redis_client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+        redis_client = redis.from_url(REDIS_URL, decode_responses=True)
         deleted = redis_client.delete("fear_greed:latest")
         logger.info(
             "fear_greed_cache_invalidated",

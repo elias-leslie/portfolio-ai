@@ -135,7 +135,8 @@ export function SectorPerformanceChart() {
                 borderRadius: '8px',
                 fontSize: '12px',
               }}
-              formatter={(
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              formatter={((
                 value: number | undefined,
                 name: string | undefined,
                 props: { payload?: Record<string, number> },
@@ -149,7 +150,7 @@ export function SectorPerformanceChart() {
                   `$${formattedPrice} (${numValue >= 0 ? '+' : ''}${numValue.toFixed(1)}%)`,
                   sector?.name || name,
                 ]
-              }}
+              }) as any}
               labelFormatter={(label) =>
                 // Append T12:00:00 to avoid timezone shift
                 new Date(`${label}T12:00:00`).toLocaleDateString('en-US', {

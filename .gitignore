@@ -106,3 +106,6 @@ backend/celerybeat-schedule*
 .beads/beads.db
 .beads/bd.sock
 certs/
+
+# Experiment/scratch scripts
+scripts/experiments/

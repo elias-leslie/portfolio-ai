@@ -22,9 +22,9 @@ const PORTS = { frontend: 3000, backend: 8000 }
  * @returns Base URL (e.g., http://localhost:8000 for dev, empty string for prod)
  */
 export function getApiBaseUrl(): string {
-  // Server-side: always use localhost
+  // Server-side: use API_URL env var (set by Docker compose) or localhost fallback
   if (typeof window === 'undefined') {
-    return `http://localhost:${PORTS.backend}`
+    return process.env.API_URL || `http://localhost:${PORTS.backend}`
   }
 
   const host = window.location.hostname
@@ -48,7 +48,8 @@ export function getApiBaseUrl(): string {
  */
 export function getWsUrl(path: string): string {
   if (typeof window === 'undefined') {
-    return `ws://localhost:${PORTS.backend}${path}`
+    const apiUrl = process.env.API_URL || `http://localhost:${PORTS.backend}`
+    return apiUrl.replace(/^http/, 'ws') + path
   }
 
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'

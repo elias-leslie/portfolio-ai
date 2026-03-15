@@ -93,6 +93,32 @@ export function IndicatorsTrendChart() {
     return <MarketPanelMessage message="Unable to load key indicator history right now." className="min-h-48" />
   }
 
+  const formatTooltip = (
+    value: number | undefined,
+    name: string | undefined,
+    props: { payload?: Record<string, number> },
+  ): [string, string] => {
+    if (!name) return ['', '']
+    const config = INDICATOR_CONFIG[name as IndicatorKey]
+    const actualValue = props.payload?.[`${name}_value`]
+    let formattedValue = ''
+    if (name === 'sp500') {
+      formattedValue =
+        actualValue?.toLocaleString(undefined, {
+          maximumFractionDigits: 0,
+        }) ?? ''
+    } else if (name === 'tnx') {
+      formattedValue = `${actualValue?.toFixed(2) ?? ''}%`
+    } else {
+      formattedValue = actualValue?.toFixed(2) ?? ''
+    }
+    const numValue = value ?? 0
+    return [
+      `${formattedValue} (${numValue >= 0 ? '+' : ''}${numValue.toFixed(1)}%)`,
+      config?.name || name,
+    ]
+  }
+
   if (!data?.sp500?.length || chartData.length === 0) {
     return <MarketPanelMessage message="Key indicator history is not available yet." className="min-h-48" />
   }
@@ -137,32 +163,8 @@ export function IndicatorsTrendChart() {
                 borderRadius: '8px',
                 fontSize: '12px',
               }}
-              formatter={(
-                value: number | undefined,
-                name: string | undefined,
-                props: { payload?: Record<string, number> },
-              ) => {
-                if (!name) return ['', '']
-                const config = INDICATOR_CONFIG[name as IndicatorKey]
-                const actualValue = props.payload?.[`${name}_value`]
-                // Format actual value based on indicator type
-                let formattedValue = ''
-                if (name === 'sp500') {
-                  formattedValue =
-                    actualValue?.toLocaleString(undefined, {
-                      maximumFractionDigits: 0,
-                    }) ?? ''
-                } else if (name === 'tnx') {
-                  formattedValue = `${actualValue?.toFixed(2) ?? ''}%`
-                } else {
-                  formattedValue = actualValue?.toFixed(2) ?? ''
-                }
-                const numValue = value ?? 0
-                return [
-                  `${formattedValue} (${numValue >= 0 ? '+' : ''}${numValue.toFixed(1)}%)`,
-                  config?.name || name,
-                ]
-              }}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              formatter={formatTooltip as any}
               labelFormatter={(label) =>
                 // Append T12:00:00 to avoid timezone shift
                 new Date(`${label}T12:00:00`).toLocaleDateString('en-US', {

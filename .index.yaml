@@ -1,0 +1,210 @@
+project: portfolio-ai
+generated_at: 2026-03-15 16:45 UTC
+environment:
+  python_version: '>=3.13'
+  venv_path: backend/.venv
+  package_manager: npm
+services:
+  backend_port: 8000
+  frontend_port: 3000
+  infrastructure:
+    postgres: 5432
+    redis: 6379
+urls:
+  frontend: http://192.168.8.233:8000
+  api: http://localhost:8000/api
+explorer:
+  scan_status: completed
+  last_completed_scan: '2026-03-15T16:30:11.496166+00:00'
+  last_scan_type: file
+  entry_counts:
+    architecture: 1
+    dependency: 99
+    endpoint: 6
+    file: 1669
+    page: 6
+    table: 113
+    task: 56
+  symbol_count: 6938
+  stale_metadata_count: 0
+pages:
+- / (app)
+- /money (money)
+- /portfolio (portfolio)
+- /status (status)
+- /symbols/:symbol (symbols/:symbol)
+- /watchlist (watchlist)
+endpoints:
+- GET /api/news/article-feedback/{article_hash} (get_article_feedback)
+- GET /api/rules (get_trading_rules)
+- GET /api/rules/export (export_trading_rules)
+- GET /health/simple (simple_health_check)
+- POST /api/household/transactions/{transaction_id}/categorize (categorize_household_transaction)
+- POST /api/news/reset-source-metrics (reset_source_metrics)
+tables:
+- agent_conversation_messages
+- agent_messages
+- agent_runs
+- agent_tool_calls
+- agent_workflows
+- analyst_revisions
+- artifacts
+- automation_preferences
+- backtest_equity
+- backtest_runs
+- backtest_trades
+- cash_flow_metrics
+- claude_progress_log
+- corporate_actions
+- criteria_verification_runs
+- cross_validation_results
+- day_bars
+- deletion_audit
+- earnings_surprises
+- endpoint_catalog
+- fear_greed_components
+- fear_greed_daily
+- fear_greed_inputs
+- file_audit
+- financial_health_scores
+- gap_analysis_history
+- household_confirmed_facts
+- household_debt_obligations
+- household_document_requirements
+- household_document_reviews
+- household_document_signatures
+- household_documents
+- household_housing_costs
+- household_import_rows
+- household_income_sources
+- household_inferred_values
+- household_insurance_policies
+- household_members
+- household_merchants
+- household_planned_expenses
+- household_profiles
+- household_questions
+- household_retirement_income_sources
+- household_transactions
+- idea_outcomes
+- insider_transactions
+- institutional_holdings
+- institutional_ownership_summary
+- jenny_agent_evaluations
+- jenny_agent_scorecards
+- jenny_notifications
+- jenny_routines
+- jenny_trade_reviews
+- macro_indicators
+- maintenance_log
+- maintenance_stats
+- market_events
+- ml_model_metrics
+- ml_training_progress
+- news_cache
+- news_summary_log
+- options_market_metrics
+- paper_trade_transactions
+- portfolio_accounts
+- portfolio_covariance
+- portfolio_positions
+- portfolio_snapshots
+- portfolio_volatility_cache
+- price_cache
+- qa_issues
+- qa_snapshots
+- reference_cache
+- rules_validation_reports
+- schema_migrations
+- sec_cik_cache
+- settings_profiles
+- short_interest
+- short_interest_summary
+- sitemap_entries
+- sitemap_health_history
+- source_credentials
+- source_metrics
+- source_performance
+- source_registry
+- strategy_definitions
+- strategy_lineage
+- strategy_metrics
+- strategy_performance
+- strategy_reviews
+- strategy_seeds
+- strategy_signals
+- symbol_risk_metrics
+- symbol_workflow_events
+- symbol_workflows
+- symbols
+- table_registry
+- technical_indicators
+- thesis_versions
+- user_article_feedback
+- user_preferences
+tasks:
+- auto_paper_trade_wf (cron(45 21 * * *))
+- auto_promote_wf (cron(15 4 * * *))
+- backfill_indicators_wf (cron(30 2 * * *))
+- check_all_data_freshness_wf (cron(0 */2 * * *))
+- check_data_source_health_wf (cron(30 */6 * * *))
+- check_disk_space_wf (cron(0 */6 * * *))
+- cleanup_debug_captures_wf (cron(15 6 * * *))
+- cleanup_maintenance_wf (cron(30 5 * * 0))
+- cleanup_news_wf (cron(0 4 * * 0))
+- cleanup_old_agent_runs_wf (cron(15 4 * * 0))
+- cleanup_old_backups_wf (cron(45 4 * * 0))
+- cleanup_old_logs_wf (cron(0 2 * * *))
+- cleanup_old_models_wf (cron(5 5 * * 0))
+- cleanup_orphaned_wf (cron(30 4 * * 0))
+- cleanup_snapshots_wf (cron(0 5 * * 0))
+- cleanup_solution_state_wf (cron(25 5 * * 0))
+- cleanup_temp_wf (cron(15 2 * * *))
+- corporate_actions_wf (cron(30 6 * * 0))
+- covariance_wf (cron(30 5 * * *))
+- daily_signals_wf (cron(30 21 * * *))
+- daily_strategy_refresh_wf (cron(15 5 * * *))
+- db_size_wf (cron(36 5 * * *))
+- discover_candidates_wf (cron(0 8 * * *))
+- earnings_surprises_wf (cron(10 5 * * 0))
+- eval_strategy_wf (cron(0 4 * * *))
+- fetch_options_activity_wf (cron(15 21 * * *))
+- financial_health_wf (cron(15 5 * * 0))
+- ingest_fundamental_data_wf (cron(10 6 * * 0))
+- ingest_macro_indicators_wf (cron(30 6 * * *))
+- jenny_daily_operator_wf (cron(15 22 * * 1-5))
+- jenny_weekly_learning_wf (cron(0 14 * * 6))
+- maintain_data_freshness_wf (cron(0 */2 * * *))
+- maintain_historical_wf (cron(15 4 * * *))
+- monitor_theses_wf (cron(0 3 * * *))
+- portfolio_snapshots_wf (cron(33 21 * * *))
+- profile_news_wf (cron(0 */12 * * *))
+- refresh_analyst_revisions_wf (cron(0 7 * * *))
+- refresh_daily_ohlcv_wf (cron(0 2 * * *))
+- refresh_news_sentiment_wf (cron(25 * * * *))
+- refresh_risk_metrics_wf (cron(39 5 * * *))
+- refresh_sec_cik_wf (cron(5 6 * * 0))
+- refresh_watchlist_ohlcv_wf (cron(15 2 * * *))
+- refresh_watchlist_scores_wf (cron(* * * * *))
+- retrain_ml_wf (cron(0 5 * * *))
+- rotate_logs_wf (cron(45 1 * * *))
+- rules_validation_wf (cron(8 3 * * *))
+- run_discovery_agent_wf (cron(36 3 * * *))
+- run_portfolio_analyzer_wf (cron(39 3 * * *))
+- strategy_metrics_wf (cron(0 22 * * *))
+- trim_underperforming_wf (cron(30 8 * * *))
+folders:
+  (root): 36 files - api, services
+  .claude: 3 files
+  .dev-tools: 25 files - tests
+  .github: 2 files
+  .st: 26 files
+  backend: 979 files - api, components, services, tests
+  certs: 3 files
+  config: 10 files - api
+  docker: 7 files
+  docs: 3 files - tests
+  frontend: 466 files - api, components, tests
+  reports: 62 files
+  scripts: 45 files - api, services, tests
+  services: 2 files - services

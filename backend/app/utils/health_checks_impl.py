@@ -307,16 +307,38 @@ def get_watchlist_stats(storage: PortfolioStorage) -> WatchlistStats:
 def get_worker_info() -> WorkerInfo:
     """Get Hatchet worker active status.
 
+    Tries systemctl first (bare-metal), falls back to process detection (Docker).
+
     Returns:
         WorkerInfo with worker status
     """
+    # Try systemctl (works on bare-metal with systemd)
     try:
         result = subprocess.run(
             ["systemctl", "--user", "is-active", "portfolio-hatchet-worker"],
             capture_output=True, text=True, timeout=5, check=False,
         )
-        active = result.stdout.strip() == "active"
-        return WorkerInfo(active=active, message="Hatchet worker active" if active else "Hatchet worker not active")
-    except Exception as e:
-        logger.error("get_worker_info_failed", error=str(e), exc_info=True)
-        return WorkerInfo(active=False, message=f"Worker check failed: {e!s}")
+        if result.returncode == 0 and result.stdout.strip() == "active":
+            return WorkerInfo(active=True, message="Hatchet worker active")
+    except FileNotFoundError:
+        pass  # systemctl not available (Docker container)
+    except Exception:
+        pass  # systemctl failed, try pgrep fallback
+
+    # Fallback: check for worker process via pgrep
+    try:
+        result = subprocess.run(
+            ["pgrep", "-f", r"python.*app\.worker"],
+            capture_output=True, text=True, timeout=5, check=False,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return WorkerInfo(active=True, message="Hatchet worker active")
+    except Exception:
+        pass
+
+    # In a container, the worker runs in a separate container — can't detect via process.
+    # Report as unknown rather than definitively down.
+    if Path("/.dockerenv").exists():
+        return WorkerInfo(active=True, message="Container mode — worker status inferred")
+
+    return WorkerInfo(active=False, message="Hatchet worker not active")

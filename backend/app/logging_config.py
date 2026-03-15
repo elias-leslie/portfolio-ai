@@ -142,13 +142,19 @@ def configure_logging(log_dir: str = "logs", log_file: str = "portfolio-ai.log")
         file_handler.setFormatter(json_formatter)
         handlers.append(file_handler)
 
-    # Console handler with syslog prefixes for systemd journald
-    # Systemd will parse the "<priority>" prefix and set PRIORITY field correctly
+    # Console handler — use syslog prefixes only when running under systemd
+    # so journald can parse priority levels; otherwise use plain formatting
+    # for cleaner output in Docker logs and local development.
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(log_level)
-    console_handler.setFormatter(
-        SyslogPrefixFormatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-    )
+    if running_under_systemd:
+        console_handler.setFormatter(
+            SyslogPrefixFormatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        )
+    else:
+        console_handler.setFormatter(
+            logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        )
     handlers.append(console_handler)
 
     # Configure root logger
