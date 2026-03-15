@@ -1,5 +1,5 @@
 project: portfolio-ai
-generated_at: 2026-03-15 16:45 UTC
+generated_at: 2026-03-15 17:00 UTC
 environment:
   python_version: '>=3.13'
   venv_path: backend/.venv
@@ -15,13 +15,13 @@ urls:
   api: http://localhost:8000/api
 explorer:
   scan_status: completed
-  last_completed_scan: '2026-03-15T16:30:11.496166+00:00'
+  last_completed_scan: '2026-03-15T16:45:12.363551+00:00'
   last_scan_type: file
   entry_counts:
     architecture: 1
     dependency: 99
     endpoint: 6
-    file: 1669
+    file: 1670
     page: 6
     table: 113
     task: 56
@@ -194,7 +194,7 @@ tasks:
 - strategy_metrics_wf (cron(0 22 * * *))
 - trim_underperforming_wf (cron(30 8 * * *))
 folders:
-  (root): 36 files - api, services
+  (root): 31 files - services
   .claude: 3 files
   .dev-tools: 25 files - tests
   .github: 2 files
@@ -206,5 +206,5 @@ folders:
   docs: 3 files - tests
   frontend: 466 files - api, components, tests
   reports: 62 files
-  scripts: 45 files - api, services, tests
+  scripts: 51 files - api, services, tests
   services: 2 files - services
