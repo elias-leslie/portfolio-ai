@@ -19,8 +19,6 @@ from app.models.preferences import (
 from app.rules.loader import get_rules
 from app.storage import get_storage
 
-storage = get_storage()
-
 AUTOMATION_PREFERENCE_KEYS = (
     "thesis_generation_enabled",
     "auto_remove_on_invalidation",
@@ -76,7 +74,7 @@ def get_or_create_automation_preferences() -> dict[str, Any]:
     """Get or create runtime automation override settings."""
     row: dict[str, Any] | None = None
 
-    with storage.connection() as conn:
+    with get_storage().connection() as conn:
         result_df = conn.execute(
             "SELECT * FROM automation_preferences WHERE id = %s",
             ["default"],
@@ -88,7 +86,7 @@ def get_or_create_automation_preferences() -> dict[str, Any]:
         return dict(row)
 
     now = datetime.now(UTC)
-    with storage.connection() as conn:
+    with get_storage().connection() as conn:
         conn.execute(
             """
             INSERT INTO automation_preferences (
@@ -163,7 +161,7 @@ def get_or_create_preferences() -> dict[str, str | int | float | bool | datetime
 
     row: dict[str, str | int | float | bool | datetime | None] | None = None
 
-    with storage.connection() as conn:
+    with get_storage().connection() as conn:
         result_df = conn.execute(
             "SELECT * FROM user_preferences WHERE id = %s", [user_id]
         ).fetchdf()
@@ -192,7 +190,7 @@ def get_or_create_preferences() -> dict[str, str | int | float | bool | datetime
         return _normalize_watchlist_refresh_preferences(dict(row))
 
     # Create default preferences
-    with storage.connection() as conn:
+    with get_storage().connection() as conn:
         conn.execute(
             """
             INSERT INTO user_preferences (
@@ -304,7 +302,7 @@ def update_preferences(update: PreferencesUpdate) -> dict[str, Any]:
     current = _normalize_watchlist_refresh_preferences(current)
 
     # Save to database
-    with storage.connection() as conn:
+    with get_storage().connection() as conn:
         conn.execute(
             """
             UPDATE user_preferences
@@ -367,7 +365,7 @@ def update_preferences(update: PreferencesUpdate) -> dict[str, Any]:
 def _update_automation_preferences(updates: dict[str, bool | None]) -> None:
     current = get_or_create_automation_preferences()
     current.update(updates)
-    with storage.connection() as conn:
+    with get_storage().connection() as conn:
         conn.execute(
             """
             UPDATE automation_preferences
@@ -392,7 +390,7 @@ def get_scoring_weights() -> ScoringWeightsUpdate:
     """Get current scoring weights (4-pillar system)."""
     user_id = "default"
 
-    with storage.connection() as conn:
+    with get_storage().connection() as conn:
         result_df = conn.execute(
             "SELECT watchlist_score_weights FROM user_preferences WHERE id = %s LIMIT 1",
             [user_id],
@@ -431,7 +429,7 @@ def update_scoring_weights(weights: ScoringWeightsUpdate) -> ScoringWeightsUpdat
     }
 
     # Update the JSONB column
-    with storage.connection() as conn:
+    with get_storage().connection() as conn:
         conn.execute(
             """
             UPDATE user_preferences

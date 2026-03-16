@@ -56,19 +56,40 @@ def test_storage() -> Generator[PortfolioStorage]:
 @pytest.fixture
 def client(test_storage: PortfolioStorage) -> Generator[TestClient]:
     """Create a test client with patched storage."""
-    # Patch storage at multiple import points
+    # Clear lazy-init singleton caches so patched get_storage is used
+    from app.api.market import _core_helpers as _helpers_mod
+    from app.api.market import core_router as _core_mod
+    from app.api.market import corporate_router as _corp_mod
+    from app.api.market import historical_router as _hist_mod
+
+    _core_mod._state.clear()
+    _corp_mod._state.clear()
+    _hist_mod._state.clear()
+    _helpers_mod._state.clear()
+
+    # Patch get_storage at the modules that call it (lazy-init singletons)
     with (
-        patch("app.api.market.storage", test_storage),
-        patch("app.api.market.get_storage", return_value=test_storage),
+        patch("app.api.market.core_router.get_storage", return_value=test_storage),
+        patch("app.api.market.corporate_router.get_storage", return_value=test_storage),
+        patch("app.api.market.historical_router.get_storage", return_value=test_storage),
+        patch("app.api.market._core_helpers.get_storage", return_value=test_storage),
     ):
         yield TestClient(app)
 
+    # Clean up singleton caches after test
+    _core_mod._state.clear()
+    _corp_mod._state.clear()
+    _hist_mod._state.clear()
+    _helpers_mod._state.clear()
 
-@patch("app.api.market.price_fetcher.fetch_price_data")
-def test_get_market_conditions_success(mock_fetch: Mock, client: TestClient) -> None:
+
+@patch("app.api.market._core_helpers._get_price_fetcher")
+def test_get_market_conditions_success(mock_get_fetcher: Mock, client: TestClient) -> None:
     """Test GET /api/market/conditions with successful data fetch."""
     # Mock price data for market indicators
-    mock_fetch.return_value = {
+    mock_fetcher = Mock()
+    mock_get_fetcher.return_value = mock_fetcher
+    mock_fetcher.fetch_price_data.return_value = {
         "^GSPC": PriceData(
             symbol="^GSPC",
             price=4500.50,
@@ -102,8 +123,8 @@ def test_get_market_conditions_success(mock_fetch: Mock, client: TestClient) -> 
     assert data["dxy"]["price"] == 103.5
 
     # Verify the correct symbols were requested for both indicator and sector fetches
-    assert mock_fetch.call_count == 2
-    indicator_call, sector_call = mock_fetch.call_args_list
+    assert mock_fetcher.fetch_price_data.call_count == 2
+    indicator_call, sector_call = mock_fetcher.fetch_price_data.call_args_list
     assert indicator_call.args[0] == ["^GSPC", "^VIX", "^TNX", "DX-Y.NYB"]
     assert sector_call.args[0] == [
         "XLK",
@@ -120,11 +141,13 @@ def test_get_market_conditions_success(mock_fetch: Mock, client: TestClient) -> 
     ]
 
 
-@patch("app.api.market.price_fetcher.fetch_price_data")
-def test_get_market_conditions_partial_data(mock_fetch: Mock, client: TestClient) -> None:
+@patch("app.api.market._core_helpers._get_price_fetcher")
+def test_get_market_conditions_partial_data(mock_get_fetcher: Mock, client: TestClient) -> None:
     """Test GET /api/market/conditions when some data is missing."""
     # Mock with only S&P 500 and VIX available
-    mock_fetch.return_value = {
+    mock_fetcher = Mock()
+    mock_get_fetcher.return_value = mock_fetcher
+    mock_fetcher.fetch_price_data.return_value = {
         "^GSPC": PriceData(symbol="^GSPC", price=4500.50, beta=None, volatility=None, sector=None),
         "^VIX": PriceData(symbol="^VIX", price=18.5, beta=None, volatility=None, sector=None),
     }
@@ -143,10 +166,12 @@ def test_get_market_conditions_partial_data(mock_fetch: Mock, client: TestClient
     assert data["dxy"]["price"] is None
 
 
-@patch("app.api.market.price_fetcher.fetch_price_data")
-def test_get_market_conditions_empty_data(mock_fetch: Mock, client: TestClient) -> None:
+@patch("app.api.market._core_helpers._get_price_fetcher")
+def test_get_market_conditions_empty_data(mock_get_fetcher: Mock, client: TestClient) -> None:
     """Test GET /api/market/conditions when no data is available."""
-    mock_fetch.return_value = {}
+    mock_fetcher = Mock()
+    mock_get_fetcher.return_value = mock_fetcher
+    mock_fetcher.fetch_price_data.return_value = {}
 
     response = client.get("/api/market/conditions")
 
@@ -160,10 +185,12 @@ def test_get_market_conditions_empty_data(mock_fetch: Mock, client: TestClient) 
     assert data["dxy"]["price"] is None
 
 
-@patch("app.api.market.price_fetcher.fetch_price_data")
-def test_get_prices_single_symbol(mock_fetch: Mock, client: TestClient) -> None:
+@patch("app.api.market._core_helpers._get_price_fetcher")
+def test_get_prices_single_symbol(mock_get_fetcher: Mock, client: TestClient) -> None:
     """Test GET /api/market/prices with a single symbol."""
-    mock_fetch.return_value = {
+    mock_fetcher = Mock()
+    mock_get_fetcher.return_value = mock_fetcher
+    mock_fetcher.fetch_price_data.return_value = {
         "AAPL": PriceData(
             symbol="AAPL",
             price=185.50,
@@ -189,13 +216,15 @@ def test_get_prices_single_symbol(mock_fetch: Mock, client: TestClient) -> None:
     assert aapl["sector"] == "Technology"
 
     # Verify price fetcher was called with uppercase symbol
-    mock_fetch.assert_called_once_with(["AAPL"])
+    mock_fetcher.fetch_price_data.assert_called_once_with(["AAPL"])
 
 
-@patch("app.api.market.price_fetcher.fetch_price_data")
-def test_get_prices_multiple_symbols(mock_fetch: Mock, client: TestClient) -> None:
+@patch("app.api.market._core_helpers._get_price_fetcher")
+def test_get_prices_multiple_symbols(mock_get_fetcher: Mock, client: TestClient) -> None:
     """Test GET /api/market/prices with multiple symbols."""
-    mock_fetch.return_value = {
+    mock_fetcher = Mock()
+    mock_get_fetcher.return_value = mock_fetcher
+    mock_fetcher.fetch_price_data.return_value = {
         "AAPL": PriceData(
             symbol="AAPL",
             price=185.50,
@@ -235,10 +264,12 @@ def test_get_prices_multiple_symbols(mock_fetch: Mock, client: TestClient) -> No
     assert data["prices"]["MSFT"]["price"] == 410.75
 
 
-@patch("app.api.market.price_fetcher.fetch_price_data")
-def test_get_prices_with_whitespace(mock_fetch: Mock, client: TestClient) -> None:
+@patch("app.api.market._core_helpers._get_price_fetcher")
+def test_get_prices_with_whitespace(mock_get_fetcher: Mock, client: TestClient) -> None:
     """Test GET /api/market/prices handles whitespace in symbols."""
-    mock_fetch.return_value = {
+    mock_fetcher = Mock()
+    mock_get_fetcher.return_value = mock_fetcher
+    mock_fetcher.fetch_price_data.return_value = {
         "AAPL": PriceData(
             symbol="AAPL",
             price=185.50,
@@ -265,13 +296,15 @@ def test_get_prices_with_whitespace(mock_fetch: Mock, client: TestClient) -> Non
     assert "GOOGL" in data["prices"]
 
     # Verify symbols were cleaned (whitespace stripped, uppercase)
-    mock_fetch.assert_called_once_with(["AAPL", "GOOGL"])
+    mock_fetcher.fetch_price_data.assert_called_once_with(["AAPL", "GOOGL"])
 
 
-@patch("app.api.market.price_fetcher.fetch_price_data")
-def test_get_prices_with_optional_fields_none(mock_fetch: Mock, client: TestClient) -> None:
+@patch("app.api.market._core_helpers._get_price_fetcher")
+def test_get_prices_with_optional_fields_none(mock_get_fetcher: Mock, client: TestClient) -> None:
     """Test GET /api/market/prices when optional fields are None."""
-    mock_fetch.return_value = {
+    mock_fetcher = Mock()
+    mock_get_fetcher.return_value = mock_fetcher
+    mock_fetcher.fetch_price_data.return_value = {
         "AAPL": PriceData(
             symbol="AAPL",
             price=185.50,
@@ -293,10 +326,12 @@ def test_get_prices_with_optional_fields_none(mock_fetch: Mock, client: TestClie
     assert aapl["sector"] is None
 
 
-@patch("app.api.market.price_fetcher.fetch_price_data")
-def test_get_prices_empty_result(mock_fetch: Mock, client: TestClient) -> None:
+@patch("app.api.market._core_helpers._get_price_fetcher")
+def test_get_prices_empty_result(mock_get_fetcher: Mock, client: TestClient) -> None:
     """Test GET /api/market/prices when no prices are found."""
-    mock_fetch.return_value = {}
+    mock_fetcher = Mock()
+    mock_get_fetcher.return_value = mock_fetcher
+    mock_fetcher.fetch_price_data.return_value = {}
 
     response = client.get("/api/market/prices?symbols=INVALID")
 
@@ -315,10 +350,12 @@ def test_get_prices_missing_symbols_parameter(client: TestClient) -> None:
     assert response.status_code == 422
 
 
-@patch("app.api.market.price_fetcher.fetch_price_data")
-def test_market_api_response_structure(mock_fetch: Mock, client: TestClient) -> None:
+@patch("app.api.market._core_helpers._get_price_fetcher")
+def test_market_api_response_structure(mock_get_fetcher: Mock, client: TestClient) -> None:
     """Test that API responses have correct structure and field types."""
-    mock_fetch.return_value = {
+    mock_fetcher = Mock()
+    mock_get_fetcher.return_value = mock_fetcher
+    mock_fetcher.fetch_price_data.return_value = {
         "AAPL": PriceData(
             symbol="AAPL",
             price=185.50,

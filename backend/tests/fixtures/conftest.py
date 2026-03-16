@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 # Load env vars from ~/.env.local FIRST
 _env_file = Path.home() / ".env.local"
 if _env_file.exists():
-    load_dotenv(_env_file)
+    load_dotenv(_env_file, override=True)
 
 # Mark test environment FIRST - before any app imports
 # This prevents app/main.py from configuring production logging

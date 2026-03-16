@@ -31,9 +31,14 @@ from app.utils.formatters import format_db_date
 router = APIRouter()
 logger = get_logger(__name__)
 
-# Initialize services
-storage = get_storage()
-market_repo = MarketRepository(storage)
+_state: dict[str, MarketRepository] = {}
+
+
+def _get_market_repo() -> MarketRepository:
+    """Lazy singleton to avoid DB connection at import time."""
+    if "repo" not in _state:
+        _state["repo"] = MarketRepository(get_storage())
+    return _state["repo"]
 
 # Cache TTL constants (in seconds)
 CACHE_TTL_SHORT = 60  # 1 minute
@@ -100,7 +105,7 @@ async def get_fear_greed_history(
     Includes put/call ratio overlay data when available.
     """
     # Use repository for data access
-    rows = market_repo.get_fear_greed_history_data(days)
+    rows = _get_market_repo().get_fear_greed_history_data(days)
 
     dates: list[str] = []
     scores: list[float] = []
@@ -138,9 +143,9 @@ async def get_news_sentiment_history(
     Scores range from -1 (very negative) to +1 (very positive).
     """
     if granularity == "hourly":
-        rows = market_repo.get_news_sentiment_hourly(days)
+        rows = _get_market_repo().get_news_sentiment_hourly(days)
     else:
-        rows = market_repo.get_news_sentiment_daily(days)
+        rows = _get_market_repo().get_news_sentiment_daily(days)
 
     dates: list[str] = []
     scores: list[float] = []
@@ -182,7 +187,7 @@ async def get_indicator_history(
 
     for key, symbol in INDICATOR_SYMBOLS.items():
         # Use repository for data access
-        rows = market_repo.get_indicator_history_data(symbol, days)
+        rows = _get_market_repo().get_indicator_history_data(symbol, days)
 
         data_points, period_start, period_end = build_indicator_data_points(
             rows, period_start, period_end

@@ -67,7 +67,7 @@ class TestWatchlistRefreshSuccess:
     async def test_refresh_empty_watchlist(self, mock_repo: MagicMock) -> None:
         """Test refresh when watchlist has no items."""
         with (
-            patch("app.api.watchlist.refresh_router.watchlist_repo", mock_repo),
+            patch("app.api.watchlist.refresh_router._get_watchlist_repo", return_value=mock_repo),
             patch("app.api.watchlist.refresh_router.schedule_refresh_tasks") as mock_schedule,
             patch("app.api.watchlist.refresh_router.refresh_watchlist_scores_service") as mock_refresh,
         ):
@@ -96,7 +96,7 @@ class TestWatchlistRefreshSuccess:
     ) -> None:
         """Test successful refresh of all watchlist items."""
         with (
-            patch("app.api.watchlist.refresh_router.watchlist_repo", mock_repo),
+            patch("app.api.watchlist.refresh_router._get_watchlist_repo", return_value=mock_repo),
             patch("app.api.watchlist.refresh_router.schedule_refresh_tasks") as mock_schedule,
             patch("app.api.watchlist.refresh_router.refresh_watchlist_scores_service", mock_refresh_service),
         ):
@@ -135,7 +135,7 @@ class TestWatchlistRefreshSuccess:
     ) -> None:
         """Test refresh skips leaked ZZTEST symbols in the live refresh path."""
         with (
-            patch("app.api.watchlist.refresh_router.watchlist_repo", mock_repo),
+            patch("app.api.watchlist.refresh_router._get_watchlist_repo", return_value=mock_repo),
             patch("app.api.watchlist.refresh_router.schedule_refresh_tasks") as mock_schedule,
             patch("app.api.watchlist.refresh_router.refresh_watchlist_scores_service", mock_refresh_service),
         ):
@@ -185,7 +185,7 @@ class TestWatchlistRefreshPartialSuccess:
         from fastapi.responses import JSONResponse
 
         with (
-            patch("app.api.watchlist.refresh_router.watchlist_repo", mock_repo),
+            patch("app.api.watchlist.refresh_router._get_watchlist_repo", return_value=mock_repo),
             patch("app.api.watchlist.refresh_router.schedule_refresh_tasks") as mock_schedule,
             patch("app.api.watchlist.refresh_router.refresh_watchlist_scores_service", mock_refresh_service),
         ):
@@ -242,7 +242,7 @@ class TestWatchlistRefreshFailure:
     ) -> None:
         """Test refresh when all items fail raises HTTPException with 500."""
         with (
-            patch("app.api.watchlist.refresh_router.watchlist_repo", mock_repo),
+            patch("app.api.watchlist.refresh_router._get_watchlist_repo", return_value=mock_repo),
             patch("app.api.watchlist.refresh_router.schedule_refresh_tasks") as mock_schedule,
             patch("app.api.watchlist.refresh_router.refresh_watchlist_scores_service", mock_refresh_service),
         ):
@@ -275,7 +275,7 @@ class TestWatchlistRefreshFailure:
     async def test_refresh_service_exception(self, mock_repo: MagicMock) -> None:
         """Test handling of unexpected exceptions during refresh raises HTTPException."""
         with (
-            patch("app.api.watchlist.refresh_router.watchlist_repo", mock_repo),
+            patch("app.api.watchlist.refresh_router._get_watchlist_repo", return_value=mock_repo),
             patch("app.api.watchlist.refresh_router.schedule_refresh_tasks"),
             patch(
                 "app.api.watchlist.refresh_router.refresh_watchlist_scores_service",
@@ -311,7 +311,7 @@ class TestWatchlistRefreshBackgroundTasks:
     ) -> None:
         """Test that background data refresh tasks are scheduled for all symbols."""
         with (
-            patch("app.api.watchlist.refresh_router.watchlist_repo", mock_repo),
+            patch("app.api.watchlist.refresh_router._get_watchlist_repo", return_value=mock_repo),
             patch("app.api.watchlist.refresh_router.schedule_refresh_tasks") as mock_schedule,
             patch("app.api.watchlist.refresh_router.refresh_watchlist_scores_service", mock_refresh_service),
         ):

@@ -89,13 +89,23 @@ def client(test_storage: PortfolioStorage) -> Iterator[TestClient]:
     Patches the storage at API import points to ensure the test client
     uses the same database connection as the test fixtures.
     """
-    # Patch storage at multiple import points to ensure test isolation
+    # Clear lazy-init singleton caches so patched get_storage is used
+    from app.api.watchlist import crud_router as _crud_mod
+    from app.api.watchlist import refresh_router as _refresh_mod
+
+    _crud_mod._state.clear()
+    _refresh_mod._state.clear()
+
+    # Patch get_storage at the modules that call it (lazy-init singletons)
     with (
-        patch("app.api.watchlist.storage", test_storage),
-        patch("app.api.watchlist.get_storage", return_value=test_storage),
-        patch("app.api.watchlist.watchlist_service.storage", test_storage),
+        patch("app.api.watchlist.crud_router.get_storage", return_value=test_storage),
+        patch("app.api.watchlist.refresh_router.get_storage", return_value=test_storage),
     ):
         yield TestClient(app)
+
+    # Clean up singleton caches after test
+    _crud_mod._state.clear()
+    _refresh_mod._state.clear()
 
 
 def _insert_day_bars(storage: PortfolioStorage, symbol: str, closes: list[float]) -> None:
@@ -512,8 +522,8 @@ def test_refresh_watchlist_scores_success(
     }
 
     with patch(
-        "app.api.watchlist.watchlist_service.price_fetcher",
-        mock_price_fetcher,
+        "app.watchlist.scoring_service.context.PriceDataFetcher",
+        return_value=mock_price_fetcher,
     ):
         response = client.post("/api/watchlist/refresh", json={})
 
@@ -565,8 +575,8 @@ def test_refresh_watchlist_scores_handles_partial_failure(
     }
 
     with patch(
-        "app.api.watchlist.watchlist_service.price_fetcher",
-        mock_price_fetcher,
+        "app.watchlist.scoring_service.context.PriceDataFetcher",
+        return_value=mock_price_fetcher,
     ):
         response = client.post("/api/watchlist/refresh", json={})
 

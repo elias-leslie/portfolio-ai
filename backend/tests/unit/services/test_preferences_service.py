@@ -126,7 +126,9 @@ def test_update_preferences_allows_clearing_refresh_overrides(monkeypatch) -> No
     connection = MagicMock()
     connection.__enter__.return_value = connection
     connection.__exit__.return_value = None
-    monkeypatch.setattr("app.services.preferences_service.storage.connection", MagicMock(return_value=connection))
+    mock_storage = MagicMock()
+    mock_storage.connection.return_value = connection
+    monkeypatch.setattr("app.services.preferences_service.get_storage", lambda: mock_storage)
     automation_update = MagicMock()
     monkeypatch.setattr("app.services.preferences_service._update_automation_preferences", automation_update)
 
@@ -235,7 +237,9 @@ def test_update_preferences_allows_clearing_automation_overrides(monkeypatch) ->
     connection = MagicMock()
     connection.__enter__.return_value = connection
     connection.__exit__.return_value = None
-    monkeypatch.setattr("app.services.preferences_service.storage.connection", MagicMock(return_value=connection))
+    mock_storage = MagicMock()
+    mock_storage.connection.return_value = connection
+    monkeypatch.setattr("app.services.preferences_service.get_storage", lambda: mock_storage)
     automation_update = MagicMock()
     monkeypatch.setattr("app.services.preferences_service._update_automation_preferences", automation_update)
 

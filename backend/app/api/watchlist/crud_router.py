@@ -35,10 +35,21 @@ logger = get_logger(__name__)
 
 router = APIRouter()
 
-# Initialize services
-storage = get_storage()
-watchlist_service = WatchlistService(storage)
-watchlist_repo = WatchlistRepository(storage)
+_state: dict[str, WatchlistService | WatchlistRepository] = {}
+
+
+def _get_watchlist_service() -> WatchlistService:
+    """Lazy singleton to avoid DB connection at import time."""
+    if "svc" not in _state:
+        _state["svc"] = WatchlistService(get_storage())
+    return _state["svc"]  # type: ignore[return-value]
+
+
+def _get_watchlist_repo() -> WatchlistRepository:
+    """Lazy singleton to avoid DB connection at import time."""
+    if "repo" not in _state:
+        _state["repo"] = WatchlistRepository(get_storage())
+    return _state["repo"]  # type: ignore[return-value]
 
 
 @router.get("/", response_model=WatchlistListResponse)
@@ -53,7 +64,7 @@ async def list_watchlist_items(request: Request) -> WatchlistListResponse:
     Returns:
         List of watchlist items with current scores
     """
-    items = await run_in_threadpool(watchlist_service.get_items_with_scores)
+    items = await run_in_threadpool(_get_watchlist_service().get_items_with_scores)
 
     return WatchlistListResponse(
         items=build_watchlist_item_responses(items),
@@ -74,7 +85,7 @@ async def get_watchlist_item(item_id: str) -> WatchlistItemResponse:
         Watchlist item with scores
     """
     # Use optimized single-item query instead of fetching all items
-    item = await run_in_threadpool(watchlist_service.get_item_with_score_by_id, item_id)
+    item = await run_in_threadpool(_get_watchlist_service().get_item_with_score_by_id, item_id)
 
     if item is None:
         raise HTTPException(status_code=404, detail="Watchlist item not found")
@@ -99,14 +110,14 @@ async def get_score_history(item_id: str, days: int = 10) -> ScoreHistoryRespons
         Score history with price/technical scores extracted from snapshots
     """
     # Get item info
-    item_df = await run_in_threadpool(watchlist_repo.get_symbol_by_item_id, item_id)
+    item_df = await run_in_threadpool(_get_watchlist_repo().get_symbol_by_item_id, item_id)
 
     require_nonempty_df(item_df, "Watchlist item not found")
 
     symbol = item_df.to_dicts()[0]["symbol"]
 
     # Fetch snapshots from database using the normalized view
-    snapshots_df = await run_in_threadpool(watchlist_repo.get_snapshots_with_metrics, item_id)
+    snapshots_df = await run_in_threadpool(_get_watchlist_repo().get_snapshots_with_metrics, item_id)
 
     if snapshots_df.is_empty():
         logger.warning("No snapshot data available", symbol=symbol, item_id=item_id)
@@ -170,14 +181,14 @@ async def create_watchlist_item(data: WatchlistItemCreate) -> WatchlistItemRespo
     symbol = validate_symbol(data.symbol)
 
     # Check if already exists (globally - watchlist is user-level)
-    if watchlist_repo.check_item_exists(symbol):
+    if _get_watchlist_repo().check_item_exists(symbol):
         raise HTTPException(status_code=409, detail=f"Symbol {symbol} already in watchlist")
 
     # Create item
     item_id = generate_uuid()
     now = utc_now_iso()
 
-    watchlist_repo.create_item(item_id, symbol, data.note, now)
+    _get_watchlist_repo().create_item(item_id, symbol, data.note, now)
 
     # Invalidate all watchlist caches (Redis symbols + HTTP response)
     invalidate_all_watchlist_caches()
@@ -217,12 +228,12 @@ async def update_watchlist_item(item_id: str, data: WatchlistItemUpdate) -> Watc
         Updated watchlist item
     """
     # Check if exists
-    _require_watchlist_item(item_id, watchlist_repo)
+    _require_watchlist_item(item_id, _get_watchlist_repo())
 
     now = utc_now_iso()
 
     # Update note
-    watchlist_repo.update_item_note(item_id, data.note, now)
+    _get_watchlist_repo().update_item_note(item_id, data.note, now)
 
     logger.info("Watchlist item updated", item_id=item_id)
 
@@ -240,10 +251,10 @@ async def delete_watchlist_item(item_id: str) -> None:
         item_id: Watchlist item ID
     """
     # Check if exists
-    _require_watchlist_item(item_id, watchlist_repo)
+    _require_watchlist_item(item_id, _get_watchlist_repo())
 
     # Delete snapshots first (foreign key), then delete item
-    watchlist_repo.delete_item(item_id)
+    _get_watchlist_repo().delete_item(item_id)
 
     # Invalidate all watchlist caches (Redis symbols + HTTP response)
     invalidate_all_watchlist_caches()

@@ -30,7 +30,15 @@ from ..utils.health_workflows import WorkflowHealthInfo
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/health", tags=["health"])
-health_service = HealthCheckService()
+
+_state: dict[str, HealthCheckService] = {}
+
+
+def _get_health_service() -> HealthCheckService:
+    """Lazy singleton for HealthCheckService to avoid DB connection at import time."""
+    if "svc" not in _state:
+        _state["svc"] = HealthCheckService()
+    return _state["svc"]
 
 FRESHNESS_TASK_NAME = "check_all_data_freshness"
 FRESHNESS_ALERT_PREFIX = "data_freshness_alert_"
@@ -343,7 +351,7 @@ def _set_down_status(response: Response, result: dict[str, Any]) -> None:
 
 @router.get("", response_model=HealthCheckResponse)
 async def health_check(response: Response) -> HealthCheckResponse:
-    result = health_service.perform_health_check()
+    result = _get_health_service().perform_health_check()
     _set_down_status(response, result)
     source_status_summary = {name: src.status for name, src in result["sources"].items()}
     logger.info(
@@ -359,7 +367,7 @@ async def health_check(response: Response) -> HealthCheckResponse:
 
 @router.get("/detailed", response_model=DetailedHealthCheckResponse)
 async def detailed_health_check(response: Response) -> DetailedHealthCheckResponse:
-    result = health_service.perform_detailed_health_check()
+    result = _get_health_service().perform_detailed_health_check()
     _set_down_status(response, result)
     result["data_freshness_status"] = await get_data_freshness_summary()
     result["recent_remediations"] = await get_recent_remediations()

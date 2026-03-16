@@ -36,9 +36,14 @@ logger = get_logger(__name__)
 
 router = APIRouter()
 
-# Initialize services
-storage = get_storage()
-watchlist_repo = WatchlistRepository(storage)
+_state: dict[str, WatchlistRepository] = {}
+
+
+def _get_watchlist_repo() -> WatchlistRepository:
+    """Lazy singleton to avoid DB connection at import time."""
+    if "repo" not in _state:
+        _state["repo"] = WatchlistRepository(get_storage())
+    return _state["repo"]
 
 
 def _is_live_watchlist_symbol(symbol: str) -> bool:
@@ -118,7 +123,7 @@ async def refresh_watchlist_scores(data: RefreshRequest) -> RefreshResponse:
     logger.info("Refresh request started")
 
     # Get all watchlist items
-    items_df = watchlist_repo.get_all_symbols()
+    items_df = _get_watchlist_repo().get_all_symbols()
 
     if items_df.is_empty():
         return RefreshResponse(
@@ -151,7 +156,7 @@ async def refresh_watchlist_scores(data: RefreshRequest) -> RefreshResponse:
     schedule_refresh_tasks(symbols)
 
     # Do immediate synchronous refresh with Redis progress tracking
-    result = refresh_watchlist_scores_service(storage)
+    result = refresh_watchlist_scores_service(get_storage())
     success_count = result.get("success_count", 0)
     failed_count = result.get("failed_count", 0)
     failed_list = [FailedTickerInfo(**f) for f in result.get("failed", [])]

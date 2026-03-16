@@ -14,9 +14,14 @@ from app.utils.formatters import format_db_date
 router = APIRouter()
 logger = get_logger(__name__)
 
-# Initialize services
-storage = get_storage()
-market_repo = MarketRepository(storage)
+_state: dict[str, MarketRepository] = {}
+
+
+def _get_market_repo() -> MarketRepository:
+    """Lazy singleton to avoid DB connection at import time."""
+    if "repo" not in _state:
+        _state["repo"] = MarketRepository(get_storage())
+    return _state["repo"]
 
 
 # API endpoints
@@ -33,7 +38,7 @@ async def get_corporate_actions(
         List of corporate actions with amounts and dates.
     """
     # Use repository for data access
-    rows = market_repo.get_corporate_actions(action_type, symbol, limit)
+    rows = _get_market_repo().get_corporate_actions(action_type, symbol, limit)
 
     actions = []
     for row in rows:
@@ -68,7 +73,7 @@ async def get_corporate_actions_summary(
         Aggregated buyback totals and counts.
     """
     # Use repository for data access
-    rows = market_repo.get_corporate_actions_summary(symbol)
+    rows = _get_market_repo().get_corporate_actions_summary(symbol)
 
     summaries = []
     for row in rows:

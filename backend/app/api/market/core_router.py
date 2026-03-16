@@ -14,8 +14,6 @@ from app.api.market._core_helpers import (
     build_market_health_response,
     build_sector_rotation_response,
     fetch_core_market_data,
-    price_fetcher,
-    storage,
 )
 from app.api.market_data_sources import get_market_data_timestamp
 from app.api.market_responses import (
@@ -34,6 +32,7 @@ from app.models.market_intelligence import (
     MarketTrendsResponse,
 )
 from app.repositories.market_repository import MarketRepository
+from app.storage import get_storage
 from app.utils.market_hours import (
     NY_TZ,
     get_expected_data_date,
@@ -46,7 +45,15 @@ from app.utils.market_hours import (
 
 router = APIRouter()
 logger = get_logger(__name__)
-market_repo = MarketRepository(storage)
+
+_state: dict[str, MarketRepository] = {}
+
+
+def _get_market_repo() -> MarketRepository:
+    """Lazy singleton to avoid DB connection at import time."""
+    if "repo" not in _state:
+        _state["repo"] = MarketRepository(get_storage())
+    return _state["repo"]
 
 # Cache TTL constants (in seconds)
 CACHE_TTL_SHORT = 60  # 1 minute
@@ -113,7 +120,9 @@ async def get_prices(
             detail=f"Maximum {MAX_SYMBOLS_PER_REQUEST} symbols allowed, got {len(symbol_list)}",
         )
 
-    price_data = price_fetcher.fetch_price_data(symbol_list)
+    from app.api.market._core_helpers import _get_price_fetcher  # noqa: PLC0415
+
+    price_data = _get_price_fetcher().fetch_price_data(symbol_list)
 
     prices = {
         symbol: PriceResponse(
@@ -135,7 +144,7 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
     """Get unified market intelligence with narrative, dual scoring, and sector rotation."""
     market_data = fetch_core_market_data()
 
-    current_timestamp = get_market_data_timestamp(storage) or market_data.current_timestamp
+    current_timestamp = get_market_data_timestamp(get_storage()) or market_data.current_timestamp
 
     data = build_intelligence_response_data(market_data, current_timestamp)
 
@@ -160,7 +169,7 @@ async def get_market_trends(
     days: int = Query(30, ge=1, le=365, description="Number of days of historical data"),
 ) -> MarketTrendsResponse:
     """Get market trends for sparkline charts."""
-    rows = market_repo.get_market_trends_data(days)
+    rows = _get_market_repo().get_market_trends_data(days)
 
     dates: list[str] = []
     fear_greed_scores_list: list[float] = []
@@ -215,7 +224,7 @@ async def get_market_movers(
     """Get top market movers (gainers and losers)."""
     from app.sources.market_movers_source import MarketMover, fetch_market_movers  # noqa: PLC0415
 
-    result = fetch_market_movers(storage, count=count)
+    result = fetch_market_movers(get_storage(), count=count)
 
     def to_item(m: MarketMover) -> MarketMoverItem:
         return MarketMoverItem(

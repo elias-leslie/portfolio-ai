@@ -31,9 +31,14 @@ from app.models.market_intelligence import (
 from app.portfolio.price_fetcher import PriceDataFetcher
 from app.storage import get_storage
 
-# Initialize shared services
-storage = get_storage()
-price_fetcher = PriceDataFetcher(storage)
+_state: dict[str, PriceDataFetcher] = {}
+
+
+def _get_price_fetcher() -> PriceDataFetcher:
+    """Lazy singleton to avoid DB connection at import time."""
+    if "svc" not in _state:
+        _state["svc"] = PriceDataFetcher(get_storage())
+    return _state["svc"]
 
 # Market indicator symbols
 CORE_MARKET_SYMBOLS = ["^GSPC", "^VIX", "^TNX", "DX-Y.NYB"]
@@ -94,7 +99,7 @@ def fetch_core_market_data() -> CoreMarketData:
     Returns:
         CoreMarketData with sp500, vix, tnx, dxy, sector data, and timestamp
     """
-    price_data = price_fetcher.fetch_price_data(CORE_MARKET_SYMBOLS)
+    price_data = _get_price_fetcher().fetch_price_data(CORE_MARKET_SYMBOLS)
 
     sp500_data = price_data.get("^GSPC")
     vix_data = price_data.get("^VIX")
@@ -106,8 +111,8 @@ def fetch_core_market_data() -> CoreMarketData:
     )
 
     sector_symbols = get_sector_symbols()
-    sector_price_data = price_fetcher.fetch_price_data(sector_symbols)
-    sector_data = fetch_sector_data_with_changes(storage, sector_symbols, sector_price_data)
+    sector_price_data = _get_price_fetcher().fetch_price_data(sector_symbols)
+    sector_data = fetch_sector_data_with_changes(get_storage(), sector_symbols, sector_price_data)
 
     return CoreMarketData(
         sp500_data=sp500_data,
@@ -187,7 +192,7 @@ def build_enriched_indicators(
                 data,
                 symbol,
                 INDICATOR_ENRICH_FUNCS[key],
-                storage,
+                get_storage(),
                 health_score_data,
                 actual_data_dates,
             )
@@ -197,7 +202,7 @@ def build_enriched_indicators(
 
     put_call_ratio, putcall_timestamp = putcall_data
     putcall_date = date.fromisoformat(putcall_timestamp[:10])
-    putcall_context: PutCallContext = calculate_putcall_context(put_call_ratio, putcall_date, storage)
+    putcall_context: PutCallContext = calculate_putcall_context(put_call_ratio, putcall_date, get_storage())
 
     enriched_indicators["putcall"] = intelligence.enrich_putcall_indicator(
         put_call_ratio,
@@ -271,19 +276,19 @@ def build_intelligence_response_data(
         sector_data_list
     )
 
-    actual_data_dates = get_actual_data_dates(storage, CORE_MARKET_SYMBOLS)
+    actual_data_dates = get_actual_data_dates(get_storage(), CORE_MARKET_SYMBOLS)
     indicator_data: dict[str, object | None] = {
         "vix": market_data.vix_data,
         "sp500": market_data.sp500_data,
         "tnx": market_data.tnx_data,
         "dxy": market_data.dxy_data,
     }
-    putcall_data = get_put_call_ratio_data(storage)
+    putcall_data = get_put_call_ratio_data(get_storage())
     enriched_indicators = build_enriched_indicators(
         indicator_data, health_score_data, actual_data_dates, putcall_data
     )
 
-    options_activity = validate_and_build_options_activity(get_options_activity_metrics(storage))
+    options_activity = validate_and_build_options_activity(get_options_activity_metrics(get_storage()))
 
     return {
         "health_score_data": health_score_data,
