@@ -172,13 +172,12 @@ Full interactive docs at `http://localhost:8000/docs`.
 
 ## Services
 
-Managed via systemd user services. Control scripts:
+All services run as Docker containers via the shared SummitFlow Compose file (`~/summitflow/docker/compose/docker-compose.yml`, `--profile portfolio` or `--profile full`).
 
 ```bash
-scripts/start.sh      # Start all services
-scripts/restart.sh    # Restart services
-scripts/status.sh     # Check service status
-scripts/rebuild.sh    # Full rebuild and restart
+scripts/rebuild.sh            # Full rebuild and restart (auto-detects Docker)
+scripts/rebuild.sh --restart  # Restart only
+scripts/rebuild.sh --status   # Check service health
 ```
 
 ## License

@@ -1,8 +1,7 @@
 project: portfolio-ai
-generated_at: 2026-03-15 17:00 UTC
+generated_at: 2026-03-16 01:30 UTC
 environment:
   python_version: '>=3.13'
-  venv_path: backend/.venv
   package_manager: npm
 services:
   backend_port: 8000
@@ -15,17 +14,17 @@ urls:
   api: http://localhost:8000/api
 explorer:
   scan_status: completed
-  last_completed_scan: '2026-03-15T16:45:12.363551+00:00'
+  last_completed_scan: '2026-03-16T01:15:07.583834+00:00'
   last_scan_type: file
   entry_counts:
     architecture: 1
-    dependency: 99
+    dependency: 53
     endpoint: 6
-    file: 1670
+    file: 1421
     page: 6
     table: 113
     task: 56
-  symbol_count: 6938
+  symbol_count: 6898
   stale_metadata_count: 0
 pages:
 - / (app)
@@ -194,17 +193,14 @@ tasks:
 - strategy_metrics_wf (cron(0 22 * * *))
 - trim_underperforming_wf (cron(30 8 * * *))
 folders:
-  (root): 31 files - services
-  .claude: 3 files
-  .dev-tools: 25 files - tests
+  (root): 24 files - services
+  .claude: 2 files
   .github: 2 files
-  .st: 26 files
-  backend: 979 files - api, components, services, tests
-  certs: 3 files
+  backend: 969 files - api, components, services, tests
   config: 10 files - api
   docker: 7 files
   docs: 3 files - tests
-  frontend: 466 files - api, components, tests
+  frontend: 295 files - api, components, tests
   reports: 62 files
-  scripts: 51 files - api, services, tests
+  scripts: 45 files - api, services, tests
   services: 2 files - services
