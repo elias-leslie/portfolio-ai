@@ -115,6 +115,24 @@ class TestCrossValidationService:
         assert result["approved"] is False
         assert "factual error" in result["issues_found"]
 
+    def test_parse_review_response_ignores_trailing_code_blocks(self) -> None:
+        """Test parsing uses the first fenced JSON block even when more fenced content follows."""
+        service = CrossValidationService()
+
+        content = """Here is my review:
+```json
+{"approved": true, "confidence": 0.81, "review_summary": "Looks good"}
+```
+
+Additional notes:
+```text
+still reviewing
+```
+"""
+        result = service._parse_review_response(content)
+        assert result["approved"] is True
+        assert result["confidence"] == 0.81
+
     def test_parse_review_response_invalid_json(self) -> None:
         """Test parsing invalid JSON returns fallback."""
         service = CrossValidationService()

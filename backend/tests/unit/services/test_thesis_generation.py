@@ -7,6 +7,24 @@ from unittest.mock import Mock
 from app.services.thesis.thesis_generation import ThesisGenerator
 
 
+def test_parse_json_response_ignores_trailing_code_blocks() -> None:
+    """Parser should use the first fenced JSON block when extra fenced text follows."""
+    generator = ThesisGenerator(llm_client=Mock())
+
+    content = """```json
+{"action": "BUY", "confidence": 0.74}
+```
+
+```text
+follow-up notes
+```
+"""
+
+    parsed = generator.parse_json_response(content)
+
+    assert parsed == {"action": "BUY", "confidence": 0.74}
+
+
 def test_generate_thesis_sanitizes_invalid_trading_guidance_before_prompt() -> None:
     """Prompt context should hide unusable stop and sizing fields instead of passing junk through."""
     llm = Mock()

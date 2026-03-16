@@ -46,9 +46,9 @@ class ThesisGenerator:
         # Try to extract JSON from markdown blocks
         try:
             if "```json" in content:
-                json_str = content.split("```json")[1].split("```")[0].strip()
+                json_str = content.split("```json")[1].split("```", maxsplit=1)[0].strip()
             elif "```" in content:
-                json_str = content.split("```")[1].split("```")[0].strip()
+                json_str = content.split("```")[1].split("```", maxsplit=1)[0].strip()
             elif "{" in content:
                 # Find JSON object boundaries
                 start = content.index("{")

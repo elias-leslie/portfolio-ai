@@ -36,6 +36,9 @@ COPY backend/app ./app
 COPY backend/alembic.ini ./
 COPY backend/alembic ./alembic
 
+# Copy config files (API source quota definitions)
+COPY config ./config
+
 # ── Stage 2: Runtime ─────────────────────────────────────────────
 FROM python:3.13-slim-bookworm
 
@@ -50,13 +53,16 @@ COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /app/app ./app
 COPY --from=builder /app/alembic.ini ./
 COPY --from=builder /app/alembic ./alembic
+COPY --from=builder /app/config ./config
 
 # Ensure venv binaries are on PATH
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
 
 # Create non-root user for runtime
+# Pre-create .cache so Docker volume mount inherits appuser ownership
 RUN useradd -m -s /bin/bash appuser \
+    && mkdir -p /app/.cache \
     && chown -R appuser:appuser /app
 
 USER appuser

@@ -55,9 +55,9 @@ _VALID_DISAGREEMENT_VALUES = {e.value for e in DisagreementReason}
 def _extract_json_str(content: str) -> str | None:
     """Extract JSON string from content, handling markdown fences."""
     if "```json" in content:
-        return content.split("```json")[1].split("```")[0].strip()
+        return content.split("```json")[1].split("```", maxsplit=1)[0].strip()
     if "```" in content:
-        return content.split("```")[1].split("```")[0].strip()
+        return content.split("```")[1].split("```", maxsplit=1)[0].strip()
     if "{" not in content:
         return None
     if "}" not in content:
