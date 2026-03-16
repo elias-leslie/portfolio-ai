@@ -28,11 +28,9 @@ logger = get_logger(__name__)
 
 
 class DualProviderClient(LLMClient):
-    """Single provider client using Agent Hub.
+    """Agent Hub client wrapper.
 
-    DEPRECATED: Named 'DualProviderClient' for backwards compatibility only.
-    Fallback logic has been removed - uses Agent Hub API exclusively.
-    For new code, use AgentHubAPIClient directly.
+    Uses Agent Hub API exclusively. For new code, prefer AgentHubAPIClient directly.
     """
 
     def __init__(
@@ -41,7 +39,6 @@ class DualProviderClient(LLMClient):
         claude_model: str = CLAUDE_SONNET,
         gemini_model: str = GEMINI_FLASH,
         agent_slug: str | None = None,
-        use_agent_hub: bool = True,  # Kept for API compatibility, always True
         agent_hub_url: str | None = None,
     ) -> None:
         """Initialize Agent Hub client.
@@ -51,10 +48,8 @@ class DualProviderClient(LLMClient):
             claude_model: Claude model to use (if primary="claude" or "agent_hub")
             gemini_model: Gemini model to use (if primary="gemini")
             agent_slug: Preferred Agent Hub agent slug for routed completions
-            use_agent_hub: Deprecated - always uses Agent Hub
             agent_hub_url: Agent Hub API base URL
         """
-        del use_agent_hub  # Always uses Agent Hub now
 
         resolved_url = agent_hub_url or settings.agent_hub_url
         self.primary = primary

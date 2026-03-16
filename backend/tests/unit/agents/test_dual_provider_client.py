@@ -121,13 +121,6 @@ class TestDualProviderClient:
             client.close()
             mock_client.return_value.close.assert_called_once()
 
-    def test_use_agent_hub_parameter_ignored(self) -> None:
-        """Test that use_agent_hub parameter is ignored (always True)."""
-        with patch("app.agents.llm_client.AgentHubAPIClient") as mock_client:
-            # Even with use_agent_hub=False, should still use Agent Hub
-            client = DualProviderClient(use_agent_hub=False)
-            mock_client.assert_called_once()
-
     def test_usage_tracking_from_response(self, mock_response: LLMResponse) -> None:
         """Test that usage data is correctly passed through from response."""
         with patch("app.agents.llm_client.AgentHubAPIClient") as mock_client:
