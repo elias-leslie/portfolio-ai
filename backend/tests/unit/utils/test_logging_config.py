@@ -11,6 +11,12 @@ import structlog
 from app.logging_config import configure_logging, get_logger
 
 
+@pytest.fixture(autouse=True)
+def _clear_invocation_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure INVOCATION_ID is unset so file logging is enabled in tests."""
+    monkeypatch.delenv("INVOCATION_ID", raising=False)
+
+
 def test_get_logger() -> None:
     """Test that get_logger returns a structlog logger."""
     logger = get_logger(__name__)
