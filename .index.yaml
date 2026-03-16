@@ -1,5 +1,5 @@
 project: portfolio-ai
-generated_at: 2026-03-16 01:30 UTC
+generated_at: 2026-03-16 02:30 UTC
 environment:
   python_version: '>=3.13'
   package_manager: npm
@@ -14,7 +14,7 @@ urls:
   api: http://localhost:8000/api
 explorer:
   scan_status: completed
-  last_completed_scan: '2026-03-16T01:15:07.583834+00:00'
+  last_completed_scan: '2026-03-16T02:15:07.513687+00:00'
   last_scan_type: file
   entry_counts:
     architecture: 1
