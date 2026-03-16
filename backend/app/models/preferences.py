@@ -11,6 +11,7 @@ ALLOWED_NEWS_LOOKBACK_HOURS = (6, 12, 24, 48)
 DEFAULT_NEWS_LOOKBACK_HOURS = 6
 ALLOWED_NEWS_MAX_ARTICLES = (5, 10, 15, 20)
 DEFAULT_NEWS_MAX_ARTICLES = 10
+MIN_WATCHLIST_REFRESH_MINUTES = 15
 
 # Default preferences values
 DEFAULT_PREFERENCES = {
@@ -38,6 +39,20 @@ DEFAULT_PREFERENCES = {
     "auto_remove_on_invalidation": None,
     "auto_trim_enabled": None,
 }
+
+
+def clamp_watchlist_refresh_minutes(value: int | None) -> int:
+    """Clamp any required watchlist refresh interval to the supported floor."""
+    if value is None:
+        return MIN_WATCHLIST_REFRESH_MINUTES
+    return max(int(value), MIN_WATCHLIST_REFRESH_MINUTES)
+
+
+def clamp_optional_watchlist_refresh_minutes(value: int | None) -> int | None:
+    """Clamp an optional watchlist refresh interval while preserving NULL semantics."""
+    if value is None:
+        return None
+    return clamp_watchlist_refresh_minutes(value)
 
 
 class PreferencesResponse(BaseModel):
@@ -101,13 +116,16 @@ class PreferencesUpdate(BaseModel):
         None, gt=0, le=100, description="Maximum position size as % of portfolio"
     )
     default_refresh_minutes: int | None = Field(
-        None, ge=1, le=1440, description="Global default refresh interval (1-1440 minutes)"
+        None,
+        ge=MIN_WATCHLIST_REFRESH_MINUTES,
+        le=1440,
+        description="Global default refresh interval (15-1440 minutes)",
     )
     watchlist_refresh_override: int | None = Field(
         None,
-        ge=1,
+        ge=MIN_WATCHLIST_REFRESH_MINUTES,
         le=1440,
-        description="Watchlist-specific refresh override (1-1440 minutes, NULL = use default)",
+        description="Watchlist-specific refresh override (15-1440 minutes, NULL = use default)",
     )
     portfolio_refresh_override: int | None = Field(
         None,
@@ -133,7 +151,10 @@ class PreferencesUpdate(BaseModel):
         None, ge=10, le=300, description="Frontend polling interval (10-300 seconds)"
     )
     watchlist_refresh_minutes: int | None = Field(
-        None, ge=1, le=1440, description="Watchlist refresh interval (1-1440 minutes)"
+        None,
+        ge=MIN_WATCHLIST_REFRESH_MINUTES,
+        le=1440,
+        description="Watchlist refresh interval (15-1440 minutes)",
     )
     watchlist_auto_expand: bool | None = Field(None, description="Auto-expand watchlist rows")
     watchlist_price_weight: float | None = Field(

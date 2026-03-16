@@ -9,9 +9,12 @@ from app.models.preferences import (
     DEFAULT_NEWS_LOOKBACK_HOURS,
     DEFAULT_NEWS_MAX_ARTICLES,
     DEFAULT_PREFERENCES,
+    MIN_WATCHLIST_REFRESH_MINUTES,
     PreferencesResponse,
     PreferencesUpdate,
     ScoringWeightsUpdate,
+    clamp_optional_watchlist_refresh_minutes,
+    clamp_watchlist_refresh_minutes,
 )
 from app.rules.loader import get_rules
 from app.storage import get_storage
@@ -23,6 +26,20 @@ AUTOMATION_PREFERENCE_KEYS = (
     "auto_remove_on_invalidation",
     "auto_trim_enabled",
 )
+
+
+def _normalize_watchlist_refresh_preferences(prefs: dict[str, Any]) -> dict[str, Any]:
+    """Clamp legacy watchlist refresh values to the supported product floor."""
+    prefs["default_refresh_minutes"] = clamp_watchlist_refresh_minutes(
+        int(prefs.get("default_refresh_minutes") or MIN_WATCHLIST_REFRESH_MINUTES)
+    )
+    prefs["watchlist_refresh_override"] = clamp_optional_watchlist_refresh_minutes(
+        prefs.get("watchlist_refresh_override")
+    )
+    prefs["watchlist_refresh_minutes"] = clamp_watchlist_refresh_minutes(
+        int(prefs.get("watchlist_refresh_minutes") or MIN_WATCHLIST_REFRESH_MINUTES)
+    )
+    return prefs
 
 
 def get_automation_defaults() -> dict[str, bool]:
@@ -99,39 +116,40 @@ def get_or_create_automation_preferences() -> dict[str, Any]:
 
 def dict_to_preferences_response(prefs: dict[str, Any]) -> PreferencesResponse:
     """Convert preferences dict to PreferencesResponse with proper defaults."""
+    normalized = _normalize_watchlist_refresh_preferences(dict(prefs))
     automation = get_automation_preferences(prefs)
     return PreferencesResponse(
-        risk_tolerance=int(prefs.get("risk_tolerance") or 5),
-        allow_long=bool(prefs.get("allow_long")) if prefs.get("allow_long") is not None else True,
-        allow_short=bool(prefs.get("allow_short"))
-        if prefs.get("allow_short") is not None
+        risk_tolerance=int(normalized.get("risk_tolerance") or 5),
+        allow_long=bool(normalized.get("allow_long")) if normalized.get("allow_long") is not None else True,
+        allow_short=bool(normalized.get("allow_short"))
+        if normalized.get("allow_short") is not None
         else False,
-        allow_options=bool(prefs.get("allow_options"))
-        if prefs.get("allow_options") is not None
+        allow_options=bool(normalized.get("allow_options"))
+        if normalized.get("allow_options") is not None
         else False,
-        allow_crypto=bool(prefs.get("allow_crypto"))
-        if prefs.get("allow_crypto") is not None
+        allow_crypto=bool(normalized.get("allow_crypto"))
+        if normalized.get("allow_crypto") is not None
         else False,
-        allow_futures=bool(prefs.get("allow_futures"))
-        if prefs.get("allow_futures") is not None
+        allow_futures=bool(normalized.get("allow_futures"))
+        if normalized.get("allow_futures") is not None
         else False,
-        max_position_size_pct=float(prefs.get("max_position_size_pct") or 10.0),
-        default_refresh_minutes=int(prefs.get("default_refresh_minutes") or 15),
-        watchlist_refresh_override=prefs.get("watchlist_refresh_override"),
-        portfolio_refresh_override=prefs.get("portfolio_refresh_override"),
-        news_refresh_override=prefs.get("news_refresh_override"),
-        news_lookback_hours=int(prefs.get("news_lookback_hours") or DEFAULT_NEWS_LOOKBACK_HOURS),
-        news_max_articles=int(prefs.get("news_max_articles") or DEFAULT_NEWS_MAX_ARTICLES),
-        frontend_poll_interval=int(prefs.get("frontend_poll_interval") or 30),
-        watchlist_refresh_minutes=int(prefs.get("watchlist_refresh_minutes") or 15),
-        watchlist_auto_expand=bool(prefs.get("watchlist_auto_expand"))
-        if prefs.get("watchlist_auto_expand") is not None
+        max_position_size_pct=float(normalized.get("max_position_size_pct") or 10.0),
+        default_refresh_minutes=int(normalized["default_refresh_minutes"]),
+        watchlist_refresh_override=normalized.get("watchlist_refresh_override"),
+        portfolio_refresh_override=normalized.get("portfolio_refresh_override"),
+        news_refresh_override=normalized.get("news_refresh_override"),
+        news_lookback_hours=int(normalized.get("news_lookback_hours") or DEFAULT_NEWS_LOOKBACK_HOURS),
+        news_max_articles=int(normalized.get("news_max_articles") or DEFAULT_NEWS_MAX_ARTICLES),
+        frontend_poll_interval=int(normalized.get("frontend_poll_interval") or 30),
+        watchlist_refresh_minutes=int(normalized["watchlist_refresh_minutes"]),
+        watchlist_auto_expand=bool(normalized.get("watchlist_auto_expand"))
+        if normalized.get("watchlist_auto_expand") is not None
         else False,
-        watchlist_price_weight=float(prefs.get("watchlist_price_weight") or 50.0),
-        watchlist_technical_weight=float(prefs.get("watchlist_technical_weight") or 50.0),
-        display_timezone=str(prefs.get("display_timezone") or "America/New_York"),
-        watchlist_show_news=bool(prefs.get("watchlist_show_news"))
-        if prefs.get("watchlist_show_news") is not None
+        watchlist_price_weight=float(normalized.get("watchlist_price_weight") or 50.0),
+        watchlist_technical_weight=float(normalized.get("watchlist_technical_weight") or 50.0),
+        display_timezone=str(normalized.get("display_timezone") or "America/New_York"),
+        watchlist_show_news=bool(normalized.get("watchlist_show_news"))
+        if normalized.get("watchlist_show_news") is not None
         else True,
         thesis_generation_enabled=bool(automation["thesis_generation_enabled"]["enabled"]),
         auto_remove_on_invalidation=bool(automation["auto_remove_on_invalidation"]["enabled"]),
@@ -171,7 +189,7 @@ def get_or_create_preferences() -> dict[str, str | int | float | bool | datetime
             row["news_lookback_hours"] = DEFAULT_NEWS_LOOKBACK_HOURS
         if "news_max_articles" not in row or row["news_max_articles"] is None:
             row["news_max_articles"] = DEFAULT_NEWS_MAX_ARTICLES
-        return dict(row)
+        return _normalize_watchlist_refresh_preferences(dict(row))
 
     # Create default preferences
     with storage.connection() as conn:
@@ -282,6 +300,8 @@ def update_preferences(update: PreferencesUpdate) -> dict[str, Any]:
     if "auto_trim_enabled" in provided_fields:
         current["auto_trim_enabled"] = update.auto_trim_enabled
         automation_updates["auto_trim_enabled"] = update.auto_trim_enabled
+
+    current = _normalize_watchlist_refresh_preferences(current)
 
     # Save to database
     with storage.connection() as conn:

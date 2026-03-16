@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import MagicMock
+
+import pytest
+from pydantic import ValidationError
 
 from app.models.preferences import PreferencesUpdate
 from app.services.preferences_service import (
@@ -12,10 +16,10 @@ from app.services.preferences_service import (
 )
 
 
-def test_get_automation_preferences_prefers_stored_values(mocker) -> None:
-    mocker.patch(
+def test_get_automation_preferences_prefers_stored_values(monkeypatch) -> None:
+    monkeypatch.setattr(
         "app.services.preferences_service.get_rules",
-        return_value=SimpleNamespace(
+        lambda: SimpleNamespace(
             thesis_management=SimpleNamespace(
                 thesis_generation_enabled=False,
                 auto_remove_on_invalidation=True,
@@ -46,10 +50,10 @@ def test_get_automation_preferences_prefers_stored_values(mocker) -> None:
     }
 
 
-def test_dict_to_preferences_response_exposes_effective_automation_values(mocker) -> None:
-    mocker.patch(
+def test_dict_to_preferences_response_exposes_effective_automation_values(monkeypatch) -> None:
+    monkeypatch.setattr(
         "app.services.preferences_service.get_rules",
-        return_value=SimpleNamespace(
+        lambda: SimpleNamespace(
             thesis_management=SimpleNamespace(
                 thesis_generation_enabled=False,
                 auto_remove_on_invalidation=True,
@@ -91,10 +95,10 @@ def test_dict_to_preferences_response_exposes_effective_automation_values(mocker
     assert response.auto_trim_enabled is True
 
 
-def test_update_preferences_allows_clearing_refresh_overrides(mocker) -> None:
-    mocker.patch(
+def test_update_preferences_allows_clearing_refresh_overrides(monkeypatch) -> None:
+    monkeypatch.setattr(
         "app.services.preferences_service.get_or_create_preferences",
-        return_value={
+        lambda: {
             "id": "default",
             "risk_tolerance": 5,
             "allow_long": True,
@@ -104,7 +108,7 @@ def test_update_preferences_allows_clearing_refresh_overrides(mocker) -> None:
             "allow_futures": False,
             "max_position_size_pct": 10.0,
             "default_refresh_minutes": 15,
-            "watchlist_refresh_override": 5,
+            "watchlist_refresh_override": 15,
             "portfolio_refresh_override": 10,
             "news_refresh_override": 20,
             "news_lookback_hours": 6,
@@ -119,11 +123,12 @@ def test_update_preferences_allows_clearing_refresh_overrides(mocker) -> None:
         },
     )
 
-    connection = mocker.MagicMock()
+    connection = MagicMock()
     connection.__enter__.return_value = connection
     connection.__exit__.return_value = None
-    mocker.patch("app.services.preferences_service.storage.connection", return_value=connection)
-    automation_update = mocker.patch("app.services.preferences_service._update_automation_preferences")
+    monkeypatch.setattr("app.services.preferences_service.storage.connection", MagicMock(return_value=connection))
+    automation_update = MagicMock()
+    monkeypatch.setattr("app.services.preferences_service._update_automation_preferences", automation_update)
 
     updated = update_preferences(
         PreferencesUpdate(
@@ -139,10 +144,67 @@ def test_update_preferences_allows_clearing_refresh_overrides(mocker) -> None:
     automation_update.assert_not_called()
 
 
-def test_update_preferences_allows_clearing_automation_overrides(mocker) -> None:
-    mocker.patch(
+@pytest.mark.parametrize(
+    ("field_name", "field_value"),
+    [
+        ("default_refresh_minutes", 10),
+        ("watchlist_refresh_override", 10),
+        ("watchlist_refresh_minutes", 10),
+    ],
+)
+def test_preferences_update_rejects_watchlist_refresh_values_below_floor(
+    field_name: str, field_value: int
+) -> None:
+    with pytest.raises(ValidationError):
+        PreferencesUpdate(**{field_name: field_value})
+
+
+def test_dict_to_preferences_response_clamps_legacy_watchlist_refresh_values(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.services.preferences_service.get_rules",
+        lambda: SimpleNamespace(
+            thesis_management=SimpleNamespace(
+                thesis_generation_enabled=False,
+                auto_remove_on_invalidation=True,
+            ),
+            watchlist_management=SimpleNamespace(auto_trim_enabled=True),
+        ),
+    )
+
+    response = dict_to_preferences_response(
+        {
+            "risk_tolerance": 5,
+            "allow_long": True,
+            "allow_short": False,
+            "allow_options": False,
+            "allow_crypto": False,
+            "allow_futures": False,
+            "max_position_size_pct": 10.0,
+            "default_refresh_minutes": 5,
+            "watchlist_refresh_override": 3,
+            "portfolio_refresh_override": None,
+            "news_refresh_override": None,
+            "news_lookback_hours": 6,
+            "news_max_articles": 10,
+            "frontend_poll_interval": 30,
+            "watchlist_refresh_minutes": 1,
+            "watchlist_auto_expand": False,
+            "watchlist_price_weight": 50.0,
+            "watchlist_technical_weight": 50.0,
+            "display_timezone": "America/New_York",
+            "watchlist_show_news": True,
+        }
+    )
+
+    assert response.default_refresh_minutes == 15
+    assert response.watchlist_refresh_override == 15
+    assert response.watchlist_refresh_minutes == 15
+
+
+def test_update_preferences_allows_clearing_automation_overrides(monkeypatch) -> None:
+    monkeypatch.setattr(
         "app.services.preferences_service.get_or_create_preferences",
-        return_value={
+        lambda: {
             "id": "default",
             "risk_tolerance": 5,
             "allow_long": True,
@@ -170,11 +232,12 @@ def test_update_preferences_allows_clearing_automation_overrides(mocker) -> None
         },
     )
 
-    connection = mocker.MagicMock()
+    connection = MagicMock()
     connection.__enter__.return_value = connection
     connection.__exit__.return_value = None
-    mocker.patch("app.services.preferences_service.storage.connection", return_value=connection)
-    automation_update = mocker.patch("app.services.preferences_service._update_automation_preferences")
+    monkeypatch.setattr("app.services.preferences_service.storage.connection", MagicMock(return_value=connection))
+    automation_update = MagicMock()
+    monkeypatch.setattr("app.services.preferences_service._update_automation_preferences", automation_update)
 
     updated = update_preferences(
         PreferencesUpdate(

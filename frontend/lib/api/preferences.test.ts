@@ -91,7 +91,7 @@ describe('preferences api', () => {
         watchlistRefreshOverride: 3,
         watchlistRefreshMinutes: 30,
       }),
-    ).toBe(3)
+    ).toBe(15)
   })
 
   it('falls back to the shared default refresh interval before the legacy field', () => {
@@ -101,15 +101,15 @@ describe('preferences api', () => {
         watchlistRefreshOverride: null,
         watchlistRefreshMinutes: 30,
       }),
-    ).toBe(12)
+    ).toBe(15)
   })
 
-  it('returns 5 when preferences is null', () => {
-    expect(getWatchlistRefreshMinutes(null)).toBe(5)
+  it('returns 15 when preferences is null', () => {
+    expect(getWatchlistRefreshMinutes(null)).toBe(15)
   })
 
-  it('returns 5 when preferences is undefined', () => {
-    expect(getWatchlistRefreshMinutes()).toBe(5)
+  it('returns 15 when preferences is undefined', () => {
+    expect(getWatchlistRefreshMinutes()).toBe(15)
   })
 
   it('falls back to legacy watchlistRefreshMinutes when both overrides are null', () => {

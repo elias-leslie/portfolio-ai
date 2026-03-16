@@ -4,7 +4,7 @@ import time
 from contextlib import nullcontext
 from unittest.mock import MagicMock
 
-from app.tasks._watchlist_helpers import execute_refresh
+from app.tasks._watchlist_helpers import execute_refresh, get_refresh_interval
 from app.watchlist.refresh_data_fetchers import fetch_auxiliary_data
 
 
@@ -72,3 +72,16 @@ def test_fetch_auxiliary_data_skips_news_when_disabled() -> None:
     assert news_sentiment_value is None
     assert news_bundle is None
     news_service.get_news_intelligence.assert_not_called()
+
+
+def test_get_refresh_interval_clamps_legacy_values() -> None:
+    storage = MagicMock()
+    mock_conn = MagicMock()
+    mock_conn.execute.return_value.fetchone.return_value = (5, True)
+    mock_conn.__enter__.return_value = mock_conn
+    mock_conn.__exit__.return_value = False
+    storage.connection.return_value = mock_conn
+
+    interval = get_refresh_interval(storage, "default")
+
+    assert interval == 15

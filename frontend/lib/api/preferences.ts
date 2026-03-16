@@ -95,7 +95,7 @@ export interface PreferencesUpdate {
   fundamentalSubWeights?: FundamentalSubWeights
 }
 
-const DEFAULT_WATCHLIST_REFRESH_MINUTES = 5
+const DEFAULT_WATCHLIST_REFRESH_MINUTES = 15
 
 export type RefreshPreferenceSnapshot = Pick<
   PreferencesResponse,
@@ -110,14 +110,17 @@ export function getWatchlistRefreshMinutes(
   }
 
   if (typeof preferences.watchlistRefreshOverride === 'number' && preferences.watchlistRefreshOverride > 0) {
-    return preferences.watchlistRefreshOverride
+    return Math.max(preferences.watchlistRefreshOverride, DEFAULT_WATCHLIST_REFRESH_MINUTES)
   }
 
   if (typeof preferences.defaultRefreshMinutes === 'number' && preferences.defaultRefreshMinutes > 0) {
-    return preferences.defaultRefreshMinutes
+    return Math.max(preferences.defaultRefreshMinutes, DEFAULT_WATCHLIST_REFRESH_MINUTES)
   }
 
-  return preferences.watchlistRefreshMinutes || DEFAULT_WATCHLIST_REFRESH_MINUTES
+  return Math.max(
+    preferences.watchlistRefreshMinutes || DEFAULT_WATCHLIST_REFRESH_MINUTES,
+    DEFAULT_WATCHLIST_REFRESH_MINUTES,
+  )
 }
 
 /**

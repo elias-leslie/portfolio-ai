@@ -22,6 +22,10 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from app.storage import PortfolioStorage
 
+from app.models.preferences import (
+    clamp_optional_watchlist_refresh_minutes,
+    clamp_watchlist_refresh_minutes,
+)
 from app.watchlist.models import ScoreWeights
 
 
@@ -95,8 +99,12 @@ class UserPreferences:
             news_max_articles=row.get("news_max_articles") or 10,
             watchlist_price_weight=row.get("watchlist_price_weight") or 50.0,
             watchlist_technical_weight=row.get("watchlist_technical_weight") or 50.0,
-            watchlist_refresh_override=row.get("watchlist_refresh_override"),
-            default_refresh_minutes=row.get("default_refresh_minutes") or 15,
+            watchlist_refresh_override=clamp_optional_watchlist_refresh_minutes(
+                row.get("watchlist_refresh_override")
+            ),
+            default_refresh_minutes=clamp_watchlist_refresh_minutes(
+                row.get("default_refresh_minutes") or 15
+            ),
             watchlist_risk_budget=row.get("watchlist_risk_budget") or 500.0,
         )
 

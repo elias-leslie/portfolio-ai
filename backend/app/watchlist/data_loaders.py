@@ -8,6 +8,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from ..logging_config import get_logger
+from ..models.preferences import clamp_watchlist_refresh_minutes
 from ..storage import PortfolioStorage
 from ..utils.preferences_loader import get_user_scoring_weights
 from .models import ScoreWeights, TechnicalSnapshot
@@ -110,9 +111,9 @@ def load_stale_ttl_minutes(storage: PortfolioStorage) -> int:
         return 45
 
     row = df.to_dicts()[0]
-    refresh_minutes = row.get("watchlist_refresh_override") or row.get(
-        "default_refresh_minutes", 15
+    refresh_minutes = clamp_watchlist_refresh_minutes(
+        row.get("watchlist_refresh_override") or row.get("default_refresh_minutes", 15)
     )
 
     # Stale = 3x refresh interval
-    return int(refresh_minutes * 3) if refresh_minutes else 45
+    return refresh_minutes * 3

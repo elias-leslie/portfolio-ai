@@ -11,6 +11,7 @@ import time
 
 from app.constants import DEFAULT_BACKFILL_DAYS
 from app.logging_config import get_logger
+from app.models.preferences import MIN_WATCHLIST_REFRESH_MINUTES
 from app.storage import PortfolioStorage, get_storage
 from app.tasks.types import WatchlistResultDict
 from app.utils.market_hours import is_market_hours
@@ -45,7 +46,15 @@ def get_refresh_interval(storage: PortfolioStorage, account_id: str) -> int:
         logger.info("watchlist_refresh_no_preferences", account_id=account_id, refresh_interval_minutes=15)
         return 15
 
-    minutes = int(result[0]) if result[0] is not None else 15
+    raw_minutes = int(result[0]) if result[0] is not None else MIN_WATCHLIST_REFRESH_MINUTES
+    minutes = max(raw_minutes, MIN_WATCHLIST_REFRESH_MINUTES)
+    if minutes != raw_minutes:
+        logger.info(
+            "watchlist_refresh_interval_clamped",
+            account_id=account_id,
+            requested_refresh_minutes=raw_minutes,
+            applied_refresh_minutes=minutes,
+        )
     event = "watchlist_refresh_using_override" if result[1] else "watchlist_refresh_using_default"
     logger.info(event, account_id=account_id, refresh_interval_minutes=minutes)
     return minutes

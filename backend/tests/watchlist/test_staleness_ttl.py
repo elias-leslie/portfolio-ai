@@ -80,14 +80,14 @@ def test_staleness_ttl_uses_new_column_not_old(setup_preferences: PortfolioStora
     )
 
 
-def test_staleness_ttl_respects_override(setup_preferences: PortfolioStorage) -> None:
+def test_staleness_ttl_clamps_legacy_override_below_floor(setup_preferences: PortfolioStorage) -> None:
     """
     Test that staleness TTL uses watchlist_refresh_override when set,
     falling back to default_refresh_minutes when override is NULL.
     """
     storage = setup_preferences
 
-    # Set override to 5 minutes
+    # Set legacy override below the enforced floor
     with storage.connection() as conn:
         conn.execute(
             """
@@ -98,11 +98,11 @@ def test_staleness_ttl_respects_override(setup_preferences: PortfolioStorage) ->
         )
         conn.commit()
 
-    # Should use override (5 min) * 3 = 15 minutes
+    # Should clamp override to 15 min, then apply the 3x stale multiplier
     ttl_with_override = load_stale_ttl_minutes(storage)
-    assert ttl_with_override == 15, (
-        f"Should use watchlist_refresh_override when set! "
-        f"Expected: 15 min (5 min * 3), Got: {ttl_with_override} min"
+    assert ttl_with_override == 45, (
+        f"Should clamp legacy watchlist_refresh_override to 15 minutes! "
+        f"Expected: 45 min (15 min * 3), Got: {ttl_with_override} min"
     )
 
     # Clear override
