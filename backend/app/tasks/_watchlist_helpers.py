@@ -195,13 +195,14 @@ def execute_refresh(
         task_id,
         {"account_id": account_id, "refresh_interval_minutes": refresh_interval_minutes, "markets_open": markets_open},
     ):
-        result = refresh_watchlist_scores_service(storage, account_id=account_id)
+        result = refresh_watchlist_scores_service(
+            storage,
+            account_id=account_id,
+            include_news=False,
+        )
         duration = round(time.time() - start_time, 2)
         result.update({"task_id": task_id, "markets_open": markets_open, "refresh_interval_minutes": refresh_interval_minutes, "duration_seconds": duration})
         logger.info("watchlist_scores_refreshed", task_id=task_id, processed=result.get("processed", 0), markets_open=markets_open)
-
-        if result.get("processed", 0) > 0:
-            trigger_strategy_generation_for_top_symbols()
 
         return {
             "task_id": task_id,

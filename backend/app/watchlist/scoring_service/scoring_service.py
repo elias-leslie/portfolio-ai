@@ -33,6 +33,7 @@ def refresh_watchlist_scores(
     batch_size: int = 20,
     batch_delay_seconds: float = 2.0,
     symbols_filter: list[str] | None = None,
+    include_news: bool = True,
 ) -> dict[str, Any]:
     """Refresh watchlist scores for all items or a specific account.
 
@@ -43,6 +44,7 @@ def refresh_watchlist_scores(
         batch_size: Number of symbols to fetch in each batch (default: 20)
         batch_delay_seconds: Delay between batches to respect rate limits (default: 2.0)
         symbols_filter: Optional list of specific symbols to refresh (None = all)
+        include_news: Whether to refresh news/sentiment during this run
 
     Returns:
         Dict with processing statistics:
@@ -105,6 +107,7 @@ def refresh_watchlist_scores(
         news_service,
         batch_size,
         batch_delay_seconds,
+        include_news,
     )
 
     # Process all symbols
@@ -120,6 +123,7 @@ def refresh_watchlist_scores(
         news_service=resolved_news_service,
         news_max_articles=prefs.news_max_articles,
         news_bundles=news_bundles,
+        include_news=include_news,
     )
 
     # Log completion and update Redis

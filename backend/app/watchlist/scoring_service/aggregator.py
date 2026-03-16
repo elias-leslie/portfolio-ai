@@ -36,6 +36,7 @@ def process_all_symbols(
     news_service: NewsService,
     news_max_articles: int,
     news_bundles: dict[str, Any],
+    include_news: bool,
 ) -> tuple[int, list[str], list[str], list[dict[str, str]]]:
     """Process all watchlist items and collect results.
 
@@ -51,6 +52,7 @@ def process_all_symbols(
         news_service: News service instance
         news_max_articles: Max news articles to fetch
         news_bundles: Pre-fetched news bundles
+        include_news: Whether this refresh should fetch/use news data
 
     Returns:
         Tuple of (processed, processed_symbols, success_list, failed_list)
@@ -83,6 +85,7 @@ def process_all_symbols(
                 news_service=news_service,
                 news_max_articles=news_max_articles,
                 news_bundles=news_bundles,
+                include_news=include_news,
             )
 
             # Aggregate results

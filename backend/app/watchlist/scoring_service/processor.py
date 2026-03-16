@@ -34,6 +34,7 @@ def process_single_symbol(
     news_service: NewsService,
     news_max_articles: int,
     news_bundles: dict[str, Any],
+    include_news: bool,
 ) -> tuple[str, str, list[str], list[dict[str, str]]]:
     """Process a single symbol and persist its snapshot.
 
@@ -50,6 +51,7 @@ def process_single_symbol(
         news_service: News service instance
         news_max_articles: Max news articles to fetch
         news_bundles: Pre-fetched news bundles
+        include_news: Whether this refresh should fetch/use news data
 
     Returns:
         Tuple of (symbol, item_id, success_list, failed_list)
@@ -89,6 +91,7 @@ def process_single_symbol(
             risk_budget=risk_budget,
             max_news_articles=news_max_articles,
             now=now,
+            include_news=include_news,
         ),
         news_service=news_service,
     )

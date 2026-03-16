@@ -55,6 +55,7 @@ class ProcessorConfig(TypedDict):
         risk_budget: Risk budget for position sizing (0.0-1.0)
         max_news_articles: Maximum articles to fetch per symbol
         now: Current timestamp (UTC) for consistency
+        include_news: Whether this refresh should fetch/use news data
     """
 
     default_weights: ScoreWeights
@@ -62,6 +63,7 @@ class ProcessorConfig(TypedDict):
     risk_budget: float
     max_news_articles: int
     now: datetime
+    include_news: bool
 
 
 class TickerInputData(TypedDict):
@@ -116,12 +118,13 @@ def process_symbol_snapshot(
     )
 
     # Extract config
-    default_weights, stale_ttl_minutes, risk_budget, max_news_articles, now = (
+    default_weights, stale_ttl_minutes, risk_budget, max_news_articles, now, include_news = (
         config["default_weights"],
         config["stale_ttl_minutes"],
         config["risk_budget"],
         config["max_news_articles"],
         config["now"],
+        config["include_news"],
     )
 
     # Step 1: Calculate price change and queue backfill if needed
@@ -140,7 +143,14 @@ def process_symbol_snapshot(
 
     # Step 4: Fetch auxiliary data (volume, SMA5, news) - MOVED BEFORE SCORING
     current_volume, avg_volume_20d, sma_5_prev, news_sentiment_value, news_bundle_result = (
-        fetch_auxiliary_data(storage, news_service, symbol, max_news_articles, news_bundle)
+        fetch_auxiliary_data(
+            storage,
+            news_service,
+            symbol,
+            max_news_articles,
+            news_bundle,
+            include_news,
+        )
     )
 
     # Convert news bundle to article list for catalyst scoring

@@ -139,6 +139,7 @@ def fetch_auxiliary_data(
     symbol: str,
     max_news_articles: int,
     news_bundle: NewsBundle | None,
+    include_news: bool,
 ) -> tuple[float | None, float | None, float | None, float | None, NewsBundle | None]:
     """Fetch volume, SMA5, news sentiment; returns (current_vol, avg_vol_20d, sma5_prev, news_score, bundle)."""
     vdf = storage.query(
@@ -164,12 +165,15 @@ def fetch_auxiliary_data(
     sma_5_prev = float(result[0]) if result and result[0] is not None else None
 
     news_sentiment_value: float | None = None
-    try:
-        if news_bundle is None:
-            news_bundle = news_service.get_news_intelligence(symbol, max_articles=max_news_articles)
-        news_sentiment_value = news_bundle.summary.score
-    except Exception as exc:  # pragma: no cover - downstream services may fail
-        logger.warning("news_fetch_failed", symbol=symbol, error=str(exc))
+    if include_news:
+        try:
+            if news_bundle is None:
+                news_bundle = news_service.get_news_intelligence(symbol, max_articles=max_news_articles)
+            news_sentiment_value = news_bundle.summary.score
+        except Exception as exc:  # pragma: no cover - downstream services may fail
+            logger.warning("news_fetch_failed", symbol=symbol, error=str(exc))
+    else:
+        news_bundle = None
 
     return current_volume, avg_volume_20d, sma_5_prev, news_sentiment_value, news_bundle
 

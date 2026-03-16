@@ -44,6 +44,7 @@ def initialize_scoring_context(
     news_service: NewsService | None,
     batch_size: int,
     batch_delay_seconds: float,
+    include_news: bool,
 ) -> tuple[
     pl.DataFrame,
     int,
@@ -68,6 +69,7 @@ def initialize_scoring_context(
         price_fetcher: Optional price fetcher instance
         batch_size: Batch size for price fetching
         batch_delay_seconds: Delay between batches
+        include_news: Whether this refresh should fetch news/sentiment
 
     Returns:
         Tuple containing:
@@ -120,7 +122,11 @@ def initialize_scoring_context(
     # Batch-fetch price data and news BEFORE processing loop
     price_map = fetch_prices_in_batches(fetcher, symbols, batch_size, batch_delay_seconds)
     total_batches = len([symbols[i : i + batch_size] for i in range(0, len(symbols), batch_size)])
-    news_bundles = fetch_news_batch(resolved_news_service, symbols, news_max_articles)
+    if include_news:
+        news_bundles = fetch_news_batch(resolved_news_service, symbols, news_max_articles)
+    else:
+        logger.info("watchlist_refresh_news_skipped", total_symbols=len(symbols))
+        news_bundles = {}
 
     return (
         items_df,
