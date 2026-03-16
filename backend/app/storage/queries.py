@@ -87,25 +87,6 @@ class QueryManager(_ResearchQueryMixin):
                 result = conn.execute(sql).fetchdf()
             return result
 
-    def get_watchlist_items_by_account(self, account_id: str) -> pl.DataFrame:
-        """Return all watchlist items ordered by symbol.
-
-        Note: account_id parameter is deprecated but kept for backward compatibility.
-        Watchlist items are now global (not tied to accounts).
-        """
-        sql = """
-            SELECT
-                id,
-                symbol,
-                metadata,
-                note,
-                created_at,
-                updated_at
-            FROM watchlist_items
-            ORDER BY symbol
-        """
-        return self.query(sql)
-
     def get_watchlist_snapshot_history(
         self,
         item_id: str,

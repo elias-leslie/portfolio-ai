@@ -290,33 +290,6 @@ def test_watchlist_tables_structure(schema_mgr: SchemaManager) -> None:
         assert {"symbol", "as_of_date", "payload", "source"}.issubset(reference_columns)
 
 
-def test_get_watchlist_items_by_account(schema_mgr: SchemaManager, query_mgr: QueryManager) -> None:
-    """Verify QueryManager returns all watchlist items."""
-    schema_mgr.ensure_schema()
-
-    with schema_mgr.connection_mgr.connection() as conn:
-        conn.execute(
-            """
-            INSERT INTO watchlist_items (id, symbol, metadata, note)
-            VALUES (?, ?, ?, ?)
-            """,
-            ["item-1", "AAPL", "{}", "Core position"],
-        )
-        conn.execute(
-            """
-            INSERT INTO watchlist_items (id, symbol, metadata, note)
-            VALUES (?, ?, ?, ?)
-            """,
-            ["item-2", "MSFT", "{}", None],
-        )
-        conn.commit()  # Commit the inserts
-
-    result = query_mgr.get_watchlist_items_by_account("")
-    symbols = result.get_column("symbol").to_list()
-
-    assert symbols == ["AAPL", "MSFT"]
-
-
 def test_watchlist_snapshot_history_and_upsert(
     schema_mgr: SchemaManager, query_mgr: QueryManager
 ) -> None:
