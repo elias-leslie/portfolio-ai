@@ -9,11 +9,13 @@ import math
 from datetime import date
 from typing import TYPE_CHECKING
 
+from app.constants import TRADING_DAYS_PER_YEAR
+
 if TYPE_CHECKING:
     from app.storage import PortfolioStorage
 
 # Default lookback period (1 trading year)
-DEFAULT_LOOKBACK_DAYS = 252
+DEFAULT_LOOKBACK_DAYS = TRADING_DAYS_PER_YEAR
 # Minimum observations required for reliable covariance
 MIN_OBSERVATIONS = 60
 

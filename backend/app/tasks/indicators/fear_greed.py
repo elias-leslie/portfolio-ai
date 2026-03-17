@@ -45,9 +45,11 @@ __all__ = [
     "calculate_fear_greed",
 ]
 
+from app.constants import TRADING_DAYS_PER_YEAR
+
 logger = get_logger(__name__)
 
-_WINDOW_DAYS = 252
+_WINDOW_DAYS = TRADING_DAYS_PER_YEAR
 
 
 def _compute_percentiles(

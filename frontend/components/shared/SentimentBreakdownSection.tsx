@@ -6,17 +6,7 @@ import {
   getSentimentBadgeVariant,
 } from '@/lib/utils/news-formatting'
 import { cn } from '@/lib/utils'
-
-interface NewsSentimentDetail {
-  score: number | null
-  scoreChange: number | null
-  positiveCount: number
-  neutralCount: number
-  negativeCount: number
-  articleCount: number
-  latest_published_at?: string | null
-  modelBreakdown: Record<string, number>
-}
+import type { NewsSentimentDetail } from './news-card/types'
 
 interface SentimentBreakdownSectionProps {
   summary: NewsSentimentDetail

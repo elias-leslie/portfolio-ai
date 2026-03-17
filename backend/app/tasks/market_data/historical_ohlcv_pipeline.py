@@ -9,15 +9,15 @@ from __future__ import annotations
 import datetime as dt
 import uuid
 
-from app.constants import ALL_MARKET_SYMBOLS
+from app.constants import ALL_MARKET_SYMBOLS, TRADING_DAYS_PER_YEAR
 from app.logging_config import get_logger
 from app.storage import get_storage
 from app.tasks.ingestion import ingest_historical_ohlcv
 
 logger = get_logger(__name__)
 
-# Target: 1260 trading days (approximately 5 years)
-TARGET_DAYS = 1260
+# Target: ~5 years of trading days
+TARGET_DAYS = TRADING_DAYS_PER_YEAR * 5
 
 
 def _check_symbol_data(symbol: str) -> tuple[bool, int]:
