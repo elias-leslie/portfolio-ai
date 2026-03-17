@@ -14,6 +14,7 @@ from datetime import date
 from typing import Any, Literal
 
 from app.analytics.indicators import calculate_indicators_for_symbol
+from app.constants import TRADING_DAYS_PER_YEAR
 from app.storage import PortfolioStorage
 
 
@@ -207,7 +208,7 @@ def aggregate_technical_analysis(
 
     # Confidence (1.0 if we have 252 days of data)
     bar_count_val = storage.get_bar_count(symbol)
-    confidence = 1.0 if bar_count_val >= 252 else (bar_count_val / 252.0)
+    confidence = 1.0 if bar_count_val >= TRADING_DAYS_PER_YEAR else (bar_count_val / TRADING_DAYS_PER_YEAR)
 
     return {
         "trend_strength": trend_strength,

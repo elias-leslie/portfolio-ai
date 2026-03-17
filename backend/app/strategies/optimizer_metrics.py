@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.backtest.replay import BacktestState
+from app.constants import TRADING_DAYS_PER_YEAR
 
 
 @dataclass
@@ -74,7 +75,7 @@ def _calculate_sharpe_ratio(equities: list[float]) -> float:
     mean_return = statistics.mean(daily_returns)
     std_return = statistics.stdev(daily_returns) if len(daily_returns) > 1 else 0.0
     # Annualize: sqrt(252) * daily Sharpe
-    return (mean_return / std_return * (252**0.5)) if std_return > 0 else 0.0
+    return (mean_return / std_return * (TRADING_DAYS_PER_YEAR**0.5)) if std_return > 0 else 0.0
 
 
 def _calculate_equity_metrics(

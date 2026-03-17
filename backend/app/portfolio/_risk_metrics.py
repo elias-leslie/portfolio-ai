@@ -8,6 +8,7 @@ from math import sqrt
 import numpy as np
 import polars as pl
 
+from ..constants import TRADING_DAYS_PER_YEAR
 from ..logging_config import get_logger
 from ..storage import PortfolioStorage
 
@@ -108,7 +109,7 @@ def compute_local_risk_metrics(
 
     # Volatility: annualized standard deviation of daily returns
     symbol_std = np.std(symbol_returns, ddof=1)
-    volatility = float(symbol_std * sqrt(252))
+    volatility = float(symbol_std * sqrt(TRADING_DAYS_PER_YEAR))
     if not np.isfinite(volatility):
         volatility = None
 

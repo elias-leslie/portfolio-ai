@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import uuid
 
+from app.constants import TRADING_DAYS_PER_YEAR
 from app.logging_config import get_logger
 from app.storage import get_storage
 
@@ -45,7 +46,7 @@ def _resolve_covariance_symbols(symbols: list[str] | None) -> list[str]:
 
 def update_portfolio_covariance(
     symbols: list[str] | None = None,
-    lookback_days: int = 252,
+    lookback_days: int = TRADING_DAYS_PER_YEAR,
 ) -> dict[str, int | str]:
     """Update portfolio covariance matrix for proper risk calculation (GAP-020).
 

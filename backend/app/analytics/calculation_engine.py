@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from app.analytics.trade_calculations import calculate_stop_loss
+from app.constants import TRADING_DAYS_PER_YEAR
 from app.rules import get_rules
 
 if TYPE_CHECKING:
@@ -148,9 +149,9 @@ def calculate_portfolio_sharpe(
     if std_dev == 0:
         return None
 
-    daily_risk_free_rate = risk_free_rate / 252
+    daily_risk_free_rate = risk_free_rate / TRADING_DAYS_PER_YEAR
     excess_return = mean_return - daily_risk_free_rate
-    sharpe_ratio = excess_return * math.sqrt(252) / std_dev
+    sharpe_ratio = excess_return * math.sqrt(TRADING_DAYS_PER_YEAR) / std_dev
     if math.isnan(sharpe_ratio) or math.isinf(sharpe_ratio):
         return None
     return sharpe_ratio

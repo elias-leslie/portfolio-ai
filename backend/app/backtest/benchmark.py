@@ -20,6 +20,7 @@ import numpy as np
 
 from app.backtest.comparison import NormalizedEquityPoint, normalize_equity_curve
 from app.backtest.models import BacktestEquity
+from app.constants import TRADING_DAYS_PER_YEAR
 from app.logging_config import get_logger
 from app.storage import PortfolioStorage
 
@@ -293,7 +294,7 @@ class BenchmarkComparisonEngine:
         mean_excess_return = sum(excess_returns) / len(excess_returns)
 
         # Annualize mean excess return
-        annualized_excess_return = mean_excess_return * 252
+        annualized_excess_return = mean_excess_return * TRADING_DAYS_PER_YEAR
 
         # IR = annualized excess return / tracking error
         information_ratio = Decimal(str(annualized_excess_return)) / tracking_error
@@ -331,8 +332,8 @@ class BenchmarkComparisonEngine:
         variance = sum((r - mean_excess) ** 2 for r in excess_returns) / (len(excess_returns) - 1)
         std_dev = sqrt(variance)
 
-        # Annualize: daily std dev * sqrt(252 trading days)
-        annualized_tracking_error = std_dev * sqrt(252)
+        # Annualize: daily std dev * sqrt(TRADING_DAYS_PER_YEAR trading days)
+        annualized_tracking_error = std_dev * sqrt(TRADING_DAYS_PER_YEAR)
 
         return Decimal(str(round(annualized_tracking_error, 4)))
 

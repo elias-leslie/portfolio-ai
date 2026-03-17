@@ -11,6 +11,7 @@ import math
 from decimal import Decimal
 
 from app.backtest.models import BacktestEquity, BacktestTrade
+from app.constants import TRADING_DAYS_PER_YEAR
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -130,9 +131,9 @@ def calculate_sharpe_ratio(
 
     # Sharpe ratio = (Portfolio Return - Risk-Free Rate) / Volatility
     # Calculate using daily returns annualized
-    daily_rf = float(risk_free_rate) / 252
+    daily_rf = float(risk_free_rate) / TRADING_DAYS_PER_YEAR
     excess_return = mean_return - daily_rf
-    sharpe = excess_return * math.sqrt(252) / std_dev if std_dev > 0 else 0.0
+    sharpe = excess_return * math.sqrt(TRADING_DAYS_PER_YEAR) / std_dev if std_dev > 0 else 0.0
 
     # Guard against NaN/inf values
     if math.isnan(sharpe) or math.isinf(sharpe):

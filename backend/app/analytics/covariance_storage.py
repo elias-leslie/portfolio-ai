@@ -20,6 +20,7 @@ from app.analytics.covariance_calc import (
     calculate_portfolio_volatility_from_covariance,
     calculate_volatility,
 )
+from app.constants import TRADING_DAYS_PER_YEAR
 from app.logging_config import get_logger
 
 if TYPE_CHECKING:
@@ -258,7 +259,7 @@ def get_portfolio_volatility(
     for symbol, weight in weights.items():
         # Get individual volatility from diagonal of covariance matrix
         variance = cov_matrix.get((symbol, symbol), 0.0)
-        vol = math.sqrt(variance) * math.sqrt(252)  # Annualize
+        vol = math.sqrt(variance) * math.sqrt(TRADING_DAYS_PER_YEAR)  # Annualize
         weighted_avg_vol += weight * vol
 
     # Calculate diversification benefit

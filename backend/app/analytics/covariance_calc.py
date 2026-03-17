@@ -170,7 +170,7 @@ def calculate_volatility(returns: list[float], annualize: bool = True) -> float:
     std_dev = math.sqrt(variance)
 
     if annualize:
-        std_dev *= math.sqrt(252)
+        std_dev *= math.sqrt(TRADING_DAYS_PER_YEAR)
 
     return std_dev
 
@@ -200,7 +200,7 @@ def calculate_portfolio_volatility_from_covariance(
         # Single asset: volatility is sqrt of variance
         symbol = symbols[0]
         variance = covariance_matrix.get((symbol, symbol), 0.0)
-        return math.sqrt(variance) * math.sqrt(252)  # Annualize
+        return math.sqrt(variance) * math.sqrt(TRADING_DAYS_PER_YEAR)  # Annualize
 
     # Calculate w' Σ w
     portfolio_variance = 0.0
@@ -215,8 +215,8 @@ def calculate_portfolio_volatility_from_covariance(
         # This shouldn't happen with valid data, but handle edge case
         portfolio_variance = 0.0
 
-    # Annualize: daily variance * 252 = annual variance
-    annual_variance = portfolio_variance * 252
+    # Annualize: daily variance * TRADING_DAYS_PER_YEAR = annual variance
+    annual_variance = portfolio_variance * TRADING_DAYS_PER_YEAR
     portfolio_volatility = math.sqrt(annual_variance)
 
     return portfolio_volatility

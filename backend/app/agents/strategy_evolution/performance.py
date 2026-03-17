@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
+from app.constants import TRADING_DAYS_PER_YEAR
 from app.logging_config import get_logger
 from app.storage.connection import get_connection_manager
 from app.strategies.models import StrategyDefinition
@@ -159,5 +160,5 @@ async def calculate_buy_hold_sharpe(symbol: str, days: int) -> float:
         return 0.0
 
     # Annualize (252 trading days)
-    sharpe = (mean_return / std_dev) * (252**0.5)
+    sharpe = (mean_return / std_dev) * (TRADING_DAYS_PER_YEAR**0.5)
     return float(sharpe)

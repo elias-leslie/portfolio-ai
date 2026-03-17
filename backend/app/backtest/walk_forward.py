@@ -28,6 +28,7 @@ from app.backtest.enhanced_strategy import EnhancedSignalStrategy
 from app.backtest.models import BacktestEquity
 from app.backtest.replay import BacktestState, replay_backtest
 from app.backtest.strategies import SignalStrategy
+from app.constants import TRADING_DAYS_PER_YEAR
 from app.logging_config import get_logger
 from app.storage import PortfolioStorage
 
@@ -369,7 +370,7 @@ class WalkForwardEngine:
                 if daily_returns and len(daily_returns) > 1:
                     mean_ret = statistics.mean(daily_returns)
                     std_ret = statistics.stdev(daily_returns)
-                    sharpe_ratio = (mean_ret / std_ret * (252**0.5)) if std_ret > 0 else 0.0
+                    sharpe_ratio = (mean_ret / std_ret * (TRADING_DAYS_PER_YEAR**0.5)) if std_ret > 0 else 0.0
                 else:
                     sharpe_ratio = 0.0
             else:

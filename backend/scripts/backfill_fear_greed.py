@@ -19,6 +19,7 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from app.constants import TRADING_DAYS_PER_YEAR
 from app.logging_config import get_logger
 from app.storage import get_storage
 from app.tasks.indicators.fear_greed import (
@@ -119,7 +120,7 @@ def backfill_scores() -> int:
         return 0
 
     scores_calculated = 0
-    window_days = 252
+    window_days = TRADING_DAYS_PER_YEAR
 
     for i, as_of_date in enumerate(dates_to_process):
         date_str = as_of_date.isoformat() if isinstance(as_of_date, dt.date) else str(as_of_date)

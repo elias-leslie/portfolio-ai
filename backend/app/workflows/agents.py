@@ -10,6 +10,7 @@ from typing import Any
 
 from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy, Context
 
+from ..constants import TRADING_DAYS_PER_YEAR
 from ..hatchet_app import hatchet
 from .models import EmptyInput, SymbolInput
 
@@ -78,7 +79,7 @@ async def schedule_new_symbol_wf(input: SymbolInput, ctx: Context) -> dict[str, 
     results: dict[str, Any] = {"symbol": input.symbol, "steps": []}
 
     # Step 1: Ingest historical OHLCV
-    r: Any = await asyncio.to_thread(ingest_historical_ohlcv, symbols=[input.symbol], days=252)
+    r: Any = await asyncio.to_thread(ingest_historical_ohlcv, symbols=[input.symbol], days=TRADING_DAYS_PER_YEAR)
     results["steps"].append({"step": "ingest_ohlcv", "result": r})
     await asyncio.sleep(5)
 

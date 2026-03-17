@@ -9,6 +9,7 @@ from __future__ import annotations
 import datetime as dt
 import uuid
 
+from app.constants import TRADING_DAYS_PER_YEAR
 from app.logging_config import get_logger
 from app.storage import get_storage
 from app.tasks.ingestion._ohlcv_helpers import (
@@ -29,7 +30,7 @@ logger = get_logger(__name__)
 
 
 def _ingest_historical_ohlcv_impl(
-    symbols: list[str], days: int = 252, task_id: str | None = None
+    symbols: list[str], days: int = TRADING_DAYS_PER_YEAR, task_id: str | None = None
 ) -> dict[str, int | str | float]:
     """Run the OHLCV ingestion pipeline. Shared by ingest_historical_ohlcv and refresh_daily_ohlcv."""
     ingest_run_id = str(uuid.uuid4())
@@ -126,7 +127,7 @@ def refresh_watchlist_ohlcv() -> dict[str, int | str | float]:
 
 
 def ingest_historical_ohlcv(
-    symbols: list[str], days: int = 252
+    symbols: list[str], days: int = TRADING_DAYS_PER_YEAR
 ) -> dict[str, int | str | float]:
     """Backfill historical OHLCV data using multi-source fetcher.
 

@@ -19,6 +19,7 @@ from typing import Any
 
 import polars as pl
 
+from ..constants import TRADING_DAYS_PER_YEAR
 from ..logging_config import get_logger
 from .base import BaseSource, DatasetRequest, standardize_dates
 from .base_http_client import BaseHTTPClient
@@ -86,7 +87,7 @@ class TwelveDataClient(BaseHTTPClient):
         self,
         symbol: str,
         interval: str = "1day",
-        outputsize: int = 252,
+        outputsize: int = TRADING_DAYS_PER_YEAR,
         start_date: str | None = None,
         end_date: str | None = None,
     ) -> dict[str, Any]:

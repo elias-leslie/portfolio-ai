@@ -10,6 +10,7 @@ from typing import Any, cast
 
 from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy, Context
 
+from ..constants import TRADING_DAYS_PER_YEAR
 from ..hatchet_app import hatchet
 from .data_refresh_schedules import (
     FEAR_GREED_CALC_CRONS,
@@ -184,7 +185,7 @@ async def fetch_putcall_ratio_wf(input: EmptyInput, ctx: Context) -> dict[str, A
 async def ingest_ohlcv_wf(input: SymbolsInput, ctx: Context) -> dict[str, Any]:
     from ..tasks.ingestion.price_ingestion import ingest_historical_ohlcv
 
-    return await asyncio.to_thread(ingest_historical_ohlcv, symbols=input.symbols, days=input.days or 252)
+    return await asyncio.to_thread(ingest_historical_ohlcv, symbols=input.symbols, days=input.days or TRADING_DAYS_PER_YEAR)
 
 
 @hatchet.task(
