@@ -144,6 +144,14 @@ def fetch_cik_mapping(timeout: int = 30) -> dict[str, str]:
     raise RuntimeError(f"All CIK sources failed: {error_summary}")
 
 
+def _extract_entry(entry: dict[str, Any], mapping: dict[str, str]) -> None:
+    """Extract symbol→CIK from a dict entry and add to mapping."""
+    symbol = entry.get("symbol", "").strip().upper()
+    cik = entry.get("cik_str") or entry.get("cik")
+    if symbol and cik:
+        mapping[symbol] = str(cik).zfill(10)
+
+
 def _parse_cik_data(data: dict[str, Any] | list[Any], source_name: str) -> dict[str, str]:
     """Parse CIK data from various formats.
 
@@ -165,19 +173,13 @@ def _parse_cik_data(data: dict[str, Any] | list[Any], source_name: str) -> dict[
         # Format 1: Dict with numeric string keys
         if isinstance(data, dict) and all(k.isdigit() for k in list(data.keys())[:5]):
             for entry in data.values():
-                symbol = entry.get("symbol", "").strip().upper()
-                cik = entry.get("cik_str") or entry.get("cik")
-                if symbol and cik:
-                    mapping[symbol] = str(cik).zfill(10)
+                _extract_entry(entry, mapping)
 
         # Format 2: Dict with "data" key
         elif isinstance(data, dict) and "data" in data:
             for entry in data["data"]:
                 if isinstance(entry, dict):
-                    symbol = entry.get("symbol", "").strip().upper()
-                    cik = entry.get("cik_str") or entry.get("cik")
-                    if symbol and cik:
-                        mapping[symbol] = str(cik).zfill(10)
+                    _extract_entry(entry, mapping)
                 elif isinstance(entry, list) and len(entry) >= 3:
                     # Some formats use arrays: [symbol, cik, name]
                     symbol = str(entry[0]).strip().upper()
@@ -188,10 +190,7 @@ def _parse_cik_data(data: dict[str, Any] | list[Any], source_name: str) -> dict[
         # Format 3: List of dicts
         elif isinstance(data, list):
             for entry in data:
-                symbol = entry.get("symbol", "").strip().upper()
-                cik = entry.get("cik_str") or entry.get("cik")
-                if symbol and cik:
-                    mapping[symbol] = str(cik).zfill(10)
+                _extract_entry(entry, mapping)
 
         # Format 4: Direct symbol→CIK dict
         elif isinstance(data, dict):

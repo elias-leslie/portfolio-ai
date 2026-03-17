@@ -12,7 +12,7 @@ import { DiversificationScore } from './DiversificationScore'
 import { PortfolioStats } from './PortfolioStats'
 import { RiskProfile } from './RiskProfile'
 import { TopPerformers } from './TopPerformers'
-import { formatDisplayLabel } from './portfolio-utils'
+import { formatCurrency, formatDisplayLabel, formatPercent } from './portfolio-utils'
 
 export function PortfolioOverview() {
   const {
@@ -61,18 +61,6 @@ export function PortfolioOverview() {
         isRetrying={portfolioFetching || analyticsFetching}
       />
     )
-  }
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-    }).format(value)
-  }
-
-  const formatPercent = (value: number) => {
-    return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
   }
 
   const gainColor = (portfolio?.totalGain ?? 0) >= 0 ? 'text-gain' : 'text-loss'

@@ -4,6 +4,7 @@ import { BarChart3 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import type { PortfolioAnalytics } from '@/lib/api/portfolio'
 import { cn } from '@/lib/utils'
+import { formatCurrencyWhole } from './portfolio-utils'
 
 interface PortfolioStatsProps {
   analytics: PortfolioAnalytics
@@ -14,15 +15,6 @@ export function PortfolioStats({ analytics }: PortfolioStatsProps) {
     analytics.numPositions > 0
       ? analytics.portfolioValue.totalValue / analytics.numPositions
       : 0
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value)
-  }
 
   return (
     <Card className="p-6">
@@ -49,19 +41,19 @@ export function PortfolioStats({ analytics }: PortfolioStatsProps) {
             Avg Invested Position Size
           </span>
           <span className="text-sm font-medium text-text">
-            {formatCurrency(avgInvestedPositionSize)}
+            {formatCurrencyWhole(avgInvestedPositionSize)}
           </span>
         </div>
         <div className="flex justify-between items-center">
           <span className="text-sm text-text-muted">Invested Value</span>
           <span className="text-sm font-medium text-text">
-            {formatCurrency(analytics.portfolioValue.totalValue)}
+            {formatCurrencyWhole(analytics.portfolioValue.totalValue)}
           </span>
         </div>
         <div className="flex justify-between items-center">
           <span className="text-sm text-text-muted">Cash Reserve</span>
           <span className="text-sm font-medium text-text">
-            {formatCurrency(analytics.cashBalanceTotal)}
+            {formatCurrencyWhole(analytics.cashBalanceTotal)}
           </span>
         </div>
         <div className="flex justify-between items-center">

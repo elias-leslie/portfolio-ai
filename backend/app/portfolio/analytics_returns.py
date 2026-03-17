@@ -172,8 +172,21 @@ def calculate_portfolio_volatility(
         except Exception as e:
             logger.warning("portfolio_volatility_covariance_failed", error=str(e))
 
-    # Fallback to weighted average (incorrect but better than nothing)
-    return _calculate_weighted_avg_volatility(positions, price_data)
+    # Fallback to weighted average.
+    # NOTE: assumes perfect correlation (rho=1), overstating risk by 30-60%.
+    weighted_vol_sum = 0.0
+    for position in positions:
+        price = price_data.get(position.symbol)
+        if not price or price.volatility is None or price.error:
+            continue
+        pos_value = position.shares * price.price
+        weighted_vol_sum += pos_value * price.volatility
+
+    if total_value == 0:
+        return None
+
+    logger.debug("portfolio_volatility_fallback_weighted_avg")
+    return weighted_vol_sum / total_value
 
 
 def _get_covariance_portfolio_id(
@@ -183,42 +196,6 @@ def _get_covariance_portfolio_id(
     """Pick a real account-backed cache namespace for covariance lookups."""
     candidate_ids = sorted(set(account_ids or [position.account_id for position in positions]))
     return candidate_ids[0] if candidate_ids else "default"
-
-
-def _calculate_weighted_avg_volatility(
-    positions: list[Position],
-    price_data: dict[str, PriceData],
-) -> float | None:
-    """Calculate portfolio volatility using simple weighted average (DEPRECATED).
-
-    WARNING: This assumes perfect correlation (rho=1) between all assets,
-    which overstates portfolio risk by 30-60%. Use covariance-based
-    calculation when possible.
-
-    Args:
-        positions: List of portfolio positions
-        price_data: Dictionary mapping symbol to PriceData
-
-    Returns:
-        Portfolio volatility, or None if insufficient data
-    """
-    total_value = 0.0
-    weighted_vol_sum = 0.0
-
-    for position in positions:
-        price = price_data.get(position.symbol)
-        if not price or price.volatility is None or price.error:
-            continue
-
-        position_value = position.shares * price.price
-        total_value += position_value
-        weighted_vol_sum += position_value * price.volatility
-
-    if total_value == 0:
-        return None
-
-    logger.debug("portfolio_volatility_fallback_weighted_avg")
-    return weighted_vol_sum / total_value
 
 
 def calculate_top_performers(

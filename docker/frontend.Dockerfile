@@ -14,7 +14,7 @@ WORKDIR /app
 COPY frontend/ ./
 
 # Install dependencies (after source so pnpm sees package.json in place)
-RUN CI=true pnpm install --no-frozen-lockfile
+RUN CI=true pnpm install --frozen-lockfile
 
 # Build with standalone output
 ENV NEXT_TELEMETRY_DISABLED=1
