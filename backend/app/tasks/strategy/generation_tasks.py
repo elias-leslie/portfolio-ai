@@ -10,6 +10,7 @@ import asyncio
 import contextlib
 from typing import Any
 
+from app.constants import ERROR_MESSAGE_TRUNCATE
 from app.logging_config import get_logger
 from app.storage.credential_loader import load_credentials_from_database
 from app.strategies.storage import get_strategy_storage
@@ -26,9 +27,6 @@ logger = get_logger(__name__)
 # Strategy limits
 TOP_WATCHLIST_SYMBOLS = 20  # Top symbols to consider for weekly strategy generation
 TOP_WATCHLIST_TRIGGER_SYMBOLS = 10  # Top symbols to consider for trigger-based generation
-
-# Error handling
-ERROR_MESSAGE_TRUNCATE = 100  # Truncate error messages to prevent log bloat
 
 
 def _run_strategy_workflow(

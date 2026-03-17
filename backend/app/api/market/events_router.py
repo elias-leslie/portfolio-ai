@@ -7,6 +7,7 @@ from typing import Any, Final, cast, get_args
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
+from app.constants import CACHE_TTL_MEDIUM
 from app.logging_config import get_logger
 from app.middleware.cache import cache_response
 from app.models.market_events import MarketEventCreate, MarketEventType, MarketEventUpdate
@@ -27,9 +28,6 @@ from app.services.market_events_service import (
 
 router = APIRouter()
 logger = get_logger(__name__)
-
-# Cache TTL constants (in seconds)
-CACHE_TTL_MEDIUM = 300  # 5 minutes
 
 # Valid market event types (derived from MarketEventType Literal)
 VALID_EVENT_TYPES: Final[frozenset[str]] = frozenset(get_args(MarketEventType))

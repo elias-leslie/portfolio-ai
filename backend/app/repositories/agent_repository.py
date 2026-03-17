@@ -14,14 +14,12 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from app.agents.types import AgentRunStatus
+from app.constants import RESULT_SUMMARY_LENGTH
 from app.utils.json_helpers import json_serializer
 
 if TYPE_CHECKING:
     from app.agents.types import ToolInputDict
     from app.storage import PortfolioStorage
-
-# Constants for result truncation
-RESULT_SUMMARY_LENGTH = 500  # Max chars for result summary
 
 
 class AgentRunRepository:

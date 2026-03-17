@@ -11,6 +11,7 @@ import shutil
 from pathlib import Path
 from typing import Any
 
+from app.constants import SECONDS_PER_HOUR
 from app.logging_config import get_logger
 
 from .shared_helpers import (
@@ -22,9 +23,6 @@ from .shared_helpers import (
 )
 
 logger = get_logger(__name__)
-
-# Constants
-SECONDS_PER_HOUR = 3600
 
 # Temp file patterns to clean up
 TEMP_FILE_PATTERNS = [

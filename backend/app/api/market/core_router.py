@@ -24,6 +24,7 @@ from app.api.market_responses import (
     PriceResponse,
     PricesResponse,
 )
+from app.constants import CACHE_TTL_LONG, CACHE_TTL_MEDIUM, CACHE_TTL_SHORT
 from app.logging_config import get_logger
 from app.market.sentiment import calculate_market_health
 from app.middleware.cache import cache_response
@@ -54,11 +55,6 @@ def _get_market_repo() -> MarketRepository:
     if "repo" not in _state:
         _state["repo"] = MarketRepository(get_storage())
     return _state["repo"]
-
-# Cache TTL constants (in seconds)
-CACHE_TTL_SHORT = 60  # 1 minute
-CACHE_TTL_MEDIUM = 300  # 5 minutes
-CACHE_TTL_LONG = 900  # 15 minutes
 
 # Historical data limits
 MAX_SYMBOLS_PER_REQUEST = 50  # Prevent DoS with large symbol lists

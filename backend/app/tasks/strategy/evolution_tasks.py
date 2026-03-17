@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
+from app.constants import ERROR_MESSAGE_TRUNCATE
 from app.logging_config import get_logger
 from app.strategies.storage import StrategyStorage, get_strategy_storage
 
@@ -19,9 +20,6 @@ logger = get_logger(__name__)
 
 # Strategy limits
 MAX_EVOLUTION_STRATEGIES = 5  # Maximum strategies to evolve per week
-
-# Error handling
-ERROR_MESSAGE_TRUNCATE = 100  # Truncate error messages to prevent log bloat
 
 
 def _parse_strategy_row(row: tuple) -> tuple[str, str, str, float, float, float]:

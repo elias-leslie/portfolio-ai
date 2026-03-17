@@ -8,11 +8,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.constants import ERROR_MESSAGE_TRUNCATE
 from app.logging_config import get_logger
 from app.storage.connection import get_connection_manager
 from app.strategies.storage import get_strategy_storage
 from app.tasks.strategy._performance_helpers import (
-    ERROR_MESSAGE_TRUNCATE,
     _days_since,
     _evaluate_single_strategy,
     _promotion_skip_reason,

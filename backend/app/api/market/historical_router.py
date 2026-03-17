@@ -20,7 +20,7 @@ from app.api.market_transformers import (
     build_sector_history,
     sort_sectors_by_performance,
 )
-from app.constants import SECTOR_ETFS
+from app.constants import CACHE_TTL_MEDIUM, CACHE_TTL_SHORT, SECTOR_ETFS
 from app.logging_config import get_logger
 from app.middleware.cache import cache_response
 from app.repositories.market_repository import MarketRepository
@@ -39,10 +39,6 @@ def _get_market_repo() -> MarketRepository:
     if "repo" not in _state:
         _state["repo"] = MarketRepository(get_storage())
     return _state["repo"]
-
-# Cache TTL constants (in seconds)
-CACHE_TTL_SHORT = 60  # 1 minute
-CACHE_TTL_MEDIUM = 300  # 5 minutes
 
 # Historical data limits
 MAX_HISTORICAL_DAYS = 1825  # ~5 years

@@ -11,6 +11,7 @@ import datetime as dt
 from pathlib import Path
 from typing import Any
 
+from app.constants import SECONDS_PER_DAY
 from app.logging_config import get_logger
 from app.tasks.cleanup.shared_helpers import (
     build_cleanup_result,
@@ -24,7 +25,6 @@ logger = get_logger(__name__)
 
 # Constants
 LOG_ROTATION_SIZE_THRESHOLD_BYTES = 10 * 1024 * 1024  # 10MB
-SECONDS_PER_DAY = 86400
 
 
 def get_log_directories() -> list[Path]:

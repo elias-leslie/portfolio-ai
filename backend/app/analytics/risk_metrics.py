@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import TYPE_CHECKING
 
+from app.constants import TRADING_DAYS_PER_YEAR
 from app.logging_config import get_logger
 
 if TYPE_CHECKING:
@@ -19,8 +20,6 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-# Trading days per year
-TRADING_DAYS_YEAR = 252
 
 # Default confidence levels
 VAR_CONFIDENCE_95 = 0.95
@@ -100,7 +99,7 @@ def calculate_var_cvar(
 def get_daily_returns(
     storage: PortfolioStorage,
     symbol: str,
-    lookback_days: int = TRADING_DAYS_YEAR,
+    lookback_days: int = TRADING_DAYS_PER_YEAR,
 ) -> list[tuple[date, float]]:
     """Get daily returns for a symbol from day_bars.
 
@@ -142,7 +141,7 @@ def get_daily_returns(
 
 def get_market_returns(
     storage: PortfolioStorage,
-    lookback_days: int = TRADING_DAYS_YEAR,
+    lookback_days: int = TRADING_DAYS_PER_YEAR,
 ) -> dict[date, float]:
     """Get market (SPY) daily returns.
 
@@ -228,7 +227,7 @@ def calculate_symbol_var(
         VaRResult with 95% and 99% VaR/CVaR
     """
     # Get 1 year of returns
-    returns_with_dates = get_daily_returns(storage, symbol, TRADING_DAYS_YEAR * 2)
+    returns_with_dates = get_daily_returns(storage, symbol, TRADING_DAYS_PER_YEAR * 2)
     returns = [r for _, r in returns_with_dates]
 
     if len(returns) < 30:
@@ -265,7 +264,7 @@ def calculate_symbol_beta(
         BetaResult with 90-day, 1-year, and 2-year betas
     """
     # Get market returns for full period (2 years)
-    market_returns = get_market_returns(storage, TRADING_DAYS_YEAR * 3)
+    market_returns = get_market_returns(storage, TRADING_DAYS_PER_YEAR * 3)
 
     if len(market_returns) < 60:
         return BetaResult(
@@ -274,7 +273,7 @@ def calculate_symbol_beta(
         )
 
     # Get stock returns for full period
-    stock_returns = get_daily_returns(storage, symbol, TRADING_DAYS_YEAR * 3)
+    stock_returns = get_daily_returns(storage, symbol, TRADING_DAYS_PER_YEAR * 3)
 
     if len(stock_returns) < 60:
         return BetaResult(
@@ -286,12 +285,13 @@ def calculate_symbol_beta(
     recent_90d = stock_returns[-90:] if len(stock_returns) >= 90 else stock_returns
     beta_90d, _, obs_90d = calculate_beta(recent_90d, market_returns)
 
-    # Calculate 1-year beta (252 trading days)
-    recent_1y = stock_returns[-252:] if len(stock_returns) >= 252 else stock_returns
+    # Calculate 1-year beta
+    recent_1y = stock_returns[-TRADING_DAYS_PER_YEAR:] if len(stock_returns) >= TRADING_DAYS_PER_YEAR else stock_returns
     beta_1y, r_squared_1y, obs_1y = calculate_beta(recent_1y, market_returns)
 
-    # Calculate 2-year beta (504 trading days)
-    recent_2y = stock_returns[-504:] if len(stock_returns) >= 504 else stock_returns
+    # Calculate 2-year beta
+    two_years = TRADING_DAYS_PER_YEAR * 2
+    recent_2y = stock_returns[-two_years:] if len(stock_returns) >= two_years else stock_returns
     beta_2y, _, obs_2y = calculate_beta(recent_2y, market_returns)
 
     return BetaResult(
@@ -327,7 +327,7 @@ def calculate_portfolio_var(
     # Get returns for all symbols
     all_returns: dict[str, dict[date, float]] = {}
     for symbol, _ in positions:
-        returns = get_daily_returns(storage, symbol, TRADING_DAYS_YEAR)
+        returns = get_daily_returns(storage, symbol, TRADING_DAYS_PER_YEAR)
         all_returns[symbol] = dict(returns)
 
     if not all_returns:

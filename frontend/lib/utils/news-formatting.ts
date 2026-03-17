@@ -3,7 +3,7 @@
  * Used across Market News, Watchlist News Intelligence, and Watchlist Sentiment sections
  */
 
-import { formatDistanceToNow } from 'date-fns'
+import { formatRelativeTime } from '@/lib/utils'
 
 /**
  * Standard vendor labels for news sources
@@ -95,13 +95,8 @@ export function formatConfidence(
  */
 export function formatNewsDate(dateString: string | null | undefined): string {
   if (!dateString) return ''
-
-  try {
-    const date = new Date(dateString)
-    return formatDistanceToNow(date, { addSuffix: true })
-  } catch {
-    return ''
-  }
+  const result = formatRelativeTime(dateString)
+  return result === 'Never' || result === 'Unknown' ? '' : result
 }
 
 /**

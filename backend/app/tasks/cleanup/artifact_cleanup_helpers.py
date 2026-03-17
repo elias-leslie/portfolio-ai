@@ -13,6 +13,7 @@ import re
 import shutil
 from pathlib import Path
 
+from app.constants import SECONDS_PER_DAY
 from app.logging_config import get_logger
 from app.tasks.maintenance_logging import log_maintenance_complete
 
@@ -26,8 +27,6 @@ from .shared_helpers import (
 )
 
 logger = get_logger(__name__)
-
-SECONDS_PER_DAY = 86400
 
 # Type aliases
 _DryRunEntry = dict[str, int | float | str]

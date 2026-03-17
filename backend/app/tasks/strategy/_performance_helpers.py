@@ -16,8 +16,8 @@ from app.strategies.storage import StrategyStorage
 
 logger = get_logger(__name__)
 
+
 PERFORMANCE_RATIO_THRESHOLD = 0.7
-ERROR_MESSAGE_TRUNCATE = 100
 
 
 def _should_archive_strategy(performance_ratio: float, days_since_activation: int) -> bool:

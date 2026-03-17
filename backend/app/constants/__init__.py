@@ -41,6 +41,28 @@ MARKET_SYMBOL = "__MARKET__"
 # =============================================================================
 DEFAULT_PRICE_CACHE_TTL_MINUTES = 15
 
+# HTTP response cache TTLs (in seconds) used by market API routers
+CACHE_TTL_SHORT = 60  # 1 minute
+CACHE_TTL_MEDIUM = 300  # 5 minutes
+CACHE_TTL_LONG = 900  # 15 minutes
+
+# =============================================================================
+# TRUNCATION & LIMITS
+# =============================================================================
+ERROR_MESSAGE_TRUNCATE = 100  # Truncate error messages to prevent log bloat
+RESULT_SUMMARY_LENGTH = 500  # Max chars for agent result summaries
+
+# =============================================================================
+# TIME CONSTANTS
+# =============================================================================
+SECONDS_PER_HOUR = 3600
+SECONDS_PER_DAY = 86400
+
+# =============================================================================
+# TRADING CALENDAR
+# =============================================================================
+TRADING_DAYS_PER_YEAR = 252
+
 # =============================================================================
 # DATA INGESTION
 # =============================================================================
@@ -58,6 +80,9 @@ DEFAULT_DAILY_REFRESH_DAYS = 5
 __all__ = [
     "ALL_MARKET_SYMBOLS",
     "BENCHMARK_SPY",
+    "CACHE_TTL_LONG",
+    "CACHE_TTL_MEDIUM",
+    "CACHE_TTL_SHORT",
     "CLAUDE_HAIKU",
     "CLAUDE_OPUS",
     "CLAUDE_SONNET",
@@ -67,6 +92,7 @@ __all__ = [
     "DEFAULT_DAILY_REFRESH_DAYS",
     "DEFAULT_GEMINI_MODEL",
     "DEFAULT_PRICE_CACHE_TTL_MINUTES",
+    "ERROR_MESSAGE_TRUNCATE",
     "GEMINI_FLASH",
     "GEMINI_PRO",
     "INDEX_DXY",
@@ -75,8 +101,12 @@ __all__ = [
     "INDEX_VIX",
     "MARKET_INDICATORS",
     "MARKET_SYMBOL",
+    "RESULT_SUMMARY_LENGTH",
+    "SECONDS_PER_DAY",
+    "SECONDS_PER_HOUR",
     "SECTOR_ETFS",
     "SECTOR_ETF_SYMBOLS",
     "SECTOR_LABELS",
     "SERVICE_PROCESS_PATTERNS",
+    "TRADING_DAYS_PER_YEAR",
 ]

@@ -34,11 +34,6 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-# Re-export constants for backwards compatibility
-MAX_LLM_TOKENS = 4096
-TOOL_RESULT_TRUNCATE = 10000
-RESULT_SUMMARY_LENGTH = 500
-
 
 class ToolCallRecord(TypedDict):
     """Record of a tool call made by the agent."""
