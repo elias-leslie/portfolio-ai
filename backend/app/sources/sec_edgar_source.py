@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 import polars as pl
 
+from ..constants import SEC_USER_AGENT
 from ..logging_config import get_logger
 from .base import BaseSource
 from .sec_cik_fetcher import get_cik
@@ -49,7 +50,7 @@ def _get_edgar() -> Any:
         # SEC requests traffic identification with company/contact info
         # See: https://www.sec.gov/os/webmaster-faq#developers
         if not _set_identity_called:
-            edgar_module.set_identity("Summit Flow Solutions contact@summitflow.dev")
+            edgar_module.set_identity(SEC_USER_AGENT)
             _set_identity_called = True
             logger.info("sec_edgar_identity_set")
 

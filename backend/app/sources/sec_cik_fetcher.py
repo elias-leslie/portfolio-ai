@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any, TypedDict
 
 import requests
 
+from ..constants import SEC_USER_AGENT
 from ..logging_config import get_logger
 
 if TYPE_CHECKING:
@@ -43,7 +44,7 @@ CIK_SOURCES: list[CIKSource] = [
         "name": "SEC Official",
         "url": "https://www.sec.gov/files/company_symbols.json",
         "headers": {
-            "User-Agent": "Summit Flow Solutions contact@summitflow.dev"
+            "User-Agent": SEC_USER_AGENT
         },
         "priority": 1,
     },
@@ -51,7 +52,7 @@ CIK_SOURCES: list[CIKSource] = [
         "name": "SEC Exchange Data",
         "url": "https://www.sec.gov/files/company_symbols_exchange.json",
         "headers": {
-            "User-Agent": "Summit Flow Solutions contact@summitflow.dev"
+            "User-Agent": SEC_USER_AGENT
         },
         "priority": 2,
     },

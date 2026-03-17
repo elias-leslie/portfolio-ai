@@ -31,6 +31,13 @@ from app.constants.symbols import (
 )
 
 # =============================================================================
+# HTTP IDENTITY
+# =============================================================================
+# SEC EDGAR requires a company User-Agent for fair-access compliance.
+# Used by sec_cik_fetcher.py and sec_edgar_source.py.
+SEC_USER_AGENT = "Summit Flow Solutions summitflow42@gmail.com"
+
+# =============================================================================
 # SPECIAL SYMBOLS
 # =============================================================================
 # Pseudo-symbol for market-wide events and readings (fear/greed history)
@@ -107,6 +114,7 @@ __all__ = [
     "SECTOR_ETFS",
     "SECTOR_ETF_SYMBOLS",
     "SECTOR_LABELS",
+    "SEC_USER_AGENT",
     "SERVICE_PROCESS_PATTERNS",
     "TRADING_DAYS_PER_YEAR",
 ]
