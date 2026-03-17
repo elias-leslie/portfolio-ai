@@ -19,7 +19,7 @@ from typing import Any
 
 import polars as pl
 
-from ..constants import TRADING_DAYS_PER_YEAR
+from ..constants import DEFAULT_HTTP_TIMEOUT, TRADING_DAYS_PER_YEAR
 from ..logging_config import get_logger
 from .base import BaseSource, DatasetRequest, standardize_dates
 from .base_http_client import BaseHTTPClient
@@ -42,7 +42,7 @@ class TwelveDataClient(BaseHTTPClient):
         self,
         api_key: str | None = None,
         rate_calls_per_minute: int | None = 8,
-        timeout: float = 30.0,
+        timeout: float = DEFAULT_HTTP_TIMEOUT,
     ) -> None:
         """Initialize Twelve Data client.
 

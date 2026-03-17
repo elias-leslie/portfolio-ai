@@ -20,6 +20,7 @@ from typing import Any
 
 import polars as pl
 
+from ..constants import DEFAULT_HTTP_TIMEOUT
 from ..logging_config import get_logger
 from .base import BaseSource, DatasetRequest, standardize_dates
 from .base_http_client import BaseHTTPClient
@@ -42,7 +43,7 @@ class FMPClient(BaseHTTPClient):
         self,
         api_key: str | None = None,
         rate_calls_per_day: int | None = 250,
-        timeout: float = 30.0,
+        timeout: float = DEFAULT_HTTP_TIMEOUT,
     ) -> None:
         """Initialize FMP client.
 

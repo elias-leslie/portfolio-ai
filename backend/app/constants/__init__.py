@@ -46,6 +46,9 @@ MARKET_SYMBOL = "__MARKET__"
 # =============================================================================
 # CACHE & TIMEOUTS
 # =============================================================================
+# Default HTTP request timeout in seconds (used by BaseHTTPClient and ad-hoc clients)
+DEFAULT_HTTP_TIMEOUT = 30.0
+
 DEFAULT_PRICE_CACHE_TTL_MINUTES = 15
 
 # HTTP response cache TTLs (in seconds) used by market API routers
@@ -98,6 +101,7 @@ __all__ = [
     "DEFAULT_CLAUDE_MODEL",
     "DEFAULT_DAILY_REFRESH_DAYS",
     "DEFAULT_GEMINI_MODEL",
+    "DEFAULT_HTTP_TIMEOUT",
     "DEFAULT_PRICE_CACHE_TTL_MINUTES",
     "ERROR_MESSAGE_TRUNCATE",
     "GEMINI_FLASH",

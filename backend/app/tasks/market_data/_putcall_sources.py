@@ -11,6 +11,7 @@ from typing import Any
 import requests
 import yfinance as yf
 
+from app.constants import DEFAULT_HTTP_TIMEOUT
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -83,7 +84,7 @@ def _calculate_putcall_from_polygon() -> dict[str, Any] | None:
         return None
     try:
         url = f"https://api.polygon.io/v3/snapshot/options/SPY?apiKey={api_key}"
-        response = requests.get(url, timeout=30)
+        response = requests.get(url, timeout=DEFAULT_HTTP_TIMEOUT)
         response.raise_for_status()
         results = response.json().get("results", [])
         if not results:
@@ -122,7 +123,7 @@ def _calculate_putcall_from_finnhub() -> dict[str, Any] | None:
         return None
     try:
         url = f"https://finnhub.io/api/v1/stock/option-chain?symbol=SPY&token={api_key}"
-        response = requests.get(url, timeout=30)
+        response = requests.get(url, timeout=DEFAULT_HTTP_TIMEOUT)
         response.raise_for_status()
         options_data = response.json().get("data", [])
         if not options_data:

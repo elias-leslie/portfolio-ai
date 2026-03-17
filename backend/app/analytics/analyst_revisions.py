@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any, TypedDict
 
 import httpx
 
+from app.constants import DEFAULT_HTTP_TIMEOUT
 from app.logging_config import get_logger
 
 if TYPE_CHECKING:
@@ -70,7 +71,7 @@ def fetch_analyst_recommendations(
     """
     try:
         url = f"https://finnhub.io/api/v1/stock/recommendation?symbol={symbol}&token={api_key}"
-        with httpx.Client(timeout=30.0) as client:
+        with httpx.Client(timeout=DEFAULT_HTTP_TIMEOUT) as client:
             response = client.get(url)
             response.raise_for_status()
             data = response.json()

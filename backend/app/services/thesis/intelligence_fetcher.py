@@ -7,6 +7,7 @@ from typing import Any
 import httpx
 
 from ...config import settings
+from ...constants import DEFAULT_HTTP_TIMEOUT
 from ...logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -39,7 +40,7 @@ class IntelligenceFetcher:
 
         try:
             logger.info("fetching_intelligence", symbol=symbol, url=url)
-            response = httpx.get(url, timeout=30.0)
+            response = httpx.get(url, timeout=DEFAULT_HTTP_TIMEOUT)
             response.raise_for_status()
             data: dict[str, Any] = response.json()
 

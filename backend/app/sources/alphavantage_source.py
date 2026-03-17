@@ -18,6 +18,7 @@ from typing import Any
 
 import polars as pl
 
+from ..constants import DEFAULT_HTTP_TIMEOUT
 from ..logging_config import get_logger
 from .base import BaseSource, DatasetRequest, standardize_dates
 from .base_http_client import BaseHTTPClient
@@ -39,7 +40,7 @@ class AlphaVantageClient(BaseHTTPClient):
     def __init__(
         self,
         api_key: str | None = None,
-        timeout: float = 30.0,
+        timeout: float = DEFAULT_HTTP_TIMEOUT,
     ) -> None:
         """Initialize Alpha Vantage client.
 

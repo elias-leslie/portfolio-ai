@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any, TypedDict
 
 import requests
 
-from ..constants import SEC_USER_AGENT
+from ..constants import DEFAULT_HTTP_TIMEOUT, SEC_USER_AGENT
 from ..logging_config import get_logger
 
 if TYPE_CHECKING:
@@ -71,7 +71,7 @@ CIK_SOURCES: list[CIKSource] = [
 ]
 
 
-def fetch_cik_mapping(timeout: int = 30) -> dict[str, str]:
+def fetch_cik_mapping(timeout: float = DEFAULT_HTTP_TIMEOUT) -> dict[str, str]:
     """Fetch symbol→CIK mapping from SEC or fallback sources.
 
     Tries multiple sources in priority order until one succeeds.

@@ -19,6 +19,7 @@ import urllib.request
 from typing import TYPE_CHECKING, Any
 from urllib.error import URLError
 
+from ..constants import DEFAULT_HTTP_TIMEOUT
 from ..logging_config import get_logger
 from .source_metrics_manager import SourceMetricsManager
 
@@ -171,7 +172,7 @@ class CBOEMostActiveSource:
         """
         try:
             # Fetch JSON from API
-            with urllib.request.urlopen(self.SOURCE_URL, timeout=30) as response:
+            with urllib.request.urlopen(self.SOURCE_URL, timeout=int(DEFAULT_HTTP_TIMEOUT)) as response:
                 data = json.load(response)
 
             # Extract contracts from "all" category (All Options section)

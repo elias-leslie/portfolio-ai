@@ -20,6 +20,7 @@ from typing import Any
 import httpx
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
+from ..constants import DEFAULT_HTTP_TIMEOUT
 from ..logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -200,7 +201,7 @@ class BaseHTTPClient(ABC):
         api_key: str | None = None,
         rate_calls_per_minute: int | None = None,
         rate_calls_per_day: int | None = None,
-        timeout: float = 30.0,
+        timeout: float = DEFAULT_HTTP_TIMEOUT,
     ) -> None:
         """Initialize HTTP client.
 
