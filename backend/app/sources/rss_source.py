@@ -12,6 +12,7 @@ from urllib.request import Request, urlopen
 import polars as pl
 from feedparser import parse as parse_feed
 
+from ..constants import SHORT_HTTP_TIMEOUT
 from ..logging_config import get_logger
 from ._rss_helpers import entry_to_record, in_window
 from .base import BaseSource, DatasetRequest
@@ -48,7 +49,7 @@ class RssNewsSource(BaseSource):
         self.feeds = list(feeds)
         self.symbol_feed_template = symbol_feed_template
         self.user_agent = user_agent or self.DEFAULT_USER_AGENT
-        self.request_timeout = 10.0
+        self.request_timeout = SHORT_HTTP_TIMEOUT
         self.rate_limit_delay = 0.25
         self.max_entries = 60
         self._last_request_ts = 0.0
