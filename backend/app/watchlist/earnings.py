@@ -8,6 +8,7 @@ from datetime import UTC, date, datetime, timedelta
 
 import requests
 
+from app.constants import SHORT_HTTP_TIMEOUT
 from app.logging_config import get_logger
 from app.storage.types import DatabaseConnection
 
@@ -53,7 +54,7 @@ def _fetch_from_finnhub(symbol: str) -> datetime | None:
         response = requests.get(
             "https://finnhub.io/api/v1/calendar/earnings",
             params={"symbol": symbol, "token": finnhub_key},
-            timeout=10,
+            timeout=SHORT_HTTP_TIMEOUT,
         )
         response.raise_for_status()
         entries = response.json().get("earningsCalendar", [])

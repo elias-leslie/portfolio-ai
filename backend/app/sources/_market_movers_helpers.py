@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 import requests
 
+from app.constants import SHORT_HTTP_TIMEOUT
 from app.logging_config import get_logger
 
 if TYPE_CHECKING:
@@ -182,7 +183,7 @@ def fetch_from_alpaca(
             "APCA-API-SECRET-KEY": str(secret),
         }
         url = f"https://data.alpaca.markets/v1beta1/screener/stocks/movers?top={count * 3}"
-        resp = requests.get(url, headers=headers, timeout=10)
+        resp = requests.get(url, headers=headers, timeout=SHORT_HTTP_TIMEOUT)
 
         if resp.status_code != 200:
             logger.warning("alpaca_movers_failed", status=resp.status_code)

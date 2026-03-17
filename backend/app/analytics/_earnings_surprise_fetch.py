@@ -8,6 +8,7 @@ from decimal import Decimal
 
 import requests
 
+from app.constants import SHORT_HTTP_TIMEOUT
 from app.logging_config import get_logger
 
 from .earnings_surprise_types import SMALL_BEAT_PCT, SMALL_MISS_PCT, EarningsSurprise
@@ -91,7 +92,7 @@ def fetch_earnings_surprises_from_finnhub(
     try:
         url = "https://finnhub.io/api/v1/stock/earnings"
         params = {"symbol": symbol, "token": api_key}
-        response = requests.get(url, params=params, timeout=10)
+        response = requests.get(url, params=params, timeout=SHORT_HTTP_TIMEOUT)
         response.raise_for_status()
 
         surprises = [

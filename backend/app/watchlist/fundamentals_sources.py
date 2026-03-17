@@ -14,6 +14,7 @@ import os
 
 import requests
 
+from app.constants import SHORT_HTTP_TIMEOUT
 from app.logging_config import get_logger
 from app.watchlist.fundamentals_models import BaseFundamentalSource, FundamentalData
 
@@ -97,7 +98,7 @@ class FinnhubSource(BaseFundamentalSource):
             url = f"{self.base_url}/stock/metric"
             params = {"symbol": symbol, "metric": "all", "token": self.api_key}
 
-            response = requests.get(url, params=params, timeout=10)
+            response = requests.get(url, params=params, timeout=SHORT_HTTP_TIMEOUT)
             response.raise_for_status()
 
             data = response.json()
@@ -155,7 +156,7 @@ class FMPSource(BaseFundamentalSource):
             url = f"{self.base_url}/ratios/{symbol}"
             params = {"apikey": self.api_key}
 
-            response = requests.get(url, params=params, timeout=10)
+            response = requests.get(url, params=params, timeout=SHORT_HTTP_TIMEOUT)
             response.raise_for_status()
 
             data = response.json()

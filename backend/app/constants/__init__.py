@@ -48,6 +48,8 @@ MARKET_SYMBOL = "__MARKET__"
 # =============================================================================
 # Default HTTP request timeout in seconds (used by BaseHTTPClient and ad-hoc clients)
 DEFAULT_HTTP_TIMEOUT = 30.0
+# Shorter timeout for lightweight/secondary data fetches (earnings, fundamentals, movers)
+SHORT_HTTP_TIMEOUT = 10.0
 
 DEFAULT_PRICE_CACHE_TTL_MINUTES = 15
 
@@ -120,5 +122,6 @@ __all__ = [
     "SECTOR_LABELS",
     "SEC_USER_AGENT",
     "SERVICE_PROCESS_PATTERNS",
+    "SHORT_HTTP_TIMEOUT",
     "TRADING_DAYS_PER_YEAR",
 ]
