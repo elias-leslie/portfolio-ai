@@ -1,0 +1,25 @@
+[Unit]
+Description=Portfolio AI Backend (FastAPI)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/portfolio-ai/backend
+Environment="PATH=%h/.local/bin:%h/portfolio-ai/backend/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="HOME=%h"
+EnvironmentFile=-%h/.env.local
+Environment="PYTHONUNBUFFERED=1"
+Environment="HATCHET_CLIENT_HOST_PORT=127.0.0.1:7070"
+Environment="HATCHET_CLIENT_TLS_STRATEGY=none"
+ExecStart=%h/portfolio-ai/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=10
+KillMode=control-group
+KillSignal=SIGTERM
+TimeoutStopSec=30
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=portfolio-backend
+
+[Install]
+WantedBy=default.target

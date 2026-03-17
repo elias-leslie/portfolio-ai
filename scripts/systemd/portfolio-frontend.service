@@ -1,0 +1,22 @@
+[Unit]
+Description=Portfolio AI Frontend (Next.js)
+After=network.target portfolio-backend.service
+Wants=portfolio-backend.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/portfolio-ai/frontend
+Environment="NODE_ENV=production"
+Environment="PORT=3000"
+Environment="API_URL=http://localhost:8000"
+ExecStart=/bin/bash -lc "pnpm start --hostname 0.0.0.0 --port 3000"
+TimeoutStopSec=10
+KillMode=mixed
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=portfolio-frontend
+
+[Install]
+WantedBy=default.target
