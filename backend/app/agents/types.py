@@ -53,14 +53,6 @@ class ToolInputDict(TypedDict, total=False):
     timeout_seconds: int
 
 
-class ToolDefinitionDict(TypedDict, total=False):
-    """Claude API tool definition dictionary."""
-
-    name: str
-    description: str
-    input_schema: dict[str, object]
-
-
 class ToolResultDict(TypedDict, total=False):
     """Standard result dictionary from tool execution."""
 
@@ -73,8 +65,3 @@ class ToolResultDict(TypedDict, total=False):
     success: bool
 
 
-class AgentInitKwargs(TypedDict, total=False):
-    """Keyword arguments passed to agent __init__."""
-
-    model: str
-    kwargs: object
