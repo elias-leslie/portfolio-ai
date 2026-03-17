@@ -10,6 +10,7 @@ import yaml
 
 from app.api.portfolio.analytics_routes import get_analytics_payload as _get_analytics_payload
 from app.api.symbols.router import build_symbol_intelligence as build_symbol_intelligence_response
+from app.config import settings
 from app.logging_config import get_logger
 from app.models.household_finance import HouseholdQuestion
 from app.utils._market_status import get_market_status
@@ -113,16 +114,19 @@ def build_runtime_context(
     endpoints = index.get("endpoints")
     services_index = index.get("services")
 
+    backend_port = int(settings.backend_url.rsplit(":", 1)[-1])
+    frontend_port = int(settings.frontend_url.rsplit(":", 1)[-1])
+
     return {
         "project": index.get("project") or "portfolio-ai",
         "generated_at": index.get("generated_at"),
         "ports": (
             {
-                "backend": (services_index or {}).get("backend_port", 8000),
-                "frontend": (services_index or {}).get("frontend_port", 3000),
+                "backend": (services_index or {}).get("backend_port", backend_port),
+                "frontend": (services_index or {}).get("frontend_port", frontend_port),
             }
             if isinstance(services_index, dict)
-            else {"backend": 8000, "frontend": 3000}
+            else {"backend": backend_port, "frontend": frontend_port}
         ),
         "pages": pages if isinstance(pages, list) else [],
         "api_endpoints": endpoints if isinstance(endpoints, list) else [],

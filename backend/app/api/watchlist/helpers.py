@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import HTTPException
 
 from app.api.utils import require_nonempty_df
+from app.constants import CACHE_TTL_SHORT
 from app.watchlist.response_builders import (
     FailedTickerInfo,
     RefreshResponse,
@@ -12,7 +13,7 @@ from app.watchlist.response_builders import (
 )
 from app.watchlist.watchlist_repository import WatchlistRepository
 
-WATCHLIST_CACHE_TTL_SECONDS = 60  # Cache watchlist responses for 1 minute
+WATCHLIST_CACHE_TTL_SECONDS = CACHE_TTL_SHORT
 REDIS_WATCHLIST_REFRESH_KEY = "watchlist:refresh:global"  # Redis key for refresh lock
 
 

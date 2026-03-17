@@ -11,6 +11,7 @@ from typing import Any
 
 import yaml
 
+from app.constants import CACHE_TTL_MEDIUM
 from app.logging_config import get_logger
 from app.rules.models import (
     CatalystImpact,
@@ -32,7 +33,7 @@ from app.rules.models import (
 logger = get_logger(__name__)
 
 # Cache settings
-_CACHE_TTL_SECONDS = 300  # 5 minutes
+_CACHE_TTL_SECONDS = CACHE_TTL_MEDIUM
 _cached_rules: TradingRules | None = None
 _cache_timestamp: float = 0.0
 
