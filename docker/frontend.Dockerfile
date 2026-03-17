@@ -3,6 +3,24 @@
 # Port: 3000
 # No workspace package dependencies
 
+# ── Stage 0: Dev Runtime ─────────────────────────────────────────
+FROM node:20-slim AS dev
+
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+WORKDIR /app
+
+COPY frontend/ ./
+
+RUN CI=true pnpm install --frozen-lockfile
+
+ENV NODE_ENV=development
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+
+CMD ["pnpm", "dev", "--hostname", "0.0.0.0", "--port", "3000"]
+
 # ── Stage 1: Build ───────────────────────────────────────────────
 FROM node:20-slim AS builder
 
