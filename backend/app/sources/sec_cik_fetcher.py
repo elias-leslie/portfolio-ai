@@ -43,7 +43,7 @@ CIK_SOURCES: list[CIKSource] = [
         "name": "SEC Official",
         "url": "https://www.sec.gov/files/company_symbols.json",
         "headers": {
-            "User-Agent": "Portfolio AI https://github.com/summitflow-solutions/portfolio-ai contact@example.com"
+            "User-Agent": "Summit Flow Solutions contact@summitflow.dev"
         },
         "priority": 1,
     },
@@ -51,7 +51,7 @@ CIK_SOURCES: list[CIKSource] = [
         "name": "SEC Exchange Data",
         "url": "https://www.sec.gov/files/company_symbols_exchange.json",
         "headers": {
-            "User-Agent": "Portfolio AI https://github.com/summitflow-solutions/portfolio-ai contact@example.com"
+            "User-Agent": "Summit Flow Solutions contact@summitflow.dev"
         },
         "priority": 2,
     },
