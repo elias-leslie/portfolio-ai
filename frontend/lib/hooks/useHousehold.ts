@@ -10,8 +10,6 @@ import {
   type HouseholdProfileUpdate,
   fetchHouseholdDashboard,
   fetchHouseholdDocuments,
-  fetchHouseholdProfile,
-  fetchHouseholdQuestions,
   updateHouseholdPlanning,
   updateHouseholdProfile,
   uploadHouseholdDocument,
@@ -19,9 +17,6 @@ import {
 
 /** Dashboard rebuilds server-side; 60 s keeps the UI fresh without over-fetching. */
 const DASHBOARD_STALE_MS = 1000 * 60
-
-/** Profile rarely changes mid-session; 60 s matches the dashboard cadence. */
-const PROFILE_STALE_MS = 1000 * 60
 
 /** Documents and questions change on user action; 30 s balances freshness with server load. */
 const VOLATILE_STALE_MS = 1000 * 30
@@ -34,26 +29,10 @@ export function useHouseholdDashboard() {
   })
 }
 
-export function useHouseholdProfile() {
-  return useQuery({
-    queryKey: ['household', 'profile'],
-    queryFn: fetchHouseholdProfile,
-    staleTime: PROFILE_STALE_MS,
-  })
-}
-
 export function useHouseholdDocuments() {
   return useQuery({
     queryKey: ['household', 'documents'],
     queryFn: fetchHouseholdDocuments,
-    staleTime: VOLATILE_STALE_MS,
-  })
-}
-
-export function useHouseholdQuestions() {
-  return useQuery({
-    queryKey: ['household', 'questions'],
-    queryFn: fetchHouseholdQuestions,
     staleTime: VOLATILE_STALE_MS,
   })
 }

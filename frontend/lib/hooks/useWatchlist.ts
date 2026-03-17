@@ -13,7 +13,6 @@ import {
   deleteWatchlistItem,
   fetchRefreshStatus,
   fetchScoreHistory,
-  fetchWatchlistItem,
   fetchWatchlistItems,
   type RefreshResponse,
   type RefreshStatus,
@@ -63,17 +62,6 @@ export function useWatchlist() {
     refetchOnWindowFocus: true, // Refetch when window regains focus
     refetchOnMount: 'always', // CRITICAL FIX: Always refetch to prevent stale cache after deletions
     structuralSharing: true, // Only update changed data, preserves UI state
-  })
-}
-
-/**
- * Hook to fetch a single watchlist item
- */
-export function useWatchlistItem(itemId: string) {
-  return useQuery<WatchlistItem, Error>({
-    queryKey: watchlistKeys.detail(itemId),
-    queryFn: () => fetchWatchlistItem(itemId),
-    enabled: !!itemId,
   })
 }
 

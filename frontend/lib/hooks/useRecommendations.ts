@@ -6,7 +6,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
   getRecommendations,
-  getRecommendedSymbols,
   trackInPortfolio,
 } from '@/lib/api/recommendations'
 
@@ -24,8 +23,6 @@ export const recommendationKeys = {
     portfolioSize?: number
     positionPct?: number
   }) => [...recommendationKeys.lists(), params] as const,
-  symbols: (minStrength?: number) =>
-    [...recommendationKeys.all, 'symbols', minStrength] as const,
 }
 
 // ============================================================================
@@ -44,15 +41,6 @@ export function useRecommendations(params?: {
     queryFn: () => getRecommendations(params),
     staleTime: 30_000, // 30 seconds
     refetchInterval: 60_000, // 1 minute
-  })
-}
-
-export function useRecommendedSymbols(minStrength = 5) {
-  return useQuery({
-    queryKey: recommendationKeys.symbols(minStrength),
-    queryFn: () => getRecommendedSymbols(minStrength),
-    staleTime: 30_000,
-    refetchInterval: 60_000,
   })
 }
 
