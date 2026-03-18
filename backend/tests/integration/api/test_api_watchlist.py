@@ -37,6 +37,7 @@ def test_storage() -> Iterator[PortfolioStorage]:
             """
             INSERT INTO portfolio_accounts (id, name, account_type)
             VALUES ($1, $2, $3)
+            ON CONFLICT (id) DO NOTHING
             """,
             ["test-account", "Test Account", "Taxable"],
         )
@@ -53,6 +54,7 @@ def test_storage() -> Iterator[PortfolioStorage]:
                 watchlist_price_weight, watchlist_technical_weight,
                 created_at, updated_at
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+            ON CONFLICT (id) DO NOTHING
             """,
             [
                 "test-user",
