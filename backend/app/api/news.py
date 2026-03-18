@@ -29,6 +29,10 @@ def _news_service() -> NewsService:
     return service
 
 
+# Public alias so tests can ``from app.api.news import news_service``
+news_service = _news_service
+
+
 @lru_cache(maxsize=1)
 def _watchlist_service() -> WatchlistService:
     storage = import_module("app.storage").get_storage()
