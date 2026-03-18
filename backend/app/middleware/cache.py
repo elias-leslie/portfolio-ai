@@ -12,7 +12,6 @@ ETag Support:
 
 import hashlib
 import json
-import logging
 import re
 from collections.abc import Callable
 from functools import wraps
@@ -24,8 +23,9 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from ..config import settings
+from ..logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class CacheStatsDict(TypedDict):

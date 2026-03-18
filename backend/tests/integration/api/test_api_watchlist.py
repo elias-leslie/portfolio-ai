@@ -90,8 +90,8 @@ def client(test_storage: PortfolioStorage) -> Iterator[TestClient]:
     uses the same database connection as the test fixtures.
     """
     # Clear lazy-init singleton caches so patched get_storage is used
-    from app.api.watchlist import crud_router as _crud_mod
-    from app.api.watchlist import refresh_router as _refresh_mod
+    import app.api.watchlist.crud_router as _crud_mod
+    import app.api.watchlist.refresh_router as _refresh_mod
 
     _crud_mod._state.clear()
     _refresh_mod._state.clear()
