@@ -11,6 +11,7 @@ from app.logging_config import get_logger
 from app.services import NewsBundle, NewsService, NewsSummary
 from app.storage import PortfolioStorage, get_storage
 from app.storage.credential_loader import load_credentials_from_database
+from app.utils.db_helpers import ensure_symbol_exists
 from app.utils.task_lifecycle import task_cleanup
 from app.watchlist.watchlist_service import WatchlistService
 
@@ -59,15 +60,7 @@ def _record_summary(
     window_start = as_of - ttl
     model_breakdown = summary.model_breakdown or {}
     with storage.connection() as conn:
-        # Ensure symbol exists in symbols table (FK constraint)
-        conn.execute(
-            """
-            INSERT INTO symbols (symbol, security_type, created_at)
-            VALUES (%s, 'equity', NOW())
-            ON CONFLICT (symbol) DO NOTHING
-            """,
-            [summary.symbol],
-        )
+        ensure_symbol_exists(conn, summary.symbol)
         conn.execute(
             """
             INSERT INTO news_summary_log (

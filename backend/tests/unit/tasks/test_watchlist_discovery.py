@@ -401,13 +401,13 @@ class TestAddSymbolToWatchlist:
         result = add_symbol_to_watchlist(mock_storage, "AAPL", 8.0, "discovery")
 
         assert result is not None
-        # Verify symbol inserted to symbols table
-        calls = mock_cursor.execute.call_args_list
-        assert len(calls) == 2
-        # First call: INSERT INTO symbols
-        assert "INSERT INTO symbols" in calls[0][0][0]
-        # Second call: INSERT INTO watchlist_items
-        assert "INSERT INTO watchlist_items" in calls[1][0][0]
+        # Verify symbol inserted via conn.execute (ensure_symbol_exists helper)
+        conn_calls = mock_conn.execute.call_args_list
+        assert any("INSERT INTO symbols" in str(c) for c in conn_calls)
+        # Verify watchlist item inserted via cursor
+        cursor_calls = mock_cursor.execute.call_args_list
+        assert len(cursor_calls) == 1
+        assert "INSERT INTO watchlist_items" in cursor_calls[0][0][0]
         mock_conn.commit.assert_called_once()
 
     def test_duplicate_symbol_returns_none(self, mock_storage: MagicMock) -> None:
@@ -432,11 +432,13 @@ class TestAddSymbolToWatchlist:
 
         add_symbol_to_watchlist(mock_storage, "aapl", 8.0)
 
-        # Check that symbol was uppercased in SQL call
-        calls = mock_cursor.execute.call_args_list
-        symbols_call = calls[0][0][1]
-        watchlist_call = calls[1][0][1]
-        assert symbols_call[0] == "AAPL"
+        # Check that symbol was uppercased in ensure_symbol_exists call (conn.execute)
+        conn_calls = mock_conn.execute.call_args_list
+        symbol_call = next(c for c in conn_calls if "INSERT INTO symbols" in str(c))
+        assert symbol_call[0][1][0] == "AAPL"
+        # Check that symbol was uppercased in watchlist insert (cursor.execute)
+        cursor_calls = mock_cursor.execute.call_args_list
+        watchlist_call = cursor_calls[0][0][1]
         assert watchlist_call[1] == "AAPL"
 
     def test_metadata_includes_discovery_info(self, mock_storage: MagicMock) -> None:
@@ -449,9 +451,9 @@ class TestAddSymbolToWatchlist:
 
         add_symbol_to_watchlist(mock_storage, "AAPL", 8.5)
 
-        # Check metadata in watchlist_items insert
+        # Check metadata in watchlist_items insert (now the first cursor call)
         calls = mock_cursor.execute.call_args_list
-        metadata_json = calls[1][0][1][4]  # 5th parameter (metadata)
+        metadata_json = calls[0][0][1][4]  # 5th parameter (metadata)
         metadata = json.loads(metadata_json)
         assert metadata["discovery_score"] == 8.5
         assert metadata["auto_added"] is True

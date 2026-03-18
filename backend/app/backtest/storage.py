@@ -17,6 +17,7 @@ from typing import Any
 from app.backtest.models import BacktestEquity, BacktestRun, BacktestTrade
 from app.logging_config import get_logger
 from app.storage.connection import ConnectionManager
+from app.utils.db_helpers import ensure_symbol_exists
 
 logger = get_logger(__name__)
 
@@ -241,15 +242,7 @@ def save_backtest_trade(
     )
 
     with storage.connection() as conn:
-        # Ensure symbol exists in symbols table (FK constraint)
-        conn.execute(
-            """
-            INSERT INTO symbols (symbol, security_type, created_at)
-            VALUES (%s, 'equity', NOW())
-            ON CONFLICT (symbol) DO NOTHING
-            """,
-            (trade.symbol,),
-        )
+        ensure_symbol_exists(conn, trade.symbol)
         conn.execute(query, params)
         conn.commit()
 

@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 
 from ..logging_config import get_logger
 from ..storage import PortfolioStorage
+from ..utils.db_helpers import ensure_symbol_exists
 
 logger = get_logger(__name__)
 
@@ -40,14 +41,7 @@ def ensure_symbols_in_watchlist(
     now = datetime.now(UTC)
     with storage.connection() as conn:
         for symbol in symbols_to_add:
-            conn.execute(
-                """
-                INSERT INTO symbols (symbol, security_type, created_at)
-                VALUES (%s, 'equity', %s)
-                ON CONFLICT (symbol) DO NOTHING
-                """,
-                [symbol, now],
-            )
+            ensure_symbol_exists(conn, symbol)
             conn.execute(
                 """
                 INSERT INTO watchlist_items (id, symbol, source, created_at, updated_at)

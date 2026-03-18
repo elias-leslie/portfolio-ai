@@ -9,13 +9,12 @@ from typing import Any, Literal
 
 from app.logging_config import get_logger
 from app.storage.connection import get_connection_manager
-from app.utils.db_helpers import rows_to_dicts
+from app.utils.db_helpers import ensure_symbol_exists, rows_to_dicts
 
 from .models import StrategyDefinition
 from .storage_converters import row_to_strategy_definition
 from .storage_delegator import StrategyStorageDelegator
 from .storage_helpers import (
-    ensure_symbol_exists,
     generate_strategy_id,
     generate_strategy_name,
     get_next_version,

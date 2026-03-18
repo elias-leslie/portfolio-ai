@@ -15,6 +15,7 @@ from app.sources.base import DatasetRequest
 from app.sources.multi_source_fetcher import MultiSourceFetcher
 from app.storage import PortfolioStorage, get_storage
 from app.storage.credential_loader import load_credentials_from_database
+from app.utils.db_helpers import ensure_symbol_exists
 
 # Used by callers that import the watchlist helpers
 __all__ = [
@@ -146,14 +147,7 @@ def ensure_symbols_exist(storage: PortfolioStorage, symbols: list[str]) -> None:
     """
     with storage.connection() as conn:
         for symbol in symbols:
-            conn.execute(
-                """
-                INSERT INTO symbols (symbol, security_type, created_at)
-                VALUES (%s, 'equity', NOW())
-                ON CONFLICT (symbol) DO NOTHING
-                """,
-                [symbol],
-            )
+            ensure_symbol_exists(conn, symbol)
         conn.commit()
 
 

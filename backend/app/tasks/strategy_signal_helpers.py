@@ -7,6 +7,7 @@ from datetime import UTC, date, datetime
 from typing import Any
 
 from app.logging_config import get_logger
+from app.utils.db_helpers import ensure_symbol_exists
 from app.watchlist.models import SignalInputsDict
 
 logger = get_logger(__name__)
@@ -162,14 +163,7 @@ def store_signal(conn: Any, signal_data: dict[str, Any]) -> str | None:
         return None
 
     try:
-        conn.execute(
-            """
-            INSERT INTO symbols (symbol, security_type, created_at)
-            VALUES (%s, 'equity', NOW())
-            ON CONFLICT (symbol) DO NOTHING
-            """,
-            (signal_data["symbol"],),
-        )
+        ensure_symbol_exists(conn, signal_data["symbol"])
         result = conn.execute(
             """
             INSERT INTO strategy_signals (

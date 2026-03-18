@@ -11,7 +11,7 @@ from typing import Any
 
 from app.logging_config import get_logger
 from app.storage.connection import get_connection_manager
-from app.utils.db_helpers import rows_to_dicts
+from app.utils.db_helpers import ensure_symbol_exists, rows_to_dicts
 
 logger = get_logger(__name__)
 
@@ -78,15 +78,7 @@ class SignalStorage:
 
         try:
             with self.conn.connection() as conn:
-                # Ensure symbol exists in symbols table (FK constraint)
-                conn.execute(
-                    """
-                    INSERT INTO symbols (symbol, security_type, created_at)
-                    VALUES (%s, 'equity', NOW())
-                    ON CONFLICT (symbol) DO NOTHING
-                    """,
-                    (signal_data["symbol"],),
-                )
+                ensure_symbol_exists(conn, signal_data["symbol"])
                 result = conn.execute(
                     """
                     INSERT INTO strategy_signals (

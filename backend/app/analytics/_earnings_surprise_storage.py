@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from app.logging_config import get_logger
+from app.utils.db_helpers import ensure_symbol_exists
 
 from .earnings_surprise_types import EarningsSurprise
 
@@ -12,12 +13,6 @@ if TYPE_CHECKING:
     from app.storage import PortfolioStorage
 
 logger = get_logger(__name__)
-
-_UPSERT_SYMBOL_SQL = """
-    INSERT INTO symbols (symbol, security_type, created_at)
-    VALUES ($1, 'equity', NOW())
-    ON CONFLICT (symbol) DO NOTHING
-"""
 
 _UPSERT_EARNINGS_SQL = """
     INSERT INTO earnings_surprises (
@@ -40,7 +35,7 @@ _UPSERT_EARNINGS_SQL = """
 
 def _save_one(conn: Any, surprise: EarningsSurprise) -> None:
     """Persist a single EarningsSurprise row via upsert."""
-    conn.execute(_UPSERT_SYMBOL_SQL, [surprise.symbol])
+    ensure_symbol_exists(conn, surprise.symbol)
     conn.execute(
         _UPSERT_EARNINGS_SQL,
         [

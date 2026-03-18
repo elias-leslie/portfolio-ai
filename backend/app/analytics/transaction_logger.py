@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, cast
 
 from app.analytics.types import TransactionDict
 from app.logging_config import get_logger
+from app.utils.db_helpers import ensure_symbol_exists
 
 if TYPE_CHECKING:
     from app.storage import PortfolioStorage
@@ -89,15 +90,7 @@ class TransactionLogger:
 
         try:
             with self.storage.connection() as conn:
-                # Ensure symbol exists in symbols table (FK constraint)
-                conn.execute(
-                    """
-                    INSERT INTO symbols (symbol, security_type, created_at)
-                    VALUES ($1, 'equity', NOW())
-                    ON CONFLICT (symbol) DO NOTHING
-                    """,
-                    [symbol],
-                )
+                ensure_symbol_exists(conn, symbol)
                 conn.execute(
                     insert_query,
                     [
@@ -204,15 +197,7 @@ class TransactionLogger:
 
         try:
             with self.storage.connection() as conn:
-                # Ensure symbol exists in symbols table (FK constraint)
-                conn.execute(
-                    """
-                    INSERT INTO symbols (symbol, security_type, created_at)
-                    VALUES ($1, 'equity', NOW())
-                    ON CONFLICT (symbol) DO NOTHING
-                    """,
-                    [symbol],
-                )
+                ensure_symbol_exists(conn, symbol)
                 conn.execute(
                     insert_query,
                     [

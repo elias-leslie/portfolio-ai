@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from app.storage.facade import PortfolioStorage
 
 from app.logging_config import get_logger
+from app.utils.db_helpers import ensure_symbol_exists
 
 logger = get_logger(__name__)
 
@@ -61,17 +62,7 @@ def execute_add_symbol(
     }
 
     try:
-        # Ensure symbol exists in symbols table (FK constraint)
-        with storage.connection() as conn:
-            conn.execute(
-                """
-                INSERT INTO symbols (symbol, security_type, created_at)
-                VALUES (%s, 'equity', %s)
-                ON CONFLICT (symbol) DO NOTHING
-                """,
-                [symbol, now.isoformat()],
-            )
-            conn.commit()
+        ensure_symbol_exists(storage, symbol)
 
         storage.insert_dict(
             "watchlist_items",

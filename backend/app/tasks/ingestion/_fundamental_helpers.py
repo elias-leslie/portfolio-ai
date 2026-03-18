@@ -12,6 +12,7 @@ from typing import Any
 import numpy as np
 
 from app.storage import PortfolioStorage
+from app.utils.db_helpers import ensure_symbol_exists
 
 
 def to_python(value: Any) -> Any:
@@ -27,18 +28,6 @@ def to_python(value: Any) -> Any:
     if isinstance(value, np.ndarray):
         return value.tolist()
     return value
-
-
-def ensure_symbol_exists(storage: PortfolioStorage, symbol: str) -> None:
-    """Ensure symbol exists in symbols table (FK constraint)."""
-    storage.execute(
-        """
-        INSERT INTO symbols (symbol, security_type, created_at)
-        VALUES ($1, 'equity', NOW())
-        ON CONFLICT (symbol) DO NOTHING
-        """,
-        [symbol],
-    )
 
 
 def _coerce_date(value: Any) -> datetime | None:

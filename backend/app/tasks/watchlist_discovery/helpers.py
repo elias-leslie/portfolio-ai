@@ -12,6 +12,7 @@ from uuid import uuid4
 
 from ...logging_config import get_logger
 from ...storage import PortfolioStorage
+from ...utils.db_helpers import ensure_symbol_exists
 
 logger = get_logger(__name__)
 
@@ -223,15 +224,7 @@ def add_symbol_to_watchlist(
     try:
         with storage.connection() as conn:
             cursor = conn.raw_connection.cursor()
-            # Ensure symbol exists in symbols table (FK constraint)
-            cursor.execute(
-                """
-                INSERT INTO symbols (symbol, security_type, created_at)
-                VALUES (%s, 'equity', %s)
-                ON CONFLICT (symbol) DO NOTHING
-                """,
-                (symbol.upper(), now),
-            )
+            ensure_symbol_exists(conn, symbol.upper())
             cursor.execute(
                 """
                 INSERT INTO watchlist_items (id, symbol, source, added_by, metadata, created_at, updated_at)

@@ -114,6 +114,38 @@ def safe_get_int(
         return default
 
 
+def ensure_symbol_exists(executor: Any, symbol: str) -> None:
+    """Ensure symbol exists in symbols table (FK constraint).
+
+    Works with any object that has an ``.execute()`` method — either a raw
+    connection wrapper from ``storage.connection()`` or a
+    :class:`PortfolioStorage` facade.
+
+    Args:
+        executor: Database connection or storage facade with ``.execute()``
+        symbol: Stock ticker to insert if absent
+    """
+    executor.execute(
+        """
+        INSERT INTO symbols (symbol, security_type, created_at)
+        VALUES (%s, 'equity', NOW())
+        ON CONFLICT (symbol) DO NOTHING
+        """,
+        [symbol],
+    )
+
+
+def ensure_symbols_exist(executor: Any, symbols: list[str] | tuple[str, ...]) -> None:
+    """Batch version of :func:`ensure_symbol_exists`.
+
+    Args:
+        executor: Database connection or storage facade with ``.execute()``
+        symbols: Stock tickers to insert if absent
+    """
+    for symbol in symbols:
+        ensure_symbol_exists(executor, symbol)
+
+
 def generate_uuid() -> str:
     """Generate a new UUID4 string.
 

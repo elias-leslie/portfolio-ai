@@ -8,6 +8,7 @@ from typing import Any
 import polars as pl
 
 from ..storage import PortfolioStorage
+from ..utils.db_helpers import ensure_symbol_exists
 
 
 class _WatchlistCoreReadRepository:
@@ -218,14 +219,7 @@ class _WatchlistWriteRepository:
 
     def create_item(self, item_id: str, symbol: str, note: str | None, now: str) -> None:
         with self.storage.connection() as conn:
-            conn.execute(
-                """
-                INSERT INTO symbols (symbol, security_type, created_at)
-                VALUES (%s, 'equity', %s)
-                ON CONFLICT (symbol) DO NOTHING
-                """,
-                [symbol, now],
-            )
+            ensure_symbol_exists(conn, symbol)
             conn.execute(
                 """
                 INSERT INTO watchlist_items (id, symbol, note, created_at, updated_at)

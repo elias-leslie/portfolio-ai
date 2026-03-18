@@ -10,23 +10,6 @@ from app.utils.db_helpers import generate_uuid
 from app.utils.json_helpers import json_serializer
 
 
-def ensure_symbol_exists(conn: Any, symbol: str) -> None:
-    """Ensure symbol exists in symbols table.
-
-    Args:
-        conn: Database connection
-        symbol: Stock symbol to check/insert
-    """
-    conn.execute(
-        """
-        INSERT INTO symbols (symbol, security_type, created_at)
-        VALUES (%s, 'equity', NOW())
-        ON CONFLICT (symbol) DO NOTHING
-        """,
-        (symbol,),
-    )
-
-
 def generate_strategy_name(symbol: str, strategy_type: str) -> str:
     """Generate strategy name.
 

@@ -19,6 +19,7 @@ import httpx
 
 from app.constants import DEFAULT_HTTP_TIMEOUT
 from app.logging_config import get_logger
+from app.utils.db_helpers import ensure_symbol_exists
 
 if TYPE_CHECKING:
     from app.storage import PortfolioStorage
@@ -219,15 +220,7 @@ def save_analyst_revisions(
     saved = 0
     for rev in revisions:
         try:
-            # Ensure symbol exists in symbols table (FK constraint)
-            storage.execute(
-                """
-                INSERT INTO symbols (symbol, security_type, created_at)
-                VALUES (?, 'equity', NOW())
-                ON CONFLICT (symbol) DO NOTHING
-                """,
-                [rev["symbol"]],
-            )
+            ensure_symbol_exists(storage, rev["symbol"])
             storage.execute(
                 """
                 INSERT INTO analyst_revisions

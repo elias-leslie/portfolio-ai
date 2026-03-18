@@ -11,6 +11,7 @@ from typing import Any, TypedDict
 
 from app.logging_config import get_logger
 from app.storage.facade import PortfolioStorage
+from app.utils.db_helpers import ensure_symbol_exists
 
 logger = get_logger(__name__)
 
@@ -88,15 +89,7 @@ def upsert_indicators(storage: PortfolioStorage, indicator_data: IndicatorDataDi
         indicator_data: Dictionary containing all indicator fields
     """
     with storage.connection() as conn:
-        # Ensure symbol exists in symbols table (FK constraint)
-        conn.execute(
-            """
-            INSERT INTO symbols (symbol, security_type, created_at)
-            VALUES (%s, 'equity', NOW())
-            ON CONFLICT (symbol) DO NOTHING
-            """,
-            [indicator_data["symbol"]],
-        )
+        ensure_symbol_exists(conn, indicator_data["symbol"])
         conn.execute(
             """
             INSERT INTO technical_indicators (
