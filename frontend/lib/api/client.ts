@@ -6,14 +6,9 @@ import { toCamelCaseKeys, toSnakeCaseKeys } from 'es-toolkit'
 import { getApiBaseUrl } from '../api-config'
 
 /**
- * Re-export transformation utilities for WebSocket and other non-REST use cases
- */
-export { toCamelCaseKeys, toSnakeCaseKeys }
-
-/**
  * Custom API error class with status code
  */
-export class ApiError extends Error {
+class ApiError extends Error {
   constructor(
     message: string,
     public statusCode: number,

@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlparse
 
 import yaml
 
@@ -114,8 +115,8 @@ def build_runtime_context(
     endpoints = index.get("endpoints")
     services_index = index.get("services")
 
-    backend_port = int(settings.backend_url.rsplit(":", 1)[-1])
-    frontend_port = int(settings.frontend_url.rsplit(":", 1)[-1])
+    backend_port = urlparse(settings.backend_url).port or 8000
+    frontend_port = urlparse(settings.frontend_url).port or 3000
 
     return {
         "project": index.get("project") or "portfolio-ai",
