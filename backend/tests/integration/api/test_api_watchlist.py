@@ -15,6 +15,7 @@ from app.main import app
 from app.middleware.cache import clear_cache
 from app.portfolio.models import PriceData
 from app.storage import PortfolioStorage, get_storage
+from app.utils.db_helpers import ensure_symbols_exist
 
 
 @pytest.fixture(autouse=True)
@@ -30,6 +31,14 @@ def test_storage() -> Iterator[PortfolioStorage]:
     test data after database cleanup.
     """
     storage = get_storage()
+
+    # Ensure symbols exist (FK constraint on watchlist_items)
+    with storage.connection() as conn:
+        ensure_symbols_exist(
+            conn,
+            ["AAPL", "TSLA", "MSFT", "GOOGL", "INVALID", "ZZTEST123", "ZZTEST999"],
+        )
+        conn.commit()
 
     # Insert test account (needed by all watchlist tests)
     with storage.connection() as conn:
