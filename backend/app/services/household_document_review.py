@@ -2,26 +2,28 @@
 
 from __future__ import annotations
 
-import base64
-import csv
 import hashlib
-import io
-import json
 import re
 from datetime import UTC, datetime
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-import numpy as np
-import pypdfium2 as pdfium
-from agent_hub.models.content import ImageContent, MessageInput, TextContent
-from PIL import Image, ImageOps
-from pypdf import PdfReader
-from rapidocr_onnxruntime import RapidOCR
-
 from app.agents.clients.agent_hub_client import AGENT_HUB_ENABLED, AgentHubAPIClient
 from app.logging_config import get_logger
+from app.services._household_document_baseline import (
+    TEXT_PREVIEW_LENGTH,
+    _baseline_review,
+    _build_questions,
+    _extract_amounts,
+)
+from app.services._household_document_llm import (
+    _build_messages,
+    _parse_review_payload,
+)
+from app.services._household_document_text import (
+    _extract_csv_text,
+    _extract_text,
+)
 from app.services.household_review_agent_service import (
     HOUSEHOLD_REVIEW_AGENT_SLUG,
     HouseholdReviewAgentService,
@@ -30,91 +32,6 @@ from app.storage import get_storage
 
 logger = get_logger(__name__)
 
-# Text preview length for structured_data summaries
-TEXT_PREVIEW_LENGTH = 500
-# Default confidence for baseline (non-LLM) document reviews
-BASELINE_REVIEW_CONFIDENCE = 0.45
-
-JSON_REVIEW_INSTRUCTIONS = """Return strict JSON only for this household finance document review.
-
-Schema:
-{
-  "summary": "short summary",
-  "document_type": "statement|brokerage_statement|retirement_statement|pay_stub|w2_1099|tax_return|mortgage_statement|heloc_statement|student_loan_statement|auto_loan_statement|insurance_policy|insurance_declarations|social_security_statement|pension_statement|benefits_summary|major_expense_support|receipt|invoice|other",
-  "source_type": "bank|credit_card|brokerage|retirement|income|tax|debt|housing|insurance|retirement_income|benefits|receipt|billing|other",
-  "confidence": 0.0-1.0,
-  "structured_data": {
-    "merchant": "optional",
-    "statement_period": "optional",
-    "total_amount": "optional",
-    "currency": "optional",
-    "account_hint": "optional",
-    "owner_name": "optional",
-    "provider_name": "optional"
-  },
-  "inferred_values": [
-    {
-      "field_name": "adult_count|dependent_count|monthly_net_income_target|monthly_essential_target|monthly_discretionary_target|monthly_savings_target|target_retirement_age|target_retirement_spend|filing_status|state_of_residence|effective_tax_rate|marginal_federal_tax_rate|marginal_state_tax_rate|emergency_fund_target_months|emergency_fund_target_amount",
-      "value": "stringified value",
-      "confidence": 0.0-1.0,
-      "rationale": "why you inferred it"
-    }
-  ],
-  "planning_items": [
-    {
-      "section": "members|income_sources|debt_obligations|housing_costs|insurance_policies|retirement_income_sources|planned_expenses",
-      "label": "human-readable label",
-      "source_type": "section-specific optional enum",
-      "owner_name": "optional",
-      "relationship": "optional",
-      "role": "optional",
-      "category": "optional",
-      "pay_frequency": "optional",
-      "employer_or_source": "optional",
-      "lender": "optional",
-      "carrier": "optional",
-      "housing_type": "optional",
-      "occupancy_role": "optional",
-      "expense_kind": "optional",
-      "monthly_amount": "optional numeric string",
-      "annual_amount": "optional numeric string",
-      "net_amount": "optional numeric string",
-      "gross_amount": "optional numeric string",
-      "monthly_payment": "optional numeric string",
-      "balance": "optional numeric string",
-      "interest_rate": "optional numeric string",
-      "premium_monthly": "optional numeric string",
-      "coverage_amount": "optional numeric string",
-      "deductible": "optional numeric string",
-      "target_amount": "optional numeric string",
-      "target_date": "optional ISO date string",
-      "monthly_saving_target": "optional numeric string",
-      "start_age": "optional integer",
-      "notes": "optional note",
-      "rationale": "brief evidence note"
-    }
-  ],
-  "questions": [
-    {
-      "field_name": "optional matching field name",
-      "question": "short direct question",
-      "priority": "high|medium|low",
-      "recommendation": "short recommended answer or next step",
-      "rationale": "why this needs confirmation"
-    }
-  ]
-}
-
-Only infer values if the evidence is strong. Infer source_type, document_type, and account_hint from the file whenever possible.
-If account identity, institution, or document role is ambiguous, ask targeted questions instead of guessing.
-Only emit planning_items when the document clearly supports a durable planning row.
-"""
-
-# Signal terms that indicate the PDF has usable financial content (skip OCR if present).
-_FINANCIAL_SIGNAL_TERMS = (
-    "$", "order total", "total", "subtotal", "amount due",
-    "item", "qty", "payment", "transaction",
-)
 _GENERIC_FILENAME_PATTERN_STEMS = frozenset(
     {
         "attachment",
@@ -133,455 +50,16 @@ _GENERIC_FILENAME_PATTERN_STEMS = frozenset(
     }
 )
 
+# Re-export for backward compatibility with tests and other importers.
+__all__ = [
+    "HouseholdDocumentReviewService",
+    "_baseline_review",
+    "_build_messages",
+    "_extract_csv_text",
+    "_extract_text",
+    "_parse_review_payload",
+]
 
-# ---------------------------------------------------------------------------
-# OCR helpers
-# ---------------------------------------------------------------------------
-
-@lru_cache(maxsize=1)
-def _build_image_ocr_engine() -> RapidOCR:
-    return RapidOCR()
-
-
-def _prepare_and_ocr(image: Image.Image) -> str | None:
-    """Grayscale + autocontrast + optional upscale, then OCR. Returns text or None."""
-    grayscale = ImageOps.grayscale(image)
-    contrast = ImageOps.autocontrast(grayscale)
-    w, h = contrast.size
-    if max(w, h) < 2200:
-        contrast = contrast.resize((w * 2, h * 2), Image.Resampling.LANCZOS)
-    result, _ = _build_image_ocr_engine()(np.array(contrast))
-    if not result:
-        return None
-    text = "\n".join(
-        line[1]
-        for line in result
-        if isinstance(line, (list, tuple)) and len(line) > 1 and isinstance(line[1], str)
-    ).strip()
-    return text[:12000] if text else None
-
-
-# ---------------------------------------------------------------------------
-# Text extraction
-# ---------------------------------------------------------------------------
-
-def _merge_text_fragments(*fragments: str) -> str:
-    """Merge text fragments, deduplicating lines while preserving order."""
-    seen: set[str] = set()
-    lines: list[str] = []
-    for fragment in fragments:
-        for line in fragment.splitlines():
-            cleaned = line.strip()
-            if not cleaned:
-                continue
-            key = re.sub(r"\s+", " ", cleaned).lower()
-            if key not in seen:
-                seen.add(key)
-                lines.append(cleaned)
-    return "\n".join(lines).strip()
-
-
-def _render_pdf_pages_to_png(stored_path: Path, *, scale: float, max_pages: int) -> list[bytes]:
-    png_pages: list[bytes] = []
-    pdf = pdfium.PdfDocument(str(stored_path))
-    try:
-        for page_index in range(min(len(pdf), max_pages)):
-            page = pdf.get_page(page_index)
-            bitmap = None
-            try:
-                bitmap = page.render(scale=scale)
-                image = bitmap.to_pil()
-                with io.BytesIO() as buffer:
-                    image.save(buffer, format="PNG")
-                    png_pages.append(buffer.getvalue())
-            finally:
-                if bitmap is not None:
-                    bitmap.close()
-                page.close()
-    finally:
-        pdf.close()
-    return png_pages
-
-
-def _extract_pdf_image_text(stored_path: Path) -> str | None:
-    try:
-        png_pages = _render_pdf_pages_to_png(stored_path, scale=2, max_pages=3)
-    except Exception as exc:
-        logger.warning("household_pdf_ocr_failed", path=str(stored_path), error=str(exc))
-        return None
-
-    ocr_chunks: list[str] = []
-    for png_bytes in png_pages:
-        page_text = _prepare_and_ocr(Image.open(io.BytesIO(png_bytes)))
-        if page_text:
-            ocr_chunks.append(page_text)
-    merged = "\n\n".join(ocr_chunks).strip()
-    return merged[:12000] if merged else None
-
-
-def _extract_pdf_text(stored_path: Path) -> str | None:
-    try:
-        reader = PdfReader(str(stored_path))
-        chunks: list[str] = []
-        for page in reader.pages[:4]:
-            text = page.extract_text() or ""
-            if text.strip():
-                chunks.append(text.strip())
-        merged = "\n\n".join(chunks).strip()
-        needs_ocr = not merged or len(merged) < 180 or not any(
-            t in merged.lower() for t in _FINANCIAL_SIGNAL_TERMS
-        )
-        if needs_ocr:
-            ocr_text = _extract_pdf_image_text(stored_path)
-            if ocr_text:
-                merged = _merge_text_fragments(merged, ocr_text)
-        return merged[:12000] if merged else None
-    except Exception as exc:
-        logger.warning("household_pdf_extract_failed", path=str(stored_path), error=str(exc))
-        return None
-
-
-def _extract_image_text(stored_path: Path) -> str | None:
-    try:
-        return _prepare_and_ocr(Image.open(stored_path))
-    except Exception as exc:
-        logger.warning("household_image_ocr_failed", path=str(stored_path), error=str(exc))
-        return None
-
-
-def _extract_csv_text(stored_path: Path) -> str:
-    with stored_path.open("r", encoding="utf-8", errors="ignore", newline="") as handle:
-        reader = csv.reader(handle)
-        rows = [
-            ", ".join(cell.strip() for cell in row[:32])
-            for idx, row in enumerate(reader)
-            if idx <= 20
-        ]
-    return "\n".join(rows)
-
-
-def _extract_text(stored_path: Path, content_type: str | None) -> str | None:
-    suffix = stored_path.suffix.lower()
-    if suffix == ".csv":
-        return _extract_csv_text(stored_path)
-    if suffix == ".pdf" or content_type == "application/pdf":
-        return _extract_pdf_text(stored_path)
-    if (content_type and content_type.startswith("image/")) or suffix in {".png", ".jpg", ".jpeg", ".webp", ".bmp"}:
-        return _extract_image_text(stored_path)
-    if suffix in {".txt", ".json"}:
-        return stored_path.read_text(encoding="utf-8", errors="ignore")[:12000]
-    return None
-
-
-# ---------------------------------------------------------------------------
-# LLM message building
-# ---------------------------------------------------------------------------
-
-def _pdf_image_blocks(stored_path: Path) -> list[ImageContent]:
-    blocks: list[ImageContent] = []
-    try:
-        for png_bytes in _render_pdf_pages_to_png(stored_path, scale=1.5, max_pages=2):
-            blocks.append(
-                ImageContent.from_base64(
-                    base64.b64encode(png_bytes).decode("utf-8"),
-                    media_type="image/png",
-                )
-            )
-    except Exception as exc:
-        logger.warning("household_pdf_preview_failed", path=str(stored_path), error=str(exc))
-        return []
-    return blocks
-
-
-def _build_messages(
-    *,
-    payload: dict[str, Any],
-    stored_path: Path,
-    content_type: str | None,
-    extracted_text: str | None,
-    baseline_review: dict[str, Any],
-) -> list[MessageInput]:
-    content_blocks: list[Any] = [
-        TextContent(
-            text=(
-                f"{JSON_REVIEW_INSTRUCTIONS}\n\n"
-                "Document metadata:\n"
-                f"{json.dumps(payload, indent=2)}\n\n"
-                "Deterministic reviewer baseline:\n"
-                f"{json.dumps(baseline_review, indent=2)}\n\n"
-                "Use any extracted text and visual evidence to infer likely household planning values."
-            )
-        )
-    ]
-    if extracted_text:
-        content_blocks.append(TextContent(text=f"Extracted text preview:\n{extracted_text[:12000]}"))
-    if stored_path.suffix.lower() == ".pdf" or content_type == "application/pdf":
-        content_blocks.extend(_pdf_image_blocks(stored_path))
-    if content_type and content_type.startswith("image/"):
-        content_blocks.append(
-            ImageContent.from_base64(
-                base64.b64encode(stored_path.read_bytes()).decode("utf-8"),
-                media_type=content_type,
-            )
-        )
-    return [MessageInput(role="user", content=content_blocks)]
-
-
-def _parse_review_payload(content: Any) -> dict[str, Any]:
-    """Coerce LLM response content to text and extract the first valid JSON object."""
-    if isinstance(content, str):
-        text = content
-    elif isinstance(content, list):
-        chunks = [item if isinstance(item, str) else getattr(item, "text", None) for item in content]
-        text = "\n".join(c for c in chunks if isinstance(c, str) and c)
-    else:
-        text = str(content)
-
-    candidates: list[str] = []
-    for pattern in [r"```json\s*(\{.*?\})\s*```", r"```\s*(\{.*?\})\s*```"]:
-        candidates.extend(re.findall(pattern, text, flags=re.DOTALL | re.IGNORECASE))
-    stripped = text.strip()
-    if stripped.startswith("{") and stripped.endswith("}"):
-        candidates.append(stripped)
-    first, last = text.find("{"), text.rfind("}")
-    if first != -1 and last > first:
-        candidates.append(text[first : last + 1].strip())
-
-    seen: set[str] = set()
-    for candidate in candidates:
-        if not candidate or candidate in seen:
-            continue
-        seen.add(candidate)
-        try:
-            parsed = json.loads(candidate)
-            if isinstance(parsed, dict):
-                return parsed
-        except json.JSONDecodeError:
-            pass
-    raise ValueError("No valid JSON object found in review payload")
-
-
-# ---------------------------------------------------------------------------
-# Baseline review
-# ---------------------------------------------------------------------------
-
-def _extract_amounts(extracted_text: str | None) -> tuple[str | None, str | None]:
-    """Return (statement_period, total_amount) from extracted text."""
-    if not extracted_text:
-        return None, None
-    period_match = re.search(
-        r"([A-Z][a-z]+ \d{1,2}, \d{4}\s*(?:-|to)\s*[A-Z][a-z]+ \d{1,2}, \d{4})",
-        extracted_text,
-    )
-    amount_match = re.search(
-        r"(?:new balance|amount due|order total|total)\s*[:$]?\s*\$?([0-9][0-9,]*\.\d{2})",
-        extracted_text,
-        flags=re.IGNORECASE,
-    )
-    return (
-        period_match.group(1) if period_match else None,
-        amount_match.group(1) if amount_match else None,
-    )
-
-
-def _build_questions(
-    *,
-    source_type: str,
-    document_type: str,
-    summary: str,
-    merchant: Any,
-    account_hint: Any,
-) -> list[dict[str, Any]]:
-    questions = [
-        {
-            "field_name": None,
-            "question": "What role should this document play in the household plan?",
-            "priority": "medium",
-            "question_format": "single_select",
-            "options": [
-                "Budgeting",
-                "Cash-flow tracking",
-                "Savings analysis",
-                "Retirement planning",
-                "Reference only",
-            ],
-            "recommendation": "Confirm whether Jenny should use this for budgeting, cash-flow tracking, savings analysis, or only as a reference.",
-            "rationale": "Jenny could not confidently infer the full financial meaning from the file alone.",
-        }
-    ]
-    if source_type == "receipt" and isinstance(merchant, str) and merchant:
-        return [
-            {
-                "field_name": None,
-                "question": f"Should Jenny treat {merchant} orders like this as part of regular household spending?",
-                "priority": "medium",
-                "question_format": "boolean",
-                "options": ["Yes", "No"],
-                "recommendation": f"Answer 'yes' if {merchant} is a recurring household shopping channel for groceries, consumables, or home goods.",
-                "rationale": "This helps Jenny separate recurring household shopping from one-off discretionary purchases.",
-            }
-        ]
-    if source_type == "bank" and isinstance(account_hint, str) and account_hint:
-        return [
-            {
-                "field_name": "monthly_essential_target",
-                "question": f"Is {account_hint} your primary account for monthly bills, deposits, and budget tracking?",
-                "priority": "high",
-                "question_format": "boolean",
-                "options": ["Yes", "No"],
-                "recommendation": "Answer 'yes' if most paycheck deposits, bill payments, and core household cash flow pass through this account.",
-                "rationale": "Primary checking accounts anchor the household cash-flow model.",
-            }
-        ]
-    if source_type == "credit_card" and isinstance(account_hint, str) and account_hint:
-        return [
-            {
-                "field_name": "monthly_essential_target",
-                "question": f"Should Jenny treat {account_hint} as part of core household spending?",
-                "priority": "high",
-                "question_format": "boolean",
-                "options": ["Yes", "No"],
-                "recommendation": "Answer 'yes' if this card is used for regular groceries, household shopping, subscriptions, or recurring family spending.",
-                "rationale": "This determines whether Jenny should treat the card as budget-driving spend data.",
-            }
-        ]
-    if source_type == "other" or document_type == "other":
-        questions.append(
-            {
-                "field_name": None,
-                "question": "What kind of document is this and which account or merchant is it tied to?",
-                "priority": "high",
-                "question_format": "long_text",
-                "recommendation": "Name the merchant or institution and say whether this is a receipt, order confirmation, or statement.",
-                "rationale": "Jenny could not confidently identify the institution, account, or document class from the file alone.",
-            }
-        )
-    if source_type in {"bank", "credit_card"}:
-        questions.append(
-            {
-                "field_name": "monthly_essential_target",
-                "question": "Is this account part of your core monthly household spending?",
-                "priority": "high",
-                "question_format": "boolean",
-                "options": ["Yes", "No"],
-                "recommendation": "Confirm if this account covers regular household bills, groceries, or everyday spending.",
-                "rationale": "This determines whether Jenny should treat the spend as budget-driving data.",
-            }
-        )
-    if source_type in {"retirement", "brokerage"}:
-        questions.append(
-            {
-                "field_name": "target_retirement_spend",
-                "question": "Should this account count toward retirement readiness tracking?",
-                "priority": "medium",
-                "question_format": "boolean",
-                "options": ["Yes", "No"],
-                "recommendation": "Confirm if this is a retirement or long-term investment account that should shape future-income planning.",
-                "rationale": "Jenny needs to know whether the account is part of the retirement plan or general savings.",
-            }
-        )
-    if "keep refining" not in summary.lower():
-        questions[0]["rationale"] = f"{questions[0]['rationale']} Current best read: {summary}"
-    return questions
-
-
-def _baseline_review(
-    *,
-    filename: str,
-    source_type: str,
-    document_type: str,
-    extracted_text: str | None,
-) -> dict[str, Any]:
-    structured_data: dict[str, Any] = {
-        "text_preview": extracted_text[:TEXT_PREVIEW_LENGTH] if extracted_text else None,
-    }
-    inferred_source = source_type
-    inferred_document = document_type
-    confidence = BASELINE_REVIEW_CONFIDENCE
-    summary = f"Uploaded {document_type.replace('_', ' ')} from {source_type.replace('_', ' ')}."
-
-    filename_lower = filename.lower()
-    text_lower = (extracted_text or "").lower()
-
-    if filename_lower == "order history.csv" or (
-        "order date" in text_lower
-        and "order id" in text_lower
-        and "payment instrument type" in text_lower
-    ):
-        inferred_source = "receipt"
-        inferred_document = "receipt"
-        confidence = 0.9
-        structured_data["merchant"] = "Amazon"
-        if "total amount" in text_lower or "unit price" in text_lower or "shipping charge" in text_lower:
-            summary = "Amazon order history export with order pricing, shipping, and item-level purchase detail."
-        else:
-            summary = "Amazon order history export covering household purchases over time."
-    elif "walmart.com" in text_lower or "order details - walmart.com" in text_lower or "walmart" in filename_lower:
-        inferred_source = "receipt"
-        inferred_document = "receipt"
-        confidence = 0.84
-        structured_data["merchant"] = "Walmart"
-        summary = "Walmart order details with household shopping line items."
-    elif "wells fargo everyday checking" in text_lower:
-        inferred_source = "bank"
-        inferred_document = "statement"
-        confidence = 0.88
-        structured_data["account_hint"] = "Wells Fargo Everyday Checking"
-        summary = "Wells Fargo Everyday Checking statement showing household cash activity."
-    elif "chase.com/amazon" in text_lower or "autopay is on" in text_lower:
-        inferred_source = "credit_card"
-        inferred_document = "statement"
-        confidence = 0.86
-        structured_data["account_hint"] = "Chase Amazon card"
-        summary = "Chase Amazon credit-card statement with monthly household spending."
-    elif "529" in text_lower or "college fnd" in text_lower or "college fund" in text_lower:
-        inferred_source = "brokerage"
-        inferred_document = "brokerage_statement"
-        confidence = 0.9
-        structured_data["account_hint"] = "529 college savings account"
-        summary = "529 college savings account snapshot with beneficiary balances."
-    elif "brokerage" in text_lower or "positions" in text_lower or "dividends" in text_lower:
-        inferred_source = "brokerage"
-        inferred_document = "brokerage_statement"
-        confidence = 0.8
-        summary = "Brokerage statement with investable assets and account activity."
-    elif "ira" in text_lower or "401(k)" in text_lower or "retirement" in text_lower:
-        inferred_source = "retirement"
-        inferred_document = "retirement_statement"
-        confidence = 0.8
-        summary = "Retirement account statement for long-term planning."
-    elif "invoice" in text_lower or "amount due" in text_lower or "bill" in text_lower:
-        inferred_source = "billing"
-        inferred_document = "invoice"
-        confidence = 0.78
-        summary = "Billing document with payment obligation."
-
-    statement_period, total_amount = _extract_amounts(extracted_text)
-    if statement_period:
-        structured_data["statement_period"] = statement_period
-    if total_amount:
-        structured_data["total_amount"] = total_amount
-
-    return {
-        "summary": summary,
-        "document_type": inferred_document,
-        "source_type": inferred_source,
-        "confidence": confidence,
-        "structured_data": structured_data,
-        "inferred_values": [],
-        "questions": _build_questions(
-            source_type=inferred_source,
-            document_type=inferred_document,
-            summary=summary,
-            merchant=structured_data.get("merchant"),
-            account_hint=structured_data.get("account_hint"),
-        ),
-    }
-
-
-# ---------------------------------------------------------------------------
-# Service
-# ---------------------------------------------------------------------------
 
 class HouseholdDocumentReviewService:
     """Extract review data from uploaded household documents."""
@@ -604,61 +82,40 @@ class HouseholdDocumentReviewService:
         document_type: str,
     ) -> dict[str, Any]:
         extracted_text = _extract_text(stored_path, content_type)
-        baseline_review = _baseline_review(
+        baseline = _baseline_review(
             filename=filename,
             source_type=source_type,
             document_type=document_type,
             extracted_text=extracted_text,
         )
-        signature_review = self._signature_review(
-            filename=filename,
-            extracted_text=extracted_text,
-        )
+        signature_review = self._signature_review(filename=filename, extracted_text=extracted_text)
         if signature_review is not None:
             signature_review["extracted_text"] = extracted_text
             return signature_review
 
-        if baseline_review["confidence"] >= 0.88:
-            baseline_review["extracted_text"] = extracted_text
-            return baseline_review
-
-        payload = {
-            "document_id": document_id,
-            "filename": filename,
-            "source_type": baseline_review["source_type"],
-            "document_type": baseline_review["document_type"],
-            "content_type": content_type,
-        }
+        if baseline["confidence"] >= 0.88:
+            baseline["extracted_text"] = extracted_text
+            return baseline
 
         if AGENT_HUB_ENABLED:
             reviewed = self._review_with_llm(
-                payload=payload,
+                payload={
+                    "document_id": document_id,
+                    "filename": filename,
+                    "source_type": baseline["source_type"],
+                    "document_type": baseline["document_type"],
+                    "content_type": content_type,
+                },
                 stored_path=stored_path,
                 content_type=content_type,
                 extracted_text=extracted_text,
-                baseline_review=baseline_review,
+                baseline_review=baseline,
             )
             if reviewed is not None:
-                structured_data = reviewed.setdefault("structured_data", {})
-                if isinstance(structured_data, dict):
-                    structured_data.update(
-                        {k: v for k, v in baseline_review["structured_data"].items() if k not in structured_data}
-                    )
-                reviewed.setdefault("inferred_values", [])
-                reviewed.setdefault("questions", baseline_review["questions"])
-                if not reviewed.get("summary"):
-                    reviewed["summary"] = baseline_review["summary"]
-                if reviewed.get("confidence") is None:
-                    reviewed["confidence"] = baseline_review["confidence"]
-                reviewed["source_type"] = str(reviewed.get("source_type") or baseline_review["source_type"])
-                reviewed["document_type"] = str(
-                    reviewed.get("document_type") or baseline_review["document_type"]
-                )
-                reviewed["extracted_text"] = extracted_text
-                return reviewed
+                return self._merge_llm_result(reviewed, baseline, extracted_text)
 
-        baseline_review["extracted_text"] = extracted_text
-        return baseline_review
+        baseline["extracted_text"] = extracted_text
+        return baseline
 
     def _review_with_llm(
         self,
@@ -694,6 +151,29 @@ class HouseholdDocumentReviewService:
             logger.warning("household_document_review_llm_failed", error=str(exc))
             return None
 
+    @staticmethod
+    def _merge_llm_result(
+        reviewed: dict[str, Any],
+        baseline: dict[str, Any],
+        extracted_text: str | None,
+    ) -> dict[str, Any]:
+        """Merge LLM review with baseline defaults and return the enriched result."""
+        structured_data = reviewed.setdefault("structured_data", {})
+        if isinstance(structured_data, dict):
+            structured_data.update(
+                {k: v for k, v in baseline["structured_data"].items() if k not in structured_data}
+            )
+        reviewed.setdefault("inferred_values", [])
+        reviewed.setdefault("questions", baseline["questions"])
+        if not reviewed.get("summary"):
+            reviewed["summary"] = baseline["summary"]
+        if reviewed.get("confidence") is None:
+            reviewed["confidence"] = baseline["confidence"]
+        reviewed["source_type"] = str(reviewed.get("source_type") or baseline["source_type"])
+        reviewed["document_type"] = str(reviewed.get("document_type") or baseline["document_type"])
+        reviewed["extracted_text"] = extracted_text
+        return reviewed
+
     def build_signature_candidates(
         self,
         *,
@@ -701,7 +181,6 @@ class HouseholdDocumentReviewService:
         extracted_text: str | None,
     ) -> list[tuple[str, str, dict[str, Any]]]:
         candidates: list[tuple[str, str, dict[str, Any]]] = []
-        # Filename pattern signature
         normalized = re.sub(r"[^a-z0-9]+", "_", Path(filename).stem.lower())
         normalized = re.sub(r"\d", "#", normalized)
         normalized = re.sub(r"_+", "_", normalized).strip("_")
@@ -715,33 +194,22 @@ class HouseholdDocumentReviewService:
         )
         if sum(c.isalpha() for c in normalized) >= 4 and not is_generic_pattern:
             candidates.append(
-                (
-                    "filename_pattern",
-                    f"filename_pattern::{normalized}",
-                    {"normalized_filename": normalized},
-                )
+                ("filename_pattern", f"filename_pattern::{normalized}", {"normalized_filename": normalized})
             )
         if not extracted_text:
             return candidates
-        # CSV header signature
         if filename.lower().endswith(".csv"):
             first_line = next(
-                (line.strip() for line in extracted_text.splitlines() if line.strip()),
-                "",
+                (line.strip() for line in extracted_text.splitlines() if line.strip()), ""
             )
             if first_line:
                 normalized_headers = "|".join(
-                    cell.strip().lower().replace(" ", "_")
-                    for cell in first_line.split(",")[:20]
+                    cell.strip().lower().replace(" ", "_") for cell in first_line.split(",")[:20]
                 )
                 if normalized_headers:
                     digest = hashlib.sha256(normalized_headers.encode("utf-8")).hexdigest()[:24]
                     candidates.append(
-                        (
-                            "csv_header",
-                            f"csv_header::{digest}",
-                            {"normalized_headers": normalized_headers},
-                        )
+                        ("csv_header", f"csv_header::{digest}", {"normalized_headers": normalized_headers})
                     )
         return candidates
 
@@ -751,10 +219,7 @@ class HouseholdDocumentReviewService:
         filename: str,
         extracted_text: str | None,
     ) -> dict[str, Any] | None:
-        candidates = self.build_signature_candidates(
-            filename=filename,
-            extracted_text=extracted_text,
-        )
+        candidates = self.build_signature_candidates(filename=filename, extracted_text=extracted_text)
         if not candidates:
             return None
 
@@ -778,7 +243,6 @@ class HouseholdDocumentReviewService:
         if total_amount:
             structured_data["total_amount"] = total_amount
 
-        # Build summary inline
         subject = structured_data.get("merchant") or structured_data.get("account_hint")
         summary = (
             f"Matched learned {signature['signature_type'].replace('_', ' ')} signature "

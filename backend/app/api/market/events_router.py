@@ -73,6 +73,13 @@ async def get_market_events(
     Returns:
         MarketEventsResponse with list of events
     """
+    # Validate date range
+    if start_date and end_date and start_date > end_date:
+        raise HTTPException(
+            status_code=400,
+            detail="start_date must be on or before end_date",
+        )
+
     # Parse and validate event types
     types_list: list[MarketEventType] | None = None
     if event_types:

@@ -36,6 +36,13 @@ def test_get_market_events_rejects_invalid_event_type(client: TestClient) -> Non
     assert "Invalid event_type" in response.json()["detail"]
 
 
+def test_get_market_events_rejects_start_after_end(client: TestClient) -> None:
+    response = client.get("/api/market/events?start_date=2026-06-01&end_date=2026-01-01")
+
+    assert response.status_code == 400
+    assert "start_date" in response.json()["detail"]
+
+
 def test_create_market_event_rejects_invalid_event_date(client: TestClient) -> None:
     response = client.post(
         "/api/market/events"

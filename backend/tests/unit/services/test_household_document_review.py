@@ -17,6 +17,11 @@ from app.services.household_document_review import (
 )
 from app.services.household_review_agent_service import HOUSEHOLD_REVIEW_AGENT_SLUG
 
+# Patch targets use the module where the name is looked up at runtime.
+_TEXT_MODULE = "app.services._household_document_text"
+_LLM_MODULE = "app.services._household_document_llm"
+_REVIEW_MODULE = "app.services.household_document_review"
+
 
 def test_parse_review_payload_handles_fenced_json() -> None:
     payload = _parse_review_payload(
@@ -94,14 +99,14 @@ def test_extract_csv_text_preserves_amazon_price_columns(tmp_path: Path) -> None
     assert "40.93" in extracted
 
 
-@patch("app.services.household_document_review._extract_pdf_image_text")
-@patch("app.services.household_document_review.PdfReader")
+@patch(f"{_TEXT_MODULE}._extract_pdf_image_text")
+@patch(f"{_TEXT_MODULE}.PdfReader")
 def test_extract_pdf_text_uses_ocr_fallback_for_low_signal_pages(
     mock_pdf_reader: MagicMock,
     pdf_image_text: MagicMock,
     tmp_path: Path,
 ) -> None:
-    from app.services.household_document_review import _extract_pdf_text
+    from app.services._household_document_text import _extract_pdf_text
 
     pdf_path = tmp_path / "walmart.pdf"
     pdf_path.write_bytes(b"%PDF-1.4 fake")
@@ -119,7 +124,7 @@ def test_extract_pdf_text_uses_ocr_fallback_for_low_signal_pages(
     assert "Order total $83.21" in extracted
 
 
-@patch("app.services.household_document_review._extract_image_text")
+@patch(f"{_TEXT_MODULE}._extract_image_text")
 def test_extract_text_uses_image_ocr(image_ocr: MagicMock, tmp_path: Path) -> None:
     image_ocr.return_value = "Walmart 23.41 VISA"
     image_path = tmp_path / "receipt.png"
@@ -233,7 +238,7 @@ def test_signature_review_skips_generic_image_name(
     find_signature.assert_not_called()
 
 
-@patch("app.services.household_document_review._pdf_image_blocks")
+@patch(f"{_LLM_MODULE}._pdf_image_blocks")
 def test_build_messages_includes_pdf_preview_images(pdf_image_blocks: MagicMock) -> None:
     pdf_image_blocks.return_value = [ImageContent.from_base64("ZmFrZQ==", media_type="image/png")]
 
