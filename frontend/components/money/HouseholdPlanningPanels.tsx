@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { HouseholdFinanceDashboard, HouseholdPlanningUpdate } from '@/lib/api/household'
 import type {
   HouseholdDebtObligationInput,
@@ -49,7 +49,7 @@ export function HouseholdPlanningPanels({
 }: {
   dashboard: HouseholdFinanceDashboard
 }) {
-  const planning = dashboard.planning ?? emptyPlanning()
+  const planning = useMemo(() => dashboard.planning ?? emptyPlanning(), [dashboard.planning])
   const updatePlanning = useUpdateHouseholdPlanning()
   const [members, setMembers] = useState<EditableItem[]>(toEditableItems(planning.members.map(stripPlanningMeta)))
   const [incomeSources, setIncomeSources] = useState<EditableItem[]>(
