@@ -163,7 +163,7 @@ def mock_llm_client() -> Mock:
         stop_reason="tool_use",
         model=GEMINI_PRO,
         provider="gemini",
-        usage={"total_tokens": 100},
+        usage={"prompt_tokens": 80, "completion_tokens": 20, "total_tokens": 100},
         tool_calls=[
             {"name": "get_news", "parameters": {"query": "stock market", "max_results": 10}}
         ],
@@ -175,7 +175,7 @@ def mock_llm_client() -> Mock:
         stop_reason="tool_use",
         model=GEMINI_PRO,
         provider="gemini",
-        usage={"total_tokens": 100},
+        usage={"prompt_tokens": 80, "completion_tokens": 20, "total_tokens": 100},
         tool_calls=[{"name": "get_economic_data", "parameters": {"indicators": ["VIX", "TNX"]}}],
     )
 
@@ -199,7 +199,7 @@ def mock_llm_client() -> Mock:
         stop_reason="tool_use",
         model=GEMINI_PRO,
         provider="gemini",
-        usage={"total_tokens": 500},
+        usage={"prompt_tokens": 400, "completion_tokens": 100, "total_tokens": 500},
         tool_calls=seeds_tool_calls,
     )
 
@@ -209,7 +209,7 @@ def mock_llm_client() -> Mock:
         stop_reason="end_turn",
         model=GEMINI_PRO,
         provider="gemini",
-        usage={"total_tokens": 50},
+        usage={"prompt_tokens": 30, "completion_tokens": 20, "total_tokens": 50},
     )
 
     # Set up mock to return responses in sequence
@@ -420,7 +420,7 @@ def test_cli_path_handles_tool_call_errors(
         stop_reason="tool_use",
         model=GEMINI_PRO,
         provider="gemini",
-        usage={"total_tokens": 100},
+        usage={"prompt_tokens": 80, "completion_tokens": 20, "total_tokens": 100},
         tool_calls=[{"name": "get_news", "parameters": {"invalid_param": "test"}}],
     )
 
@@ -430,7 +430,7 @@ def test_cli_path_handles_tool_call_errors(
         stop_reason="end_turn",
         model=GEMINI_PRO,
         provider="gemini",
-        usage={"total_tokens": 50},
+        usage={"prompt_tokens": 30, "completion_tokens": 20, "total_tokens": 50},
     )
 
     mock_client.generate_with_tools.side_effect = [response1, response2]
@@ -448,6 +448,6 @@ def test_cli_path_handles_tool_call_errors(
         # Agent should return error status when tool execution fails
         result = agent.run()
 
-    # Verify agent returned error status
-    assert result["status"] == "error"
-    assert "unexpected keyword argument" in result["error"].lower()
+    # Agent gracefully handles tool execution errors and continues conversation
+    # The tool error is sent back as a result message; the LLM then responds with end_turn
+    assert result["status"] == "completed"

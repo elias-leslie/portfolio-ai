@@ -28,9 +28,18 @@ class TestDiscoveryAgentWithCLI:
 
     @pytest.fixture
     def mock_storage(self) -> PortfolioStorage:
-        """Create mock storage."""
+        """Create mock storage with context-manager-compatible connection."""
         storage = Mock(spec=PortfolioStorage)
         storage.conn_mgr = Mock()
+
+        # Make storage.connection() work as a context manager
+        mock_conn = Mock()
+        mock_conn.execute.return_value = mock_conn
+        mock_conn.fetchone.return_value = None
+        mock_conn.fetchall.return_value = []
+        mock_conn.commit.return_value = None
+        storage.connection.return_value.__enter__ = Mock(return_value=mock_conn)
+        storage.connection.return_value.__exit__ = Mock(return_value=False)
         return storage
 
     @pytest.fixture
@@ -87,44 +96,49 @@ class TestDiscoveryAgentWithCLI:
         responses = [
             # Turn 1: Call get_news tool
             LLMResponse(
-                content='{"tool_calls": [{"name": "get_news", "parameters": {"limit": 5}}]}',
+                content="",
                 provider="gemini",
                 model=GEMINI_PRO,
-                usage={"total_tokens": 100},
+                usage={"prompt_tokens": 80, "completion_tokens": 20, "total_tokens": 100},
+                stop_reason="tool_use",
+                tool_calls=[{"name": "get_news", "parameters": {"limit": 5}}],
             ),
             # Turn 2: Call get_economic_data tool
             LLMResponse(
-                content='{"tool_calls": [{"name": "get_economic_data", "parameters": {"indicators": ["VIX"]}}]}',
+                content="",
                 provider="gemini",
                 model=GEMINI_PRO,
-                usage={"total_tokens": 150},
+                usage={"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150},
+                stop_reason="tool_use",
+                tool_calls=[{"name": "get_economic_data", "parameters": {"indicators": ["VIX"]}}],
             ),
             # Turn 3: Call store_strategy_seed tool (first seed)
             LLMResponse(
-                content="""{
-                    "tool_calls": [{
-                        "name": "store_strategy_seed",
-                        "parameters": {
-                            "symbol": "AAPL",
-                            "thesis": "Strong earnings momentum",
-                            "confidence": 7.5
-                        }
-                    }]
-                }""",
+                content="",
                 provider="gemini",
                 model=GEMINI_PRO,
-                usage={"total_tokens": 200},
+                usage={"prompt_tokens": 150, "completion_tokens": 50, "total_tokens": 200},
+                stop_reason="tool_use",
+                tool_calls=[{
+                    "name": "store_strategy_seed",
+                    "parameters": {
+                        "symbol": "AAPL",
+                        "thesis": "Strong earnings momentum",
+                        "confidence": 7.5,
+                    },
+                }],
             ),
             # Turn 4: Final response (no more tools)
             LLMResponse(
                 content="Analysis complete. Generated 1 investment idea based on current market conditions.",
                 provider="gemini",
                 model=GEMINI_PRO,
-                usage={"total_tokens": 50},
+                usage={"prompt_tokens": 30, "completion_tokens": 20, "total_tokens": 50},
+                stop_reason="end_turn",
             ),
         ]
 
-        client.generate.side_effect = responses
+        client.generate_with_tools.side_effect = responses
         client.is_available.return_value = True
 
         return client
@@ -149,7 +163,7 @@ class TestDiscoveryAgentWithCLI:
         assert "response" in result
 
         # Verify LLM client was called multiple times (multi-turn conversation)
-        assert mock_llm_client.generate.call_count == 4
+        assert mock_llm_client.generate_with_tools.call_count == 4
 
         # Verify tools were called in correct order
         assert cast(Mock, mock_tools.execute_get_news).called
@@ -175,17 +189,16 @@ class TestDiscoveryAgentWithCLI:
         agent.run(user_prompt="Test", max_iterations=1)
 
         # Get first call to generate() to check system prompt
-        first_call = mock_llm_client.generate.call_args_list[0]
+        first_call = mock_llm_client.generate_with_tools.call_args_list[0]
         call_kwargs = first_call[1] if len(first_call) > 1 else first_call[0]
 
         # System prompt should be passed to generate_with_tools
-        # The agent should use generate_with_tools method which formats tools in system
-        assert mock_llm_client.generate.called
+        assert mock_llm_client.generate_with_tools.called
 
         # Verify the prompt includes tool descriptions
         # (In real implementation, this would be in the system parameter)
         # For now, just verify the call happened
-        assert mock_llm_client.generate.call_count > 0
+        assert mock_llm_client.generate_with_tools.call_count > 0
 
     def test_discovery_agent_handles_tool_parsing_errors(
         self,
@@ -193,13 +206,14 @@ class TestDiscoveryAgentWithCLI:
         mock_tools: AgentTools,
     ) -> None:
         """Test that agent handles malformed tool call responses gracefully."""
-        # Create mock client that returns malformed JSON
+        # Create mock client that returns response with no tool calls (end_turn)
         client = Mock(spec=DualProviderClient)
-        client.generate.return_value = LLMResponse(
+        client.generate_with_tools.return_value = LLMResponse(
             content="This is not valid JSON for tool calls",
             provider="gemini",
             model=GEMINI_PRO,
-            usage={"total_tokens": 50},
+            usage={"prompt_tokens": 30, "completion_tokens": 20, "total_tokens": 50},
+            stop_reason="end_turn",
         )
         client.is_available.return_value = True
 
@@ -209,7 +223,7 @@ class TestDiscoveryAgentWithCLI:
         result = agent.run(user_prompt="Test", max_iterations=1)
 
         # Should complete (no tools called, but no crash)
-        assert result["status"] in ["completed", "max_iterations_reached"]
+        assert result["status"] in ["completed", "max_iterations"]
         assert cast(Mock, mock_tools.execute_get_news).call_count == 0
 
     def test_discovery_agent_max_iterations_limit(
@@ -220,11 +234,13 @@ class TestDiscoveryAgentWithCLI:
         """Test that agent respects max_iterations limit."""
         # Create mock client that always returns tool calls (infinite loop scenario)
         client = Mock(spec=DualProviderClient)
-        client.generate.return_value = LLMResponse(
-            content='{"tool_calls": [{"name": "get_news", "parameters": {}}]}',
+        client.generate_with_tools.return_value = LLMResponse(
+            content="",
             provider="gemini",
             model=GEMINI_PRO,
-            usage={"total_tokens": 100},
+            usage={"prompt_tokens": 80, "completion_tokens": 20, "total_tokens": 100},
+            stop_reason="tool_use",
+            tool_calls=[{"name": "get_news", "parameters": {}}],
         )
         client.is_available.return_value = True
 
@@ -236,23 +252,17 @@ class TestDiscoveryAgentWithCLI:
         result = agent.run(user_prompt="Test", max_iterations=3)
 
         # Should stop after 3 iterations
-        assert client.generate.call_count == 3
-        assert result["status"] == "max_iterations_reached"
+        assert client.generate_with_tools.call_count == 3
+        assert result["status"] == "max_iterations"
 
-    def test_discovery_agent_without_llm_client_uses_anthropic(
+    def test_discovery_agent_requires_llm_client(
         self,
         mock_storage: PortfolioStorage,
         mock_tools: AgentTools,
     ) -> None:
-        """Test that agent falls back to Anthropic API when no llm_client provided."""
-        # Create agent WITHOUT llm_client (should use Anthropic path)
-        agent = DiscoveryAgent(storage=mock_storage, tools=mock_tools)
-
-        # Verify agent has no llm_client
-        assert not hasattr(agent, "llm_client") or agent.llm_client is None
-
-        # This test just verifies the agent can be created without llm_client
-        # Actual Anthropic execution would require API key and is tested elsewhere
+        """Test that agent requires llm_client during initialization."""
+        with pytest.raises(TypeError, match="llm_client"):
+            DiscoveryAgent(storage=mock_storage, tools=mock_tools)
 
     @patch("app.agents.base.Agent._run_with_llm_client")
     def test_discovery_agent_uses_cli_path_when_client_provided(
