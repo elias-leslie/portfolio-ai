@@ -120,6 +120,7 @@ app.add_middleware(
     allow_origins=build_cors_origins(
         frontend_host=settings.frontend_host or os.getenv("FRONTEND_HOST"),
         extra_origins=settings.frontend_extra_origins,
+        frontend_url=settings.frontend_url,
     ),
     allow_credentials=True,
     allow_methods=["*"],

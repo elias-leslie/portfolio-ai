@@ -2,24 +2,42 @@
 
 from __future__ import annotations
 
-LOCAL_FRONTEND_ORIGINS = (
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://localhost:3000",
-    "https://127.0.0.1:3000",
-)
+from urllib.parse import urlparse
+
 PRODUCTION_FRONTEND_ORIGIN = "https://port.summitflow.dev"
+
+
+def _local_origins(port: int) -> tuple[str, ...]:
+    """Build localhost origin variants for a given port."""
+    return (
+        f"http://localhost:{port}",
+        f"http://127.0.0.1:{port}",
+        f"https://localhost:{port}",
+        f"https://127.0.0.1:{port}",
+    )
 
 
 def build_cors_origins(
     frontend_host: str | None = None,
     extra_origins: str | None = None,
+    *,
+    frontend_url: str = "http://localhost:3000",
 ) -> list[str]:
-    """Build the allowed frontend origins list from optional environment config."""
-    origins = list(LOCAL_FRONTEND_ORIGINS)
+    """Build the allowed frontend origins list from optional environment config.
+
+    Args:
+        frontend_host: Optional hostname to add as an extra allowed origin.
+        extra_origins: Comma-separated extra origins.
+        frontend_url: The configured frontend URL (from settings). Port is
+            extracted from this to avoid hardcoding.
+    """
+    parsed = urlparse(frontend_url)
+    port = parsed.port or 3000
+
+    origins: list[str] = list(_local_origins(port))
 
     if frontend_host:
-        origins.extend((f"http://{frontend_host}:3000", f"https://{frontend_host}:3000"))
+        origins.extend((f"http://{frontend_host}:{port}", f"https://{frontend_host}:{port}"))
 
     origins.append(PRODUCTION_FRONTEND_ORIGIN)
 
