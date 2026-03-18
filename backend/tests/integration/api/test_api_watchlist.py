@@ -802,12 +802,14 @@ def test_staleness_detection_reflects_age_of_snapshot(
         "technical": {"score": 60.0, "weight": 50.0, "stale": False},
     }
     with test_storage.connection() as conn:
+        # Insert into split schema: core table + technical metrics
         conn.execute(
             """
-            INSERT INTO watchlist_snapshots
-                (item_id, fetched_at, price, technical_score, overall_score, is_stale, raw_metrics)
+            INSERT INTO watchlist_snapshots_core
+                (item_id, fetched_at, price, technical_score, overall_score, is_stale)
             VALUES
-                ($1, $2, $3, $4, $5, $6, $7::jsonb)
+                ($1, $2, $3, $4, $5, $6)
+            RETURNING id
             """,
             [
                 item_id,
@@ -816,8 +818,17 @@ def test_staleness_detection_reflects_age_of_snapshot(
                 60.0,
                 55.0,
                 False,  # Was not stale at refresh time
-                json.dumps(raw_metrics),
             ],
+        )
+        snapshot_row = conn.fetchone()
+        assert snapshot_row is not None
+        snapshot_id = snapshot_row[0]
+        conn.execute(
+            """
+            INSERT INTO watchlist_technical_metrics (snapshot_id, raw_metrics)
+            VALUES ($1, $2::jsonb)
+            """,
+            [snapshot_id, json.dumps(raw_metrics)],
         )
         conn.commit()
 
@@ -896,12 +907,14 @@ def test_get_score_history_extracts_price_score_from_raw_metrics(
                     "stale": False,
                 },
             }
+            # Insert into split schema: core table + technical metrics
             conn.execute(
                 """
-                INSERT INTO watchlist_snapshots
-                    (item_id, fetched_at, price, technical_score, overall_score, raw_metrics)
+                INSERT INTO watchlist_snapshots_core
+                    (item_id, fetched_at, price, technical_score, overall_score)
                 VALUES
-                    ($1, $2, $3, $4, $5, $6::jsonb)
+                    ($1, $2, $3, $4, $5)
+                RETURNING id
                 """,
                 [
                     item_id,
@@ -909,8 +922,16 @@ def test_get_score_history_extracts_price_score_from_raw_metrics(
                     100.0 + price_score,  # price data (not used in this test)
                     technical_score,
                     overall_score,
-                    json.dumps(raw_metrics),  # Convert dict to JSON string
                 ],
+            )
+            snap_row = conn.fetchone()
+            assert snap_row is not None
+            conn.execute(
+                """
+                INSERT INTO watchlist_technical_metrics (snapshot_id, raw_metrics)
+                VALUES ($1, $2::jsonb)
+                """,
+                [snap_row[0], json.dumps(raw_metrics)],
             )
         conn.commit()
 

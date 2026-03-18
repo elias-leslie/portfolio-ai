@@ -42,6 +42,13 @@ def storage() -> Generator[PortfolioStorage]:
     storage_inst.query_mgr = QueryManager(storage_inst.connection_mgr)
     storage_inst.schema_mgr.ensure_schema()
 
+    # Seed symbols required by strategy_seeds FK constraint
+    from app.utils.db_helpers import ensure_symbols_exist
+
+    with storage_inst.connection() as conn:
+        ensure_symbols_exist(conn, ["AAPL", "GOOGL", "MSFT", "TSLA", "NVDA"])
+        conn.commit()
+
     yield storage_inst
 
     # Cleanup
@@ -107,6 +114,12 @@ def mock_news_service() -> Mock:
 
 
 @pytest.fixture
+def mock_llm_client() -> Mock:
+    """Create a mock LLM client for agent initialization."""
+    return Mock()
+
+
+@pytest.fixture
 def mock_fred_source() -> Mock:
     """Create a mock FRED source."""
     mock = Mock(spec=FREDSource)
@@ -143,8 +156,11 @@ def agent_tools(
 
 @pytest.fixture
 def mock_anthropic_client() -> Mock:
-    """Create a mock Anthropic client that simulates agent behavior."""
+    """Create a mock LLM client that simulates agent behavior via generate_with_tools."""
+    from app.agents.clients.base_client import LLMResponse
+
     mock = Mock()
+    _usage = {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150}
 
     # Simulate a conversation where the agent:
     # 1. Calls get_news
@@ -152,60 +168,61 @@ def mock_anthropic_client() -> Mock:
     # 3. Stores 5 strategy seeds
     # 4. Returns final response
 
-    # First call: agent requests to use get_news tool
-    response1 = Mock()
-    response1.stop_reason = "tool_use"
-    block1 = Mock()
-    block1.type = "tool_use"
-    block1.id = "tool_1"
-    block1.name = "get_news"
-    block1.input = {"query": "stock market", "max_results": 10}
-    response1.content = [block1]
+    response1 = LLMResponse(
+        content="",
+        provider="test",
+        model="test-model",
+        usage=_usage,
+        stop_reason="tool_use",
+        tool_calls=[{"name": "get_news", "parameters": {"query": "stock market", "max_results": 10}}],
+    )
 
-    # Second call: agent requests to use get_economic_data tool
-    response2 = Mock()
-    response2.stop_reason = "tool_use"
-    block2 = Mock()
-    block2.type = "tool_use"
-    block2.id = "tool_2"
-    block2.name = "get_economic_data"
-    block2.input = {"indicators": ["VIX", "TNX"]}
-    response2.content = [block2]
+    response2 = LLMResponse(
+        content="",
+        provider="test",
+        model="test-model",
+        usage=_usage,
+        stop_reason="tool_use",
+        tool_calls=[{"name": "get_economic_data", "parameters": {"indicators": ["VIX", "TNX"]}}],
+    )
 
-    # Third call: agent stores 5 strategy seeds
-    response3 = Mock()
-    response3.stop_reason = "tool_use"
-    seeds = []
-    for i in range(5):
-        block = Mock()
-        block.type = "tool_use"
-        block.id = f"tool_seed_{i}"
-        block.name = "store_strategy_seed"
-        block.input = {
-            "symbol": ["AAPL", "GOOGL", "MSFT", "TSLA", "NVDA"][i],
-            "thesis": f"This is investment thesis {i + 1} based on market analysis",
-            "confidence": 7 + i * 0.5,
+    seed_tool_calls = [
+        {
+            "name": "store_strategy_seed",
+            "parameters": {
+                "symbol": ["AAPL", "GOOGL", "MSFT", "TSLA", "NVDA"][i],
+                "thesis": f"This is investment thesis {i + 1} based on market analysis",
+                "confidence": 7 + i * 0.5,
+            },
         }
-        seeds.append(block)
-    response3.content = seeds
+        for i in range(5)
+    ]
+    response3 = LLMResponse(
+        content="",
+        provider="test",
+        model="test-model",
+        usage=_usage,
+        stop_reason="tool_use",
+        tool_calls=seed_tool_calls,
+    )
 
-    # Fourth call: agent returns final text response
-    response4 = Mock()
-    response4.stop_reason = "end_turn"
-    final_block = Mock()
-    final_block.type = "text"
-    final_block.text = "I have analyzed the market and generated 5 investment ideas."
-    response4.content = [final_block]
+    response4 = LLMResponse(
+        content="I have analyzed the market and generated 5 investment ideas.",
+        provider="test",
+        model="test-model",
+        usage=_usage,
+        stop_reason="end_turn",
+        tool_calls=[],
+    )
 
-    # Set up mock to return responses in sequence
-    mock.messages.create.side_effect = [response1, response2, response3, response4]
+    mock.generate_with_tools.side_effect = [response1, response2, response3, response4]
 
     return mock
 
 
-def test_discovery_agent_initialization(storage: PortfolioStorage, agent_tools: AgentTools) -> None:
+def test_discovery_agent_initialization(storage: PortfolioStorage, agent_tools: AgentTools, mock_llm_client: Mock) -> None:
     """Test Discovery Agent initialization."""
-    agent = DiscoveryAgent(storage=storage, tools=agent_tools)
+    agent = DiscoveryAgent(storage=storage, tools=agent_tools, llm_client=mock_llm_client)
 
     assert agent.storage is storage
     assert agent.tools is agent_tools
@@ -213,9 +230,9 @@ def test_discovery_agent_initialization(storage: PortfolioStorage, agent_tools: 
     assert agent.current_run_id is None
 
 
-def test_discovery_agent_system_prompt(storage: PortfolioStorage, agent_tools: AgentTools) -> None:
+def test_discovery_agent_system_prompt(storage: PortfolioStorage, agent_tools: AgentTools, mock_llm_client: Mock) -> None:
     """Test Discovery Agent system prompt."""
-    agent = DiscoveryAgent(storage=storage, tools=agent_tools)
+    agent = DiscoveryAgent(storage=storage, tools=agent_tools, llm_client=mock_llm_client)
     prompt = agent.get_system_prompt()
 
     assert "Discovery Agent" in prompt
@@ -225,9 +242,9 @@ def test_discovery_agent_system_prompt(storage: PortfolioStorage, agent_tools: A
     assert "store_strategy_seed" in prompt
 
 
-def test_discovery_agent_tools(storage: PortfolioStorage, agent_tools: AgentTools) -> None:
+def test_discovery_agent_tools(storage: PortfolioStorage, agent_tools: AgentTools, mock_llm_client: Mock) -> None:
     """Test Discovery Agent tool definitions."""
-    agent = DiscoveryAgent(storage=storage, tools=agent_tools)
+    agent = DiscoveryAgent(storage=storage, tools=agent_tools, llm_client=mock_llm_client)
     tools = agent.get_tools()
 
     assert len(tools) == 3
@@ -239,9 +256,10 @@ def test_discovery_agent_execute_tool_get_news(
     storage: PortfolioStorage,
     agent_tools: AgentTools,
     mock_news_service: Mock,
+    mock_llm_client: Mock,
 ) -> None:
     """Test executing get_news tool."""
-    agent = DiscoveryAgent(storage=storage, tools=agent_tools)
+    agent = DiscoveryAgent(storage=storage, tools=agent_tools, llm_client=mock_llm_client)
 
     result = cast(dict[str, object], agent.execute_tool("get_news", {"query": "technology", "max_results": 5}))
 
@@ -259,9 +277,10 @@ def test_discovery_agent_execute_tool_get_economic_data(
     storage: PortfolioStorage,
     agent_tools: AgentTools,
     mock_fred_source: Mock,
+    mock_llm_client: Mock,
 ) -> None:
     """Test executing get_economic_data tool."""
-    agent = DiscoveryAgent(storage=storage, tools=agent_tools)
+    agent = DiscoveryAgent(storage=storage, tools=agent_tools, llm_client=mock_llm_client)
 
     result = cast(dict[str, object], agent.execute_tool("get_economic_data", {"indicators": ["VIX", "FEDFUNDS"]}))
 
@@ -271,19 +290,20 @@ def test_discovery_agent_execute_tool_get_economic_data(
 
 
 def test_discovery_agent_execute_tool_store_strategy_seed(
-    storage: PortfolioStorage, agent_tools: AgentTools
+    storage: PortfolioStorage, agent_tools: AgentTools, mock_llm_client: Mock
 ) -> None:
     """Test executing store_strategy_seed tool."""
     from datetime import UTC, datetime
 
-    agent = DiscoveryAgent(storage=storage, tools=agent_tools)
-    agent.current_run_id = "test-run-id"
+    agent = DiscoveryAgent(storage=storage, tools=agent_tools, llm_client=mock_llm_client)
+    test_run_id = "12345678-1234-5678-1234-567812345678"
+    agent.current_run_id = test_run_id
 
     # Create agent_run entry first (required by foreign key)
     storage.insert_dict(
         "agent_runs",
         {
-            "id": "test-run-id",
+            "id": test_run_id,
             "agent_type": "DiscoveryAgent",
             "started_at": datetime.now(UTC).isoformat(),
             "completed_at": None,
@@ -292,7 +312,6 @@ def test_discovery_agent_execute_tool_store_strategy_seed(
             "cost_usd": 0.0,
             "error_message": None,
             "metadata": None,
-            "hatchet_workflow_run_id": None,
         },
     )
 
@@ -315,7 +334,7 @@ def test_discovery_agent_execute_tool_store_strategy_seed(
     with storage.connection() as conn:
         seeds = conn.execute(
             "SELECT symbol, thesis FROM strategy_seeds WHERE agent_run_id = ?",
-            ["test-run-id"],
+            [test_run_id],
         ).fetchall()
         assert len(seeds) == 1
         assert seeds[0][0] == "AAPL"
@@ -323,10 +342,10 @@ def test_discovery_agent_execute_tool_store_strategy_seed(
 
 
 def test_discovery_agent_execute_tool_store_strategy_seed_without_run_id(
-    storage: PortfolioStorage, agent_tools: AgentTools
+    storage: PortfolioStorage, agent_tools: AgentTools, mock_llm_client: Mock
 ) -> None:
     """Test store_strategy_seed fails without active run_id."""
-    agent = DiscoveryAgent(storage=storage, tools=agent_tools)
+    agent = DiscoveryAgent(storage=storage, tools=agent_tools, llm_client=mock_llm_client)
     agent.current_run_id = None
 
     with pytest.raises(ValueError, match="No active run_id"):
@@ -341,10 +360,10 @@ def test_discovery_agent_execute_tool_store_strategy_seed_without_run_id(
 
 
 def test_discovery_agent_execute_tool_unknown(
-    storage: PortfolioStorage, agent_tools: AgentTools
+    storage: PortfolioStorage, agent_tools: AgentTools, mock_llm_client: Mock
 ) -> None:
     """Test executing unknown tool raises error."""
-    agent = DiscoveryAgent(storage=storage, tools=agent_tools)
+    agent = DiscoveryAgent(storage=storage, tools=agent_tools, llm_client=mock_llm_client)
 
     with pytest.raises(ValueError, match="Unknown tool"):
         agent.execute_tool("unknown_tool", {})
@@ -374,7 +393,7 @@ def test_discovery_agent_run_full_execution(
         mock_uuid.side_effect = [shared_uuid, shared_uuid, *unique_uuids]
 
         agent = DiscoveryAgent(
-            storage=storage, tools=agent_tools, anthropic_client=mock_anthropic_client
+            storage=storage, tools=agent_tools, llm_client=mock_anthropic_client
         )
 
         # Run the agent
@@ -434,7 +453,7 @@ def test_discovery_agent_run_records_tool_calls(
         mock_uuid.side_effect = [shared_uuid, shared_uuid, *unique_uuids]
 
         agent = DiscoveryAgent(
-            storage=storage, tools=agent_tools, anthropic_client=mock_anthropic_client
+            storage=storage, tools=agent_tools, llm_client=mock_anthropic_client
         )
 
         agent.run()
@@ -470,7 +489,7 @@ def test_discovery_agent_run_clears_run_id_after_execution(
     import uuid as uuid_module
 
     agent = DiscoveryAgent(
-        storage=storage, tools=agent_tools, anthropic_client=mock_anthropic_client
+        storage=storage, tools=agent_tools, llm_client=mock_anthropic_client
     )
 
     # Before run
@@ -496,19 +515,22 @@ def test_discovery_agent_handles_max_iterations(
     storage: PortfolioStorage, agent_tools: AgentTools
 ) -> None:
     """Test agent respects max_iterations limit."""
-    # Create mock that never stops
-    mock_client = Mock()
-    response = Mock()
-    response.stop_reason = "tool_use"
-    block = Mock()
-    block.type = "tool_use"
-    block.id = "tool_1"
-    block.name = "get_news"
-    block.input = {"query": "test"}
-    response.content = [block]
-    mock_client.messages.create.return_value = response
+    from app.agents.clients.base_client import LLMResponse
 
-    agent = DiscoveryAgent(storage=storage, tools=agent_tools, anthropic_client=mock_client)
+    # Create mock that never stops (always returns tool_use)
+    mock_client = Mock()
+    _usage = {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150}
+    response = LLMResponse(
+        content="",
+        provider="test",
+        model="test-model",
+        usage=_usage,
+        stop_reason="tool_use",
+        tool_calls=[{"name": "get_news", "parameters": {"query": "test"}}],
+    )
+    mock_client.generate_with_tools.return_value = response
+
+    agent = DiscoveryAgent(storage=storage, tools=agent_tools, llm_client=mock_client)
 
     # Run with max_iterations=3
     result = agent.run(max_iterations=3)
@@ -523,9 +545,9 @@ def test_discovery_agent_handles_api_error(
     """Test agent handles API errors gracefully."""
     # Create mock that raises exception
     mock_client = Mock()
-    mock_client.messages.create.side_effect = Exception("API Error")
+    mock_client.generate_with_tools.side_effect = Exception("API Error")
 
-    agent = DiscoveryAgent(storage=storage, tools=agent_tools, anthropic_client=mock_client)
+    agent = DiscoveryAgent(storage=storage, tools=agent_tools, llm_client=mock_client)
 
     result = agent.run()
 

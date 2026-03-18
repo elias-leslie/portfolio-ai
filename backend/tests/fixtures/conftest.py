@@ -104,15 +104,21 @@ TABLES_TO_CLEAN = [
     # Agent workflow tables (agent_messages references agent_workflows)
     "agent_messages",
     "agent_workflows",
-    # Agent tables (no FK dependencies)
+    # Agent tables (strategy_seeds references agent_runs and symbols)
+    "strategy_seeds",
     "agent_tool_calls",
+    "agent_conversation_messages",
     "agent_runs",
     # Idea outcomes
     "idea_outcomes",
     # Portfolio positions (references portfolio_accounts)
     "portfolio_positions",
     "portfolio_accounts",
-    # Watchlist tables
+    # Watchlist tables (split schema: narrative/news/technical reference core)
+    "watchlist_narrative",
+    "watchlist_news_summary",
+    "watchlist_technical_metrics",
+    "watchlist_snapshots_core",
     "watchlist_snapshots",
     "watchlist_items",
     # Price and market data
