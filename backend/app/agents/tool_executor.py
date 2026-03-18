@@ -13,11 +13,11 @@ from typing import TYPE_CHECKING, cast
 from ..utils.formatters import calculate_duration_ms
 from ..utils.json_helpers import json_serializer
 from .tool_formatting import build_tool_result_dict
+from .types import ToolInputDict
 
 if TYPE_CHECKING:
     from ..storage.facade import PortfolioStorage
     from .base import ToolCallRecord, ToolExecutionResult
-    from .types import ToolInputDict
 
 # Constant for truncating tool results in storage
 TOOL_RESULT_TRUNCATE = 10000
