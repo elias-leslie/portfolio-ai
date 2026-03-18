@@ -70,6 +70,8 @@ api_keys.md
 data/
 backups/
 backup-index.json
+reports/autonomous/
+!reports/autonomous/.gitkeep
 
 # Dev tools
 .dev-tools/
