@@ -1,8 +1,6 @@
 #!/bin/bash
 #
-# Check Portfolio AI service status.
-# Delegates to canonical rebuild.sh --status (auto-detects Docker vs native).
+# Check portfolio-ai service status.
 #
 set -eo pipefail
-CANONICAL_SUMMITFLOW_ROOT="${SUMMITFLOW_BACKUP_ROOT:-$HOME/summitflow}"
-exec bash "$CANONICAL_SUMMITFLOW_ROOT/scripts/rebuild.sh" --status "$@"
+exec bash "${SUMMITFLOW_BACKUP_ROOT:-$HOME/summitflow}/scripts/rebuild.sh" --status portfolio-ai "$@"
