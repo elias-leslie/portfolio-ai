@@ -10,7 +10,7 @@
  * Direct cross-origin URLs are only used for WebSocket connections.
  */
 
-const PORTS = { frontend: 3000, backend: 8000 }
+export const PORTS = { frontend: 3000, backend: 8000 }
 
 /**
  * Get the base URL for Portfolio-AI backend API calls.

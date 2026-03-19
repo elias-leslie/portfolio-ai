@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next'
+import { PORTS } from './lib/api-config'
 
 const nextConfig: NextConfig = {
   output: 'standalone',
@@ -8,7 +9,7 @@ const nextConfig: NextConfig = {
   // All /api/* requests are proxied to the backend on localhost,
   // keeping everything same-origin to avoid CORS issues with CF Access cookies
   async rewrites() {
-    const apiUrl = process.env.API_URL || 'http://localhost:8000'
+    const apiUrl = process.env.API_URL || `http://localhost:${PORTS.backend}`
     return {
       afterFiles: [
         {

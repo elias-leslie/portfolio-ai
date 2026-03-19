@@ -11,6 +11,14 @@ from pathlib import Path
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# ---------------------------------------------------------------------------
+# Port allocation — single source of truth for Portfolio AI.
+# ---------------------------------------------------------------------------
+PORTFOLIO_BACKEND_PORT = 8000
+PORTFOLIO_FRONTEND_PORT = 3000
+AGENT_HUB_BACKEND_PORT = 8003
+REDIS_PORT = 6379
+
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables.
@@ -36,7 +44,7 @@ class Settings(BaseSettings):
         return v
 
     # Redis
-    redis_url: str = "redis://localhost:6379"
+    redis_url: str = f"redis://localhost:{REDIS_PORT}"
 
     # Frontend / CORS
     frontend_host: str | None = None
@@ -48,15 +56,15 @@ class Settings(BaseSettings):
     cache_default_ttl: int = 300
 
     # Agent Hub integration
-    agent_hub_url: str = "http://localhost:8003"
+    agent_hub_url: str = f"http://localhost:{AGENT_HUB_BACKEND_PORT}"
     agent_hub_enabled: bool | None = None
     portfolio_client_id: str = ""
     portfolio_client_secret: str = ""
     portfolio_request_source: str = "portfolio-ai"
 
     # Self-referencing URLs (for internal service calls)
-    backend_url: str = "http://localhost:8000"
-    frontend_url: str = "http://localhost:3000"
+    backend_url: str = f"http://localhost:{PORTFOLIO_BACKEND_PORT}"
+    frontend_url: str = f"http://localhost:{PORTFOLIO_FRONTEND_PORT}"
 
     # Filesystem paths
     artifacts_dir: Path = Path(__file__).resolve().parents[3] / "data" / "artifacts"

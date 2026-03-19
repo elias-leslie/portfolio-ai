@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from urllib.parse import urlparse
 
+from . import PORTFOLIO_FRONTEND_PORT
+
 PRODUCTION_FRONTEND_ORIGIN = "https://port.summitflow.dev"
 
 
@@ -21,7 +23,7 @@ def build_cors_origins(
     frontend_host: str | None = None,
     extra_origins: str | None = None,
     *,
-    frontend_url: str = "http://localhost:3000",
+    frontend_url: str = f"http://localhost:{PORTFOLIO_FRONTEND_PORT}",
 ) -> list[str]:
     """Build the allowed frontend origins list from optional environment config.
 
