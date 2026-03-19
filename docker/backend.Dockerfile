@@ -2,34 +2,40 @@
 # Image: ghcr.io/summitflow-solutions/portfolio-api
 # Port: 8000
 # Worker: same image with CMD ["python", "-m", "app.worker"]
-# Note: Heavy ML dependencies (~1GB) — use build cache
+# Note: ML extras (torch, transformers) available via --build-arg INSTALL_ML=true
 
 # ── Stage 1: Builder ─────────────────────────────────────────────
 FROM python:3.13-slim-bookworm AS builder
 
-# Install uv for fast dependency resolution
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# Install build dependencies for native extensions
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy dependency files
+# Copy dependency files first (cache-friendly layer)
 COPY backend/pyproject.toml backend/uv.lock ./
-
-# Copy pre-built agent-hub-client wheel
 COPY docker/workspace-packages/*.whl /tmp/wheels/
 
-# Install deps: export requirements, swap local path dep with wheel, install
+# Optional ML extras (torch, transformers) — adds ~1GB
+ARG INSTALL_ML=false
+
+# Install deps and clean caches in same layer
 RUN uv export --frozen --no-dev --no-editable --format requirements-txt \
       --no-header > requirements.txt && \
     sed -i '/^\.$/d; /agent-hub-client$/d; /^\.\.\//d' requirements.txt && \
     uv venv .venv && \
     uv pip install --python .venv/bin/python \
-      -r requirements.txt /tmp/wheels/agent_hub_client-*.whl
+      -r requirements.txt /tmp/wheels/agent_hub_client-*.whl && \
+    if [ "$INSTALL_ML" = "true" ]; then \
+      uv export --frozen --no-dev --no-editable --format requirements-txt \
+        --no-header --extra ml > ml-requirements.txt && \
+      uv pip install --python .venv/bin/python -r ml-requirements.txt && \
+      rm -f ml-requirements.txt; \
+    fi && \
+    rm -rf /tmp/wheels /root/.cache/uv /root/.cache/pip requirements.txt
 
 # Copy application source
 COPY backend/app ./app
@@ -39,32 +45,28 @@ COPY backend/alembic ./alembic
 # ── Stage 2: Runtime ─────────────────────────────────────────────
 FROM python:3.13-slim-bookworm
 
-# Install curl for healthchecks, procps for pgrep (used by startup checks)
-RUN apt-get update && apt-get install -y --no-install-recommends curl procps \
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user before COPY --chown
+# Pre-create .cache so Docker volume mount inherits appuser ownership
+RUN useradd -m -s /bin/bash appuser
 
 WORKDIR /app
 
-# Copy virtual environment and application from builder
-COPY --from=builder /app/.venv /app/.venv
-COPY --from=builder /app/app ./app
-COPY --from=builder /app/alembic.ini ./
-COPY --from=builder /app/alembic ./alembic
+COPY --chown=appuser:appuser --from=builder /app/.venv /app/.venv
+COPY --chown=appuser:appuser --from=builder /app/app ./app
+COPY --chown=appuser:appuser --from=builder /app/alembic.ini ./
+COPY --chown=appuser:appuser --from=builder /app/alembic ./alembic
 
-# Ensure venv binaries are on PATH
+RUN mkdir -p /app/.cache && chown appuser:appuser /app/.cache
+
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
-
-# Create non-root user for runtime
-# Pre-create .cache so Docker volume mount inherits appuser ownership
-RUN useradd -m -s /bin/bash appuser \
-    && mkdir -p /app/.cache \
-    && chown -R appuser:appuser /app
 
 USER appuser
 
 EXPOSE 8000
 ENV PORT=8000
 
-# Default: run API server. Override CMD for worker.
 CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

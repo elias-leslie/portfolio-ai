@@ -31,20 +31,18 @@ WORKDIR /app
 # Copy all frontend source first
 COPY frontend/ ./
 
-# Install dependencies (after source so pnpm sees package.json in place)
+# Install dependencies
 RUN CI=true pnpm install --frozen-lockfile
 
-# Build with standalone output
+# Build with standalone output, then prune pnpm store
 ENV NEXT_TELEMETRY_DISABLED=1
-# API URL for Next.js rewrites (baked at build time)
 ARG API_URL=http://portfolio-api:8000
 ENV API_URL=${API_URL}
-RUN pnpm build
+RUN pnpm build && pnpm store prune
 
 # ── Stage 2: Runner ──────────────────────────────────────────────
 FROM node:20-slim
 
-# Create non-root user for runtime
 RUN useradd -m -s /bin/bash appuser
 
 WORKDIR /app
@@ -54,12 +52,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
-# Copy standalone output
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
-
-RUN chown -R appuser:appuser /app
+COPY --chown=appuser:appuser --from=builder /app/.next/standalone ./
+COPY --chown=appuser:appuser --from=builder /app/.next/static ./.next/static
+COPY --chown=appuser:appuser --from=builder /app/public ./public
 
 USER appuser
 
