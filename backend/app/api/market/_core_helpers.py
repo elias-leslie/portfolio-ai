@@ -129,9 +129,9 @@ def build_market_health_response(health_score_data: object) -> MarketHealthScore
     return MarketHealthScoreResponse(
         overall_score=health_score_data.overall_score,
         overall_label=health_score_data.overall_label,
+        components=health_score_data.components,
+        sectors=health_score_data.sectors,
         last_updated=health_score_data.last_updated,
-        trend=None,
-        trend_change=None,
     )
 
 

@@ -1,10 +1,9 @@
 /**
- * Core market data API functions: conditions, intelligence, prices, fear-greed, trends
+ * Core market data API functions: conditions, intelligence, prices, trends
  */
 
 import { apiRequest } from './client'
 import type {
-  FearGreedResponse,
   MarketConditionsResponse,
   MarketIntelligenceResponse,
   MarketTrendsResponse,
@@ -33,25 +32,6 @@ export async function fetchPrices(symbols: string[]): Promise<PricesResponse> {
   return apiRequest<PricesResponse>(
     `/api/market/prices?symbols=${encodeURIComponent(symbolsParam)}`,
   )
-}
-
-/**
- * Get Fear & Greed Index reading (latest or specific date)
- */
-export async function fetchFearGreed(
-  date?: string,
-  includeComponents?: boolean,
-): Promise<FearGreedResponse> {
-  const params = new URLSearchParams()
-  if (date) params.append('date', date)
-  if (includeComponents) params.append('include_components', 'true')
-
-  const queryString = params.toString()
-  const url = queryString
-    ? `/api/market/fear-greed?${queryString}`
-    : '/api/market/fear-greed'
-
-  return apiRequest<FearGreedResponse>(url)
 }
 
 /**

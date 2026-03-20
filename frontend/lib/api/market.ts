@@ -18,7 +18,6 @@ export type {
   PricesResponse,
   FearGreedReading,
   FearGreedComponent,
-  FearGreedResponse,
   MarketTrendsResponse,
   PutCallContext,
   EnrichedIndicator,
@@ -49,7 +48,6 @@ export {
   fetchMarketConditions,
   fetchMarketIntelligence,
   fetchPrices,
-  fetchFearGreed,
   fetchMarketTrends,
 } from './market-core'
 
