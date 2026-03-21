@@ -1,17 +1,27 @@
 #!/bin/bash
 # Full UI Regression Capture Script
-# Usage: bash ~/portfolio-ai/scripts/ui-regression.sh [--quick|--pages|--tabs|--expanded|--mobile|--full]
+# Usage: bash scripts/ui-regression.sh [--quick|--pages|--tabs|--expanded|--mobile|--full]
 #
 # Captures screenshots + JSON reports for all pages, tabs, expanded sections, and mobile views.
-# Output: ~/portfolio-ai/solution_state/{timestamp}/
+# Output: <project-root>/solution_state/{timestamp}/
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$SCRIPT_DIR/lib/project-root.sh"
+
+PORTFOLIO_ROOT="$(resolve_portfolio_root)"
 BASE_URL="${UI_HOST:-http://localhost:3000}"
-OUT="$HOME/portfolio-ai/solution_state/$(date +%Y%m%d-%H%M%S)"
-S="$HOME/portfolio-ai/.claude/skills/browser-automation/scripts"
+OUT="$PORTFOLIO_ROOT/solution_state/$(date +%Y%m%d-%H%M%S)"
+S="${BROWSER_AUTOMATION_SCRIPTS:-$PORTFOLIO_ROOT/.claude/skills/browser-automation/scripts}"
 REGRESSION="node $S/regression-check.js"
 EMULATE="node $S/emulate.js"
+
+if [ ! -d "$S" ]; then
+  echo "Browser automation scripts not found: $S" >&2
+  echo "Set BROWSER_AUTOMATION_SCRIPTS to a valid scripts directory." >&2
+  exit 1
+fi
 
 # Parse arguments
 MODE="${1:-full}"
