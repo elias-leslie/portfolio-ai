@@ -3,7 +3,6 @@
 This module provides automated cleanup tasks for:
 - Old backup files (SQL dumps)
 - Old ML model versions
-- Old solution state test artifacts
 
 All tasks are designed to be:
 - Idempotent (safe to run multiple times)
@@ -20,7 +19,6 @@ from app.logging_config import get_logger
 from app.tasks.cleanup.artifact_cleanup_helpers import (
     run_backups_cleanup,
     run_models_cleanup,
-    run_solution_state_cleanup,
 )
 from app.tasks.maintenance_logging import (
     log_maintenance_complete,
@@ -93,37 +91,6 @@ def cleanup_old_models_task(keep_count: int = 3, dry_run: bool = False) -> TaskR
     except Exception as e:
         return _handle_task_error(
             task_id, e, start_time, log_id, "cleanup_old_models_task", dry_run
-        )
-
-
-def cleanup_solution_state_task(keep_days: int = 14, dry_run: bool = False) -> TaskResult:
-    """Delete old solution_state test artifacts, keeping N days of recent data.
-
-    Args:
-        keep_days: Number of days of artifacts to keep (default: 14)
-        dry_run: If True, only report what would be deleted
-
-    Returns:
-        Dict with task_id, directories_deleted, bytes_freed, duration_seconds, success status
-    """
-    task_id = str(uuid.uuid4())
-    start_time = dt.datetime.now(dt.UTC)
-    log_id = log_maintenance_start("cleanup_solution_state_task", dry_run)
-    logger.info(
-        "cleanup_solution_state_started", task_id=task_id, keep_days=keep_days, dry_run=dry_run
-    )
-    try:
-        result = run_solution_state_cleanup(task_id, dry_run, keep_days, log_id)
-        result["duration_seconds"] = round(calculate_duration(start_time), 2)
-        logger.info(
-            "cleanup_solution_state_completed",
-            **{k: v for k, v in result.items() if k != "would_action_list"},
-        )
-        log_maintenance_complete(log_id, "cleanup_solution_state_task", True, result)
-        return result
-    except Exception as e:
-        return _handle_task_error(
-            task_id, e, start_time, log_id, "cleanup_solution_state_task", dry_run
         )
 
 

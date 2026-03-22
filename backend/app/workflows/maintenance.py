@@ -182,24 +182,6 @@ async def cleanup_old_models_wf(input: EmptyInput, ctx: Context) -> dict[str, An
 
 
 @hatchet.task(
-    name="portfolio-cleanup-solution-state",
-    input_validator=EmptyInput,
-    execution_timeout="3600s",
-    retries=1,
-    on_crons=["25 5 * * 0"],
-    concurrency=ConcurrencyExpression(
-        expression="'portfolio-cleanup-solution-state'",
-        max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
-    ),
-)
-async def cleanup_solution_state_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.cleanup.artifact_cleanup import cleanup_solution_state_task
-
-    return await asyncio.to_thread(cleanup_solution_state_task)
-
-
-@hatchet.task(
     name="portfolio-db-size",
     input_validator=EmptyInput,
     execution_timeout="600s",

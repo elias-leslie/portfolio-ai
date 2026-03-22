@@ -3,14 +3,12 @@
 Shared helper functions used by artifact_cleanup.py for:
 - Backup file cleanup
 - ML model version cleanup
-- Solution state artifact cleanup
 """
 
 from __future__ import annotations
 
 import datetime as dt
 import re
-import shutil
 from pathlib import Path
 
 from app.constants import SECONDS_PER_DAY
@@ -21,8 +19,6 @@ from .shared_helpers import (
     CleanupResult,
     build_cleanup_result,
     bytes_to_mb,
-    calculate_cutoff_timestamp,
-    calculate_directory_size,
     record_cleanup_metric,
 )
 
@@ -117,27 +113,6 @@ def process_model_file(
         return 0, 0
 
 
-def process_solution_state_entry(
-    entry: Path, cutoff_timestamp: float, now: float, dry_run: bool,
-    would_delete: list[_DryRunEntry],
-) -> tuple[int, int]:
-    """Process a single solution state directory for deletion. Returns (dirs_deleted, bytes_freed)."""
-    try:
-        mtime = entry.stat().st_mtime
-        if mtime >= cutoff_timestamp:
-            return 0, 0
-        dir_size, _ = calculate_directory_size(entry)
-        if dry_run:
-            would_delete.append({"directory": str(entry), "size_bytes": dir_size, "age_days": round((now - mtime) / SECONDS_PER_DAY, 1)})
-        else:
-            shutil.rmtree(entry)
-            logger.info("solution_state_deleted", directory=str(entry), size_bytes=dir_size)
-        return 1, dir_size
-    except Exception as dir_error:
-        logger.error("solution_state_deletion_failed", directory=str(entry), error=str(dir_error), exc_info=True)
-        return 0, 0
-
-
 def collect_backup_files(backup_dir: Path) -> list[tuple[Path, float, int]]:
     """Collect and sort backup files by modification time (newest first)."""
     backup_files: list[tuple[Path, float, int]] = []
@@ -177,23 +152,6 @@ def delete_old_model_versions(
     return files_deleted, bytes_freed, would_delete
 
 
-def delete_old_solution_state_dirs(
-    solution_dir: Path, cutoff_timestamp: float, dry_run: bool
-) -> tuple[int, int, list[_DryRunEntry]]:
-    """Delete solution state dirs older than cutoff. Returns (dirs_deleted, bytes_freed, would_delete)."""
-    directories_deleted, bytes_freed = 0, 0
-    would_delete: list[_DryRunEntry] = []
-    now = dt.datetime.now(dt.UTC).timestamp()
-    ts_pattern = re.compile(r"^\d{8}-\d{6}$")
-    for entry in solution_dir.iterdir():
-        if not entry.is_dir() or not ts_pattern.match(entry.name):
-            continue
-        d, f = process_solution_state_entry(entry, cutoff_timestamp, now, dry_run, would_delete)
-        directories_deleted += d
-        bytes_freed += f
-    return directories_deleted, bytes_freed, would_delete
-
-
 def run_backups_cleanup(task_id: str, dry_run: bool, keep_count: int, log_id: int) -> CleanupResult:
     """Execute backup cleanup core logic (directory scan, delete, build result)."""
     backup_dir = Path(__file__).parent.parent.parent.parent.parent / "backups"
@@ -230,24 +188,3 @@ def run_models_cleanup(task_id: str, dry_run: bool, keep_count: int, log_id: int
         would_action_list=would_delete if dry_run else None,
     )
 
-
-def run_solution_state_cleanup(task_id: str, dry_run: bool, keep_days: int, log_id: int) -> CleanupResult:
-    """Execute solution state cleanup core logic (directory scan, delete, build result)."""
-    solution_dir = Path(__file__).parent.parent.parent.parent.parent / "solution_state"
-    early_result = handle_missing_directory(
-        task_id, dry_run, solution_dir, "cleanup_solution_state_task", log_id,
-        counter_field_name="directories_deleted",
-    )
-    if early_result:
-        return early_result
-    _, cutoff_timestamp = calculate_cutoff_timestamp(days=keep_days)
-    directories_deleted, bytes_freed, would_delete = delete_old_solution_state_dirs(
-        solution_dir, cutoff_timestamp, dry_run
-    )
-    record_cleanup_metric("solution_state_cleanup_bytes_freed", bytes_freed, dry_run)
-    return build_cleanup_result(
-        task_id=task_id, dry_run=dry_run, duration_seconds=0.0,
-        task_specific_fields={"directories_deleted": directories_deleted, "bytes_freed": bytes_freed,
-                              "bytes_freed_mb": bytes_to_mb(bytes_freed), "keep_days": keep_days},
-        would_action_list=would_delete if dry_run else None,
-    )
