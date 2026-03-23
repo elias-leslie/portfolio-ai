@@ -77,8 +77,8 @@ export function WatchlistTableRow({
       <TableRow
         ref={rowRef}
         className={cn(
-          'cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
-          isExpanded && 'bg-surface-muted/40',
+          'cursor-pointer transition-colors duration-150 hover:bg-surface-muted/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
+          isExpanded && 'bg-surface-muted/30',
           highlightedSymbol === item.symbol && 'bg-accent/10 animate-pulse',
         )}
         role="button"
@@ -127,10 +127,10 @@ export function WatchlistTableRow({
             {portfolioSymbols.has(item.symbol.toUpperCase()) && (
               <Badge
                 variant="outline"
-                className="gap-1 text-xs px-1.5 py-0 h-5 bg-accent/10 border-accent/30 text-accent"
+                className="gap-1 border-accent/30 bg-accent/10 px-1.5 py-0 text-accent"
               >
-                <Briefcase className="h-3 w-3" />
-                <span>Portfolio</span>
+                <Briefcase className="h-3 w-3" aria-hidden />
+                <span>Held</span>
               </Badge>
             )}
             {item.currentScore?.price.metadata?.source &&
@@ -200,7 +200,7 @@ export function WatchlistTableRow({
                 {overall.toFixed(0)}
               </Badge>
               <div
-                className="flex-1 h-2 bg-surface-muted rounded-full overflow-hidden min-w-[60px]"
+                className="h-1.5 flex-1 rounded-full bg-surface-muted/60 overflow-hidden min-w-[60px]"
                 role="progressbar"
                 aria-valuenow={Math.round(overall)}
                 aria-valuemin={0}
@@ -209,7 +209,7 @@ export function WatchlistTableRow({
               >
                 <div
                   className={cn(
-                    'h-full transition-all',
+                    'h-full rounded-full transition-all duration-300',
                     overall >= 80
                       ? 'bg-gain'
                       : overall >= 60

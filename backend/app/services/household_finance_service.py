@@ -91,8 +91,6 @@ from app.services.household_transaction_rule_service import HouseholdTransaction
 from app.services.household_transaction_service import HouseholdTransactionService
 from app.storage import get_storage
 
-RETIREMENT_ACCOUNT_TYPES = {"IRA", "401k", "Roth", "HSA"}
-TAXABLE_ACCOUNT_TYPES = {"Taxable"}
 DEFAULT_HOUSEHOLD_NAME = "Household"
 FIELD_LABELS = {
     "adult_count": "Adults in household",

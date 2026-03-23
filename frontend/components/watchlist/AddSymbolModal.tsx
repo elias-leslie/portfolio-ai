@@ -230,28 +230,32 @@ NVDA`}
             />
 
             {/* Validation feedback */}
-            <div className="space-y-1 text-xs">
-              {symbols.length > 0 && (
-                <>
-                  {valid.length > 0 && (
-                    <p className="text-gain">
-                      ✓ {valid.length} valid symbol{valid.length > 1 ? 's' : ''}
-                      : {valid.join(', ')}
-                    </p>
-                  )}
-                  {invalid.length > 0 && (
-                    <p className="text-loss">
-                      ✗ {invalid.length} invalid symbol
+            {symbols.length > 0 && (
+              <div className="space-y-1.5 text-xs">
+                {valid.length > 0 && (
+                  <p className="flex items-start gap-1.5 text-gain">
+                    <span className="mt-px shrink-0">&#10003;</span>
+                    <span>
+                      {valid.length} valid symbol{valid.length > 1 ? 's' : ''}:{' '}
+                      {valid.join(', ')}
+                    </span>
+                  </p>
+                )}
+                {invalid.length > 0 && (
+                  <p className="flex items-start gap-1.5 text-loss">
+                    <span className="mt-px shrink-0">&#10007;</span>
+                    <span>
+                      {invalid.length} invalid symbol
                       {invalid.length > 1 ? 's' : ''}: {invalid.join(', ')}
                       <br />
                       <span className="text-text-muted">
-                        (must be 1-10 alphanumeric characters)
+                        Must be 1-10 alphanumeric characters
                       </span>
-                    </p>
-                  )}
-                </>
-              )}
-            </div>
+                    </span>
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Progress indicator */}
             {isProcessing && (
@@ -259,9 +263,9 @@ NVDA`}
                 <p className="text-sm font-medium text-text">
                   Adding symbols... {progress.current}/{progress.total}
                 </p>
-                <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-surface-muted">
+                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-surface-muted/60">
                   <div
-                    className="h-full bg-primary transition-all duration-300"
+                    className="h-full rounded-full bg-primary transition-all duration-300"
                     style={{
                       width: `${(progress.current / progress.total) * 100}%`,
                     }}

@@ -50,14 +50,14 @@ export function WatchlistEmptyState({
   primaryAction,
 }: WatchlistEmptyStateProps) {
   return (
-    <div className="rounded-2xl border border-border/50 bg-surface/60 p-10 text-center">
-      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-        <Eye className="h-6 w-6 text-primary" />
+    <div className="rounded-2xl border border-dashed border-border/50 bg-surface/40 px-6 py-12 text-center">
+      <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
+        <Eye className="h-7 w-7 text-primary" />
       </div>
-      <p className="text-sm font-medium text-text">{title}</p>
-      <p className="mx-auto mt-2 max-w-sm text-sm text-text-muted leading-relaxed">{detail}</p>
+      <p className="text-base font-medium text-text">{title}</p>
+      <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-text-muted">{detail}</p>
       {primaryAction ? (
-        <div className="mt-5">
+        <div className="mt-6">
           <Button type="button" onClick={primaryAction.onClick}>
             {primaryAction.label}
           </Button>

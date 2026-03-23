@@ -35,7 +35,7 @@ export function WatchlistSearchBar({
           <button
             type="button"
             onClick={() => onChange('')}
-            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-text-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer rounded-full p-1 text-text-muted transition-colors duration-150 hover:bg-surface-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
             aria-label="Clear search"
           >
             <X className="h-3.5 w-3.5" />

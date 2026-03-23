@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
+import { Geist, Geist_Mono, Instrument_Serif } from 'next/font/google'
 import Script from 'next/script'
 import './globals.css'
 import './globals-watchlist.css'
@@ -16,6 +16,12 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: '--font-geist-mono',
   subsets: ['latin'],
+})
+
+const instrumentSerif = Instrument_Serif({
+  variable: '--font-display',
+  subsets: ['latin'],
+  weight: '400',
 })
 
 export const metadata: Metadata = {
@@ -49,13 +55,14 @@ export default function RootLayout({
         className={cn(
           geistSans.variable,
           geistMono.variable,
+          instrumentSerif.variable,
           'bg-bg text-text antialiased h-screen overflow-hidden flex flex-col',
         )}
       >
         <Providers>
           <Navigation />
           <main className="flex-1 overflow-auto">{children}</main>
-          <Toaster position="top-right" richColors />
+          <Toaster position="top-right" richColors theme="dark" toastOptions={{ className: 'border-border/50' }} />
         </Providers>
         <Script
           id="sw-cleanup"

@@ -7,9 +7,9 @@ type PageHeaderVariant = 'gradient' | 'plain'
 type PageHeaderSize = 'sm' | 'md' | 'lg'
 
 const sizeStyles: Record<PageHeaderSize, string> = {
-  sm: 'text-2xl',
-  md: 'text-3xl',
-  lg: 'text-4xl',
+  sm: 'text-3xl',
+  md: 'text-4xl',
+  lg: 'text-5xl',
 }
 
 export interface PageHeaderProps {
@@ -61,7 +61,7 @@ export function PageHeader({
         )}
         <h1
           className={cn(
-            'font-semibold tracking-tight',
+            'font-display tracking-tight',
             sizeStyles[size],
             titleClass,
           )}

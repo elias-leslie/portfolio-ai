@@ -35,7 +35,7 @@ export function PortfolioOverview() {
 
   if (isInitialLoading) {
     return (
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {[...Array(6)].map((_, i) => (
           <Card key={i} className="p-6">
             <div className="h-24 animate-pulse rounded-xl bg-surface-muted/60" />
@@ -85,16 +85,16 @@ export function PortfolioOverview() {
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card className="group p-6 transition-shadow duration-200 hover:shadow-lg">
+        <Card className="group p-6 transition-shadow duration-200 hover:shadow-md">
           <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-primary/10 p-3 transition-colors duration-200 group-hover:bg-primary/15">
+            <div className="rounded-lg bg-primary/10 p-2.5 transition-colors duration-200 group-hover:bg-primary/15">
               <DollarSign className="h-5 w-5 text-primary" />
             </div>
             <div className="flex-1">
               <div className="text-sm font-medium text-text-muted">
                 Total Value
               </div>
-              <div className="mt-1 text-2xl font-bold text-text">
+              <div className="mt-1 font-display text-2xl text-text">
                 {formatCurrency(portfolio?.totalValue ?? 0)}
               </div>
               <div className="mt-1 text-xs text-text-muted">
@@ -107,11 +107,11 @@ export function PortfolioOverview() {
           </div>
         </Card>
 
-        <Card className="group p-6 transition-shadow duration-200 hover:shadow-lg">
+        <Card className="group p-6 transition-shadow duration-200 hover:shadow-md">
           <div className="flex items-center gap-3">
             <div
               className={cn(
-                'rounded-lg p-3 transition-colors duration-200',
+                'rounded-lg p-2.5 transition-colors duration-200',
                 (portfolio?.totalGain ?? 0) >= 0
                   ? 'bg-gain/10 group-hover:bg-gain/15'
                   : 'bg-loss/10 group-hover:bg-loss/15',
@@ -123,7 +123,7 @@ export function PortfolioOverview() {
               <div className="text-sm font-medium text-text-muted">
                 Total Gain/Loss
               </div>
-              <div className={cn('mt-1 text-2xl font-bold', gainColor)}>
+              <div className={cn('mt-1 font-display text-2xl', gainColor)}>
                 {formatCurrency(portfolio?.totalGain ?? 0)}
               </div>
               <div className={cn('mt-1 text-xs', gainColor)}>
@@ -133,16 +133,16 @@ export function PortfolioOverview() {
           </div>
         </Card>
 
-        <Card className="group p-6 transition-shadow duration-200 hover:shadow-lg">
+        <Card className="group p-6 transition-shadow duration-200 hover:shadow-md">
           <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-accent/10 p-3 transition-colors duration-200 group-hover:bg-accent/15">
+            <div className="rounded-lg bg-accent/10 p-2.5 transition-colors duration-200 group-hover:bg-accent/15">
               <Activity className="h-5 w-5 text-accent" />
             </div>
             <div className="flex-1">
               <div className="text-sm font-medium text-text-muted">
                 Market Sensitivity
               </div>
-              <div className="mt-1 text-2xl font-bold text-text">
+              <div className="mt-1 font-display text-2xl text-text">
                 {analytics?.portfolioBeta?.toFixed(2) ?? '—'}
               </div>
               <div className="mt-1 text-xs text-text-muted">
@@ -152,16 +152,16 @@ export function PortfolioOverview() {
           </div>
         </Card>
 
-        <Card className="group p-6 transition-shadow duration-200 hover:shadow-lg">
+        <Card className="group p-6 transition-shadow duration-200 hover:shadow-md">
           <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-accent/10 p-3 transition-colors duration-200 group-hover:bg-accent/15">
+            <div className="rounded-lg bg-accent/10 p-2.5 transition-colors duration-200 group-hover:bg-accent/15">
               <Gauge className="h-5 w-5 text-accent" />
             </div>
             <div className="flex-1">
               <div className="text-sm font-medium text-text-muted">
                 Typical Swings
               </div>
-              <div className="mt-1 text-2xl font-bold text-text">
+              <div className="mt-1 font-display text-2xl text-text">
                 {analytics?.portfolioVolatility
                   ? `${(analytics.portfolioVolatility * 100).toFixed(1)}%`
                   : '—'}
@@ -234,56 +234,41 @@ export function PortfolioOverview() {
       {analytics ? (
         <div className="grid gap-4 md:grid-cols-2">
           <Card className="p-6">
-            <h3 className="mb-4 text-sm font-semibold text-text">
+            <h3 className="mb-4 text-sm font-semibold tracking-tight text-text">
               Single-Stock Risk
             </h3>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-text-muted">Top Holding</span>
-                <span className="text-sm font-medium">
-                  {analytics.concentration.topHoldingPct.toFixed(1)}%
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-text-muted">Top 3</span>
-                <span className="text-sm font-medium">
-                  {analytics.concentration.top3Pct.toFixed(1)}%
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-text-muted">Top 10</span>
-                <span className="text-sm font-medium">
-                  {analytics.concentration.top10Pct.toFixed(1)}%
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-text-muted">
-                  Concentration Score
-                </span>
-                <span className="text-sm font-medium">
-                  {analytics.concentration.herfindahlIndex.toFixed(3)}
-                </span>
-              </div>
+            <div className="space-y-2.5">
+              {[
+                { label: 'Top Holding', value: `${analytics.concentration.topHoldingPct.toFixed(1)}%` },
+                { label: 'Top 3', value: `${analytics.concentration.top3Pct.toFixed(1)}%` },
+                { label: 'Top 10', value: `${analytics.concentration.top10Pct.toFixed(1)}%` },
+                { label: 'Concentration Score', value: analytics.concentration.herfindahlIndex.toFixed(3) },
+              ].map(({ label, value }) => (
+                <div key={label} className="flex items-center justify-between">
+                  <span className="text-sm text-text-muted">{label}</span>
+                  <span className="text-sm font-medium tabular-nums">{value}</span>
+                </div>
+              ))}
             </div>
           </Card>
 
           <Card className="p-6">
-            <h3 className="mb-4 text-sm font-semibold text-text">
+            <h3 className="mb-4 text-sm font-semibold tracking-tight text-text">
               Where Your Money Is Concentrated
             </h3>
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {Object.entries(analytics.sectorExposure)
                 .sort(([, a], [, b]) => b - a)
                 .slice(0, 5)
                 .map(([sector, percentage]) => (
                   <div
                     key={sector}
-                    className="flex justify-between items-center"
+                    className="flex items-center justify-between"
                   >
                     <span className="text-sm text-text-muted">
                       {formatDisplayLabel(sector)}
                     </span>
-                    <span className="text-sm font-medium">
+                    <span className="text-sm font-medium tabular-nums">
                       {percentage.toFixed(1)}%
                     </span>
                   </div>

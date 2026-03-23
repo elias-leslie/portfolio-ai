@@ -64,68 +64,34 @@ export function MarketMoversTable() {
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-text">Market Movers</h3>
-        <div className="flex gap-0.5 bg-surface-muted rounded-lg p-0.5">
-          <button
-            type="button"
-            aria-pressed={activeTab === 'gainers'}
-            onClick={() => setActiveTab('gainers')}
-            className={cn(
-              'flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
-              activeTab === 'gainers'
-                ? 'bg-surface text-gain shadow-sm'
-                : 'text-text-muted hover:text-text',
-            )}
-          >
-            <TrendingUp className="h-2.5 w-2.5" />
-            Gainers
-          </button>
-          <button
-            type="button"
-            aria-pressed={activeTab === 'losers'}
-            onClick={() => setActiveTab('losers')}
-            className={cn(
-              'flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
-              activeTab === 'losers'
-                ? 'bg-surface text-loss shadow-sm'
-                : 'text-text-muted hover:text-text',
-            )}
-          >
-            <TrendingDown className="h-2.5 w-2.5" />
-            Losers
-          </button>
-          <button
-            type="button"
-            aria-pressed={activeTab === 'volume'}
-            onClick={() => setActiveTab('volume')}
-            className={cn(
-              'flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
-              activeTab === 'volume'
-                ? 'bg-surface text-text shadow-sm'
-                : 'text-text-muted hover:text-text',
-            )}
-          >
-            <BarChart3 className="h-2.5 w-2.5" />
-            Volume
-          </button>
-          <button
-            type="button"
-            aria-pressed={activeTab === 'rvol'}
-            onClick={() => setActiveTab('rvol')}
-            className={cn(
-              'flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
-              activeTab === 'rvol'
-                ? 'bg-surface text-text shadow-sm'
-                : 'text-text-muted hover:text-text',
-            )}
-          >
-            <Zap className="h-2.5 w-2.5" />
-            RVOL
-          </button>
+        <div className="flex gap-0.5 bg-surface-muted rounded-lg p-0.5" role="group" aria-label="Market mover categories">
+          {([
+            { key: 'gainers' as Tab, icon: TrendingUp, label: 'Gainers', activeColor: 'text-gain' },
+            { key: 'losers' as Tab, icon: TrendingDown, label: 'Losers', activeColor: 'text-loss' },
+            { key: 'volume' as Tab, icon: BarChart3, label: 'Volume', activeColor: 'text-text' },
+            { key: 'rvol' as Tab, icon: Zap, label: 'RVOL', activeColor: 'text-text' },
+          ]).map(({ key, icon: TabIcon, label, activeColor }) => (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={activeTab === key}
+              onClick={() => setActiveTab(key)}
+              className={cn(
+                'flex cursor-pointer items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
+                activeTab === key
+                  ? `bg-surface ${activeColor} shadow-sm`
+                  : 'text-text-muted hover:text-text',
+              )}
+            >
+              <TabIcon className="h-3 w-3" />
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-[11px]">
+        <table className="w-full text-xs">
           <thead>
             <tr className="text-text-muted border-b border-border/50">
               <th className="text-left py-1 font-medium">Symbol</th>
@@ -153,7 +119,7 @@ export function MarketMoversTable() {
             {items.slice(0, 10).map((item) => (
               <tr
                 key={item.symbol}
-                className="border-b border-border/30 hover:bg-surface-muted/50 transition-colors"
+                className="border-b border-border/30 hover:bg-surface-muted/50 transition-colors duration-150"
               >
                 <td className="py-1">
                   <div className="flex flex-col">
@@ -203,7 +169,7 @@ export function MarketMoversTable() {
         </table>
       </div>
 
-      <div className="text-[10px] text-text-muted text-right">
+      <div className="mt-1 text-xs text-text-muted text-right">
         {data.lastUpdated && `Updated ${formatRelativeTime(data.lastUpdated)}`}
       </div>
     </div>

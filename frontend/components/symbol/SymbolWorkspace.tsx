@@ -146,7 +146,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
 
       <div className="grid gap-4 lg:grid-cols-4">
         <SectionCard variant="surface" title="Overall Score">
-          <p className="text-3xl font-semibold text-text">
+          <p className="font-display text-3xl tabular-nums text-text">
             {data?.scores?.overall?.toFixed(0) ?? '—'}
           </p>
           <p className="mt-2 text-sm text-text-muted">
@@ -159,7 +159,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
           </p>
         </SectionCard>
         <SectionCard variant="surface" title="Recommendation">
-          <p className="text-2xl font-semibold text-text">
+          <p className="font-display text-2xl uppercase text-text">
             {data?.recommendation?.action?.replaceAll('_', ' ') ?? '—'}
           </p>
           <p className="mt-2 text-sm text-text-muted">
@@ -167,7 +167,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
           </p>
         </SectionCard>
         <SectionCard variant="surface" title="Position">
-          <p className="text-2xl font-semibold text-text">
+          <p className="font-display text-2xl text-text">
             {data?.portfolio?.held ? formatCurrency(data.portfolio.position?.currentValue) : 'Not held'}
           </p>
           <p className="mt-2 text-sm text-text-muted">
@@ -185,7 +185,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
           ) : null}
         </SectionCard>
         <SectionCard variant="surface" title="Market Backdrop">
-          <p className="text-2xl font-semibold text-text">
+          <p className="font-display text-2xl text-text">
             {data?.market?.fearGreedLabel ?? '—'}
           </p>
           <p className="mt-2 text-sm text-text-muted">
@@ -442,17 +442,17 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                   <div className="grid gap-3">
                     <Link
                       href="/watchlist"
-                      className="flex items-center justify-between rounded-2xl border border-border/40 bg-surface-muted/20 p-4 text-sm text-text transition hover:border-primary/40"
+                      className="group flex items-center justify-between rounded-2xl border border-border/40 bg-surface-muted/20 p-4 text-sm text-text transition-all duration-200 hover:border-primary/40 hover:bg-surface-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                     >
                       <span>Review this symbol in the watchlist context</span>
-                      <ArrowRight className="h-4 w-4" />
+                      <ArrowRight className="h-4 w-4 text-text-muted transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
                     </Link>
                     <Link
                       href="/portfolio"
-                      className="flex items-center justify-between rounded-2xl border border-border/40 bg-surface-muted/20 p-4 text-sm text-text transition hover:border-primary/40"
+                      className="group flex items-center justify-between rounded-2xl border border-border/40 bg-surface-muted/20 p-4 text-sm text-text transition-all duration-200 hover:border-primary/40 hover:bg-surface-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                     >
                       <span>Compare the idea against current portfolio concentration</span>
-                      <ArrowRight className="h-4 w-4" />
+                      <ArrowRight className="h-4 w-4 text-text-muted transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
                     </Link>
                     <div className="rounded-2xl border border-border/40 bg-surface/60 p-4 text-sm text-text-muted">
                       <AlertCircle className="mb-2 h-4 w-4 text-primary" />

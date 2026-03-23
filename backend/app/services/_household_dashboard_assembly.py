@@ -29,6 +29,10 @@ from app.services._household_dashboard_builders import (
 from app.services._household_dashboard_queries import (
     infer_profile_from_transactions,
 )
+from app.services._household_finance_utils import (
+    RETIREMENT_ACCOUNT_TYPES,
+    TAXABLE_ACCOUNT_TYPES,
+)
 from app.services._household_jenny_needs_builders import (
     _jenny_account_question_needs,
     _jenny_confirmation_needs,
@@ -150,9 +154,9 @@ def build_overview(
     taxable_assets = 0.0
     for account in accounts:
         account_total = account.cash_balance + holdings_by_account.get(account.id, 0.0)
-        if account.account_type in service.RETIREMENT_ACCOUNT_TYPES:
+        if account.account_type in RETIREMENT_ACCOUNT_TYPES:
             retirement_assets += account_total
-        if account.account_type in service.TAXABLE_ACCOUNT_TYPES:
+        if account.account_type in TAXABLE_ACCOUNT_TYPES:
             taxable_assets += account_total
     total_tracked_assets = invested_assets + cash_reserve
     visibility_score = service._compute_visibility_score(

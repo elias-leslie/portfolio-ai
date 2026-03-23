@@ -102,6 +102,7 @@
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-display);
 
   --radius-xs: var(--radius-xs);
   --radius-sm: var(--radius-sm);
@@ -304,6 +305,9 @@
   body {
     min-height: 100%;
     background-color: var(--color-bg);
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -20%, oklch(0.22 0.04 277 / 0.4) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 100% 50%, oklch(0.2 0.03 210 / 0.15) 0%, transparent 50%);
     color: var(--color-text);
     font-feature-settings:
       "case" 1,

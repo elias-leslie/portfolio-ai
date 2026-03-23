@@ -273,9 +273,8 @@ export function AccountsWithPositionsContent({
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-sm text-text-muted">
-              No accounts yet. Click &quot;Add Account&quot; above to start
-              managing your portfolio.
+            <div className="rounded-xl border border-dashed border-border/50 bg-surface/40 p-6 text-center text-sm text-text-muted">
+              No accounts yet. Create one above to start organizing your portfolio.
             </div>
           </CardContent>
         </Card>

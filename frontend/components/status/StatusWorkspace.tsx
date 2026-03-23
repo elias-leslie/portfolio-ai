@@ -124,12 +124,17 @@ export function StatusWorkspace() {
       />
 
       {isLoading ? (
-        <SectionCard variant="surface">
-          <div className="flex min-h-72 items-center justify-center gap-3 text-sm text-text-muted">
+        <div className="space-y-6" role="status" aria-live="polite">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="h-28 animate-pulse rounded-2xl bg-surface-muted/40" />
+            ))}
+          </div>
+          <div className="flex items-center gap-3 text-sm text-text-muted">
             <Loader2 className="h-4 w-4 animate-spin text-primary" />
             Collecting live operating signals...
           </div>
-        </SectionCard>
+        </div>
       ) : null}
 
       {!isLoading && hasFatalError ? (

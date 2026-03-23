@@ -7,6 +7,9 @@ from typing import Any
 
 from app.models.household_finance import HouseholdResolvedValue
 
+RETIREMENT_ACCOUNT_TYPES = {"IRA", "401k", "Roth", "HSA"}
+TAXABLE_ACCOUNT_TYPES = {"Taxable"}
+
 
 def iso(value: Any) -> str:
     if isinstance(value, datetime):
