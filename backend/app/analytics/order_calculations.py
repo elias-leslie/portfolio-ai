@@ -71,7 +71,7 @@ def calculate_risk_based_shares(
 ) -> tuple[int, dict[str, float | str | None]]:
     """Calculate position size using risk-based sizing (GAP-043).
 
-    Integrates with position_sizing module for proper risk management.
+    Uses risk-based sizing for proper risk management.
     Formula: shares = (risk_percent * equity) / (entry_price - stop_loss)
 
     Args:

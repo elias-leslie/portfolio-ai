@@ -117,12 +117,6 @@ logger = get_logger(__name__)
 class HouseholdFinanceService:
     """Build household-finance views and persist intake metadata."""
 
-    RETIREMENT_ACCOUNT_TYPES = RETIREMENT_ACCOUNT_TYPES
-    TAXABLE_ACCOUNT_TYPES = TAXABLE_ACCOUNT_TYPES
-    FIELD_LABELS = FIELD_LABELS
-    logger = logger
-    DEFAULT_HOUSEHOLD_NAME = DEFAULT_HOUSEHOLD_NAME
-
     def __init__(self) -> None:
         self.storage = get_storage()
         self.portfolio_mgr = PortfolioManager(self.storage)
