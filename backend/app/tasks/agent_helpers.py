@@ -52,7 +52,7 @@ def setup_agent_tools(storage: PortfolioStorage) -> AgentTools:
 
 
 def update_run_task_id(storage: PortfolioStorage, task_id: str, run_id: str) -> None:
-    """Update agent_runs table with task ID (stored in celery_task_id column for legacy reasons)."""
+    """Update agent_runs table with Hatchet task ID (legacy column name: celery_task_id)."""
     with storage.connection() as conn:
         cursor = conn.execute(
             """

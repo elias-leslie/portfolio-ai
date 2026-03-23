@@ -11,7 +11,7 @@ import yaml
 
 from app.api.portfolio.analytics_routes import get_analytics_payload as _get_analytics_payload
 from app.api.symbols.router import build_symbol_intelligence as build_symbol_intelligence_response
-from app.config import settings
+from app.config import PORTFOLIO_BACKEND_PORT, PORTFOLIO_FRONTEND_PORT, settings
 from app.logging_config import get_logger
 from app.models.household_finance import HouseholdQuestion
 from app.utils._market_status import get_market_status
@@ -115,8 +115,8 @@ def build_runtime_context(
     endpoints = index.get("endpoints")
     services_index = index.get("services")
 
-    backend_port = urlparse(settings.backend_url).port or 8000
-    frontend_port = urlparse(settings.frontend_url).port or 3000
+    backend_port = urlparse(settings.backend_url).port or PORTFOLIO_BACKEND_PORT
+    frontend_port = urlparse(settings.frontend_url).port or PORTFOLIO_FRONTEND_PORT
 
     return {
         "project": index.get("project") or "portfolio-ai",

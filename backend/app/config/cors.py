@@ -34,7 +34,7 @@ def build_cors_origins(
             extracted from this to avoid hardcoding.
     """
     parsed = urlparse(frontend_url)
-    port = parsed.port or 3000
+    port = parsed.port or PORTFOLIO_FRONTEND_PORT
 
     origins: list[str] = list(_local_origins(port))
 
