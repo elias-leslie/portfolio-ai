@@ -79,7 +79,7 @@ export function DiversificationScore({
       {/* Score Progress Bar */}
       <div className="mb-4">
         <div className="mb-2 flex items-baseline justify-between">
-          <span className="text-2xl font-bold text-text">
+          <span className="font-display text-3xl text-text">
             {diversification.score.toFixed(0)}
           </span>
           <span className="text-xs text-text-muted">/ 100</span>
@@ -100,7 +100,7 @@ export function DiversificationScore({
       </div>
 
       {/* Metrics */}
-      <div className="space-y-2 border-t border-border pt-4">
+      <div className="space-y-2 border-t border-border/40 pt-4">
         <div className="flex justify-between items-center">
           <span className="text-sm text-text-muted">Holdings</span>
           <span className="text-sm font-medium text-text">

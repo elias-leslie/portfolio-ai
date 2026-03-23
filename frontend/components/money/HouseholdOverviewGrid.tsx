@@ -59,7 +59,7 @@ export function HouseholdOverviewGrid({
                 <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
                   {metric.label}
                 </p>
-                <p className="mt-2 text-2xl font-semibold tracking-tight text-text xl:text-[1.75rem]">
+                <p className="mt-2 font-display text-2xl tracking-tight text-text xl:text-[1.75rem]">
                   {metric.value}
                 </p>
               </div>

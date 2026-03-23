@@ -117,7 +117,7 @@ export function WatchlistTable({ items, refreshStatus }: WatchlistTableProps) {
 
   return (
     <>
-      <div className="rounded-md border border-border bg-surface shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-border/40 bg-surface/60 shadow-sm">
         {/* Desktop Table View (hidden on mobile) */}
         <Table className="hidden md:table">
           <TableHeader>

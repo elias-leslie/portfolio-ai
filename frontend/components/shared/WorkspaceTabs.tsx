@@ -137,7 +137,7 @@ export function WorkspaceTabs({
 
   return (
     <Tabs value={value} onValueChange={handleValueChange} className={className}>
-      <div className="sticky top-0 z-20 -mx-px rounded-2xl border border-border/50 bg-bg/95 p-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-bg/85">
+      <div className="sticky top-0 z-20 -mx-px rounded-2xl border border-border/40 bg-bg/95 p-3 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-bg/80">
         <TabsList
           aria-label={ariaLabel}
           className="flex h-auto w-full flex-wrap justify-start gap-2 bg-transparent p-0"
@@ -155,8 +155,9 @@ export function WorkspaceTabs({
               }
               aria-current={tab.value === value ? 'page' : undefined}
               className={cn(
-                'rounded-xl border border-border/40 bg-surface/70 px-4 py-2 text-left',
-                'data-[state=active]:border-primary/40 data-[state=active]:bg-primary/10',
+                'rounded-xl border border-border/30 bg-surface/50 px-4 py-2 text-left transition-all duration-200',
+                'hover:border-border/50 hover:bg-surface/70',
+                'data-[state=active]:border-primary/30 data-[state=active]:bg-primary/10 data-[state=active]:shadow-[0_0_12px_-3px] data-[state=active]:shadow-primary/20',
               )}
             >
               <span className="flex items-center gap-2">

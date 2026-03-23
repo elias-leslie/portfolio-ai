@@ -67,8 +67,8 @@ function NavigationContent({ pathname }: { pathname: string }) {
                     className={cn(
                       'group flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
                       isActive
-                        ? 'bg-primary text-primary-foreground shadow-md'
-                        : 'text-text-muted hover:bg-surface hover:text-text hover:shadow-sm',
+                        ? 'bg-primary text-primary-foreground shadow-[0_0_16px_-4px] shadow-primary/40'
+                        : 'text-text-muted hover:bg-surface/80 hover:text-text',
                     )}
                   >
                     <Icon

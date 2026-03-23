@@ -62,7 +62,7 @@ export function PortfolioStats({ analytics }: PortfolioStatsProps) {
             {analytics.concentration.topHoldingPct.toFixed(1)}%
           </span>
         </div>
-        <div className="border-t border-border pt-3">
+        <div className="border-t border-border/40 pt-3">
           <div className="flex justify-between items-center">
             <span className="text-sm text-text-muted">Return Quality</span>
             {analytics.sharpeRatio !== null && Number.isFinite(analytics.sharpeRatio) ? (
