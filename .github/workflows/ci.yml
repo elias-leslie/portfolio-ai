@@ -58,7 +58,7 @@ jobs:
       - name: Test
         working-directory: backend
         env:
-          DATABASE_URL: postgresql://portfolio:portfolio@localhost:5432/portfolio
+          PORTFOLIO_DB_URL: postgresql://portfolio:portfolio@localhost:5432/portfolio
         run: |
           source .venv/bin/activate
           pytest -x -q -m "not slow and not e2e and not manual"
