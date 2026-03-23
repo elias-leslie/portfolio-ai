@@ -84,13 +84,9 @@ def calculate_risk_based_shares(
     Returns:
         Tuple of (shares, details dict)
     """
-    from app.analytics.position_sizing import (  # noqa: PLC0415
-        DEFAULT_RISK_PERCENT,
-    )
-    from app.analytics.position_sizing import (  # noqa: PLC0415
-        calculate_risk_based_shares as calc_shares,
-    )
     from app.analytics.trade_calculations import calculate_stop_loss  # noqa: PLC0415
+
+    default_risk_pct = 0.015  # 1.5% per trade
 
     cash_manager = CashManager(storage)
     price_fetcher = PriceDataFetcher(storage)
@@ -102,7 +98,7 @@ def calculate_risk_based_shares(
         "entry_price": None,
         "stop_loss": None,
         "stop_distance_pct": None,
-        "risk_percent": risk_percent or DEFAULT_RISK_PERCENT,
+        "risk_percent": risk_percent or default_risk_pct,
         "shares": 0,
         "position_value": None,
         "error": None,
@@ -134,20 +130,22 @@ def calculate_risk_based_shares(
         if stop_loss and entry_price > stop_loss:
             details["stop_distance_pct"] = (entry_price - stop_loss) / entry_price
 
-        # Calculate risk-based shares
-        shares, size_details = calc_shares(
-            equity=equity,
-            entry_price=entry_price,
-            stop_loss=stop_loss,
-            risk_percent=risk_percent or DEFAULT_RISK_PERCENT,
-        )
+        # Risk-based position sizing: shares = (risk_pct * equity) / risk_per_share
+        effective_risk = risk_percent or default_risk_pct
+        risk_amount = effective_risk * equity
+        risk_per_share = entry_price - stop_loss
+        if risk_per_share <= 0:
+            details["error"] = "Stop loss must be below entry price"
+            return 0, details
 
-        # Merge details
-        details["risk_amount"] = size_details.get("risk_amount")
-        details["risk_per_share"] = size_details.get("risk_per_share")
+        shares = int(risk_amount / risk_per_share)
+        position_value = shares * entry_price
+
+        details["risk_amount"] = risk_amount
+        details["risk_per_share"] = risk_per_share
         details["shares"] = float(shares)
-        details["position_value"] = size_details.get("position_value")
-        details["position_percent"] = size_details.get("position_percent")
+        details["position_value"] = position_value
+        details["position_percent"] = position_value / equity if equity > 0 else None
 
         return shares, details
 

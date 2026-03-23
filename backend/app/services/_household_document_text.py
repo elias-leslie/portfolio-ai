@@ -12,7 +12,6 @@ import numpy as np
 import pypdfium2 as pdfium
 from PIL import Image, ImageOps
 from pypdf import PdfReader
-from rapidocr_onnxruntime import RapidOCR
 
 from app.logging_config import get_logger
 
@@ -30,7 +29,9 @@ _FINANCIAL_SIGNAL_TERMS = (
 # ---------------------------------------------------------------------------
 
 @lru_cache(maxsize=1)
-def _build_image_ocr_engine() -> RapidOCR:
+def _build_image_ocr_engine():  # type: ignore[return]  # -> RapidOCR
+    from rapidocr_onnxruntime import RapidOCR  # noqa: PLC0415
+
     return RapidOCR()
 
 
