@@ -51,7 +51,7 @@ export function AccountAccordionItem({
   return (
     <AccordionItem
       value={account.id}
-      className="border rounded-lg mb-3 last:mb-0"
+      className="rounded-xl border border-border/40 mb-3 last:mb-0"
     >
       <div className="flex items-center px-4">
         <AccordionTrigger className="flex-1 hover:no-underline py-4">
@@ -124,7 +124,7 @@ export function AccountAccordionItem({
               : 'No positions in this account yet. Click "Add Position" above to get started.'}
           </div>
         ) : (
-          <div className="rounded-md border border-border bg-surface/50 overflow-hidden">
+          <div className="overflow-hidden rounded-xl border border-border/40 bg-surface/50">
             <Table>
               <TableHeader>
                 <TableRow>

@@ -70,7 +70,7 @@ export function RiskProfile({ riskProfile }: RiskProfileProps) {
       {/* Risk Score */}
       <div className="mb-4">
         <div className="mb-2 flex items-baseline justify-between">
-          <span className="text-2xl font-bold text-text">
+          <span className="font-display text-3xl text-text">
             {riskProfile.score.toFixed(0)}
           </span>
           <span className="text-xs text-text-muted">/ 100</span>
@@ -78,7 +78,7 @@ export function RiskProfile({ riskProfile }: RiskProfileProps) {
       </div>
 
       {/* Risk Factors */}
-      <div className="space-y-2 border-t border-border pt-4">
+      <div className="space-y-2 border-t border-border/40 pt-4">
         {Object.entries(riskProfile.factors).map(([key, value]) => (
           <div key={key} className="flex justify-between items-start gap-2">
             <span className="text-xs font-medium capitalize text-text-muted">

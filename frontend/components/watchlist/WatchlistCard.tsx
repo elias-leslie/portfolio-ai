@@ -68,7 +68,7 @@ export function WatchlistCard({
   return (
     <div
       className={cn(
-        'rounded-lg border border-border bg-surface p-4 shadow-sm',
+        'rounded-xl border border-border/40 bg-surface/60 p-4 shadow-sm',
         isRefreshing && 'border-accent/40 bg-accent/5',
       )}
     >
