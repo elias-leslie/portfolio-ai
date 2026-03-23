@@ -64,7 +64,7 @@ export function MarketMoversTable() {
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-text">Market Movers</h3>
-        <div className="flex gap-0.5 bg-surface-muted rounded-lg p-0.5" role="group" aria-label="Market mover categories">
+        <div className="flex gap-0.5 rounded-lg border border-border/30 bg-surface-muted/50 p-0.5" role="group" aria-label="Market mover categories">
           {([
             { key: 'gainers' as Tab, icon: TrendingUp, label: 'Gainers', activeColor: 'text-gain' },
             { key: 'losers' as Tab, icon: TrendingDown, label: 'Losers', activeColor: 'text-loss' },

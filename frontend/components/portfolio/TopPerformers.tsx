@@ -58,7 +58,7 @@ export function TopPerformers({
         </div>
 
         {/* Divider */}
-        <div className="border-t border-border" />
+        <div className="border-t border-border/40" />
 
         {/* Losers */}
         <div>

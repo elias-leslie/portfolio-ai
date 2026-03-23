@@ -51,11 +51,11 @@ export function DecisionMemoCard({
   onTrackInPortfolio,
 }: DecisionMemoCardProps) {
   return (
-    <Card className="border-border/60 bg-surface/90">
+    <Card className="border-border/40 bg-surface/70">
       <CardHeader className="gap-3 pb-3">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <CardTitle className="text-xl">{recommendation.symbol}</CardTitle>
+            <CardTitle className="font-display text-2xl">{recommendation.symbol}</CardTitle>
             <p className="mt-1 text-sm text-text-muted">
               {recommendation.strategyName}
             </p>
@@ -66,7 +66,7 @@ export function DecisionMemoCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="rounded-xl border border-border/60 bg-surface-muted/40 p-4">
+        <div className="rounded-xl border border-border/40 bg-surface-muted/20 p-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-text">
             <Target className="h-4 w-4 text-primary" />
             Why now
@@ -76,7 +76,7 @@ export function DecisionMemoCard({
           </p>
         </div>
 
-        <div className="rounded-xl border border-border/60 bg-surface-muted/40 p-4">
+        <div className="rounded-xl border border-border/40 bg-surface-muted/20 p-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-text">
             <ShieldAlert className="h-4 w-4 text-warning" />
             What breaks it
@@ -86,7 +86,7 @@ export function DecisionMemoCard({
           </p>
         </div>
 
-        <div className="rounded-xl border border-border/60 bg-surface-muted/40 p-4">
+        <div className="rounded-xl border border-border/40 bg-surface-muted/20 p-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-text">
             <Wallet className="h-4 w-4 text-accent" />
             Sizing
@@ -96,7 +96,7 @@ export function DecisionMemoCard({
           </p>
         </div>
 
-        <div className="rounded-xl border border-border/60 bg-surface-muted/40 p-4">
+        <div className="rounded-xl border border-border/40 bg-surface-muted/20 p-4">
           <div className="text-sm font-semibold text-text">Confidence</div>
           <p className="mt-2 text-sm text-text-muted">
             {buildConfidenceText(recommendation)}

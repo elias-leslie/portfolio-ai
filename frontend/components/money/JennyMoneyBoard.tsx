@@ -92,7 +92,7 @@ export function JennyMoneyBoard({
             className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
           >
             <p className="text-sm font-medium text-text-muted">{card.label}</p>
-            <p className="mt-3 text-3xl font-semibold tracking-tight text-text">
+            <p className="mt-3 font-display text-3xl tracking-tight text-text">
               {card.value}
             </p>
             <p className="mt-2 text-sm text-text-muted">{card.detail}</p>
@@ -160,7 +160,7 @@ export function JennyMoneyBoard({
                       className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
                     >
                       <p className="text-sm font-medium text-text-muted">{stat.label}</p>
-                      <p className="mt-2 text-xl font-semibold text-text">{stat.value}</p>
+                      <p className="mt-2 font-display text-xl text-text">{stat.value}</p>
                     </div>
                   ))}
                 </div>
