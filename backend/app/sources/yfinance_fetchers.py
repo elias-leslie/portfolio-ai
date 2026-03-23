@@ -27,11 +27,6 @@ from .yfinance_parsers import (
     parse_short_interest,
 )
 
-# Ensure HOME environment variable is set before importing yfinance
-# This prevents yfinance from trying to create cache files in non-existent directories
-if not os.environ.get("HOME"):
-    os.environ["HOME"] = "/var/cache/portfolio-ai"
-
 # Configure yfinance cache location to avoid SQLite readonly errors in worker processes
 # The default location may have permission issues or concurrent access conflicts
 _yf_cache_dir = Path(os.environ.get("HOME", "/tmp")) / ".cache" / "yfinance"

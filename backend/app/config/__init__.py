@@ -5,11 +5,17 @@ Uses pydantic-settings for validated configuration with environment variable sup
 
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from pathlib import Path
 
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Ensure HOME is set before any library tries to create cache directories.
+# Libraries like yfinance, transformers, and edgartools fail without it.
+if not os.environ.get("HOME"):
+    os.environ["HOME"] = "/var/cache/portfolio-ai"
 
 # ---------------------------------------------------------------------------
 # Port allocation — single source of truth for Portfolio AI.

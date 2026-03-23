@@ -2,16 +2,10 @@
 
 from __future__ import annotations
 
-import os
 import threading
 from collections.abc import Sequence
 from importlib import import_module
 from typing import Any, Literal, cast
-
-# Ensure HOME environment variable is set before importing transformers
-# This prevents transformers/huggingface models from trying to create cache files in non-existent directories
-if not os.environ.get("HOME"):
-    os.environ["HOME"] = "/var/cache/portfolio-ai"
 
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
