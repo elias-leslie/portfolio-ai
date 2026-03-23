@@ -18,6 +18,7 @@ import {
 } from '@/lib/hooks/useMarketIntelligence'
 import { checkDataFreshness, formatDate } from '@/lib/utils'
 import { MarketPanelMessage } from './MarketPanelMessage'
+import { SECTOR_COLORS } from './sector-colors'
 import {
   calculateTickInterval,
   formatChartDate,
@@ -25,21 +26,6 @@ import {
   TimeframeSelector,
   timeframeToDays,
 } from './TimeframeSelector'
-
-// Sector colors from design tokens — shared with SectorMoversTable
-const SECTOR_COLORS: Record<string, string> = {
-  XLK: 'var(--color-sector-tech)',
-  XLF: 'var(--color-sector-finance)',
-  XLE: 'var(--color-sector-energy)',
-  XLV: 'var(--color-sector-health)',
-  XLY: 'var(--color-sector-disc)',
-  XLP: 'var(--color-sector-staples)',
-  XLI: 'var(--color-sector-industrial)',
-  XLU: 'var(--color-sector-utility)',
-  XLRE: 'var(--color-sector-realestate)',
-  XLB: 'var(--color-sector-materials)',
-  XLC: 'var(--color-sector-comm)',
-}
 
 export function SectorPerformanceChart() {
   const [timeframe, setTimeframe] = useState<Timeframe>('1Y')

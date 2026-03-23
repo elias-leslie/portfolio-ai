@@ -3,21 +3,7 @@
 import { Minus, TrendingDown, TrendingUp } from 'lucide-react'
 import { useMarketStatus } from '@/lib/hooks/useMarketIntelligence'
 import { checkDataFreshness, cn, formatDate } from '@/lib/utils'
-
-// Sector colors from design tokens — shared with SectorPerformanceChart
-const SECTOR_COLORS: Record<string, string> = {
-  XLK: 'var(--color-sector-tech)',
-  XLF: 'var(--color-sector-finance)',
-  XLE: 'var(--color-sector-energy)',
-  XLV: 'var(--color-sector-health)',
-  XLY: 'var(--color-sector-disc)',
-  XLP: 'var(--color-sector-staples)',
-  XLI: 'var(--color-sector-industrial)',
-  XLU: 'var(--color-sector-utility)',
-  XLRE: 'var(--color-sector-realestate)',
-  XLB: 'var(--color-sector-materials)',
-  XLC: 'var(--color-sector-comm)',
-}
+import { SECTOR_COLORS } from './sector-colors'
 
 interface SectorInfo {
   symbol: string
