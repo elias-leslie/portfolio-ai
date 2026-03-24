@@ -63,7 +63,7 @@ export function DiversificationScore({
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Target className="h-4 w-4 text-accent" />
-          <h3 className="text-sm font-semibold text-text">Diversification</h3>
+          <h3 className="font-display text-lg tracking-tight text-text">Diversification</h3>
         </div>
         <span
           className={cn(

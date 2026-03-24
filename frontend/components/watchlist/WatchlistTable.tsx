@@ -13,6 +13,7 @@ import {
 import { WatchlistCard } from '@/components/watchlist/WatchlistCard'
 import { WatchlistTableRow } from '@/components/watchlist/WatchlistTableRow'
 import type { RefreshStatus, WatchlistItem } from '@/lib/api/watchlist'
+import { cn } from '@/lib/utils'
 import { usePortfolio } from '@/lib/hooks/usePortfolio'
 import { usePreferences } from '@/lib/hooks/usePreferences'
 import {
@@ -88,12 +89,21 @@ export function WatchlistTable({ items, refreshStatus }: WatchlistTableProps) {
       type="button"
       onClick={() => handleSort(field)}
       aria-label={`Sort by ${label}`}
-      className="flex items-center gap-1 font-medium hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+      className="group flex items-center gap-1.5 font-medium hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
     >
       {label}
-      {sortField === field && (
-        <span className="text-xs">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-      )}
+      <span
+        className={cn(
+          'inline-flex size-4 items-center justify-center rounded text-[10px] font-bold transition-all duration-150',
+          sortField === field
+            ? 'bg-primary/15 text-primary'
+            : 'text-text-muted/40 opacity-0 group-hover:opacity-100',
+        )}
+      >
+        {sortField === field
+          ? sortDirection === 'asc' ? '▲' : '▼'
+          : '▲'}
+      </span>
     </button>
   )
 

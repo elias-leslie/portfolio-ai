@@ -107,10 +107,10 @@ function NavigationContent({ pathname }: { pathname: string }) {
                   aria-current={isActive ? 'page' : undefined}
                   aria-label={`${link.label}. ${link.description}`}
                   className={cn(
-                    'flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
+                    'flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus active:scale-[0.97]',
                     isActive
-                      ? 'border-primary/40 bg-primary/10 text-text'
-                      : 'border-border/40 bg-surface/60 text-text-muted',
+                      ? 'border-primary/40 bg-primary/10 text-text shadow-[0_0_12px_-4px] shadow-primary/25'
+                      : 'border-border/40 bg-surface/60 text-text-muted hover:border-border/60 hover:bg-surface/80 hover:text-text',
                   )}
                 >
                   <Icon className="size-4" aria-hidden suppressHydrationWarning />

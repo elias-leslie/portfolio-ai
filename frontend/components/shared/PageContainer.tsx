@@ -14,7 +14,7 @@ export function PageContainer({
   return (
     <div
       className={cn(
-        'mx-auto space-y-8 px-4 py-6 sm:px-6 lg:px-8',
+        'mx-auto space-y-8 px-4 py-6 sm:px-6 lg:px-8 animate-fade-in',
         !fullWidth && 'max-w-7xl',
         className,
       )}

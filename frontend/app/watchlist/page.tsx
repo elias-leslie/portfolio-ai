@@ -124,8 +124,8 @@ export default function WatchlistPage() {
       />
 
       {!isLoading && !error && totalCount > 0 ? (
-        <div className="rounded-2xl border border-border/40 bg-surface-muted/20 px-4 py-3 text-sm text-text-muted">
-          <div className="flex flex-wrap gap-x-4 gap-y-2">
+        <div className="rounded-xl border border-border/30 border-l-primary/40 border-l-2 bg-surface/40 px-4 py-3 text-sm text-text-muted">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <span>{totalCount} symbol{totalCount === 1 ? '' : 's'}</span>
             <span>{scoredCount} scored ({scoreCoveragePct}%)</span>
             <span>{alertCount} flagged</span>

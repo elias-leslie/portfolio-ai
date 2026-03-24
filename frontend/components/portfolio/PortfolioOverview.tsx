@@ -75,7 +75,7 @@ export function PortfolioOverview() {
         </div>
       ) : null}
 
-      <div className="rounded-2xl border border-border/40 bg-surface-muted/20 px-4 py-3 text-sm text-text-muted">
+      <div className="rounded-xl border border-border/30 border-l-primary/40 border-l-2 bg-surface/40 px-4 py-3 text-sm text-text-muted">
         {positionCount} live position{positionCount === 1 ? '' : 's'}
         {analytics?.numSymbols != null ? ` · ${analytics.numSymbols} unique symbol${analytics.numSymbols === 1 ? '' : 's'}` : ''}
         {analytics?.cashInclusiveTotalValue != null
@@ -85,13 +85,13 @@ export function PortfolioOverview() {
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card className="group p-6 transition-shadow duration-200 hover:shadow-md">
+        <Card className="group p-6 transition-all duration-200 hover:shadow-md hover:border-primary/30">
           <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-primary/10 p-2.5 transition-colors duration-200 group-hover:bg-primary/15">
+            <div className="rounded-lg bg-primary/10 p-2.5 transition-all duration-200 group-hover:bg-primary/15 group-hover:shadow-[0_0_12px_-3px] group-hover:shadow-primary/20">
               <DollarSign className="h-5 w-5 text-primary" />
             </div>
             <div className="flex-1">
-              <div className="text-sm font-medium text-text-muted">
+              <div className="text-xs font-semibold uppercase tracking-widest text-text-muted">
                 Total Value
               </div>
               <div className="mt-1 font-display text-2xl text-text">
@@ -107,20 +107,20 @@ export function PortfolioOverview() {
           </div>
         </Card>
 
-        <Card className="group p-6 transition-shadow duration-200 hover:shadow-md">
+        <Card className={cn('group p-6 transition-all duration-200 hover:shadow-md', (portfolio?.totalGain ?? 0) >= 0 ? 'hover:border-gain/30' : 'hover:border-loss/30')}>
           <div className="flex items-center gap-3">
             <div
               className={cn(
-                'rounded-lg p-2.5 transition-colors duration-200',
+                'rounded-lg p-2.5 transition-all duration-200',
                 (portfolio?.totalGain ?? 0) >= 0
-                  ? 'bg-gain/10 group-hover:bg-gain/15'
-                  : 'bg-loss/10 group-hover:bg-loss/15',
+                  ? 'bg-gain/10 group-hover:bg-gain/15 group-hover:shadow-[0_0_12px_-3px] group-hover:shadow-gain/20'
+                  : 'bg-loss/10 group-hover:bg-loss/15 group-hover:shadow-[0_0_12px_-3px] group-hover:shadow-loss/20',
               )}
             >
               <TrendingUp className={cn('h-5 w-5', gainColor)} />
             </div>
             <div className="flex-1">
-              <div className="text-sm font-medium text-text-muted">
+              <div className="text-xs font-semibold uppercase tracking-widest text-text-muted">
                 Total Gain/Loss
               </div>
               <div className={cn('mt-1 font-display text-2xl', gainColor)}>
@@ -133,13 +133,13 @@ export function PortfolioOverview() {
           </div>
         </Card>
 
-        <Card className="group p-6 transition-shadow duration-200 hover:shadow-md">
+        <Card className="group p-6 transition-all duration-200 hover:shadow-md hover:border-accent/30">
           <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-accent/10 p-2.5 transition-colors duration-200 group-hover:bg-accent/15">
+            <div className="rounded-lg bg-accent/10 p-2.5 transition-all duration-200 group-hover:bg-accent/15 group-hover:shadow-[0_0_12px_-3px] group-hover:shadow-accent/20">
               <Activity className="h-5 w-5 text-accent" />
             </div>
             <div className="flex-1">
-              <div className="text-sm font-medium text-text-muted">
+              <div className="text-xs font-semibold uppercase tracking-widest text-text-muted">
                 Market Sensitivity
               </div>
               <div className="mt-1 font-display text-2xl text-text">
@@ -152,13 +152,13 @@ export function PortfolioOverview() {
           </div>
         </Card>
 
-        <Card className="group p-6 transition-shadow duration-200 hover:shadow-md">
+        <Card className="group p-6 transition-all duration-200 hover:shadow-md hover:border-accent/30">
           <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-accent/10 p-2.5 transition-colors duration-200 group-hover:bg-accent/15">
+            <div className="rounded-lg bg-accent/10 p-2.5 transition-all duration-200 group-hover:bg-accent/15 group-hover:shadow-[0_0_12px_-3px] group-hover:shadow-accent/20">
               <Gauge className="h-5 w-5 text-accent" />
             </div>
             <div className="flex-1">
-              <div className="text-sm font-medium text-text-muted">
+              <div className="text-xs font-semibold uppercase tracking-widest text-text-muted">
                 Typical Swings
               </div>
               <div className="mt-1 font-display text-2xl text-text">
@@ -234,7 +234,7 @@ export function PortfolioOverview() {
       {analytics ? (
         <div className="grid gap-4 md:grid-cols-2">
           <Card className="p-6">
-            <h3 className="mb-4 text-sm font-semibold tracking-tight text-text">
+            <h3 className="mb-4 font-display text-lg tracking-tight text-text">
               Single-Stock Risk
             </h3>
             <div className="space-y-2.5">
@@ -253,7 +253,7 @@ export function PortfolioOverview() {
           </Card>
 
           <Card className="p-6">
-            <h3 className="mb-4 text-sm font-semibold tracking-tight text-text">
+            <h3 className="mb-4 font-display text-lg tracking-tight text-text">
               Where Your Money Is Concentrated
             </h3>
             <div className="space-y-2.5">

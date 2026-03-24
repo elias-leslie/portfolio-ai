@@ -38,7 +38,7 @@ export function PageHeader({
 }: PageHeaderProps) {
   const titleClass =
     variant === 'gradient'
-      ? 'bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent'
+      ? 'bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent animate-gradient-text'
       : 'text-text'
 
   return (
