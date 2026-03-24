@@ -15,7 +15,7 @@ updated_by: "Claude Code"
 
 # =============================================================================
 # POSITION SIZING
-# Source: analytics/position_sizing.py, analytics/kelly.py, analytics/order_executor.py
+# Source: analytics/position_sizing.py, analytics/kelly.py
 # =============================================================================
 position_sizing:
   # Risk per trade
