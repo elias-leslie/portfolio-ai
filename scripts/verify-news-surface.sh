@@ -46,23 +46,16 @@ else
   fail "Backend API process not found"
 fi
 
-if pgrep -f "celery.*worker" >/dev/null; then
-  count=$(pgrep -f "celery.*worker" | wc -l)
-  ok "Celery worker running ($count processes)"
+if systemctl --user is-active portfolio-hatchet-worker.service >/dev/null 2>&1; then
+  ok "Hatchet worker (systemd) active"
 else
-  fail "Celery worker not running"
+  fail "Hatchet worker not running"
 fi
 
-if pgrep -f "celery.*beat" >/dev/null; then
-  ok "Celery beat running"
+if systemctl --user is-active portfolio-frontend.service >/dev/null 2>&1; then
+  ok "Frontend (systemd) active"
 else
-  fail "Celery beat not running"
-fi
-
-if pgrep -f "next.*dev" >/dev/null; then
-  ok "Next.js dev server running"
-else
-  fail "Next.js dev server not running"
+  fail "Frontend service not running"
 fi
 
 heading "Core dependencies"
@@ -87,16 +80,13 @@ else
 fi
 
 heading "Frontend environment"
-next_pid=$(pgrep -n -f "next.*dev" || true)
-if [[ -n "${next_pid}" ]]; then
-  if tr '\0' '\n' </proc/"$next_pid"/environ | grep -q '^NEXT_PUBLIC_API_URL='; then
-    value=$(tr '\0' '\n' </proc/"$next_pid"/environ | grep '^NEXT_PUBLIC_API_URL=' | head -n1 | cut -d'=' -f2-)
-    ok "NEXT_PUBLIC_API_URL present (${value})"
-  else
-    warn "NEXT_PUBLIC_API_URL missing from Next.js dev environment"
-  fi
+frontend_tmp_env=$(mktemp)
+env_status=$(fetch_with_status "$FRONTEND_URL" "$frontend_tmp_env")
+rm -f "$frontend_tmp_env"
+if [[ "$env_status" == "200" ]]; then
+  ok "Frontend reachable at $FRONTEND_URL"
 else
-  warn "Next.js process not detected when checking env vars"
+  warn "Frontend returned status $env_status"
 fi
 
 fetch_with_status() {
@@ -177,12 +167,12 @@ fi
 
 heading "Frontend route check"
 frontend_tmp=$(mktemp)
-news_status=$(fetch_with_status "$FRONTEND_URL/news" "$frontend_tmp")
+home_status=$(fetch_with_status "$FRONTEND_URL/" "$frontend_tmp")
 rm -f "$frontend_tmp"
-if [[ "$news_status" == "200" ]]; then
-  ok "Frontend /news reachable (HTTP 200)"
+if [[ "$home_status" == "200" ]]; then
+  ok "Frontend home page reachable (HTTP 200)"
 else
-  warn "Frontend /news returned status $news_status"
+  warn "Frontend home page returned status $home_status"
 fi
 
 echo -e "\n${BLUE}Summary${NC}"
