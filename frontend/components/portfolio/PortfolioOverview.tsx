@@ -38,7 +38,14 @@ export function PortfolioOverview() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {[...Array(6)].map((_, i) => (
           <Card key={i} className="p-6">
-            <div className="h-24 animate-pulse rounded-xl bg-surface-muted/60" />
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 animate-pulse rounded-lg bg-surface-muted/60" />
+              <div className="flex-1 space-y-2">
+                <div className="h-3 w-20 animate-pulse rounded bg-surface-muted/40" />
+                <div className="h-6 w-28 animate-pulse rounded bg-surface-muted/60" />
+                <div className="h-3 w-32 animate-pulse rounded bg-surface-muted/30" />
+              </div>
+            </div>
           </Card>
         ))}
       </div>

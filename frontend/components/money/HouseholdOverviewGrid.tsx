@@ -51,19 +51,19 @@ export function HouseholdOverviewGrid({
           <SectionCard
             key={metric.label}
             variant="surface"
-            className="overflow-hidden"
+            className="group overflow-hidden"
             contentClassName="space-y-3"
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+                <p className="text-xs font-semibold uppercase tracking-widest text-text-muted">
                   {metric.label}
                 </p>
                 <p className="mt-2 font-display text-2xl tracking-tight text-text xl:text-[1.75rem]">
                   {metric.value}
                 </p>
               </div>
-              <div className="rounded-2xl bg-primary/10 p-2.5 text-primary">
+              <div className="rounded-xl bg-primary/10 p-2.5 text-primary transition-all duration-200 group-hover:shadow-[0_0_12px_-3px] group-hover:shadow-primary/20">
                 <Icon className="h-4 w-4" />
               </div>
             </div>

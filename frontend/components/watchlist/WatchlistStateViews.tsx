@@ -36,9 +36,15 @@ export function WatchlistErrorView({
 
 export function WatchlistLoadingSkeleton() {
   return (
-    <div className="space-y-3" role="status" aria-live="polite">
-      {[1, 2, 3].map((i) => (
-        <div key={i} className="h-16 animate-pulse rounded-xl bg-surface-muted/50" />
+    <div className="overflow-hidden rounded-xl border border-border/40 bg-surface/60" role="status" aria-live="polite">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <div key={i} className="flex items-center gap-4 border-b border-border/30 px-4 py-3 last:border-b-0">
+          <div className="h-4 w-16 animate-pulse rounded bg-surface-muted/60" />
+          <div className="h-4 w-20 animate-pulse rounded bg-surface-muted/40" />
+          <div className="h-5 w-10 animate-pulse rounded-md bg-surface-muted/50" />
+          <div className="flex-1" />
+          <div className="h-4 w-20 animate-pulse rounded bg-surface-muted/30" />
+        </div>
       ))}
     </div>
   )
@@ -50,11 +56,14 @@ export function WatchlistEmptyState({
   primaryAction,
 }: WatchlistEmptyStateProps) {
   return (
-    <div className="rounded-2xl border border-dashed border-border/50 bg-surface/40 px-6 py-12 text-center">
-      <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
-        <Eye className="h-7 w-7 text-primary" />
+    <div className="rounded-2xl border border-dashed border-border/50 bg-surface/40 px-6 py-14 text-center">
+      <div className="relative mx-auto mb-6">
+        <div className="absolute inset-0 mx-auto h-14 w-14 rounded-full bg-primary/10 blur-xl" />
+        <div className="relative mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-primary/20 bg-primary/10">
+          <Eye className="h-7 w-7 text-primary" />
+        </div>
       </div>
-      <p className="text-base font-medium text-text">{title}</p>
+      <p className="font-display text-lg text-text">{title}</p>
       <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-text-muted">{detail}</p>
       {primaryAction ? (
         <div className="mt-6">

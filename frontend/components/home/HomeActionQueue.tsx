@@ -130,10 +130,10 @@ export function HomeActionQueue() {
       ) : null}
 
       {!isLoading && !error && actions.length === 0 ? (
-        <div className="rounded-2xl border border-border/50 bg-surface-muted/20 p-5">
-          <p className="text-sm font-medium text-text">No urgent cross-workspace actions.</p>
-          <p className="mt-2 text-sm text-text-muted">
-            The queue is clear for now. Use this time to tighten the watchlist, review the
+        <div className="rounded-2xl border border-dashed border-border/50 bg-surface/40 p-6 text-center">
+          <p className="font-display text-lg text-text">All clear</p>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-text-muted">
+            No urgent cross-workspace actions right now. Use this time to tighten the watchlist, review the
             portfolio, or upload new household documents so Jenny has fresher evidence.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">

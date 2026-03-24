@@ -397,7 +397,7 @@ export default function MoneyPage() {
         description="Budgeting, savings, retirement planning, and document intake in one shared workspace for you and Jenny."
       />
 
-      <div className="rounded-3xl border border-border/40 bg-surface-muted/20 px-5 py-4">
+      <div className="rounded-2xl border border-border/30 border-l-2 border-l-primary/40 bg-surface/40 px-5 py-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 space-y-3">
             <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-text-muted">

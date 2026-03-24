@@ -125,7 +125,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
         </SectionCard>
       ) : null}
 
-      <div className="rounded-2xl border border-border/40 bg-surface-muted/20 px-4 py-3 text-sm text-text-muted">
+      <div className="rounded-xl border border-border/30 border-l-primary/40 border-l-2 bg-surface/40 px-4 py-3 text-sm text-text-muted">
         {data?.generatedAt
           ? `Updated ${formatRelativeTime(data.generatedAt)}`
           : 'Update time unavailable'}
@@ -224,16 +224,17 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                 >
                   <div className="space-y-4">
                     {(data?.recommendation?.reasoning ?? []).length > 0 ? (
-                      (data?.recommendation?.reasoning ?? []).map((reason) => (
+                      (data?.recommendation?.reasoning ?? []).map((reason, idx) => (
                         <div
                           key={reason}
-                          className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4 text-sm text-text-muted"
+                          className="rounded-xl border border-border/30 border-l-2 border-l-accent/40 bg-surface/40 p-4 text-sm leading-relaxed text-text-muted"
+                          style={{ animationDelay: `${idx * 60}ms` }}
                         >
                           {reason}
                         </div>
                       ))
                     ) : (
-                      <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4 text-sm text-text-muted">
+                      <div className="rounded-xl border border-dashed border-border/40 bg-surface-muted/10 p-4 text-sm text-text-muted">
                         No decision memo reasoning is available yet for this symbol.
                       </div>
                     )}

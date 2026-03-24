@@ -165,7 +165,7 @@ export function WorkspaceTabs({
                 {tab.badge ? (
                   <span
                     aria-hidden="true"
-                    className="rounded-full bg-surface-muted px-2 py-0.5 text-[11px] uppercase tracking-wide text-text-muted"
+                    className="rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-primary"
                   >
                     {tab.badge}
                   </span>
