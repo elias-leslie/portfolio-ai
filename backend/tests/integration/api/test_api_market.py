@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import tempfile
 from collections.abc import Generator
-from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
@@ -13,7 +11,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.middleware.cache import clear_cache
 from app.portfolio.models import PriceData
-from app.storage import PortfolioStorage
+from app.storage import PortfolioStorage, get_storage
 
 
 @pytest.fixture(autouse=True)
@@ -22,61 +20,31 @@ def clear_response_cache() -> None:
     clear_cache()
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def test_storage() -> Generator[PortfolioStorage]:
-    """Create a PortfolioStorage instance with a temporary database."""
-    temp_dir = tempfile.mkdtemp()
-    db_path = Path(temp_dir) / "test_api_market.db"
-
-    # Create fresh storage instance (bypass singleton)
-    from app.storage.connection import ConnectionManager
-    from app.storage.ingestion import IngestionManager
-    from app.storage.metadata import MetadataManager
-    from app.storage.queries import QueryManager
-    from app.storage.schema import SchemaManager
-
-    storage_inst = PortfolioStorage.__new__(PortfolioStorage)
-    storage_inst.connection_mgr = ConnectionManager()
-    storage_inst.schema_mgr = SchemaManager(storage_inst.connection_mgr)
-    storage_inst.metadata_mgr = MetadataManager(storage_inst.connection_mgr)
-    storage_inst.ingestion_mgr = IngestionManager(
-        storage_inst.connection_mgr, storage_inst.metadata_mgr
-    )
-    storage_inst.query_mgr = QueryManager(storage_inst.connection_mgr)
-    storage_inst.schema_mgr.ensure_schema()
-
-    yield storage_inst
-
-    # Cleanup
-    if db_path.exists():
-        db_path.unlink()
-    Path(temp_dir).rmdir()
+    """Get shared storage instance for market API tests."""
+    storage = get_storage()
+    yield storage
 
 
 @pytest.fixture
-def client(test_storage: PortfolioStorage) -> Generator[TestClient]:
-    """Create a test client with patched storage."""
-    # Clear lazy-init singleton caches so patched get_storage is used
-    from app.api.market import _core_helpers as _helpers_mod
-    from app.api.market import core_router as _core_mod
-    from app.api.market import corporate_router as _corp_mod
-    from app.api.market import historical_router as _hist_mod
+def client() -> Generator[TestClient]:
+    """Create a test client, clearing lazy-init caches."""
+    import importlib
+
+    # __init__.py shadows submodule names with re-exported routers, so use importlib
+    _core_mod = importlib.import_module("app.api.market.core_router")
+    _corp_mod = importlib.import_module("app.api.market.corporate_router")
+    _hist_mod = importlib.import_module("app.api.market.historical_router")
+    _helpers_mod = importlib.import_module("app.api.market._core_helpers")
 
     _core_mod._state.clear()
     _corp_mod._state.clear()
     _hist_mod._state.clear()
     _helpers_mod._state.clear()
 
-    # Patch get_storage at the modules that call it (lazy-init singletons)
-    with (
-        patch("app.api.market.core_router.get_storage", return_value=test_storage),
-        patch("app.api.market.corporate_router.get_storage", return_value=test_storage),
-        patch("app.api.market.historical_router.get_storage", return_value=test_storage),
-        patch("app.api.market._core_helpers.get_storage", return_value=test_storage),
-    ):
-        yield TestClient(app)
+    yield TestClient(app)
 
-    # Clean up singleton caches after test
     _core_mod._state.clear()
     _corp_mod._state.clear()
     _hist_mod._state.clear()
