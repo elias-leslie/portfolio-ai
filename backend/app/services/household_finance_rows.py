@@ -1,4 +1,4 @@
-"""Row parsers for household finance models."""
+"""Row parsers and shared constants for household finance models."""
 
 from __future__ import annotations
 
@@ -7,6 +7,24 @@ from collections.abc import Callable
 from typing import Any
 
 from app.models.household_finance import HouseholdDocument, HouseholdProfile, HouseholdQuestion
+
+FIELD_LABELS = {
+    "adult_count": "Adults in household",
+    "dependent_count": "Dependents",
+    "monthly_net_income_target": "Monthly take-home income",
+    "monthly_essential_target": "Essential budget",
+    "monthly_discretionary_target": "Discretionary budget",
+    "monthly_savings_target": "Monthly savings target",
+    "target_retirement_age": "Target retirement age",
+    "target_retirement_spend": "Target monthly retirement spend",
+    "filing_status": "Tax filing status",
+    "state_of_residence": "State of residence",
+    "effective_tax_rate": "Effective tax rate",
+    "marginal_federal_tax_rate": "Federal marginal tax rate",
+    "marginal_state_tax_rate": "State marginal tax rate",
+    "emergency_fund_target_months": "Emergency fund target months",
+    "emergency_fund_target_amount": "Emergency fund target amount",
+}
 
 
 def _load_json_object(value: Any) -> dict[str, object]:

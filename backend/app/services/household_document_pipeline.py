@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 from fastapi import UploadFile
 
+from app.logging_config import get_logger
 from app.models.household_finance import HouseholdDocument
 from app.services._household_document_pipeline_db import (
     archive_prior_document_data,
@@ -37,6 +38,8 @@ from app.services.household_finance_rows import row_to_document
 
 if TYPE_CHECKING:
     from app.services.household_finance_service import HouseholdFinanceService
+
+logger = get_logger(__name__)
 
 # Re-export pure utilities at module level for any direct importers.
 __all__ = [
@@ -128,14 +131,14 @@ class HouseholdDocumentPipeline:
     def review_document(self, service: HouseholdFinanceService, document_id: str) -> None:
         document = service.get_document(document_id)
         if document is None:
-            service.logger.warning(
+            logger.warning(
                 "household_document_missing_for_review", document_id=document_id
             )
             return
         try:
             self.process_document_review(service, document)
         except Exception as exc:
-            service.logger.exception(
+            logger.exception(
                 "household_document_review_failed", document_id=document_id, error=str(exc)
             )
             with service.storage.connection() as conn:

@@ -13,6 +13,7 @@ from app.services._household_document_pipeline_utils import (
     parse_decimal,
     parse_row_date,
 )
+from app.services.household_finance_rows import FIELD_LABELS
 from app.storage.types import DatabaseConnection
 
 if TYPE_CHECKING:
@@ -150,7 +151,7 @@ def insert_inferred_values(
 ) -> None:
     for inferred in cast(list[dict[str, object]], reviewed.get("inferred_values") or []):
         field_name = str(inferred.get("field_name") or "").strip()
-        if field_name not in service.FIELD_LABELS:
+        if field_name not in FIELD_LABELS:
             continue
         conn.execute(
             """

@@ -9,6 +9,8 @@ from typing import Any
 from app.models.household_finance import HouseholdProfile, HouseholdProfileUpdate
 from app.services.household_finance_rows import row_to_profile
 
+DEFAULT_HOUSEHOLD_NAME = "Household"
+
 
 class HouseholdProfileService:
     """Load and persist the singleton household profile."""
@@ -25,7 +27,7 @@ class HouseholdProfileService:
                         id, household_name, created_at, updated_at
                     ) VALUES (%s, %s, %s, %s)
                     """,
-                    [profile_id, service.DEFAULT_HOUSEHOLD_NAME, now, now],
+                    [profile_id, DEFAULT_HOUSEHOLD_NAME, now, now],
                 )
                 conn.commit()
             row = service._get_profile_row()

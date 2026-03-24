@@ -1217,10 +1217,6 @@ def test_household_order_history_reupload_dedupes_import_rows(
             "app.services.household_document_review.HouseholdDocumentReviewService.review",
             return_value=review_payload,
         ),
-        patch(
-            "app.services.household_review_agent_service.HouseholdReviewAgentService.save_learning",
-            return_value="memory-1",
-        ),
     ):
         first = client.post(
             "/api/household/documents",
@@ -1289,10 +1285,6 @@ def test_household_order_history_reupload_backfills_amounts(
         patch(
             "app.services.household_document_review.HouseholdDocumentReviewService.review",
             return_value=review_payload,
-        ),
-        patch(
-            "app.services.household_review_agent_service.HouseholdReviewAgentService.save_learning",
-            return_value="memory-1",
         ),
     ):
         first = client.post(

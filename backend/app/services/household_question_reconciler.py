@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.models.household_finance import HouseholdQuestion
-from app.services.household_finance_rows import row_to_question
+from app.services.household_finance_rows import FIELD_LABELS, row_to_question
 from app.services.household_question_classifier import (
     answer_covers_family,
     clean_source_value,
@@ -217,10 +217,10 @@ class HouseholdQuestionReconciler:
 
     def apply_answer_to_profile(self, service: Any, question: HouseholdQuestion, answer_text: str) -> None:
         cleaned = answer_text.strip()
-        if not cleaned or question.field_name not in service.FIELD_LABELS:
+        if not cleaned or question.field_name not in FIELD_LABELS:
             return
         column = question.field_name
-        allowed_columns = set(service.FIELD_LABELS.keys())
+        allowed_columns = set(FIELD_LABELS.keys())
         if column not in allowed_columns:
             raise ValueError(f"Column '{column}' is not an allowed profile column.")
         parsed_value = parse_answer_value(column, cleaned)

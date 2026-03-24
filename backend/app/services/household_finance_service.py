@@ -62,6 +62,7 @@ from app.services.household_dashboard_composer import HouseholdDashboardComposer
 from app.services.household_document_pipeline import HouseholdDocumentPipeline
 from app.services.household_document_review import HouseholdDocumentReviewService
 from app.services.household_finance_rows import (
+    FIELD_LABELS,
     row_to_document,
     row_to_question,
 )
@@ -92,23 +93,6 @@ from app.services.household_transaction_service import HouseholdTransactionServi
 from app.storage import get_storage
 
 DEFAULT_HOUSEHOLD_NAME = "Household"
-FIELD_LABELS = {
-    "adult_count": "Adults in household",
-    "dependent_count": "Dependents",
-    "monthly_net_income_target": "Monthly take-home income",
-    "monthly_essential_target": "Essential budget",
-    "monthly_discretionary_target": "Discretionary budget",
-    "monthly_savings_target": "Monthly savings target",
-    "target_retirement_age": "Target retirement age",
-    "target_retirement_spend": "Target monthly retirement spend",
-    "filing_status": "Tax filing status",
-    "state_of_residence": "State of residence",
-    "effective_tax_rate": "Effective tax rate",
-    "marginal_federal_tax_rate": "Federal marginal tax rate",
-    "marginal_state_tax_rate": "State marginal tax rate",
-    "emergency_fund_target_months": "Emergency fund target months",
-    "emergency_fund_target_amount": "Emergency fund target amount",
-}
 logger = get_logger(__name__)
 
 
