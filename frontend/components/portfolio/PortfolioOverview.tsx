@@ -82,7 +82,7 @@ export function PortfolioOverview() {
         </div>
       ) : null}
 
-      <div className="rounded-xl border border-border/30 border-l-primary/40 border-l-2 bg-surface/40 px-4 py-3 text-sm text-text-muted">
+      <div className="rounded-xl border border-border/30 border-l-primary/50 border-l-2 bg-gradient-to-r from-primary/[0.04] to-surface/40 px-4 py-3 text-sm text-text-muted">
         {positionCount} live position{positionCount === 1 ? '' : 's'}
         {analytics?.numSymbols != null ? ` · ${analytics.numSymbols} unique symbol${analytics.numSymbols === 1 ? '' : 's'}` : ''}
         {analytics?.cashInclusiveTotalValue != null
@@ -91,7 +91,7 @@ export function PortfolioOverview() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 animate-stagger">
         <Card className="group p-6 transition-all duration-200 hover:shadow-md hover:border-primary/30">
           <div className="flex items-center gap-3">
             <div className="rounded-lg bg-primary/10 p-2.5 transition-all duration-200 group-hover:bg-primary/15 group-hover:shadow-[0_0_12px_-3px] group-hover:shadow-primary/20">
@@ -101,7 +101,7 @@ export function PortfolioOverview() {
               <div className="text-xs font-semibold uppercase tracking-widest text-text-muted">
                 Total Value
               </div>
-              <div className="mt-1 font-display text-2xl text-text">
+              <div className="mt-1 font-display italic text-2xl tabular-nums text-text">
                 {formatCurrency(portfolio?.totalValue ?? 0)}
               </div>
               <div className="mt-1 text-xs text-text-muted">
@@ -130,7 +130,7 @@ export function PortfolioOverview() {
               <div className="text-xs font-semibold uppercase tracking-widest text-text-muted">
                 Total Gain/Loss
               </div>
-              <div className={cn('mt-1 font-display text-2xl', gainColor)}>
+              <div className={cn('mt-1 font-display italic text-2xl tabular-nums', gainColor)}>
                 {formatCurrency(portfolio?.totalGain ?? 0)}
               </div>
               <div className={cn('mt-1 text-xs', gainColor)}>
@@ -149,7 +149,7 @@ export function PortfolioOverview() {
               <div className="text-xs font-semibold uppercase tracking-widest text-text-muted">
                 Market Sensitivity
               </div>
-              <div className="mt-1 font-display text-2xl text-text">
+              <div className="mt-1 font-display italic text-2xl tabular-nums text-text">
                 {analytics?.portfolioBeta?.toFixed(2) ?? '—'}
               </div>
               <div className="mt-1 text-xs text-text-muted">
@@ -168,7 +168,7 @@ export function PortfolioOverview() {
               <div className="text-xs font-semibold uppercase tracking-widest text-text-muted">
                 Typical Swings
               </div>
-              <div className="mt-1 font-display text-2xl text-text">
+              <div className="mt-1 font-display italic text-2xl tabular-nums text-text">
                 {analytics?.portfolioVolatility
                   ? `${(analytics.portfolioVolatility * 100).toFixed(1)}%`
                   : '—'}

@@ -77,8 +77,8 @@ export function WatchlistTableRow({
       <TableRow
         ref={rowRef}
         className={cn(
-          'cursor-pointer transition-colors duration-150 hover:bg-surface-muted/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
-          isExpanded && 'bg-surface-muted/30',
+          'cursor-pointer transition-all duration-150 hover:bg-surface-muted/25 hover:shadow-[inset_2px_0_0_0] hover:shadow-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
+          isExpanded && 'bg-surface-muted/30 shadow-[inset_2px_0_0_0] shadow-primary/30',
           highlightedSymbol === item.symbol && 'bg-accent/10 animate-pulse',
         )}
         role="button"

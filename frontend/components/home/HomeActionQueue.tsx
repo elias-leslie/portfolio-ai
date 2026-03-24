@@ -130,8 +130,8 @@ export function HomeActionQueue() {
       ) : null}
 
       {!isLoading && !error && actions.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border/50 bg-surface/40 p-6 text-center">
-          <p className="font-display text-lg text-text">All clear</p>
+        <div className="rounded-2xl border border-dashed border-border/40 bg-gradient-to-br from-surface-muted/10 to-surface/30 p-8 text-center">
+          <p className="font-display italic text-xl text-text">All clear</p>
           <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-text-muted">
             No urgent cross-workspace actions right now. Use this time to tighten the watchlist, review the
             portfolio, or upload new household documents so Jenny has fresher evidence.

@@ -44,7 +44,7 @@ export function HouseholdOverviewGrid({
   ]
 
   return (
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1.2fr_repeat(3,minmax(0,1fr))]">
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1.2fr_repeat(3,minmax(0,1fr))] animate-stagger">
       {metrics.map((metric, index) => {
         const Icon = overviewIcons[index]
         return (
@@ -59,7 +59,7 @@ export function HouseholdOverviewGrid({
                 <p className="text-xs font-semibold uppercase tracking-widest text-text-muted">
                   {metric.label}
                 </p>
-                <p className="mt-2 font-display text-2xl tracking-tight text-text xl:text-[1.75rem]">
+                <p className="mt-2 font-display italic text-2xl tabular-nums tracking-tight text-text xl:text-[1.75rem]">
                   {metric.value}
                 </p>
               </div>

@@ -42,9 +42,9 @@ export function SummaryStat({
   detail: string
 }) {
   return (
-    <div className="group rounded-2xl border border-border/40 bg-surface-muted/20 p-4 transition-all duration-200 hover:border-border/60 hover:bg-surface-muted/30 hover:shadow-sm">
+    <div className="group rounded-2xl border border-border/40 bg-surface-muted/20 p-5 card-interactive hover:border-border/60 hover:bg-surface-muted/30">
       <p className="text-xs font-semibold uppercase tracking-widest text-text-muted">{label}</p>
-      <p className="mt-3 font-display text-2xl tabular-nums text-text transition-colors group-hover:text-primary/90">{value}</p>
+      <p className="mt-3 font-display italic text-2xl tabular-nums text-text transition-colors group-hover:text-primary/90">{value}</p>
       <p className="mt-2 text-xs leading-relaxed text-text-muted">{detail}</p>
     </div>
   )

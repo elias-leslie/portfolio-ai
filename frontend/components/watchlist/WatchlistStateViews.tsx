@@ -56,14 +56,14 @@ export function WatchlistEmptyState({
   primaryAction,
 }: WatchlistEmptyStateProps) {
   return (
-    <div className="rounded-2xl border border-dashed border-border/50 bg-surface/40 px-6 py-14 text-center">
+    <div className="rounded-2xl border border-dashed border-border/40 bg-gradient-to-br from-surface-muted/10 to-surface/30 px-6 py-14 text-center">
       <div className="relative mx-auto mb-6">
         <div className="absolute inset-0 mx-auto h-14 w-14 rounded-full bg-primary/10 blur-xl" />
         <div className="relative mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-primary/20 bg-primary/10">
           <Eye className="h-7 w-7 text-primary" />
         </div>
       </div>
-      <p className="font-display text-lg text-text">{title}</p>
+      <p className="font-display italic text-xl text-text">{title}</p>
       <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-text-muted">{detail}</p>
       {primaryAction ? (
         <div className="mt-6">

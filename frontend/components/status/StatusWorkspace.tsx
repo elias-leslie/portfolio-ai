@@ -169,7 +169,7 @@ export function StatusWorkspace() {
 
       {!isLoading && !hasFatalError ? (
         <>
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 animate-stagger">
             <SummaryStat
               label="System"
               value={healthQuery.data?.status ?? 'unknown'}
