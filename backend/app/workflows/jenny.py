@@ -23,7 +23,6 @@ logger = get_logger(__name__)
 @hatchet.task(
     name="portfolio-jenny-daily-operator",
     input_validator=EmptyInput,
-    execution_timeout="1800s",
     retries=1,
     on_crons=["15 22 * * 1-5"],
     concurrency=ConcurrencyExpression(
@@ -44,7 +43,6 @@ async def jenny_daily_operator_wf(input: EmptyInput, ctx: Context) -> dict[str, 
 @hatchet.task(
     name="portfolio-jenny-weekly-learning",
     input_validator=EmptyInput,
-    execution_timeout="1800s",
     retries=1,
     on_crons=["0 14 * * 6"],
     concurrency=ConcurrencyExpression(

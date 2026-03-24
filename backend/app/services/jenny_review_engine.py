@@ -95,7 +95,7 @@ class JennyReviewEngine:
         client_cls = (
             service._agent_hub_client_class() if hasattr(service, "_agent_hub_client_class") else AgentHubAPIClient
         )
-        client = client_cls(agent_slug=spec.agent_slug, timeout=service.JENNY_AGENT_TIMEOUT_SECONDS)
+        client = client_cls(agent_slug=spec.agent_slug)
         prompt = self.build_agent_prompt(spec.prompt_mode, payload)
         service.agent_run_repo.create_run(
             run_id=run_id,

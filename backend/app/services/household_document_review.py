@@ -141,7 +141,6 @@ class HouseholdDocumentReviewService:
                 agent_slug=HOUSEHOLD_REVIEW_AGENT_SLUG,
                 messages=messages,
                 temperature=0.1,
-                timeout_seconds=120,
                 purpose="household_document_review",
                 use_memory=True,
                 thinking_level="low",

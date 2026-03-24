@@ -18,7 +18,6 @@ from .models import EmptyInput, SymbolInput
 @hatchet.task(
     name="portfolio-run-discovery-agent",
     input_validator=EmptyInput,
-    execution_timeout="3600s",
     retries=1,
     on_crons=["36 3 * * *"],
     concurrency=ConcurrencyExpression(
@@ -37,7 +36,6 @@ async def run_discovery_agent_wf(input: EmptyInput, ctx: Context) -> dict[str, A
 @hatchet.task(
     name="portfolio-run-portfolio-analyzer",
     input_validator=EmptyInput,
-    execution_timeout="3600s",
     retries=1,
     on_crons=["39 3 * * *"],
     concurrency=ConcurrencyExpression(
@@ -56,7 +54,6 @@ async def run_portfolio_analyzer_wf(input: EmptyInput, ctx: Context) -> dict[str
 @hatchet.task(
     name="portfolio-schedule-new-symbol",
     input_validator=SymbolInput,
-    execution_timeout="7200s",
     retries=1,
     concurrency=ConcurrencyExpression(
         expression="input.symbol",

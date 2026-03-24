@@ -25,7 +25,7 @@ logger = get_logger(__name__)
 
 
 def make_client() -> AgentHubAPIClient:
-    return AgentHubAPIClient(agent_slug="persona", use_memory=True, timeout=120.0)
+    return AgentHubAPIClient(agent_slug="persona", use_memory=True)
 
 
 def complete_conversation(

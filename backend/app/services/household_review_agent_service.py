@@ -62,7 +62,6 @@ Risk controls:
     "temperature": 0.1,
     "thinking_level": "low",
     "verbosity_level": "low",
-    "timeout_seconds": 120.0,
     "is_active": True,
     "is_coding_agent": False,
     "memory_config": {
@@ -136,7 +135,6 @@ class HouseholdReviewAgentService:
             "temperature",
             "thinking_level",
             "verbosity_level",
-            "timeout_seconds",
             "is_active",
             "is_coding_agent",
             "memory_config",

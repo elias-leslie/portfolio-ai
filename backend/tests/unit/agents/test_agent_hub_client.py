@@ -66,13 +66,15 @@ def test_agent_hub_client_defaults_to_chat_agent_for_generic_calls(mock_sdk: Moc
 
 
 @patch("app.agents.clients.agent_hub_client.SDKClient")
-def test_agent_hub_client_forwards_timeout_seconds_to_completion_api(mock_sdk: Mock) -> None:
-    """Agent Hub server-side timeouts should be enforced, not only local HTTP client timeouts."""
+def test_agent_hub_client_keeps_timeouts_out_of_completion_payload(mock_sdk: Mock) -> None:
+    """Jenny agent calls should not inject hidden server-side timeout hints."""
     mock_sdk.return_value.complete.return_value = _mock_response()
 
     with patch("app.agents.clients.agent_hub_client.AGENT_HUB_ENABLED", True):
         client = AgentHubAPIClient(agent_slug="equity-analyst", timeout=45.0)
         client.generate(prompt="Review AMZN")
 
+    init_kwargs = mock_sdk.call_args.kwargs
     call_kwargs = mock_sdk.return_value.complete.call_args.kwargs
-    assert call_kwargs["timeout_seconds"] == 45.0
+    assert init_kwargs["timeout"] == 45.0
+    assert "timeout_seconds" not in call_kwargs

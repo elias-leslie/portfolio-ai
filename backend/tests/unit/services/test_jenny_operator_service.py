@@ -271,8 +271,8 @@ def test_run_daily_operator_completes_workflow_and_notifications() -> None:
     service.workflow_orchestrator.complete_workflow.assert_called_once()
 
 
-def test_run_agent_review_uses_bounded_timeout_for_jenny_calls(mocker: Mock) -> None:
-    """Jenny should use a tighter Agent Hub timeout so one slow agent cannot stall the whole routine."""
+def test_run_agent_review_does_not_force_hidden_agent_timeout(mocker: Mock) -> None:
+    """Jenny should let Agent Hub agent runs finish without injecting a local deadline."""
     service = _service()
     service.agent_run_repo = Mock()
     mock_client = Mock()
@@ -297,7 +297,7 @@ def test_run_agent_review_uses_bounded_timeout_for_jenny_calls(mocker: Mock) -> 
         {"symbol": "AAPL", "workflow_id": "wf-1"},
     )
 
-    client_cls.assert_called_once_with(agent_slug="investment-committee", timeout=90.0)
+    client_cls.assert_called_once_with(agent_slug="investment-committee")
     assert parsed["verdict"] == "review"
 
 

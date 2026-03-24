@@ -43,7 +43,7 @@ class AgentHubAPIClient(LLMClient):
         model: str | None = None,
         base_url: str = DEFAULT_AGENT_HUB_URL,
         api_key: str | None = None,
-        timeout: float = 300.0,
+        timeout: float | None = None,
         use_memory: bool | None = None,
     ) -> None:
         """Initialize Agent Hub client.
@@ -54,7 +54,8 @@ class AgentHubAPIClient(LLMClient):
                 chooses the agent's configured primary/fallback models.
             base_url: Agent Hub API base URL
             api_key: Optional API key for authentication
-            timeout: Request timeout in seconds
+            timeout: Optional HTTP request timeout in seconds. Leave unset for
+                long-running agent calls.
             use_memory: Explicit memory override. ``None`` defers to the agent's
                 configured memory settings in Agent Hub.
 
@@ -241,7 +242,6 @@ class AgentHubAPIClient(LLMClient):
             "temperature": temperature,
             "project_id": "portfolio-ai",
             "purpose": purpose,
-            "timeout_seconds": self.timeout,
         }
         if self.model is not None:
             request_kwargs["model"] = self.model
