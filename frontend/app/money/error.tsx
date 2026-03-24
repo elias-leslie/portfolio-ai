@@ -17,12 +17,15 @@ export default function MoneyError({
   }, [error])
 
   return (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-5 p-8">
-      <div className="rounded-full bg-loss/10 p-4">
-        <AlertTriangle className="h-8 w-8 text-loss" />
+    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-8 p-8">
+      <div className="relative">
+        <div className="absolute -inset-6 rounded-full bg-loss/8 blur-2xl" />
+        <div className="relative rounded-full border border-loss/20 bg-loss/10 p-5 shadow-lg">
+          <AlertTriangle className="h-10 w-10 text-loss" />
+        </div>
       </div>
-      <div className="text-center space-y-2">
-        <h2 className="text-xl font-semibold text-text">
+      <div className="text-center space-y-3">
+        <h2 className="font-display text-2xl text-text">
           Failed to load money workspace
         </h2>
         <p className="max-w-md text-sm text-text-muted leading-relaxed">

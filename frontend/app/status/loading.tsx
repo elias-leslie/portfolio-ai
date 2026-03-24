@@ -2,10 +2,11 @@ import { PageContainer } from '@/components/shared/PageContainer'
 
 export default function StatusLoading() {
   return (
-    <PageContainer>
+    <PageContainer className="space-y-10 py-10">
       <div className="space-y-8">
         {/* Page header skeleton */}
         <div className="space-y-3">
+          <div className="h-3 w-20 animate-pulse rounded bg-surface-muted/40" />
           <div className="h-10 w-52 animate-pulse rounded-lg bg-surface-muted/60" />
           <div className="h-5 w-80 animate-pulse rounded-md bg-surface-muted/40" />
         </div>

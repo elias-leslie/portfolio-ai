@@ -60,7 +60,7 @@ export function TodayIdeasSection() {
         description="A short list of ideas worth a closer look right now."
       >
         {!isLoading && !error && data ? (
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border/40 bg-surface-muted/20 px-4 py-3 text-sm text-text-muted">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/30 border-l-primary/40 border-l-2 bg-surface/40 px-4 py-3 text-sm text-text-muted">
             <span>
               Showing {recommendations.length} of {data.total} setup
               {data.total === 1 ? '' : 's'} · average strength{' '}

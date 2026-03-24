@@ -16,7 +16,7 @@ export function TopPerformers({
 }: TopPerformersProps) {
   return (
     <Card className="p-6">
-      <h3 className="mb-4 text-sm font-semibold text-text">Top Performers</h3>
+      <h3 className="mb-4 font-display text-lg tracking-tight text-text">Top Performers</h3>
       <div className="space-y-6">
         {/* Winners */}
         <div>

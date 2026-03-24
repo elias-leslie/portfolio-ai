@@ -167,9 +167,9 @@ export function JennyOperatorPanel() {
 
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
-          <div className="flex items-center gap-2 text-sm font-semibold text-text">
+          <div className="flex items-center gap-2">
             <Brain className="h-4 w-4 text-primary" />
-            Jenny Operator
+            <h3 className="font-display text-lg tracking-tight text-text">Jenny Operator</h3>
           </div>
           <p className="mt-1 text-sm text-text-muted">
             Jenny reviews your positions, keeps score on her agents, and only

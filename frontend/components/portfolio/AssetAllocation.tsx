@@ -31,7 +31,7 @@ export function AssetAllocation({ topPerformers }: AssetAllocationProps) {
     <Card className="p-6">
       <div className="mb-4 flex items-center gap-2">
         <PieChart className="h-4 w-4 text-accent" />
-        <h3 className="text-sm font-semibold text-text">Top Holdings</h3>
+        <h3 className="font-display text-lg tracking-tight text-text">Top Holdings</h3>
       </div>
 
       <div className="space-y-4">

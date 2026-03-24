@@ -2,7 +2,7 @@ import { PageContainer } from '@/components/shared/PageContainer'
 
 export default function MoneyLoading() {
   return (
-    <PageContainer>
+    <PageContainer className="space-y-10 py-10">
       <div className="space-y-8">
         {/* Page header skeleton */}
         <div className="space-y-3">

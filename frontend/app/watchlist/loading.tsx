@@ -2,7 +2,7 @@ import { PageContainer } from '@/components/shared/PageContainer'
 
 export default function WatchlistLoading() {
   return (
-    <PageContainer>
+    <PageContainer className="space-y-6 py-10">
       <div className="space-y-8">
         {/* Page header skeleton */}
         <div className="flex items-end justify-between">
