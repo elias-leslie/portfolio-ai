@@ -125,7 +125,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
         </SectionCard>
       ) : null}
 
-      <div className="rounded-xl border border-border/30 border-l-primary/40 border-l-2 bg-surface/40 px-4 py-3 text-sm text-text-muted">
+      <div className="rounded-xl border border-border/30 border-l-primary/50 border-l-2 bg-gradient-to-r from-primary/[0.04] to-surface/40 px-4 py-3 text-sm text-text-muted">
         {data?.generatedAt
           ? `Updated ${formatRelativeTime(data.generatedAt)}`
           : 'Update time unavailable'}
@@ -144,9 +144,9 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
         {data?.signal?.avoidFlags === 1 ? '' : 's'}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-4">
+      <div className="grid gap-4 lg:grid-cols-4 animate-stagger">
         <SectionCard variant="surface" title="Overall Score">
-          <p className="font-display text-3xl tabular-nums text-text">
+          <p className="font-display italic text-3xl tabular-nums text-text">
             {data?.scores?.overall?.toFixed(0) ?? '—'}
           </p>
           <p className="mt-2 text-sm text-text-muted">
@@ -159,7 +159,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
           </p>
         </SectionCard>
         <SectionCard variant="surface" title="Recommendation">
-          <p className="font-display text-2xl uppercase text-text">
+          <p className="font-display italic text-2xl uppercase text-text">
             {data?.recommendation?.action?.replaceAll('_', ' ') ?? '—'}
           </p>
           <p className="mt-2 text-sm text-text-muted">
@@ -167,7 +167,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
           </p>
         </SectionCard>
         <SectionCard variant="surface" title="Position">
-          <p className="font-display text-2xl text-text">
+          <p className="font-display italic text-2xl tabular-nums text-text">
             {data?.portfolio?.held ? formatCurrency(data.portfolio.position?.currentValue) : 'Not held'}
           </p>
           <p className="mt-2 text-sm text-text-muted">
@@ -185,7 +185,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
           ) : null}
         </SectionCard>
         <SectionCard variant="surface" title="Market Backdrop">
-          <p className="font-display text-2xl text-text">
+          <p className="font-display italic text-2xl tabular-nums text-text">
             {data?.market?.fearGreedLabel ?? '—'}
           </p>
           <p className="mt-2 text-sm text-text-muted">

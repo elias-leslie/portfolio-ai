@@ -56,7 +56,7 @@ export function SectionCard({
         >
           <div className="space-y-1">
             {title && (
-              <h2 className="font-display text-lg tracking-tight text-text">
+              <h2 className="font-display italic text-lg tracking-tight text-text">
                 {title}
               </h2>
             )}

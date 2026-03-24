@@ -85,14 +85,14 @@ export function JennyMoneyBoard({
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 animate-stagger">
         {summaryCards.map((card) => (
           <div
             key={card.label}
-            className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
+            className="rounded-2xl border border-border/40 bg-surface-muted/20 p-5 card-interactive hover:border-border/60"
           >
-            <p className="text-sm font-medium text-text-muted">{card.label}</p>
-            <p className="mt-3 font-display text-3xl tracking-tight text-text">
+            <p className="text-xs font-semibold uppercase tracking-widest text-text-muted">{card.label}</p>
+            <p className="mt-3 font-display italic text-3xl tabular-nums tracking-tight text-text">
               {card.value}
             </p>
             <p className="mt-2 text-sm text-text-muted">{card.detail}</p>
@@ -160,7 +160,7 @@ export function JennyMoneyBoard({
                       className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
                     >
                       <p className="text-sm font-medium text-text-muted">{stat.label}</p>
-                      <p className="mt-2 font-display text-xl text-text">{stat.value}</p>
+                      <p className="mt-2 font-display italic text-xl tabular-nums text-text">{stat.value}</p>
                     </div>
                   ))}
                 </div>

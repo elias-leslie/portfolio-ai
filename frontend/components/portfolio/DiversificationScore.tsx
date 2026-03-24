@@ -63,7 +63,7 @@ export function DiversificationScore({
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Target className="h-4 w-4 text-accent" />
-          <h3 className="font-display text-lg tracking-tight text-text">Diversification</h3>
+          <h3 className="font-display italic text-lg tracking-tight text-text">Diversification</h3>
         </div>
         <span
           className={cn(
@@ -79,7 +79,7 @@ export function DiversificationScore({
       {/* Score Progress Bar */}
       <div className="mb-4">
         <div className="mb-2 flex items-baseline justify-between">
-          <span className="font-display text-3xl text-text">
+          <span className="font-display italic text-3xl tabular-nums text-text">
             {diversification.score.toFixed(0)}
           </span>
           <span className="text-xs text-text-muted">/ 100</span>
