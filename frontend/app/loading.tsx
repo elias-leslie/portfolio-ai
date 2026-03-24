@@ -21,11 +21,11 @@ export default function HomeLoading() {
         </div>
 
         {/* Content cards skeleton */}
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-6 lg:grid-cols-2 animate-stagger">
           {[0, 1, 2, 3].map((i) => (
             <div
               key={`card-skeleton-${i}`}
-              className="space-y-4 rounded-2xl border border-border/40 bg-surface/60 p-6"
+              className="space-y-4 rounded-2xl border border-border/40 bg-surface/50 p-6"
             >
               <div className="h-5 w-40 animate-pulse rounded bg-surface-muted/70" />
               <div className="space-y-2">
