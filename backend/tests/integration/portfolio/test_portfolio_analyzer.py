@@ -11,6 +11,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from app.agents.clients.base_client import LLMClient
 from app.agents.portfolio_analyzer import PortfolioAnalyzerAgent
 from app.agents.tools import AgentTools
 from app.portfolio.analytics import PortfolioAnalytics
@@ -52,6 +53,12 @@ def storage() -> Generator[PortfolioStorage]:
     if db_path.exists():
         db_path.unlink()
     Path(temp_dir).rmdir()
+
+
+@pytest.fixture
+def mock_llm_client() -> Mock:
+    """Create a mock LLM client for agent construction."""
+    return Mock(spec=LLMClient)
 
 
 @pytest.fixture
@@ -264,7 +271,7 @@ def test_portfolio_analyzer_initialization(
     storage: PortfolioStorage, agent_tools: AgentTools
 ) -> None:
     """Test Portfolio Analyzer Agent initialization."""
-    agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools)
+    agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools, llm_client=Mock(spec=LLMClient))
 
     assert agent.storage is storage
     assert agent.tools is agent_tools
@@ -276,7 +283,7 @@ def test_portfolio_analyzer_system_prompt(
     storage: PortfolioStorage, agent_tools: AgentTools
 ) -> None:
     """Test Portfolio Analyzer Agent system prompt."""
-    agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools)
+    agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools, llm_client=Mock(spec=LLMClient))
     prompt = agent.get_system_prompt()
 
     assert "Portfolio Analyzer Agent" in prompt
@@ -288,7 +295,7 @@ def test_portfolio_analyzer_system_prompt(
 
 def test_portfolio_analyzer_tools(storage: PortfolioStorage, agent_tools: AgentTools) -> None:
     """Test Portfolio Analyzer Agent tool definitions."""
-    agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools)
+    agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools, llm_client=Mock(spec=LLMClient))
     tools = agent.get_tools()
 
     assert len(tools) == 5
@@ -308,7 +315,7 @@ def test_portfolio_analyzer_execute_tool_get_portfolio_data(
     mock_price_fetcher: Mock,
 ) -> None:
     """Test executing get_portfolio_data tool."""
-    agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools)
+    agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools, llm_client=Mock(spec=LLMClient))
 
     result = cast(dict[str, object], agent.execute_tool("get_portfolio_data", {}))
 
@@ -329,7 +336,7 @@ def test_portfolio_analyzer_execute_tool_get_price_data(
     mock_price_fetcher: Mock,
 ) -> None:
     """Test executing get_price_data tool."""
-    agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools)
+    agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools, llm_client=Mock(spec=LLMClient))
 
     result = cast(dict[str, object], agent.execute_tool("get_price_data", {"symbols": ["AAPL", "MSFT"]}))
 
@@ -342,7 +349,7 @@ def test_portfolio_analyzer_execute_tool_store_strategy_seed(
     storage: PortfolioStorage, agent_tools: AgentTools
 ) -> None:
     """Test executing store_strategy_seed tool."""
-    agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools)
+    agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools, llm_client=Mock(spec=LLMClient))
     agent.current_run_id = "test-run-id"
 
     # Create agent_run entry first (required by foreign key)
@@ -382,7 +389,7 @@ def test_portfolio_analyzer_execute_tool_unknown(
     storage: PortfolioStorage, agent_tools: AgentTools
 ) -> None:
     """Test executing unknown tool raises error."""
-    agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools)
+    agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools, llm_client=Mock(spec=LLMClient))
 
     with pytest.raises(ValueError, match="Unknown tool"):
         agent.execute_tool("unknown_tool", {})
@@ -406,7 +413,7 @@ def test_portfolio_analyzer_run_full_execution(
         mock_uuid.side_effect = [shared_uuid, shared_uuid, *unique_uuids]
 
         agent = PortfolioAnalyzerAgent(
-            storage=storage, tools=agent_tools, anthropic_client=mock_anthropic_client
+            storage=storage, tools=agent_tools, llm_client=mock_anthropic_client
         )
 
         # Run the agent
@@ -496,7 +503,7 @@ def test_portfolio_analyzer_run_records_tool_calls(
         mock_uuid.side_effect = [shared_uuid, shared_uuid, *unique_uuids]
 
         agent = PortfolioAnalyzerAgent(
-            storage=storage, tools=agent_tools, anthropic_client=mock_anthropic_client
+            storage=storage, tools=agent_tools, llm_client=mock_anthropic_client
         )
 
         agent.run()
@@ -523,7 +530,7 @@ def test_portfolio_analyzer_run_clears_run_id_after_execution(
     import uuid as uuid_module
 
     agent = PortfolioAnalyzerAgent(
-        storage=storage, tools=agent_tools, anthropic_client=mock_anthropic_client
+        storage=storage, tools=agent_tools, llm_client=mock_anthropic_client
     )
 
     # Before run
@@ -557,7 +564,7 @@ def test_portfolio_analyzer_handles_max_iterations(
     response.content = [block]
     mock_client.messages.create.return_value = response
 
-    agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools, anthropic_client=mock_client)
+    agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools, llm_client=mock_client)
 
     # Run with max_iterations=3
     result = agent.run(max_iterations=3)
@@ -574,7 +581,7 @@ def test_portfolio_analyzer_handles_api_error(
     mock_client = Mock()
     mock_client.messages.create.side_effect = Exception("API Error")
 
-    agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools, anthropic_client=mock_client)
+    agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools, llm_client=mock_client)
 
     result = agent.run()
 
