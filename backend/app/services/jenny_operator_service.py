@@ -129,7 +129,6 @@ class JennyOperatorService:
         self.dashboard_reader = JennyDashboardReader()
         self.learning_service = JennyLearningService()
 
-
     def _agent_hub_client_class(self) -> type[AgentHubAPIClient]:
         return AgentHubAPIClient
 
@@ -210,13 +209,6 @@ class JennyOperatorService:
     def _default_symbol_profile(self, symbol: str) -> dict[str, Any]:
         return self.symbol_profile_service.default_symbol_profile(self, symbol)
 
-    def _normalize_security_type(self, symbol: str, stored_security_type: str | None) -> str:
-        return self.symbol_profile_service.normalize_security_type(
-            self,
-            symbol,
-            stored_security_type,
-        )
-
     def _build_symbol_profiles(
         self,
         symbols: list[str],
@@ -250,43 +242,11 @@ class JennyOperatorService:
             symbol_profile=symbol_profile,
         )
 
-    def _should_use_insufficient_evidence_fallback(
-        self,
-        thesis: Thesis | None,
-        symbol_profile: dict[str, Any],
-    ) -> bool:
-        return self.review_engine.should_use_insufficient_evidence_fallback(
-            thesis,
-            symbol_profile,
-            self,
-        )
-
-    def _build_symbol_context(
-        self,
-        symbol: str,
-        thesis: Thesis | None,
-        price_data: Any,
-        symbol_profile: dict[str, Any],
-    ) -> dict[str, Any]:
-        return self.review_engine.build_symbol_context(
-            self,
-            symbol,
-            thesis,
-            price_data,
-            symbol_profile,
-        )
-
     def _run_agent_review(self, spec: JennyAgentSpec, payload: dict[str, Any]) -> dict[str, Any]:
         return self.review_engine.run_agent_review(self, spec, payload)
 
     def _build_agent_prompt(self, mode: str, payload: dict[str, Any]) -> str:
         return self.review_engine.build_agent_prompt(mode, payload)
-
-    def _normalize_confidence(self, raw_confidence: Any) -> float | None:
-        return self.review_engine.normalize_confidence(raw_confidence)
-
-    def _normalize_verdict(self, raw_verdict: Any) -> str:
-        return self.review_engine.normalize_verdict(raw_verdict)
 
     def _parse_agent_response(self, content: str, agent_name: str) -> dict[str, Any]:
         return self.review_engine.parse_agent_response(content, agent_name)
@@ -360,12 +320,6 @@ class JennyOperatorService:
             evaluations_by_symbol=evaluations_by_symbol,
         )
 
-    def _extract_symbol_profile(self, evaluations: list[dict[str, Any]]) -> dict[str, Any]:
-        return self.review_engine.extract_symbol_profile(evaluations)
-
-    def _extract_invalidation_triggers(self, evaluations: list[dict[str, Any]]) -> list[str]:
-        return self.review_engine.extract_invalidation_triggers(evaluations)
-
     def _upsert_notification(
         self,
         routine_id: str,
@@ -409,43 +363,6 @@ class JennyOperatorService:
     def _refresh_scorecards(self) -> int:
         return self.learning_service.refresh_scorecards(self)
 
-    def _build_trade_lesson(self, return_pct: float | None, exit_reason: str | None) -> str:
-        return self.learning_service.build_trade_lesson(return_pct, exit_reason)
-
-    def _build_trade_review_details(
-        self,
-        return_pct: float | None,
-        exit_reason: str | None,
-    ) -> tuple[str, str, str]:
-        return self.learning_service.build_trade_review_details(return_pct, exit_reason)
-
-    def _save_trade_review(
-        self,
-        symbol: str,
-        thesis_id: str | None,
-        idea_id: str | None,
-        outcome_label: str,
-        return_pct: float | None,
-        lesson: str,
-        what_worked: str,
-        what_failed: str,
-        next_time: str,
-        agent_consensus: dict[str, Any],
-    ) -> None:
-        self.learning_service.save_trade_review(
-            self,
-            symbol=symbol,
-            thesis_id=thesis_id,
-            idea_id=idea_id,
-            outcome_label=outcome_label,
-            return_pct=return_pct,
-            lesson=lesson,
-            what_worked=what_worked,
-            what_failed=what_failed,
-            next_time=next_time,
-            agent_consensus=agent_consensus,
-        )
-
     def _build_review_consensus(self, symbol: str) -> dict[str, Any]:
         return self.dashboard_reader.build_review_consensus(self, symbol)
 
@@ -456,9 +373,6 @@ class JennyOperatorService:
         reviews_by_symbol: dict[str, list[JennyTradeReview]],
     ) -> JennyAgentScorecard:
         return self.learning_service.build_scorecard(self, agent_name, evaluations, reviews_by_symbol)
-
-    def _save_scorecard(self, scorecard: JennyAgentScorecard) -> None:
-        self.learning_service.save_scorecard(self, scorecard)
 
     def _get_recent_routines(self, limit: int = 6) -> list[JennyRoutine]:
         return self.dashboard_reader.get_recent_routines(self, limit)
