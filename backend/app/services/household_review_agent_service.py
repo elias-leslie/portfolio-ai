@@ -8,6 +8,7 @@ from agent_hub import AgentHubClient as SDKClient
 
 from app.agents.clients.agent_hub_client import AGENT_HUB_ENABLED
 from app.config import settings
+from app.constants.models import CLAUDE_OPUS, CLAUDE_SONNET, GEMINI_PRO
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -52,10 +53,10 @@ Risk controls:
 - Treat confirmed household facts as more important than generic priors.
 - Prefer project-specific household patterns over broad consumer generalizations when memory provides them.
 """,
-    "primary_model_id": "claude-sonnet-4-6",
+    "primary_model_id": CLAUDE_SONNET,
     "fallback_models": [
-        "claude-opus-4-6",
-        "gemini-3.1-pro-preview",
+        CLAUDE_OPUS,
+        GEMINI_PRO,
         "codex/gpt-5.4",
     ],
     "temperature": 0.1,
