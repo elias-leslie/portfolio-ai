@@ -47,16 +47,6 @@ export interface RecommendationsResponse {
   summary: RecommendationsSummary
 }
 
-export interface RecommendedSymbol {
-  symbol: string
-  strength: number
-}
-
-export interface RecommendedSymbolsResponse {
-  symbols: RecommendedSymbol[]
-  count: number
-}
-
 export interface TrackPortfolioResponse {
   status: string
   position: {
@@ -94,14 +84,6 @@ export async function getRecommendations(params?: {
   const query = searchParams.toString()
   return apiRequest<RecommendationsResponse>(
     `/api/recommendations${query ? `?${query}` : ''}`,
-  )
-}
-
-export async function getRecommendedSymbols(
-  minStrength = 5,
-): Promise<RecommendedSymbolsResponse> {
-  return apiRequest<RecommendedSymbolsResponse>(
-    `/api/recommendations/symbols?min_strength=${minStrength}`,
   )
 }
 

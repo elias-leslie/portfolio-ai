@@ -475,6 +475,7 @@ function JennyNeedCard({
                         },
                       }))
                     }
+                    aria-label="Transaction category"
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Category" />
@@ -503,6 +504,7 @@ function JennyNeedCard({
                         },
                       }))
                     }
+                    aria-label="Transaction essentiality"
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Essentiality" />
