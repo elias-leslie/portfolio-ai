@@ -155,9 +155,9 @@ export function WorkspaceTabs({
               }
               aria-current={tab.value === value ? 'page' : undefined}
               className={cn(
-                'rounded-xl border border-border/30 bg-surface/50 px-4 py-2 text-left transition-all duration-200',
+                'rounded-xl border border-border/30 bg-surface/50 px-4 py-2.5 text-left transition-all duration-200',
                 'hover:border-border/50 hover:bg-surface/70',
-                'data-[state=active]:border-primary/30 data-[state=active]:bg-primary/10 data-[state=active]:shadow-[0_0_12px_-3px] data-[state=active]:shadow-primary/20',
+                'data-[state=active]:border-primary/40 data-[state=active]:bg-gradient-to-br data-[state=active]:from-primary/15 data-[state=active]:to-primary/5 data-[state=active]:shadow-[0_0_16px_-3px] data-[state=active]:shadow-primary/25',
               )}
             >
               <span className="flex items-center gap-2">

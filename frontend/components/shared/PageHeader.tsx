@@ -61,7 +61,7 @@ export function PageHeader({
         )}
         <h1
           className={cn(
-            'font-display tracking-tight',
+            'font-display italic tracking-tight',
             sizeStyles[size],
             titleClass,
           )}

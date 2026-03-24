@@ -41,7 +41,7 @@ export function SectionCard({
 }: SectionCardProps) {
   const baseClass =
     variant === 'surface'
-      ? 'rounded-2xl border border-border/40 bg-surface/50 shadow-sm backdrop-blur-sm transition-[border-color,box-shadow] duration-200'
+      ? 'rounded-2xl border border-border/40 bg-surface/50 shadow-sm backdrop-blur-sm transition-[border-color,box-shadow,transform] duration-200 hover:border-border/60 hover:shadow-md'
       : 'rounded-2xl'
 
   return (

@@ -93,7 +93,7 @@ export function HomeActionQueue() {
       }
     >
       {!isLoading && !error ? (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/30 border-l-primary/40 border-l-2 bg-surface/40 px-4 py-3 text-sm text-text-muted">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/30 border-l-primary/50 border-l-2 bg-gradient-to-r from-primary/[0.04] to-surface/40 px-4 py-3 text-sm text-text-muted">
           <span>
             {actions.length} prioritized action{actions.length === 1 ? '' : 's'}
             {urgentCount > 0 ? ` · ${urgentCount} urgent` : ''}
@@ -148,7 +148,7 @@ export function HomeActionQueue() {
       ) : null}
 
       {!isLoading && !error && actions.length > 0 ? (
-        <div className="grid gap-3 lg:grid-cols-2">
+        <div className="grid gap-3 lg:grid-cols-2 animate-stagger">
           {actions.map((action) => {
             const Icon =
               categoryIcons[action.category as keyof typeof categoryIcons] ?? ArrowRight
@@ -161,7 +161,7 @@ export function HomeActionQueue() {
               <div
                 key={action.id}
                 className={cn(
-                  'group rounded-2xl border p-4 transition-all duration-200 hover:border-primary/30',
+                  'group rounded-2xl border p-4 card-interactive hover:border-primary/30',
                   tone,
                 )}
               >
