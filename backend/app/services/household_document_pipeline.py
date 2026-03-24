@@ -14,9 +14,12 @@ from fastapi import UploadFile
 from app.models.household_finance import HouseholdDocument
 from app.services._household_document_pipeline_db import (
     archive_prior_document_data,
+    dismiss_open_document_questions,
+    fetch_duplicate_document_row,
     insert_document_db,
     insert_inferred_values,
     insert_questions,
+    mark_review_failed,
     save_upload_to_disk,
     update_document_and_log_review,
     update_import_summary,
@@ -112,20 +115,7 @@ class HouseholdDocumentPipeline:
         content_sha256: str,
     ) -> HouseholdDocument | None:
         with service.storage.connection() as conn:
-            row = conn.execute(
-                """
-                SELECT
-                    id, filename, source_type, document_type, status, account_label,
-                    file_size_bytes, content_type, classification_confidence,
-                    review_status, review_summary, review_confidence,
-                    statement_start, statement_end, uploaded_at, parsed_at, metadata
-                FROM household_documents
-                WHERE metadata->>'content_sha256' = %s
-                ORDER BY uploaded_at DESC
-                LIMIT 1
-                """,
-                [content_sha256],
-            ).fetchone()
+            row = fetch_duplicate_document_row(conn, content_sha256)
         if row is None:
             return None
         return row_to_document(
@@ -149,20 +139,7 @@ class HouseholdDocumentPipeline:
                 "household_document_review_failed", document_id=document_id, error=str(exc)
             )
             with service.storage.connection() as conn:
-                conn.execute(
-                    """
-                    UPDATE household_documents
-                    SET status = 'needs_review', review_status = 'failed',
-                        review_summary = %s, parsed_at = %s
-                    WHERE id = %s
-                    """,
-                    [
-                        "Jenny could not finish reviewing this document yet. Re-upload or add more context.",
-                        datetime.now(UTC).isoformat(),
-                        document_id,
-                    ],
-                )
-                conn.commit()
+                mark_review_failed(conn, document_id=document_id, now=datetime.now(UTC).isoformat())
 
     def process_document_review(
         self, service: HouseholdFinanceService, document: HouseholdDocument
@@ -214,10 +191,7 @@ class HouseholdDocumentPipeline:
         account_hint = structured_data.get("account_hint")
 
         with service.storage.connection() as conn:
-            conn.execute(
-                "UPDATE household_questions SET status = 'dismissed', answered_at = %s WHERE source_document_id = %s AND status = 'open'",
-                [now, document.id],
-            )
+            dismiss_open_document_questions(conn, document_id=document.id, now=now)
             update_document_and_log_review(
                 conn,
                 document=document,
@@ -254,34 +228,27 @@ class HouseholdDocumentPipeline:
         extracted_text = reviewed.get("extracted_text")
         if not isinstance(extracted_text, str) or not extracted_text:
             return
-
         signature_candidates = service.review_service.build_signature_candidates(
-            filename=document.filename,
-            extracted_text=extracted_text,
+            filename=document.filename, extracted_text=extracted_text,
         )
         if not signature_candidates:
             return
-
         structured_data = reviewed.get("structured_data")
         if not isinstance(structured_data, dict):
             structured_data = {}
-        source_type = str(reviewed.get("source_type") or document.source_type)
-        document_type = str(reviewed.get("document_type") or document.document_type)
-        confidence = service._to_float(reviewed.get("confidence"))
-        now = datetime.now(UTC).isoformat()
+        shared = {
+            "source_type": str(reviewed.get("source_type") or document.source_type),
+            "document_type": str(reviewed.get("document_type") or document.document_type),
+            "structured_data": structured_data,
+            "confidence": service._to_float(reviewed.get("confidence")),
+            "document_id": document.id,
+            "now": datetime.now(UTC).isoformat(),
+        }
         with service.storage.connection() as conn:
             for signature_type, signature_key, metadata in signature_candidates:
                 upsert_signature_record(
-                    conn,
-                    signature_type=signature_type,
-                    signature_key=signature_key,
-                    metadata=metadata,
-                    source_type=source_type,
-                    document_type=document_type,
-                    structured_data=structured_data,
-                    confidence=confidence,
-                    document_id=document.id,
-                    now=now,
+                    conn, signature_type=signature_type, signature_key=signature_key,
+                    metadata=metadata, **shared,
                 )
             conn.commit()
 
@@ -302,17 +269,14 @@ class HouseholdDocumentPipeline:
         now = datetime.now(UTC).isoformat()
         with Path(stored_path).open("r", encoding="utf-8", errors="ignore", newline="") as fh:
             rows = list(DictReader(fh))
-        inserted = 0
-        duplicates = 0
+        inserted = duplicates = 0
         with service.storage.connection() as conn:
             for row in rows:
                 result = upsert_import_row(
                     conn, row=row, document_id=document.id, dataset_type=dataset_type, now=now,
                 )
-                if result is True:
-                    inserted += 1
-                elif result is False:
-                    duplicates += 1
+                inserted += result is True
+                duplicates += result is False
             update_import_summary(
                 conn, document_id=document.id, dataset_type=dataset_type,
                 inserted=inserted, duplicates=duplicates,

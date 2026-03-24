@@ -366,6 +366,64 @@ def upsert_import_row(
     return result is not None and bool(result[0])
 
 
+_DUPLICATE_LOOKUP_SQL = """
+    SELECT
+        id, filename, source_type, document_type, status, account_label,
+        file_size_bytes, content_type, classification_confidence,
+        review_status, review_summary, review_confidence,
+        statement_start, statement_end, uploaded_at, parsed_at, metadata
+    FROM household_documents
+    WHERE metadata->>'content_sha256' = %s
+    ORDER BY uploaded_at DESC
+    LIMIT 1
+"""
+
+
+def fetch_duplicate_document_row(
+    conn: DatabaseConnection,
+    content_sha256: str,
+) -> object:
+    """Return the most recent document row matching the given SHA256, or None."""
+    return conn.execute(_DUPLICATE_LOOKUP_SQL, [content_sha256]).fetchone()
+
+
+def mark_review_failed(
+    conn: DatabaseConnection,
+    *,
+    document_id: str,
+    now: str,
+) -> None:
+    """Mark a document review as failed and commit."""
+    conn.execute(
+        """
+        UPDATE household_documents
+        SET status = 'needs_review', review_status = 'failed',
+            review_summary = %s, parsed_at = %s
+        WHERE id = %s
+        """,
+        [
+            "Jenny could not finish reviewing this document yet. Re-upload or add more context.",
+            now,
+            document_id,
+        ],
+    )
+    conn.commit()
+
+
+def dismiss_open_document_questions(
+    conn: DatabaseConnection,
+    *,
+    document_id: str,
+    now: str,
+) -> None:
+    """Dismiss all open questions for a document (pre-review cleanup)."""
+    conn.execute(
+        "UPDATE household_questions SET status = 'dismissed', answered_at = %s"
+        " WHERE source_document_id = %s AND status = 'open'",
+        [now, document_id],
+    )
+
+
 def update_import_summary(
     conn: DatabaseConnection,
     *,
