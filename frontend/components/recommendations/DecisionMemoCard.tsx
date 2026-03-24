@@ -55,7 +55,7 @@ export function DecisionMemoCard({
       <CardHeader className="gap-3 pb-3">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <CardTitle className="font-display text-2xl">{recommendation.symbol}</CardTitle>
+            <CardTitle className="font-display italic text-2xl">{recommendation.symbol}</CardTitle>
             <p className="mt-1 text-sm text-text-muted">
               {recommendation.strategyName}
             </p>

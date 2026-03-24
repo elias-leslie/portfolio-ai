@@ -54,7 +54,7 @@ export function RiskProfile({ riskProfile }: RiskProfileProps) {
           <span className={getLevelColor(riskProfile.level)}>
             {getIcon(riskProfile.level)}
           </span>
-          <h3 className="font-display text-lg tracking-tight text-text">Risk Profile</h3>
+          <h3 className="font-display italic text-lg tracking-tight text-text">Risk Profile</h3>
         </div>
         <span
           className={cn(
@@ -70,7 +70,7 @@ export function RiskProfile({ riskProfile }: RiskProfileProps) {
       {/* Risk Score */}
       <div className="mb-4">
         <div className="mb-2 flex items-baseline justify-between">
-          <span className="font-display text-3xl text-text">
+          <span className="font-display italic text-3xl text-text">
             {riskProfile.score.toFixed(0)}
           </span>
           <span className="text-xs text-text-muted">/ 100</span>

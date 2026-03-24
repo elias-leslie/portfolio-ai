@@ -123,7 +123,7 @@ export function PortfolioCoachAlerts({
   return (
     <Card className="p-6">
       <div className="mb-4">
-        <h3 className="font-display text-lg tracking-tight text-text">Coach Alerts</h3>
+        <h3 className="font-display italic text-lg tracking-tight text-text">Coach Alerts</h3>
         <p className="mt-1 text-sm text-text-muted">
           Simple prompts for when to trim, review, or do nothing.
         </p>

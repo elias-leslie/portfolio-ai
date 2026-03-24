@@ -25,7 +25,7 @@ export default function StatusError({
         </div>
       </div>
       <div className="text-center space-y-3">
-        <h2 className="font-display text-2xl text-text">
+        <h2 className="font-display italic text-2xl text-text">
           Failed to load system status
         </h2>
         <p className="max-w-md text-sm text-text-muted leading-relaxed">

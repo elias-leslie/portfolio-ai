@@ -241,7 +241,7 @@ export function PortfolioOverview() {
       {analytics ? (
         <div className="grid gap-4 md:grid-cols-2">
           <Card className="p-6">
-            <h3 className="mb-4 font-display text-lg tracking-tight text-text">
+            <h3 className="mb-4 font-display italic text-lg tracking-tight text-text">
               Single-Stock Risk
             </h3>
             <div className="space-y-2.5">
@@ -260,7 +260,7 @@ export function PortfolioOverview() {
           </Card>
 
           <Card className="p-6">
-            <h3 className="mb-4 font-display text-lg tracking-tight text-text">
+            <h3 className="mb-4 font-display italic text-lg tracking-tight text-text">
               Where Your Money Is Concentrated
             </h3>
             <div className="space-y-2.5">

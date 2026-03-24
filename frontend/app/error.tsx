@@ -28,7 +28,7 @@ export default function GlobalError({
         <p className="text-xs font-semibold uppercase tracking-widest text-loss/70">
           Error
         </p>
-        <h2 className="font-display text-3xl text-text">Something went wrong</h2>
+        <h2 className="font-display italic text-3xl text-text">Something went wrong</h2>
         <p className="max-w-md text-sm leading-relaxed text-text-muted">
           An unexpected error occurred. Try refreshing, or click the button below
           to recover.
