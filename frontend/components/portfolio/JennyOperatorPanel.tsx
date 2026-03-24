@@ -229,7 +229,7 @@ export function JennyOperatorPanel() {
       <div className="mt-6 grid gap-4 lg:grid-cols-[1.1fr_1fr]">
         <div className="space-y-3">
           <div>
-            <h3 className="text-sm font-semibold text-text">Action queue</h3>
+            <h3 className="font-display text-base tracking-tight text-text">Action queue</h3>
             <p className="mt-1 text-sm text-text-muted">
               Only urgent portfolio actions and high-conviction opportunities.
             </p>
@@ -283,7 +283,7 @@ export function JennyOperatorPanel() {
 
         <div className="space-y-4">
           <div>
-            <h3 className="text-sm font-semibold text-text">Top symbol reviews</h3>
+            <h3 className="font-display text-base tracking-tight text-text">Top symbol reviews</h3>
             <div className="mt-3 space-y-3">
               {topReviews.length === 0 ? (
                 <div className="rounded-xl border border-border/40 bg-surface-muted/20 p-4 text-sm text-text-muted">
@@ -339,7 +339,7 @@ export function JennyOperatorPanel() {
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold text-text">Agent scorecards</h3>
+            <h3 className="font-display text-base tracking-tight text-text">Agent scorecards</h3>
             <div className="mt-3 space-y-3">
               {topScorecards.length === 0 ? (
                 <div className="rounded-xl border border-border/40 bg-surface-muted/20 p-4 text-sm text-text-muted">
