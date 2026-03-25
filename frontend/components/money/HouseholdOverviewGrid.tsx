@@ -3,7 +3,7 @@
 import { PiggyBank, ShieldCheck, Target, Wallet } from 'lucide-react'
 import type { HouseholdFinanceDashboard } from '@/lib/api/household'
 import { SectionCard } from '@/components/shared/SectionCard'
-import { formatCurrency, formatPercent } from './formatters'
+import { formatCurrency, formatPercent } from '@/lib/formatters'
 
 const overviewIcons = [Wallet, PiggyBank, ShieldCheck, Target]
 
@@ -21,19 +21,20 @@ export function HouseholdOverviewGrid({
   const metrics = [
     {
       label: 'Tracked assets',
-      value: formatCurrency(dashboard.overview.totalTrackedAssets),
+      value: formatCurrency(dashboard.overview.totalTrackedAssets, { decimals: 0, nullDisplay: 'Not set' }),
       detail: dashboard.overview.visibilityLabel,
     },
     {
       label: 'Retirement assets',
-      value: formatCurrency(dashboard.overview.retirementAssets),
+      value: formatCurrency(dashboard.overview.retirementAssets, { decimals: 0, nullDisplay: 'Not set' }),
       detail: `${formatPercent(
         dashboard.retirementPreparedness.retirementAccountShare,
+        { decimals: 0, nullDisplay: 'Not set' },
       )} of tracked assets`,
     },
     {
       label: 'Cash reserve',
-      value: formatCurrency(dashboard.overview.cashReserve),
+      value: formatCurrency(dashboard.overview.cashReserve, { decimals: 0, nullDisplay: 'Not set' }),
       detail: 'Cash already visible to Jenny',
     },
     {

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import type { HouseholdFinanceDashboard } from '@/lib/api/household'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Button } from '@/components/ui/button'
-import { formatCurrency } from './formatters'
+import { formatCurrency } from '@/lib/formatters'
 
 export function JennyMoneyBoard({
   dashboard,
@@ -62,7 +62,7 @@ export function JennyMoneyBoard({
   const portfolioStats = [
     {
       label: 'Portfolio value',
-      value: formatCurrency(portfolioContext?.totalPortfolioValue),
+      value: formatCurrency(portfolioContext?.totalPortfolioValue, { decimals: 0, nullDisplay: 'Not set' }),
       visible: portfolioContext?.totalPortfolioValue != null,
     },
     {

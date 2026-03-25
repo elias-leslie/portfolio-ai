@@ -1,7 +1,7 @@
 import type { HouseholdDocument } from '@/lib/api/household'
 import { Badge } from '@/components/ui/badge'
 import { formatDate, formatRelativeTime } from '@/lib/utils'
-import { formatEnumLabel, formatFileSize } from './formatters'
+import { formatEnumLabel, formatFileSize } from '@/lib/formatters'
 
 export function DocumentCard({ document }: { document: HouseholdDocument }) {
   return (

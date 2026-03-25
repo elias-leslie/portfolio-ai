@@ -7,7 +7,7 @@ import {
   formatCurrency,
   formatPercent,
   formatPnlDollars,
-} from './portfolio-utils'
+} from '@/lib/formatters'
 
 interface PositionTableRowProps {
   position: PositionWithValue
@@ -50,7 +50,7 @@ export function PositionTableRow({
       <TableCell
         className={cn('text-right tabular-nums', pnlPercent >= 0 ? 'text-gain' : 'text-loss')}
       >
-        {position.currentValue ? formatPercent(pnlPercent) : '—'}
+        {position.currentValue ? formatPercent(pnlPercent, { decimals: 2, sign: true }) : '—'}
       </TableCell>
       <TableCell className="text-right">
         <div className="flex items-center justify-end gap-1">

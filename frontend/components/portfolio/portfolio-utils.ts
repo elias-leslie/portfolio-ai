@@ -1,31 +1,5 @@
 import type { Account, PositionWithValue } from '@/lib/api/portfolio'
 
-export const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-  }).format(value)
-}
-
-export const formatPercent = (value: number) => {
-  return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
-}
-
-export const formatCurrencyWhole = (value: number) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value)
-}
-
-export const formatPnlDollars = (value: number) => {
-  const prefix = value >= 0 ? '+$' : '-$'
-  return `${prefix}${Math.abs(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
-
 export const formatDisplayLabel = (value: string) => {
   const withSpaces = value
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')

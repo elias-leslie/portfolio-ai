@@ -1,6 +1,6 @@
 import type { HouseholdDocumentRequirement } from '@/lib/api/household-planning'
 import { Badge } from '@/components/ui/badge'
-import { formatEnumLabel } from './formatters'
+import { formatEnumLabel } from '@/lib/formatters'
 
 export function HouseholdPlanningDocumentsCard({
   requirements,

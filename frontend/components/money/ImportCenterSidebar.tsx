@@ -4,7 +4,7 @@ import type {
   ImportCenter,
 } from '@/lib/api/household'
 import { Badge } from '@/components/ui/badge'
-import { formatEnumLabel } from './formatters'
+import { formatEnumLabel } from '@/lib/formatters'
 import { DocumentCard } from './DocumentCard'
 
 export function ImportCenterSidebar({

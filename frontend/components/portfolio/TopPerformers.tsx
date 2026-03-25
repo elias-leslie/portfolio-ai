@@ -3,7 +3,7 @@
 import { TrendingDown, TrendingUp } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import type { PositionPerformance } from '@/lib/api/portfolio'
-import { formatCurrency, formatPercent } from './portfolio-utils'
+import { formatCurrency, formatPercent } from '@/lib/formatters'
 
 interface TopPerformersProps {
   topPerformers: PositionPerformance[]
@@ -43,7 +43,7 @@ export function TopPerformers({
                   </div>
                   <div className="text-right">
                     <div className="text-sm font-medium text-gain">
-                      {formatPercent(position.gainPct)}
+                      {formatPercent(position.gainPct, { decimals: 2, sign: true })}
                     </div>
                     <div className="text-xs text-text-muted">
                       {formatCurrency(position.gainAmount)}
@@ -85,7 +85,7 @@ export function TopPerformers({
                   </div>
                   <div className="text-right">
                     <div className="text-sm font-medium text-loss">
-                      {formatPercent(position.gainPct)}
+                      {formatPercent(position.gainPct, { decimals: 2, sign: true })}
                     </div>
                     <div className="text-xs text-text-muted">
                       {formatCurrency(position.gainAmount)}
