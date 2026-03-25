@@ -63,26 +63,3 @@ export function getWsUrl(path: string): string {
   // Any non-local browser host should stay same-origin via rewrites.
   return `${protocol}//${window.location.host}${path}`
 }
-
-/**
- * Build a full API URL from a path.
- *
- * @param path - API path (e.g., /api/projects)
- * @returns Full URL
- */
-export function buildApiUrl(path: string): string {
-  return `${getApiBaseUrl()}${path}`
-}
-
-/**
- * Check if running in development mode.
- *
- * @returns true if on localhost/127.0.0.1
- */
-export function isDevelopment(): boolean {
-  if (typeof window === 'undefined') {
-    return true // Server-side is typically dev
-  }
-  const host = window.location.hostname
-  return host === 'localhost' || host === '127.0.0.1'
-}
