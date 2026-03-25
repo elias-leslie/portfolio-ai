@@ -84,7 +84,7 @@ export function SectorPerformanceChart() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-text">Sector Performance</h3>
+        <h3 className="font-display italic text-lg tracking-tight text-text">Sector Performance</h3>
         <TimeframeSelector value={timeframe} onChange={setTimeframe} />
       </div>
 

@@ -126,7 +126,7 @@ export function IndicatorsTrendChart() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-text">Key Indicators</h3>
+        <h3 className="font-display italic text-lg tracking-tight text-text">Key Indicators</h3>
         <TimeframeSelector value={timeframe} onChange={setTimeframe} />
       </div>
 

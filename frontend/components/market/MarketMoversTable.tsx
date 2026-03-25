@@ -63,7 +63,7 @@ export function MarketMoversTable() {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-text">Market Movers</h3>
+        <h3 className="font-display italic text-lg tracking-tight text-text">Market Movers</h3>
         <div className="flex gap-0.5 rounded-lg border border-border/30 bg-surface-muted/50 p-0.5" role="group" aria-label="Market mover categories">
           {([
             { key: 'gainers' as Tab, icon: TrendingUp, label: 'Gainers', activeColor: 'text-gain' },
@@ -142,12 +142,12 @@ export function MarketMoversTable() {
                 >
                   {item.sector || '-'}
                 </td>
-                <td className="text-right py-1 text-text whitespace-nowrap">
+                <td className="text-right py-1 text-text tabular-nums whitespace-nowrap">
                   ${item.price.toFixed(2)}
                 </td>
                 <td
                   className={cn(
-                    'text-right py-1 font-semibold whitespace-nowrap',
+                    'text-right py-1 font-semibold tabular-nums whitespace-nowrap',
                     item.changePct >= 0 ? 'text-gain' : 'text-loss',
                   )}
                 >
@@ -155,11 +155,11 @@ export function MarketMoversTable() {
                   {item.changePct.toFixed(2)}%
                 </td>
                 {showRvolColumn ? (
-                  <td className="text-right py-1 text-text font-semibold whitespace-nowrap">
+                  <td className="text-right py-1 text-text font-semibold tabular-nums whitespace-nowrap">
                     {formatRvol(item.rvol)}
                   </td>
                 ) : (
-                  <td className="text-right py-1 text-text-muted whitespace-nowrap hidden sm:table-cell">
+                  <td className="text-right py-1 text-text-muted tabular-nums whitespace-nowrap hidden sm:table-cell">
                     {formatVolume(item.volume)}
                   </td>
                 )}

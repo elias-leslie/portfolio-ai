@@ -52,7 +52,7 @@ export function SectorMoversTable({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-text">Sector Movers</h3>
+        <h3 className="font-display italic text-lg tracking-tight text-text">Sector Movers</h3>
         <div className="flex gap-2 text-xs text-text-muted">
           <span className="flex items-center gap-1">
             <TrendingUp className="h-3 w-3 text-gain" />
@@ -97,7 +97,7 @@ export function SectorMoversTable({
                 </td>
                 <td
                   className={cn(
-                    'text-right py-2 font-semibold',
+                    'text-right py-2 font-semibold tabular-nums',
                     (sector.changePct ?? 0) >= 0 ? 'text-gain' : 'text-loss',
                   )}
                 >
