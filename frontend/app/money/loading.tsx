@@ -6,8 +6,8 @@ export default function MoneyLoading() {
       <div className="space-y-8">
         {/* Page header skeleton */}
         <div className="space-y-3">
-          <div className="h-10 w-56 animate-pulse rounded-lg bg-surface-muted/60" />
-          <div className="h-5 w-96 animate-pulse rounded-md bg-surface-muted/40" />
+          <div className="skeleton rounded-lg h-10 w-56" />
+          <div className="skeleton rounded-md h-5 w-96" />
         </div>
 
         {/* Workspace tabs skeleton */}
@@ -15,7 +15,7 @@ export default function MoneyLoading() {
           {[0, 1, 2, 3].map((i) => (
             <div
               key={`tab-skeleton-${i}`}
-              className="h-9 w-32 animate-pulse rounded-lg bg-surface-muted/50"
+              className="skeleton rounded-lg h-9 w-32"
             />
           ))}
         </div>
@@ -27,12 +27,12 @@ export default function MoneyLoading() {
               key={`panel-skeleton-${i}`}
               className="space-y-4 rounded-2xl border border-border/40 bg-surface/60 p-6"
             >
-              <div className="h-5 w-44 animate-pulse rounded bg-surface-muted/70" />
+              <div className="skeleton h-5 w-44" />
               <div className="space-y-3">
                 {[0, 1, 2].map((row) => (
                   <div
                     key={`row-skeleton-${i}-${row}`}
-                    className="h-12 w-full animate-pulse rounded-xl bg-surface-muted/40"
+                    className="skeleton rounded-xl h-12 w-full"
                   />
                 ))}
               </div>

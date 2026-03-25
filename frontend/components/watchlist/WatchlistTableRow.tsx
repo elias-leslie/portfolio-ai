@@ -166,7 +166,7 @@ export function WatchlistTableRow({
         >
           {priceSnapshot ? (
             <div
-              className="text-sm price-display"
+              className="text-sm tabular-nums price-display"
               data-changed={
                 changedCells[item.id]?.price ? 'true' : undefined
               }
@@ -250,7 +250,7 @@ export function WatchlistTableRow({
                 <TooltipTrigger asChild>
                   <div
                     className={cn(
-                      'inline-flex items-center justify-center rounded-md px-2 py-1 text-xs font-semibold cursor-help',
+                      'inline-flex items-center justify-center rounded-md px-2 py-1 text-xs font-semibold tabular-nums cursor-help',
                       getDataQualityBgColor(item.dataQuality.overallPct),
                       getDataQualityColor(item.dataQuality.overallPct),
                     )}

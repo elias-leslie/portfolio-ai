@@ -5,8 +5,8 @@ export function AccountsWithPositionsSkeleton() {
     <Card data-testid="accounts-with-positions-skeleton">
       <CardHeader>
         <div className="space-y-2">
-          <div className="h-5 w-60 animate-pulse rounded-md bg-surface-muted/60" />
-          <div className="h-3 w-48 animate-pulse rounded-md bg-surface-muted/40" />
+          <div className="skeleton rounded-md h-5 w-60" />
+          <div className="skeleton rounded-md h-3 w-48" />
         </div>
       </CardHeader>
       <CardContent>
@@ -18,16 +18,16 @@ export function AccountsWithPositionsSkeleton() {
             >
               <div className="flex items-center justify-between">
                 <div className="space-y-2">
-                  <div className="h-4 w-48 animate-pulse rounded bg-surface-muted/80" />
-                  <div className="h-3 w-32 animate-pulse rounded bg-surface-muted/60" />
+                  <div className="skeleton h-4 w-48" />
+                  <div className="skeleton h-3 w-32" />
                 </div>
-                <div className="h-10 w-10 rounded-full bg-surface-muted/60" />
+                <div className="skeleton rounded-full h-10 w-10" />
               </div>
               <div className="mt-4 space-y-2">
                 {[0, 1, 2].map((row) => (
                   <div
                     key={`account-with-positions-skeleton-row-${item}-${row}`}
-                    className="h-10 w-full animate-pulse rounded-lg bg-surface-muted/50"
+                    className="skeleton rounded-lg h-10 w-full"
                   />
                 ))}
               </div>

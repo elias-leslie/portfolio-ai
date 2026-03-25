@@ -39,11 +39,11 @@ export function WatchlistLoadingSkeleton() {
     <div className="overflow-hidden rounded-xl border border-border/40 bg-surface/60" role="status" aria-live="polite">
       {[1, 2, 3, 4, 5].map((i) => (
         <div key={i} className="flex items-center gap-4 border-b border-border/30 px-4 py-3 last:border-b-0">
-          <div className="h-4 w-16 animate-pulse rounded bg-surface-muted/60" />
-          <div className="h-4 w-20 animate-pulse rounded bg-surface-muted/40" />
-          <div className="h-5 w-10 animate-pulse rounded-md bg-surface-muted/50" />
+          <div className="h-4 w-16 skeleton" />
+          <div className="h-4 w-20 skeleton" />
+          <div className="h-5 w-10 skeleton rounded-md" />
           <div className="flex-1" />
-          <div className="h-4 w-20 animate-pulse rounded bg-surface-muted/30" />
+          <div className="h-4 w-20 skeleton" />
         </div>
       ))}
     </div>

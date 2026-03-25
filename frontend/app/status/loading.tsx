@@ -6,9 +6,9 @@ export default function StatusLoading() {
       <div className="space-y-8">
         {/* Page header skeleton */}
         <div className="space-y-3">
-          <div className="h-3 w-20 animate-pulse rounded bg-surface-muted/40" />
-          <div className="h-10 w-52 animate-pulse rounded-lg bg-surface-muted/60" />
-          <div className="h-5 w-80 animate-pulse rounded-md bg-surface-muted/40" />
+          <div className="skeleton h-3 w-20" />
+          <div className="skeleton rounded-lg h-10 w-52" />
+          <div className="skeleton rounded-md h-5 w-80" />
         </div>
 
         {/* Status cards grid skeleton */}
@@ -19,12 +19,12 @@ export default function StatusLoading() {
               className="space-y-3 rounded-2xl border border-border/40 bg-surface/60 p-5"
             >
               <div className="flex items-center justify-between">
-                <div className="h-4 w-28 animate-pulse rounded bg-surface-muted/60" />
-                <div className="h-6 w-16 animate-pulse rounded-full bg-surface-muted/50" />
+                <div className="skeleton h-4 w-28" />
+                <div className="skeleton rounded-full h-6 w-16" />
               </div>
               <div className="space-y-2">
-                <div className="h-3 w-full animate-pulse rounded bg-surface-muted/40" />
-                <div className="h-3 w-2/3 animate-pulse rounded bg-surface-muted/30" />
+                <div className="skeleton h-3 w-full" />
+                <div className="skeleton h-3 w-2/3" />
               </div>
             </div>
           ))}

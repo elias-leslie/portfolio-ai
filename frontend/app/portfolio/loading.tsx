@@ -6,8 +6,8 @@ export default function PortfolioLoading() {
       <div className="space-y-8">
         {/* Page header skeleton */}
         <div className="space-y-3">
-          <div className="h-10 w-48 animate-pulse rounded-lg bg-surface-muted/60" />
-          <div className="h-5 w-80 animate-pulse rounded-md bg-surface-muted/40" />
+          <div className="skeleton rounded-lg h-10 w-48" />
+          <div className="skeleton rounded-md h-5 w-80" />
         </div>
 
         {/* Stats row skeleton */}
@@ -17,8 +17,8 @@ export default function PortfolioLoading() {
               key={`stat-skeleton-${i}`}
               className="space-y-2 rounded-2xl border border-border/40 bg-surface/60 p-4"
             >
-              <div className="h-3 w-20 animate-pulse rounded bg-surface-muted/50" />
-              <div className="h-7 w-28 animate-pulse rounded bg-surface-muted/70" />
+              <div className="skeleton h-3 w-20" />
+              <div className="skeleton h-7 w-28" />
             </div>
           ))}
         </div>
@@ -32,16 +32,16 @@ export default function PortfolioLoading() {
             >
               <div className="flex items-center justify-between">
                 <div className="space-y-2">
-                  <div className="h-5 w-48 animate-pulse rounded bg-surface-muted/70" />
-                  <div className="h-4 w-32 animate-pulse rounded bg-surface-muted/50" />
+                  <div className="skeleton h-5 w-48" />
+                  <div className="skeleton h-4 w-32" />
                 </div>
-                <div className="h-10 w-10 animate-pulse rounded-full bg-surface-muted/60" />
+                <div className="skeleton rounded-full h-10 w-10" />
               </div>
               <div className="mt-4 space-y-2">
                 {[0, 1, 2].map((row) => (
                   <div
                     key={`position-skeleton-${i}-${row}`}
-                    className="h-10 w-full animate-pulse rounded-lg bg-surface-muted/40"
+                    className="skeleton rounded-lg h-10 w-full"
                   />
                 ))}
               </div>

@@ -7,17 +7,17 @@ export default function WatchlistLoading() {
         {/* Page header skeleton */}
         <div className="flex items-end justify-between">
           <div className="space-y-3">
-            <div className="h-10 w-44 animate-pulse rounded-lg bg-surface-muted/60" />
-            <div className="h-5 w-72 animate-pulse rounded-md bg-surface-muted/40" />
+            <div className="skeleton rounded-lg h-10 w-44" />
+            <div className="skeleton rounded-md h-5 w-72" />
           </div>
-          <div className="h-9 w-32 animate-pulse rounded-lg bg-surface-muted/50" />
+          <div className="skeleton rounded-lg h-9 w-32" />
         </div>
 
         {/* Filter bar skeleton */}
         <div className="flex gap-3">
-          <div className="h-9 w-64 animate-pulse rounded-lg bg-surface-muted/50" />
-          <div className="h-9 w-24 animate-pulse rounded-lg bg-surface-muted/40" />
-          <div className="h-9 w-24 animate-pulse rounded-lg bg-surface-muted/40" />
+          <div className="skeleton rounded-lg h-9 w-64" />
+          <div className="skeleton rounded-lg h-9 w-24" />
+          <div className="skeleton rounded-lg h-9 w-24" />
         </div>
 
         {/* Table skeleton */}
@@ -27,7 +27,7 @@ export default function WatchlistLoading() {
             {[80, 48, 64, 48, 48, 64].map((w, i) => (
               <div
                 key={`header-skeleton-${i}`}
-                className="h-4 animate-pulse rounded bg-surface-muted/50"
+                className="skeleton h-4"
                 style={{ width: `${w}px` }}
               />
             ))}
@@ -38,12 +38,12 @@ export default function WatchlistLoading() {
               key={`row-skeleton-${row}`}
               className="flex items-center gap-4 border-b border-border/20 px-4 py-4 last:border-0"
             >
-              <div className="h-5 w-16 animate-pulse rounded bg-surface-muted/60" />
-              <div className="h-4 w-32 animate-pulse rounded bg-surface-muted/40" />
-              <div className="h-5 w-20 animate-pulse rounded bg-surface-muted/50" />
-              <div className="h-4 w-16 animate-pulse rounded bg-surface-muted/40" />
-              <div className="h-6 w-14 animate-pulse rounded-full bg-surface-muted/50" />
-              <div className="ml-auto h-4 w-20 animate-pulse rounded bg-surface-muted/40" />
+              <div className="skeleton h-5 w-16" />
+              <div className="skeleton h-4 w-32" />
+              <div className="skeleton h-5 w-20" />
+              <div className="skeleton h-4 w-16" />
+              <div className="skeleton rounded-full h-6 w-14" />
+              <div className="skeleton ml-auto h-4 w-20" />
             </div>
           ))}
         </div>

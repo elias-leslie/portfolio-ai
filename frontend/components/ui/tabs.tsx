@@ -113,7 +113,7 @@ export function TabsContent({
   return (
     <div
       className={cn(
-        'mt-2 ring-offset-bg transition-opacity duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2',
+        'mt-2 ring-offset-bg animate-tab-enter focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2',
         className,
       )}
       {...props}

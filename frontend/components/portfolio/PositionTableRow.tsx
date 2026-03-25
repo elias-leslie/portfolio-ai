@@ -32,23 +32,23 @@ export function PositionTableRow({
   return (
     <TableRow>
       <TableCell className="font-medium">{position.symbol}</TableCell>
-      <TableCell className="text-right">{position.shares}</TableCell>
-      <TableCell className="text-right">
+      <TableCell className="text-right tabular-nums">{position.shares}</TableCell>
+      <TableCell className="text-right tabular-nums">
         {formatCurrency(position.costBasis)}
       </TableCell>
-      <TableCell className="text-right">
+      <TableCell className="text-right tabular-nums">
         {position.currentPrice ? formatCurrency(position.currentPrice) : '—'}
       </TableCell>
-      <TableCell className="text-right">
+      <TableCell className="text-right tabular-nums">
         {position.currentValue ? formatCurrency(position.currentValue) : '—'}
       </TableCell>
       <TableCell
-        className={cn('text-right font-semibold', pnlDollars >= 0 ? 'text-gain' : 'text-loss')}
+        className={cn('text-right tabular-nums font-semibold', pnlDollars >= 0 ? 'text-gain' : 'text-loss')}
       >
         {position.currentValue ? formatPnlDollars(pnlDollars) : '—'}
       </TableCell>
       <TableCell
-        className={cn('text-right', pnlPercent >= 0 ? 'text-gain' : 'text-loss')}
+        className={cn('text-right tabular-nums', pnlPercent >= 0 ? 'text-gain' : 'text-loss')}
       >
         {position.currentValue ? formatPercent(pnlPercent) : '—'}
       </TableCell>

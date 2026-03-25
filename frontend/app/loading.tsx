@@ -6,8 +6,8 @@ export default function HomeLoading() {
       <div className="space-y-8">
         {/* Page header skeleton */}
         <div className="space-y-3">
-          <div className="h-10 w-64 animate-pulse rounded-lg bg-surface-muted/60" />
-          <div className="h-5 w-96 animate-pulse rounded-md bg-surface-muted/40" />
+          <div className="h-10 w-64 skeleton" />
+          <div className="h-5 w-96 skeleton" />
         </div>
 
         {/* Workspace tabs skeleton */}
@@ -15,7 +15,7 @@ export default function HomeLoading() {
           {[0, 1, 2].map((i) => (
             <div
               key={`tab-skeleton-${i}`}
-              className="h-9 w-28 animate-pulse rounded-lg bg-surface-muted/50"
+              className="h-9 w-28 skeleton rounded-lg"
             />
           ))}
         </div>
@@ -27,11 +27,11 @@ export default function HomeLoading() {
               key={`card-skeleton-${i}`}
               className="space-y-4 rounded-2xl border border-border/40 bg-surface/50 p-6"
             >
-              <div className="h-5 w-40 animate-pulse rounded bg-surface-muted/70" />
+              <div className="h-5 w-40 skeleton" />
               <div className="space-y-2">
-                <div className="h-4 w-full animate-pulse rounded bg-surface-muted/50" />
-                <div className="h-4 w-3/4 animate-pulse rounded bg-surface-muted/40" />
-                <div className="h-4 w-1/2 animate-pulse rounded bg-surface-muted/30" />
+                <div className="h-4 w-full skeleton" />
+                <div className="h-4 w-3/4 skeleton" />
+                <div className="h-4 w-1/2 skeleton" />
               </div>
             </div>
           ))}

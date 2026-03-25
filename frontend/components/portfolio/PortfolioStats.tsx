@@ -26,13 +26,13 @@ export function PortfolioStats({ analytics }: PortfolioStatsProps) {
       <div className="space-y-3">
         <div className="flex justify-between items-center">
           <span className="text-sm text-text-muted">Total Positions</span>
-          <span className="text-sm font-medium text-text">
+          <span className="text-sm font-medium tabular-nums text-text">
             {analytics.numPositions}
           </span>
         </div>
         <div className="flex justify-between items-center">
           <span className="text-sm text-text-muted">Unique Symbols</span>
-          <span className="text-sm font-medium text-text">
+          <span className="text-sm font-medium tabular-nums text-text">
             {analytics.numSymbols}
           </span>
         </div>
@@ -40,25 +40,25 @@ export function PortfolioStats({ analytics }: PortfolioStatsProps) {
           <span className="text-sm text-text-muted">
             Avg Invested Position Size
           </span>
-          <span className="text-sm font-medium text-text">
+          <span className="text-sm font-medium tabular-nums text-text">
             {formatCurrencyWhole(avgInvestedPositionSize)}
           </span>
         </div>
         <div className="flex justify-between items-center">
           <span className="text-sm text-text-muted">Invested Value</span>
-          <span className="text-sm font-medium text-text">
+          <span className="text-sm font-medium tabular-nums text-text">
             {formatCurrencyWhole(analytics.portfolioValue.totalValue)}
           </span>
         </div>
         <div className="flex justify-between items-center">
           <span className="text-sm text-text-muted">Cash Reserve</span>
-          <span className="text-sm font-medium text-text">
+          <span className="text-sm font-medium tabular-nums text-text">
             {formatCurrencyWhole(analytics.cashBalanceTotal)}
           </span>
         </div>
         <div className="flex justify-between items-center">
           <span className="text-sm text-text-muted">Largest Position</span>
-          <span className="text-sm font-medium text-text">
+          <span className="text-sm font-medium tabular-nums text-text">
             {analytics.concentration.topHoldingPct.toFixed(1)}%
           </span>
         </div>
@@ -79,7 +79,7 @@ export function PortfolioStats({ analytics }: PortfolioStatsProps) {
                 {analytics.sharpeRatio.toFixed(2)}
               </span>
             ) : (
-              <span className="text-sm font-medium text-text-muted">Unavailable</span>
+              <span className="text-sm font-medium tabular-nums text-text-muted">Unavailable</span>
             )}
           </div>
           <p className="mt-1 text-xs text-text-muted">

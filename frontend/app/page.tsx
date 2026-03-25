@@ -21,7 +21,7 @@ function SectionContentSkeleton({ rows = 3 }: { rows?: number }) {
       {[...Array(rows)].map((_, index) => (
         <div
           key={`section-skeleton-${index}`}
-          className="h-16 w-full animate-pulse rounded-xl bg-surface-muted/50"
+          className="h-16 w-full skeleton rounded-xl"
         />
       ))}
     </div>

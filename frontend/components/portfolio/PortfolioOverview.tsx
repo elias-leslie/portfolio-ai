@@ -35,15 +35,15 @@ export function PortfolioOverview() {
 
   if (isInitialLoading) {
     return (
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 animate-stagger">
         {[...Array(6)].map((_, i) => (
           <Card key={i} className="p-6">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 animate-pulse rounded-lg bg-surface-muted/60" />
+              <div className="h-10 w-10 skeleton rounded-lg" />
               <div className="flex-1 space-y-2">
-                <div className="h-3 w-20 animate-pulse rounded bg-surface-muted/40" />
-                <div className="h-6 w-28 animate-pulse rounded bg-surface-muted/60" />
-                <div className="h-3 w-32 animate-pulse rounded bg-surface-muted/30" />
+                <div className="h-3 w-20 skeleton" />
+                <div className="h-6 w-28 skeleton" />
+                <div className="h-3 w-32 skeleton" />
               </div>
             </div>
           </Card>

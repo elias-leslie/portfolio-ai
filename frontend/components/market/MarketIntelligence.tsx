@@ -25,11 +25,11 @@ export function MarketIntelligence() {
   if (isLoading) {
     return (
       <Card className="p-6 shadow-lg">
-        <div className="space-y-6 animate-pulse">
-          <div className="h-24 bg-surface-muted/60 rounded-xl" />
-          <div className="h-48 bg-surface-muted/60 rounded-xl" />
-          <div className="h-48 bg-surface-muted/60 rounded-xl" />
-          <div className="h-64 bg-surface-muted/60 rounded-xl" />
+        <div className="space-y-6">
+          <div className="skeleton rounded-xl h-24" />
+          <div className="skeleton rounded-xl h-48" />
+          <div className="skeleton rounded-xl h-48" />
+          <div className="skeleton rounded-xl h-64" />
         </div>
       </Card>
     )

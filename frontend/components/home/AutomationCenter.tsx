@@ -93,7 +93,7 @@ export function AutomationCenter() {
           {[...Array(4)].map((_, index) => (
             <div
               key={`automation-skeleton-${index}`}
-              className="h-24 animate-pulse rounded-2xl bg-surface-muted/40"
+              className="skeleton rounded-2xl h-24"
             />
           ))}
         </div>

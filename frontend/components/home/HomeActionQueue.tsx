@@ -112,7 +112,7 @@ export function HomeActionQueue() {
           {[...Array(4)].map((_, index) => (
             <div
               key={`home-action-skeleton-${index}`}
-              className="h-28 animate-pulse rounded-2xl bg-surface-muted/40"
+              className="skeleton rounded-2xl h-28"
             />
           ))}
         </div>

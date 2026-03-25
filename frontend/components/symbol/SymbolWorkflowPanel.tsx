@@ -54,7 +54,7 @@ export function SymbolWorkflowPanel({
           {[...Array(4)].map((_, index) => (
             <div
               key={`workflow-skeleton-${index}`}
-              className="h-20 animate-pulse rounded-2xl bg-surface-muted/40"
+              className="skeleton rounded-2xl h-20"
             />
           ))}
         </div>

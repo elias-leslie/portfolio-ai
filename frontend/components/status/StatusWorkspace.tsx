@@ -127,7 +127,7 @@ export function StatusWorkspace() {
         <div className="space-y-6" role="status" aria-live="polite">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {[...Array(8)].map((_, i) => (
-              <div key={i} className="h-28 animate-pulse rounded-2xl bg-surface-muted/40" />
+              <div key={i} className="skeleton rounded-2xl h-28" />
             ))}
           </div>
           <div className="flex items-center gap-3 text-sm text-text-muted">

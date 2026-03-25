@@ -58,7 +58,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
           {[...Array(4)].map((_, index) => (
             <div
               key={`symbol-skeleton-${index}`}
-              className="h-32 animate-pulse rounded-2xl bg-surface-muted/40"
+              className="skeleton rounded-2xl h-32"
             />
           ))}
         </div>

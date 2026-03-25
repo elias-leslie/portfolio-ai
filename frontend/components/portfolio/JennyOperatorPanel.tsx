@@ -132,7 +132,7 @@ export function JennyOperatorPanel() {
   if (isLoading) {
     return (
       <Card className="p-6">
-        <div className="h-44 animate-pulse rounded bg-surface-muted/60" />
+        <div className="skeleton h-44" />
       </Card>
     )
   }
