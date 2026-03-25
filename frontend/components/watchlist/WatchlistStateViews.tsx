@@ -34,16 +34,25 @@ export function WatchlistErrorView({
   )
 }
 
+const skeletonWidths = [
+  { symbol: 'w-14', price: 'w-20', badge: 'w-12', trend: 'w-24', date: 'w-28' },
+  { symbol: 'w-16', price: 'w-16', badge: 'w-10', trend: 'w-20', date: 'w-24' },
+  { symbol: 'w-12', price: 'w-24', badge: 'w-14', trend: 'w-28', date: 'w-20' },
+  { symbol: 'w-14', price: 'w-20', badge: 'w-10', trend: 'w-20', date: 'w-24' },
+  { symbol: 'w-16', price: 'w-16', badge: 'w-12', trend: 'w-24', date: 'w-28' },
+]
+
 export function WatchlistLoadingSkeleton() {
   return (
     <div className="overflow-hidden rounded-xl border border-border/40 bg-surface/60" role="status" aria-live="polite">
-      {[1, 2, 3, 4, 5].map((i) => (
-        <div key={i} className="flex items-center gap-4 border-b border-border/30 px-4 py-3 last:border-b-0">
-          <div className="h-4 w-16 skeleton" />
-          <div className="h-4 w-20 skeleton" />
-          <div className="h-5 w-10 skeleton rounded-md" />
+      {skeletonWidths.map((widths, i) => (
+        <div key={i} className="flex items-center gap-4 border-b border-border/30 px-4 py-3.5 last:border-b-0">
+          <div className={`h-4 ${widths.symbol} skeleton`} />
+          <div className={`h-4 ${widths.price} skeleton`} />
+          <div className={`h-5 ${widths.badge} skeleton rounded-md`} />
           <div className="flex-1" />
-          <div className="h-4 w-20 skeleton" />
+          <div className={`h-8 ${widths.trend} skeleton rounded-md`} />
+          <div className={`h-3 ${widths.date} skeleton`} />
         </div>
       ))}
     </div>

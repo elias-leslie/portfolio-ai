@@ -44,7 +44,7 @@ function NavigationContent({ pathname }: { pathname: string }) {
           <div className="flex items-center">
             <Link
               href="/"
-              className="flex-shrink-0 rounded-md px-2 py-1 font-display text-[1.35rem] font-medium italic tracking-tight text-text transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              className="flex-shrink-0 rounded-md px-2 py-1 font-display text-[1.35rem] font-medium italic tracking-tight bg-gradient-to-r from-text via-primary/80 to-accent bg-clip-text text-transparent transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
             >
               Portfolio AI
             </Link>

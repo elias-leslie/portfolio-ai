@@ -20,11 +20,11 @@ const categoryIcons = {
 }
 
 const priorityTone = {
-  critical: 'border-loss/25 bg-loss/5',
-  high: 'border-warning/25 bg-warning/5',
-  warning: 'border-warning/25 bg-warning/5',
-  medium: 'border-primary/15 bg-primary/5',
-  low: 'border-border/40 bg-surface-muted/15',
+  critical: 'border-loss/25 border-l-loss/60 border-l-[3px] bg-loss/5',
+  high: 'border-warning/25 border-l-warning/60 border-l-[3px] bg-warning/5',
+  warning: 'border-warning/25 border-l-warning/60 border-l-[3px] bg-warning/5',
+  medium: 'border-primary/15 border-l-primary/40 border-l-[3px] bg-primary/5',
+  low: 'border-border/40 border-l-border/50 border-l-[3px] bg-surface-muted/15',
 }
 
 const priorityDot = {

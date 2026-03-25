@@ -17,10 +17,10 @@ const badgeVariants = cva(
         success: 'border-transparent bg-gain/20 text-gain',
         warning: 'border-transparent bg-warning/20 text-warning',
         error: 'border-transparent bg-loss/20 text-loss',
-        // Score-based variants using viz tokens
-        'viz-0': 'border-transparent bg-viz-0/30 text-viz-0',
-        'viz-1': 'border-transparent bg-viz-1/30 text-viz-1',
-        'viz-2': 'border-transparent bg-viz-2/30 text-viz-2',
+        // Score-based variants using viz tokens — low-range boosted for dark bg legibility
+        'viz-0': 'border-border-subtle bg-viz-0/30 text-text-muted',
+        'viz-1': 'border-border-subtle bg-viz-1/30 text-text-muted',
+        'viz-2': 'border-transparent bg-viz-2/30 text-viz-3',
         'viz-3': 'border-transparent bg-viz-3/30 text-viz-3',
         'viz-4': 'border-transparent bg-viz-4/30 text-viz-4',
         'viz-5': 'border-transparent bg-viz-5/30 text-viz-5',

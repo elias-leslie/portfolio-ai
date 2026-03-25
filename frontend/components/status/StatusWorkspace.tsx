@@ -23,7 +23,7 @@ import {
   MarketTimingPanel,
 } from './StatusPanels'
 import { formatInteger, formatPercent, formatHours } from '@/lib/formatters'
-import { marketLabel } from './statusUtils'
+import { marketLabel, systemTone, marketTone } from './statusUtils'
 
 export function StatusWorkspace() {
   const healthQuery = useDetailedHealth()
@@ -179,11 +179,13 @@ export function StatusWorkspace() {
                   ? `Updated ${formatRelativeTime(healthQuery.data.timestamp)}`
                   : 'Update time unavailable'
               }
+              tone={systemTone(healthQuery.data?.status)}
             />
             <SummaryStat
               label="Market"
               value={marketLabel(marketQuery.data?.status)}
               detail={marketQuery.data?.currentTimeEt ?? 'No market clock available'}
+              tone={marketTone(marketQuery.data?.status)}
             />
             <SummaryStat
               label="Watchlist"
@@ -230,6 +232,7 @@ export function StatusWorkspace() {
                   ? 'Background maintenance runs need attention'
                   : 'No stale maintenance runs reported'
               }
+              tone={staleMaintenanceCount > 0 ? 'negative' : 'default'}
             />
           </section>
 

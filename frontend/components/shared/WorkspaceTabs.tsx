@@ -177,7 +177,7 @@ export function WorkspaceTabs({
         {activeTab?.description ? (
           <p
             id={`${idBase}-active-description`}
-            className="mt-3 text-sm text-text-muted"
+            className="mt-3 text-[13px] italic leading-relaxed text-text-muted/70"
           >
             {activeTab.description}
           </p>

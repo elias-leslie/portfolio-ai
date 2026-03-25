@@ -16,6 +16,31 @@ export function checkVariant(status: CheckStatus | undefined) {
   }
 }
 
+export function systemTone(status: string | undefined): 'default' | 'positive' | 'warning' | 'negative' {
+  switch (status) {
+    case 'healthy':
+      return 'positive'
+    case 'degraded':
+      return 'warning'
+    case 'unhealthy':
+      return 'negative'
+    default:
+      return 'default'
+  }
+}
+
+export function marketTone(status: MarketStatusResponse['status'] | undefined): 'default' | 'positive' | 'warning' | 'negative' {
+  switch (status) {
+    case 'open':
+      return 'positive'
+    case 'pre_market':
+    case 'after_hours':
+      return 'warning'
+    default:
+      return 'default'
+  }
+}
+
 export function marketLabel(status: MarketStatusResponse['status'] | undefined) {
   switch (status) {
     case 'open':
