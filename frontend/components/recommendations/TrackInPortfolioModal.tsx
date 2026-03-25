@@ -121,20 +121,20 @@ export function TrackInPortfolioModal({
           </div>
 
           {/* Summary */}
-          <div className="rounded-lg border border-border bg-surface-muted/50 p-3">
+          <div className="rounded-xl border border-border/40 bg-surface-muted/30 p-4">
             <div className="flex justify-between text-sm">
-              <span>Current Price:</span>
-              <span className="font-medium">
+              <span className="text-text-muted">Current Price:</span>
+              <span className="font-medium tabular-nums">
                 ${recommendation.currentPrice.toFixed(2)}
               </span>
             </div>
             <div className="flex justify-between text-sm">
-              <span>Shares:</span>
-              <span className="font-medium">{shares}</span>
+              <span className="text-text-muted">Shares:</span>
+              <span className="font-medium tabular-nums">{shares}</span>
             </div>
-            <div className="mt-2 flex justify-between border-t border-border pt-2 text-sm font-medium">
+            <div className="mt-2 flex justify-between border-t border-border/40 pt-2 text-sm font-medium">
               <span>Total Cost:</span>
-              <span>
+              <span className="tabular-nums">
                 $
                 {totalCost.toLocaleString(undefined, {
                   minimumFractionDigits: 2,

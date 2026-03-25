@@ -279,8 +279,8 @@ export function ExpandedRowScoreBreakdown({
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="border border-border rounded-lg bg-surface">
-        <div className="px-3 py-2 border-b border-border flex items-center justify-between">
+      <div className="border border-border/50 rounded-xl bg-surface/80">
+        <div className="px-3 py-2 border-b border-border/40 flex items-center justify-between">
           <h3 className="text-sm font-medium">Score Breakdown</h3>
           <Badge variant={getScoreBadgeVariant(score.overall)}>
             Overall: {score.overall.toFixed(0)}

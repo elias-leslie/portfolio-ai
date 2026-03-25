@@ -58,7 +58,7 @@ export function NewsArticleCard({ article, index }: NewsArticleCardProps) {
   return (
     <div
       key={articleKey}
-      className="rounded-md border border-border bg-surface-muted/30 p-3"
+      className="rounded-xl border border-border/40 bg-surface-muted/20 p-4 transition-colors duration-150 hover:border-border/60 hover:bg-surface-muted/30"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex-1 space-y-1">
@@ -120,7 +120,7 @@ export function NewsArticleCard({ article, index }: NewsArticleCardProps) {
             </Badge>
           )}
           {sentimentScore !== undefined && sentimentScore !== null && (
-            <span className="text-text font-semibold">
+            <span className="text-text font-semibold tabular-nums">
               {formatSentimentScore(sentimentScore)}
             </span>
           )}
