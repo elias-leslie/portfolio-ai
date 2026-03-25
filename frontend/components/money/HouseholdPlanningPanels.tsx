@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useReducer } from 'react'
 import type { HouseholdFinanceDashboard, HouseholdPlanningUpdate } from '@/lib/api/household'
 import type {
   HouseholdDebtObligationInput,
@@ -44,6 +44,53 @@ function normalizeSection<T>(items: EditableItem[], numericKeys: string[]): T[] 
   return normalizeEditableItems(items, numericKeys) as T[]
 }
 
+/* ── Editable-section reducer ─────────────────────────────────────────── */
+
+type SectionKey =
+  | 'members'
+  | 'incomeSources'
+  | 'debtObligations'
+  | 'housingCosts'
+  | 'insurancePolicies'
+  | 'retirementIncomeSources'
+  | 'plannedExpenses'
+
+type SectionsState = Record<SectionKey, EditableItem[]>
+
+type SectionsAction =
+  | { type: 'RESET_ALL'; payload: SectionsState }
+  | { type: 'UPDATE_DRAFT'; section: SectionKey; items: EditableItem[] }
+  | {
+      type: 'ADD_ITEM'
+      section: SectionKey
+      template: EditableItem
+    }
+
+function sectionsReducer(state: SectionsState, action: SectionsAction): SectionsState {
+  switch (action.type) {
+    case 'RESET_ALL':
+      return action.payload
+    case 'UPDATE_DRAFT':
+      return { ...state, [action.section]: action.items }
+    case 'ADD_ITEM':
+      return { ...state, [action.section]: [...state[action.section], action.template] }
+  }
+}
+
+function buildSectionsState(planning: ReturnType<typeof emptyPlanning>): SectionsState {
+  return {
+    members: toEditableItems(planning.members.map(stripPlanningMeta)),
+    incomeSources: toEditableItems(planning.incomeSources.map(stripPlanningMeta)),
+    debtObligations: toEditableItems(planning.debtObligations.map(stripPlanningMeta)),
+    housingCosts: toEditableItems(planning.housingCosts.map(stripPlanningMeta)),
+    insurancePolicies: toEditableItems(planning.insurancePolicies.map(stripPlanningMeta)),
+    retirementIncomeSources: toEditableItems(planning.retirementIncomeSources.map(stripPlanningMeta)),
+    plannedExpenses: toEditableItems(planning.plannedExpenses.map(stripPlanningMeta)),
+  }
+}
+
+/* ── Component ────────────────────────────────────────────────────────── */
+
 export function HouseholdPlanningPanels({
   dashboard,
 }: {
@@ -51,36 +98,11 @@ export function HouseholdPlanningPanels({
 }) {
   const planning = useMemo(() => dashboard.planning ?? emptyPlanning(), [dashboard.planning])
   const updatePlanning = useUpdateHouseholdPlanning()
-  const [members, setMembers] = useState<EditableItem[]>(toEditableItems(planning.members.map(stripPlanningMeta)))
-  const [incomeSources, setIncomeSources] = useState<EditableItem[]>(
-    toEditableItems(planning.incomeSources.map(stripPlanningMeta)),
-  )
-  const [debtObligations, setDebtObligations] = useState<EditableItem[]>(
-    toEditableItems(planning.debtObligations.map(stripPlanningMeta)),
-  )
-  const [housingCosts, setHousingCosts] = useState<EditableItem[]>(
-    toEditableItems(planning.housingCosts.map(stripPlanningMeta)),
-  )
-  const [insurancePolicies, setInsurancePolicies] = useState<EditableItem[]>(
-    toEditableItems(planning.insurancePolicies.map(stripPlanningMeta)),
-  )
-  const [retirementIncomeSources, setRetirementIncomeSources] = useState<EditableItem[]>(
-    toEditableItems(planning.retirementIncomeSources.map(stripPlanningMeta)),
-  )
-  const [plannedExpenses, setPlannedExpenses] = useState<EditableItem[]>(
-    toEditableItems(planning.plannedExpenses.map(stripPlanningMeta)),
-  )
+
+  const [sections, dispatch] = useReducer(sectionsReducer, planning, (p) => buildSectionsState(p))
 
   useEffect(() => {
-    setMembers(toEditableItems(planning.members.map(stripPlanningMeta)))
-    setIncomeSources(toEditableItems(planning.incomeSources.map(stripPlanningMeta)))
-    setDebtObligations(toEditableItems(planning.debtObligations.map(stripPlanningMeta)))
-    setHousingCosts(toEditableItems(planning.housingCosts.map(stripPlanningMeta)))
-    setInsurancePolicies(toEditableItems(planning.insurancePolicies.map(stripPlanningMeta)))
-    setRetirementIncomeSources(
-      toEditableItems(planning.retirementIncomeSources.map(stripPlanningMeta)),
-    )
-    setPlannedExpenses(toEditableItems(planning.plannedExpenses.map(stripPlanningMeta)))
+    dispatch({ type: 'RESET_ALL', payload: buildSectionsState(planning) })
   }, [planning])
 
   const saveSection = (payload: HouseholdPlanningUpdate) => {
@@ -291,17 +313,20 @@ export function HouseholdPlanningPanels({
               { key: 'relationship', label: 'Relationship', placeholder: 'spouse, son, parent' },
               { key: 'birthYear', label: 'Birth year', placeholder: '2018', inputMode: 'numeric' },
             ]}
-            items={members}
-            onChange={setMembers}
+            items={sections.members}
+            onChange={(items) =>
+              dispatch({ type: 'UPDATE_DRAFT', section: 'members', items })
+            }
             onAdd={() =>
-              setMembers((current) => [
-                ...current,
-                { displayName: '', role: '', relationship: '', birthYear: null },
-              ])
+              dispatch({
+                type: 'ADD_ITEM',
+                section: 'members',
+                template: { displayName: '', role: '', relationship: '', birthYear: null },
+              })
             }
             onSave={() =>
               saveSection({
-                members: normalizeSection<HouseholdPlanningMemberInput>(members, ['birthYear']),
+                members: normalizeSection<HouseholdPlanningMemberInput>(sections.members, ['birthYear']),
               })
             }
             isSaving={updatePlanning.isPending}
@@ -316,17 +341,20 @@ export function HouseholdPlanningPanels({
               { key: 'payFrequency', label: 'Frequency', placeholder: 'biweekly' },
               { key: 'monthlyAmount', label: 'Monthly amount', placeholder: '8500', inputMode: 'decimal' },
             ]}
-            items={incomeSources}
-            onChange={setIncomeSources}
+            items={sections.incomeSources}
+            onChange={(items) =>
+              dispatch({ type: 'UPDATE_DRAFT', section: 'incomeSources', items })
+            }
             onAdd={() =>
-              setIncomeSources((current) => [
-                ...current,
-                { label: '', sourceType: '', payFrequency: '', monthlyAmount: null },
-              ])
+              dispatch({
+                type: 'ADD_ITEM',
+                section: 'incomeSources',
+                template: { label: '', sourceType: '', payFrequency: '', monthlyAmount: null },
+              })
             }
             onSave={() =>
               saveSection({
-                incomeSources: normalizeSection<HouseholdIncomeSourceInput>(incomeSources, [
+                incomeSources: normalizeSection<HouseholdIncomeSourceInput>(sections.incomeSources, [
                   'monthlyAmount',
                 ]),
               })
@@ -343,18 +371,21 @@ export function HouseholdPlanningPanels({
               { key: 'balance', label: 'Balance', placeholder: '420000', inputMode: 'decimal' },
               { key: 'monthlyPayment', label: 'Monthly payment', placeholder: '2450', inputMode: 'decimal' },
             ]}
-            items={debtObligations}
-            onChange={setDebtObligations}
+            items={sections.debtObligations}
+            onChange={(items) =>
+              dispatch({ type: 'UPDATE_DRAFT', section: 'debtObligations', items })
+            }
             onAdd={() =>
-              setDebtObligations((current) => [
-                ...current,
-                { label: '', debtType: '', balance: null, monthlyPayment: null },
-              ])
+              dispatch({
+                type: 'ADD_ITEM',
+                section: 'debtObligations',
+                template: { label: '', debtType: '', balance: null, monthlyPayment: null },
+              })
             }
             onSave={() =>
               saveSection({
                 debtObligations: normalizeSection<HouseholdDebtObligationInput>(
-                  debtObligations,
+                  sections.debtObligations,
                   ['balance', 'monthlyPayment'],
                 ),
               })
@@ -371,23 +402,26 @@ export function HouseholdPlanningPanels({
               { key: 'monthlyPayment', label: 'Monthly payment', placeholder: '2450', inputMode: 'decimal' },
               { key: 'mortgageBalance', label: 'Mortgage balance', placeholder: '420000', inputMode: 'decimal' },
             ]}
-            items={housingCosts}
-            onChange={setHousingCosts}
+            items={sections.housingCosts}
+            onChange={(items) =>
+              dispatch({ type: 'UPDATE_DRAFT', section: 'housingCosts', items })
+            }
             onAdd={() =>
-              setHousingCosts((current) => [
-                ...current,
-                {
+              dispatch({
+                type: 'ADD_ITEM',
+                section: 'housingCosts',
+                template: {
                   label: '',
                   housingType: '',
                   occupancyRole: 'primary',
                   monthlyPayment: null,
                   mortgageBalance: null,
                 },
-              ])
+              })
             }
             onSave={() =>
               saveSection({
-                housingCosts: normalizeSection<HouseholdHousingCostInput>(housingCosts, [
+                housingCosts: normalizeSection<HouseholdHousingCostInput>(sections.housingCosts, [
                   'monthlyPayment',
                   'mortgageBalance',
                 ]),
@@ -405,18 +439,21 @@ export function HouseholdPlanningPanels({
               { key: 'premiumMonthly', label: 'Monthly premium', placeholder: '780', inputMode: 'decimal' },
               { key: 'coverageAmount', label: 'Coverage amount', placeholder: '500000', inputMode: 'decimal' },
             ]}
-            items={insurancePolicies}
-            onChange={setInsurancePolicies}
+            items={sections.insurancePolicies}
+            onChange={(items) =>
+              dispatch({ type: 'UPDATE_DRAFT', section: 'insurancePolicies', items })
+            }
             onAdd={() =>
-              setInsurancePolicies((current) => [
-                ...current,
-                { label: '', coverageType: '', premiumMonthly: null, coverageAmount: null },
-              ])
+              dispatch({
+                type: 'ADD_ITEM',
+                section: 'insurancePolicies',
+                template: { label: '', coverageType: '', premiumMonthly: null, coverageAmount: null },
+              })
             }
             onSave={() =>
               saveSection({
                 insurancePolicies: normalizeSection<HouseholdInsurancePolicyInput>(
-                  insurancePolicies,
+                  sections.insurancePolicies,
                   ['premiumMonthly', 'coverageAmount'],
                 ),
               })
@@ -433,19 +470,22 @@ export function HouseholdPlanningPanels({
               { key: 'startAge', label: 'Start age', placeholder: '67', inputMode: 'numeric' },
               { key: 'monthlyAmount', label: 'Monthly amount', placeholder: '2800', inputMode: 'decimal' },
             ]}
-            items={retirementIncomeSources}
-            onChange={setRetirementIncomeSources}
+            items={sections.retirementIncomeSources}
+            onChange={(items) =>
+              dispatch({ type: 'UPDATE_DRAFT', section: 'retirementIncomeSources', items })
+            }
             onAdd={() =>
-              setRetirementIncomeSources((current) => [
-                ...current,
-                { label: '', sourceType: '', startAge: null, monthlyAmount: null },
-              ])
+              dispatch({
+                type: 'ADD_ITEM',
+                section: 'retirementIncomeSources',
+                template: { label: '', sourceType: '', startAge: null, monthlyAmount: null },
+              })
             }
             onSave={() =>
               saveSection({
                 retirementIncomeSources:
                   normalizeSection<HouseholdRetirementIncomeSourceInput>(
-                    retirementIncomeSources,
+                    sections.retirementIncomeSources,
                     ['startAge', 'monthlyAmount'],
                   ),
               })
@@ -462,24 +502,27 @@ export function HouseholdPlanningPanels({
               { key: 'targetAmount', label: 'Target amount', placeholder: '18000', inputMode: 'decimal' },
               { key: 'targetDate', label: 'Target date', type: 'date' },
             ]}
-            items={plannedExpenses}
-            onChange={setPlannedExpenses}
+            items={sections.plannedExpenses}
+            onChange={(items) =>
+              dispatch({ type: 'UPDATE_DRAFT', section: 'plannedExpenses', items })
+            }
             onAdd={() =>
-              setPlannedExpenses((current) => [
-                ...current,
-                {
+              dispatch({
+                type: 'ADD_ITEM',
+                section: 'plannedExpenses',
+                template: {
                   label: '',
                   expenseKind: '',
                   category: 'general',
                   targetAmount: null,
                   targetDate: null,
                 },
-              ])
+              })
             }
             onSave={() =>
               saveSection({
                 plannedExpenses: normalizeSection<HouseholdPlannedExpenseInput>(
-                  plannedExpenses,
+                  sections.plannedExpenses,
                   ['targetAmount'],
                 ),
               })
