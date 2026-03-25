@@ -66,39 +66,39 @@ export function DecisionMemoCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="rounded-xl border border-border/40 bg-surface-muted/20 p-4">
+        <div className="rounded-xl border border-border/40 bg-surface-muted/20 p-4 transition-colors duration-150 hover:border-primary/30 hover:bg-surface-muted/30">
           <div className="flex items-center gap-2 text-sm font-semibold text-text">
             <Target className="h-4 w-4 text-primary" />
             Why now
           </div>
-          <p className="mt-2 text-sm text-text-muted">
+          <p className="mt-2 text-sm leading-relaxed text-text-muted">
             {buildWhyNow(recommendation)}
           </p>
         </div>
 
-        <div className="rounded-xl border border-border/40 bg-surface-muted/20 p-4">
+        <div className="rounded-xl border border-border/40 bg-surface-muted/20 p-4 transition-colors duration-150 hover:border-warning/30 hover:bg-surface-muted/30">
           <div className="flex items-center gap-2 text-sm font-semibold text-text">
             <ShieldAlert className="h-4 w-4 text-warning" />
             What breaks it
           </div>
-          <p className="mt-2 text-sm text-text-muted">
+          <p className="mt-2 text-sm leading-relaxed text-text-muted">
             {buildBreakText(recommendation)}
           </p>
         </div>
 
-        <div className="rounded-xl border border-border/40 bg-surface-muted/20 p-4">
+        <div className="rounded-xl border border-border/40 bg-surface-muted/20 p-4 transition-colors duration-150 hover:border-accent/30 hover:bg-surface-muted/30">
           <div className="flex items-center gap-2 text-sm font-semibold text-text">
             <Wallet className="h-4 w-4 text-accent" />
             Sizing
           </div>
-          <p className="mt-2 text-sm text-text-muted">
+          <p className="mt-2 text-sm leading-relaxed text-text-muted">
             {buildSizingText(recommendation)}
           </p>
         </div>
 
-        <div className="rounded-xl border border-border/40 bg-surface-muted/20 p-4">
+        <div className="rounded-xl border border-border/40 bg-surface-muted/20 p-4 transition-colors duration-150 hover:border-border/60 hover:bg-surface-muted/30">
           <div className="text-sm font-semibold text-text">Confidence</div>
-          <p className="mt-2 text-sm text-text-muted">
+          <p className="mt-2 text-sm leading-relaxed text-text-muted">
             {buildConfidenceText(recommendation)}
           </p>
         </div>

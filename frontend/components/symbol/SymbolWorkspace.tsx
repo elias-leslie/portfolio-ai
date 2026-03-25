@@ -107,7 +107,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
         </SectionCard>
       ) : null}
 
-      <div className="rounded-xl border border-border/30 border-l-primary/50 border-l-2 bg-gradient-to-r from-primary/[0.04] to-surface/40 px-4 py-3 text-sm text-text-muted">
+      <div className="info-banner">
         {data?.generatedAt
           ? `Updated ${formatRelativeTime(data.generatedAt)}`
           : 'Update time unavailable'}

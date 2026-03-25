@@ -31,28 +31,28 @@ export function TopPerformers({
               topPerformers.map((position, index) => (
                 <div
                   key={`top-${index}-${position.symbol}`}
-                  className="flex items-center justify-between"
+                  className="flex items-center justify-between rounded-lg px-3 py-2 transition-colors duration-150 hover:bg-surface-muted/20"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="font-medium text-text">
+                    <span className="font-medium tabular-nums text-text">
                       {position.symbol}
                     </span>
                     <span className="text-xs text-text-muted">
-                      {position.weightPct.toFixed(1)}% of portfolio
+                      {position.weightPct.toFixed(1)}%
                     </span>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm font-medium text-gain">
+                    <div className="text-sm font-medium tabular-nums text-gain">
                       {formatPercent(position.gainPct, { decimals: 2, sign: true })}
                     </div>
-                    <div className="text-xs text-text-muted">
+                    <div className="text-xs tabular-nums text-text-muted">
                       {formatCurrency(position.gainAmount)}
                     </div>
                   </div>
                 </div>
               ))
             ) : (
-              <div className="text-sm text-text-muted">No data available</div>
+              <div className="rounded-lg bg-surface-muted/10 px-3 py-2 text-sm text-text-muted">No performers with enough history yet</div>
             )}
           </div>
         </div>
@@ -73,28 +73,28 @@ export function TopPerformers({
               bottomPerformers.map((position, index) => (
                 <div
                   key={`bottom-${index}-${position.symbol}`}
-                  className="flex items-center justify-between"
+                  className="flex items-center justify-between rounded-lg px-3 py-2 transition-colors duration-150 hover:bg-surface-muted/20"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="font-medium text-text">
+                    <span className="font-medium tabular-nums text-text">
                       {position.symbol}
                     </span>
                     <span className="text-xs text-text-muted">
-                      {position.weightPct.toFixed(1)}% of portfolio
+                      {position.weightPct.toFixed(1)}%
                     </span>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm font-medium text-loss">
+                    <div className="text-sm font-medium tabular-nums text-loss">
                       {formatPercent(position.gainPct, { decimals: 2, sign: true })}
                     </div>
-                    <div className="text-xs text-text-muted">
+                    <div className="text-xs tabular-nums text-text-muted">
                       {formatCurrency(position.gainAmount)}
                     </div>
                   </div>
                 </div>
               ))
             ) : (
-              <div className="text-sm text-text-muted">No data available</div>
+              <div className="rounded-lg bg-surface-muted/10 px-3 py-2 text-sm text-text-muted">No performers with enough history yet</div>
             )}
           </div>
         </div>

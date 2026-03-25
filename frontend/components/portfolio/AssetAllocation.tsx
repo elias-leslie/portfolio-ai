@@ -39,8 +39,8 @@ export function AssetAllocation({ topPerformers }: AssetAllocationProps) {
           topHoldings.map((position, index) => (
             <div key={`holding-${index}-${position.symbol}`}>
               <div className="mb-1 flex items-center justify-between">
-                <span className="font-medium text-text">{position.symbol}</span>
-                <span className="text-sm text-text-muted">
+                <span className="font-medium tabular-nums text-text">{position.symbol}</span>
+                <span className="text-sm tabular-nums text-text-muted">
                   {position.weightPct.toFixed(1)}%
                 </span>
               </div>
@@ -51,9 +51,9 @@ export function AssetAllocation({ topPerformers }: AssetAllocationProps) {
                 />
               </div>
               <div className="flex items-center justify-between text-xs text-text-muted">
-                <span>{formatCurrencyWhole(position.currentValue)}</span>
+                <span className="tabular-nums">{formatCurrencyWhole(position.currentValue)}</span>
                 <span
-                  className={position.gainPct >= 0 ? 'text-gain' : 'text-loss'}
+                  className={cn('tabular-nums', position.gainPct >= 0 ? 'text-gain' : 'text-loss')}
                 >
                   {position.gainPct >= 0 ? '+' : ''}
                   {position.gainPct.toFixed(1)}%

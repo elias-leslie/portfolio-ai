@@ -401,35 +401,35 @@ export default function MoneyPage() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 space-y-3">
             <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-text-muted">
-              <span className="rounded-full border border-border/50 bg-background/70 px-2.5 py-1 tracking-[0.18em]">
+              <span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 tracking-[0.18em] text-primary">
                 Stage {stage} of 4
               </span>
               <span>{stageLabel}</span>
             </div>
             <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
-              <h2 className="text-2xl font-semibold tracking-tight text-text">
+              <h2 className="font-display italic text-2xl tracking-tight text-text">
                 {dashboard.overview.visibilityLabel}
               </h2>
-              <p className="text-sm text-text-muted">
+              <p className="text-sm tabular-nums text-text-muted">
                 {dashboard.overview.visibilityScore}/100 visibility score
               </p>
             </div>
             <div className="flex flex-wrap gap-2 text-sm">
-              <span className="rounded-full bg-background/80 px-3 py-1.5 text-text">
+              <span className="rounded-full border border-border/40 bg-surface-muted/30 px-3 py-1.5 text-sm text-text tabular-nums">
                 {unsatisfiedNeedCount} need{unsatisfiedNeedCount === 1 ? '' : 's'}
               </span>
-              <span className="rounded-full bg-background/80 px-3 py-1.5 text-text">
+              <span className="rounded-full border border-border/40 bg-surface-muted/30 px-3 py-1.5 text-sm text-text tabular-nums">
                 {openQuestionCount} open question{openQuestionCount === 1 ? '' : 's'}
               </span>
-              <span className="rounded-full bg-background/80 px-3 py-1.5 text-text">
+              <span className="rounded-full border border-border/40 bg-surface-muted/30 px-3 py-1.5 text-sm text-text tabular-nums">
                 {dashboard.importCenter.parsedDocuments}/{docCount} documents parsed
               </span>
               {evidenceMonths > 0 ? (
-                <span className="rounded-full bg-background/80 px-3 py-1.5 text-text">
+                <span className="rounded-full border border-border/40 bg-surface-muted/30 px-3 py-1.5 text-sm text-text tabular-nums">
                   {evidenceMonths} month{evidenceMonths === 1 ? '' : 's'} of evidence
                 </span>
               ) : null}
-              <span className="rounded-full bg-background/80 px-3 py-1.5 text-text">
+              <span className="rounded-full border border-border/40 bg-surface-muted/30 px-3 py-1.5 text-sm text-text tabular-nums">
                 Updated {formatRelativeTime(dashboard.generatedAt)}
               </span>
             </div>
