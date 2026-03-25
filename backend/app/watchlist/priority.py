@@ -16,11 +16,9 @@ NO ARBITRARY CAP - All relevant indicators are returned.
 
 from __future__ import annotations
 
-from typing import Any
-
 from pydantic import BaseModel
 
-from .models import WatchlistItemDict
+from .models import ScoreComponentDict, WatchlistItemDict
 
 
 class PriorityIndicator(BaseModel):
@@ -240,8 +238,8 @@ def check_value_play(item: WatchlistItemDict) -> PriorityIndicator | None:
     if not score or not isinstance(score, dict):
         return None
 
-    fundamental_obj: Any = score.get("fundamental", {})
-    price_obj: Any = score.get("price", {})
+    fundamental_obj: ScoreComponentDict = score.get("fundamental", {})
+    price_obj: ScoreComponentDict = score.get("price", {})
     if not isinstance(fundamental_obj, dict) or not isinstance(price_obj, dict):
         return None
 
@@ -277,8 +275,8 @@ def check_momentum(item: WatchlistItemDict) -> PriorityIndicator | None:
     if not score or not isinstance(score, dict):
         return None
 
-    price_obj: Any = score.get("price", {})
-    technical_obj: Any = score.get("technical", {})
+    price_obj: ScoreComponentDict = score.get("price", {})
+    technical_obj: ScoreComponentDict = score.get("technical", {})
     if not isinstance(price_obj, dict) or not isinstance(technical_obj, dict):
         return None
 
@@ -315,8 +313,8 @@ def check_caution(item: WatchlistItemDict) -> PriorityIndicator | None:
     if not score or not isinstance(score, dict):
         return None
 
-    price_obj: Any = score.get("price", {})
-    fundamental_obj: Any = score.get("fundamental", {})
+    price_obj: ScoreComponentDict = score.get("price", {})
+    fundamental_obj: ScoreComponentDict = score.get("fundamental", {})
     if not isinstance(price_obj, dict) or not isinstance(fundamental_obj, dict):
         return None
 

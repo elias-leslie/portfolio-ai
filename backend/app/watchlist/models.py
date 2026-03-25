@@ -13,13 +13,24 @@ from ..portfolio.models import PriceData
 # TypedDict models for structured dictionaries
 
 
+class ScoreComponentDict(TypedDict, total=False):
+    """Serialized ScoreComponent dictionary (from ScoreComponent.model_dump)."""
+
+    score: float
+    weight: float
+    stale: bool
+    updated_at: str | None
+    metadata: dict[str, str | int | float | bool | None]
+    sub_scores: dict[str, float]
+
+
 class ScoreDict(TypedDict, total=False):
     """Score breakdown dictionary structure (overall + pillar scores)."""
 
     overall: float
-    price: float
-    technical: float
-    fundamental: float
+    price: ScoreComponentDict
+    technical: ScoreComponentDict
+    fundamental: ScoreComponentDict
 
 
 class NewsIntelligenceDict(TypedDict, total=False):
