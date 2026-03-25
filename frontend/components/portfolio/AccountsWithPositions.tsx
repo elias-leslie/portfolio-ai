@@ -241,7 +241,7 @@ export function AccountsWithPositionsContent({
               detail={accountsError?.message ?? portfolioError?.message ?? 'Unknown error'}
               onRetry={() => {
                 onRetryAccounts?.()
-                void refetchPortfolio()
+                void refetchPortfolio?.()
               }}
               isRetrying={accountsFetching || portfolioFetching}
             />

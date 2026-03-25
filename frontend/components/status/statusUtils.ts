@@ -108,8 +108,8 @@ export function remediationPresentation(remediation: {
       badgeLabel: 'resolved',
       badgeVariant: 'success',
       detail: remediation.resolvedAt
-        ? `Resolved in the latest freshness check at ${formatDateTime(remediation.resolvedAt)}.`
-        : 'Resolved in the latest freshness check.',
+        ? `Cleared during the latest data-recency check at ${formatDateTime(remediation.resolvedAt)}.`
+        : 'Cleared during the latest data-recency check.',
     }
   }
   return {

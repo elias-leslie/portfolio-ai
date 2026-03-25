@@ -20,13 +20,11 @@ Most tests are colocated with the source file they cover:
 
 ## Automated Tests
 
-Run from `frontend/`:
+Use the repo wrappers from the project root:
 
 ```bash
-pnpm test
-pnpm test:watch
-pnpm test:ui
-pnpm test:coverage
+dt --frontend-only
+dt --check
 ```
 
 These tests should cover:

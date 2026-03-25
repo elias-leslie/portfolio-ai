@@ -98,7 +98,7 @@ describe('WatchlistCard', () => {
     expect(screen.getByRole('link', { name: 'MSFT' })).toHaveAttribute('href', '/symbols/MSFT')
     expect(screen.getByRole('link', { name: 'Workspace' })).toHaveAttribute('href', '/symbols/MSFT')
     expect(screen.getByText('Portfolio')).toBeInTheDocument()
-    expect(screen.getByText('DQ 91%')).toBeInTheDocument()
+    expect(screen.getByText('Data quality 91%')).toBeInTheDocument()
     expect(screen.getByText(/Refreshing 2\/5/i)).toBeInTheDocument()
     expect(screen.getByText('Live price snapshot')).toBeInTheDocument()
     expect(screen.getByText('$410.12')).toBeInTheDocument()
@@ -163,7 +163,7 @@ describe('WatchlistCard', () => {
       />,
     )
 
-    expect(screen.queryByText(/DQ/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Data quality/i)).not.toBeInTheDocument()
 
     rerender(
       <WatchlistCard
@@ -181,7 +181,7 @@ describe('WatchlistCard', () => {
       />,
     )
 
-    expect(screen.getByText('DQ 0%')).toBeInTheDocument()
+    expect(screen.getByText('Data quality 0%')).toBeInTheDocument()
   })
 
   it('handles isDeleting true state', () => {

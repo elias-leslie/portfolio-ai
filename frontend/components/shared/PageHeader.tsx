@@ -55,7 +55,7 @@ export function PageHeader({
         )}
       >
         {eyebrow && (
-          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-muted/60">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-muted/60">
             {eyebrow}
           </p>
         )}
@@ -69,7 +69,7 @@ export function PageHeader({
           {title}
         </h1>
         {description && (
-          <p className="mt-1 text-[15px] leading-relaxed text-text-muted/80">{description}</p>
+          <p className="mt-1 text-sm leading-relaxed text-text-muted/80">{description}</p>
         )}
       </div>
       {actions && (

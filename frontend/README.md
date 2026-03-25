@@ -6,8 +6,11 @@ Portfolio-AI's frontend is a Next.js App Router application served on port `3000
 
 ```bash
 pnpm install
-pnpm dev
+rebuild.sh portfolio-ai
+status.sh portfolio-ai
 ```
+
+Use `rebuild.sh portfolio-ai` as the supported way to run the full app locally. Reach for `pnpm dev` only when you intentionally need a frontend-only Next.js dev server and you are not using it as the canonical project runtime.
 
 ### Production-style rebuild
 

@@ -184,7 +184,7 @@ export default function MoneyPage() {
           description="Upload 1-2 months of bank or credit card statements. Jenny will analyze your cash flow, categorize spending, and build your financial picture automatically."
         />
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-3 animate-stagger">
           {onboardingSteps.map((step, index) => (
             <SectionCard
               key={step.title}
@@ -261,9 +261,9 @@ export default function MoneyPage() {
           tabs={[
             {
               value: 'intake',
-              label: 'Intake',
+              label: 'Uploads',
               description:
-                'Upload and audit source documents. Add more statements to give Jenny a fuller picture.',
+                'Add statements and review what Jenny imported.',
               badge: docCount > 0 ? String(docCount) : undefined,
               content: documentsError ? (
                 <LoadErrorState
@@ -285,9 +285,9 @@ export default function MoneyPage() {
             },
             {
               value: 'operate',
-              label: 'Operate',
+              label: 'Action',
               description:
-                'Handle what Jenny needs while she processes your documents.',
+                'See what Jenny still needs while she processes your documents.',
               badge:
                 unsatisfiedNeedCount > 0
                   ? String(unsatisfiedNeedCount)
@@ -305,9 +305,9 @@ export default function MoneyPage() {
   // Stage 3 and 4: Build the full tab set, gating Operate to stage 4
   const intakeTab: WorkspaceTab = {
     value: 'intake',
-    label: 'Intake',
+    label: 'Uploads',
     description:
-      'Upload and audit source documents without forcing the rest of the page to grow.',
+      'Add statements and review imported documents without forcing the rest of the page to grow.',
     badge: docCount > 0 ? String(docCount) : undefined,
     content: documentsError ? (
       <LoadErrorState
@@ -331,9 +331,9 @@ export default function MoneyPage() {
 
   const analysisTab: WorkspaceTab = {
     value: 'analysis',
-    label: 'Analysis',
+    label: 'Reports',
     description:
-      "Review the transaction reports and Jenny\u2019s synthesized money brief together.",
+      "Review spending reports and Jenny\u2019s money brief together.",
     badge: evidenceMonths > 0 ? `${evidenceMonths} mo` : undefined,
     content: (
       <div className="space-y-6">
@@ -347,7 +347,7 @@ export default function MoneyPage() {
     value: 'planning',
     label: 'Planning',
     description:
-      'Keep profile assumptions and long-range planning in one place.',
+      'Keep your assumptions, retirement goals, and open questions in one place.',
     badge:
       openQuestionCount > 0
         ? String(openQuestionCount)
@@ -360,7 +360,7 @@ export default function MoneyPage() {
           <JennyQuestionInbox
             questions={dashboard.questions}
             title="Questions Blocking Jenny"
-            description="Before Operate is unlocked, answer Jenny here so she can finish building the household system."
+            description="Before Action unlocks, answer Jenny here so she can finish building your money system."
           />
         ) : null}
         {stage < 4 ? <JennyChatPanel title="Talk to Jenny" /> : null}
@@ -375,9 +375,9 @@ export default function MoneyPage() {
 
   const operateTab: WorkspaceTab = {
     value: 'operate',
-    label: 'Operate',
+    label: 'Action',
     description:
-      'Handle what Jenny needs, review categories, bills, and budget pacing.',
+      'Handle the questions, categories, bills, and budget follow-up Jenny needs.',
     badge: unsatisfiedNeedCount > 0 ? String(unsatisfiedNeedCount) : undefined,
     content: <HouseholdOperationsPanel dashboard={dashboard} />,
   }
@@ -394,7 +394,7 @@ export default function MoneyPage() {
       <PageHeader
         eyebrow="Household Finance"
         title="Money System"
-        description="Budgeting, savings, retirement planning, and document intake in one shared workspace for you and Jenny."
+        description="See spending, savings, retirement planning, and statement uploads in one shared workspace for you and Jenny."
       />
 
       <div className="rounded-2xl border border-border/30 border-l-2 border-l-primary/40 bg-surface/40 px-5 py-4">
@@ -411,12 +411,12 @@ export default function MoneyPage() {
                 {dashboard.overview.visibilityLabel}
               </h2>
               <p className="text-sm tabular-nums text-text-muted">
-                {dashboard.overview.visibilityScore}/100 visibility score
+                {dashboard.overview.visibilityScore}/100 clarity score
               </p>
             </div>
             <div className="flex flex-wrap gap-2 text-sm">
               <span className="rounded-full border border-border/40 bg-surface-muted/30 px-3 py-1.5 text-sm text-text tabular-nums">
-                {unsatisfiedNeedCount} need{unsatisfiedNeedCount === 1 ? '' : 's'}
+                {unsatisfiedNeedCount} to-do item{unsatisfiedNeedCount === 1 ? '' : 's'}
               </span>
               <span className="rounded-full border border-border/40 bg-surface-muted/30 px-3 py-1.5 text-sm text-text tabular-nums">
                 {openQuestionCount} open question{openQuestionCount === 1 ? '' : 's'}
@@ -426,7 +426,7 @@ export default function MoneyPage() {
               </span>
               {evidenceMonths > 0 ? (
                 <span className="rounded-full border border-border/40 bg-surface-muted/30 px-3 py-1.5 text-sm text-text tabular-nums">
-                  {evidenceMonths} month{evidenceMonths === 1 ? '' : 's'} of evidence
+                  {evidenceMonths} month{evidenceMonths === 1 ? '' : 's'} of history
                 </span>
               ) : null}
               <span className="rounded-full border border-border/40 bg-surface-muted/30 px-3 py-1.5 text-sm text-text tabular-nums">
@@ -436,7 +436,7 @@ export default function MoneyPage() {
           </div>
           <div className="flex w-full flex-col gap-2 lg:w-auto lg:max-w-sm lg:items-end">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-muted">
-              Next best action
+              Do this next
             </p>
             <p className="text-sm text-text lg:text-right">
               {dashboard.overview.nextBestAction}
@@ -460,7 +460,7 @@ export default function MoneyPage() {
             <p className="mt-1 text-sm text-text-muted">
               Your reports and analysis are ready. Review the findings, confirm
               key assumptions in Planning, and Jenny will unlock your full
-              operating workspace.
+              action workspace.
             </p>
           </div>
         </div>

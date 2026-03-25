@@ -11,15 +11,12 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 from starlette.concurrency import run_in_threadpool
 
-from app.logging_config import get_logger
 from app.middleware.cache import cache_response
 
 from .analytics_routes import router as analytics_router
 from .jenny_routes import router as jenny_router
 from .models import AccountCreate, AccountResponse, PortfolioResponse, PositionResponse
 from .position_routes import router as position_router
-
-logger = get_logger(__name__)
 
 # Create main router
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
@@ -65,14 +62,8 @@ def _get_filtered_accounts_and_positions(
     return accounts, account_ids, cash_balance_total, positions
 
 
-def _fetch_prices_with_sync(symbols: list[str]) -> dict[str, Any]:
-    """Sync symbols to watchlist (best-effort) then fetch price data."""
-    portfolio_mgr = _portfolio_mgr()
-    try:
-        portfolio_mgr.sync_portfolio_to_watchlist(symbols)
-    except Exception as e:
-        logger.error("portfolio_watchlist_sync_failed", error=str(e), exc_info=True)
-
+def _fetch_prices(symbols: list[str]) -> dict[str, Any]:
+    """Fetch price data for portfolio symbols."""
     return _price_fetcher().fetch_price_data(symbols)
 
 
@@ -131,7 +122,7 @@ def _get_portfolio_payload(include_paper: bool) -> PortfolioResponse:
         )
 
     symbols = list({p.symbol for p in positions})
-    price_data = _fetch_prices_with_sync(symbols)
+    price_data = _fetch_prices(symbols)
 
     analytics = _analytics_calculator().calculate_full_analytics(
         positions,

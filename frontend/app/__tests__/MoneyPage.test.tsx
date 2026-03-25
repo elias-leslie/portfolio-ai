@@ -192,19 +192,19 @@ describe('MoneyPage', () => {
 
     render(<MoneyPage />)
 
-    expect(screen.getByText(/^Next best action$/i)).toBeInTheDocument()
+    expect(screen.getByText(/^Do this next$/i)).toBeInTheDocument()
     expect(screen.getByText(/Review uncategorized spending\./i)).toBeInTheDocument()
     expect(screen.getByText(/stage 4 of 4/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Operate' })).toBeInTheDocument()
-    expect(screen.getByText(/60\/100 visibility score/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Action' })).toBeInTheDocument()
+    expect(screen.getByText(/60\/100 clarity score/i)).toBeInTheDocument()
     expect(screen.getByText(/0\/0 documents parsed/i)).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Intake' }))
+    await user.click(screen.getByRole('button', { name: 'Uploads' }))
     await user.click(screen.getByRole('button', { name: 'Retry' }))
 
     expect(refetchDocuments).toHaveBeenCalled()
   })
 
-  it('shows Jenny questions in Planning before Operate is unlocked', async () => {
+  it('shows Jenny questions in Planning before Action is unlocked', async () => {
     const user = userEvent.setup()
     useHouseholdDashboardMock.mockReturnValue({
       data: {
@@ -354,18 +354,18 @@ describe('MoneyPage', () => {
 
     render(<MoneyPage />)
 
-    expect(screen.queryByRole('button', { name: 'Operate' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Action' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Planning' }))
     expect(screen.getByText('Jenny Question Inbox')).toBeInTheDocument()
     expect(screen.getByText('Jenny Chat Panel')).toBeInTheDocument()
   })
 
-  it('defaults mature users into Operate', async () => {
+  it('defaults mature users into Action', async () => {
     const { default: MoneyPage } = await import('../money/page')
 
     render(<MoneyPage />)
 
     expect(screen.getByText('Operations Panel')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Operate' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('button', { name: 'Action' })).toHaveAttribute('aria-current', 'page')
   })
 })

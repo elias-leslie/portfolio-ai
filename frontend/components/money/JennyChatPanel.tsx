@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { toast } from 'sonner'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -63,6 +62,7 @@ export function JennyChatPanel({
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [lastResolvedCount, setLastResolvedCount] = useState(0)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -103,22 +103,27 @@ export function JennyChatPanel({
     if (!trimmed || chatMutation.isPending) {
       return
     }
-    const now = Date.now()
-    setMessages((current) => [...current, { role: 'user', content: trimmed, timestamp: now }])
-    setMessage('')
+    setErrorMessage(null)
     try {
       const response = await chatMutation.mutateAsync({
         message: trimmed,
         sessionId,
       })
+      const now = Date.now()
       setSessionId(response.sessionId)
       setMessages((current) => [
         ...current,
+        { role: 'user', content: trimmed, timestamp: now },
         { role: 'assistant', content: response.reply, timestamp: Date.now() },
       ])
+      setMessage('')
       setLastResolvedCount(response.resolvedQuestions.length)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Jenny could not process that message')
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : 'Jenny could not process that message right now.',
+      )
     }
   }
 
@@ -167,10 +172,21 @@ export function JennyChatPanel({
           </div>
         ) : null}
 
+        {errorMessage ? (
+          <div className="rounded-2xl border border-loss/30 bg-loss/10 px-4 py-3 text-sm text-text">
+            Jenny could not reply yet. {errorMessage}
+          </div>
+        ) : null}
+
         <div className="space-y-3">
           <Textarea
             value={message}
-            onChange={(event) => setMessage(event.target.value)}
+            onChange={(event) => {
+              setMessage(event.target.value)
+              if (errorMessage) {
+                setErrorMessage(null)
+              }
+            }}
             placeholder="Ask anything about Portfolio-AI, or answer Jenny in plain English."
             rows={3}
           />

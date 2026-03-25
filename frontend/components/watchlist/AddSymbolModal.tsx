@@ -1,5 +1,6 @@
 'use client'
 
+import { useQueryClient } from '@tanstack/react-query'
 import { AlertCircle } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -14,7 +15,9 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { useAddSymbol } from '@/lib/hooks/useWatchlist'
+import { createWatchlistItem } from '@/lib/api/watchlist'
+import { useTradingRules } from '@/lib/hooks/useRules'
+import { watchlistKeys } from '@/lib/hooks/useWatchlist'
 
 interface AddSymbolModalProps {
   open: boolean
@@ -22,18 +25,19 @@ interface AddSymbolModalProps {
   currentCount?: number
 }
 
-const MAX_SYMBOLS = 50
-const WARNING_THRESHOLD = 45
+const DEFAULT_MAX_SYMBOLS = 50
+const WARNING_THRESHOLD_RATIO = 0.9
 
 export function AddSymbolModal({
   open,
   onOpenChange,
   currentCount = 0,
 }: AddSymbolModalProps) {
+  const queryClient = useQueryClient()
+  const { data: tradingRules } = useTradingRules({ enabled: open })
   const [input, setInput] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
   const [progress, setProgress] = useState({ current: 0, total: 0 })
-  const addSymbol = useAddSymbol()
 
   /**
    * Parse input into array of symbols
@@ -67,12 +71,24 @@ export function AddSymbolModal({
   }
 
   const { symbols, valid, invalid } = getParsedSymbols()
-  const isAtLimit = currentCount >= MAX_SYMBOLS
-  const willExceedLimit = currentCount + valid.length > MAX_SYMBOLS
+  const maxSymbols =
+    tradingRules?.watchlistManagement.maxWatchlistSize ?? DEFAULT_MAX_SYMBOLS
+  const warningThreshold = Math.max(
+    1,
+    Math.floor(maxSymbols * WARNING_THRESHOLD_RATIO),
+  )
+  const isAtLimit = currentCount >= maxSymbols
+  const willExceedLimit = currentCount + valid.length > maxSymbols
   const showWarning =
-    currentCount >= WARNING_THRESHOLD && currentCount < MAX_SYMBOLS
+    currentCount >= warningThreshold && currentCount < maxSymbols
   const canSubmit =
     valid.length > 0 && !isAtLimit && !willExceedLimit && !isProcessing
+
+  const summarizeSymbols = (items: string[]) => {
+    const preview = items.slice(0, 3).join(', ')
+    const remaining = items.length - 3
+    return remaining > 0 ? `${preview} and ${remaining} more` : preview
+  }
 
   /**
    * Handle bulk add submission
@@ -95,27 +111,11 @@ export function AddSymbolModal({
       setProgress({ current: i + 1, total: valid.length })
 
       try {
-        await new Promise<void>((resolve, _reject) => {
-          addSymbol.mutate(
-            {
-              symbol,
-              note: undefined,
-            },
-            {
-              onSuccess: () => {
-                results.success.push(symbol)
-                resolve()
-              },
-              onError: (error) => {
-                results.failed.push({
-                  symbol,
-                  error: error.message || 'Unknown error',
-                })
-                resolve() // Continue even if one fails
-              },
-            },
-          )
+        await createWatchlistItem({
+          symbol,
+          note: undefined,
         })
+        results.success.push(symbol)
       } catch (error) {
         results.failed.push({
           symbol,
@@ -124,23 +124,44 @@ export function AddSymbolModal({
       }
     }
 
-    // Show summary toast
     if (results.success.length > 0) {
-      toast.success(
-        `Added ${results.success.length} symbol${results.success.length > 1 ? 's' : ''}: ${results.success.join(', ')}`,
-      )
-    }
-
-    if (results.failed.length > 0) {
-      toast.error(
-        `Failed to add ${results.failed.length} symbol${results.failed.length > 1 ? 's' : ''}: ${results.failed.map((f) => f.symbol).join(', ')}`,
-      )
+      await queryClient.invalidateQueries({
+        queryKey: watchlistKeys.list(),
+        refetchType: 'active',
+      })
     }
 
     setIsProcessing(false)
     setProgress({ current: 0, total: 0 })
-    setInput('')
-    onOpenChange(false)
+
+    if (results.failed.length === 0) {
+      toast.success(
+        `Added ${results.success.length} symbol${results.success.length === 1 ? '' : 's'}: ${summarizeSymbols(results.success)}`,
+      )
+      setInput('')
+      onOpenChange(false)
+      return
+    }
+
+    const failedSymbols = results.failed.map((result) => result.symbol)
+    const failedSummary = summarizeSymbols(failedSymbols)
+
+    if (results.success.length > 0) {
+      toast.warning(
+        `Added ${results.success.length} symbol${results.success.length === 1 ? '' : 's'}. Failed to add ${results.failed.length} symbol${results.failed.length === 1 ? '' : 's'}: ${failedSummary}`,
+      )
+    } else {
+      toast.error(
+        `Failed to add ${results.failed.length} symbol${results.failed.length === 1 ? '' : 's'}: ${failedSummary}`,
+      )
+    }
+
+    const failedSet = new Set(failedSymbols)
+    const invalidSet = new Set(invalid)
+    const remainingSymbols = symbols.filter(
+      (symbol) => failedSet.has(symbol) || invalidSet.has(symbol),
+    )
+    setInput(remainingSymbols.join('\n'))
   }
 
   return (
@@ -166,7 +187,7 @@ export function AddSymbolModal({
                   Watchlist limit reached
                 </p>
                 <p className="mt-1 text-xs text-text-muted">
-                  You have reached the maximum of {MAX_SYMBOLS} symbols. Remove
+                  You have reached the maximum of {maxSymbols} symbols. Remove
                   some symbols to add more, or contact support to increase your
                   limit.
                 </p>
@@ -185,8 +206,8 @@ export function AddSymbolModal({
                 </p>
                 <p className="mt-1 text-xs text-text-muted">
                   Adding {valid.length} symbols would exceed the limit of{' '}
-                  {MAX_SYMBOLS}. You currently have {currentCount} symbols.
-                  Remove {currentCount + valid.length - MAX_SYMBOLS} or more to
+                  {maxSymbols}. You currently have {currentCount} symbols.
+                  Remove {currentCount + valid.length - maxSymbols} or more to
                   proceed.
                 </p>
               </div>
@@ -203,8 +224,8 @@ export function AddSymbolModal({
                   Approaching watchlist limit
                 </p>
                 <p className="mt-1 text-xs text-text-muted">
-                  You have {currentCount} of {MAX_SYMBOLS} symbols. Free tier
-                  API quotas are optimized for up to {MAX_SYMBOLS} symbols with
+                  You have {currentCount} of {maxSymbols} symbols. Free tier
+                  API quotas are optimized for up to {maxSymbols} symbols with
                   15-minute refresh intervals.
                 </p>
               </div>

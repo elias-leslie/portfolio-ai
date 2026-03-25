@@ -71,8 +71,24 @@ describe('AccountsWithPositions', () => {
     render(<AccountsWithPositions />)
 
     expect(
-      screen.getByText(/No accounts yet\. Click "Add Account"/i),
+      screen.getByText(/No accounts yet\. Create one above to start organizing your portfolio\./i),
     ).toBeVisible()
+  })
+
+  it('shows an add-account action in the empty state when a handler is provided', async () => {
+    const user = userEvent.setup()
+    const handleAddAccount = vi.fn()
+
+    mockUseAccounts.mockReturnValue({
+      data: [],
+      isLoading: false,
+    })
+
+    render(<AccountsWithPositions onAddAccount={handleAddAccount} />)
+
+    await user.click(screen.getByRole('button', { name: 'Add Account' }))
+
+    expect(handleAddAccount).toHaveBeenCalledTimes(1)
   })
 
   it('shows cash-only accounts without treating them as empty', () => {

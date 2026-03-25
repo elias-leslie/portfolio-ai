@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { del, post, put } from './client'
+import { del, get, post, put } from './client'
 
 describe('api client helpers', () => {
   const originalFetch = global.fetch
@@ -80,5 +80,36 @@ describe('api client helpers', () => {
     const result = await del<void>('/api/preferences')
 
     expect(result).toBeUndefined()
+  })
+
+  it('retries safe GET requests after transient failures', async () => {
+    global.fetch = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('temporary network failure'))
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: vi.fn().mockResolvedValue({ ok: true }),
+      }) as unknown as typeof fetch
+
+    const result = await get<{ ok: boolean }>('/api/preferences')
+
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+    expect(result).toEqual({ ok: true })
+  })
+
+  it('does not retry unsafe POST requests after transient failures', async () => {
+    global.fetch = vi
+      .fn()
+      .mockRejectedValue(new Error('temporary network failure')) as unknown as typeof fetch
+
+    await expect(
+      post('/api/preferences', {
+        defaultRefreshMinutes: 15,
+      }),
+    ).rejects.toThrow('temporary network failure')
+
+    expect(global.fetch).toHaveBeenCalledTimes(1)
   })
 })

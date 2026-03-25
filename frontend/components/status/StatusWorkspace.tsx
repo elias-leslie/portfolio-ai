@@ -22,7 +22,12 @@ import {
   StaleMaintenancePanel,
   MarketTimingPanel,
 } from './StatusPanels'
-import { formatInteger, formatPercent, formatHours } from '@/lib/formatters'
+import {
+  formatEnumLabel,
+  formatInteger,
+  formatPercent,
+  formatHours,
+} from '@/lib/formatters'
 import { marketLabel, systemTone, marketTone } from './statusUtils'
 
 export function StatusWorkspace() {
@@ -89,24 +94,37 @@ export function StatusWorkspace() {
         : 'No refresh timestamp yet'
 
   const cacheStats = healthQuery.data?.cacheStats
+  const cacheAge = formatHours(
+    cacheStats?.cacheAgeMinutes != null ? cacheStats.cacheAgeMinutes / 60 : null,
+  )
   const cacheValue =
-    cacheStats?.enabled === false ? 'off' : formatPercent(cacheStats?.hitRate)
+    cacheStats?.enabled === false
+      ? 'off'
+      : cacheStats?.hitRate != null
+        ? formatPercent(cacheStats.hitRate)
+        : cacheStats?.totalCached != null
+          ? formatInteger(cacheStats.totalCached)
+          : '—'
   const cacheDetail =
     cacheStats?.enabled === false
       ? 'Cache disabled'
-      : `Size ${formatInteger(cacheStats?.size)} / ${formatInteger(cacheStats?.maxSize)} · age ${formatHours(cacheStats?.cacheAgeMinutes != null ? cacheStats.cacheAgeMinutes / 60 : null)}`
+      : cacheStats?.size != null && cacheStats?.maxSize != null
+        ? `Stored responses ${formatInteger(cacheStats.size)} / ${formatInteger(cacheStats.maxSize)} · age ${cacheAge}`
+        : cacheStats?.totalCached != null
+          ? `Cached prices ${formatInteger(cacheStats.totalCached)} · age ${cacheAge}`
+          : 'Cache details unavailable'
 
   const newsPipelineDetail =
-    newsHealthQuery.data?.fallbackHeadlines24H != null
-      ? `Fallback rate ${formatPercent(newsHealthQuery.data?.fallbackRate24H)} · ${formatInteger(newsHealthQuery.data?.fallbackHeadlines24H)} fallback headlines`
-      : `Fallback rate ${formatPercent(newsHealthQuery.data?.fallbackRate24H)}`
+    newsHealthQuery.data?.fallbackHeadlines24H && newsHealthQuery.data.fallbackHeadlines24H > 0
+      ? `Backup news source stepped in for ${formatInteger(newsHealthQuery.data.fallbackHeadlines24H)} headline${newsHealthQuery.data.fallbackHeadlines24H === 1 ? '' : 's'} in the last 24h`
+      : 'Primary news source handled the last 24h'
 
   return (
     <PageContainer className="space-y-10 py-10">
       <PageHeader
         eyebrow="Operations"
         title="Status"
-        description="Check market hours, system health, data freshness, and news pipeline posture without leaving the app."
+        description="See whether the market is open, the app data is current, and any system issue needs attention."
         actions={
           <Button
             variant="outline"
@@ -126,7 +144,7 @@ export function StatusWorkspace() {
 
       {isLoading ? (
         <div className="space-y-6" role="status" aria-live="polite">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 animate-stagger">
             {[...Array(8)].map((_, i) => (
               <div key={i} className="skeleton rounded-2xl h-28" />
             ))}
@@ -173,7 +191,7 @@ export function StatusWorkspace() {
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 animate-stagger">
             <SummaryStat
               label="System"
-              value={healthQuery.data?.status ?? 'unknown'}
+              value={formatEnumLabel(healthQuery.data?.status, 'Unknown')}
               detail={
                 healthQuery.data?.timestamp
                   ? `Updated ${formatRelativeTime(healthQuery.data.timestamp)}`
@@ -197,7 +215,7 @@ export function StatusWorkspace() {
               detail={watchlistCoverageDetail}
             />
             <SummaryStat
-              label="News Pipeline"
+              label="News"
               value={formatInteger(newsHealthQuery.data?.headlines24H)}
               detail={newsPipelineDetail}
             />
@@ -216,21 +234,21 @@ export function StatusWorkspace() {
             />
             <SummaryStat label="Cache" value={cacheValue} detail={cacheDetail} />
             <SummaryStat
-              label="Quotas"
+              label="API Keys"
               value={`${formatInteger(configuredQuotaCount)}/${formatInteger(totalQuotaCount)}`}
               detail={
                 totalQuotaCount > 0
-                  ? `${formatInteger(configuredQuotaCount)} provider${configuredQuotaCount === 1 ? '' : 's'} configured`
-                  : 'No provider quota telemetry yet'
+                  ? `${formatInteger(configuredQuotaCount)} data provider${configuredQuotaCount === 1 ? '' : 's'} connected`
+                  : 'No data providers connected yet'
               }
             />
             <SummaryStat
-              label="Maintenance Alerts"
+              label="Jobs To Review"
               value={formatInteger(staleMaintenanceCount)}
               detail={
                 staleMaintenanceCount > 0
-                  ? 'Background maintenance runs need attention'
-                  : 'No stale maintenance runs reported'
+                  ? 'At least one background job needs attention'
+                  : 'No stuck background jobs reported'
               }
               tone={staleMaintenanceCount > 0 ? 'negative' : 'default'}
             />

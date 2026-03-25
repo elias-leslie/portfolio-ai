@@ -5,8 +5,15 @@ from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
+from fastapi import Response
 
-from app.api.health import get_recent_remediations, get_stale_maintenance_runs
+from app.api.health import (
+    detailed_health_check,
+    get_recent_remediations,
+    get_stale_maintenance_runs,
+    health_check,
+)
+from app.utils.health_service import CheckResult, WorkerInfo
 
 
 @pytest.mark.asyncio
@@ -205,6 +212,85 @@ async def test_get_data_freshness_summary_returns_no_data_when_no_row(
         "status": "no_data",
         "message": "No freshness checks have been run yet",
     }
+
+
+@pytest.mark.asyncio
+async def test_health_check_runs_service_in_threadpool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+
+    class FakeHealthService:
+        def perform_health_check(self) -> dict[str, object]:
+            return {
+                "status": "healthy",
+                "uptime_seconds": 12,
+                "checks": {"database": CheckResult(status="ok")},
+                "sources": {},
+                "services": {},
+            }
+
+    def fake_get_health_service() -> FakeHealthService:
+        return FakeHealthService()
+
+    async def fake_run_in_threadpool(func, *args, **kwargs):
+        calls.append(func.__name__)
+        return func(*args, **kwargs)
+
+    monkeypatch.setattr("app.api.health._get_health_service", fake_get_health_service)
+    monkeypatch.setattr("app.api.health.run_in_threadpool", fake_run_in_threadpool)
+
+    payload = await health_check(Response())
+
+    assert calls == ["perform_health_check"]
+    assert payload.status == "healthy"
+
+
+@pytest.mark.asyncio
+async def test_detailed_health_check_runs_service_in_threadpool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+
+    class FakeHealthService:
+        def perform_detailed_health_check(self) -> dict[str, object]:
+            return {
+                "status": "healthy",
+                "uptime_seconds": 12,
+                "checks": {"database": CheckResult(status="ok")},
+                "sources": {},
+                "services": {},
+                "day_bars_freshness": [],
+                "worker": WorkerInfo(active=True),
+                "api_keys": [],
+            }
+
+    def fake_get_health_service() -> FakeHealthService:
+        return FakeHealthService()
+
+    async def fake_run_in_threadpool(func, *args, **kwargs):
+        calls.append(func.__name__)
+        return func(*args, **kwargs)
+
+    async def fake_get_data_freshness_summary() -> dict[str, object]:
+        return {"status": "success", "last_check": None}
+
+    async def fake_get_recent_remediations() -> list[dict[str, object]]:
+        return []
+
+    async def fake_get_stale_maintenance_runs() -> list[dict[str, object]]:
+        return []
+
+    monkeypatch.setattr("app.api.health._get_health_service", fake_get_health_service)
+    monkeypatch.setattr("app.api.health.run_in_threadpool", fake_run_in_threadpool)
+    monkeypatch.setattr("app.api.health.get_data_freshness_summary", fake_get_data_freshness_summary)
+    monkeypatch.setattr("app.api.health.get_recent_remediations", fake_get_recent_remediations)
+    monkeypatch.setattr("app.api.health.get_stale_maintenance_runs", fake_get_stale_maintenance_runs)
+
+    payload = await detailed_health_check(Response())
+
+    assert calls == ["perform_detailed_health_check"]
+    assert payload.status == "healthy"
 
 
 def test_build_deletion_rate_message_uses_threshold_bands() -> None:

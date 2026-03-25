@@ -102,12 +102,6 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 pip install -e ".[dev,ml]"  # Optional: enable FinBERT/news ML features
-
-# Run migrations
-alembic upgrade head
-
-# Start server
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ### Frontend
@@ -115,8 +109,18 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```bash
 cd frontend
 pnpm install
-pnpm dev
 ```
+
+### Start The App
+
+Use the shared wrapper for the supported local runtime:
+
+```bash
+rebuild.sh portfolio-ai
+status.sh portfolio-ai
+```
+
+`rebuild.sh portfolio-ai` builds the frontend, applies backend migrations, restarts the native backend/frontend/worker services, and verifies health. Use this instead of manually starting `uvicorn`, `next dev`, or ad hoc migration commands.
 
 ### Environment
 
@@ -134,17 +138,13 @@ yfinance, FRED, and RSS feeds are free and require no keys.
 
 ```bash
 # Quick gate for current edits
-dt -q -d
+dt --quick --changed-only
+
+# Frontend-only verification
+dt --frontend-only
 
 # Full repo gate
 dt --check
-
-# Targeted backend tests without tripping the repo-wide coverage threshold
-dt pytest backend/tests/unit/services/test_household_finance_service_dashboard.py -- --no-cov
-
-# Frontend behavior tests
-cd frontend
-pnpm test -- --run
 
 # Browser verification
 sf-browser health
@@ -177,6 +177,7 @@ Portfolio AI runs natively under `systemd --user` for the frontend, backend, and
 
 ```bash
 rebuild.sh portfolio-ai
+status.sh portfolio-ai
 ```
 
 ## License

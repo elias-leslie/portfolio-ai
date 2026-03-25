@@ -311,7 +311,7 @@ export function JennyOperatorPanel() {
                           {verdictLabel(review.finalVerdict)}
                         </span>
                         {managementLabel(review.managementAction) ? (
-                          <span className="rounded-full bg-warning/10 px-2.5 py-1 text-[11px] font-medium text-text">
+                          <span className="rounded-full bg-warning/10 px-2.5 py-1 text-xs font-medium text-text">
                             {managementLabel(review.managementAction)}
                           </span>
                         ) : null}

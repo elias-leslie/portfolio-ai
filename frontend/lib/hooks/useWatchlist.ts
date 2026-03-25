@@ -9,7 +9,6 @@ import {
   getWatchlistRefreshMinutes,
 } from '@/lib/api/preferences'
 import {
-  createWatchlistItem,
   deleteWatchlistItem,
   fetchRefreshStatus,
   fetchScoreHistory,
@@ -20,7 +19,6 @@ import {
   type ScoreHistoryResponse,
   updateWatchlistItem,
   type WatchlistItem,
-  type WatchlistItemCreate,
   type WatchlistItemUpdate,
   type WatchlistListResponse,
 } from '@/lib/api/watchlist'
@@ -73,36 +71,6 @@ export function useScoreHistory(itemId: string) {
     queryKey: watchlistKeys.history(itemId),
     queryFn: () => fetchScoreHistory(itemId),
     enabled: !!itemId,
-  })
-}
-
-/**
- * Hook to add a symbol to the watchlist
- */
-export function useAddSymbol() {
-  const queryClient = useQueryClient()
-
-  return useMutation<WatchlistItem, Error, WatchlistItemCreate>({
-    mutationFn: async (data) => {
-      const promise = createWatchlistItem(data)
-      toast.promise(promise, {
-        loading: `Adding ${data.symbol.toUpperCase()} to watchlist...`,
-        success: (item) => `${item.symbol} added to watchlist`,
-        error: (error) => {
-          const errorMsg =
-            error instanceof Error ? error.message : 'Failed to add symbol'
-          return `Failed to add ${data.symbol.toUpperCase()}: ${errorMsg}`
-        },
-      })
-      return promise
-    },
-    onSuccess: () => {
-      // Invalidate and refetch watchlist query
-      queryClient.invalidateQueries({
-        queryKey: watchlistKeys.list(),
-        refetchType: 'active', // Force immediate refetch of active queries
-      })
-    },
   })
 }
 

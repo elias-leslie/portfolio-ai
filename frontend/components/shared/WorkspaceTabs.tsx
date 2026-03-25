@@ -165,7 +165,7 @@ export function WorkspaceTabs({
                 {tab.badge ? (
                   <span
                     aria-hidden="true"
-                    className="rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-primary"
+                    className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold tabular-nums text-primary"
                   >
                     {tab.badge}
                   </span>
@@ -177,7 +177,7 @@ export function WorkspaceTabs({
         {activeTab?.description ? (
           <p
             id={`${idBase}-active-description`}
-            className="mt-3 text-[13px] italic leading-relaxed text-text-muted/70"
+            className="mt-3 text-xs italic leading-relaxed text-text-muted/70"
           >
             {activeTab.description}
           </p>

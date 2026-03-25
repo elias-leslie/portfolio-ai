@@ -31,7 +31,7 @@ describe('SymbolWorkspace', () => {
         signal: { type: 'BUY', strength: 7, confirmations: 3, avoidFlags: 0 },
         trading: {
           style: 'swing',
-          confidence: 0.7,
+          confidence: 7,
           holdingPeriod: 'weeks',
           riskLevel: 'medium',
           entryPrice: 280,
@@ -74,7 +74,11 @@ describe('SymbolWorkspace', () => {
         recommendation: {
           action: 'hold_for_breakout',
           reasoning: [],
-          ifNotHeld: { action: 'watch', reasoning: 'Wait for confirmation.' },
+          ifNotHeld: {
+            action: 'avoid',
+            reasoning: 'Signal: HOLD, Strength: 2/10',
+            sizePct: 1,
+          },
         },
       },
       isLoading: false,
@@ -101,8 +105,11 @@ describe('SymbolWorkspace', () => {
     const user = userEvent.setup()
     render(<SymbolWorkspace symbol="vti" />)
 
-    expect(screen.getByText(/1 alert · 1 recent article · 4 articles in 24h · 3 confirmations · 0 avoid flags/i)).toBeInTheDocument()
-    expect(screen.getByText(/8 holdings · top 3 \+28.0% · diversification 74/i)).toBeInTheDocument()
+    expect(screen.getByText(/1 alert · 1 recent article · 4 articles in 24h · 3 green lights · 0 caution flags/i)).toBeInTheDocument()
+    expect(screen.getByText(/current setup: buy · confidence 7\/10/i)).toBeInTheDocument()
+    expect(screen.getByText(/8 holdings · top 3 holdings make up 28.0% · diversification score 74/i)).toBeInTheDocument()
+    expect(screen.getByText(/7\/10 confidence · medium/i)).toBeInTheDocument()
+    expect(screen.getByText(/if you do not own it yet: avoid · current setup: hold · confidence 2\/10 · starter size 1.0%/i)).toBeInTheDocument()
     expect(screen.getByText(/no decision memo reasoning is available yet/i)).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Market' }))

@@ -118,6 +118,13 @@ export function getDataQualityBgColor(pct: number): string {
 }
 
 /**
+ * Format the user-facing data quality label.
+ */
+export function formatDataQualityLabel(pct: number): string {
+  return `Data quality ${pct.toFixed(0)}%`
+}
+
+/**
  * Get signal display configuration
  */
 export function getSignalDisplay(signalType: 'BUY' | 'HOLD' | 'AVOID') {
@@ -153,7 +160,7 @@ export const RISK_LEVELS: Record<
   { label: string; icon: string; color: string }
 > = {
   Low: { label: 'Low', icon: '✓', color: 'text-gain' },
-  'Medium-Low': { label: 'Med-Low', icon: '⚠', color: 'text-warning' },
+  'Medium-Low': { label: 'Medium-Low', icon: '⚠', color: 'text-warning' },
   Medium: { label: 'Medium', icon: '⚠', color: 'text-neutral' },
   High: { label: 'High', icon: '⚠⚠', color: 'text-loss' },
 }

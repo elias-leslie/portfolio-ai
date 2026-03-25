@@ -120,13 +120,6 @@ def get_api_quotas(storage: PortfolioStorage) -> list[APIQuotaInfo]:
     quotas: list[APIQuotaInfo] = []
 
     try:
-        # Find config directory
-        config_dir = Path(__file__).parent.parent.parent / "config" / "sources"
-
-        if not config_dir.exists():
-            logger.warning("get_api_quotas_no_config_dir", config_dir=str(config_dir))
-            return quotas
-
         # Load quota metadata from configuration file
         quota_map = load_quota_config()
 

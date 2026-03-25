@@ -40,6 +40,13 @@ function hasJsonBody(response: Response): boolean {
   return contentType?.includes('application/json') ?? false
 }
 
+function isRetryableMethod(method: string | undefined): boolean {
+  if (!method) {
+    return true
+  }
+  return ['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase())
+}
+
 /**
  * Unified API request function with retry logic and error handling
  *
@@ -68,6 +75,8 @@ export async function apiRequest<T>(
   // client intentionally avoids app-level auth headers.
 
   let lastError: Error | null = null
+  const method = options.method?.toUpperCase() ?? 'GET'
+  const shouldRetry = isRetryableMethod(method)
 
   // Retry loop with exponential backoff
   for (let attempt = 0; attempt < retries; attempt++) {
@@ -110,6 +119,10 @@ export async function apiRequest<T>(
         error.statusCode < 500
       ) {
         throw error
+      }
+
+      if (!shouldRetry) {
+        throw lastError
       }
 
       // If we have retries left, wait before trying again

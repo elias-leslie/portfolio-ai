@@ -12,9 +12,48 @@ import { useJennyDashboard } from '@/lib/hooks/usePortfolio'
 import { usePreferences } from '@/lib/hooks/usePreferences'
 import { useSymbolIntelligence } from '@/lib/hooks/useSymbolIntelligence'
 import { cn, formatRelativeTime } from '@/lib/utils'
-import { formatCurrency, formatPercent } from '@/lib/formatters'
+import { formatCurrency, formatEnumLabel, formatPercent } from '@/lib/formatters'
 import { SymbolWorkflowPanel } from '@/components/symbol/SymbolWorkflowPanel'
 import { ThesisSection } from '@/components/watchlist/ThesisSection'
+
+function formatCountLabel(count: number, singular: string, plural = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : plural}`
+}
+
+function formatEvidenceSummary(
+  confirmations?: number | null,
+  avoidFlags?: number | null,
+) {
+  return [
+    formatCountLabel(confirmations ?? 0, 'green light'),
+    formatCountLabel(avoidFlags ?? 0, 'caution flag'),
+  ].join(' · ')
+}
+
+function formatTenPointConfidence(confidence?: number | null) {
+  if (confidence == null) {
+    return 'Confidence unavailable'
+  }
+
+  const boundedConfidence = Math.max(0, Math.min(10, confidence))
+  const displayValue = Number.isInteger(boundedConfidence)
+    ? boundedConfidence.toFixed(0)
+    : boundedConfidence.toFixed(1)
+
+  return `${displayValue}/10 confidence`
+}
+
+function formatIfNotHeldReasoning(reasoning?: string | null) {
+  if (!reasoning) {
+    return 'No extra context yet.'
+  }
+
+  return reasoning.replace(
+    /Signal:\s*([A-Z_]+),\s*Strength:\s*(\d+(?:\.\d+)?)\/10/gi,
+    (_, signalType: string, strength: string) =>
+      `Current setup: ${formatEnumLabel(signalType, 'Unavailable')} · Confidence ${strength}/10`,
+  )
+}
 
 export function SymbolWorkspace({ symbol }: { symbol: string }) {
   const uppercaseSymbol = symbol.toUpperCase()
@@ -79,7 +118,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
       <PageHeader
         eyebrow="Symbol Workspace"
         title={uppercaseSymbol}
-        description="One place for the live setup, thesis, Jenny review, and the practical next step."
+        description="One place to see what this symbol is doing, what Jenny thinks, and what to do next."
         actions={
           <>
             <Button asChild variant="outline">
@@ -112,18 +151,13 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
           ? `Updated ${formatRelativeTime(data.generatedAt)}`
           : 'Update time unavailable'}
         {' · '}
-        {alertCount} alert{alertCount === 1 ? '' : 's'}
+        {formatCountLabel(alertCount, 'alert')}
         {' · '}
-        {newsArticleCount} recent article{newsArticleCount === 1 ? '' : 's'}
+        {formatCountLabel(newsArticleCount, 'recent article')}
         {' · '}
-        {data?.news?.articleCount24H ?? 0} article
-        {data?.news?.articleCount24H === 1 ? '' : 's'} in 24h
+        {formatCountLabel(data?.news?.articleCount24H ?? 0, 'article')} in 24h
         {' · '}
-        {data?.signal?.confirmations ?? 0} confirmation
-        {data?.signal?.confirmations === 1 ? '' : 's'}
-        {' · '}
-        {data?.signal?.avoidFlags ?? 0} avoid flag
-        {data?.signal?.avoidFlags === 1 ? '' : 's'}
+        {formatEvidenceSummary(data?.signal?.confirmations, data?.signal?.avoidFlags)}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-4 animate-stagger">
@@ -132,23 +166,22 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             {data?.scores?.overall?.toFixed(0) ?? '—'}
           </p>
           <p className="mt-2 text-sm text-text-muted">
-            Signal {data?.signal?.type ?? 'Unavailable'} · Strength{' '}
+            Current setup: {formatEnumLabel(data?.signal?.type, 'Unavailable')} · Confidence{' '}
             {data?.signal?.strength ?? '—'}/10
           </p>
           <p className="mt-2 text-sm text-text-muted">
-            {data?.signal?.confirmations ?? 0} confirmations · {data?.signal?.avoidFlags ?? 0}{' '}
-            avoid flags
+            {formatEvidenceSummary(data?.signal?.confirmations, data?.signal?.avoidFlags)}
           </p>
         </SectionCard>
-        <SectionCard variant="surface" title="Recommendation">
-          <p className="font-display italic text-2xl uppercase text-text">
-            {data?.recommendation?.action?.replaceAll('_', ' ') ?? '—'}
+        <SectionCard variant="surface" title="What Jenny Would Do">
+          <p className="font-display italic text-2xl text-text">
+            {formatEnumLabel(data?.recommendation?.action, '—')}
           </p>
           <p className="mt-2 text-sm text-text-muted">
             {data?.recommendation?.reasoning?.[0] ?? 'No recommendation summary yet.'}
           </p>
         </SectionCard>
-        <SectionCard variant="surface" title="Position">
+        <SectionCard variant="surface" title="Your Position">
           <p className="font-display italic text-2xl tabular-nums text-text">
             {data?.portfolio?.held ? formatCurrency(data.portfolio.position?.currentValue) : 'Not held'}
           </p>
@@ -160,18 +193,18 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
           {data?.portfolio?.context ? (
             <p className="mt-2 text-sm text-text-muted">
               {data.portfolio.context.numHoldings} holding
-              {data.portfolio.context.numHoldings === 1 ? '' : 's'} · Top 3{' '}
-              {formatPercent(data.portfolio.context.concentrationTop3, { sign: true })} · Diversification{' '}
+              {data.portfolio.context.numHoldings === 1 ? '' : 's'} · Top 3 holdings make up{' '}
+              {formatPercent(data.portfolio.context.concentrationTop3)} · Diversification score{' '}
               {data.portfolio.context.diversificationScore?.toFixed(0) ?? '—'}
             </p>
           ) : null}
         </SectionCard>
-        <SectionCard variant="surface" title="Market Backdrop">
+        <SectionCard variant="surface" title="Market Mood">
           <p className="font-display italic text-2xl tabular-nums text-text">
             {data?.market?.fearGreedLabel ?? '—'}
           </p>
           <p className="mt-2 text-sm text-text-muted">
-            Fear & Greed {data?.market?.fearGreedScore ?? '—'} · VIX{' '}
+            Market mood {data?.market?.fearGreedScore ?? '—'}/100 · VIX{' '}
             {data?.market?.vix?.toFixed(1) ?? '—'}
           </p>
           {data?.market?.sector ? (
@@ -196,13 +229,13 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             value: 'decision',
             label: 'Decision',
             badge: data?.recommendation?.reasoning?.length ? String(data.recommendation.reasoning.length) : undefined,
-            description: 'Keep the decision memo and Jenny review in one working surface.',
+            description: 'See the case for action and Jenny review in one place.',
             content: (
               <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
                 <SectionCard
                   variant="surface"
-                  title="Decision Memo"
-                  description="The clearest plain-language case for acting, waiting, or stepping aside."
+                  title="Why Jenny Leans This Way"
+                  description="The clearest plain-language case for acting, waiting, or passing."
                 >
                   <div className="space-y-4">
                     {(data?.recommendation?.reasoning ?? []).length > 0 ? (
@@ -224,17 +257,17 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                       <div className="grid gap-3 md:grid-cols-2">
                         <div className="rounded-2xl border border-border/40 bg-surface/60 p-4">
                           <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-                            Entry / Stop
+                            Buy zone / downside limit
                           </p>
-                          <p className="mt-2 text-sm text-text">
+                          <p className="mt-2 text-sm tabular-nums text-text">
                             {formatCurrency(data.trading.entryPrice)} / {formatCurrency(data.trading.stopLoss)}
                           </p>
                         </div>
                         <div className="rounded-2xl border border-border/40 bg-surface/60 p-4">
                           <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-                            Target / Size
+                            Upside target / starter size
                           </p>
-                          <p className="mt-2 text-sm text-text">
+                          <p className="mt-2 text-sm tabular-nums text-text">
                             {formatCurrency(data.trading.profitTarget)} / {data.trading.positionSizeShares ?? '—'} shares
                           </p>
                         </div>
@@ -243,15 +276,13 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                             Confidence / Risk
                           </p>
                           <p className="mt-2 text-sm text-text">
-                            {data.trading.confidence != null
-                              ? `${Math.round(data.trading.confidence * 100)}% confidence`
-                              : 'Confidence unavailable'}{' '}
-                            · {data.trading.riskLevel ?? 'Risk unavailable'}
+                            {formatTenPointConfidence(data.trading.confidence)} ·{' '}
+                            {data.trading.riskLevel ?? 'Risk unavailable'}
                           </p>
                         </div>
                         <div className="rounded-2xl border border-border/40 bg-surface/60 p-4">
                           <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-                            Holding Period
+                            Typical holding time
                           </p>
                           <p className="mt-2 text-sm text-text">
                             {data.trading.holdingPeriod ?? '—'} · {data.trading.style ?? 'Unknown style'}
@@ -261,10 +292,10 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                     ) : null}
                     {data?.recommendation?.ifNotHeld ? (
                       <div className="rounded-2xl border border-border/40 bg-primary/5 p-4 text-sm text-text">
-                        If not held: {data.recommendation.ifNotHeld.action ?? 'Review'} ·{' '}
-                        {data.recommendation.ifNotHeld.reasoning}
+                        If you do not own it yet: {formatEnumLabel(data.recommendation.ifNotHeld.action, 'Review')} ·{' '}
+                        {formatIfNotHeldReasoning(data.recommendation.ifNotHeld.reasoning)}
                         {data.recommendation.ifNotHeld.sizePct != null
-                          ? ` · Size ${data.recommendation.ifNotHeld.sizePct.toFixed(1)}%`
+                          ? ` · Starter size ${data.recommendation.ifNotHeld.sizePct.toFixed(1)}%`
                           : ''}
                       </div>
                     ) : null}
@@ -273,14 +304,14 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
 
                 <SectionCard
                   variant="surface"
-                  title="Jenny Review Loop"
-                  description="Latest operator review and what the outcome history is teaching."
+                  title="What Jenny Learned"
+                  description="Latest call and what finished outcomes are teaching."
                 >
                   <div className="space-y-4">
                     {latestReview ? (
                       <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4">
                         <p className="text-sm font-semibold text-text">
-                          Current verdict: {latestReview.finalVerdict}
+                          Latest call: {latestReview.finalVerdict}
                         </p>
                         <p className="mt-2 text-sm text-text-muted">
                           {latestReview.reasons[0] ?? 'Jenny has a review but no short summary yet.'}
@@ -291,7 +322,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                       </div>
                     ) : (
                       <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4 text-sm text-text-muted">
-                        Jenny has not published a symbol review for {uppercaseSymbol} yet.
+                        Jenny has not reviewed {uppercaseSymbol} yet.
                       </div>
                     )}
 
@@ -303,7 +334,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                         >
                           <div className="flex items-center justify-between gap-3">
                             <p className="text-sm font-semibold text-text">
-                              Outcome: {review.outcomeLabel}
+                              Result: {review.outcomeLabel}
                             </p>
                             <span className="text-xs text-text-muted">
                               {formatPercent(review.returnPct, { sign: true })}
@@ -314,7 +345,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                       ))
                     ) : (
                       <div className="rounded-2xl border border-border/40 bg-surface/60 p-4 text-sm text-text-muted">
-                        No completed outcome reviews yet. The next closed-loop value here comes after live ideas are reviewed through time.
+                        No finished review outcomes yet. This section becomes useful after live ideas have time to play out.
                       </div>
                     )}
                   </div>
@@ -326,7 +357,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             value: 'workflow',
             label: 'Workflow',
             badge: data?.alerts.length ? String(data.alerts.length) : undefined,
-            description: 'Advance the symbol, capture live-position outcomes, and keep the thesis close.',
+            description: 'Capture the case, queue the follow-up, and keep the reasoning close.',
             content: (
               <div className="space-y-6">
                 <SymbolWorkflowPanel
@@ -419,8 +450,8 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
 
                 <SectionCard
                   variant="surface"
-                  title="Next Step"
-                  description="Push the symbol back into the main operating loop."
+                  title="Put This In Context"
+                  description="Compare this idea against the rest of your workflow before acting."
                 >
                   <div className="grid gap-3">
                     <Link
@@ -439,7 +470,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                     </Link>
                     <div className="rounded-2xl border border-border/40 bg-surface/60 p-4 text-sm text-text-muted">
                       <AlertCircle className="mb-2 h-4 w-4 text-primary" />
-                      The point of this page is to keep thesis, sizing, and review context in one place before you act.
+                      Use this page to sanity-check the thesis, position size, and review history before you act.
                     </div>
                   </div>
                 </SectionCard>

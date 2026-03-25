@@ -156,6 +156,7 @@ class PortfolioManager:
             "portfolio_positions",
             position.model_dump(),
         )
+        self.sync_portfolio_to_watchlist([position.symbol])
 
         logger.info("position_created", position_id=position_id, shares=shares, symbol=symbol, cost_basis=cost_basis)
         return position
@@ -214,6 +215,7 @@ class PortfolioManager:
         # Update in database using upsert
         df_update = pl.DataFrame([position.model_dump()])
         self.storage.upsert_by_id("portfolio_positions", df_update, "id")
+        self.sync_portfolio_to_watchlist([position.symbol])
 
         logger.info("position_updated", position_id=position_id)
         return position

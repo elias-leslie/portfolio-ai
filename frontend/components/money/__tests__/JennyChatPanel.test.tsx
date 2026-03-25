@@ -69,4 +69,56 @@ describe('JennyChatPanel', () => {
 
     expect(await screen.findByText(/jenny reconciled 1 question/i)).toBeInTheDocument()
   })
+
+  it('keeps the draft and empty-state history intact when Jenny chat fails', async () => {
+    const user = userEvent.setup()
+    mutateAsync.mockRejectedValueOnce(new Error('chat failed'))
+
+    render(<JennyChatPanel />)
+
+    await user.type(
+      screen.getByPlaceholderText(/ask anything about portfolio-ai/i),
+      'Please try this again.',
+    )
+    await user.click(screen.getByRole('button', { name: /send to jenny/i }))
+
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith({
+        message: 'Please try this again.',
+        sessionId: null,
+      }),
+    )
+
+    expect(screen.getByPlaceholderText(/ask anything about portfolio-ai/i)).toHaveValue(
+      'Please try this again.',
+    )
+    expect(
+      screen.getByText(/Jenny could not reply yet\. chat failed/i),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/Try: "What does Jenny think about AMD\?"/i),
+    ).toBeInTheDocument()
+    expect(window.localStorage.getItem('portfolio-ai:jenny-chat:history')).toBe('[]')
+  })
+
+  it('clears the error message once the user edits the draft', async () => {
+    const user = userEvent.setup()
+    mutateAsync.mockRejectedValueOnce(new Error('chat failed'))
+
+    render(<JennyChatPanel />)
+
+    const input = screen.getByPlaceholderText(/ask anything about portfolio-ai/i)
+    await user.type(input, 'Retry this')
+    await user.click(screen.getByRole('button', { name: /send to jenny/i }))
+
+    expect(
+      await screen.findByText(/Jenny could not reply yet\. chat failed/i),
+    ).toBeInTheDocument()
+
+    await user.type(input, ' please')
+
+    expect(
+      screen.queryByText(/Jenny could not reply yet\. chat failed/i),
+    ).not.toBeInTheDocument()
+  })
 })

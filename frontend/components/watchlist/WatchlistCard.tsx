@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ExpandedRow } from '@/components/watchlist/ExpandedRow'
 import {
+  formatDataQualityLabel,
   getDataQualityBgColor,
   getDataQualityColor,
   getRiskLevelConfig,
@@ -175,7 +176,7 @@ export function WatchlistCard({
               getDataQualityColor(item.dataQuality.overallPct),
             )}
           >
-            DQ {item.dataQuality.overallPct.toFixed(0)}%
+            {formatDataQualityLabel(item.dataQuality.overallPct)}
           </span>
         ) : null}
         {highlightedIndicators.map((indicator) => (

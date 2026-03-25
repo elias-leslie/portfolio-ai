@@ -80,6 +80,14 @@ def test_add_position(portfolio_mgr: PortfolioManager) -> None:
     assert position.cost_basis == 150.0
     assert position.position_type == "long"
 
+    watchlist_rows = portfolio_mgr.storage.query(
+        "SELECT symbol, source FROM watchlist_items WHERE symbol = 'AAPL'"
+    )
+    assert watchlist_rows.height == 1
+    watchlist_row = watchlist_rows.to_dicts()[0]
+    assert watchlist_row["symbol"] == "AAPL"
+    assert watchlist_row["source"] == "portfolio"
+
 
 def test_add_position_uppercase_symbol(portfolio_mgr: PortfolioManager) -> None:
     """Test that symbols are converted to uppercase."""
@@ -165,6 +173,26 @@ def test_update_position_both(portfolio_mgr: PortfolioManager) -> None:
 
     assert updated.shares == 200.0
     assert updated.cost_basis == 160.0
+
+
+def test_update_position_symbol_syncs_new_ticker_to_watchlist(
+    portfolio_mgr: PortfolioManager,
+) -> None:
+    """Updating a symbol should sync the replacement ticker into the watchlist."""
+    account = portfolio_mgr.add_account("Test Account", "Taxable")
+    position = portfolio_mgr.add_position(account.id, "AAPL", 100.0, 150.0)
+
+    updated = portfolio_mgr.update_position(position.id, symbol="msft")
+
+    assert updated.symbol == "MSFT"
+
+    watchlist_rows = portfolio_mgr.storage.query(
+        "SELECT symbol, source FROM watchlist_items WHERE symbol = 'MSFT'"
+    )
+    assert watchlist_rows.height == 1
+    watchlist_row = watchlist_rows.to_dicts()[0]
+    assert watchlist_row["symbol"] == "MSFT"
+    assert watchlist_row["source"] == "portfolio"
 
 
 def test_update_position_not_found(portfolio_mgr: PortfolioManager) -> None:

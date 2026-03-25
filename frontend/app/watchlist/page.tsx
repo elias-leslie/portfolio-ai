@@ -125,27 +125,39 @@ export default function WatchlistPage() {
 
       {!isLoading && !error && totalCount > 0 ? (
         <div className="info-banner">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="flex flex-wrap items-center gap-x-1 gap-y-2 tabular-nums">
             <span>{totalCount} symbol{totalCount === 1 ? '' : 's'}</span>
+            <span className="text-border" aria-hidden>·</span>
             <span>{scoredCount} scored ({scoreCoveragePct}%)</span>
+            <span className="text-border" aria-hidden>·</span>
             <span>{alertCount} flagged</span>
+            <span className="text-border" aria-hidden>·</span>
             <span>{staleCount} with stale inputs</span>
             {hasActiveFilters && filteredItems.length !== totalCount ? (
-              <span>{filteredItems.length} visible after filters</span>
+              <>
+                <span className="text-border" aria-hidden>·</span>
+                <span>{filteredItems.length} visible after filters</span>
+              </>
             ) : null}
             {refreshStatus?.isRefreshing ? (
-              <span>
-                Refreshing
-                {refreshStatus.percentComplete != null
-                  ? ` ${Math.round(refreshStatus.percentComplete)}%`
-                  : refreshStatus.processedItems !== undefined &&
-                      refreshStatus.totalItems !== undefined
-                    ? ` ${refreshStatus.processedItems}/${refreshStatus.totalItems}`
-                    : ''}
-              </span>
+              <>
+                <span className="text-border" aria-hidden>·</span>
+                <span>
+                  Refreshing
+                  {refreshStatus.percentComplete != null
+                    ? ` ${Math.round(refreshStatus.percentComplete)}%`
+                    : refreshStatus.processedItems !== undefined &&
+                        refreshStatus.totalItems !== undefined
+                      ? ` ${refreshStatus.processedItems}/${refreshStatus.totalItems}`
+                      : ''}
+                </span>
+              </>
             ) : null}
             {refreshStatus?.currentSymbol ? (
-              <span>Current symbol {refreshStatus.currentSymbol}</span>
+              <>
+                <span className="text-border" aria-hidden>·</span>
+                <span>Current symbol {refreshStatus.currentSymbol}</span>
+              </>
             ) : null}
           </div>
         </div>

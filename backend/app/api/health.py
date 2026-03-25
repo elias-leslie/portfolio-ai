@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, Response
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 from ..logging_config import get_logger
@@ -351,7 +352,7 @@ def _set_down_status(response: Response, result: dict[str, Any]) -> None:
 
 @router.get("", response_model=HealthCheckResponse)
 async def health_check(response: Response) -> HealthCheckResponse:
-    result = _get_health_service().perform_health_check()
+    result = await run_in_threadpool(_get_health_service().perform_health_check)
     _set_down_status(response, result)
     source_status_summary = {name: src.status for name, src in result["sources"].items()}
     logger.info(
@@ -367,7 +368,7 @@ async def health_check(response: Response) -> HealthCheckResponse:
 
 @router.get("/detailed", response_model=DetailedHealthCheckResponse)
 async def detailed_health_check(response: Response) -> DetailedHealthCheckResponse:
-    result = _get_health_service().perform_detailed_health_check()
+    result = await run_in_threadpool(_get_health_service().perform_detailed_health_check)
     _set_down_status(response, result)
     result["data_freshness_status"] = await get_data_freshness_summary()
     result["recent_remediations"] = await get_recent_remediations()

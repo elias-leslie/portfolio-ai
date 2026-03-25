@@ -29,42 +29,42 @@ const PILLAR_CONFIG = {
     icon: '💰',
     defaultWeight: 22,
     tooltip:
-      'Price momentum based on recent price changes, volatility (beta), and relative volume. Higher scores indicate positive momentum.',
+      'How the price has behaved lately, including direction, speed, volatility, and trading activity. Higher scores suggest healthier momentum.',
   },
   technical: {
     label: 'Technical',
     icon: '📊',
     defaultWeight: 22,
     tooltip:
-      'Technical indicator analysis including RSI, MACD, trend strength, and Bollinger Bands. Higher scores indicate bullish technical setup.',
+      'A chart-based check of trend and momentum. Higher scores suggest the chart is supporting the idea right now.',
   },
   fundamental: {
     label: 'Fundamental',
     icon: '🏢',
     defaultWeight: 26,
     tooltip:
-      'Financial health score combining valuation (P/E, PEG), growth metrics, balance sheet health, and analyst sentiment.',
+      'Business quality and financial strength, including valuation, growth, balance-sheet health, and analyst views.',
   },
   catalyst: {
     label: 'Catalyst',
     icon: '📰',
     defaultWeight: 17,
     tooltip:
-      'News catalyst impact score based on recent material events, earnings, and market-moving announcements.',
+      'Recent news or events that could move the stock soon, such as earnings, guidance, or major announcements.',
   },
   optionsFlow: {
     label: 'Options Flow',
     icon: '📈',
     defaultWeight: 8,
     tooltip:
-      'Options market sentiment from call/put ratios, near-term positioning, and institutional flow concentration.',
+      'What the options market is signaling about near-term sentiment and positioning.',
   },
   performanceFactor: {
     label: 'Performance',
     icon: '🎯',
     defaultWeight: 5,
     tooltip:
-      'Active strategy performance based on 30-day Sharpe ratio. Only shown when an active strategy exists.',
+      'How the active strategy has been performing recently. Only shown when a strategy is running.',
   },
 } as const
 
@@ -136,7 +136,7 @@ function PillarCard({ pillarKey, pillar, userTimezone }: PillarCardProps) {
           <div className="flex items-center gap-2 ml-auto mr-2 flex-1 max-w-[200px]">
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="text-sm font-semibold min-w-[28px] text-right cursor-help">
+                <span className="text-sm font-semibold tabular-nums min-w-[28px] text-right cursor-help">
                   {pillar.score.toFixed(0)}
                 </span>
               </TooltipTrigger>
@@ -155,7 +155,7 @@ function PillarCard({ pillarKey, pillar, userTimezone }: PillarCardProps) {
           </div>
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="text-xs text-text-muted cursor-help">
+              <span className="text-xs tabular-nums text-text-muted cursor-help">
                 {weightPercent}%
               </span>
             </TooltipTrigger>
@@ -177,7 +177,7 @@ function PillarCard({ pillarKey, pillar, userTimezone }: PillarCardProps) {
           {/* Sub-scores */}
           {hasSubScores && (
             <div className="space-y-2">
-              <p className="text-xs font-medium text-text">Sub-scores:</p>
+              <p className="text-xs font-medium text-text">What drove this score</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {Object.entries(pillar.subScores!).map(([key, value]) => (
                   <div
@@ -187,7 +187,7 @@ function PillarCard({ pillarKey, pillar, userTimezone }: PillarCardProps) {
                     <p className="text-xs text-text-muted">
                       {formatMetadataKey(key)}
                     </p>
-                    <p className="text-sm font-medium">
+                    <p className="text-sm font-medium tabular-nums">
                       {typeof value === 'number' ? value.toFixed(1) : value}
                     </p>
                   </div>
@@ -199,7 +199,7 @@ function PillarCard({ pillarKey, pillar, userTimezone }: PillarCardProps) {
           {/* Metadata */}
           {hasMetadata && (
             <div className="space-y-2">
-              <p className="text-xs font-medium text-text">Details:</p>
+              <p className="text-xs font-medium text-text">Underlying data</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 text-xs">
                 {Object.entries(pillar.metadata!)
                   .filter(
@@ -211,7 +211,7 @@ function PillarCard({ pillarKey, pillar, userTimezone }: PillarCardProps) {
                       <span className="text-text-muted">
                         {formatMetadataKey(key)}:
                       </span>
-                      <span className="font-medium">{formatValue(value)}</span>
+                      <span className="font-medium tabular-nums">{formatValue(value)}</span>
                     </div>
                   ))}
               </div>
@@ -279,7 +279,7 @@ export function ExpandedRowScoreBreakdown({
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="border border-border/50 rounded-xl bg-surface/80">
+      <div className="border border-border/50 rounded-xl bg-surface/80 surface-highlight">
         <div className="px-3 py-2 border-b border-border/40 flex items-center justify-between">
           <h3 className="text-sm font-medium">Score Breakdown</h3>
           <Badge variant={getScoreBadgeVariant(score.overall)}>

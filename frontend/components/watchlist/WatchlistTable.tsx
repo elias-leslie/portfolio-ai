@@ -138,7 +138,7 @@ export function WatchlistTable({ items, refreshStatus }: WatchlistTableProps) {
               <TableHead>{renderSortableHeader('overall', 'Score')}</TableHead>
               <TableHead>{renderSortableHeader('risk', 'Risk')}</TableHead>
               <TableHead>
-                <span className="font-medium">DQ</span>
+                <span className="font-medium">Data quality</span>
               </TableHead>
               <TableHead>Score Trend</TableHead>
               <TableHead>

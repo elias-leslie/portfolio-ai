@@ -124,7 +124,7 @@ export function HouseholdOperationsPanel({
               <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
                 Income Target
               </p>
-              <p className="mt-2 text-2xl font-semibold text-text">
+              <p className="mt-2 text-2xl font-semibold tabular-nums text-text">
                 {formatCurrency(dashboard.budgetSnapshot.monthlyIncomeTarget, { decimals: 0, nullDisplay: 'Not set' })}
               </p>
             </div>
@@ -132,7 +132,7 @@ export function HouseholdOperationsPanel({
               <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
                 Monthly Plan
               </p>
-              <p className="mt-2 text-2xl font-semibold text-text">
+              <p className="mt-2 text-2xl font-semibold tabular-nums text-text">
                 {formatCurrency(dashboard.budgetSnapshot.monthlyPlanTotal, { decimals: 0, nullDisplay: 'Not set' })}
               </p>
             </div>
@@ -140,7 +140,7 @@ export function HouseholdOperationsPanel({
               <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
                 Essential Spend
               </p>
-              <p className="mt-2 text-2xl font-semibold text-text">
+              <p className="mt-2 text-2xl font-semibold tabular-nums text-text">
                 {formatCurrency(
                   dashboard.budgetSnapshot.actualEssentialMonthlySpend,
                   { decimals: 0, nullDisplay: 'Not set' },
@@ -155,7 +155,7 @@ export function HouseholdOperationsPanel({
               <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
                 Discretionary Spend
               </p>
-              <p className="mt-2 text-2xl font-semibold text-text">
+              <p className="mt-2 text-2xl font-semibold tabular-nums text-text">
                 {formatCurrency(
                   dashboard.budgetSnapshot.actualDiscretionaryMonthlySpend,
                   { decimals: 0, nullDisplay: 'Not set' },
@@ -236,7 +236,7 @@ export function HouseholdOperationsPanel({
               <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
                 Unsatisfied needs
               </p>
-              <p className="mt-2 text-2xl font-semibold text-text">
+              <p className="mt-2 text-2xl font-semibold tabular-nums text-text">
                 {unsatisfiedNeeds.length}
               </p>
               <p className="mt-1 text-sm text-text-muted">
@@ -247,7 +247,7 @@ export function HouseholdOperationsPanel({
               <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
                 Open questions
               </p>
-              <p className="mt-2 text-2xl font-semibold text-text">
+              <p className="mt-2 text-2xl font-semibold tabular-nums text-text">
                 {openQuestions.length}
               </p>
               <p className="mt-1 text-sm text-text-muted">
