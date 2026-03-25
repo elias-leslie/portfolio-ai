@@ -7,7 +7,9 @@ to reduce duplication across the codebase.
 from __future__ import annotations
 
 import uuid
-from typing import Any
+from typing import Any, TypeVar
+
+T = TypeVar("T", int, float)
 
 
 def rows_to_dicts(rows: list[tuple[Any, ...]], conn_wrapper: Any) -> list[dict[str, Any]]:
@@ -58,6 +60,19 @@ def fetch_rows(
     return rows_to_dicts(rows, result)
 
 
+def _safe_get(rows: list[dict[str, Any]], index: int, key: str, default: T, cast: type[T]) -> T:
+    """Generic safe extraction of a typed value from query result rows."""
+    if not rows or index >= len(rows):
+        return default
+    value = rows[index].get(key)
+    if value is None:
+        return default
+    try:
+        return cast(value)
+    except (ValueError, TypeError):
+        return default
+
+
 def safe_get_float(
     rows: list[dict[str, Any]],
     index: int,
@@ -75,15 +90,7 @@ def safe_get_float(
     Returns:
         Float value or default
     """
-    if not rows or index >= len(rows):
-        return default
-    value = rows[index].get(key)
-    if value is None:
-        return default
-    try:
-        return float(value)
-    except (ValueError, TypeError):
-        return default
+    return _safe_get(rows, index, key, default, float)
 
 
 def safe_get_int(
@@ -103,15 +110,7 @@ def safe_get_int(
     Returns:
         Int value or default
     """
-    if not rows or index >= len(rows):
-        return default
-    value = rows[index].get(key)
-    if value is None:
-        return default
-    try:
-        return int(value)
-    except (ValueError, TypeError):
-        return default
+    return _safe_get(rows, index, key, default, int)
 
 
 def ensure_symbol_exists(executor: Any, symbol: str) -> None:
@@ -142,8 +141,14 @@ def ensure_symbols_exist(executor: Any, symbols: list[str] | tuple[str, ...]) ->
         executor: Database connection or storage facade with ``.execute()``
         symbols: Stock tickers to insert if absent
     """
-    for symbol in symbols:
-        ensure_symbol_exists(executor, symbol)
+    if not symbols:
+        return
+    # Batch INSERT with ON CONFLICT — single round-trip
+    values_clause = ", ".join(["(%s, 'equity', NOW())"] * len(symbols))
+    executor.execute(
+        f"INSERT INTO symbols (symbol, security_type, created_at) VALUES {values_clause} ON CONFLICT (symbol) DO NOTHING",
+        list(symbols),
+    )
 
 
 def generate_uuid() -> str:

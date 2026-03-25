@@ -15,7 +15,7 @@ from app.sources.base import DatasetRequest
 from app.sources.multi_source_fetcher import MultiSourceFetcher
 from app.storage import PortfolioStorage, get_storage
 from app.storage.credential_loader import load_credentials_from_database
-from app.utils.db_helpers import ensure_symbol_exists
+from app.utils.db_helpers import ensure_symbols_exist
 
 # Used by callers that import the watchlist helpers
 __all__ = [
@@ -23,7 +23,6 @@ __all__ = [
     "build_ingestion_result",
     "calculate_date_range",
     "empty_result",
-    "ensure_symbols_exist",
     "fetch_ohlcv_data",
     "initialize_sources_with_credentials",
     "insert_ohlcv_data",
@@ -138,19 +137,6 @@ def fetch_ohlcv_data(
     return result_df, error_count, errors
 
 
-def ensure_symbols_exist(storage: PortfolioStorage, symbols: list[str]) -> None:
-    """Insert symbols into the symbols table if they do not already exist.
-
-    Args:
-        storage: Storage instance for database operations.
-        symbols: Symbols to ensure exist (FK constraint for day_bars).
-    """
-    with storage.connection() as conn:
-        for symbol in symbols:
-            ensure_symbol_exists(conn, symbol)
-        conn.commit()
-
-
 def insert_ohlcv_data(storage: PortfolioStorage, result_df: Any, ingest_run_id: str) -> int:
     """Insert OHLCV data into day_bars using UPSERT.
 
@@ -174,7 +160,9 @@ def insert_ohlcv_data(storage: PortfolioStorage, result_df: Any, ingest_run_id: 
         symbols=unique_symbols,
     )
 
-    ensure_symbols_exist(storage, unique_symbols)
+    with storage.connection() as conn:
+        ensure_symbols_exist(conn, unique_symbols)
+        conn.commit()
     storage.insert_dataframe("day_bars", result_df, mode="upsert")
     rows_upserted = len(result_df)
 
