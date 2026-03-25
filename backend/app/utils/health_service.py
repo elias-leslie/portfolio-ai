@@ -63,6 +63,11 @@ class DiskUsageInfo(BaseModel):
     status: Literal["ok", "warning", "critical"]
 
 
+def _services_have_issues(service_statuses: dict[str, Any]) -> bool:
+    """Return True when any monitored service is not fully running."""
+    return any(getattr(status, "status", None) != "running" for status in service_statuses.values())
+
+
 class HealthCheckService:
     """Service for performing health checks."""
 
@@ -91,7 +96,7 @@ class HealthCheckService:
         # Determine overall status
         if checks["database"].status == "down":
             overall_status: Literal["healthy", "degraded", "down"] = "down"
-        elif any(check.status == "degraded" for check in checks.values()):
+        elif any(check.status == "degraded" for check in checks.values()) or _services_have_issues(service_statuses):
             overall_status = "degraded"
         elif any(source.status == "down" for source in sources.values()):
             # If all sources are down, we're degraded (not completely down)
