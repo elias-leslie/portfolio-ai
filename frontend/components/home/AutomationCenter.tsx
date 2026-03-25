@@ -75,7 +75,7 @@ export function AutomationCenter() {
       }
     >
       {!isLoading && !error && data ? (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border/40 bg-surface-muted/20 px-4 py-3 text-sm text-text-muted">
+        <div className="info-banner mb-4 flex flex-wrap items-center justify-between gap-2">
           <span>
             {data.guardrails.length} guardrail{data.guardrails.length === 1 ? '' : 's'} ·{' '}
             {data.recentRuns.length} recent run{data.recentRuns.length === 1 ? '' : 's'}
