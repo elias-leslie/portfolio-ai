@@ -69,7 +69,7 @@ def fetch_day_bars(request: DatasetRequest) -> pl.DataFrame | None:
 
             logger.debug("yfinance_fetch_success", symbol=symbol, rows=len(df))
 
-        except Exception as e:
+        except (ValueError, KeyError, TypeError, AttributeError, OSError) as e:
             logger.warning(
                 "yfinance_fetch_error",
                 symbol=symbol,
@@ -125,7 +125,7 @@ def fetch_reference_payload(symbols: Iterable[str], as_of: dt.date) -> pl.DataFr
 
             logger.debug("yfinance_reference_fetched", symbol=symbol)
 
-        except Exception as e:
+        except (ValueError, KeyError, TypeError, AttributeError, OSError) as e:
             logger.warning(
                 "yfinance_reference_error",
                 symbol=symbol,
@@ -158,7 +158,7 @@ def fetch_news_payload(
 
         try:
             news_items = yf.Ticker(target_symbol).get_news()
-        except Exception as exc:  # pragma: no cover - passthrough to fallback vendors
+        except (ValueError, KeyError, TypeError, AttributeError, OSError) as exc:  # pragma: no cover - passthrough to fallback vendors
             logger.warning(
                 "yfinance_news_error",
                 symbol=target_symbol,
@@ -196,7 +196,7 @@ def fetch_cash_flow_data(symbol: str) -> dict[str, Any] | None:
         cf = yf_obj.cashflow
         info = yf_obj.info
         return parse_cash_flow_data(cf, info, symbol)
-    except Exception as e:
+    except (ValueError, KeyError, TypeError, AttributeError, OSError) as e:
         logger.warning("cash_flow_fetch_failed", symbol=symbol, error=str(e), error_type=type(e).__name__)
         return None
 
@@ -209,7 +209,7 @@ def fetch_insider_transactions(symbol: str) -> list[dict[str, Any]]:
         transactions = parse_insider_transactions(insiders, symbol)
         logger.debug("insider_transactions_fetched", symbol=symbol, count=len(transactions))
         return transactions
-    except Exception as e:
+    except (ValueError, KeyError, TypeError, AttributeError, OSError) as e:
         logger.warning("insider_transactions_fetch_failed", symbol=symbol, error=str(e), error_type=type(e).__name__)
         return []
 
@@ -223,7 +223,7 @@ def fetch_institutional_holders(symbol: str) -> tuple[list[dict[str, Any]], dict
         holders, summary = parse_institutional_holders(holders_df, info, symbol)
         logger.debug("institutional_holders_fetched", symbol=symbol, count=len(holders))
         return holders, summary
-    except Exception as e:
+    except (ValueError, KeyError, TypeError, AttributeError, OSError) as e:
         logger.warning("institutional_holders_fetch_failed", symbol=symbol, error=str(e), error_type=type(e).__name__)
         return [], {}
 
@@ -234,7 +234,7 @@ def fetch_short_interest(symbol: str) -> dict[str, Any] | None:
         yf_obj = yf.Ticker(symbol)
         info = yf_obj.info
         return parse_short_interest(info, symbol)
-    except Exception as e:
+    except (ValueError, KeyError, TypeError, AttributeError, OSError) as e:
         logger.warning("short_interest_fetch_failed", symbol=symbol, error=str(e), error_type=type(e).__name__)
         return None
 
@@ -282,7 +282,7 @@ def fetch_sector_history(
         logger.debug("yfinance_sector_fetched", symbol=symbol, rows=len(rows))
         return rows
 
-    except Exception as e:
+    except (ValueError, KeyError, TypeError, AttributeError, OSError) as e:
         logger.warning(
             "yfinance_sector_fetch_error",
             symbol=symbol,
