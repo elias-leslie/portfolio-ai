@@ -1,7 +1,7 @@
 # Frontend Test Organization
 
 Frontend automated tests in this repo use Vitest and React Testing Library.
-Live page verification uses `agent-browser`, not Playwright.
+Live page verification uses `sf-browser`, not Playwright.
 
 ## Directory Structure
 
@@ -20,13 +20,13 @@ Most tests are colocated with the source file they cover:
 
 ## Automated Tests
 
-Run from `~/portfolio-ai/frontend`:
+Run from `frontend/`:
 
 ```bash
-npm test
-npm run test:watch
-npm run test:ui
-npm run test:coverage
+pnpm test
+pnpm test:watch
+pnpm test:ui
+pnpm test:coverage
 ```
 
 These tests should cover:
@@ -38,10 +38,11 @@ These tests should cover:
 
 ## Browser Verification
 
-For real browser checks, use `agent-browser` against the running app:
+For real browser checks, use `sf-browser` against the running app:
 
 ```bash
-AGENT_BROWSER_SESSION=portfolio-ai ~/.local/bin/agent-browser open http://localhost:3000
+sf-browser health
+sf-browser check http://<host-ip-from-.index.yaml>:3000/status /tmp/status-check.png
 ```
 
 Use it to verify:

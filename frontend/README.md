@@ -5,19 +5,19 @@ Portfolio-AI's frontend is a Next.js App Router application served on port `3000
 ### Local development
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 ### Production-style rebuild
 
-Use the shared project script from the repo root:
+Use the shared rebuild wrapper:
 
 ```bash
-bash ~/portfolio-ai/scripts/rebuild.sh
+rebuild.sh portfolio-ai
 ```
 
-That rebuilds the frontend, clears caches, and restarts the backend/frontend services together.
+That rebuilds the frontend, applies backend migrations, and restarts the frontend/backend/worker services together.
 
 ### API routing
 

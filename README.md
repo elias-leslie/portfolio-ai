@@ -17,7 +17,7 @@ Portfolio AI is a full-stack application for managing investment portfolios, tra
 | Workflows | Hatchet (background tasks, scheduling) |
 | AI | Anthropic Claude (via Agent Hub completion API) |
 | Data | yfinance, Finnhub, Polygon.io, FMP, TwelveData, AlphaVantage, FRED, RSS feeds |
-| Quality | Ruff, ty, pytest, Vitest, agent-browser verification, Biome |
+| Quality | Ruff, ty, pytest, Vitest, sf-browser verification, Biome |
 
 ## Architecture
 
@@ -114,8 +114,8 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ```bash
 cd frontend
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 ### Environment
@@ -142,12 +142,13 @@ dt --check
 # Targeted backend tests without tripping the repo-wide coverage threshold
 dt pytest backend/tests/unit/services/test_household_finance_service_dashboard.py -- --no-cov
 
-# Frontend behavior tests (dt does not wrap Vitest yet)
+# Frontend behavior tests
 cd frontend
-npm test -- --run
+pnpm test -- --run
 
 # Browser verification
-AGENT_BROWSER_SESSION=portfolio-ai ~/.local/bin/agent-browser open http://localhost:3000
+sf-browser health
+sf-browser check http://<host-ip-from-.index.yaml>:3000 /tmp/portfolio-home.png
 ```
 
 ## API
@@ -172,12 +173,10 @@ Full interactive docs at `http://localhost:8000/docs`.
 
 ## Services
 
-All services run as Docker containers via the shared SummitFlow Compose file (`~/summitflow/docker/compose/docker-compose.yml`, `--profile portfolio` or `--profile full`).
+Portfolio AI runs natively under `systemd --user` for the frontend, backend, and Hatchet worker. Shared PostgreSQL, Redis, and Hatchet infrastructure stay Docker-managed.
 
 ```bash
-scripts/rebuild.sh            # Full rebuild and restart (auto-detects Docker)
-scripts/rebuild.sh --restart  # Restart only
-scripts/rebuild.sh --status   # Check service health
+rebuild.sh portfolio-ai
 ```
 
 ## License
