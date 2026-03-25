@@ -83,7 +83,7 @@ export function PortfolioOverview() {
         </div>
       ) : null}
 
-      <div className="rounded-xl border border-border/30 border-l-primary/50 border-l-2 bg-gradient-to-r from-primary/[0.04] to-surface/40 px-4 py-3 text-sm text-text-muted">
+      <div className="info-banner">
         {positionCount} live position{positionCount === 1 ? '' : 's'}
         {analytics?.numSymbols != null ? ` · ${analytics.numSymbols} unique symbol${analytics.numSymbols === 1 ? '' : 's'}` : ''}
         {analytics?.cashInclusiveTotalValue != null
@@ -93,7 +93,7 @@ export function PortfolioOverview() {
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 animate-stagger">
-        <Card className="group p-6 transition-all duration-200 hover:shadow-md hover:border-primary/30">
+        <Card className="group p-6">
           <div className="flex items-center gap-3">
             <div className="rounded-lg bg-primary/10 p-2.5 transition-all duration-200 group-hover:bg-primary/15 group-hover:shadow-[0_0_12px_-3px] group-hover:shadow-primary/20">
               <DollarSign className="h-5 w-5 text-primary" />
@@ -115,14 +115,14 @@ export function PortfolioOverview() {
           </div>
         </Card>
 
-        <Card className={cn('group p-6 transition-all duration-200 hover:shadow-md', (portfolio?.totalGain ?? 0) >= 0 ? 'hover:border-gain/30' : 'hover:border-loss/30')}>
+        <Card className={cn('group p-6', (portfolio?.totalGain ?? 0) >= 0 ? 'hover:border-gain/30' : 'hover:border-loss/30')}>
           <div className="flex items-center gap-3">
             <div
               className={cn(
                 'rounded-lg p-2.5 transition-all duration-200',
                 (portfolio?.totalGain ?? 0) >= 0
-                  ? 'bg-gain/10 group-hover:bg-gain/15 group-hover:shadow-[0_0_12px_-3px] group-hover:shadow-gain/20'
-                  : 'bg-loss/10 group-hover:bg-loss/15 group-hover:shadow-[0_0_12px_-3px] group-hover:shadow-loss/20',
+                  ? 'bg-gain/10 group-hover:bg-gain/15'
+                  : 'bg-loss/10 group-hover:bg-loss/15',
               )}
             >
               <TrendingUp className={cn('h-5 w-5', gainColor)} />
@@ -141,9 +141,9 @@ export function PortfolioOverview() {
           </div>
         </Card>
 
-        <Card className="group p-6 transition-all duration-200 hover:shadow-md hover:border-accent/30">
+        <Card className="group p-6 hover:border-accent/30">
           <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-accent/10 p-2.5 transition-all duration-200 group-hover:bg-accent/15 group-hover:shadow-[0_0_12px_-3px] group-hover:shadow-accent/20">
+            <div className="rounded-lg bg-accent/10 p-2.5 transition-all duration-200 group-hover:bg-accent/15">
               <Activity className="h-5 w-5 text-accent" />
             </div>
             <div className="flex-1">
@@ -160,9 +160,9 @@ export function PortfolioOverview() {
           </div>
         </Card>
 
-        <Card className="group p-6 transition-all duration-200 hover:shadow-md hover:border-accent/30">
+        <Card className="group p-6 hover:border-accent/30">
           <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-accent/10 p-2.5 transition-all duration-200 group-hover:bg-accent/15 group-hover:shadow-[0_0_12px_-3px] group-hover:shadow-accent/20">
+            <div className="rounded-lg bg-accent/10 p-2.5 transition-all duration-200 group-hover:bg-accent/15">
               <Gauge className="h-5 w-5 text-accent" />
             </div>
             <div className="flex-1">
@@ -252,7 +252,7 @@ export function PortfolioOverview() {
                 { label: 'Top 10', value: `${analytics.concentration.top10Pct.toFixed(1)}%` },
                 { label: 'Concentration Score', value: analytics.concentration.herfindahlIndex.toFixed(3) },
               ].map(({ label, value }) => (
-                <div key={label} className="flex items-center justify-between">
+                <div key={label} className="data-row">
                   <span className="text-sm text-text-muted">{label}</span>
                   <span className="text-sm font-medium tabular-nums">{value}</span>
                 </div>
@@ -271,7 +271,7 @@ export function PortfolioOverview() {
                 .map(([sector, percentage]) => (
                   <div
                     key={sector}
-                    className="flex items-center justify-between"
+                    className="data-row"
                   >
                     <span className="text-sm text-text-muted">
                       {formatDisplayLabel(sector)}

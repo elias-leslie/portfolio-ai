@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowRight, Brain, House, Target } from 'lucide-react'
+import { ArrowRight, Brain, House, Target, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { SectionCard } from '@/components/shared/SectionCard'
@@ -93,7 +93,7 @@ export function HomeActionQueue() {
       }
     >
       {!isLoading && !error ? (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/30 border-l-primary/50 border-l-2 bg-gradient-to-r from-primary/[0.04] to-surface/40 px-4 py-3 text-sm text-text-muted">
+        <div className="info-banner mb-4 flex flex-wrap items-center justify-between gap-2">
           <span>
             {actions.length} prioritized action{actions.length === 1 ? '' : 's'}
             {urgentCount > 0 ? ` · ${urgentCount} urgent` : ''}
@@ -130,13 +130,19 @@ export function HomeActionQueue() {
       ) : null}
 
       {!isLoading && !error && actions.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border/40 bg-gradient-to-br from-surface-muted/10 to-surface/30 p-8 text-center">
+        <div className="rounded-2xl border border-dashed border-border/40 bg-gradient-to-br from-surface-muted/10 to-surface/30 px-6 py-12 text-center">
+          <div className="relative mx-auto mb-5">
+            <div className="absolute inset-0 mx-auto h-12 w-12 rounded-full bg-gain/10 blur-xl" />
+            <div className="relative mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-gain/20 bg-gain/10">
+              <CheckCircle2 className="h-6 w-6 text-gain" />
+            </div>
+          </div>
           <p className="font-display italic text-xl text-text">All clear</p>
           <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-text-muted">
             No urgent cross-workspace actions right now. Use this time to tighten the watchlist, review the
             portfolio, or upload new household documents so Jenny has fresher evidence.
           </p>
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-5 flex flex-wrap justify-center gap-2">
             <Button asChild size="sm" variant="outline">
               <Link href="/watchlist">Review Watchlist</Link>
             </Button>

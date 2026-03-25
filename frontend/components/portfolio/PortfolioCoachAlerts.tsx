@@ -95,19 +95,19 @@ function toneClasses(tone: CoachAlert['tone']) {
   switch (tone) {
     case 'warning':
       return {
-        border: 'border-loss/30 bg-loss/10',
+        border: 'border-loss/30 border-l-loss/60 border-l-[3px] bg-loss/10',
         icon: 'text-loss',
         iconNode: <AlertTriangle className="h-4 w-4" />,
       }
     case 'caution':
       return {
-        border: 'border-warning/30 bg-warning/10',
+        border: 'border-warning/30 border-l-warning/60 border-l-[3px] bg-warning/10',
         icon: 'text-warning',
         iconNode: <ScissorsLineDashed className="h-4 w-4" />,
       }
     default:
       return {
-        border: 'border-gain/30 bg-gain/10',
+        border: 'border-gain/30 border-l-gain/60 border-l-[3px] bg-gain/10',
         icon: 'text-gain',
         iconNode: <CheckCircle2 className="h-4 w-4" />,
       }

@@ -483,4 +483,31 @@
       inset 0 1px 0 0 oklch(1 0 0 / 0.04),
       var(--shadow-elev-1);
   }
+
+  /* Data row with dotted leader between label and value */
+  .data-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+  .data-row::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px dotted var(--color-border-subtle);
+    margin-bottom: 0.2em;
+  }
+  .data-row > :last-child {
+    order: 1;
+  }
+
+  /* Shared info banner — the accent-bordered summary bars */
+  .info-banner {
+    border-radius: var(--radius-md);
+    border: 1px solid color-mix(in oklch, var(--color-border) 30%, transparent);
+    border-left: 3px solid color-mix(in oklch, var(--color-primary) 50%, transparent);
+    background: linear-gradient(to right, color-mix(in oklch, var(--color-primary) 4%, transparent), color-mix(in oklch, var(--color-surface) 40%, transparent));
+    padding: 0.75rem 1rem;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+  }
 }

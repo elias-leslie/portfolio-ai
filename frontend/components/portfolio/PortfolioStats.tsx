@@ -24,19 +24,19 @@ export function PortfolioStats({ analytics }: PortfolioStatsProps) {
       </div>
 
       <div className="space-y-3">
-        <div className="flex justify-between items-center">
+        <div className="data-row">
           <span className="text-sm text-text-muted">Total Positions</span>
           <span className="text-sm font-medium tabular-nums text-text">
             {analytics.numPositions}
           </span>
         </div>
-        <div className="flex justify-between items-center">
+        <div className="data-row">
           <span className="text-sm text-text-muted">Unique Symbols</span>
           <span className="text-sm font-medium tabular-nums text-text">
             {analytics.numSymbols}
           </span>
         </div>
-        <div className="flex justify-between items-center">
+        <div className="data-row">
           <span className="text-sm text-text-muted">
             Avg Invested Position Size
           </span>
@@ -44,26 +44,26 @@ export function PortfolioStats({ analytics }: PortfolioStatsProps) {
             {formatCurrencyWhole(avgInvestedPositionSize)}
           </span>
         </div>
-        <div className="flex justify-between items-center">
+        <div className="data-row">
           <span className="text-sm text-text-muted">Invested Value</span>
           <span className="text-sm font-medium tabular-nums text-text">
             {formatCurrencyWhole(analytics.portfolioValue.totalValue)}
           </span>
         </div>
-        <div className="flex justify-between items-center">
+        <div className="data-row">
           <span className="text-sm text-text-muted">Cash Reserve</span>
           <span className="text-sm font-medium tabular-nums text-text">
             {formatCurrencyWhole(analytics.cashBalanceTotal)}
           </span>
         </div>
-        <div className="flex justify-between items-center">
+        <div className="data-row">
           <span className="text-sm text-text-muted">Largest Position</span>
           <span className="text-sm font-medium tabular-nums text-text">
             {analytics.concentration.topHoldingPct.toFixed(1)}%
           </span>
         </div>
         <div className="border-t border-border/40 pt-3">
-          <div className="flex justify-between items-center">
+          <div className="data-row">
             <span className="text-sm text-text-muted">Return Quality</span>
             {analytics.sharpeRatio !== null && Number.isFinite(analytics.sharpeRatio) ? (
               <span

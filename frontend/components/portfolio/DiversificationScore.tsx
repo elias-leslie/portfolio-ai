@@ -101,15 +101,15 @@ export function DiversificationScore({
 
       {/* Metrics */}
       <div className="space-y-2 border-t border-border/40 pt-4">
-        <div className="flex justify-between items-center">
+        <div className="data-row">
           <span className="text-sm text-text-muted">Holdings</span>
-          <span className="text-sm font-medium text-text">
+          <span className="text-sm font-medium tabular-nums text-text">
             {diversification.numHoldings}
           </span>
         </div>
-        <div className="flex justify-between items-center">
+        <div className="data-row">
           <span className="text-sm text-text-muted">Sectors</span>
-          <span className="text-sm font-medium text-text">
+          <span className="text-sm font-medium tabular-nums text-text">
             {diversification.numSectors}
           </span>
         </div>

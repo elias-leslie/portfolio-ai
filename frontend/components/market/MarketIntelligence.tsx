@@ -57,7 +57,7 @@ export function MarketIntelligence() {
     <Card className="p-6 shadow-lg">
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-lg font-semibold tracking-tight text-text">
+        <h2 className="font-display italic text-lg tracking-tight text-text">
           Market Conditions
         </h2>
         {lastUpdated ? (
