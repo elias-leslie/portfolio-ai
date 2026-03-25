@@ -4,7 +4,7 @@ import { BarChart3 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import type { PortfolioAnalytics } from '@/lib/api/portfolio'
 import { cn } from '@/lib/utils'
-import { formatCurrencyWhole } from './portfolio-utils'
+import { formatCurrencyWhole } from '@/lib/formatters'
 
 interface PortfolioStatsProps {
   analytics: PortfolioAnalytics

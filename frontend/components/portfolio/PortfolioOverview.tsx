@@ -12,7 +12,8 @@ import { DiversificationScore } from './DiversificationScore'
 import { PortfolioStats } from './PortfolioStats'
 import { RiskProfile } from './RiskProfile'
 import { TopPerformers } from './TopPerformers'
-import { formatCurrency, formatDisplayLabel, formatPercent } from './portfolio-utils'
+import { formatCurrency, formatPercent } from '@/lib/formatters'
+import { formatDisplayLabel } from './portfolio-utils'
 
 export function PortfolioOverview() {
   const {
@@ -134,7 +135,7 @@ export function PortfolioOverview() {
                 {formatCurrency(portfolio?.totalGain ?? 0)}
               </div>
               <div className={cn('mt-1 text-xs', gainColor)}>
-                {formatPercent(portfolio?.totalGainPct ?? 0)}
+                {formatPercent(portfolio?.totalGainPct ?? 0, { decimals: 2, sign: true })}
               </div>
             </div>
           </div>

@@ -17,6 +17,8 @@ import { PositionTableRow } from './PositionTableRow'
 import {
   formatCurrency,
   formatPercent,
+} from '@/lib/formatters'
+import {
   getAccountPositions,
   getAccountTotalGain,
   getAccountTotalValue,
@@ -77,7 +79,7 @@ export function AccountAccordionItem({
                       <span
                         className={totalGain >= 0 ? 'text-gain' : 'text-loss'}
                       >
-                        {formatPercent(totalGain)}
+                        {formatPercent(totalGain, { decimals: 2, sign: true })}
                       </span>
                     )}
                     {hasCashBalance && (

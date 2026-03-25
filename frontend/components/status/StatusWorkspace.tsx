@@ -22,7 +22,8 @@ import {
   StaleMaintenancePanel,
   MarketTimingPanel,
 } from './StatusPanels'
-import { formatInteger, formatPercent, formatHours, marketLabel } from './statusUtils'
+import { formatInteger, formatPercent, formatHours } from '@/lib/formatters'
+import { marketLabel } from './statusUtils'
 
 export function StatusWorkspace() {
   const healthQuery = useDetailedHealth()

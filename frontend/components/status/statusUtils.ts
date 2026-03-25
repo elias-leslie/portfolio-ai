@@ -41,28 +41,6 @@ export function getVendorActivityTimestamp(vendor: NewsHealthResponse['vendors']
   return vendor.lastSuccessAt ?? vendor.lastArticleAt ?? vendor.lastAttemptAt ?? null
 }
 
-export function formatPercent(value: number | null | undefined) {
-  if (value === null || value === undefined) return '—'
-  return `${value.toFixed(1)}%`
-}
-
-export function formatInteger(value: number | null | undefined) {
-  if (value === null || value === undefined) return '—'
-  return value.toLocaleString()
-}
-
-export function formatHours(value: number | null | undefined) {
-  if (value === null || value === undefined) return '—'
-  return `${value.toFixed(1)}h`
-}
-
-export function formatSeconds(value: number | null | undefined) {
-  if (value === null || value === undefined) return '—'
-  if (value >= 3600) return `${(value / 3600).toFixed(1)}h`
-  if (value >= 60) return `${Math.round(value / 60)}m`
-  return `${Math.round(value)}s`
-}
-
 export function formatLabel(value: string) {
   return value
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')

@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useUpdateHouseholdProfile } from '@/lib/hooks/useHousehold'
-import { formatCurrency, formatEnumLabel } from './formatters'
+import { formatCurrency, formatEnumLabel } from '@/lib/formatters'
 import {
   formatResolvedValue,
   numberInput,
@@ -342,20 +342,20 @@ export function HouseholdProfileCard({
                 Household: {parseNullableNumber(adultCount) ?? '—'} adult(s),{' '}
                 {parseNullableNumber(dependentCount) ?? '—'} dependent(s)
               </p>
-              <p>Income: {formatCurrency(parseNullableNumber(monthlyNetIncomeTarget))}</p>
-              <p>Essentials: {formatCurrency(parseNullableNumber(monthlyEssentialTarget))}</p>
+              <p>Income: {formatCurrency(parseNullableNumber(monthlyNetIncomeTarget), { decimals: 0, nullDisplay: 'Not set' })}</p>
+              <p>Essentials: {formatCurrency(parseNullableNumber(monthlyEssentialTarget), { decimals: 0, nullDisplay: 'Not set' })}</p>
               <p>
-                Flexible spend: {formatCurrency(parseNullableNumber(monthlyDiscretionaryTarget))}
+                Flexible spend: {formatCurrency(parseNullableNumber(monthlyDiscretionaryTarget), { decimals: 0, nullDisplay: 'Not set' })}
               </p>
-              <p>Savings: {formatCurrency(parseNullableNumber(monthlySavingsTarget))}</p>
+              <p>Savings: {formatCurrency(parseNullableNumber(monthlySavingsTarget), { decimals: 0, nullDisplay: 'Not set' })}</p>
               <p>
                 Retirement: age {parseNullableNumber(targetRetirementAge) ?? 'Not set'} /{' '}
-                {formatCurrency(parseNullableNumber(targetRetirementSpend))}
+                {formatCurrency(parseNullableNumber(targetRetirementSpend), { decimals: 0, nullDisplay: 'Not set' })}
               </p>
               <p>Taxes: {filingStatus || 'Not set'} in {stateOfResidence || '—'}</p>
               <p>
                 Emergency fund: {parseNullableNumber(emergencyFundTargetMonths) ?? '—'} months /{' '}
-                {formatCurrency(parseNullableNumber(emergencyFundTargetAmount))}
+                {formatCurrency(parseNullableNumber(emergencyFundTargetAmount), { decimals: 0, nullDisplay: 'Not set' })}
               </p>
             </div>
             <div className="mt-5">

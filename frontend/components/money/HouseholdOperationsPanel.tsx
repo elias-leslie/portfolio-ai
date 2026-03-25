@@ -26,7 +26,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import { formatCurrency } from './formatters'
+import { formatCurrency } from '@/lib/formatters'
 import { JennyChatPanel } from './JennyChatPanel'
 import { JennyQuestionInbox } from './JennyQuestionInbox'
 
@@ -450,7 +450,7 @@ function JennyNeedCard({
                     </p>
                   </div>
                   <span className="text-sm font-semibold text-text">
-                    {formatCurrency(candidate.amount)}
+                    {formatCurrency(candidate.amount, { decimals: 0, nullDisplay: 'Not set' })}
                   </span>
                 </div>
                 <p className="mt-3 text-xs uppercase tracking-wide text-text-muted">
@@ -677,10 +677,10 @@ export function HouseholdOperationsPanel({
               {dashboard.budgetSnapshot.paceDetail}
             </p>
             <p className="mt-3 text-xs uppercase tracking-wide text-text-muted">
-              {formatCurrency(dashboard.budgetSnapshot.monthToDateSpend)} spent so
+              {formatCurrency(dashboard.budgetSnapshot.monthToDateSpend, { decimals: 0, nullDisplay: 'Not set' })} spent so
               far
               {dashboard.budgetSnapshot.monthToDatePlan
-                ? ` · pace target ${formatCurrency(dashboard.budgetSnapshot.monthToDatePlan)}`
+                ? ` · pace target ${formatCurrency(dashboard.budgetSnapshot.monthToDatePlan, { decimals: 0, nullDisplay: 'Not set' })}`
                 : ''}
             </p>
           </div>
@@ -691,7 +691,7 @@ export function HouseholdOperationsPanel({
                 Income Target
               </p>
               <p className="mt-2 text-2xl font-semibold text-text">
-                {formatCurrency(dashboard.budgetSnapshot.monthlyIncomeTarget)}
+                {formatCurrency(dashboard.budgetSnapshot.monthlyIncomeTarget, { decimals: 0, nullDisplay: 'Not set' })}
               </p>
             </div>
             <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4">
@@ -699,7 +699,7 @@ export function HouseholdOperationsPanel({
                 Monthly Plan
               </p>
               <p className="mt-2 text-2xl font-semibold text-text">
-                {formatCurrency(dashboard.budgetSnapshot.monthlyPlanTotal)}
+                {formatCurrency(dashboard.budgetSnapshot.monthlyPlanTotal, { decimals: 0, nullDisplay: 'Not set' })}
               </p>
             </div>
             <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4">
@@ -709,11 +709,12 @@ export function HouseholdOperationsPanel({
               <p className="mt-2 text-2xl font-semibold text-text">
                 {formatCurrency(
                   dashboard.budgetSnapshot.actualEssentialMonthlySpend,
+                  { decimals: 0, nullDisplay: 'Not set' },
                 )}
               </p>
               <p className="mt-1 text-sm text-text-muted">
                 Target{' '}
-                {formatCurrency(dashboard.budgetSnapshot.essentialTarget)}
+                {formatCurrency(dashboard.budgetSnapshot.essentialTarget, { decimals: 0, nullDisplay: 'Not set' })}
               </p>
             </div>
             <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4">
@@ -723,11 +724,12 @@ export function HouseholdOperationsPanel({
               <p className="mt-2 text-2xl font-semibold text-text">
                 {formatCurrency(
                   dashboard.budgetSnapshot.actualDiscretionaryMonthlySpend,
+                  { decimals: 0, nullDisplay: 'Not set' },
                 )}
               </p>
               <p className="mt-1 text-sm text-text-muted">
                 Headroom{' '}
-                {formatCurrency(dashboard.budgetSnapshot.discretionaryHeadroom)}
+                {formatCurrency(dashboard.budgetSnapshot.discretionaryHeadroom, { decimals: 0, nullDisplay: 'Not set' })}
               </p>
             </div>
           </div>
@@ -767,10 +769,10 @@ export function HouseholdOperationsPanel({
                     </div>
                     <div className="text-right text-sm">
                       <p className="font-semibold text-text">
-                        {formatCurrency(commitment.averageAmount)}
+                        {formatCurrency(commitment.averageAmount, { decimals: 0, nullDisplay: 'Not set' })}
                       </p>
                       <p className="text-text-muted">
-                        {formatCurrency(commitment.annualizedCost)} / year
+                        {formatCurrency(commitment.annualizedCost, { decimals: 0, nullDisplay: 'Not set' })} / year
                       </p>
                       {commitment.daysUntilDue !== null ? (
                         <p className="text-text-muted">

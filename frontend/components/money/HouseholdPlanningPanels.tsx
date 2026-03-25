@@ -14,7 +14,7 @@ import type {
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
 import { useUpdateHouseholdPlanning } from '@/lib/hooks/useHousehold'
-import { formatCurrency, formatEnumLabel } from './formatters'
+import { formatCurrency, formatEnumLabel } from '@/lib/formatters'
 import { HouseholdPlanningDocumentsCard } from './household-planning-documents-card'
 import {
   EditableListSection,
@@ -185,7 +185,7 @@ export function HouseholdPlanningPanels({
               <p className="text-sm font-semibold text-text">Contribution tracker</p>
               <p className="mt-2 text-2xl font-semibold text-text">
                 {dashboard.retirementContributionTracker.monthlyTarget
-                  ? formatCurrency(dashboard.retirementContributionTracker.monthlyGap)
+                  ? formatCurrency(dashboard.retirementContributionTracker.monthlyGap, { decimals: 0, nullDisplay: 'Not set' })
                   : '—'}
               </p>
               <p className="mt-2 text-sm text-text-muted">
@@ -262,7 +262,7 @@ export function HouseholdPlanningPanels({
                         </div>
                         <div className="text-right text-sm">
                           <p className="font-semibold text-text">
-                            {formatCurrency(scenario.monthlySpend)}
+                            {formatCurrency(scenario.monthlySpend, { decimals: 0, nullDisplay: 'Not set' })}
                           </p>
                           <p className="text-text-muted">{scenario.fundedYears} years funded</p>
                         </div>

@@ -2,7 +2,7 @@ import type {
   HouseholdQuestion,
   HouseholdResolvedValue,
 } from '@/lib/api/household'
-import { formatCurrency } from './formatters'
+import { formatCurrency } from '@/lib/formatters'
 
 export type QuestionSourceDocument = {
   id?: string | null
@@ -49,7 +49,7 @@ export function formatResolvedValue(value: HouseholdResolvedValue): string {
     return `${value.value}%`
   }
   const numeric = Number(value.value)
-  return Number.isFinite(numeric) ? formatCurrency(numeric) : value.value
+  return Number.isFinite(numeric) ? formatCurrency(numeric, { decimals: 0, nullDisplay: 'Not set' }) : value.value
 }
 
 export function getQuestionSourceDocument(question: HouseholdQuestion): QuestionSourceDocument | null {

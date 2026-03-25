@@ -12,27 +12,9 @@ import { useJennyDashboard } from '@/lib/hooks/usePortfolio'
 import { usePreferences } from '@/lib/hooks/usePreferences'
 import { useSymbolIntelligence } from '@/lib/hooks/useSymbolIntelligence'
 import { cn, formatRelativeTime } from '@/lib/utils'
+import { formatCurrency, formatPercent } from '@/lib/formatters'
 import { SymbolWorkflowPanel } from '@/components/symbol/SymbolWorkflowPanel'
 import { ThesisSection } from '@/components/watchlist/ThesisSection'
-
-function formatCurrency(value: number | null | undefined) {
-  if (value === null || value === undefined) {
-    return '—'
-  }
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 2,
-  }).format(value)
-}
-
-function formatPercent(value: number | null | undefined) {
-  if (value === null || value === undefined) {
-    return '—'
-  }
-  return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`
-}
-
 
 export function SymbolWorkspace({ symbol }: { symbol: string }) {
   const uppercaseSymbol = symbol.toUpperCase()
@@ -172,14 +154,14 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
           </p>
           <p className="mt-2 text-sm text-text-muted">
             {data?.portfolio?.held
-              ? `${formatPercent(data.portfolio.position?.gainPct)} · ${formatPercent(data.portfolio.position?.weightPct)} of portfolio`
+              ? `${formatPercent(data.portfolio.position?.gainPct, { sign: true })} · ${formatPercent(data.portfolio.position?.weightPct, { sign: true })} of portfolio`
               : data?.recommendation?.ifNotHeld?.reasoning ?? 'Jenny does not see a live portfolio position.'}
           </p>
           {data?.portfolio?.context ? (
             <p className="mt-2 text-sm text-text-muted">
               {data.portfolio.context.numHoldings} holding
               {data.portfolio.context.numHoldings === 1 ? '' : 's'} · Top 3{' '}
-              {formatPercent(data.portfolio.context.concentrationTop3)} · Diversification{' '}
+              {formatPercent(data.portfolio.context.concentrationTop3, { sign: true })} · Diversification{' '}
               {data.portfolio.context.diversificationScore?.toFixed(0) ?? '—'}
             </p>
           ) : null}
@@ -196,11 +178,11 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             <p className="mt-2 text-sm text-text-muted">
               {data.market.sector.name ?? 'Sector unavailable'} ·{' '}
               {data.market.sector.signal ?? 'No sector signal'} ·{' '}
-              {formatPercent(data.market.sector.relativeToSpy)} vs SPY
+              {formatPercent(data.market.sector.relativeToSpy, { sign: true })} vs SPY
             </p>
           ) : data?.market?.sp500Change != null ? (
             <p className="mt-2 text-sm text-text-muted">
-              S&P 500 {formatPercent(data.market.sp500Change)}
+              S&P 500 {formatPercent(data.market.sp500Change, { sign: true })}
             </p>
           ) : null}
         </SectionCard>
@@ -324,7 +306,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                               Outcome: {review.outcomeLabel}
                             </p>
                             <span className="text-xs text-text-muted">
-                              {formatPercent(review.returnPct)}
+                              {formatPercent(review.returnPct, { sign: true })}
                             </span>
                           </div>
                           <p className="mt-2 text-sm text-text-muted">{review.lesson}</p>

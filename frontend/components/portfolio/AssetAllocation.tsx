@@ -4,7 +4,7 @@ import { PieChart } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import type { PositionPerformance } from '@/lib/api/portfolio'
 import { cn } from '@/lib/utils'
-import { formatCurrencyWhole } from './portfolio-utils'
+import { formatCurrencyWhole } from '@/lib/formatters'
 
 interface AssetAllocationProps {
   topPerformers: PositionPerformance[]

@@ -16,14 +16,16 @@ import { formatRelativeTime, formatDateTime } from '@/lib/utils'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
 import {
-  checkVariant,
-  marketLabel,
-  vendorVariant,
-  getVendorActivityTimestamp,
   formatPercent,
   formatInteger,
   formatHours,
   formatSeconds,
+} from '@/lib/formatters'
+import {
+  checkVariant,
+  marketLabel,
+  vendorVariant,
+  getVendorActivityTimestamp,
   formatLabel,
   formatServiceName,
   isServiceActive,

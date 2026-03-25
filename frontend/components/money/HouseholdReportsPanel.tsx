@@ -2,7 +2,7 @@
 
 import type { HouseholdFinanceDashboard } from '@/lib/api/household'
 import { SectionCard } from '@/components/shared/SectionCard'
-import { formatCurrency, formatEnumLabel } from './formatters'
+import { formatCurrency, formatEnumLabel } from '@/lib/formatters'
 
 function formatMonthLabel(month: string): string {
   const [year, value] = month.split('-')
@@ -38,22 +38,22 @@ export function HouseholdReportsPanel({
   const executiveCards = [
     {
       label: 'Average monthly spend',
-      value: formatCurrency(executive.averageMonthlySpend),
+      value: formatCurrency(executive.averageMonthlySpend, { decimals: 0, nullDisplay: 'Not set' }),
       detail: `${executive.coverageMonths} month${executive.coverageMonths === 1 ? '' : 's'} of evidence`,
     },
     {
       label: 'Essential baseline',
-      value: formatCurrency(executive.averageMonthlyEssentials),
+      value: formatCurrency(executive.averageMonthlyEssentials, { decimals: 0, nullDisplay: 'Not set' }),
       detail: 'Recurring needs Jenny sees today',
     },
     {
       label: 'Discretionary baseline',
-      value: formatCurrency(executive.averageMonthlyDiscretionary),
+      value: formatCurrency(executive.averageMonthlyDiscretionary, { decimals: 0, nullDisplay: 'Not set' }),
       detail: 'Flexible spend Jenny can optimize',
     },
     {
       label: 'Recent 30-day spend',
-      value: formatCurrency(executive.recent30DaySpend),
+      value: formatCurrency(executive.recent30DaySpend, { decimals: 0, nullDisplay: 'Not set' }),
       detail: `${executive.trackedExpenseCount} tracked expense events`,
     },
   ]
@@ -129,7 +129,7 @@ export function HouseholdReportsPanel({
                       </div>
                       <div className="text-right">
                         <p className="font-semibold text-text">
-                          {formatCurrency(item.monthlyAverage)}
+                          {formatCurrency(item.monthlyAverage, { decimals: 0, nullDisplay: 'Not set' })}
                         </p>
                         <p className="text-text-muted">
                           {(item.shareOfSpend * 100).toFixed(0)}% of tracked spend
@@ -178,10 +178,10 @@ export function HouseholdReportsPanel({
                       </div>
                       <div className="text-right text-sm">
                         <p className="font-semibold text-text">
-                          {formatCurrency(merchant.totalSpend)}
+                          {formatCurrency(merchant.totalSpend, { decimals: 0, nullDisplay: 'Not set' })}
                         </p>
                         <p className="text-text-muted">
-                          Avg ticket {formatCurrency(merchant.averageTicket)}
+                          Avg ticket {formatCurrency(merchant.averageTicket, { decimals: 0, nullDisplay: 'Not set' })}
                         </p>
                       </div>
                     </div>
@@ -214,7 +214,7 @@ export function HouseholdReportsPanel({
                       <p className="font-semibold text-text">{formatMonthLabel(point.month)}</p>
                       <div className="text-right">
                         <p className="font-semibold text-text">
-                          {formatCurrency(point.totalSpend)}
+                          {formatCurrency(point.totalSpend, { decimals: 0, nullDisplay: 'Not set' })}
                         </p>
                         <p className="text-text-muted">
                           {point.transactionCount} transaction{point.transactionCount === 1 ? '' : 's'}
@@ -266,7 +266,7 @@ export function HouseholdReportsPanel({
                     </div>
                     <div className="text-left sm:text-right">
                       <p className="text-sm font-semibold text-text">
-                        {formatCurrency(transaction.amount)}
+                        {formatCurrency(transaction.amount, { decimals: 0, nullDisplay: 'Not set' })}
                       </p>
                       <p className="mt-1 text-sm text-text-muted">
                         {new Date(transaction.date).toLocaleDateString('en-US', {
