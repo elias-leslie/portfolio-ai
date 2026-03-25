@@ -159,7 +159,7 @@ class SECEdgarSource(BaseSource):
                         filing_record = self._process_filing(filings, i, symbol)
                         if filing_record:
                             records.append(filing_record)
-                    except Exception as filing_error:
+                    except (ValueError, KeyError, TypeError, IndexError, AttributeError) as filing_error:
                         logger.warning(
                             "sec_edgar_filing_parse_error",
                             symbol=symbol,
@@ -174,7 +174,7 @@ class SECEdgarSource(BaseSource):
                     filings_found=len(filings.data),
                 )
 
-            except Exception as exc:
+            except (ValueError, KeyError, TypeError, AttributeError, OSError, RuntimeError) as exc:
                 logger.warning(
                     "sec_edgar_fetch_error",
                     symbol=symbol,

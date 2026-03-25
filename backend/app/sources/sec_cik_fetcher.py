@@ -129,7 +129,7 @@ def fetch_cik_mapping(timeout: float = DEFAULT_HTTP_TIMEOUT) -> dict[str, str]:
 
             return mapping
 
-        except Exception as exc:
+        except (requests.RequestException, ValueError, KeyError, TypeError) as exc:
             logger.warning(
                 "cik_fetch_error",
                 source=source["name"],
@@ -203,7 +203,7 @@ def _parse_cik_data(data: dict[str, Any] | list[Any], source_name: str) -> dict[
                     if cik:
                         mapping[symbol.strip().upper()] = str(cik).zfill(10)
 
-    except Exception as exc:
+    except (ValueError, KeyError, TypeError, AttributeError) as exc:
         logger.error(
             "cik_parse_error",
             source=source_name,
@@ -305,7 +305,7 @@ def get_cik(symbol: str, storage: PortfolioStorage | None = None) -> str | None:
                 ).fetchone()
                 # Cast to string (database returns Union type)
                 return str(row[0]) if row else None
-        except Exception as exc:
+        except (OSError, ValueError, TypeError) as exc:
             logger.warning("cik_lookup_error", symbol=symbol, error=str(exc))
             return None
 
