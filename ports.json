@@ -1,0 +1,7 @@
+{
+  "task_id": "task-f591a3a4",
+  "backend_port": 8163,
+  "frontend_port": 3163,
+  "api_url": "http://localhost:8163",
+  "frontend_url": "http://localhost:3163"
+}
