@@ -34,6 +34,7 @@ from app.services._household_document_pipeline_utils import (
     parse_decimal,
     parse_row_date,
 )
+from app.services._household_finance_utils import iso, iso_or_none, to_float
 from app.services.household_finance_rows import row_to_document
 
 if TYPE_CHECKING:
@@ -90,7 +91,7 @@ class HouseholdDocumentPipeline:
         )
         stored_path = save_upload_to_disk(
             content, document_id=document_id, filename=filename,
-            upload_dir=service._upload_root(),
+            upload_dir=Path(__file__).resolve().parents[2] / "data" / "household_uploads",
         )
         now = datetime.now(UTC).isoformat()
         metadata: dict[str, object] = {
@@ -123,9 +124,9 @@ class HouseholdDocumentPipeline:
             return None
         return row_to_document(
             row,
-            to_float=service._to_float,
-            iso=service._iso,
-            iso_or_none=service._iso_or_none,
+            to_float=to_float,
+            iso=iso,
+            iso_or_none=iso_or_none,
         )
 
     def review_document(self, service: HouseholdFinanceService, document_id: str) -> None:
@@ -182,7 +183,7 @@ class HouseholdDocumentPipeline:
         reviewed: dict[str, object],
         now: str,
     ) -> None:
-        review_confidence = service._to_float(reviewed.get("confidence"))
+        review_confidence = to_float(reviewed.get("confidence"))
         review_status = "complete" if (review_confidence or 0.0) >= 0.65 else "needs_review"
         document_status = "parsed" if review_status == "complete" else "needs_review"
         structured_data = reviewed.get("structured_data") or {}
@@ -243,7 +244,7 @@ class HouseholdDocumentPipeline:
             "source_type": str(reviewed.get("source_type") or document.source_type),
             "document_type": str(reviewed.get("document_type") or document.document_type),
             "structured_data": structured_data,
-            "confidence": service._to_float(reviewed.get("confidence")),
+            "confidence": to_float(reviewed.get("confidence")),
             "document_id": document.id,
             "now": datetime.now(UTC).isoformat(),
         }

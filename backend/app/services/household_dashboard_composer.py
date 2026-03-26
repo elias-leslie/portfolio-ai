@@ -51,8 +51,8 @@ class HouseholdDashboardComposer:
             holdings_by_account=d["holdings_by_account"], documents=d["documents"],
             questions=visible_questions, resolved_values=resolved_values,
         )
-        categorization_queue = service._build_categorization_queue()
-        recurring_commitments = service._build_recurring_commitments()
+        categorization_queue = fetch_categorization_queue(service.storage, 6)
+        recurring_commitments = fetch_recurring_commitments(service.storage, service.transaction_service, 6)
         jenny_needs = build_jenny_needs(
             profile=d["profile"], planning=d["planning"], documents=d["documents"],
             questions=visible_questions, resolved_values=resolved_values, reports=d["reports"],
@@ -72,7 +72,7 @@ class HouseholdDashboardComposer:
         )
 
     def build_budget_snapshot(self, service: Any, *, profile: Any, reports: Any) -> HouseholdBudgetSnapshot:
-        return build_budget_snapshot(profile=profile, reports=reports, month_to_date_spend=service._current_month_spend())
+        return build_budget_snapshot(profile=profile, reports=reports, month_to_date_spend=fetch_current_month_spend(service.storage))
 
     def build_categorization_queue(self, service: Any, limit: int = 6) -> list[HouseholdCategorizationCandidate]:
         return fetch_categorization_queue(service.storage, limit)

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 from app.models.household_finance import (
     BudgetLane,
@@ -22,16 +22,31 @@ from app.models.household_finance import (
     RetirementPreparedness,
 )
 from app.services._household_dashboard_builders import (
+    build_budget_snapshot,
     build_retirement_contribution_tracker,
     build_retirement_scenarios,
     build_sinking_funds,
 )
 from app.services._household_dashboard_queries import (
+    fetch_current_month_spend,
+    fetch_inferred_value_rows,
+    fetch_monthly_retirement_contributions,
     infer_profile_from_transactions,
+)
+from app.services._household_dashboard_sections import (
+    budget_input_status,
+    compute_visibility_score,
+    next_best_action,
+    retirement_blockers,
+    retirement_next_steps,
+    retirement_ready,
+    retirement_strengths,
+    visibility_label,
 )
 from app.services._household_finance_utils import (
     RETIREMENT_ACCOUNT_TYPES,
     TAXABLE_ACCOUNT_TYPES,
+    resolved_numeric_value,
 )
 from app.services._household_jenny_needs_builders import (
     _jenny_account_question_needs,
@@ -159,17 +174,18 @@ def build_overview(
         if account.account_type in TAXABLE_ACCOUNT_TYPES:
             taxable_assets += account_total
     total_tracked_assets = invested_assets + cash_reserve
-    visibility_score = service._compute_visibility_score(
+    rnv_fn = lambda f: resolved_numeric_value(resolved_values, f)  # noqa: E731
+    visibility_score = compute_visibility_score(
         account_count=len(accounts), position_count=len(live_positions),
         cash_reserve=cash_reserve, retirement_assets=retirement_assets,
-        taxable_assets=taxable_assets, resolved_values=resolved_values, document_count=len(documents),
+        taxable_assets=taxable_assets, resolved_numeric_value=rnv_fn, document_count=len(documents),
     )
     overview = HouseholdOverview(
         invested_assets=invested_assets, retirement_assets=retirement_assets,
         taxable_assets=taxable_assets, cash_reserve=cash_reserve,
         total_tracked_assets=total_tracked_assets, visibility_score=visibility_score,
-        visibility_label=service._visibility_label(visibility_score),
-        next_best_action=service._next_best_action(documents, visibility_score, questions=questions, resolved_values=resolved_values),
+        visibility_label=visibility_label(visibility_score),
+        next_best_action=next_best_action(documents, visibility_score, questions=[q.question for q in questions], resolved_numeric_value=rnv_fn),
     )
     return overview, retirement_assets, taxable_assets, cash_reserve, total_tracked_assets
 
@@ -177,8 +193,8 @@ def build_overview(
 def build_budget_readiness(
     *, service: Any, resolved_values: list[HouseholdResolvedValue], documents: list[Any]
 ) -> BudgetReadiness:
-    budget_inputs = service._budget_input_status(resolved_values, documents)
-    rnv = lambda field: service._resolved_numeric_value(resolved_values, field)  # noqa: E731
+    rnv = lambda field: resolved_numeric_value(resolved_values, field)  # noqa: E731
+    budget_inputs = budget_input_status(rnv, documents)
     starter_lanes = [
         BudgetLane(name=name, objective=objective, status="Configured" if rnv(field) is not None else "Needs target")
         for name, objective, field in _LANE_CONFIGS
@@ -200,7 +216,8 @@ def build_retirement_preparedness(
     retirement_assets: float, taxable_assets: float, cash_reserve: float, total_tracked_assets: float,
 ) -> RetirementPreparedness:
     retirement_share = (retirement_assets / total_tracked_assets) * 100 if total_tracked_assets > 0 else 0.0
-    ready = service._retirement_ready(resolved_values, documents)
+    rnv_fn2 = lambda f: resolved_numeric_value(resolved_values, f)  # noqa: E731
+    ready = retirement_ready(rnv_fn2, documents)
     return RetirementPreparedness(
         status="scenario_ready" if ready else "baseline_visible",
         summary=(
@@ -209,9 +226,9 @@ def build_retirement_preparedness(
             else "Retirement assets are visible, but retirement readiness still depends on real spending and future-income assumptions."
         ),
         retirement_account_share=retirement_share,
-        strengths=service._retirement_strengths(retirement_assets, taxable_assets, cash_reserve, resolved_values),
-        blockers=service._retirement_blockers(resolved_values, documents),
-        next_steps=service._retirement_next_steps(resolved_values, documents),
+        strengths=retirement_strengths(retirement_assets, taxable_assets, cash_reserve, rnv_fn2),
+        blockers=retirement_blockers(rnv_fn2, documents),
+        next_steps=retirement_next_steps(rnv_fn2, documents),
     )
 
 
@@ -300,8 +317,13 @@ def gather_service_data(service: Any) -> dict[str, Any]:
     positions = service.portfolio_mgr.get_positions()
     account_ids = {a.id for a in accounts}
     live_positions = [p for p in positions if p.account_id in account_ids]
-    price_data = service._fetch_prices(live_positions)
-    holdings_by_account = service._calculate_holdings_by_account(live_positions, price_data)
+    symbols = sorted({p.symbol for p in live_positions})
+    price_data = cast(dict[str, object], service.price_fetcher.fetch_price_data(symbols)) if symbols else {}
+    holdings_by_account: dict[str, float] = {}
+    for pos in live_positions:
+        pi = price_data.get(pos.symbol)
+        price = pi.price if pi is not None else pos.cost_basis
+        holdings_by_account[pos.account_id] = holdings_by_account.get(pos.account_id, 0.0) + pos.shares * price
     reports = service.transaction_service.build_reports()
     return {
         "profile": profile, "planning": planning, "documents": documents, "questions": questions,
@@ -311,7 +333,7 @@ def gather_service_data(service: Any) -> dict[str, Any]:
 
 
 def resolve_dashboard_values(service: Any, *, profile: Any, reports: Any, questions: list[Any]) -> tuple[list[Any], list[Any]]:
-    infer_profile_from_transactions(service.storage, profile=profile, reports=reports, existing_inferences=service._get_inferred_value_rows())
+    infer_profile_from_transactions(service.storage, profile=profile, reports=reports, existing_inferences=fetch_inferred_value_rows(service.storage))
     resolved_values = service.get_resolved_values(profile=profile, questions=questions)
     non_inferable_fields = {"target_retirement_age", "target_retirement_spend"}
     inferred_fields = fields_with_confident_inferences(resolved_values, threshold=0.7)
@@ -331,7 +353,7 @@ def assemble_finance_dashboard(
         generated_at=datetime.now(UTC).isoformat(),
         overview=overview, profile=profile, resolved_values=resolved_values,
         budget_readiness=build_budget_readiness(service=service, resolved_values=resolved_values, documents=documents),
-        budget_snapshot=service._build_budget_snapshot(profile=profile, reports=reports),
+        budget_snapshot=build_budget_snapshot(profile=profile, reports=reports, month_to_date_spend=fetch_current_month_spend(service.storage)),
         retirement_preparedness=build_retirement_preparedness(
             service=service, resolved_values=resolved_values, documents=documents,
             retirement_assets=retirement_assets, taxable_assets=taxable_assets,
@@ -341,7 +363,7 @@ def assemble_finance_dashboard(
         categorization_queue=categorization_queue, recurring_commitments=recurring_commitments,
         sinking_funds=build_sinking_funds(recurring_commitments=recurring_commitments),
         retirement_contribution_tracker=build_retirement_contribution_tracker(
-            profile=profile, estimated_monthly_contributions=service._estimate_monthly_retirement_contributions(),
+            profile=profile, estimated_monthly_contributions=fetch_monthly_retirement_contributions(service.storage),
         ),
         retirement_scenarios=build_retirement_scenarios(
             retirement_assets=retirement_assets, target_retirement_spend=profile.target_retirement_spend,

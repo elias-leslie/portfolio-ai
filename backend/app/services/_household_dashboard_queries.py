@@ -473,3 +473,25 @@ def infer_profile_from_transactions(
                 )
         if updated:
             conn.commit()
+
+
+def fetch_inferred_value_rows(storage: Any) -> dict[str, dict[str, Any]]:
+    """Return latest inferred value row per field_name, keyed by field_name."""
+    with storage.connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT DISTINCT ON (field_name)
+                field_name, value_text, confidence, status, rationale,
+                source_document_id, metadata->>'source' AS inference_source
+            FROM household_inferred_values
+            ORDER BY field_name, updated_at DESC
+            """
+        ).fetchall()
+    return {
+        str(row[0]): {
+            "value": row[1], "confidence": row[2], "status": row[3],
+            "rationale": row[4], "source_document_id": row[5],
+            "source": row[6] if len(row) > 6 else None,
+        }
+        for row in rows
+    }

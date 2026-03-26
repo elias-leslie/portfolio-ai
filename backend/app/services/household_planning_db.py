@@ -20,6 +20,7 @@ from app.models.household_planning import (
     HouseholdPlanningMemberInput,
     HouseholdRetirementIncomeSourceInput,
 )
+from app.services._household_finance_utils import iso, iso_or_none, to_float
 from app.services.household_planning_rows import (
     row_to_debt_obligation,
     row_to_housing_cost,
@@ -216,7 +217,7 @@ def list_section_rows(service: Any, config: _SectionConfig) -> list[Any]:
             f"SELECT id, {', '.join(config.columns)}, created_at, updated_at "
             f"FROM {config.table} ORDER BY updated_at DESC, created_at DESC"
         ).fetchall()
-    parser_kwargs = {"iso": service._iso, "to_float": service._to_float, "iso_or_none": service._iso_or_none}
+    parser_kwargs = {"iso": iso, "to_float": to_float, "iso_or_none": iso_or_none}
     return [
         config.row_parser(row, **{k: v for k, v in parser_kwargs.items() if k in config.row_parser.__code__.co_varnames})
         for row in rows
