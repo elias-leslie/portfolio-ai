@@ -43,17 +43,13 @@ CIK_SOURCES: list[CIKSource] = [
     {
         "name": "SEC Official",
         "url": "https://www.sec.gov/files/company_symbols.json",
-        "headers": {
-            "User-Agent": SEC_USER_AGENT
-        },
+        "headers": {"User-Agent": SEC_USER_AGENT},
         "priority": 1,
     },
     {
         "name": "SEC Exchange Data",
         "url": "https://www.sec.gov/files/company_symbols_exchange.json",
-        "headers": {
-            "User-Agent": SEC_USER_AGENT
-        },
+        "headers": {"User-Agent": SEC_USER_AGENT},
         "priority": 2,
     },
     {
@@ -71,138 +67,63 @@ CIK_SOURCES: list[CIKSource] = [
 ]
 
 
-def fetch_cik_mapping(timeout: float = DEFAULT_HTTP_TIMEOUT) -> dict[str, str]:
-    """Fetch symbol→CIK mapping from SEC or fallback sources.
+def _normalize_cik(raw: Any) -> str:
+    return str(raw).zfill(10)
 
-    Tries multiple sources in priority order until one succeeds.
 
-    Args:
-        timeout: Request timeout in seconds
-
-    Returns:
-        Dictionary mapping symbols to CIK numbers (zero-padded to 10 digits)
-
-    Raises:
-        Exception: If all sources fail
-    """
-    logger.info("cik_fetch_start", num_sources=len(CIK_SOURCES))
-
-    errors = []
-
-    for source in sorted(CIK_SOURCES, key=lambda s: s["priority"]):
-        logger.info("cik_fetch_attempt", source=source["name"], url=source["url"])
-
-        try:
-            response = requests.get(
-                source["url"],
-                headers=source["headers"],
-                timeout=timeout,
-            )
-
-            if response.status_code != 200:
-                error_msg = f"HTTP {response.status_code}"
-                logger.warning(
-                    "cik_fetch_failed",
-                    source=source["name"],
-                    status=response.status_code,
-                )
-                errors.append(f"{source['name']}: {error_msg}")
-                continue
-
-            # Parse JSON
-            data = response.json()
-
-            # Convert to symbol→CIK mapping
-            mapping = _parse_cik_data(data, source["name"])
-
-            if not mapping:
-                error_msg = "Empty mapping after parsing"
-                logger.warning("cik_fetch_empty", source=source["name"])
-                errors.append(f"{source['name']}: {error_msg}")
-                continue
-
-            logger.info(
-                "cik_fetch_success",
-                source=source["name"],
-                total_symbols=len(mapping),
-            )
-
-            return mapping
-
-        except (requests.RequestException, ValueError, KeyError, TypeError) as exc:
-            logger.warning(
-                "cik_fetch_error",
-                source=source["name"],
-                error=str(exc),
-                error_type=type(exc).__name__,
-            )
-            errors.append(f"{source['name']}: {exc}")
-            continue
-
-    # All sources failed
-    error_summary = "; ".join(errors)
-    logger.error("cik_fetch_all_failed", errors=error_summary)
-    raise RuntimeError(f"All CIK sources failed: {error_summary}")
+def _normalize_symbol(s: str) -> str:
+    return s.strip().upper()
 
 
 def _extract_entry(entry: dict[str, Any], mapping: dict[str, str]) -> None:
     """Extract symbol→CIK from a dict entry and add to mapping."""
-    symbol = entry.get("symbol", "").strip().upper()
+    symbol = _normalize_symbol(entry.get("symbol", ""))
     cik = entry.get("cik_str") or entry.get("cik")
     if symbol and cik:
-        mapping[symbol] = str(cik).zfill(10)
+        mapping[symbol] = _normalize_cik(cik)
+
+
+def _parse_data_key_entry(entry: Any, mapping: dict[str, str]) -> None:
+    """Parse one entry from a data["data"] list (dict or array format)."""
+    if isinstance(entry, dict):
+        _extract_entry(entry, mapping)
+    elif isinstance(entry, list) and len(entry) >= 3:
+        symbol = _normalize_symbol(str(entry[0]))
+        cik = entry[1]
+        if symbol and cik:
+            mapping[symbol] = _normalize_cik(cik)
+
+
+def _parse_direct_dict_entry(symbol: str, value: Any, mapping: dict[str, str]) -> None:
+    """Parse one entry from a direct symbol→value dict (Format 4)."""
+    key = _normalize_symbol(symbol)
+    if isinstance(value, (int, str)):
+        mapping[key] = _normalize_cik(value)
+    elif isinstance(value, dict):
+        cik = value.get("cik_str") or value.get("cik")
+        if cik:
+            mapping[key] = _normalize_cik(cik)
 
 
 def _parse_cik_data(data: dict[str, Any] | list[Any], source_name: str) -> dict[str, str]:
-    """Parse CIK data from various formats.
+    """Parse CIK data from various formats into a uniform symbol→CIK dict.
 
-    SEC data can come in different formats:
-    - Dict with numeric keys: {"0": {"cik_str": 123, "symbol": "AAPL", ...}, ...}
-    - Dict with "data" key: {"data": [...]}
-    - List of objects: [{"cik_str": 123, "symbol": "AAPL", ...}, ...]
-
-    Args:
-        data: JSON data from source
-        source_name: Name of source (for logging)
-
-    Returns:
-        Dictionary mapping symbol→CIK (zero-padded to 10 digits)
+    Handles four formats: numeric-key dict, data-key dict, list, and direct symbol dict.
     """
     mapping: dict[str, str] = {}
-
     try:
-        # Format 1: Dict with numeric string keys
         if isinstance(data, dict) and all(k.isdigit() for k in list(data.keys())[:5]):
             for entry in data.values():
                 _extract_entry(entry, mapping)
-
-        # Format 2: Dict with "data" key
         elif isinstance(data, dict) and "data" in data:
             for entry in data["data"]:
-                if isinstance(entry, dict):
-                    _extract_entry(entry, mapping)
-                elif isinstance(entry, list) and len(entry) >= 3:
-                    # Some formats use arrays: [symbol, cik, name]
-                    symbol = str(entry[0]).strip().upper()
-                    cik = entry[1]
-                    if symbol and cik:
-                        mapping[symbol] = str(cik).zfill(10)
-
-        # Format 3: List of dicts
+                _parse_data_key_entry(entry, mapping)
         elif isinstance(data, list):
             for entry in data:
                 _extract_entry(entry, mapping)
-
-        # Format 4: Direct symbol→CIK dict
         elif isinstance(data, dict):
             for symbol, value in data.items():
-                if isinstance(value, (int, str)):
-                    mapping[symbol.strip().upper()] = str(value).zfill(10)
-                elif isinstance(value, dict):
-                    cik = value.get("cik_str") or value.get("cik")
-                    if cik:
-                        mapping[symbol.strip().upper()] = str(cik).zfill(10)
-
+                _parse_direct_dict_entry(symbol, value, mapping)
     except (ValueError, KeyError, TypeError, AttributeError) as exc:
         logger.error(
             "cik_parse_error",
@@ -212,33 +133,68 @@ def _parse_cik_data(data: dict[str, Any] | list[Any], source_name: str) -> dict[
             exc_info=True,
         )
         raise
-
-    logger.info(
-        "cik_parse_complete",
-        source=source_name,
-        total_parsed=len(mapping),
-    )
-
+    logger.info("cik_parse_complete", source=source_name, total_parsed=len(mapping))
     return mapping
 
 
-def save_to_database(storage: PortfolioStorage, mapping: dict[str, str]) -> None:
-    """Save CIK mapping to database.
+def _try_source(source: CIKSource, timeout: float) -> dict[str, str] | str:
+    """Attempt to fetch CIK mapping from one source.
 
-    Args:
-        storage: PortfolioStorage instance
-        mapping: Symbol→CIK mapping dictionary
+    Returns the mapping dict on success, or an error string on failure.
     """
+    try:
+        response = requests.get(source["url"], headers=source["headers"], timeout=timeout)
+        if response.status_code != 200:
+            logger.warning("cik_fetch_failed", source=source["name"], status=response.status_code)
+            return f"{source['name']}: HTTP {response.status_code}"
+        mapping = _parse_cik_data(response.json(), source["name"])
+        if not mapping:
+            logger.warning("cik_fetch_empty", source=source["name"])
+            return f"{source['name']}: Empty mapping after parsing"
+        logger.info("cik_fetch_success", source=source["name"], total_symbols=len(mapping))
+        return mapping
+    except (requests.RequestException, ValueError, KeyError, TypeError) as exc:
+        logger.warning(
+            "cik_fetch_error",
+            source=source["name"],
+            error=str(exc),
+            error_type=type(exc).__name__,
+        )
+        return f"{source['name']}: {exc}"
+
+
+def fetch_cik_mapping(timeout: float = DEFAULT_HTTP_TIMEOUT) -> dict[str, str]:
+    """Fetch symbol→CIK mapping from SEC or fallback sources.
+
+    Tries multiple sources in priority order until one succeeds.
+
+    Returns:
+        Dictionary mapping symbols to CIK numbers (zero-padded to 10 digits)
+
+    Raises:
+        RuntimeError: If all sources fail
+    """
+    logger.info("cik_fetch_start", num_sources=len(CIK_SOURCES))
+    errors: list[str] = []
+    for source in sorted(CIK_SOURCES, key=lambda s: s["priority"]):
+        logger.info("cik_fetch_attempt", source=source["name"], url=source["url"])
+        result = _try_source(source, timeout)
+        if isinstance(result, dict):
+            return result
+        errors.append(result)
+    error_summary = "; ".join(errors)
+    logger.error("cik_fetch_all_failed", errors=error_summary)
+    raise RuntimeError(f"All CIK sources failed: {error_summary}")
+
+
+def save_to_database(storage: PortfolioStorage, mapping: dict[str, str]) -> None:
+    """Save CIK mapping to database."""
     logger.info("cik_db_save_start", total_entries=len(mapping))
-
+    batch_size = 1000
+    items = list(mapping.items())
     with storage.connection() as conn:
-        # Insert or update CIK mappings in batches
-        batch_size = 1000
-        items = list(mapping.items())
-
         for i in range(0, len(items), batch_size):
             batch = items[i : i + batch_size]
-
             for symbol, cik in batch:
                 conn.execute(
                     """
@@ -250,38 +206,22 @@ def save_to_database(storage: PortfolioStorage, mapping: dict[str, str]) -> None
                     """,
                     (symbol, cik, datetime.now(UTC)),
                 )
-
             logger.debug(
                 "cik_db_batch_saved",
                 batch_num=i // batch_size + 1,
                 batch_size=len(batch),
             )
-
-        # Commit all changes (context manager does NOT auto-commit)
         conn.commit()
-
     logger.info("cik_db_save_complete", total_saved=len(mapping))
 
 
 def load_from_database(storage: PortfolioStorage) -> dict[str, str]:
-    """Load CIK mapping from database.
-
-    Args:
-        storage: PortfolioStorage instance
-
-    Returns:
-        Dictionary mapping symbol→CIK
-    """
+    """Load CIK mapping from database."""
     logger.info("cik_db_load_start")
-
     with storage.connection() as conn:
         rows = conn.execute("SELECT symbol, cik FROM sec_cik_cache").fetchall()
-
-    # Cast row values to strings (they are returned as Union types from database)
     mapping = {str(row[0]): str(row[1]) for row in rows}
-
     logger.info("cik_db_load_complete", total_loaded=len(mapping))
-
     return mapping
 
 
@@ -295,20 +235,17 @@ def get_cik(symbol: str, storage: PortfolioStorage | None = None) -> str | None:
     Returns:
         CIK number (10-digit string) or None if not found
     """
-    symbol = symbol.strip().upper()
-
+    symbol = _normalize_symbol(symbol)
     if storage:
         try:
             with storage.connection() as conn:
                 row = conn.execute(
                     "SELECT cik FROM sec_cik_cache WHERE symbol = ?", (symbol,)
                 ).fetchone()
-                # Cast to string (database returns Union type)
                 return str(row[0]) if row else None
         except (OSError, ValueError, TypeError) as exc:
             logger.warning("cik_lookup_error", symbol=symbol, error=str(exc))
             return None
-
     return None
 
 
@@ -317,26 +254,39 @@ def fetch_and_save(storage: PortfolioStorage) -> dict[str, str]:
 
     This is the main entry point for updating the CIK cache.
 
-    Args:
-        storage: PortfolioStorage instance
-
     Returns:
         Symbol→CIK mapping dictionary
     """
     logger.info("cik_fetch_and_save_start")
-
-    # Fetch from sources
     mapping = fetch_cik_mapping()
-
-    # Save to database
     save_to_database(storage, mapping)
-
-    logger.info(
-        "cik_fetch_and_save_complete",
-        total_symbols=len(mapping),
-    )
-
+    logger.info("cik_fetch_and_save_complete", total_symbols=len(mapping))
     return mapping
+
+
+def _cmd_fetch(storage: PortfolioStorage) -> None:
+    print("Fetching CIK mapping from SEC sources...")
+    mapping = fetch_and_save(storage)
+    print(f"✅ Successfully cached {len(mapping):,} symbol→CIK mappings\n\nSample mappings:")
+    for symbol, cik in list(mapping.items())[:10]:
+        print(f"  {symbol:8} → {cik}")
+
+
+def _cmd_stats(storage: PortfolioStorage) -> None:
+    print("Loading CIK cache statistics...")
+    mapping = load_from_database(storage)
+    print(f"📊 Total symbols in cache: {len(mapping):,}")
+    with storage.connection() as conn:
+        row = conn.execute("SELECT MAX(last_updated) FROM sec_cik_cache").fetchone()
+        if row and row[0]:
+            print(f"🕐 Last updated: {row[0]}")
+
+
+def _cmd_test(storage: PortfolioStorage) -> None:
+    print("Testing CIK lookups...")
+    for symbol in ["NVDA", "AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "META"]:
+        result = get_cik(symbol, storage)
+        print(f"  {'✅' if result else '❌'} {symbol:8} → {result or 'NOT FOUND'}")
 
 
 def main() -> None:
@@ -346,53 +296,24 @@ def main() -> None:
         python -m app.sources.sec_cik_fetcher fetch
         python -m app.sources.sec_cik_fetcher stats
     """
-    # Import at runtime to avoid circular dependency
     from ..storage import PortfolioStorage  # noqa: PLC0415
 
     if len(sys.argv) < 2:
-        print("Usage: python -m app.sources.sec_cik_fetcher <command>")
-        print("Commands:")
-        print("  fetch   - Fetch CIK mapping and save to database")
-        print("  stats   - Show cache statistics")
-        print("  test    - Test with sample symbols")
+        print(
+            "Usage: python -m app.sources.sec_cik_fetcher <command>\n"
+            "Commands:\n"
+            "  fetch   - Fetch CIK mapping and save to database\n"
+            "  stats   - Show cache statistics\n"
+            "  test    - Test with sample symbols"
+        )
         sys.exit(1)
 
+    commands = {"fetch": _cmd_fetch, "stats": _cmd_stats, "test": _cmd_test}
     command = sys.argv[1]
-    storage = PortfolioStorage()
-
-    if command == "fetch":
-        print("Fetching CIK mapping from SEC sources...")
-        mapping = fetch_and_save(storage)
-        print(f"✅ Successfully cached {len(mapping):,} symbol→CIK mappings")
-
-        # Show sample
-        print("\nSample mappings:")
-        for symbol, cik in list(mapping.items())[:10]:
-            print(f"  {symbol:8} → {cik}")
-
-    elif command == "stats":
-        print("Loading CIK cache statistics...")
-        mapping = load_from_database(storage)
-        print(f"📊 Total symbols in cache: {len(mapping):,}")
-
-        # Show last update time
-        with storage.connection() as conn:
-            row = conn.execute("SELECT MAX(last_updated) FROM sec_cik_cache").fetchone()
-            if row and row[0]:
-                print(f"🕐 Last updated: {row[0]}")
-
-    elif command == "test":
-        print("Testing CIK lookups...")
-        test_symbols = ["NVDA", "AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "META"]
-
-        for symbol in test_symbols:
-            result = get_cik(symbol, storage)
-            status = "✅" if result else "❌"
-            print(f"  {status} {symbol:8} → {result or 'NOT FOUND'}")
-
-    else:
+    if command not in commands:
         print(f"Unknown command: {command}")
         sys.exit(1)
+    commands[command](PortfolioStorage())
 
 
 if __name__ == "__main__":
