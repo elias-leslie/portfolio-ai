@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.models.household_finance import HouseholdQuestion
+from app.services._household_finance_utils import iso, iso_or_none
 from app.services.household_finance_rows import FIELD_LABELS, row_to_question
 from app.services.household_question_classifier import (
     answer_covers_family,
@@ -37,10 +38,10 @@ _JOIN = "FROM household_questions q LEFT JOIN household_documents d ON d.id = q.
 
 
 def _fetch_questions(
-    service: Any, conn: Any, where: str, order: str, params: list[Any] | None = None
+    conn: Any, where: str, order: str, params: list[Any] | None = None
 ) -> list[HouseholdQuestion]:
     rows = conn.execute(f"SELECT {_COLS} {_JOIN} WHERE {where} ORDER BY {order}", params or []).fetchall()
-    return [row_to_question(row, iso=service._iso, iso_or_none=service._iso_or_none) for row in rows]
+    return [row_to_question(row, iso=iso, iso_or_none=iso_or_none) for row in rows]
 
 
 def _mark_answered(conn: Any, question_id: str, answer_text: str, answered_at: str, source_id: str) -> None:
@@ -179,8 +180,8 @@ class HouseholdQuestionReconciler:
 
     def reconcile_open_questions(self, service: Any) -> None:
         with service.storage.connection() as conn:
-            answered = _fetch_questions(service, conn, "q.status='answered'", "q.answered_at DESC NULLS LAST, q.created_at DESC")
-            open_qs = _fetch_questions(service, conn, "q.status='open'", "q.created_at ASC")
+            answered = _fetch_questions(conn, "q.status='answered'", "q.answered_at DESC NULLS LAST, q.created_at DESC")
+            open_qs = _fetch_questions(conn, "q.status='open'", "q.created_at ASC")
             updated = self._apply_answered_context(conn, answered, open_qs)
             updated |= self._dismiss_duplicates(conn, open_qs)
             updated |= self._dismiss_inferred(service, conn, open_qs)
@@ -208,7 +209,7 @@ class HouseholdQuestionReconciler:
             return
         _bulk_answer_related(conn, question, answer_text, answered_at, account_label, account_hint, merchant)
         q_family = question_family(question.question, question.field_name)
-        for row in _fetch_questions(service, conn, "q.status='open' AND q.id<>%s", "q.created_at ASC", [question.id]):
+        for row in _fetch_questions(conn, "q.status='open' AND q.id<>%s", "q.created_at ASC", [question.id]):
             if self.question_is_answered_by_context(
                 answered_question=question, candidate_question=row,
                 answer_text=answer_text, answered_family=q_family,

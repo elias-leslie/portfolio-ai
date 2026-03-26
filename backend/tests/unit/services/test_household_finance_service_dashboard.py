@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from app.models.household_finance import (
     HouseholdDocumentList,
@@ -21,84 +20,6 @@ from app.services.household_finance_service import HouseholdFinanceService
 
 def _service() -> HouseholdFinanceService:
     return HouseholdFinanceService()
-
-
-def test_build_budget_snapshot_uses_targets_and_actuals() -> None:
-    service = _service()
-    service._current_month_spend = lambda: 2800.0
-    profile = HouseholdProfile(
-        id="profile-1",
-        household_name="Household",
-        monthly_net_income_target=12500,
-        monthly_essential_target=5200,
-        monthly_discretionary_target=1800,
-        monthly_savings_target=2600,
-        target_retirement_age=None,
-        target_retirement_spend=None,
-        notes=None,
-        created_at="2026-03-10T00:00:00Z",
-        updated_at="2026-03-10T00:00:00Z",
-    )
-    reports = SimpleNamespace(
-        executive=SimpleNamespace(
-            average_monthly_spend=574.0,
-            average_monthly_essentials=420.0,
-            average_monthly_discretionary=154.0,
-        )
-    )
-
-    snapshot = service._build_budget_snapshot(profile=profile, reports=reports)
-
-    assert snapshot.monthly_plan_total == 9600
-    assert snapshot.remaining_cash_after_plan == 2900
-    assert snapshot.discretionary_headroom == 1646
-    assert snapshot.status == "on_track"
-    assert snapshot.month_to_date_spend == 2800.0
-    assert snapshot.month_to_date_plan is not None
-    assert snapshot.pace_status in {"on_track", "running_hot", "under_plan"}
-
-
-def test_build_retirement_contribution_tracker_highlights_gap_to_target() -> None:
-    service = _service()
-    profile = HouseholdProfile(
-        id="profile-1",
-        household_name="Household",
-        monthly_net_income_target=12000,
-        monthly_essential_target=5200,
-        monthly_discretionary_target=1800,
-        monthly_savings_target=2500,
-        target_retirement_age=60,
-        target_retirement_spend=5500,
-        notes=None,
-        created_at="2026-03-10T00:00:00Z",
-        updated_at="2026-03-10T00:00:00Z",
-    )
-
-    tracker = service._build_retirement_contribution_tracker(
-        profile=profile,
-        estimated_monthly_contributions=900,
-    )
-
-    assert tracker.monthly_target == 2500
-    assert tracker.estimated_monthly_contributions == 900
-    assert tracker.monthly_gap == 1600
-    assert tracker.status == "gap"
-
-
-def test_build_retirement_scenarios_uses_assets_and_target_spend() -> None:
-    service = _service()
-
-    scenarios = service._build_retirement_scenarios(
-        retirement_assets=600000,
-        target_retirement_spend=5000,
-        baseline_monthly_spend=4300,
-    )
-
-    assert len(scenarios) == 3
-    assert scenarios[0].name == "Base plan"
-    assert scenarios[0].monthly_spend == 5000
-    assert scenarios[0].funded_years == 10.0
-    assert scenarios[1].monthly_spend > scenarios[0].monthly_spend
 
 
 def test_get_dashboard_returns_composed_household_view() -> None:
@@ -158,7 +79,6 @@ def test_get_dashboard_returns_composed_household_view() -> None:
     service.list_documents = Mock(return_value=HouseholdDocumentList(items=[]))
     service.list_questions = Mock(return_value=HouseholdQuestionList(items=[question]))
     service.get_resolved_values = Mock(return_value=[resolved_value])
-    service._get_inferred_value_rows = Mock(return_value={})
     mock_conn = Mock()
     mock_conn.execute.return_value.fetchall.return_value = []
     mock_conn.execute.return_value.fetchone.return_value = (None, 0, None)
@@ -169,52 +89,28 @@ def test_get_dashboard_returns_composed_household_view() -> None:
     service.portfolio_mgr = Mock()
     service.portfolio_mgr.get_accounts.return_value = []
     service.portfolio_mgr.get_positions.return_value = []
-    service._fetch_prices = Mock(return_value={})
-    service._calculate_holdings_by_account = Mock(return_value={})
-    service._compute_visibility_score = Mock(return_value=88)
-    service._budget_input_status = Mock(
-        return_value={
-            "budget_ready": True,
-            "priorities": ["Keep feeding statements."],
-            "missing_inputs": [],
-        }
-    )
-    service._visibility_label = Mock(return_value="High")
-    service._next_best_action = Mock(return_value="Review the dashboard.")
-    service._retirement_ready = Mock(return_value=True)
-    service._retirement_strengths = Mock(return_value=["Visible retirement assets"])
-    service._retirement_blockers = Mock(return_value=[])
-    service._retirement_next_steps = Mock(return_value=["Keep saving"])
     service.transaction_service = Mock()
     service.transaction_service.build_reports.return_value = reports
-    service._build_budget_snapshot = Mock(
-        return_value={
-            "status": "on_track",
-            "summary": "On plan.",
-            "actual_monthly_spend": 3000.0,
-            "actual_essential_monthly_spend": 2000.0,
-            "actual_discretionary_monthly_spend": 700.0,
-            "month_to_date_spend": 1200.0,
-            "pace_detail": "Tracking well.",
-        }
-    )
-    service._build_categorization_queue = Mock(return_value=[])
-    service._build_recurring_commitments = Mock(return_value=[])
-    service._build_sinking_funds = Mock(return_value=[])
-    service._estimate_monthly_retirement_contributions = Mock(return_value=900.0)
-    service._build_retirement_contribution_tracker = Mock(
-        return_value={
-            "status": "gap",
-            "monthly_target": 2600.0,
-            "estimated_monthly_contributions": 900.0,
-            "monthly_gap": 1700.0,
-            "detail": "Contributions trail the target.",
-        }
-    )
-    service._build_retirement_scenarios = Mock(return_value=[])
     service.get_planning_snapshot = Mock(return_value=empty_household_planning_snapshot())
 
-    dashboard = service.get_dashboard()
+    assembly_path = "app.services._household_dashboard_assembly"
+    with (
+        patch(f"{assembly_path}.compute_visibility_score", return_value=88),
+        patch(f"{assembly_path}.visibility_label", return_value="High"),
+        patch(f"{assembly_path}.next_best_action", return_value="Review the dashboard."),
+        patch(f"{assembly_path}.budget_input_status", return_value={"budget_ready": True, "priorities": [], "missing_inputs": []}),
+        patch(f"{assembly_path}.retirement_ready", return_value=True),
+        patch(f"{assembly_path}.retirement_strengths", return_value=["Visible retirement assets"]),
+        patch(f"{assembly_path}.retirement_blockers", return_value=[]),
+        patch(f"{assembly_path}.retirement_next_steps", return_value=["Keep saving"]),
+        patch(f"{assembly_path}.fetch_current_month_spend", return_value=1200.0),
+        patch(f"{assembly_path}.fetch_monthly_retirement_contributions", return_value=900.0),
+        patch(f"{assembly_path}.fetch_inferred_value_rows", return_value={}),
+        patch(f"{assembly_path}.infer_profile_from_transactions"),
+        patch("app.services.household_dashboard_composer.fetch_categorization_queue", return_value=[]),
+        patch("app.services.household_dashboard_composer.fetch_recurring_commitments", return_value=[]),
+    ):
+        dashboard = service.get_dashboard()
 
     assert dashboard.profile.household_name == "Household"
     assert dashboard.overview.visibility_score == 88

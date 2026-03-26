@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.models.household_finance import HouseholdProfile, HouseholdProfileUpdate
+from app.services._household_finance_utils import iso, to_float, to_int
 from app.services.household_finance_rows import row_to_profile
 
 DEFAULT_HOUSEHOLD_NAME = "Household"
@@ -15,8 +16,24 @@ DEFAULT_HOUSEHOLD_NAME = "Household"
 class HouseholdProfileService:
     """Load and persist the singleton household profile."""
 
+    def _fetch_profile_row(self, service: Any) -> tuple[Any, ...] | None:
+        with service.storage.connection() as conn:
+            return conn.execute(
+                """
+                SELECT id, household_name, adult_count, dependent_count,
+                       monthly_net_income_target, monthly_essential_target,
+                       monthly_discretionary_target, monthly_savings_target,
+                       target_retirement_age, target_retirement_spend,
+                       filing_status, state_of_residence, effective_tax_rate,
+                       marginal_federal_tax_rate, marginal_state_tax_rate,
+                       emergency_fund_target_months, emergency_fund_target_amount,
+                       notes, created_at, updated_at
+                FROM household_profiles ORDER BY created_at ASC LIMIT 1
+                """
+            ).fetchone()
+
     def get_profile(self, service: Any) -> HouseholdProfile:
-        row = service._get_profile_row()
+        row = self._fetch_profile_row(service)
         if row is None:
             now = datetime.now(UTC).isoformat()
             profile_id = str(uuid.uuid4())
@@ -30,10 +47,10 @@ class HouseholdProfileService:
                     [profile_id, DEFAULT_HOUSEHOLD_NAME, now, now],
                 )
                 conn.commit()
-            row = service._get_profile_row()
+            row = self._fetch_profile_row(service)
             if row is None:
                 raise RuntimeError("Failed to create household profile")
-        return row_to_profile(row, to_float=service._to_float, to_int=service._to_int, iso=service._iso)
+        return row_to_profile(row, to_float=to_float, to_int=to_int, iso=iso)
 
     def update_profile(self, service: Any, payload: HouseholdProfileUpdate) -> HouseholdProfile:
         profile = self.get_profile(service)
