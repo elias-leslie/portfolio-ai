@@ -88,7 +88,6 @@ _MONTH_SPEND_SQL = """
       AND transaction_date >= date_trunc('month', CURRENT_DATE)
 """
 
-
 _UNKNOWN_ACCOUNT_SQL = """
     SELECT DISTINCT
         t.description,
@@ -126,6 +125,22 @@ _INSTITUTION_PATTERN = re.compile(
 )
 
 
+def _fetch_scalar_float(storage: Any, sql: str) -> float:
+    """Execute a scalar-aggregate SQL query and return the result as a rounded float."""
+    with storage.connection() as conn:
+        row = conn.execute(sql).fetchone()
+    return round(float(row[0] or 0.0), 2) if row is not None else 0.0
+
+
+def _canonicalize_institution(description: str, fallback: str) -> str:
+    """Return the matching known institution name for *description*, or *fallback*."""
+    desc_upper = description.upper()
+    for known in _KNOWN_INSTITUTIONS:
+        if known.upper() in desc_upper:
+            return known
+    return fallback
+
+
 def detect_unknown_accounts(
     storage: Any,
     documents: list[Any],
@@ -154,27 +169,16 @@ def detect_unknown_accounts(
         match = _INSTITUTION_PATTERN.search(description)
         if not match:
             continue
-        institution = match.group(0).split()[0].upper()
-        # Normalize multi-word institutions
-        for known in _KNOWN_INSTITUTIONS:
-            if known.upper() in description.upper():
-                institution = known
-                break
+        institution = _canonicalize_institution(description, match.group(0).split()[0].upper())
         partial_account = match.group(1) or ""
         key = f"{institution}_{partial_account}" if partial_account else institution
 
-        # Skip if this matches a known document
         if institution in known_labels:
             continue
         if partial_account and partial_account in known_hints:
             continue
-
         if key not in detected:
-            detected[key] = {
-                "institution": institution,
-                "partial_account": partial_account,
-                "key": key,
-            }
+            detected[key] = {"institution": institution, "partial_account": partial_account, "key": key}
 
     return list(detected.values())
 
@@ -185,25 +189,20 @@ def check_statement_freshness(storage: Any) -> dict[str, Any]:
         row = conn.execute(_STATEMENT_FRESHNESS_SQL).fetchone()
 
     if row is None or row[0] is None:
-        return {
-            "most_recent_date": None,
-            "days_since_latest": None,
-            "coverage_months": 0,
-            "gap_months": [],
-        }
+        return {"most_recent_date": None, "days_since_latest": None, "coverage_months": 0, "gap_months": []}
 
-    most_recent = row[0]
+    most_recent_date = row[0].date() if hasattr(row[0], "date") else row[0]
     coverage_months = int(row[1] or 0)
-    earliest = row[2]
-    today = datetime.now(UTC).date()
-    most_recent_date = most_recent.date() if hasattr(most_recent, "date") else most_recent
-    days_since_latest = (today - most_recent_date).days
+    days_since_latest = (datetime.now(UTC).date() - most_recent_date).days
 
-    # Calculate gap months
     gap_months: list[str] = []
-    if earliest is not None and coverage_months > 0:
-        earliest_date = earliest.date() if hasattr(earliest, "date") else earliest
-        total_months = (most_recent_date.year - earliest_date.year) * 12 + (most_recent_date.month - earliest_date.month) + 1
+    if row[2] is not None and coverage_months > 0:
+        earliest_date = row[2].date() if hasattr(row[2], "date") else row[2]
+        total_months = (
+            (most_recent_date.year - earliest_date.year) * 12
+            + (most_recent_date.month - earliest_date.month)
+            + 1
+        )
         if total_months > coverage_months:
             gap_months_count = total_months - coverage_months
             gap_months = [f"{gap_months_count} month{'s' if gap_months_count != 1 else ''} missing in range"]
@@ -227,17 +226,13 @@ def fetch_categorization_queue(
     storage: Any,
     limit: int = 10,
 ) -> list[HouseholdCategorizationCandidate]:
-    # _CATEGORIZATION_SQL always returns exactly 9 columns:
-    # 0:id, 1:merchant, 2:description, 3:amount, 4:transaction_date,
-    # 5:category, 6:essentiality, 7:confidence, 8:similar_count
-    expected_columns = 9
     with storage.connection() as conn:
         rows = conn.execute(_CATEGORIZATION_SQL, [limit]).fetchall()
     results: list[HouseholdCategorizationCandidate] = []
     for row in rows:
-        if len(row) < expected_columns:
+        if len(row) < 9:
             raise ValueError(
-                f"fetch_categorization_queue: expected {expected_columns} columns, got {len(row)}"
+                f"fetch_categorization_queue: expected 9 columns, got {len(row)}"
             )
         results.append(
             HouseholdCategorizationCandidate(
@@ -278,20 +273,12 @@ def fetch_recurring_commitments(
 
 
 def fetch_monthly_retirement_contributions(storage: Any) -> float:
-    with storage.connection() as conn:
-        row = conn.execute(_RETIREMENT_CONTRIBUTION_SQL).fetchone()
-    return round(float(row[0] or 0.0), 2) if row is not None else 0.0
+    return _fetch_scalar_float(storage, _RETIREMENT_CONTRIBUTION_SQL)
 
 
 def fetch_current_month_spend(storage: Any) -> float:
-    with storage.connection() as conn:
-        row = conn.execute(_MONTH_SPEND_SQL).fetchone()
-    return round(float(row[0] or 0.0), 2) if row is not None else 0.0
+    return _fetch_scalar_float(storage, _MONTH_SPEND_SQL)
 
-
-# ---------------------------------------------------------------------------
-# Transaction-based profile field inference
-# ---------------------------------------------------------------------------
 
 _INCOME_MONTHLY_AVG_SQL = """
     SELECT
@@ -319,6 +306,42 @@ def _confidence_for_months(month_count: int) -> float:
     return 0.85
 
 
+def _build_inferences(
+    avg_monthly_income: float,
+    income_months: int,
+    income_confidence: float,
+    avg_essential: float,
+    avg_discretionary: float,
+    avg_savings: float,
+    coverage_months: int,
+    confidence: float,
+) -> list[tuple[str, float, float, str]]:
+    """Assemble (field_name, value, confidence, rationale) tuples from computed averages."""
+    inferences: list[tuple[str, float, float, str]] = []
+    if avg_monthly_income > 0:
+        inferences.append((
+            "monthly_net_income_target", avg_monthly_income, income_confidence,
+            f"I see ~${avg_monthly_income:,.0f}/mo income across {income_months} month{'s' if income_months != 1 else ''} of deposit data.",
+        ))
+    if avg_essential > 0:
+        inferences.append((
+            "monthly_essential_target", avg_essential, confidence,
+            f"I see ~${avg_essential:,.0f}/mo in essential spending across {coverage_months} month{'s' if coverage_months != 1 else ''} of transaction data.",
+        ))
+    if avg_discretionary > 0:
+        inferences.append((
+            "monthly_discretionary_target", avg_discretionary, confidence,
+            f"I see ~${avg_discretionary:,.0f}/mo in discretionary spending across {coverage_months} month{'s' if coverage_months != 1 else ''} of transaction data.",
+        ))
+    if avg_savings > 0:
+        total_spending = avg_essential + avg_discretionary
+        inferences.append((
+            "monthly_savings_target", avg_savings, min(income_confidence, confidence),
+            f"Based on ~${avg_monthly_income:,.0f}/mo income minus ~${total_spending:,.0f}/mo spending, implied savings capacity is ~${avg_savings:,.0f}/mo.",
+        ))
+    return inferences
+
+
 def _upsert_transaction_inference(
     conn: Any,
     *,
@@ -330,16 +353,13 @@ def _upsert_transaction_inference(
     profile: HouseholdProfile,
 ) -> bool:
     """Upsert a transaction-inferred value if no manual value exists and no higher-confidence inference exists."""
-    manual_value = getattr(profile, field_name, None)
-    if manual_value is not None:
+    if getattr(profile, field_name, None) is not None:
         return False
 
     existing = existing_inferences.get(field_name)
     if existing is not None:
         existing_confidence = float(existing.get("confidence") or 0.0)
-        existing_source = existing.get("source", "")
-        # Don't overwrite higher-confidence inferences from document review
-        if existing_confidence >= confidence and existing_source != "transaction_inference":
+        if existing_confidence >= confidence and existing.get("source", "") != "transaction_inference":
             return False
 
     rounded_value = round(value, 2)
@@ -347,7 +367,6 @@ def _upsert_transaction_inference(
     metadata_json = json.dumps({"source": "transaction_inference"})
 
     if existing is not None and existing.get("source") == "transaction_inference":
-        # Update existing transaction inference row
         conn.execute(
             """
             UPDATE household_inferred_values
@@ -367,16 +386,8 @@ def _upsert_transaction_inference(
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
             """,
             [
-                str(uuid.uuid4()),
-                field_name,
-                str(rounded_value),
-                confidence,
-                "inferred",
-                rationale,
-                None,
-                metadata_json,
-                now,
-                now,
+                str(uuid.uuid4()), field_name, str(rounded_value),
+                confidence, "inferred", rationale, None, metadata_json, now, now,
             ],
         )
     return True
@@ -389,19 +400,12 @@ def infer_profile_from_transactions(
     reports: HouseholdReports,
     existing_inferences: dict[str, dict[str, Any]],
 ) -> None:
-    """Infer profile field values from transaction data and upsert into household_inferred_values.
-
-    Uses the reports executive summary for expense averages, and queries income
-    transactions directly. Only writes inferences when no manual value exists and
-    no existing inference has higher confidence.
-    """
+    """Infer profile field values from transaction data and upsert into household_inferred_values."""
     coverage_months = reports.executive.coverage_months
     if coverage_months < 1:
         return
 
     confidence = _confidence_for_months(coverage_months)
-
-    # Query income from transactions directly
     with storage.connection() as conn:
         income_row = conn.execute(_INCOME_MONTHLY_AVG_SQL).fetchone()
         income_months = int(income_row[0] or 0) if income_row else 0
@@ -410,45 +414,13 @@ def infer_profile_from_transactions(
 
     avg_essential = reports.executive.average_monthly_essentials
     avg_discretionary = reports.executive.average_monthly_discretionary
-    total_spending = avg_essential + avg_discretionary
+    avg_savings = max(avg_monthly_income - avg_essential - avg_discretionary, 0.0) if avg_monthly_income > 0 else 0.0
 
-    # Calculate savings as income minus total spending (only if we have income data)
-    avg_savings = max(avg_monthly_income - total_spending, 0.0) if avg_monthly_income > 0 else 0.0
-
-    inferences: list[tuple[str, float, float, str]] = []
-
-    if avg_monthly_income > 0:
-        inferences.append((
-            "monthly_net_income_target",
-            avg_monthly_income,
-            income_confidence,
-            f"I see ~${avg_monthly_income:,.0f}/mo income across {income_months} month{'s' if income_months != 1 else ''} of deposit data.",
-        ))
-
-    if avg_essential > 0:
-        inferences.append((
-            "monthly_essential_target",
-            avg_essential,
-            confidence,
-            f"I see ~${avg_essential:,.0f}/mo in essential spending across {coverage_months} month{'s' if coverage_months != 1 else ''} of transaction data.",
-        ))
-
-    if avg_discretionary > 0:
-        inferences.append((
-            "monthly_discretionary_target",
-            avg_discretionary,
-            confidence,
-            f"I see ~${avg_discretionary:,.0f}/mo in discretionary spending across {coverage_months} month{'s' if coverage_months != 1 else ''} of transaction data.",
-        ))
-
-    if avg_savings > 0:
-        inferences.append((
-            "monthly_savings_target",
-            avg_savings,
-            min(income_confidence, confidence),
-            f"Based on ~${avg_monthly_income:,.0f}/mo income minus ~${total_spending:,.0f}/mo spending, implied savings capacity is ~${avg_savings:,.0f}/mo.",
-        ))
-
+    inferences = _build_inferences(
+        avg_monthly_income, income_months, income_confidence,
+        avg_essential, avg_discretionary, avg_savings,
+        coverage_months, confidence,
+    )
     if not inferences:
         return
 
@@ -465,12 +437,7 @@ def infer_profile_from_transactions(
                 profile=profile,
             ):
                 updated = True
-                logger.info(
-                    "transaction_inference_upserted",
-                    field_name=field_name,
-                    value=round(value, 2),
-                    confidence=conf,
-                )
+                logger.info("transaction_inference_upserted", field_name=field_name, value=round(value, 2), confidence=conf)
         if updated:
             conn.commit()
 
