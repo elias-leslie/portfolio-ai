@@ -1,8 +1,6 @@
 'use client'
 
 import { PlusCircle } from 'lucide-react'
-import { useState } from 'react'
-import { toast } from 'sonner'
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { Accordion } from '@/components/ui/accordion'
@@ -14,24 +12,12 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import type { PositionWithValue } from '@/lib/api/portfolio'
-import {
-  useAccounts,
-  useDeleteAccount,
-  useDeletePosition,
-  usePortfolio,
-  useUpdatePosition,
-} from '@/lib/hooks/usePortfolio'
+import { useAccounts, usePortfolio } from '@/lib/hooks/usePortfolio'
 import { AccountAccordionItem } from './AccountAccordionItem'
 import { AccountsWithPositionsSkeleton } from './AccountsWithPositionsSkeleton'
 import { EditPositionDialog } from './EditPositionDialog'
-import { getAccountPositions } from './portfolio-utils'
-import {
-  getPositionFormErrors,
-  isPositionFormValid,
-  normalizeSymbol,
-  type PositionType,
-} from './portfolio-form-utils'
+import { useDeleteConfirmation } from './useDeleteConfirmation'
+import { useEditPositionForm } from './useEditPositionForm'
 
 interface AccountsWithPositionsProps {
   onAddAccount?: () => void
@@ -62,155 +48,9 @@ export function AccountsWithPositionsContent({
     refetch: refetchPortfolio,
     isFetching: portfolioFetching,
   } = usePortfolio()
-  const deleteAccount = useDeleteAccount()
-  const deletePosition = useDeletePosition()
-  const updatePosition = useUpdatePosition()
-  const [pendingAction, setPendingAction] = useState<
-    | { type: 'account'; id: string; name: string; positionCount: number }
-    | { type: 'position'; id: string; symbol: string }
-    | null
-  >(null)
-
-  // Edit position dialog state
-  const [editOpen, setEditOpen] = useState(false)
-  const [editingPosition, setEditingPosition] =
-    useState<PositionWithValue | null>(null)
-  const [editAccountId, setEditAccountId] = useState('')
-  const [editSymbol, setEditSymbol] = useState('')
-  const [editShares, setEditShares] = useState('')
-  const [editCostBasis, setEditCostBasis] = useState('')
-  const [editPositionType, setEditPositionType] = useState<PositionType>('long')
-  const editFormErrors = getPositionFormErrors({
-    accountId: editAccountId,
-    symbol: editSymbol,
-    shares: editShares,
-    costBasis: editCostBasis,
-  })
-  const canUpdatePosition = Boolean(editingPosition) && isPositionFormValid(editFormErrors)
-
-  // Helper to get positions for account
-  const getPositionsForAccount = (accountId: string) => {
-    return getAccountPositions(accountId, portfolio?.positions)
-  }
-
-  const resetEditForm = () => {
-    setEditOpen(false)
-    setEditingPosition(null)
-    setEditAccountId('')
-    setEditSymbol('')
-    setEditShares('')
-    setEditCostBasis('')
-    setEditPositionType('long')
-  }
-
-  const handleDeleteAccount = (accountId: string, accountName: string) => {
-    const positionsInAccount = getPositionsForAccount(accountId)
-    setPendingAction({
-      type: 'account',
-      id: accountId,
-      name: accountName,
-      positionCount: positionsInAccount.length,
-    })
-  }
-
-  const handleDeletePosition = (positionId: string, symbol: string) => {
-    setPendingAction({
-      type: 'position',
-      id: positionId,
-      symbol,
-    })
-  }
-
-  const handleEditPosition = (position: PositionWithValue) => {
-    setEditingPosition(position)
-    setEditAccountId(position.accountId)
-    setEditSymbol(position.symbol)
-    setEditShares(position.shares.toString())
-    setEditCostBasis(position.costBasis.toString())
-    setEditPositionType(position.positionType as PositionType)
-    setEditOpen(true)
-  }
-
-  const handleUpdatePosition = () => {
-    if (!editingPosition || !canUpdatePosition) return
-
-    updatePosition.mutate(
-      {
-        positionId: editingPosition.id,
-        data: {
-          accountId: editAccountId,
-          symbol: normalizeSymbol(editSymbol),
-          shares: parseFloat(editShares),
-          costBasis: parseFloat(editCostBasis),
-          positionType: editPositionType,
-        },
-      },
-      {
-        onSuccess: () => {
-          resetEditForm()
-        },
-      },
-    )
-  }
-
-  const confirmDeletion = async () => {
-    if (!pendingAction) return
-    try {
-      if (pendingAction.type === 'account') {
-        await deleteAccount.mutateAsync(pendingAction.id)
-        toast.success(`Deleted account "${pendingAction.name}".`)
-      } else {
-        await deletePosition.mutateAsync(pendingAction.id)
-      }
-    } catch (error) {
-      if (pendingAction.type === 'account') {
-        const message =
-          error instanceof Error
-            ? error.message
-            : 'Unable to complete the request'
-        toast.error(`Failed to delete account "${pendingAction.name}": ${message}`)
-      }
-      throw error
-    }
-  }
-
-  const confirmDialog = (
-    <ConfirmActionDialog
-      open={!!pendingAction}
-      onOpenChange={(open) => {
-        if (!open) {
-          setPendingAction(null)
-        }
-      }}
-      title={
-        pendingAction
-          ? pendingAction.type === 'account'
-            ? `Delete ${pendingAction.name}`
-            : `Delete ${pendingAction.symbol} position`
-          : 'Delete item'
-      }
-      description={
-        pendingAction
-          ? pendingAction.type === 'account'
-            ? pendingAction.positionCount > 0
-              ? `This will remove ${pendingAction.positionCount} linked position${
-                  pendingAction.positionCount === 1 ? '' : 's'
-                } permanently.`
-              : 'This account has no positions and will be removed.'
-            : 'This position will be removed from the account permanently.'
-          : undefined
-      }
-      confirmLabel={
-        pendingAction
-          ? pendingAction.type === 'account'
-            ? 'Delete account'
-            : 'Delete position'
-          : 'Delete'
-      }
-      isPending={deleteAccount.isPending || deletePosition.isPending}
-      onConfirm={confirmDeletion}
-    />
-  )
+  const del = useDeleteConfirmation(portfolio?.positions)
+  const edit = useEditPositionForm()
+  const confirmDialog = <ConfirmActionDialog {...del.dialogProps} />
 
   if (accountsLoading || portfolioLoading) {
     return (
@@ -260,9 +100,7 @@ export function AccountsWithPositionsContent({
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Accounts & Positions</CardTitle>
-                <CardDescription>
-                  Organize your portfolio by account
-                </CardDescription>
+                <CardDescription>Organize your portfolio by account</CardDescription>
               </div>
               {onAddAccount && (
                 <Button variant="outline" size="sm" onClick={onAddAccount}>
@@ -283,14 +121,6 @@ export function AccountsWithPositionsContent({
     )
   }
 
-  const handleHeaderAddPosition = () => {
-    if (!onAddPosition) {
-      return
-    }
-
-    onAddPosition(accounts.length === 1 ? accounts[0].id : undefined)
-  }
-
   return (
     <>
       <Card>
@@ -306,7 +136,13 @@ export function AccountsWithPositionsContent({
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {onAddPosition && (
-                <Button variant="outline" size="sm" onClick={handleHeaderAddPosition}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    onAddPosition(accounts.length === 1 ? accounts[0].id : undefined)
+                  }
+                >
                   <PlusCircle className="mr-2 h-4 w-4" />
                   Add Position
                 </Button>
@@ -323,7 +159,8 @@ export function AccountsWithPositionsContent({
         <CardContent>
           {portfolio?.positions.length === 0 ? (
             <div className="mb-4 rounded-xl border border-border/50 bg-surface-muted/20 p-4 text-sm text-text-muted">
-              You have accounts set up but no live positions yet. Add your first holding to start tracking concentration, sizing, and performance.
+              You have accounts set up but no live positions yet. Add your first holding to
+              start tracking concentration, sizing, and performance.
             </div>
           ) : null}
           <Accordion type="single" collapsible className="w-full">
@@ -333,41 +170,36 @@ export function AccountsWithPositionsContent({
                 account={account}
                 positions={portfolio?.positions}
                 onAddPosition={onAddPosition}
-                onDeleteAccount={handleDeleteAccount}
-                onEditPosition={handleEditPosition}
-                onDeletePosition={handleDeletePosition}
-                isDeleting={deleteAccount.isPending}
-                isDeletingPosition={deletePosition.isPending}
+                onDeleteAccount={del.handleDeleteAccount}
+                onEditPosition={edit.handleEditPosition}
+                onDeletePosition={del.handleDeletePosition}
+                isDeleting={del.isAccountDeletePending}
+                isDeletingPosition={del.isPositionDeletePending}
               />
             ))}
           </Accordion>
         </CardContent>
       </Card>
-
       <EditPositionDialog
-        open={editOpen}
+        open={edit.editOpen}
         onOpenChange={(open) => {
-          if (!open) {
-            resetEditForm()
-          } else {
-            setEditOpen(true)
-          }
+          if (!open) edit.resetEditForm()
         }}
         accounts={accounts}
-        accountId={editAccountId}
-        symbol={editSymbol}
-        shares={editShares}
-        costBasis={editCostBasis}
-        positionType={editPositionType}
-        errors={editFormErrors}
-        canSubmit={canUpdatePosition}
-        isPending={updatePosition.isPending}
-        onAccountChange={setEditAccountId}
-        onSymbolChange={setEditSymbol}
-        onSharesChange={setEditShares}
-        onCostBasisChange={setEditCostBasis}
-        onPositionTypeChange={setEditPositionType}
-        onUpdate={handleUpdatePosition}
+        accountId={edit.editAccountId}
+        symbol={edit.editSymbol}
+        shares={edit.editShares}
+        costBasis={edit.editCostBasis}
+        positionType={edit.editPositionType}
+        errors={edit.editFormErrors}
+        canSubmit={edit.canUpdatePosition}
+        isPending={edit.isPending}
+        onAccountChange={edit.setEditAccountId}
+        onSymbolChange={edit.setEditSymbol}
+        onSharesChange={edit.setEditShares}
+        onCostBasisChange={edit.setEditCostBasis}
+        onPositionTypeChange={edit.setEditPositionType}
+        onUpdate={edit.handleUpdatePosition}
       />
       {confirmDialog}
     </>
