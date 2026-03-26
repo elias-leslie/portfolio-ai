@@ -24,6 +24,12 @@ def _cutoff_at(days: int) -> dt.datetime:
     return dt.datetime.now(dt.UTC) - dt.timedelta(days=days)
 
 
+def _count_rows(conn: Any, table: str, col: str, cutoff: dt.datetime) -> int:
+    """Return the count of rows in *table* where *col* is before *cutoff*."""
+    row = conn.execute(f"SELECT COUNT(*) FROM {table} WHERE {col} < %s", [cutoff]).fetchone()
+    return int(row[0] or 0) if row else 0
+
+
 def _vacuum_one_table(storage: Any, table: str) -> None:
     """Run VACUUM ANALYZE on a single table using autocommit mode."""
     with storage.connection() as conn:
@@ -35,6 +41,17 @@ def _vacuum_one_table(storage: Any, table: str) -> None:
                 cursor.execute(f'VACUUM ANALYZE "{table}"')
         finally:
             raw_conn.autocommit = old_autocommit
+
+
+def _resolve_vacuum_tables(tables: list[str] | None, storage: Any) -> list[str]:
+    """Return the list of tables to vacuum, querying pg_tables if *tables* is None."""
+    if tables is None:
+        with storage.connection() as conn:
+            rows = conn.execute(
+                "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename"
+            ).fetchall()
+            return [str(row[0]) for row in rows]
+    return tables
 
 
 def get_database_size() -> dict[str, Any]:
@@ -91,15 +108,7 @@ def vacuum_tables(tables: list[str] | None = None, dry_run: bool = False) -> dic
         Dict with tables_processed, total_tables, or tables_to_vacuum (dry_run)
     """
     storage = get_connection_manager()
-
-    if tables is None:
-        with storage.connection() as conn:
-            rows = conn.execute(
-                "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename"
-            ).fetchall()
-            tables_to_vacuum: list[str] = [str(row[0]) for row in rows]
-    else:
-        tables_to_vacuum = tables
+    tables_to_vacuum = _resolve_vacuum_tables(tables, storage)
 
     invalid_tables = [t for t in tables_to_vacuum if not _SAFE_IDENTIFIER.fullmatch(t)]
     if invalid_tables:
@@ -203,11 +212,7 @@ def cleanup_old_agent_runs(days: int = 30, dry_run: bool = False) -> dict[str, A
 
     with storage.connection() as conn:
         if dry_run:
-            count_row = conn.execute(
-                "SELECT COUNT(*) FROM agent_runs WHERE started_at < %s",
-                [cutoff_date],
-            ).fetchone()
-            runs_to_delete = count_row[0] if count_row else 0
+            runs_to_delete = _count_rows(conn, "agent_runs", "started_at", cutoff_date)
             return {
                 "runs_to_delete": runs_to_delete,
                 "cutoff_date": cutoff_date.isoformat(),
@@ -247,22 +252,14 @@ def cleanup_old_watchlist_snapshots(days: int = 60, dry_run: bool = False) -> di
 
     with storage.connection() as conn:
         if dry_run:
-            core_row = conn.execute(
-                "SELECT COUNT(*) FROM watchlist_snapshots_core WHERE fetched_at < %s",
-                [cutoff_date],
-            ).fetchone()
-            legacy_row = conn.execute(
-                "SELECT COUNT(*) FROM watchlist_snapshots WHERE fetched_at < %s",
-                [cutoff_date],
-            ).fetchone()
-            core_count = int(core_row[0] or 0) if core_row else 0
-            legacy_count = int(legacy_row[0] or 0) if legacy_row else 0
+            core_count = _count_rows(conn, "watchlist_snapshots_core", "fetched_at", cutoff_date)
+            old_count = _count_rows(conn, "watchlist_snapshots", "fetched_at", cutoff_date)
             return {
                 "core_rows_to_delete": core_count,
-                "legacy_rows_to_delete": legacy_count,
+                "legacy_rows_to_delete": old_count,
                 "cutoff_date": cutoff_date.isoformat(),
                 "retention_days": days,
-                "message": f"Would delete {core_count} core rows and {legacy_count} legacy rows",
+                "message": f"Would delete {core_count} core rows and {old_count} legacy rows",
             }
 
         # DELETE from normalized tables (CASCADE handles technical_metrics, narrative, news_summary)
@@ -276,12 +273,12 @@ def cleanup_old_watchlist_snapshots(days: int = 60, dry_run: bool = False) -> di
             "DELETE FROM watchlist_snapshots WHERE fetched_at < %s",
             [cutoff_date],
         )
-        legacy_deleted = conn.rowcount
+        old_deleted = conn.rowcount
         conn.commit()
 
     return {
         "core_rows_deleted": core_deleted,
-        "legacy_rows_deleted": legacy_deleted,
+        "legacy_rows_deleted": old_deleted,
         "cutoff_date": cutoff_date.isoformat(),
         "retention_days": days,
     }
@@ -310,13 +307,10 @@ def cleanup_maintenance_tables(days: int = 90, dry_run: bool = False) -> dict[st
 
     with storage.connection() as conn:
         if dry_run:
-            counts: dict[str, int] = {}
-            for table, col in tables:
-                result = conn.execute(
-                    f"SELECT COUNT(*) FROM {table} WHERE {col} < %s",  # table/col from constant list
-                    [cutoff_date],
-                ).fetchone()
-                counts[f"{table}_to_delete"] = int(result[0] or 0) if result else 0
+            counts = {
+                f"{table}_to_delete": _count_rows(conn, table, col, cutoff_date)
+                for table, col in tables
+            }
             return {
                 **counts,
                 "cutoff_date": cutoff_date.isoformat(),
