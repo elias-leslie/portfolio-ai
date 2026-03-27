@@ -7,324 +7,138 @@ Hatchet workflows with cron scheduling.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from typing import Any, cast
 
 from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy, Context
 
 from ..hatchet_app import hatchet
+from ..tasks.artifact_tasks import cleanup_debug_captures
+from ..tasks.cleanup.artifact_cleanup import cleanup_old_backups_task, cleanup_old_models_task
+from ..tasks.cleanup.disk_monitoring import check_disk_space_task
+from ..tasks.cleanup.log_cleanup import cleanup_old_logs_task, rotate_logs_task
+from ..tasks.cleanup.temp_cleanup import cleanup_temp_files_task
+from ..tasks.data_freshness_tasks import check_all_data_freshness, maintain_data_freshness
+from ..tasks.maintenance_tasks import (
+    cleanup_maintenance_tables_task,
+    cleanup_old_agent_runs_task,
+    cleanup_old_news_task,
+    cleanup_old_watchlist_snapshots_task,
+    cleanup_orphaned_data_task,
+    get_database_size_task,
+    vacuum_database_task,
+)
+from ..tasks.news_profiling_tasks import profile_news_sources_task, reset_source_metrics_task
+from ..tasks.source_health_tasks import check_data_source_health
 from .models import CleanupInput, EmptyInput, WatchlistInput
 
 
-@hatchet.task(
-    name="portfolio-rotate-logs",
-    input_validator=EmptyInput,
-    execution_timeout="1800s",
-    retries=1,
-    on_crons=["45 1 * * *"],
-    concurrency=ConcurrencyExpression(
-        expression="'portfolio-rotate-logs'",
+def _concurrency(name: str) -> ConcurrencyExpression:
+    return ConcurrencyExpression(
+        expression=f"'{name}'",
         max_runs=1,
         limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
-    ),
-)
-async def rotate_logs_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.cleanup.log_cleanup import rotate_logs_task
-
-    return await asyncio.to_thread(rotate_logs_task)
-
-
-@hatchet.task(
-    name="portfolio-vacuum-db",
-    input_validator=EmptyInput,
-    execution_timeout="7200s",
-    retries=1,
-    on_crons=["30 3 * * 0"],
-    concurrency=ConcurrencyExpression(
-        expression="'portfolio-vacuum-db'",
-        max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
-    ),
-)
-async def vacuum_db_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.maintenance_tasks import vacuum_database_task
-
-    return await asyncio.to_thread(vacuum_database_task)
-
-
-@hatchet.task(
-    name="portfolio-cleanup-news",
-    input_validator=CleanupInput,
-    execution_timeout="3600s",
-    retries=1,
-    on_crons=["0 4 * * 0"],
-    concurrency=ConcurrencyExpression(
-        expression="'portfolio-cleanup-news'",
-        max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
-    ),
-)
-async def cleanup_news_wf(input: CleanupInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.maintenance_tasks import cleanup_old_news_task
-
-    return await asyncio.to_thread(cleanup_old_news_task, days=input.days or 90, dry_run=input.dry_run)
-
-
-@hatchet.task(
-    name="portfolio-cleanup-agent-runs",
-    input_validator=CleanupInput,
-    execution_timeout="3600s",
-    retries=1,
-    on_crons=["15 4 * * 0"],
-    concurrency=ConcurrencyExpression(
-        expression="'portfolio-cleanup-agent-runs'",
-        max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
-    ),
-)
-async def cleanup_old_agent_runs_wf(input: CleanupInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.maintenance_tasks import cleanup_old_agent_runs_task
-
-    return await asyncio.to_thread(cleanup_old_agent_runs_task, days=input.days or 30, dry_run=input.dry_run)
-
-
-@hatchet.task(
-    name="portfolio-cleanup-orphaned",
-    input_validator=CleanupInput,
-    execution_timeout="3600s",
-    retries=1,
-    on_crons=["30 4 * * 0"],
-    concurrency=ConcurrencyExpression(
-        expression="'portfolio-cleanup-orphaned'",
-        max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
-    ),
-)
-async def cleanup_orphaned_wf(input: CleanupInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.maintenance_tasks import cleanup_orphaned_data_task
-
-    return await asyncio.to_thread(cleanup_orphaned_data_task, dry_run=input.dry_run)
-
-
-@hatchet.task(
-    name="portfolio-cleanup-snapshots",
-    input_validator=CleanupInput,
-    execution_timeout="3600s",
-    retries=1,
-    on_crons=["0 5 * * 0"],
-    concurrency=ConcurrencyExpression(
-        expression="'portfolio-cleanup-snapshots'",
-        max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
-    ),
-)
-async def cleanup_snapshots_wf(input: CleanupInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.maintenance_tasks import cleanup_old_watchlist_snapshots_task
-
-    return await asyncio.to_thread(
-        cleanup_old_watchlist_snapshots_task, days=input.days or 60, dry_run=input.dry_run
     )
 
 
-@hatchet.task(
-    name="portfolio-cleanup-maintenance",
-    input_validator=CleanupInput,
-    execution_timeout="3600s",
-    retries=1,
-    on_crons=["30 5 * * 0"],
-    concurrency=ConcurrencyExpression(
-        expression="'portfolio-cleanup-maintenance'",
-        max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
-    ),
-)
-async def cleanup_maintenance_wf(input: CleanupInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.maintenance_tasks import cleanup_maintenance_tables_task
+def _empty_wf(
+    name: str,
+    timeout: str,
+    crons: list[str],
+    fn: Callable[[], Any],
+    *,
+    retries: int = 1,
+    backoff_factor: float | None = None,
+) -> Any:
+    kw: dict[str, Any] = {"on_crons": crons}
+    if backoff_factor is not None:
+        kw["backoff_factor"] = backoff_factor
 
-    return await asyncio.to_thread(
-        cleanup_maintenance_tables_task, days=input.days or 90, dry_run=input.dry_run
+    @hatchet.task(
+        name=name,
+        input_validator=EmptyInput,
+        execution_timeout=timeout,
+        retries=retries,
+        concurrency=_concurrency(name),
+        **kw,
     )
+    async def _wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
+        return await asyncio.to_thread(fn)
+
+    return _wf
 
 
-@hatchet.task(
-    name="portfolio-cleanup-backups",
-    input_validator=EmptyInput,
-    execution_timeout="3600s",
-    retries=1,
-    on_crons=["45 4 * * 0"],
-    concurrency=ConcurrencyExpression(
-        expression="'portfolio-cleanup-backups'",
-        max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
-    ),
+def _cleanup_wf(
+    name: str,
+    timeout: str,
+    crons: list[str],
+    fn: Callable[..., Any],
+    default_days: int | None = None,
+) -> Any:
+    @hatchet.task(
+        name=name,
+        input_validator=CleanupInput,
+        execution_timeout=timeout,
+        retries=1,
+        on_crons=crons,
+        concurrency=_concurrency(name),
+    )
+    async def _wf(input: CleanupInput, ctx: Context) -> dict[str, Any]:
+        kwargs: dict[str, Any] = {"dry_run": input.dry_run}
+        if default_days is not None:
+            kwargs["days"] = input.days or default_days
+        return await asyncio.to_thread(fn, **kwargs)
+
+    return _wf
+
+
+rotate_logs_wf = _empty_wf("portfolio-rotate-logs", "1800s", ["45 1 * * *"], rotate_logs_task)
+vacuum_db_wf = _empty_wf("portfolio-vacuum-db", "7200s", ["30 3 * * 0"], vacuum_database_task)
+db_size_wf = _empty_wf("portfolio-db-size", "600s", ["36 5 * * *"], get_database_size_task)
+cleanup_old_backups_wf = _empty_wf(
+    "portfolio-cleanup-backups", "3600s", ["45 4 * * 0"], cleanup_old_backups_task
 )
-async def cleanup_old_backups_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.cleanup.artifact_cleanup import cleanup_old_backups_task
-
-    return await asyncio.to_thread(cleanup_old_backups_task)
-
-
-@hatchet.task(
-    name="portfolio-cleanup-models",
-    input_validator=EmptyInput,
-    execution_timeout="3600s",
-    retries=1,
-    on_crons=["5 5 * * 0"],
-    concurrency=ConcurrencyExpression(
-        expression="'portfolio-cleanup-models'",
-        max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
-    ),
+cleanup_old_models_wf = _empty_wf(
+    "portfolio-cleanup-models", "3600s", ["5 5 * * 0"], cleanup_old_models_task
 )
-async def cleanup_old_models_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.cleanup.artifact_cleanup import cleanup_old_models_task
-
-    return await asyncio.to_thread(cleanup_old_models_task)
-
-
-@hatchet.task(
-    name="portfolio-db-size",
-    input_validator=EmptyInput,
-    execution_timeout="600s",
-    retries=1,
-    on_crons=["36 5 * * *"],
-    concurrency=ConcurrencyExpression(
-        expression="'portfolio-db-size'",
-        max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
-    ),
+cleanup_temp_wf = _empty_wf(
+    "portfolio-cleanup-temp", "1800s", ["15 2 * * *"], cleanup_temp_files_task
 )
-async def db_size_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.maintenance_tasks import get_database_size_task
-
-    return await asyncio.to_thread(get_database_size_task)
-
-
-@hatchet.task(
-    name="portfolio-cleanup-logs",
-    input_validator=CleanupInput,
-    execution_timeout="1800s",
-    retries=1,
-    on_crons=["0 2 * * *"],
-    concurrency=ConcurrencyExpression(
-        expression="'portfolio-cleanup-logs'",
-        max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
-    ),
+check_disk_space_wf = _empty_wf(
+    "portfolio-check-disk", "600s", ["0 */6 * * *"], check_disk_space_task
 )
-async def cleanup_old_logs_wf(input: CleanupInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.cleanup.log_cleanup import cleanup_old_logs_task
-
-    return await asyncio.to_thread(cleanup_old_logs_task, days=input.days or 7, dry_run=input.dry_run)
-
-
-@hatchet.task(
-    name="portfolio-cleanup-temp",
-    input_validator=EmptyInput,
-    execution_timeout="1800s",
-    retries=1,
-    on_crons=["15 2 * * *"],
-    concurrency=ConcurrencyExpression(
-        expression="'portfolio-cleanup-temp'",
-        max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
-    ),
+check_data_source_health_wf = _empty_wf(
+    "portfolio-source-health", "1800s", ["30 */6 * * *"], check_data_source_health
 )
-async def cleanup_temp_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.cleanup.temp_cleanup import cleanup_temp_files_task
-
-    return await asyncio.to_thread(cleanup_temp_files_task)
-
-
-@hatchet.task(
-    name="portfolio-check-disk",
-    input_validator=EmptyInput,
-    execution_timeout="600s",
-    retries=1,
-    on_crons=["0 */6 * * *"],
-    concurrency=ConcurrencyExpression(
-        expression="'portfolio-check-disk'",
-        max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
-    ),
+cleanup_debug_captures_wf = _empty_wf(
+    "portfolio-cleanup-debug", "1800s", ["15 6 * * *"], cleanup_debug_captures
 )
-async def check_disk_space_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.cleanup.disk_monitoring import check_disk_space_task
-
-    return await asyncio.to_thread(check_disk_space_task)
-
-
-@hatchet.task(
-    name="portfolio-data-freshness",
-    input_validator=EmptyInput,
-    execution_timeout="1800s",
-    retries=3,
-    backoff_factor=2.0,
-    on_crons=["0 */2 * * *"],
-    concurrency=ConcurrencyExpression(
-        expression="'portfolio-data-freshness'",
-        max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
-    ),
+maintain_data_freshness_wf = _empty_wf(
+    "portfolio-data-freshness", "1800s", ["0 */2 * * *"], maintain_data_freshness,
+    retries=3, backoff_factor=2.0,
 )
-async def maintain_data_freshness_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.data_freshness_tasks import maintain_data_freshness
-
-    return await asyncio.to_thread(maintain_data_freshness)
-
-
-@hatchet.task(
-    name="portfolio-check-freshness",
-    input_validator=EmptyInput,
-    execution_timeout="1800s",
-    retries=3,
-    backoff_factor=2.0,
-    on_crons=["0 */2 * * *"],
-    concurrency=ConcurrencyExpression(
-        expression="'portfolio-check-freshness'",
-        max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
-    ),
+check_all_data_freshness_wf = _empty_wf(
+    "portfolio-check-freshness", "1800s", ["0 */2 * * *"], check_all_data_freshness,
+    retries=3, backoff_factor=2.0,
 )
-async def check_all_data_freshness_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.data_freshness_tasks import check_all_data_freshness
-
-    return await asyncio.to_thread(check_all_data_freshness)
-
-
-@hatchet.task(
-    name="portfolio-source-health",
-    input_validator=EmptyInput,
-    execution_timeout="1800s",
-    retries=1,
-    on_crons=["30 */6 * * *"],
-    concurrency=ConcurrencyExpression(
-        expression="'portfolio-source-health'",
-        max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
-    ),
+cleanup_news_wf = _cleanup_wf(
+    "portfolio-cleanup-news", "3600s", ["0 4 * * 0"], cleanup_old_news_task, 90
 )
-async def check_data_source_health_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.source_health_tasks import check_data_source_health
-
-    return await asyncio.to_thread(check_data_source_health)
-
-
-@hatchet.task(
-    name="portfolio-cleanup-debug",
-    input_validator=EmptyInput,
-    execution_timeout="1800s",
-    retries=1,
-    on_crons=["15 6 * * *"],
-    concurrency=ConcurrencyExpression(
-        expression="'portfolio-cleanup-debug'",
-        max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
-    ),
+cleanup_old_agent_runs_wf = _cleanup_wf(
+    "portfolio-cleanup-agent-runs", "3600s", ["15 4 * * 0"], cleanup_old_agent_runs_task, 30
 )
-async def cleanup_debug_captures_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.artifact_tasks import cleanup_debug_captures
-
-    return await asyncio.to_thread(cleanup_debug_captures)
+cleanup_orphaned_wf = _cleanup_wf(
+    "portfolio-cleanup-orphaned", "3600s", ["30 4 * * 0"], cleanup_orphaned_data_task
+)
+cleanup_snapshots_wf = _cleanup_wf(
+    "portfolio-cleanup-snapshots", "3600s", ["0 5 * * 0"], cleanup_old_watchlist_snapshots_task, 60
+)
+cleanup_maintenance_wf = _cleanup_wf(
+    "portfolio-cleanup-maintenance", "3600s", ["30 5 * * 0"], cleanup_maintenance_tables_task, 90
+)
+cleanup_old_logs_wf = _cleanup_wf(
+    "portfolio-cleanup-logs", "1800s", ["0 2 * * *"], cleanup_old_logs_task, 7
+)
 
 
 @hatchet.task(
@@ -334,8 +148,6 @@ async def cleanup_debug_captures_wf(input: EmptyInput, ctx: Context) -> dict[str
     retries=1,
 )
 async def reset_source_metrics_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.news_profiling_tasks import reset_source_metrics_task
-
     return cast(dict[str, Any], await asyncio.to_thread(reset_source_metrics_task))
 
 
@@ -345,13 +157,7 @@ async def reset_source_metrics_wf(input: EmptyInput, ctx: Context) -> dict[str, 
     execution_timeout="3600s",
     retries=1,
     on_crons=["0 */12 * * *"],
-    concurrency=ConcurrencyExpression(
-        expression="'portfolio-profile-news'",
-        max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
-    ),
+    concurrency=_concurrency("portfolio-profile-news"),
 )
 async def profile_news_wf(input: WatchlistInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.news_profiling_tasks import profile_news_sources_task
-
     return cast(dict[str, Any], await asyncio.to_thread(profile_news_sources_task, user_id=input.user_id))
