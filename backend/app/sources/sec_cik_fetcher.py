@@ -187,6 +187,27 @@ def fetch_cik_mapping(timeout: float = DEFAULT_HTTP_TIMEOUT) -> dict[str, str]:
     raise RuntimeError(f"All CIK sources failed: {error_summary}")
 
 
+def _upsert_symbol(conn: Any, symbol: str, cik: str) -> None:
+    """Upsert a single symbol→CIK row into the database."""
+    conn.execute(
+        """
+        INSERT INTO sec_cik_cache (symbol, cik, last_updated)
+        VALUES (%s, %s, %s)
+        ON CONFLICT (symbol) DO UPDATE SET
+            cik = EXCLUDED.cik,
+            last_updated = EXCLUDED.last_updated
+        """,
+        (symbol, cik, datetime.now(UTC)),
+    )
+
+
+def _save_batch(conn: Any, batch: list[tuple[str, str]], batch_num: int) -> None:
+    """Write one batch of symbol→CIK pairs and log progress."""
+    for symbol, cik in batch:
+        _upsert_symbol(conn, symbol, cik)
+    logger.debug("cik_db_batch_saved", batch_num=batch_num, batch_size=len(batch))
+
+
 def save_to_database(storage: PortfolioStorage, mapping: dict[str, str]) -> None:
     """Save CIK mapping to database."""
     logger.info("cik_db_save_start", total_entries=len(mapping))
@@ -194,23 +215,7 @@ def save_to_database(storage: PortfolioStorage, mapping: dict[str, str]) -> None
     items = list(mapping.items())
     with storage.connection() as conn:
         for i in range(0, len(items), batch_size):
-            batch = items[i : i + batch_size]
-            for symbol, cik in batch:
-                conn.execute(
-                    """
-                    INSERT INTO sec_cik_cache (symbol, cik, last_updated)
-                    VALUES (%s, %s, %s)
-                    ON CONFLICT (symbol) DO UPDATE SET
-                        cik = EXCLUDED.cik,
-                        last_updated = EXCLUDED.last_updated
-                    """,
-                    (symbol, cik, datetime.now(UTC)),
-                )
-            logger.debug(
-                "cik_db_batch_saved",
-                batch_num=i // batch_size + 1,
-                batch_size=len(batch),
-            )
+            _save_batch(conn, items[i : i + batch_size], i // batch_size + 1)
         conn.commit()
     logger.info("cik_db_save_complete", total_saved=len(mapping))
 
@@ -225,6 +230,19 @@ def load_from_database(storage: PortfolioStorage) -> dict[str, str]:
     return mapping
 
 
+def _lookup_cik_in_db(storage: PortfolioStorage, symbol: str) -> str | None:
+    """Query a single symbol's CIK from the database, returning None on any error."""
+    try:
+        with storage.connection() as conn:
+            row = conn.execute(
+                "SELECT cik FROM sec_cik_cache WHERE symbol = ?", (symbol,)
+            ).fetchone()
+            return str(row[0]) if row else None
+    except (OSError, ValueError, TypeError) as exc:
+        logger.warning("cik_lookup_error", symbol=symbol, error=str(exc))
+        return None
+
+
 def get_cik(symbol: str, storage: PortfolioStorage | None = None) -> str | None:
     """Get CIK for a symbol.
 
@@ -236,17 +254,9 @@ def get_cik(symbol: str, storage: PortfolioStorage | None = None) -> str | None:
         CIK number (10-digit string) or None if not found
     """
     symbol = _normalize_symbol(symbol)
-    if storage:
-        try:
-            with storage.connection() as conn:
-                row = conn.execute(
-                    "SELECT cik FROM sec_cik_cache WHERE symbol = ?", (symbol,)
-                ).fetchone()
-                return str(row[0]) if row else None
-        except (OSError, ValueError, TypeError) as exc:
-            logger.warning("cik_lookup_error", symbol=symbol, error=str(exc))
-            return None
-    return None
+    if not storage:
+        return None
+    return _lookup_cik_in_db(storage, symbol)
 
 
 def fetch_and_save(storage: PortfolioStorage) -> dict[str, str]:
