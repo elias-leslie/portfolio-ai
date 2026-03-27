@@ -149,6 +149,30 @@ def _determine_source_status(
     return "down"
 
 
+def _build_source_health_check(row: dict[str, Any], policy: SourceHealthPolicy) -> SourceHealthCheck:
+    """Build a SourceHealthCheck from a performance row and its policy."""
+    success_count = row["success_count"] or 0
+    failure_count = row["failure_count"] or 0
+    total_latency_ms = row["total_latency_ms"] or 0
+    rate_limit_hits = row["rate_limit_hits"] or 0
+    last_success_at = row.get("last_success_at")
+
+    success_rate, avg_latency_ms = _calculate_source_metrics(
+        success_count, failure_count, total_latency_ms
+    )
+    status = _determine_source_status(last_success_at, success_rate, policy=policy)
+
+    return SourceHealthCheck(
+        status=status,
+        last_success=last_success_at,
+        success_rate=round(success_rate, 1),
+        avg_latency_ms=avg_latency_ms,
+        rate_limit_hits=rate_limit_hits,
+        in_cooldown=False,
+        cooldown_remaining_seconds=0,
+    )
+
+
 def check_sources(storage: PortfolioStorage) -> dict[str, SourceHealthCheck]:
     """Check health of monitored market/reference data sources."""
     sources: dict[str, SourceHealthCheck] = {}
@@ -173,28 +197,7 @@ def check_sources(storage: PortfolioStorage) -> dict[str, SourceHealthCheck]:
             policy = source_policies.get(source_name)
             if policy is None:
                 continue
-
-            success_count = row["success_count"] or 0
-            failure_count = row["failure_count"] or 0
-            total_latency_ms = row["total_latency_ms"] or 0
-            rate_limit_hits = row["rate_limit_hits"] or 0
-            last_success_at = row.get("last_success_at")
-
-            success_rate, avg_latency_ms = _calculate_source_metrics(
-                success_count, failure_count, total_latency_ms
-            )
-
-            status = _determine_source_status(last_success_at, success_rate, policy=policy)
-
-            sources[source_name] = SourceHealthCheck(
-                status=status,
-                last_success=last_success_at,
-                success_rate=round(success_rate, 1),
-                avg_latency_ms=avg_latency_ms,
-                rate_limit_hits=rate_limit_hits,
-                in_cooldown=False,
-                cooldown_remaining_seconds=0,
-            )
+            sources[source_name] = _build_source_health_check(row, policy)
 
     except Exception as e:
         logger.error("check_sources_failed", error=str(e), exc_info=True)
@@ -202,40 +205,36 @@ def check_sources(storage: PortfolioStorage) -> dict[str, SourceHealthCheck]:
     return sources
 
 
+def _query_agent_stats_row(storage: PortfolioStorage) -> dict[str, Any] | None:
+    """Run the agent_runs aggregate query and return the first row, or None if empty."""
+    df = storage.query(
+        """
+        SELECT
+            COUNT(*) as total_runs,
+            SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_runs,
+            SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_runs,
+            AVG(CASE
+                WHEN status = 'completed' AND completed_at IS NOT NULL
+                THEN EXTRACT(EPOCH FROM (completed_at - started_at))
+                ELSE NULL
+            END) as avg_duration_s,
+            AVG(cost_usd) as avg_cost_usd
+        FROM agent_runs
+        """
+    )
+    return df.to_dicts()[0] if not df.is_empty() else None
+
+
+def _empty_agent_stats() -> AgentStats:
+    return AgentStats(total_runs=0, completed_runs=0, failed_runs=0)
+
+
 def get_agent_stats(storage: PortfolioStorage) -> AgentStats:
-    """Get agent execution statistics.
-
-    Args:
-        storage: PortfolioStorage instance
-
-    Returns:
-        AgentStats with agent metrics
-    """
+    """Get agent execution statistics."""
     try:
-        df = storage.query(
-            """
-            SELECT
-                COUNT(*) as total_runs,
-                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_runs,
-                SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_runs,
-                AVG(CASE
-                    WHEN status = 'completed' AND completed_at IS NOT NULL
-                    THEN EXTRACT(EPOCH FROM (completed_at - started_at))
-                    ELSE NULL
-                END) as avg_duration_s,
-                AVG(cost_usd) as avg_cost_usd
-            FROM agent_runs
-            """
-        )
-
-        if df.is_empty():
-            return AgentStats(
-                total_runs=0,
-                completed_runs=0,
-                failed_runs=0,
-            )
-
-        row = df.to_dicts()[0]
+        row = _query_agent_stats_row(storage)
+        if row is None:
+            return _empty_agent_stats()
 
         return AgentStats(
             total_runs=row["total_runs"] or 0,
@@ -247,47 +246,34 @@ def get_agent_stats(storage: PortfolioStorage) -> AgentStats:
 
     except Exception as e:
         logger.error("get_agent_stats_failed", error=str(e), exc_info=True)
-        return AgentStats(
-            total_runs=0,
-            completed_runs=0,
-            failed_runs=0,
-        )
+        return _empty_agent_stats()
+
+
+def _query_watchlist_snapshots(storage: PortfolioStorage) -> dict[str, Any] | None:
+    """Query watchlist snapshot aggregates; returns first row or None."""
+    df = storage.query(
+        """
+        SELECT
+            MAX(fetched_at) as last_refresh,
+            COUNT(DISTINCT item_id) as items_with_scores
+        FROM watchlist_snapshots_v
+        """
+    )
+    return df.to_dicts()[0] if not df.is_empty() else None
 
 
 def get_watchlist_stats(storage: PortfolioStorage) -> WatchlistStats:
-    """Get watchlist statistics.
-
-    Args:
-        storage: PortfolioStorage instance
-
-    Returns:
-        WatchlistStats with watchlist metrics
-    """
+    """Get watchlist statistics."""
     try:
-        # Get total items
         items_df = storage.query("SELECT COUNT(*) as total FROM watchlist_items")
         total_items = items_df.to_dicts()[0]["total"] if not items_df.is_empty() else 0
 
-        # Get last refresh timestamp and count items with scores
-        snapshots_df = storage.query(
-            """
-            SELECT
-                MAX(fetched_at) as last_refresh,
-                COUNT(DISTINCT item_id) as items_with_scores
-            FROM watchlist_snapshots_v
-            """
-        )
+        row = _query_watchlist_snapshots(storage)
+        if row is None:
+            return WatchlistStats(total_items=total_items, items_with_scores=0)
 
-        if snapshots_df.is_empty():
-            return WatchlistStats(
-                total_items=total_items,
-                items_with_scores=0,
-            )
-
-        row = snapshots_df.to_dicts()[0]
         last_refresh = row.get("last_refresh")
         items_with_scores = row.get("items_with_scores") or 0
-
         refresh_age_minutes = None
         if last_refresh:
             refresh_age_minutes = (datetime.now(UTC) - last_refresh).total_seconds() / 60
@@ -304,15 +290,8 @@ def get_watchlist_stats(storage: PortfolioStorage) -> WatchlistStats:
         return WatchlistStats(total_items=0)
 
 
-def get_worker_info() -> WorkerInfo:
-    """Get Hatchet worker active status.
-
-    Tries systemctl first (bare-metal), falls back to process detection (Docker).
-
-    Returns:
-        WorkerInfo with worker status
-    """
-    # Try systemctl (works on bare-metal with systemd)
+def _check_systemctl_worker() -> WorkerInfo | None:
+    """Return WorkerInfo if systemctl reports the worker active, else None."""
     try:
         result = subprocess.run(
             ["systemctl", "--user", "is-active", "portfolio-hatchet-worker"],
@@ -320,12 +299,13 @@ def get_worker_info() -> WorkerInfo:
         )
         if result.returncode == 0 and result.stdout.strip() == "active":
             return WorkerInfo(active=True, message="Hatchet worker active")
-    except FileNotFoundError:
-        pass  # systemctl not available (Docker container)
-    except Exception:
-        pass  # systemctl failed, try pgrep fallback
+    except (FileNotFoundError, Exception):
+        pass
+    return None
 
-    # Fallback: check for worker process via pgrep
+
+def _check_pgrep_worker() -> WorkerInfo | None:
+    """Return WorkerInfo if a worker process is found via pgrep, else None."""
     try:
         result = subprocess.run(
             ["pgrep", "-f", r"python.*app\.worker"],
@@ -335,6 +315,19 @@ def get_worker_info() -> WorkerInfo:
             return WorkerInfo(active=True, message="Hatchet worker active")
     except Exception:
         pass
+    return None
+
+
+def get_worker_info() -> WorkerInfo:
+    """Get Hatchet worker active status.
+
+    Tries systemctl first (bare-metal), falls back to process detection (Docker).
+    """
+    if (info := _check_systemctl_worker()) is not None:
+        return info
+
+    if (info := _check_pgrep_worker()) is not None:
+        return info
 
     # In a container, the worker runs in a separate container — can't detect via process.
     # Report as unknown rather than definitively down.
