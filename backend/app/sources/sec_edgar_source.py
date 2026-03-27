@@ -28,6 +28,17 @@ _set_identity_called = False
 
 logger = get_logger(__name__)
 
+# Plain language translations for filing headlines
+_HEADLINE_MAP: dict[str, str] = {
+    "8-K": "Company filed material event report",
+    "10-Q": "Quarterly financial report filed",
+    "10-K": "Annual financial report filed",
+    "4": "Insider trading activity reported",
+}
+
+# Filing types that count as material events
+_MATERIAL_FORMS: frozenset[str] = frozenset({"8-K", "4"})
+
 
 def _get_edgar() -> Any:
     """Lazy import edgartools and set User-Agent identity."""
@@ -82,6 +93,13 @@ class SECEdgarSource(BaseSource):
         self._storage = storage
         logger.info("sec_edgar_source_initialized")
 
+    def _ensure_storage(self) -> None:
+        """Lazily initialize storage to avoid circular dependency."""
+        if self._storage is None:
+            from ..storage import PortfolioStorage  # noqa: PLC0415
+
+            self._storage = PortfolioStorage()
+
     def fetch_day_bars(self, request: Any) -> pl.DataFrame | None:
         """Not implemented - SEC EDGAR only provides news/filings."""
         return None
@@ -109,10 +127,8 @@ class SECEdgarSource(BaseSource):
         edgar = _get_edgar()
         records: list[dict[str, Any]] = []
 
-        # Convert to dates for edgartools API
         start_date = start.date()
         end_date = end.date()
-
         symbol_list = list(symbols) or ["__MARKET__"]
 
         logger.info(
@@ -123,65 +139,11 @@ class SECEdgarSource(BaseSource):
         )
 
         for symbol in symbol_list:
-            # Skip market-level requests (SEC is symbol-specific)
             if symbol in (None, "__MARKET__"):
                 continue
-
-            try:
-                # Get CIK from local cache (bypasses SEC API symbol lookup)
-                if self._storage is None:
-                    # Lazy import to avoid circular dependency
-                    from ..storage import PortfolioStorage  # noqa: PLC0415
-
-                    self._storage = PortfolioStorage()
-
-                cik = get_cik(symbol, self._storage)
-                if not cik:
-                    logger.warning("sec_edgar_cik_not_found", symbol=symbol)
-                    continue
-
-                # Get company by CIK (bypasses ticker lookup, works despite IP block)
-                company = edgar.Company(cik)
-
-                # Fetch filings in date range
-                filings = company.get_filings(
-                    form=self.FILING_TYPES, date=f"{start_date}:{end_date}"
-                )
-
-                if len(filings) == 0:
-                    logger.debug("sec_edgar_no_filings", symbol=symbol)
-                    continue
-
-                # Process each filing
-                # Work around pyarrow version issue by accessing data directly
-                for i, _ in enumerate(filings.data):
-                    try:
-                        filing_record = self._process_filing(filings, i, symbol)
-                        if filing_record:
-                            records.append(filing_record)
-                    except (ValueError, KeyError, TypeError, IndexError, AttributeError) as filing_error:
-                        logger.warning(
-                            "sec_edgar_filing_parse_error",
-                            symbol=symbol,
-                            index=i,
-                            error=str(filing_error),
-                        )
-                        continue
-
-                logger.debug(
-                    "sec_edgar_symbol_complete",
-                    symbol=symbol,
-                    filings_found=len(filings.data),
-                )
-
-            except (ValueError, KeyError, TypeError, AttributeError, OSError, RuntimeError) as exc:
-                logger.warning(
-                    "sec_edgar_fetch_error",
-                    symbol=symbol,
-                    error=str(exc),
-                    error_type=type(exc).__name__,
-                )
-                continue
+            records.extend(
+                self._fetch_symbol_filings(edgar, symbol, start_date, end_date)
+            )
 
         if not records:
             logger.info("sec_edgar_no_data")
@@ -193,10 +155,7 @@ class SECEdgarSource(BaseSource):
             unique_symbols=len({r["symbol"] for r in records}),
         )
 
-        # Create dataframe with explicit schema to avoid type inference issues during concat
         df = pl.from_dicts(records)
-
-        # Explicitly cast nullable columns to ensure consistent types across sources
         df = df.with_columns(
             [
                 pl.col("author").cast(pl.Utf8),
@@ -207,6 +166,74 @@ class SECEdgarSource(BaseSource):
         )
 
         return df
+
+    def _fetch_symbol_filings(
+        self,
+        edgar: Any,
+        symbol: str,
+        start_date: dt.date,
+        end_date: dt.date,
+    ) -> list[dict[str, Any]]:
+        """Fetch and process all filings for a single symbol.
+
+        Returns list of filing records (may be empty on error or no data).
+        """
+        try:
+            self._ensure_storage()
+            cik = get_cik(symbol, self._storage)
+            if not cik:
+                logger.warning("sec_edgar_cik_not_found", symbol=symbol)
+                return []
+
+            company = edgar.Company(cik)
+            filings = company.get_filings(
+                form=self.FILING_TYPES, date=f"{start_date}:{end_date}"
+            )
+
+            if len(filings) == 0:
+                logger.debug("sec_edgar_no_filings", symbol=symbol)
+                return []
+
+            records = self._parse_filings(filings, symbol)
+            logger.debug(
+                "sec_edgar_symbol_complete",
+                symbol=symbol,
+                filings_found=len(filings.data),
+            )
+            return records
+
+        except (ValueError, KeyError, TypeError, AttributeError, OSError, RuntimeError) as exc:
+            logger.warning(
+                "sec_edgar_fetch_error",
+                symbol=symbol,
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+            return []
+
+    def _parse_filings(self, filings: Any, symbol: str) -> list[dict[str, Any]]:
+        """Parse all filings in a filings collection for a symbol."""
+        records: list[dict[str, Any]] = []
+        for i, _ in enumerate(filings.data):
+            record = self._safe_process_filing(filings, i, symbol)
+            if record:
+                records.append(record)
+        return records
+
+    def _safe_process_filing(
+        self, filings: Any, index: int, symbol: str
+    ) -> dict[str, Any] | None:
+        """Process a single filing, returning None on any parse error."""
+        try:
+            return self._process_filing(filings, index, symbol)
+        except (ValueError, KeyError, TypeError, IndexError, AttributeError) as filing_error:
+            logger.warning(
+                "sec_edgar_filing_parse_error",
+                symbol=symbol,
+                index=index,
+                error=str(filing_error),
+            )
+            return None
 
     def _process_filing(self, filings: Any, index: int, symbol: str) -> dict[str, Any] | None:
         """Process a single filing into a news record.
@@ -219,7 +246,6 @@ class SECEdgarSource(BaseSource):
         Returns:
             Dictionary with filing data, or None if processing fails
         """
-        # Extract fields from pyarrow data (workaround for version incompatibility)
         form = self._get_pyarrow_value(filings.data["form"][index])
         filing_date = self._get_pyarrow_value(filings.data["filing_date"][index])
         accession = self._get_pyarrow_value(filings.data["accession_number"][index])
@@ -227,83 +253,37 @@ class SECEdgarSource(BaseSource):
         if not form or not filing_date:
             return None
 
-        # Generate plain language headline
         headline = self._generate_headline(form, symbol)
+        filing_url = (
+            f"https://www.sec.gov/cgi-bin/viewer?action=view&accession_number={accession}"
+        )
 
-        # Build filing URL
-        # Format: https://www.sec.gov/cgi-bin/viewer?action=view&cik={cik}&accession_number={accession}&xbrl_type=v
-        # Simplified: use accession number format
-        filing_url = f"https://www.sec.gov/cgi-bin/viewer?action=view&accession_number={accession}"
-
-        # Determine if material event
-        is_material = self._is_material_event(form)
-
-        # Build record with ALL standard news fields (for schema compatibility)
-        record = {
+        return {
             "symbol": symbol,
             "headline": headline,
             "url": filing_url,
             "summary": f"{form} filed on {filing_date}",
-            "news_source_name": "SEC EDGAR",  # Standard field name
-            "author": None,  # SEC filings don't have authors
-            "image_url": None,  # SEC filings don't have images
+            "news_source_name": "SEC EDGAR",
+            "author": None,
+            "image_url": None,
             "published_at": dt.datetime.combine(filing_date, dt.time.min).replace(tzinfo=dt.UTC),
-            "raw_payload": None,  # Will be populated later if needed
-            "source": "sec_edgar",  # Source identifier
-            # SEC-specific fields
+            "raw_payload": None,
+            "source": "sec_edgar",
             "vendor": "sec_edgar",
             "filing_type": form,
-            "is_material_event": is_material,
+            "is_material_event": self._is_material_event(form),
         }
 
-        return record
-
     def _get_pyarrow_value(self, value: Any) -> Any:
-        """Extract Python value from pyarrow object.
-
-        Args:
-            value: PyArrow value
-
-        Returns:
-            Python native value
-        """
+        """Extract Python value from pyarrow object."""
         if hasattr(value, "as_py"):
             return value.as_py()
         return value
 
     def _generate_headline(self, form: str, symbol: str) -> str:
-        """Generate plain-language headline for filing.
-
-        Args:
-            form: Filing type (8-K, 10-Q, etc.)
-            symbol: Stock symbol
-
-        Returns:
-            Plain language headline
-        """
-        # Plain language translations (no jargon)
-        if form == "8-K":
-            return "Company filed material event report"
-        if form == "10-Q":
-            return "Quarterly financial report filed"
-        if form == "10-K":
-            return "Annual financial report filed"
-        if form == "4":
-            return "Insider trading activity reported"
-        return f"{form} filed with SEC"
+        """Generate plain-language headline for filing."""
+        return _HEADLINE_MAP.get(form, f"{form} filed with SEC")
 
     def _is_material_event(self, form: str) -> bool:
-        """Determine if filing represents a material event.
-
-        Args:
-            form: Filing type
-
-        Returns:
-            True if material event
-        """
-        # All 8-Ks are material events (by definition)
-        if form == "8-K":
-            return True
-
-        # Form 4 (insider trades) are material events
-        return form == "4"
+        """Determine if filing represents a material event."""
+        return form in _MATERIAL_FORMS
