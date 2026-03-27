@@ -137,6 +137,49 @@ def get_api_quotas(storage: PortfolioStorage) -> list[APIQuotaInfo]:
     return quotas
 
 
+def _compute_age_days(last_updated: Any, now: datetime) -> int | None:
+    """Compute age in days from last_updated value.
+
+    Args:
+        last_updated: datetime or date object, or None
+        now: current UTC datetime
+
+    Returns:
+        Age in days, or None if last_updated is falsy
+    """
+    from datetime import date as date_type  # noqa: PLC0415
+
+    if not last_updated:
+        return None
+    if isinstance(last_updated, datetime):
+        return (now - last_updated).days
+    if isinstance(last_updated, date_type):
+        last_updated_dt = datetime.combine(last_updated, datetime.min.time(), tzinfo=UTC)
+        return (now - last_updated_dt).days
+    return timedelta(days=0).days
+
+
+def _build_freshness_list(df: Any) -> list[DayBarFreshness]:
+    """Build freshness list from query result dataframe.
+
+    Args:
+        df: Polars dataframe with symbol and last_updated columns
+
+    Returns:
+        List of DayBarFreshness entries
+    """
+    freshness_list: list[DayBarFreshness] = []
+    now = datetime.now(UTC)
+    for row in df.iter_rows(named=True):
+        symbol = row["symbol"]
+        last_updated = row.get("last_updated")
+        age_days = _compute_age_days(last_updated, now)
+        freshness_list.append(
+            DayBarFreshness(symbol=symbol, last_updated=last_updated, age_days=age_days)
+        )
+    return freshness_list
+
+
 def get_day_bars_freshness(storage: PortfolioStorage) -> list[DayBarFreshness]:
     """Get data freshness for each symbol in day_bars table.
 
@@ -146,8 +189,6 @@ def get_day_bars_freshness(storage: PortfolioStorage) -> list[DayBarFreshness]:
     Returns:
         List of DayBarFreshness with last updated date per symbol
     """
-    freshness_list: list[DayBarFreshness] = []
-
     try:
         df = storage.query(
             """
@@ -160,42 +201,15 @@ def get_day_bars_freshness(storage: PortfolioStorage) -> list[DayBarFreshness]:
 
         if df.is_empty():
             logger.info("get_day_bars_freshness_empty_table")
-            return freshness_list
+            return []
 
-        now = datetime.now(UTC)
-        for row in df.iter_rows(named=True):
-            symbol = row["symbol"]
-            last_updated = row.get("last_updated")
-
-            age_days = None
-            if last_updated:
-                # Convert date to datetime for age calculation
-                if isinstance(last_updated, datetime):
-                    age_delta = now - last_updated
-                else:
-                    # If it's a date object, convert to datetime
-                    from datetime import date as date_type  # noqa: PLC0415
-
-                    if isinstance(last_updated, date_type):
-                        last_updated_dt = datetime.combine(
-                            last_updated, datetime.min.time(), tzinfo=UTC
-                        )
-                        age_delta = now - last_updated_dt
-                    else:
-                        age_delta = timedelta(days=0)
-
-                age_days = age_delta.days
-
-            freshness_list.append(
-                DayBarFreshness(symbol=symbol, last_updated=last_updated, age_days=age_days)
-            )
-
+        freshness_list = _build_freshness_list(df)
         logger.info("get_day_bars_freshness_success", symbol_count=len(freshness_list))
+        return freshness_list
 
     except Exception as e:
         logger.error("get_day_bars_freshness_failed", error=str(e), exc_info=True)
-
-    return freshness_list
+        return []
 
 
 def get_api_key_statuses(storage: PortfolioStorage) -> list[APIKeyStatus]:
