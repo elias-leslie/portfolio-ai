@@ -47,9 +47,10 @@ class HouseholdDashboardComposer:
             service, profile=d["profile"], reports=d["reports"], questions=d["questions"]
         )
         overview, retirement_assets, taxable_assets, cash_reserve, total_tracked_assets = build_overview(
-            service=service, accounts=d["accounts"], live_positions=d["live_positions"],
+            accounts=d["accounts"], live_positions=d["live_positions"],
             holdings_by_account=d["holdings_by_account"], documents=d["documents"],
             questions=visible_questions, resolved_values=resolved_values,
+            service=service,
         )
         categorization_queue = fetch_categorization_queue(service.storage, 6)
         recurring_commitments = fetch_recurring_commitments(service.storage, service.transaction_service, 6)

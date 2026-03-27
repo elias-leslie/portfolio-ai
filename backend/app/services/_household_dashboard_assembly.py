@@ -107,6 +107,20 @@ _LANE_CONFIGS: list[tuple[str, str, str]] = [
 # Shared helpers
 # ---------------------------------------------------------------------------
 
+def _call_service_override(
+    service: Any | None,
+    attr: str,
+    fallback: Any,
+    /,
+    *args: Any,
+    **kwargs: Any,
+) -> Any:
+    override = getattr(service, attr, None) if service is not None else None
+    if callable(override):
+        return override(*args, **kwargs)
+    return fallback(*args, **kwargs)
+
+
 def fields_with_confident_inferences(
     resolved_values: list[HouseholdResolvedValue], *, threshold: float
 ) -> set[str]:
@@ -159,9 +173,10 @@ def build_jenny_needs(
 
 
 def build_overview(
-    *, service: Any, accounts: list[Any], live_positions: list[Any],
+    *, accounts: list[Any], live_positions: list[Any],
     holdings_by_account: dict[str, float], documents: list[Any],
     questions: list[Any], resolved_values: list[HouseholdResolvedValue],
+    service: Any | None = None,
 ) -> tuple[HouseholdOverview, float, float, float, float]:
     invested_assets = sum(holdings_by_account.values())
     cash_reserve = sum(a.cash_balance for a in accounts)
@@ -174,27 +189,42 @@ def build_overview(
         if account.account_type in TAXABLE_ACCOUNT_TYPES:
             taxable_assets += account_total
     total_tracked_assets = invested_assets + cash_reserve
-    rnv_fn = lambda f: resolved_numeric_value(resolved_values, f)  # noqa: E731
-    visibility_score = compute_visibility_score(
-        account_count=len(accounts), position_count=len(live_positions),
-        cash_reserve=cash_reserve, retirement_assets=retirement_assets,
-        taxable_assets=taxable_assets, resolved_numeric_value=rnv_fn, document_count=len(documents),
+    rnv = lambda field: resolved_numeric_value(resolved_values, field)  # noqa: E731
+    visibility_score = _call_service_override(
+        service,
+        "_compute_visibility_score",
+        compute_visibility_score,
+        account_count=len(accounts),
+        position_count=len(live_positions),
+        cash_reserve=cash_reserve,
+        retirement_assets=retirement_assets,
+        taxable_assets=taxable_assets,
+        resolved_numeric_value=rnv,
+        document_count=len(documents),
     )
     overview = HouseholdOverview(
         invested_assets=invested_assets, retirement_assets=retirement_assets,
         taxable_assets=taxable_assets, cash_reserve=cash_reserve,
         total_tracked_assets=total_tracked_assets, visibility_score=visibility_score,
-        visibility_label=visibility_label(visibility_score),
-        next_best_action=next_best_action(documents, visibility_score, questions=[q.question for q in questions], resolved_numeric_value=rnv_fn),
+        visibility_label=_call_service_override(service, "_visibility_label", visibility_label, visibility_score),
+        next_best_action=_call_service_override(
+            service,
+            "_next_best_action",
+            next_best_action,
+            documents,
+            visibility_score,
+            questions=[q.question for q in questions],
+            resolved_numeric_value=rnv,
+        ),
     )
     return overview, retirement_assets, taxable_assets, cash_reserve, total_tracked_assets
 
 
 def build_budget_readiness(
-    *, service: Any, resolved_values: list[HouseholdResolvedValue], documents: list[Any]
+    *, resolved_values: list[HouseholdResolvedValue], documents: list[Any], service: Any | None = None
 ) -> BudgetReadiness:
     rnv = lambda field: resolved_numeric_value(resolved_values, field)  # noqa: E731
-    budget_inputs = budget_input_status(rnv, documents)
+    budget_inputs = _call_service_override(service, "_budget_input_status", budget_input_status, rnv, documents)
     starter_lanes = [
         BudgetLane(name=name, objective=objective, status="Configured" if rnv(field) is not None else "Needs target")
         for name, objective, field in _LANE_CONFIGS
@@ -212,12 +242,13 @@ def build_budget_readiness(
 
 
 def build_retirement_preparedness(
-    *, service: Any, resolved_values: list[HouseholdResolvedValue], documents: list[Any],
+    *, resolved_values: list[HouseholdResolvedValue], documents: list[Any],
     retirement_assets: float, taxable_assets: float, cash_reserve: float, total_tracked_assets: float,
+    service: Any | None = None,
 ) -> RetirementPreparedness:
     retirement_share = (retirement_assets / total_tracked_assets) * 100 if total_tracked_assets > 0 else 0.0
-    rnv_fn2 = lambda f: resolved_numeric_value(resolved_values, f)  # noqa: E731
-    ready = retirement_ready(rnv_fn2, documents)
+    rnv = lambda field: resolved_numeric_value(resolved_values, field)  # noqa: E731
+    ready = _call_service_override(service, "_retirement_ready", retirement_ready, rnv, documents)
     return RetirementPreparedness(
         status="scenario_ready" if ready else "baseline_visible",
         summary=(
@@ -226,9 +257,17 @@ def build_retirement_preparedness(
             else "Retirement assets are visible, but retirement readiness still depends on real spending and future-income assumptions."
         ),
         retirement_account_share=retirement_share,
-        strengths=retirement_strengths(retirement_assets, taxable_assets, cash_reserve, rnv_fn2),
-        blockers=retirement_blockers(rnv_fn2, documents),
-        next_steps=retirement_next_steps(rnv_fn2, documents),
+        strengths=_call_service_override(
+            service,
+            "_retirement_strengths",
+            retirement_strengths,
+            retirement_assets,
+            taxable_assets,
+            cash_reserve,
+            rnv,
+        ),
+        blockers=_call_service_override(service, "_retirement_blockers", retirement_blockers, rnv, documents),
+        next_steps=_call_service_override(service, "_retirement_next_steps", retirement_next_steps, rnv, documents),
     )
 
 
@@ -352,12 +391,21 @@ def assemble_finance_dashboard(
     return HouseholdFinanceDashboard(
         generated_at=datetime.now(UTC).isoformat(),
         overview=overview, profile=profile, resolved_values=resolved_values,
-        budget_readiness=build_budget_readiness(service=service, resolved_values=resolved_values, documents=documents),
-        budget_snapshot=build_budget_snapshot(profile=profile, reports=reports, month_to_date_spend=fetch_current_month_spend(service.storage)),
+        budget_readiness=build_budget_readiness(
+            resolved_values=resolved_values,
+            documents=documents,
+            service=service,
+        ),
+        budget_snapshot=build_budget_snapshot(
+            profile=profile,
+            reports=reports,
+            month_to_date_spend=fetch_current_month_spend(service.storage),
+        ),
         retirement_preparedness=build_retirement_preparedness(
-            service=service, resolved_values=resolved_values, documents=documents,
+            resolved_values=resolved_values, documents=documents,
             retirement_assets=retirement_assets, taxable_assets=taxable_assets,
             cash_reserve=cash_reserve, total_tracked_assets=total_tracked_assets,
+            service=service,
         ),
         jenny_needs=jenny_needs, reports=reports,
         categorization_queue=categorization_queue, recurring_commitments=recurring_commitments,
