@@ -85,191 +85,21 @@ def stage_for_outcome_action(action: str) -> str:
     return OUTCOME_ACTION_STAGE_MAP[normalized]
 
 
-class SymbolWorkflowService:
-    """Load and mutate persisted symbol workflow state."""
+def _next_review_at_value(stage: str, now: datetime) -> datetime | None:
+    if stage in {"live", "tracked"}:
+        return now + timedelta(days=7)
+    if stage == "review_due":
+        return now + timedelta(days=3)
+    return None
 
-    def __init__(self) -> None:
-        self.storage = get_storage()
-        self.thesis_service = ThesisService()
 
-    def get_workflow(self, symbol: str) -> dict[str, Any]:
-        symbol = symbol.upper()
-        stored = self._fetch_stored_workflow(symbol)
-        if stored is None:
-            stage = self._derive_stage_from_existing_data(symbol)
-            last_transition_at = datetime.now(UTC).isoformat()
-            updated_by = "system"
-            notes = None
-            next_review_at = self._default_next_review_at(stage)
-        else:
-            stage = str(stored["stage"])
-            last_transition_at = str(stored["last_transition_at"])
-            updated_by = str(stored["updated_by"])
-            notes = str(stored["notes"]) if stored["notes"] is not None else None
-            next_review_at = (
-                stored["next_review_at"].isoformat()
-                if stored["next_review_at"] is not None
-                else None
-            )
+class _WorkflowStore:
+    """Low-level SQL helpers for workflow persistence."""
 
-        workflow = SymbolWorkflow(
-            symbol=symbol,
-            stage=stage,
-            summary=WORKFLOW_SUMMARIES[stage],
-            last_transition_at=last_transition_at,
-            updated_by=updated_by,
-            notes=notes,
-            next_review_at=next_review_at,
-            available_transitions=available_transitions_for_stage(stage),
-            position=self._position_context(symbol),
-            latest_outcome=self._latest_outcome(symbol),
-            history=self._fetch_history(symbol),
-        )
-        return workflow.model_dump(mode="json")
+    def __init__(self, storage: Any) -> None:
+        self.storage = storage
 
-    def transition(self, symbol: str, stage: str, note: str | None, updated_by: str = "user") -> dict[str, Any]:
-        symbol = symbol.upper()
-        if stage not in WORKFLOW_STAGES:
-            raise ValueError(f"Unsupported workflow stage: {stage}")
-
-        current = self.get_workflow(symbol)
-        from_stage = current["stage"]
-        now = datetime.now(UTC)
-        note_text = self._normalize_transition_note(note)
-        self._apply_stage_side_effect(symbol, stage, note_text)
-        self._persist_transition(
-            symbol=symbol,
-            from_stage=from_stage,
-            stage=stage,
-            note_text=note_text,
-            updated_by=updated_by,
-            now=now,
-            metadata={},
-        )
-
-        return self.get_workflow(symbol)
-
-    def record_outcome(
-        self,
-        symbol: str,
-        action: str,
-        note: str | None,
-        *,
-        jenny_verdict: str | None = None,
-        management_action: str | None = None,
-        updated_by: str = "user",
-    ) -> dict[str, Any]:
-        symbol = symbol.upper()
-        stage = stage_for_outcome_action(action)
-        current = self.get_workflow(symbol)
-        from_stage = current["stage"]
-        now = datetime.now(UTC)
-        note_text = self._normalize_transition_note(note)
-        self._apply_stage_side_effect(symbol, stage, note_text)
-        position = self._position_context(symbol)
-        self._persist_transition(
-            symbol=symbol,
-            from_stage=from_stage,
-            stage=stage,
-            note_text=note_text,
-            updated_by=updated_by,
-            now=now,
-            metadata={
-                "kind": "outcome_capture",
-                "action": action,
-                "position": position.model_dump(mode="json") if position is not None else None,
-                "jenny": {
-                    "verdict": jenny_verdict,
-                    "management_action": management_action,
-                },
-            },
-        )
-
-        return self.get_workflow(symbol)
-
-    def _persist_transition(
-        self,
-        *,
-        symbol: str,
-        from_stage: str,
-        stage: str,
-        note_text: str,
-        updated_by: str,
-        now: datetime,
-        metadata: dict[str, Any],
-    ) -> None:
-
-        with self.storage.connection() as conn:
-            conn.execute(
-                """
-                INSERT INTO symbol_workflows (
-                    symbol, current_stage, notes, updated_by, last_transition_at,
-                    next_review_at, created_at, updated_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (symbol) DO UPDATE SET
-                    current_stage = EXCLUDED.current_stage,
-                    notes = EXCLUDED.notes,
-                    updated_by = EXCLUDED.updated_by,
-                    last_transition_at = EXCLUDED.last_transition_at,
-                    next_review_at = EXCLUDED.next_review_at,
-                    updated_at = EXCLUDED.updated_at
-                """,
-                [
-                    symbol,
-                    stage,
-                    note_text,
-                    updated_by,
-                    now,
-                    self._next_review_at_value(stage, now),
-                    now,
-                    now,
-                ],
-            )
-            conn.execute(
-                """
-                INSERT INTO symbol_workflow_events (
-                    id, symbol, from_stage, to_stage, note, created_by, created_at, metadata
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb)
-                """,
-                [
-                    str(uuid.uuid4()),
-                    symbol,
-                    from_stage,
-                    stage,
-                    note_text,
-                    updated_by,
-                    now,
-                    json.dumps(metadata),
-                ],
-            )
-            conn.commit()
-
-    def list_priority_workflows(self, limit: int = 3) -> list[dict[str, Any]]:
-        with self.storage.connection() as conn:
-            rows = conn.execute(
-                """
-                SELECT symbol, current_stage, last_transition_at
-                FROM symbol_workflows
-                WHERE current_stage IN ('review_due', 'invalidated', 'exited')
-                ORDER BY last_transition_at DESC
-                LIMIT %s
-                """,
-                [limit],
-            ).fetchall()
-        return [
-            {
-                "symbol": str(row[0]),
-                "stage": str(row[1]),
-                "last_transition_at": row[2].isoformat() if row[2] is not None else None,
-            }
-            for row in rows
-        ]
-
-    def _normalize_transition_note(self, note: str | None) -> str:
-        normalized = (note or "").strip()
-        return normalized or "Workflow updated from product UI."
-
-    def _fetch_stored_workflow(self, symbol: str) -> dict[str, Any] | None:
+    def fetch_stored(self, symbol: str) -> dict[str, Any] | None:
         with self.storage.connection() as conn:
             row = conn.execute(
                 """
@@ -290,7 +120,7 @@ class SymbolWorkflowService:
             "next_review_at": row[5],
         }
 
-    def _fetch_history(self, symbol: str) -> list[SymbolWorkflowEvent]:
+    def fetch_history(self, symbol: str) -> list[SymbolWorkflowEvent]:
         with self.storage.connection() as conn:
             rows = conn.execute(
                 """
@@ -316,7 +146,7 @@ class SymbolWorkflowService:
             for row in rows
         ]
 
-    def _derive_stage_from_existing_data(self, symbol: str) -> str:
+    def derive_stage_from_existing_data(self, symbol: str, thesis_service: ThesisService) -> str:
         with self.storage.connection() as conn:
             watchlist_exists = bool(
                 conn.execute("SELECT 1 FROM watchlist_items WHERE symbol = %s LIMIT 1", [symbol]).fetchone()
@@ -339,7 +169,7 @@ class SymbolWorkflowService:
                     [symbol],
                 ).fetchone()
             )
-        thesis = self.thesis_service.get_thesis(symbol)
+        thesis = thesis_service.get_thesis(symbol)
         return derive_default_stage(
             has_watchlist_item=watchlist_exists,
             has_thesis=thesis is not None,
@@ -347,25 +177,96 @@ class SymbolWorkflowService:
             has_trade_review=trade_review_exists,
         )
 
-    def _apply_stage_side_effect(self, symbol: str, stage: str, note: str) -> None:
-        thesis = self.thesis_service.get_thesis(symbol)
-        if stage == "thesis_ready" and thesis is None:
-            self.thesis_service.generate_thesis(symbol, force=False)
-        if stage == "invalidated" and thesis is not None and thesis.status.value != "invalidated":
-            self.thesis_service.invalidate_thesis(symbol, note)
+    def persist_transition(
+        self,
+        *,
+        symbol: str,
+        from_stage: str,
+        stage: str,
+        note_text: str,
+        updated_by: str,
+        now: datetime,
+        metadata: dict[str, Any],
+    ) -> None:
+        with self.storage.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO symbol_workflows (
+                    symbol, current_stage, notes, updated_by, last_transition_at,
+                    next_review_at, created_at, updated_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (symbol) DO UPDATE SET
+                    current_stage = EXCLUDED.current_stage,
+                    notes = EXCLUDED.notes,
+                    updated_by = EXCLUDED.updated_by,
+                    last_transition_at = EXCLUDED.last_transition_at,
+                    next_review_at = EXCLUDED.next_review_at,
+                    updated_at = EXCLUDED.updated_at
+                """,
+                [
+                    symbol,
+                    stage,
+                    note_text,
+                    updated_by,
+                    now,
+                    _next_review_at_value(stage, now),
+                    now,
+                    now,
+                ],
+            )
+            conn.execute(
+                """
+                INSERT INTO symbol_workflow_events (
+                    id, symbol, from_stage, to_stage, note, created_by, created_at, metadata
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb)
+                """,
+                [
+                    str(uuid.uuid4()),
+                    symbol,
+                    from_stage,
+                    stage,
+                    note_text,
+                    updated_by,
+                    now,
+                    json.dumps(metadata),
+                ],
+            )
+            conn.commit()
 
-    def _default_next_review_at(self, stage: str) -> str | None:
-        next_review = self._next_review_at_value(stage, datetime.now(UTC))
-        return next_review.isoformat() if next_review is not None else None
+    def list_priority(self, limit: int) -> list[dict[str, Any]]:
+        with self.storage.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT symbol, current_stage, last_transition_at
+                FROM symbol_workflows
+                WHERE current_stage IN ('review_due', 'invalidated', 'exited')
+                ORDER BY last_transition_at DESC
+                LIMIT %s
+                """,
+                [limit],
+            ).fetchall()
+        return [
+            {
+                "symbol": str(row[0]),
+                "stage": str(row[1]),
+                "last_transition_at": row[2].isoformat() if row[2] is not None else None,
+            }
+            for row in rows
+        ]
 
-    def _next_review_at_value(self, stage: str, now: datetime) -> datetime | None:
-        if stage in {"live", "tracked"}:
-            return now + timedelta(days=7)
-        if stage == "review_due":
-            return now + timedelta(days=3)
-        return None
+    @staticmethod
+    def normalize_note(note: str | None) -> str:
+        normalized = (note or "").strip()
+        return normalized or "Workflow updated from product UI."
 
-    def _position_context(self, symbol: str) -> SymbolWorkflowPositionContext | None:
+
+class _PositionContextBuilder:
+    """Builds position and outcome context for a workflow response."""
+
+    def __init__(self, storage: Any) -> None:
+        self.storage = storage
+
+    def build(self, symbol: str) -> SymbolWorkflowPositionContext | None:
         with self.storage.connection() as conn:
             row = conn.execute(
                 """
@@ -388,14 +289,7 @@ class SymbolWorkflowService:
             if market_value is not None and total_cost > 0
             else None
         )
-        weight_pct: float | None = None
-        try:
-            totals = get_live_portfolio_totals(self.storage, include_paper=False)
-            if market_value is not None and totals.cash_inclusive_total_value > 0:
-                weight_pct = round((market_value / totals.cash_inclusive_total_value) * 100, 2)
-        except Exception:
-            logger.debug("portfolio_weight_calc_failed", exc_info=True)
-            weight_pct = None
+        weight_pct = self._portfolio_weight(market_value)
 
         return SymbolWorkflowPositionContext(
             shares=shares,
@@ -405,8 +299,19 @@ class SymbolWorkflowService:
             weight_pct=weight_pct,
         )
 
-    def _latest_outcome(self, symbol: str) -> SymbolWorkflowOutcomeSnapshot | None:
-        for event in self._fetch_history(symbol):
+    def _portfolio_weight(self, market_value: float | None) -> float | None:
+        if market_value is None:
+            return None
+        try:
+            totals = get_live_portfolio_totals(self.storage, include_paper=False)
+            if totals.cash_inclusive_total_value > 0:
+                return round((market_value / totals.cash_inclusive_total_value) * 100, 2)
+        except Exception:
+            logger.debug("portfolio_weight_calc_failed", exc_info=True)
+        return None
+
+    def latest_outcome(self, history: list[SymbolWorkflowEvent]) -> SymbolWorkflowOutcomeSnapshot | None:
+        for event in history:
             if event.metadata.get("kind") != "outcome_capture":
                 continue
             position_payload = event.metadata.get("position")
@@ -434,3 +339,118 @@ class SymbolWorkflowService:
                 position=position,
             )
         return None
+
+
+class SymbolWorkflowService:
+    """Load and mutate persisted symbol workflow state."""
+
+    def __init__(self) -> None:
+        self.storage = get_storage()
+        self.thesis_service = ThesisService()
+        self._store = _WorkflowStore(self.storage)
+        self._position_builder = _PositionContextBuilder(self.storage)
+
+    def get_workflow(self, symbol: str) -> dict[str, Any]:
+        symbol = symbol.upper()
+        stored = self._store.fetch_stored(symbol)
+        if stored is None:
+            stage = self._store.derive_stage_from_existing_data(symbol, self.thesis_service)
+            last_transition_at = datetime.now(UTC).isoformat()
+            updated_by = "system"
+            notes = None
+            now = datetime.now(UTC)
+            next_review = _next_review_at_value(stage, now)
+            next_review_at = next_review.isoformat() if next_review is not None else None
+        else:
+            stage = str(stored["stage"])
+            last_transition_at = str(stored["last_transition_at"])
+            updated_by = str(stored["updated_by"])
+            notes = str(stored["notes"]) if stored["notes"] is not None else None
+            next_review_at = (
+                stored["next_review_at"].isoformat()
+                if stored["next_review_at"] is not None
+                else None
+            )
+
+        history = self._store.fetch_history(symbol)
+        workflow = SymbolWorkflow(
+            symbol=symbol,
+            stage=stage,
+            summary=WORKFLOW_SUMMARIES[stage],
+            last_transition_at=last_transition_at,
+            updated_by=updated_by,
+            notes=notes,
+            next_review_at=next_review_at,
+            available_transitions=available_transitions_for_stage(stage),
+            position=self._position_builder.build(symbol),
+            latest_outcome=self._position_builder.latest_outcome(history),
+            history=history,
+        )
+        return workflow.model_dump(mode="json")
+
+    def transition(self, symbol: str, stage: str, note: str | None, updated_by: str = "user") -> dict[str, Any]:
+        symbol = symbol.upper()
+        if stage not in WORKFLOW_STAGES:
+            raise ValueError(f"Unsupported workflow stage: {stage}")
+        current = self.get_workflow(symbol)
+        from_stage = current["stage"]
+        now = datetime.now(UTC)
+        note_text = self._store.normalize_note(note)
+        self._apply_stage_side_effect(symbol, stage, note_text)
+        self._store.persist_transition(
+            symbol=symbol,
+            from_stage=from_stage,
+            stage=stage,
+            note_text=note_text,
+            updated_by=updated_by,
+            now=now,
+            metadata={},
+        )
+        return self.get_workflow(symbol)
+
+    def record_outcome(
+        self,
+        symbol: str,
+        action: str,
+        note: str | None,
+        *,
+        jenny_verdict: str | None = None,
+        management_action: str | None = None,
+        updated_by: str = "user",
+    ) -> dict[str, Any]:
+        symbol = symbol.upper()
+        stage = stage_for_outcome_action(action)
+        current = self.get_workflow(symbol)
+        from_stage = current["stage"]
+        now = datetime.now(UTC)
+        note_text = self._store.normalize_note(note)
+        self._apply_stage_side_effect(symbol, stage, note_text)
+        position = self._position_builder.build(symbol)
+        self._store.persist_transition(
+            symbol=symbol,
+            from_stage=from_stage,
+            stage=stage,
+            note_text=note_text,
+            updated_by=updated_by,
+            now=now,
+            metadata={
+                "kind": "outcome_capture",
+                "action": action,
+                "position": position.model_dump(mode="json") if position is not None else None,
+                "jenny": {
+                    "verdict": jenny_verdict,
+                    "management_action": management_action,
+                },
+            },
+        )
+        return self.get_workflow(symbol)
+
+    def list_priority_workflows(self, limit: int = 3) -> list[dict[str, Any]]:
+        return self._store.list_priority(limit)
+
+    def _apply_stage_side_effect(self, symbol: str, stage: str, note: str) -> None:
+        thesis = self.thesis_service.get_thesis(symbol)
+        if stage == "thesis_ready" and thesis is None:
+            self.thesis_service.generate_thesis(symbol, force=False)
+        if stage == "invalidated" and thesis is not None and thesis.status.value != "invalidated":
+            self.thesis_service.invalidate_thesis(symbol, note)
