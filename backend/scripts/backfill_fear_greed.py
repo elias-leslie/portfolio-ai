@@ -39,6 +39,22 @@ from app.tasks.market_data.fear_greed_pipeline import (
 
 logger = get_logger(__name__)
 
+# Constants
+MIN_SPY_DAYS = 200
+SMA_WARMUP_DAYS = 250
+PROGRESS_INTERVAL = 100
+SEPARATOR = "=" * 60
+
+QUERY_DATES_MISSING_SCORES = """
+    SELECT i.as_of_date
+    FROM fear_greed_inputs i
+    LEFT JOIN fear_greed_daily d ON i.as_of_date = d.as_of_date
+    WHERE d.as_of_date IS NULL
+      AND i.vix_close IS NOT NULL
+      AND i.spy_close IS NOT NULL
+    ORDER BY i.as_of_date ASC
+"""
+
 
 def backfill_inputs(days: int = 1500) -> int:
     """Backfill fear_greed_inputs table with historical data.
@@ -54,27 +70,22 @@ def backfill_inputs(days: int = 1500) -> int:
     storage = get_storage()
     end_date = dt.date.today()
     start_date = end_date - dt.timedelta(days=days)
-    # Need extra 200 days for SMA calculation warmup
-    data_start = start_date - dt.timedelta(days=250)
+    data_start = start_date - dt.timedelta(days=SMA_WARMUP_DAYS)
 
-    # Fetch SPY data
     spy_dict = _fetch_spy_data(storage, data_start, end_date)
     print(f"  Fetched {len(spy_dict)} SPY data points")
 
-    if len(spy_dict) < 200:
-        print("  ERROR: Insufficient SPY data (need >= 200 days)")
+    if len(spy_dict) < MIN_SPY_DAYS:
+        print(f"  ERROR: Insufficient SPY data (need >= {MIN_SPY_DAYS} days)")
         return 0
 
     dates = sorted(spy_dict.keys())
-
-    # Fetch market indicators
     vix_data, hy_spread_dict, vix_estimate, hy_spread_fallback = _fetch_market_indicators(
         storage, data_start, end_date
     )
     print(f"  Fetched {len(vix_data)} VIX data points")
     print(f"  Fetched {len(hy_spread_dict)} HY spread data points")
 
-    # Calculate and upsert inputs for each date
     updates_count = _calculate_and_upsert_inputs(
         storage,
         spy_dict,
@@ -90,6 +101,48 @@ def backfill_inputs(days: int = 1500) -> int:
     return updates_count
 
 
+def _get_dates_missing_scores() -> list[str]:
+    """Return list of date strings that have inputs but no scores."""
+    storage = get_storage()
+    with storage.connection() as conn:
+        result = conn.execute(QUERY_DATES_MISSING_SCORES)
+        rows = result.fetchall()
+
+    return [
+        row[0].isoformat() if isinstance(row[0], dt.date) else str(row[0])
+        for row in rows
+    ]
+
+
+def _calculate_score_for_date(date_str: str, window_days: int) -> None:
+    """Calculate and store fear/greed score for a single date."""
+    storage = get_storage()
+    with storage.connection() as conn:
+        _, vix_close, spy_close, spy_sma_200, rsi_14, hy_spread, breadth_pct = (
+            _get_fear_greed_inputs(conn, date_str)
+        )
+        vix_pct = _calculate_percentile_vix(conn, date_str, vix_close, window_days)
+        momentum_pct = _calculate_percentile_momentum(
+            conn, date_str, spy_close, spy_sma_200, window_days
+        )
+        rsi_pct = _calculate_percentile_rsi(conn, date_str, rsi_14, window_days)
+        credit_pct = _calculate_percentile_credit(conn, date_str, hy_spread, window_days)
+        breadth_percentile = _calculate_percentile_breadth(
+            conn, date_str, breadth_pct, window_days
+        )
+        _store_components_and_score(
+            conn,
+            date_str,
+            vix_pct,
+            momentum_pct,
+            rsi_pct,
+            credit_pct,
+            breadth_percentile,
+            window_days,
+        )
+        conn.commit()
+
+
 def backfill_scores() -> int:
     """Backfill fear_greed_daily table by calculating scores for all inputs.
 
@@ -98,73 +151,27 @@ def backfill_scores() -> int:
     """
     print("Backfilling fear_greed_daily scores...")
 
-    storage = get_storage()
-
-    # Get all dates with inputs but no scores
-    with storage.connection() as conn:
-        result = conn.execute("""
-            SELECT i.as_of_date
-            FROM fear_greed_inputs i
-            LEFT JOIN fear_greed_daily d ON i.as_of_date = d.as_of_date
-            WHERE d.as_of_date IS NULL
-              AND i.vix_close IS NOT NULL
-              AND i.spy_close IS NOT NULL
-            ORDER BY i.as_of_date ASC
-        """)
-        dates_to_process = [row[0] for row in result.fetchall()]
-
-    print(f"  Found {len(dates_to_process)} dates needing score calculation")
+    dates_to_process = _get_dates_missing_scores()
+    total = len(dates_to_process)
+    print(f"  Found {total} dates needing score calculation")
 
     if not dates_to_process:
         print("  No dates to process")
         return 0
 
-    scores_calculated = 0
     window_days = TRADING_DAYS_PER_YEAR
+    scores_calculated = 0
 
-    for i, as_of_date in enumerate(dates_to_process):
-        date_str = as_of_date.isoformat() if isinstance(as_of_date, dt.date) else str(as_of_date)
-
+    for i, date_str in enumerate(dates_to_process):
         try:
-            with storage.connection() as conn:
-                # Get inputs for this date
-                _, vix_close, spy_close, spy_sma_200, rsi_14, hy_spread, breadth_pct = (
-                    _get_fear_greed_inputs(conn, date_str)
-                )
-
-                # Calculate percentiles
-                vix_pct = _calculate_percentile_vix(conn, date_str, vix_close, window_days)
-                momentum_pct = _calculate_percentile_momentum(
-                    conn, date_str, spy_close, spy_sma_200, window_days
-                )
-                rsi_pct = _calculate_percentile_rsi(conn, date_str, rsi_14, window_days)
-                credit_pct = _calculate_percentile_credit(conn, date_str, hy_spread, window_days)
-                breadth_percentile = _calculate_percentile_breadth(
-                    conn, date_str, breadth_pct, window_days
-                )
-
-                # Store components and calculate score (return values stored in DB)
-                _store_components_and_score(
-                    conn,
-                    date_str,
-                    vix_pct,
-                    momentum_pct,
-                    rsi_pct,
-                    credit_pct,
-                    breadth_percentile,
-                    window_days,
-                )
-
-                conn.commit()
-                scores_calculated += 1
-
-                # Progress update every 100 dates
-                if (i + 1) % 100 == 0:
-                    print(f"  Processed {i + 1}/{len(dates_to_process)} dates...")
-
+            _calculate_score_for_date(date_str, window_days)
+            scores_calculated += 1
         except Exception as e:
             print(f"  Warning: Failed to calculate score for {date_str}: {e}")
             continue
+
+        if (i + 1) % PROGRESS_INTERVAL == 0:
+            print(f"  Processed {i + 1}/{total} dates...")
 
     print(f"  Calculated {scores_calculated} fear_greed_daily scores")
     return scores_calculated
@@ -185,10 +192,11 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    print("=" * 60)
+    print(SEPARATOR)
     print("Fear & Greed Backfill")
-    print("=" * 60)
+    print(SEPARATOR)
 
+    inputs_count = 0
     if not args.scores_only:
         inputs_count = backfill_inputs(args.days)
         print()
@@ -196,12 +204,12 @@ def main() -> None:
     scores_count = backfill_scores()
 
     print()
-    print("=" * 60)
+    print(SEPARATOR)
     print("Backfill complete!")
     if not args.scores_only:
         print(f"  Inputs populated: {inputs_count}")
     print(f"  Scores calculated: {scores_count}")
-    print("=" * 60)
+    print(SEPARATOR)
 
 
 if __name__ == "__main__":
