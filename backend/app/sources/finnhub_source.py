@@ -160,6 +160,81 @@ def get_client() -> FinnhubClient:
     return _ClientState.client
 
 
+def _parse_bar_record(
+    symbol: str,
+    index: int,
+    ts: int | float,
+    o: float,
+    h: float,
+    lo: float,
+    c: float,
+    v: float,
+) -> dict[str, Any] | None:
+    """Parse a single OHLCV bar into a record dict.
+
+    Returns None and logs a warning if parsing fails.
+    """
+    try:
+        bar_date = dt.datetime.fromtimestamp(ts, tz=dt.UTC).date()
+        return {
+            "date": bar_date,
+            "symbol": symbol,
+            "open": float(o),
+            "high": float(h),
+            "low": float(lo),
+            "close": float(c),
+            "volume": int(v),
+            "vwap": None,  # Finnhub doesn't provide VWAP
+            "source": "finnhub",
+        }
+    except (ValueError, TypeError) as e:
+        logger.warning(
+            "finnhub_bar_parse_error",
+            symbol=symbol,
+            index=index,
+            error=str(e),
+        )
+        return None
+
+
+def _parse_published_at(published_raw: Any) -> dt.datetime | None:
+    """Convert a raw datetime value to a UTC-aware datetime object."""
+    if isinstance(published_raw, (int, float)):
+        return dt.datetime.fromtimestamp(float(published_raw), tz=dt.UTC)
+    if not isinstance(published_raw, str):
+        return None
+    try:
+        return dt.datetime.fromisoformat(published_raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _build_news_record(symbol: str, is_market: bool, item: dict[str, Any]) -> dict[str, Any] | None:
+    """Build a news record dict from a Finnhub news item.
+
+    Returns None if the item has no headline.
+    """
+    headline = item.get("headline") or item.get("title")
+    if not headline:
+        return None
+
+    published_raw = item.get("datetime") or item.get("published_at")
+    published_at = _parse_published_at(published_raw)
+
+    return {
+        "symbol": "__MARKET__" if is_market else symbol,
+        "headline": headline,
+        "url": item.get("url"),
+        "summary": item.get("summary"),
+        "news_source_name": item.get("source"),
+        "author": item.get("author"),
+        "image_url": item.get("image"),
+        "published_at": published_at,
+        "raw_payload": json.dumps(item),
+        "source": "finnhub",
+    }
+
+
 class FinnhubSource(BaseSource):
     """Finnhub source adapter implementing BaseSource interface.
 
@@ -182,6 +257,62 @@ class FinnhubSource(BaseSource):
         """Check if Finnhub API key is configured."""
         return os.getenv("FINNHUB_API_KEY") is not None
 
+    def _fetch_symbol_bars(
+        self, symbol: str, from_ts: int, to_ts: int, ingest_run_id: str | None
+    ) -> pl.DataFrame | None:
+        """Fetch and parse daily bars for a single symbol.
+
+        Returns a DataFrame or None if no data / fetch error.
+        """
+        try:
+            response = self.client.get_candles(
+                symbol=symbol, resolution="D", from_timestamp=from_ts, to_timestamp=to_ts
+            )
+        except Exception as e:
+            logger.warning(
+                "finnhub_fetch_error",
+                symbol=symbol,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+            return None
+
+        if response.get("s") == "no_data":
+            logger.debug("finnhub_no_data", symbol=symbol)
+            return None
+
+        closes = response.get("c", [])
+        if not closes:
+            logger.debug("finnhub_empty_data", symbol=symbol)
+            return None
+
+        records = [
+            rec
+            for i, (ts, o, h, lo, c, v) in enumerate(
+                zip(
+                    response.get("t", []),
+                    response.get("o", []),
+                    response.get("h", []),
+                    response.get("l", []),
+                    closes,
+                    response.get("v", []),
+                    strict=False,
+                )
+            )
+            if (rec := _parse_bar_record(symbol, i, ts, o, h, lo, c, v)) is not None
+        ]
+
+        if not records:
+            logger.debug("finnhub_no_valid_bars", symbol=symbol)
+            return None
+
+        df = pl.DataFrame(records)
+        if ingest_run_id:
+            df = df.with_columns(pl.lit(ingest_run_id).alias("ingest_run_id"))
+
+        logger.debug("finnhub_fetch_success", symbol=symbol, rows=len(df))
+        return df
+
     def fetch_day_bars(self, request: DatasetRequest) -> pl.DataFrame | None:
         """Fetch daily OHLCV bars from Finnhub.
 
@@ -191,12 +322,7 @@ class FinnhubSource(BaseSource):
         Returns:
             Polars DataFrame with OHLCV data, or None if fetch fails
         """
-        frames: list[pl.DataFrame] = []
-
-        # Convert dates to date objects
         start_date, end_date = standardize_dates(request)
-
-        # Convert to Unix timestamps
         from_ts = int(dt.datetime.combine(start_date, dt.time.min).timestamp())
         to_ts = int(dt.datetime.combine(end_date, dt.time.max).timestamp())
 
@@ -207,105 +333,52 @@ class FinnhubSource(BaseSource):
             end_date=end_date.isoformat(),
         )
 
-        for symbol in request.symbols:
-            try:
-                # Fetch candle data
-                response = self.client.get_candles(
-                    symbol=symbol,
-                    resolution="D",
-                    from_timestamp=from_ts,
-                    to_timestamp=to_ts,
-                )
-
-                # Check for error response
-                if response.get("s") == "no_data":
-                    logger.debug("finnhub_no_data", symbol=symbol)
-                    continue
-
-                # Extract OHLCV arrays
-                closes = response.get("c", [])
-                highs = response.get("h", [])
-                lows = response.get("l", [])
-                opens = response.get("o", [])
-                timestamps = response.get("t", [])
-                volumes = response.get("v", [])
-
-                if not closes or len(closes) == 0:
-                    logger.debug("finnhub_empty_data", symbol=symbol)
-                    continue
-
-                # Parse OHLCV data
-                records = []
-                for i, (ts, o, h, lo, c, v) in enumerate(
-                    zip(timestamps, opens, highs, lows, closes, volumes, strict=False)
-                ):
-                    try:
-                        bar_date = dt.datetime.fromtimestamp(ts, tz=dt.UTC).date()
-                        records.append(
-                            {
-                                "date": bar_date,
-                                "symbol": symbol,
-                                "open": float(o),
-                                "high": float(h),
-                                "low": float(lo),
-                                "close": float(c),
-                                "volume": int(v),
-                                "vwap": None,  # Finnhub doesn't provide VWAP
-                                "source": "finnhub",
-                            }
-                        )
-                    except (ValueError, TypeError) as e:
-                        logger.warning(
-                            "finnhub_bar_parse_error",
-                            symbol=symbol,
-                            index=i,
-                            error=str(e),
-                        )
-                        continue
-
-                if not records:
-                    logger.debug("finnhub_no_valid_bars", symbol=symbol)
-                    continue
-
-                # Create DataFrame
-                df = pl.DataFrame(records)
-
-                # Add ingest_run_id if provided
-                if request.ingest_run_id:
-                    df = df.with_columns(pl.lit(request.ingest_run_id).alias("ingest_run_id"))
-
-                frames.append(df)
-
-                logger.debug(
-                    "finnhub_fetch_success",
-                    symbol=symbol,
-                    rows=len(df),
-                )
-
-            except Exception as e:
-                logger.warning(
-                    "finnhub_fetch_error",
-                    symbol=symbol,
-                    error=str(e),
-                    error_type=type(e).__name__,
-                )
-                # Continue to next symbol
-                continue
+        frames = [
+            df
+            for symbol in request.symbols
+            if (df := self._fetch_symbol_bars(symbol, from_ts, to_ts, request.ingest_run_id))
+            is not None
+        ]
 
         if not frames:
             logger.warning("finnhub_no_data_fetched")
             return None
 
-        # Combine all symbols
         combined = pl.concat(frames, how="vertical_relaxed")
-
         logger.info(
             "finnhub_fetch_day_bars_complete",
             total_rows=len(combined),
             unique_symbols=combined["symbol"].n_unique(),
         )
-
         return combined
+
+    def _fetch_symbol_reference(self, symbol: str, as_of: dt.date) -> dict[str, Any] | None:
+        """Fetch and parse a company profile record for a single symbol.
+
+        Returns a record dict or None if no data / fetch error.
+        """
+        try:
+            response = self.client.get_company_profile(symbol)
+        except Exception as e:
+            logger.warning(
+                "finnhub_reference_error",
+                symbol=symbol,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+            return None
+
+        if not response or not response.get("name"):
+            logger.debug("finnhub_no_reference_data", symbol=symbol)
+            return None
+
+        logger.debug("finnhub_reference_fetched", symbol=symbol)
+        return {
+            "symbol": symbol,
+            "as_of_date": as_of,
+            "payload": json.dumps(response),
+            "source": "finnhub",
+        }
 
     def fetch_reference_payload(
         self, symbols: Iterable[str], as_of: dt.date
@@ -319,131 +392,80 @@ class FinnhubSource(BaseSource):
         Returns:
             Polars DataFrame with reference data, or None if fetch fails
         """
-        records = []
-
+        symbol_list = list(symbols)
         logger.info(
             "finnhub_fetch_reference_start",
-            num_symbols=len(list(symbols)),
+            num_symbols=len(symbol_list),
             as_of_date=as_of.isoformat(),
         )
 
-        for symbol in symbols:
-            try:
-                response = self.client.get_company_profile(symbol)
-
-                # Check for empty response
-                if not response or not response.get("name"):
-                    logger.debug("finnhub_no_reference_data", symbol=symbol)
-                    continue
-
-                # Store profile as JSON string
-                payload_json = json.dumps(response)
-
-                records.append(
-                    {
-                        "symbol": symbol,
-                        "as_of_date": as_of,
-                        "payload": payload_json,
-                        "source": "finnhub",
-                    }
-                )
-
-                logger.debug("finnhub_reference_fetched", symbol=symbol)
-
-            except Exception as e:
-                logger.warning(
-                    "finnhub_reference_error",
-                    symbol=symbol,
-                    error=str(e),
-                    error_type=type(e).__name__,
-                )
-                continue
+        records = [
+            rec
+            for symbol in symbol_list
+            if (rec := self._fetch_symbol_reference(symbol, as_of)) is not None
+        ]
 
         if not records:
             logger.warning("finnhub_no_reference_data_fetched")
             return None
 
-        logger.info(
-            "finnhub_reference_complete",
-            num_symbols=len(records),
-        )
-
+        logger.info("finnhub_reference_complete", num_symbols=len(records))
         return pl.DataFrame(records)
+
+    def _fetch_symbol_news(
+        self, symbol: str, is_market: bool, start_date: str, end_date: str
+    ) -> list[dict[str, Any]]:
+        """Fetch raw news items for one symbol (or market-wide).
+
+        Returns a list of record dicts (may be empty on error or no data).
+        """
+        try:
+            if is_market:
+                response = self.client.get("/news", {"category": "general"})
+            else:
+                response = self.client.get(
+                    "/company-news",
+                    {"symbol": symbol, "from": start_date, "to": end_date},
+                )
+        except Exception as exc:
+            logger.warning(
+                "finnhub_news_error",
+                symbol="__MARKET__" if is_market else symbol,
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+            return []
+
+        items = response if isinstance(response, list) else []
+        if not items:
+            logger.debug("finnhub_news_empty", symbol="__MARKET__" if is_market else symbol)
+            return []
+
+        records = [
+            rec
+            for item in items
+            if (rec := _build_news_record(symbol, is_market, item)) is not None
+        ]
+
+        logger.debug(
+            "finnhub_news_fetched",
+            symbol="__MARKET__" if is_market else symbol,
+            articles=len(items),
+        )
+        return records
 
     def fetch_news_payload(
         self, symbols: Iterable[str], start: dt.datetime, end: dt.datetime
     ) -> pl.DataFrame | None:
         """Fetch news articles from Finnhub company-news and general news endpoints."""
-        records: list[dict[str, Any]] = []
         start_date = start.astimezone(dt.UTC).date().isoformat()
         end_date = end.astimezone(dt.UTC).date().isoformat()
-
         symbol_list = list(symbols) or ["__MARKET__"]
 
+        records: list[dict[str, Any]] = []
         for symbol in symbol_list:
             is_market = symbol in (None, "__MARKET__")
-            try:
-                if is_market:
-                    response = self.client.get("/news", {"category": "general"})
-                else:
-                    response = self.client.get(
-                        "/company-news",
-                        {"symbol": symbol, "from": start_date, "to": end_date},
-                    )
-            except Exception as exc:
-                logger.warning(
-                    "finnhub_news_error",
-                    symbol="__MARKET__" if is_market else symbol,
-                    error=str(exc),
-                    error_type=type(exc).__name__,
-                )
-                continue
-
-            items = response if isinstance(response, list) else []
-            if not items:
-                logger.debug(
-                    "finnhub_news_empty",
-                    symbol="__MARKET__" if is_market else symbol,
-                )
-                continue
-
-            for item in items:
-                headline = item.get("headline") or item.get("title")
-                if not headline:
-                    continue
-
-                published_at = None
-                published_raw = item.get("datetime") or item.get("published_at")
-                if isinstance(published_raw, (int, float)):
-                    published_at = dt.datetime.fromtimestamp(float(published_raw), tz=dt.UTC)
-                elif isinstance(published_raw, str):
-                    try:
-                        published_at = dt.datetime.fromisoformat(
-                            published_raw.replace("Z", "+00:00")
-                        )
-                    except ValueError:
-                        published_at = None
-
-                records.append(
-                    {
-                        "symbol": "__MARKET__" if is_market else symbol,
-                        "headline": headline,
-                        "url": item.get("url"),
-                        "summary": item.get("summary"),
-                        "news_source_name": item.get("source"),
-                        "author": item.get("author"),
-                        "image_url": item.get("image"),
-                        "published_at": published_at,
-                        "raw_payload": json.dumps(item),
-                        "source": "finnhub",
-                    }
-                )
-
-            logger.debug(
-                "finnhub_news_fetched",
-                symbol="__MARKET__" if is_market else symbol,
-                articles=len(items),
-            )
+            records.extend(self._fetch_symbol_news(symbol, is_market, start_date, end_date))
 
         if not records:
             logger.info("finnhub_news_no_articles", symbols=list(symbol_list))
