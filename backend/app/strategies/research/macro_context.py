@@ -9,13 +9,62 @@ Handles:
 from __future__ import annotations
 
 from datetime import date
-from typing import Any
+from typing import TypedDict
 
 from app.analytics.indicators import calculate_indicators_for_symbol
 from app.storage import PortfolioStorage
 
 
-def aggregate_macro_context(storage: PortfolioStorage, as_of_date: date) -> dict[str, Any]:
+class MacroContext(TypedDict):
+    """Aggregated macro context fields."""
+
+    market_regime: str
+    fear_greed_score: float
+    fear_greed_classification: str
+    sector_rotation_phase: str
+
+
+def _classify_fear_greed(score: float) -> str:
+    """Return a Fear & Greed label for the given score."""
+    if score <= 25:
+        return "extreme_fear"
+    if score <= 45:
+        return "fear"
+    if score <= 55:
+        return "neutral"
+    if score <= 75:
+        return "greed"
+    return "extreme_greed"
+
+
+def _classify_market_regime(
+    fear_greed_score: float,
+    spy_price: float,
+    spy_sma_200: float,
+    vix_close: float,
+) -> str:
+    """Return a market regime label."""
+    if vix_close > 30:
+        return "volatile"
+    if fear_greed_score > 60 and spy_price > spy_sma_200:
+        return "bull"
+    if fear_greed_score < 40 and spy_price < spy_sma_200:
+        return "bear"
+    return "range"
+
+
+def _classify_sector_rotation(fear_greed_score: float, vix_close: float) -> str:
+    """Return a sector rotation phase label."""
+    if vix_close > 25:
+        return "recession"
+    if fear_greed_score > 70:
+        return "late_cycle"
+    if fear_greed_score > 55:
+        return "mid_cycle"
+    return "early_cycle"
+
+
+def aggregate_macro_context(storage: PortfolioStorage, as_of_date: date) -> MacroContext:
     """Aggregate macro indicators (Fear & Greed, market regime).
 
     Args:
@@ -25,49 +74,20 @@ def aggregate_macro_context(storage: PortfolioStorage, as_of_date: date) -> dict
     Returns:
         Dict with macro context fields
     """
-    # Query Fear & Greed from database
     fg_data = storage.get_fear_greed_latest()
-    fear_greed_score = fg_data["score"]
+    fear_greed_score: float = fg_data["score"]
+    fear_greed_classification = _classify_fear_greed(fear_greed_score)
 
-    # Classify Fear & Greed
-    if fear_greed_score <= 25:
-        fear_greed_classification = "extreme_fear"
-    elif fear_greed_score <= 45:
-        fear_greed_classification = "fear"
-    elif fear_greed_score <= 55:
-        fear_greed_classification = "neutral"
-    elif fear_greed_score <= 75:
-        fear_greed_classification = "greed"
-    else:
-        fear_greed_classification = "extreme_greed"
-
-    # Determine market regime (simplified logic)
-    # Query SPY trend and VIX
     spy_indicators = calculate_indicators_for_symbol("SPY", indicators=["sma_200"])
     market_data = storage.get_spy_and_vix_data()
-    spy_price = market_data["spy_close"]
-    spy_sma_200 = spy_indicators.get("sma_200", spy_price)
-    vix_close = market_data["vix_close"]
+    spy_price: float = market_data["spy_close"]
+    spy_sma_200: float = spy_indicators.get("sma_200", spy_price)
+    vix_close: float = market_data["vix_close"]
 
-    # Market regime classification
-    if vix_close > 30:
-        market_regime = "volatile"
-    elif fear_greed_score > 60 and spy_price > spy_sma_200:
-        market_regime = "bull"
-    elif fear_greed_score < 40 and spy_price < spy_sma_200:
-        market_regime = "bear"
-    else:
-        market_regime = "range"
-
-    # Sector rotation phase (simplified, based on VIX + Fear & Greed)
-    if vix_close > 25:
-        sector_rotation_phase = "recession"
-    elif fear_greed_score > 70:
-        sector_rotation_phase = "late_cycle"
-    elif fear_greed_score > 55:
-        sector_rotation_phase = "mid_cycle"
-    else:
-        sector_rotation_phase = "early_cycle"
+    market_regime = _classify_market_regime(
+        fear_greed_score, spy_price, spy_sma_200, vix_close
+    )
+    sector_rotation_phase = _classify_sector_rotation(fear_greed_score, vix_close)
 
     return {
         "market_regime": market_regime,
