@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
 from functools import lru_cache
-from typing import TypedDict
+from typing import Any, TypedDict
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -73,6 +74,100 @@ class ProfilingTaskResponse(BaseModel):
     message: str
 
 
+# ---------------------------------------------------------------------------
+# Private helpers
+# ---------------------------------------------------------------------------
+
+_SOURCE_METRICS_COLUMNS = (
+    "vendor, duplicate_rate, diversity_score, confidence_avg, freshness_score, "
+    "user_useful_rate, quality_score, article_count, sample_period_start, calculated_at"
+)
+
+
+def _to_iso_str(value: Any) -> str:
+    """Return ISO-format string for datetime values, str() for everything else."""
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return str(value)
+
+
+def _row_to_source_metrics(row: Sequence[Any]) -> SourceMetricsResponse:
+    """Convert a raw DB row (10 columns) into a SourceMetricsResponse."""
+    vendor, dup, div, conf, fresh, useful, quality, count, period_start, calc_at = row
+
+    # Coerce numeric columns to expected types
+    if not isinstance(dup, (int, float)):
+        dup = 0.0
+    if not isinstance(div, (int, float)):
+        div = 0.0
+    if not isinstance(conf, (int, float)):
+        conf = 0.0
+    if not isinstance(fresh, (int, float)):
+        fresh = 0.0
+    if not isinstance(quality, (int, float)):
+        quality = 0.0
+    if not isinstance(count, int):
+        count = 0
+    if not isinstance(useful, (int, float)) and useful is not None:
+        useful = None
+
+    return SourceMetricsResponse(
+        vendor=str(vendor),
+        duplicate_rate=float(dup),
+        diversity_score=float(div),
+        confidence_avg=float(conf),
+        freshness_score=float(fresh),
+        user_useful_rate=float(useful) if useful is not None else None,
+        quality_score=float(quality),
+        article_count=int(count),
+        sample_period_start=_to_iso_str(period_start),
+        calculated_at=_to_iso_str(calc_at),
+    )
+
+
+def _insert_or_update_feedback(conn: Any, user_id: str, feedback: ArticleFeedbackRequest) -> None:
+    """Upsert a user feedback row."""
+    conn.execute(
+        """
+        INSERT INTO user_article_feedback (
+            user_id, article_url, article_hash, vendor, is_useful, sentiment_override
+        )
+        VALUES (%s, %s, %s, %s, %s, %s)
+        ON CONFLICT (user_id, article_hash)
+        DO UPDATE SET
+            is_useful = EXCLUDED.is_useful,
+            sentiment_override = EXCLUDED.sentiment_override,
+            created_at = NOW()
+        """,
+        [
+            user_id,
+            feedback.article_url,
+            feedback.article_hash,
+            feedback.vendor,
+            feedback.is_useful,
+            feedback.sentiment_override,
+        ],
+    )
+
+
+def _fetch_vendor_useful_rate(conn: Any, vendor: str, user_id: str) -> float | None:
+    """Return the fraction of useful articles for a vendor/user combination."""
+    result = conn.execute(
+        """
+        SELECT SUM(CASE WHEN is_useful THEN 1 ELSE 0 END)::float / COUNT(*)::float AS useful_rate
+        FROM user_article_feedback
+        WHERE vendor = %s AND user_id = %s
+        """,
+        [vendor, user_id],
+    ).fetchone()
+    return float(result[0]) if result and result[0] is not None else None
+
+
+# ---------------------------------------------------------------------------
+# Route handlers
+# ---------------------------------------------------------------------------
+
+
 @router.post("/profile-sources", response_model=ProfilingTaskResponse)
 async def trigger_profiling(user_id: str = "default") -> ProfilingTaskResponse:
     """Trigger news source profiling task.
@@ -113,85 +208,16 @@ async def get_all_source_stats() -> list[SourceMetricsResponse]:
         list[SourceMetricsResponse]: List of source metrics, one per vendor
     """
     with _storage().connection() as conn:
-        # Get latest metrics for each vendor
-        result = conn.execute(
-            """
-            SELECT DISTINCT ON (vendor)
-                vendor,
-                duplicate_rate,
-                diversity_score,
-                confidence_avg,
-                freshness_score,
-                user_useful_rate,
-                quality_score,
-                article_count,
-                sample_period_start,
-                calculated_at
+        rows = conn.execute(
+            f"""
+            SELECT DISTINCT ON (vendor) {_SOURCE_METRICS_COLUMNS}
             FROM source_metrics
             ORDER BY vendor, calculated_at DESC
             """
         ).fetchall()
 
-    metrics_list: list[SourceMetricsResponse] = []
-    for row in result:
-        vendor_val = row[0]
-        duplicate_rate_val = row[1]
-        diversity_score_val = row[2]
-        confidence_avg_val = row[3]
-        freshness_score_val = row[4]
-        user_useful_rate_val = row[5]
-        quality_score_val = row[6]
-        article_count_val = row[7]
-        sample_period_start_val = row[8]
-        calculated_at_val = row[9]
-
-        # Type narrowing for database values
-        if not isinstance(duplicate_rate_val, (int, float)):
-            duplicate_rate_val = 0.0
-        if not isinstance(diversity_score_val, (int, float)):
-            diversity_score_val = 0.0
-        if not isinstance(confidence_avg_val, (int, float)):
-            confidence_avg_val = 0.0
-        if not isinstance(freshness_score_val, (int, float)):
-            freshness_score_val = 0.0
-        if not isinstance(quality_score_val, (int, float)):
-            quality_score_val = 0.0
-        if not isinstance(article_count_val, int):
-            article_count_val = 0
-        if not isinstance(user_useful_rate_val, (int, float)) and user_useful_rate_val is not None:
-            user_useful_rate_val = None
-
-        # Ensure datetime objects have isoformat
-        if isinstance(sample_period_start_val, datetime):
-            sample_period_start_str = sample_period_start_val.isoformat()
-        else:
-            sample_period_start_str = str(sample_period_start_val)
-
-        if isinstance(calculated_at_val, datetime):
-            calculated_at_str = calculated_at_val.isoformat()
-        else:
-            calculated_at_str = str(calculated_at_val)
-
-        metrics_list.append(
-            SourceMetricsResponse(
-                vendor=str(vendor_val),
-                duplicate_rate=float(duplicate_rate_val),
-                diversity_score=float(diversity_score_val),
-                confidence_avg=float(confidence_avg_val),
-                freshness_score=float(freshness_score_val),
-                user_useful_rate=float(user_useful_rate_val)
-                if user_useful_rate_val is not None
-                else None,
-                quality_score=float(quality_score_val),
-                article_count=int(article_count_val),
-                sample_period_start=sample_period_start_str,
-                calculated_at=calculated_at_str,
-            )
-        )
-
-    # Sort by quality score descending
+    metrics_list = [_row_to_source_metrics(row) for row in rows]
     metrics_list.sort(key=lambda m: m.quality_score, reverse=True)
-
     return metrics_list
 
 
@@ -206,19 +232,9 @@ async def get_vendor_stats(vendor: str) -> SourceMetricsResponse | None:
         SourceMetricsResponse: Latest metrics for the vendor, or None if not found
     """
     with _storage().connection() as conn:
-        result = conn.execute(
-            """
-            SELECT
-                vendor,
-                duplicate_rate,
-                diversity_score,
-                confidence_avg,
-                freshness_score,
-                user_useful_rate,
-                quality_score,
-                article_count,
-                sample_period_start,
-                calculated_at
+        row = conn.execute(
+            f"""
+            SELECT {_SOURCE_METRICS_COLUMNS}
             FROM source_metrics
             WHERE vendor = %s
             ORDER BY calculated_at DESC
@@ -227,60 +243,7 @@ async def get_vendor_stats(vendor: str) -> SourceMetricsResponse | None:
             [vendor],
         ).fetchone()
 
-    if not result:
-        return None
-
-    # Type narrowing for database result
-    vendor_val = result[0]
-    duplicate_rate_val = result[1]
-    diversity_score_val = result[2]
-    confidence_avg_val = result[3]
-    freshness_score_val = result[4]
-    user_useful_rate_val = result[5]
-    quality_score_val = result[6]
-    article_count_val = result[7]
-    sample_period_start_val = result[8]
-    calculated_at_val = result[9]
-
-    # Ensure numeric types
-    if not isinstance(duplicate_rate_val, (int, float)):
-        duplicate_rate_val = 0.0
-    if not isinstance(diversity_score_val, (int, float)):
-        diversity_score_val = 0.0
-    if not isinstance(confidence_avg_val, (int, float)):
-        confidence_avg_val = 0.0
-    if not isinstance(freshness_score_val, (int, float)):
-        freshness_score_val = 0.0
-    if not isinstance(quality_score_val, (int, float)):
-        quality_score_val = 0.0
-    if not isinstance(article_count_val, int):
-        article_count_val = 0
-    if not isinstance(user_useful_rate_val, (int, float)) and user_useful_rate_val is not None:
-        user_useful_rate_val = None
-
-    # Ensure datetime objects have isoformat
-    if isinstance(sample_period_start_val, datetime):
-        sample_period_start_str = sample_period_start_val.isoformat()
-    else:
-        sample_period_start_str = str(sample_period_start_val)
-
-    if isinstance(calculated_at_val, datetime):
-        calculated_at_str = calculated_at_val.isoformat()
-    else:
-        calculated_at_str = str(calculated_at_val)
-
-    return SourceMetricsResponse(
-        vendor=str(vendor_val),
-        duplicate_rate=float(duplicate_rate_val),
-        diversity_score=float(diversity_score_val),
-        confidence_avg=float(confidence_avg_val),
-        freshness_score=float(freshness_score_val),
-        user_useful_rate=float(user_useful_rate_val) if user_useful_rate_val is not None else None,
-        quality_score=float(quality_score_val),
-        article_count=int(article_count_val),
-        sample_period_start=sample_period_start_str,
-        calculated_at=calculated_at_str,
-    )
+    return _row_to_source_metrics(row) if row else None
 
 
 @router.post("/article-feedback", response_model=ArticleFeedbackResponse)
@@ -301,48 +264,9 @@ async def submit_article_feedback(
     """
     try:
         with _storage().connection() as conn:
-            # Insert or update feedback
-            conn.execute(
-                """
-                INSERT INTO user_article_feedback (
-                    user_id,
-                    article_url,
-                    article_hash,
-                    vendor,
-                    is_useful,
-                    sentiment_override
-                )
-                VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT (user_id, article_hash)
-                DO UPDATE SET
-                    is_useful = EXCLUDED.is_useful,
-                    sentiment_override = EXCLUDED.sentiment_override,
-                    created_at = NOW()
-                """,
-                [
-                    user_id,
-                    feedback.article_url,
-                    feedback.article_hash,
-                    feedback.vendor,
-                    feedback.is_useful,
-                    feedback.sentiment_override,
-                ],
-            )
-
-            # Get updated useful rate for vendor
-            result = conn.execute(
-                """
-                SELECT
-                    SUM(CASE WHEN is_useful THEN 1 ELSE 0 END)::float / COUNT(*)::float AS useful_rate
-                FROM user_article_feedback
-                WHERE vendor = %s AND user_id = %s
-                """,
-                [feedback.vendor, user_id],
-            ).fetchone()
-
+            _insert_or_update_feedback(conn, user_id, feedback)
+            useful_rate = _fetch_vendor_useful_rate(conn, feedback.vendor, user_id)
             conn.commit()
-
-        useful_rate = float(result[0]) if result and result[0] is not None else None
 
         return ArticleFeedbackResponse(
             status="success",
@@ -382,22 +306,11 @@ async def get_article_feedback(
     if not result:
         return {"exists": False}
 
-    # Type narrowing for database result
-    vendor_val = result[0]
-    is_useful_val = result[1]
-    created_at_val = result[2]
-
-    # Ensure datetime object has isoformat
-    if isinstance(created_at_val, datetime):
-        created_at_str = created_at_val.isoformat()
-    else:
-        created_at_str = str(created_at_val)
-
     return {
         "exists": True,
-        "vendor": str(vendor_val),
-        "is_useful": bool(is_useful_val),
-        "created_at": created_at_str,
+        "vendor": str(result[0]),
+        "is_useful": bool(result[1]),
+        "created_at": _to_iso_str(result[2]),
     }
 
 
