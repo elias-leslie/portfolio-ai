@@ -14,6 +14,11 @@ if TYPE_CHECKING:
     from app.storage.facade import PortfolioStorage as Storage
 
 
+def _date_to_market_close_ts(d: date) -> dt.datetime:
+    """Convert a date to a datetime at market close (21:00 UTC)."""
+    return dt.datetime.combine(d, _MARKET_CLOSE_UTC, tzinfo=dt.UTC)
+
+
 def calculate_daily_change_pct(
     storage: Storage,
     symbol: str,
@@ -88,6 +93,51 @@ def calculate_weekly_change_pct(
     return None
 
 
+def _fetch_prev_closes_batch(
+    storage: Storage,
+    sector_symbols: list[str],
+) -> dict[str, float]:
+    """Fetch previous closes for a list of symbols in a single batch query."""
+    params: list[
+        str | int | float | bool | date | datetime | list[str | int | float | bool | None] | None
+    ] = [cast(list[str | int | float | bool | None], sector_symbols)]
+
+    with storage.connection() as conn:
+        result = conn.execute(
+            """
+            SELECT symbol, close
+            FROM (
+                SELECT symbol, close, ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as rn
+                FROM day_bars
+                WHERE symbol = ANY(%s)
+            ) ranked
+            WHERE rn = 2
+            """,
+            params,
+        )
+        prev_closes: dict[str, float] = {}
+        for row in result.fetchall():
+            symbol_val = row[0]
+            close_val = row[1]
+            if isinstance(symbol_val, str) and isinstance(close_val, (int, float)):
+                prev_closes[symbol_val] = float(close_val)
+    return prev_closes
+
+
+def _sector_entry(
+    current_price: PriceData | None,
+    prev_close: float | None,
+) -> tuple[float | None, float | None, str | None]:
+    """Build a single sector data tuple from price data and previous close."""
+    if not current_price:
+        return (None, None, None)
+    timestamp = current_price.cached_at.isoformat()
+    if prev_close:
+        change_pct = ((current_price.price - prev_close) / prev_close) * 100
+        return (current_price.price, change_pct, timestamp)
+    return (current_price.price, None, timestamp)
+
+
 def fetch_sector_data_with_changes(
     storage: Storage,
     sector_symbols: list[str],
@@ -107,54 +157,11 @@ def fetch_sector_data_with_changes(
     Returns:
         Dict mapping symbol to (price, change_pct, timestamp) tuple
     """
-    sector_data: dict[str, tuple[float | None, float | None, str | None]] = {}
-
-    # Get previous closes in a single batch query (avoiding N+1 query problem)
-    # Using window function to get second-most-recent close for each symbol
-    # This ensures we calculate change from actual market closes, not cache timestamps
-    with storage.connection() as conn:
-        # Cast list[str] to expected parameter type for ANY operator compatibility
-        params: list[
-            str | int | float | bool | date | datetime | list[str | int | float | bool | None] | None
-        ] = [cast(list[str | int | float | bool | None], sector_symbols)]
-
-        result = conn.execute(
-            """
-            SELECT symbol, close
-            FROM (
-                SELECT symbol, close, ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as rn
-                FROM day_bars
-                WHERE symbol = ANY(%s)
-            ) ranked
-            WHERE rn = 2
-            """,
-            params,
-        )
-        prev_closes: dict[str, float] = {}
-        for row in result.fetchall():
-            symbol_val = row[0]
-            close_val = row[1]
-            if isinstance(symbol_val, str) and isinstance(close_val, (int, float)):
-                prev_closes[symbol_val] = float(close_val)
-
-    # Calculate change percentages
-    for symbol in sector_symbols:
-        current_price = sector_price_data.get(symbol)
-        if not current_price:
-            sector_data[symbol] = (None, None, None)
-            continue
-
-        prev_close = prev_closes.get(symbol)
-        if prev_close:
-            change_pct = ((current_price.price - prev_close) / prev_close) * 100
-            sector_timestamp = current_price.cached_at.isoformat()
-            sector_data[symbol] = (current_price.price, change_pct, sector_timestamp)
-        else:
-            # No historical data, just use current price
-            sector_timestamp = current_price.cached_at.isoformat()
-            sector_data[symbol] = (current_price.price, None, sector_timestamp)
-
-    return sector_data
+    prev_closes = _fetch_prev_closes_batch(storage, sector_symbols)
+    return {
+        symbol: _sector_entry(sector_price_data.get(symbol), prev_closes.get(symbol))
+        for symbol in sector_symbols
+    }
 
 
 def get_actual_data_dates(
@@ -177,14 +184,8 @@ def get_actual_data_dates(
         for symbol in symbols:
             result = conn.execute("SELECT MAX(date) FROM day_bars WHERE symbol = %s", [symbol])
             row = result.fetchone()
-            if row and row[0]:
-                # Convert date to timestamp at market close (21:00 UTC = 4:00 PM ET)
-                data_date = row[0]
-                if isinstance(data_date, date):
-                    data_timestamp = dt.datetime.combine(
-                        data_date, _MARKET_CLOSE_UTC, tzinfo=dt.UTC
-                    )
-                    actual_data_dates[symbol] = data_timestamp
+            if row and row[0] and isinstance(row[0], date):
+                actual_data_dates[symbol] = _date_to_market_close_ts(row[0])
     return actual_data_dates
 
 
@@ -204,16 +205,10 @@ def get_market_data_timestamp(storage: Storage) -> str:
             "SELECT as_of_date FROM fear_greed_daily ORDER BY as_of_date DESC LIMIT 1"
         )
         row = result.fetchone()
-        if row and row[0]:
+        if row and row[0] and isinstance(row[0], date):
             # Use the actual market data date (as_of_date) for the timestamp
             # This shows users the age of the underlying market data, not the cache
-            market_data_date = row[0]
-            # Set time to market close (4:00 PM ET = 21:00 UTC) for consistency
-            if isinstance(market_data_date, date):
-                market_close_time = dt.datetime.combine(
-                    market_data_date, _MARKET_CLOSE_UTC, tzinfo=dt.UTC
-                )
-                return market_close_time.isoformat()
+            return _date_to_market_close_ts(row[0]).isoformat()
     # Return empty string if no data found (caller should handle fallback)
     return ""
 
@@ -239,14 +234,33 @@ def get_put_call_ratio_data(
             putcall_date_val = row[1]
             # Type narrowing: ensure put_call_ratio is float and putcall_date is date
             if isinstance(put_call_ratio_val, (int, float)) and isinstance(putcall_date_val, date):
-                put_call_ratio = float(put_call_ratio_val)
-                putcall_date = putcall_date_val
-                # Set time to market close (4:00 PM ET = 21:00 UTC) for consistency
-                putcall_timestamp = dt.datetime.combine(
-                    putcall_date, _MARKET_CLOSE_UTC, tzinfo=dt.UTC
-                ).isoformat()
-                return (put_call_ratio, putcall_timestamp)
+                putcall_timestamp = _date_to_market_close_ts(putcall_date_val).isoformat()
+                return (float(put_call_ratio_val), putcall_timestamp)
     return None
+
+
+def _near_term_signal(pct: float) -> str:
+    """Classify near-term options percentage into a signal label."""
+    if pct > 65:
+        return "High"
+    if pct >= 45:
+        return "Normal"
+    return "Low"
+
+
+def _concentration_signal(pct: float) -> str:
+    """Classify concentration percentage into a signal label."""
+    if pct > 80:
+        return "Focused"
+    if pct >= 50:
+        return "Balanced"
+    return "Dispersed"
+
+
+def _top_sectors(sector_weights: dict[str, float], n: int = 3) -> list[dict[str, float | str]]:
+    """Return the top-n sectors by weight as a list of dicts."""
+    items = sorted(sector_weights.items(), key=lambda x: x[1], reverse=True)[:n]
+    return [{"sector": sector, "weight_pct": weight} for sector, weight in items]
 
 
 def get_options_activity_metrics(
@@ -270,54 +284,29 @@ def get_options_activity_metrics(
             """
         )
         row = result.fetchone()
-        if row:
-            near_term_val = row[0]
-            concentration_val = row[1]
-            sector_weights_val = row[2]  # JSONB
-            source_timestamp_val = row[3]
 
-            # Type narrowing: ensure proper types
-            if isinstance(near_term_val, (int, float)) and isinstance(
-                concentration_val, (int, float)
-            ):
-                near_term_pct = float(near_term_val)
-                concentration_pct = float(concentration_val)
+    if not row:
+        return None
 
-                # Calculate signals based on thresholds
-                # Near-term: >65% = High (event-driven), 45-65% = Normal, <45% = Low
-                if near_term_pct > 65:
-                    near_term_signal = "High"
-                elif near_term_pct >= 45:
-                    near_term_signal = "Normal"
-                else:
-                    near_term_signal = "Low"
+    near_term_val, concentration_val, sector_weights_val, source_timestamp_val = row
 
-                # Concentration: >80% = Focused, 50-80% = Balanced, <50% = Dispersed
-                if concentration_pct > 80:
-                    concentration_signal = "Focused"
-                elif concentration_pct >= 50:
-                    concentration_signal = "Balanced"
-                else:
-                    concentration_signal = "Dispersed"
+    if not isinstance(near_term_val, (int, float)) or not isinstance(concentration_val, (int, float)):
+        return None
+    if not isinstance(sector_weights_val, dict):
+        return None
 
-                # Get top 3 sectors by weight - ensure sector_weights is dict-like
-                if isinstance(sector_weights_val, dict):
-                    sector_items = sorted(
-                        sector_weights_val.items(), key=lambda x: x[1], reverse=True
-                    )[:3]
-                    top_sectors = [
-                        {"sector": sector, "weight_pct": weight} for sector, weight in sector_items
-                    ]
+    source_timestamp_iso = getattr(source_timestamp_val, "isoformat", None)
+    if not callable(source_timestamp_iso):
+        return None
 
-                    # Ensure source_timestamp has isoformat method
-                    source_timestamp_iso = getattr(source_timestamp_val, "isoformat", None)
-                    if callable(source_timestamp_iso):
-                        return {
-                            "near_term_pct": near_term_pct,
-                            "near_term_signal": near_term_signal,
-                            "concentration_pct": concentration_pct,
-                            "concentration_signal": concentration_signal,
-                            "top_sectors": top_sectors,
-                            "last_updated": source_timestamp_iso(),
-                        }
-    return None
+    near_term_pct = float(near_term_val)
+    concentration_pct = float(concentration_val)
+
+    return {
+        "near_term_pct": near_term_pct,
+        "near_term_signal": _near_term_signal(near_term_pct),
+        "concentration_pct": concentration_pct,
+        "concentration_signal": _concentration_signal(concentration_pct),
+        "top_sectors": _top_sectors(sector_weights_val),
+        "last_updated": source_timestamp_iso(),
+    }
