@@ -131,6 +131,46 @@ def _filter_symbols_without_active_strategy(
     return symbols_to_generate
 
 
+def _run_weekly_generation(
+    strategy_storage: Any,
+) -> StrategyMonitoringResultDict:
+    """Core logic for weekly strategy generation.
+
+    Args:
+        strategy_storage: Strategy storage instance
+
+    Returns:
+        Summary dict with generation results
+    """
+    top_symbols = strategy_storage.get_top_watchlist_symbols(limit=TOP_WATCHLIST_SYMBOLS)
+
+    if not top_symbols:
+        logger.info("No watchlist symbols found")
+        return build_strategy_success(details=[])
+
+    logger.info("Evaluating top watchlist symbols", count=len(top_symbols))
+
+    symbols_to_generate = _filter_symbols_without_active_strategy(top_symbols, strategy_storage)
+
+    batch_result = _generate_strategies_batch(
+        symbols=symbols_to_generate,
+        max_count=len(symbols_to_generate),
+        force_regenerate=False,
+    )
+
+    logger.info(
+        "Weekly strategy generation complete",
+        symbols_evaluated=len(top_symbols),
+        strategies_generated=batch_result["generated_count"],
+    )
+
+    return build_strategy_success(
+        symbols_evaluated=len(top_symbols),
+        strategies_generated=batch_result["generated_count"],
+        details=batch_result["results"],
+    )
+
+
 def weekly_strategy_generation() -> StrategyMonitoringResultDict:
     """Generate new strategies for top watchlist symbols.
 
@@ -152,41 +192,114 @@ def weekly_strategy_generation() -> StrategyMonitoringResultDict:
 
     try:
         strategy_storage = get_strategy_storage()
-
-        # Get top 20 watchlist symbols ordered by highest overall score
-        top_symbols = strategy_storage.get_top_watchlist_symbols(limit=TOP_WATCHLIST_SYMBOLS)
-
-        if not top_symbols:
-            logger.info("No watchlist symbols found")
-            return build_strategy_success(details=[])
-
-        logger.info("Evaluating top watchlist symbols", count=len(top_symbols))
-
-        # Filter to symbols without active strategies
-        symbols_to_generate = _filter_symbols_without_active_strategy(top_symbols, strategy_storage)
-
-        # Generate strategies using shared helper
-        batch_result = _generate_strategies_batch(
-            symbols=symbols_to_generate,
-            max_count=len(symbols_to_generate),
-            force_regenerate=False,
-        )
-
-        logger.info(
-            "Weekly strategy generation complete",
-            symbols_evaluated=len(top_symbols),
-            strategies_generated=batch_result["generated_count"],
-        )
-
-        return build_strategy_success(
-            symbols_evaluated=len(top_symbols),
-            strategies_generated=batch_result["generated_count"],
-            details=batch_result["results"],
-        )
-
+        return _run_weekly_generation(strategy_storage)
     except Exception as e:
         logger.exception("Weekly strategy generation failed", error=str(e))
         return build_strategy_failure(e)
+
+
+def _categorize_refresh_symbols(
+    symbols_to_generate: list[Any],
+) -> tuple[list[str], list[str]]:
+    """Separate symbols by generation reason into underperforming and missing.
+
+    Args:
+        symbols_to_generate: List of rows with (symbol, ..., reason, ...)
+
+    Returns:
+        Tuple of (underperforming_symbols, missing_symbols)
+    """
+    underperforming_symbols = []
+    missing_symbols = []
+    for row in symbols_to_generate:
+        symbol = str(row[0])
+        reason = row[2]
+        if reason == "underperforming":
+            underperforming_symbols.append(symbol)
+        else:
+            missing_symbols.append(symbol)
+    return underperforming_symbols, missing_symbols
+
+
+def _run_refresh_batches(
+    underperforming_symbols: list[str],
+    missing_symbols: list[str],
+    max_symbols: int,
+) -> tuple[list[str], int]:
+    """Run generation batches for underperforming and missing symbols in priority order.
+
+    Args:
+        underperforming_symbols: Symbols with underperforming strategies (force regenerate)
+        missing_symbols: Symbols without any strategy
+        max_symbols: Maximum total strategies to generate
+
+    Returns:
+        Tuple of (all_results, total_generated)
+    """
+    all_results: list[str] = []
+    total_generated = 0
+
+    if underperforming_symbols and total_generated < max_symbols:
+        batch_result = _generate_strategies_batch(
+            symbols=underperforming_symbols,
+            max_count=max_symbols - total_generated,
+            force_regenerate=True,
+        )
+        all_results.extend(batch_result["results"])
+        total_generated += batch_result["generated_count"]
+
+    if missing_symbols and total_generated < max_symbols:
+        batch_result = _generate_strategies_batch(
+            symbols=missing_symbols,
+            max_count=max_symbols - total_generated,
+            force_regenerate=False,
+        )
+        all_results.extend(batch_result["results"])
+        total_generated += batch_result["generated_count"]
+
+    return all_results, total_generated
+
+
+def _run_daily_refresh(strategy_storage: Any, max_symbols: int) -> dict[str, Any]:
+    """Core logic for daily strategy refresh.
+
+    Args:
+        strategy_storage: Strategy storage instance
+        max_symbols: Maximum strategies to generate
+
+    Returns:
+        Summary dict with generation results
+    """
+    symbols_to_generate = strategy_storage.get_symbols_needing_strategies(max_symbols)
+
+    if not symbols_to_generate:
+        logger.info("No symbols need strategy generation")
+        return {
+            "status": "completed",
+            "symbols_evaluated": 0,
+            "strategies_generated": 0,
+            "details": [],
+        }
+
+    logger.info("Found symbols needing strategies", count=len(symbols_to_generate))
+
+    underperforming_symbols, missing_symbols = _categorize_refresh_symbols(symbols_to_generate)
+    all_results, total_generated = _run_refresh_batches(
+        underperforming_symbols, missing_symbols, max_symbols
+    )
+
+    logger.info(
+        "Daily strategy refresh complete",
+        symbols_evaluated=len(symbols_to_generate),
+        strategies_generated=total_generated,
+    )
+
+    return {
+        "status": "completed",
+        "symbols_evaluated": len(symbols_to_generate),
+        "strategies_generated": total_generated,
+        "details": all_results,
+    }
 
 
 def daily_strategy_refresh(max_symbols: int = 5) -> dict[str, Any]:
@@ -211,72 +324,82 @@ def daily_strategy_refresh(max_symbols: int = 5) -> dict[str, Any]:
 
     try:
         strategy_storage = get_strategy_storage()
-
-        # Get symbols needing strategy generation
-        symbols_to_generate = strategy_storage.get_symbols_needing_strategies(max_symbols)
-
-        if not symbols_to_generate:
-            logger.info("No symbols need strategy generation")
-            return {
-                "status": "completed",
-                "symbols_evaluated": 0,
-                "strategies_generated": 0,
-                "details": [],
-            }
-
-        logger.info("Found symbols needing strategies", count=len(symbols_to_generate))
-
-        # Separate symbols by force_regenerate flag
-        underperforming_symbols = []
-        missing_symbols = []
-        for row in symbols_to_generate:
-            symbol = str(row[0])
-            reason = row[2]
-            if reason == "underperforming":
-                underperforming_symbols.append(symbol)
-            else:
-                missing_symbols.append(symbol)
-
-        # Generate strategies using shared helper (in priority order)
-        all_results = []
-        total_generated = 0
-
-        # First, regenerate underperforming strategies (force=True)
-        if underperforming_symbols and total_generated < max_symbols:
-            batch_result = _generate_strategies_batch(
-                symbols=underperforming_symbols,
-                max_count=max_symbols - total_generated,
-                force_regenerate=True,
-            )
-            all_results.extend(batch_result["results"])
-            total_generated += batch_result["generated_count"]
-
-        # Then, generate missing strategies (force=False)
-        if missing_symbols and total_generated < max_symbols:
-            batch_result = _generate_strategies_batch(
-                symbols=missing_symbols,
-                max_count=max_symbols - total_generated,
-                force_regenerate=False,
-            )
-            all_results.extend(batch_result["results"])
-            total_generated += batch_result["generated_count"]
-
-        logger.info(
-            "Daily strategy refresh complete",
-            symbols_evaluated=len(symbols_to_generate),
-            strategies_generated=total_generated,
-        )
-
-        return {
-            "status": "completed",
-            "symbols_evaluated": len(symbols_to_generate),
-            "strategies_generated": total_generated,
-            "details": all_results,
-        }
-
+        return _run_daily_refresh(strategy_storage, max_symbols)
     except Exception as e:
         logger.exception("Daily strategy refresh failed", error=str(e))
         return {"status": "failed", "error": str(e)}
+
+
+def _check_trigger_rate_limit(
+    max_per_day: int,
+) -> tuple[bool, dict[str, Any] | None, int]:
+    """Check daily rate limit for trigger-based strategy generation.
+
+    Args:
+        max_per_day: Maximum strategies to generate per day
+
+    Returns:
+        Tuple of (allowed, error_response_or_None, remaining_budget)
+    """
+    rate_result = check_daily_limit("strategy_gen_daily", max_per_day)
+    if not rate_result.allowed:
+        logger.info(
+            "trigger_strategies_rate_limited",
+            current_count=rate_result.current_count,
+            max_per_day=max_per_day,
+        )
+        return False, {
+            "status": "rate_limited",
+            "generated": 0,
+            "reason": f"Daily limit reached ({rate_result.current_count}/{max_per_day})",
+        }, 0
+    return True, None, rate_result.remaining
+
+
+def _run_trigger_generation(
+    top_n: int,
+    remaining_budget: int,
+    strategy_storage: Any,
+) -> dict[str, Any]:
+    """Run generation for top watchlist symbols within budget.
+
+    Args:
+        top_n: Number of top symbols to consider
+        remaining_budget: Maximum number of strategies to generate
+        strategy_storage: Strategy storage instance
+
+    Returns:
+        Summary dict with generation results
+    """
+    top_symbols = strategy_storage.get_top_watchlist_symbols(limit=top_n, require_score=True)
+
+    if not top_symbols:
+        logger.info("trigger_strategies_no_watchlist_symbols")
+        return {"status": "completed", "generated": 0, "reason": "No watchlist symbols"}
+
+    symbols_to_generate = _filter_symbols_without_active_strategy(top_symbols, strategy_storage)
+
+    batch_result = _generate_strategies_batch(
+        symbols=symbols_to_generate,
+        max_count=remaining_budget,
+        force_regenerate=False,
+    )
+
+    for _ in range(batch_result["generated_count"]):
+        increment_daily_count("strategy_gen_daily")
+
+    logger.info(
+        "trigger_strategies_for_top_watchlist_completed",
+        generated=batch_result["generated_count"],
+        remaining_budget=remaining_budget - batch_result["generated_count"],
+    )
+
+    return {
+        "status": "completed",
+        "generated": batch_result["generated_count"],
+        "checked": len(top_symbols),
+        "details": batch_result["results"],
+    }
 
 
 def trigger_strategies_for_top_watchlist(
@@ -302,61 +425,118 @@ def trigger_strategies_for_top_watchlist(
     )
 
     try:
-        # Check daily rate limit via utility
-        rate_result = check_daily_limit("strategy_gen_daily", max_per_day)
-        if not rate_result.allowed:
-            logger.info(
-                "trigger_strategies_rate_limited",
-                current_count=rate_result.current_count,
-                max_per_day=max_per_day,
-            )
-            return {
-                "status": "rate_limited",
-                "generated": 0,
-                "reason": f"Daily limit reached ({rate_result.current_count}/{max_per_day})",
-            }
+        allowed, rate_limited_response, remaining_budget = _check_trigger_rate_limit(max_per_day)
+        if not allowed:
+            return rate_limited_response  # type: ignore[return-value]
 
-        remaining_budget = rate_result.remaining
         strategy_storage = get_strategy_storage()
-
-        # Get top N watchlist symbols by composite score (require non-null scores)
-        top_symbols = strategy_storage.get_top_watchlist_symbols(limit=top_n, require_score=True)
-
-        if not top_symbols:
-            logger.info("trigger_strategies_no_watchlist_symbols")
-            return {"status": "completed", "generated": 0, "reason": "No watchlist symbols"}
-
-        # Filter to symbols without active strategies
-        symbols_to_generate = _filter_symbols_without_active_strategy(top_symbols, strategy_storage)
-
-        # Generate strategies using shared helper
-        # Note: Rate limit tracking is done post-generation
-        batch_result = _generate_strategies_batch(
-            symbols=symbols_to_generate,
-            max_count=remaining_budget,
-            force_regenerate=False,
-        )
-
-        # Update rate limit counter for successful generations
-        for _ in range(batch_result["generated_count"]):
-            increment_daily_count("strategy_gen_daily")
-
-        logger.info(
-            "trigger_strategies_for_top_watchlist_completed",
-            generated=batch_result["generated_count"],
-            remaining_budget=remaining_budget - batch_result["generated_count"],
-        )
-
-        return {
-            "status": "completed",
-            "generated": batch_result["generated_count"],
-            "checked": len(top_symbols),
-            "details": batch_result["results"],
-        }
+        return _run_trigger_generation(top_n, remaining_budget, strategy_storage)
 
     except Exception as e:
         logger.exception("trigger_strategies_for_top_watchlist_failed", error=str(e))
         return {"status": "failed", "error": str(e)}
+
+
+def _link_strategy_to_seed(
+    storage: Any,
+    strategy_id: str,
+    seed_id: str,
+    seed_thesis: str,
+    seed_confidence: Any,
+    symbol: str,
+) -> None:
+    """Link a generated strategy back to its originating seed.
+
+    Args:
+        storage: Strategy storage instance
+        strategy_id: ID of the generated strategy
+        seed_id: ID of the originating seed
+        seed_thesis: Thesis text from the seed
+        seed_confidence: Confidence score of the seed
+        symbol: Stock symbol
+    """
+    storage.link_strategy_to_seed(
+        strategy_id=strategy_id,
+        seed_id=seed_id,
+        seed_thesis=seed_thesis,
+        seed_confidence=seed_confidence,
+    )
+    logger.info(
+        "Strategy generated from seed",
+        strategy_id=strategy_id,
+        seed_id=seed_id,
+        symbol=symbol,
+        seed_confidence=seed_confidence,
+    )
+
+
+def _reject_seed_with_log(
+    storage: Any,
+    result: dict[str, Any] | None,
+    seed_id: str,
+    symbol: str,
+) -> dict[str, Any]:
+    """Reject a seed and log the reason.
+
+    Args:
+        storage: Strategy storage instance
+        result: Workflow result dict or None on error
+        seed_id: ID of the seed to reject
+        symbol: Stock symbol
+
+    Returns:
+        Rejected status dict
+    """
+    storage.reject_seed(seed_id)
+    reason = (
+        result.get("message", result.get("status", "unknown")) if result else "workflow error"
+    )
+    logger.info(
+        "Seed rejected",
+        seed_id=seed_id,
+        reason=reason,
+        symbol=symbol,
+        workflow_status=result["status"] if result else "error",
+    )
+    return {"status": "rejected", "seed_id": seed_id, "symbol": symbol, "reason": reason}
+
+
+def _handle_seed_workflow_result(
+    storage: Any,
+    result: dict[str, Any] | None,
+    seed_id: str,
+    seed_thesis: str,
+    seed_confidence: Any,
+    symbol: str,
+) -> dict[str, Any]:
+    """Handle the result of a seed-triggered strategy workflow.
+
+    Args:
+        storage: Strategy storage instance
+        result: Workflow result dict or None on error
+        seed_id: ID of the originating seed
+        seed_thesis: Thesis text from the seed
+        seed_confidence: Confidence score of the seed
+        symbol: Stock symbol
+
+    Returns:
+        Summary dict with generation result
+    """
+    if result and result["status"] == "completed":
+        strategy_id = result.get("strategy_id")
+        if strategy_id:
+            _link_strategy_to_seed(
+                storage, strategy_id, seed_id, seed_thesis, seed_confidence, symbol
+            )
+        return {
+            "status": "completed",
+            "seed_id": seed_id,
+            "strategy_id": strategy_id,
+            "symbol": symbol,
+            "message": f"Strategy generated from seed (confidence: {seed_confidence})",
+        }
+
+    return _reject_seed_with_log(storage, result, seed_id, symbol)
 
 
 def trigger_strategy_from_seed(seed_id: str, symbol: str) -> dict[str, Any]:
@@ -376,7 +556,6 @@ def trigger_strategy_from_seed(seed_id: str, symbol: str) -> dict[str, Any]:
     storage = get_strategy_storage()
 
     try:
-        # Get seed details from storage layer
         seed_data = storage.get_strategy_seed(seed_id)
 
         if not seed_data:
@@ -392,62 +571,15 @@ def trigger_strategy_from_seed(seed_id: str, symbol: str) -> dict[str, Any]:
             thesis_preview=seed_thesis[:100] if seed_thesis else "",
         )
 
-        # Run strategy workflow using shared helper
         _msg, result = _run_strategy_workflow(symbol, force_regenerate=False)
 
-        if result and result["status"] == "completed":
-            strategy_id = result.get("strategy_id")
-
-            # Link strategy back to seed via storage layer
-            if strategy_id:
-                storage.link_strategy_to_seed(
-                    strategy_id=strategy_id,
-                    seed_id=seed_id,
-                    seed_thesis=seed_thesis,
-                    seed_confidence=seed_confidence,
-                )
-
-                logger.info(
-                    "Strategy generated from seed",
-                    strategy_id=strategy_id,
-                    seed_id=seed_id,
-                    symbol=symbol,
-                    seed_confidence=seed_confidence,
-                )
-
-            return {
-                "status": "completed",
-                "seed_id": seed_id,
-                "strategy_id": strategy_id,
-                "symbol": symbol,
-                "message": f"Strategy generated from seed (confidence: {seed_confidence})",
-            }
-
-        # Strategy not generated (blocked, skipped, or error)
-        storage.reject_seed(seed_id)
-
-        reason = (
-            result.get("message", result.get("status", "unknown")) if result else "workflow error"
+        return _handle_seed_workflow_result(
+            storage, result, seed_id, seed_thesis, seed_confidence, symbol
         )
-        logger.info(
-            "Seed rejected",
-            seed_id=seed_id,
-            reason=reason,
-            symbol=symbol,
-            workflow_status=result["status"] if result else "error",
-        )
-
-        return {
-            "status": "rejected",
-            "seed_id": seed_id,
-            "symbol": symbol,
-            "reason": reason,
-        }
 
     except Exception as e:
         logger.exception("Strategy generation from seed failed", seed_id=seed_id, error=str(e))
 
-        # Mark seed as failed but don't crash
         with contextlib.suppress(Exception):
             storage.reject_seed(seed_id)
 
