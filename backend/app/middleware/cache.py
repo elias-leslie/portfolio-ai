@@ -1,13 +1,12 @@
 """Response caching middleware for Portfolio AI platform.
 
-This module provides lightweight caching for expensive API calls using cachetools.
-Supports TTL-based caching, ETag validation, cache invalidation, and observability via headers.
+Provides lightweight TTL-based caching for expensive API calls using cachetools.
+Supports ETag validation, cache invalidation, and observability via headers.
 
 ETag Support:
 - Server generates ETag (hash of response data)
 - Client sends If-None-Match header with cached ETag
 - Server returns 304 Not Modified if data unchanged (saves bandwidth)
-- Allows efficient caching while ensuring fresh data when it changes
 """
 
 import hashlib
@@ -41,77 +40,84 @@ class CacheStatsDict(TypedDict):
     invalidations: int
 
 
-# Configuration from centralized settings
 CACHE_ENABLED = settings.cache_enabled
 CACHE_MAX_SIZE = settings.cache_max_size
 CACHE_DEFAULT_TTL = settings.cache_default_ttl
 
-# Global cache storage (TTL-based)
-# Cache stores: {cache_key: (response_data, status_code, headers)}
 _cache: TTLCache[str, tuple[Any, int, dict[str, str]]] = TTLCache(
     maxsize=CACHE_MAX_SIZE, ttl=CACHE_DEFAULT_TTL
 )
 
-# Cache statistics
 _cache_stats: dict[str, int] = {
     "hits": 0,
     "misses": 0,
     "invalidations": 0,
-    "etag_matches": 0,  # 304 Not Modified responses
+    "etag_matches": 0,
 }
+
+_CACHE_HEADERS_MISS = {"X-Cache-Hit": "false", "Cache-Control": "no-store, max-age=0"}
+_CACHE_HEADERS_HIT = {"X-Cache-Hit": "true", "Cache-Control": "no-store, max-age=0"}
 
 
 def _generate_etag(data: Any) -> str:
-    """Generate ETag from response data.
-
-    Args:
-        data: Response data (will be JSON serialized)
-
-    Returns:
-        ETag string (quoted per HTTP spec)
-    """
+    """Generate ETag from response data (quoted per HTTP spec)."""
     if isinstance(data, (dict, list)):
         content = json.dumps(data, sort_keys=True, default=str)
     elif isinstance(data, str):
         content = data
     else:
         content = str(data)
-
-    # Use MD5 for speed (not security-critical)
     hash_value = hashlib.md5(content.encode()).hexdigest()[:16]
     return f'"{hash_value}"'
 
 
 def _generate_cache_key(request: Request, include_user: bool = True) -> str:
-    """Generate cache key from request.
+    """Generate cache key: '{method}:{path}:{query_params}:{user_id}'."""
+    query_str = json.dumps(dict(sorted(request.query_params.items())), sort_keys=True)
+    user_id = str(request.state.user_id) if include_user and hasattr(request.state, "user_id") else ""
+    return ":".join([request.method, request.url.path, query_str, user_id])
 
-    Args:
-        request: FastAPI request object
-        include_user: Include user ID in cache key (default: True)
 
-    Returns:
-        Cache key string in format: "{method}:{path}:{query_params}:{user_id}"
-    """
-    # Extract method and path
-    method = request.method
-    path = request.url.path
+def _serialize_result(result: Any) -> Any:
+    """Convert Pydantic models to dicts for JSON serialization."""
+    if isinstance(result, BaseModel):
+        return result.model_dump(mode="json")
+    if isinstance(result, list) and result and isinstance(result[0], BaseModel):
+        return [item.model_dump(mode="json") for item in result]
+    return result
 
-    # Sort and serialize query parameters for consistent keys
-    query_params = dict(sorted(request.query_params.items()))
-    query_str = json.dumps(query_params, sort_keys=True)
 
-    # Extract user ID from request state (set by auth middleware)
-    user_id = ""
-    if include_user and hasattr(request.state, "user_id"):
-        user_id = str(request.state.user_id)
+def _store_result_in_cache(cache_key: str, result: Any, serialized: Any) -> None:
+    """Store a handler result in the cache."""
+    if isinstance(result, JSONResponse):
+        body = result.body.decode() if isinstance(result.body, bytes) else result.body
+        _cache[cache_key] = (body, result.status_code, dict(result.headers))
+    elif isinstance(result, Response):
+        body = result.body if hasattr(result, "body") else str(result)
+        headers = dict(result.headers) if hasattr(result, "headers") else {}
+        _cache[cache_key] = (body, result.status_code, headers)
+    else:
+        _cache[cache_key] = (serialized, 200, {})
 
-    # Create cache key
-    key_parts = [method, path, query_str, user_id]
-    key_string = ":".join(key_parts)
 
-    # Hash for consistent length (optional, for very long keys)
-    # For now, use direct string to make debugging easier
-    return key_string
+def _build_cached_response(cache_key: str) -> JSONResponse:
+    """Return a JSONResponse from a cache hit."""
+    cached_data, status_code, headers = _cache[cache_key]
+    _cache_stats["hits"] += 1
+    logger.debug("cache_hit", cache_key=cache_key)
+    return JSONResponse(
+        content=cached_data,
+        status_code=status_code,
+        headers={**headers, **_CACHE_HEADERS_HIT},
+    )
+
+
+def _extract_request(args: tuple, kwargs: dict) -> Request | None:
+    """Extract the FastAPI Request object from handler args/kwargs."""
+    for arg in args:
+        if isinstance(arg, Request):
+            return arg
+    return kwargs.get("request")  # type: ignore[return-value]
 
 
 def cache_response(
@@ -126,9 +132,6 @@ def cache_response(
         include_user: Include user ID in cache key (default: True)
         key_prefix: Optional prefix for cache key (for namespacing)
 
-    Returns:
-        Decorator function
-
     Example:
         @router.get("/api/market")
         @cache_response(ttl=300)
@@ -139,104 +142,37 @@ def cache_response(
     def decorator(func: Callable[..., object]) -> Callable[..., object]:
         @wraps(func)
         async def wrapper(*args: object, **kwargs: object) -> object:
-            # Check if caching is enabled
             if not CACHE_ENABLED:
-                result = await func(*args, **kwargs)  # type: ignore[misc]
-                return result
+                return await func(*args, **kwargs)  # type: ignore[misc]
 
-            # Extract request from args/kwargs
-            request: Request | None = None
-            for arg in args:
-                if isinstance(arg, Request):
-                    request = arg
-                    break
-            if request is None and "request" in kwargs:
-                request = kwargs["request"]  # type: ignore[assignment]
-
+            request = _extract_request(args, kwargs)  # type: ignore[arg-type]
             if request is None:
-                # No request object, skip caching
                 logger.warning("cache_no_request_object", func_name=func.__name__)
-                result = await func(*args, **kwargs)  # type: ignore[misc]
-                return result
+                return await func(*args, **kwargs)  # type: ignore[misc]
 
-            # Only cache GET requests
             if request.method != "GET":
-                result = await func(*args, **kwargs)  # type: ignore[misc]
-                return result
+                return await func(*args, **kwargs)  # type: ignore[misc]
 
-            # Generate cache key
             cache_key = _generate_cache_key(request, include_user=include_user)
             if key_prefix:
                 cache_key = f"{key_prefix}:{cache_key}"
 
-            # Check cache
             if cache_key in _cache:
-                _cache_stats["hits"] += 1
-                cached_data, status_code, headers = _cache[cache_key]
+                return _build_cached_response(cache_key)
 
-                # Add cache headers - no-store prevents browser caching
-                response_headers = {
-                    **headers,
-                    "X-Cache-Hit": "true",
-                    "Cache-Control": "no-store, max-age=0",
-                }
-
-                logger.debug("cache_hit", cache_key=cache_key)
-                return JSONResponse(
-                    content=cached_data,
-                    status_code=status_code,
-                    headers=response_headers,
-                )
-
-            # Cache miss - execute function
             _cache_stats["misses"] += 1
             logger.debug("cache_miss", cache_key=cache_key)
 
             result = await func(*args, **kwargs)  # type: ignore[misc]
+            serialized = _serialize_result(result)
+            _store_result_in_cache(cache_key, result, serialized)
 
-            # Serialize result for caching
-            serialized_result = result
-            if isinstance(result, BaseModel):
-                # Convert Pydantic models to dict for JSON serialization
-                serialized_result = result.model_dump(mode="json")
-            elif isinstance(result, list) and result and isinstance(result[0], BaseModel):
-                # Handle list of Pydantic models
-                serialized_result = [item.model_dump(mode="json") for item in result]
-
-            # Store in cache
-            if isinstance(result, JSONResponse):
-                _cache[cache_key] = (
-                    result.body.decode() if isinstance(result.body, bytes) else result.body,
-                    result.status_code,
-                    dict(result.headers),
-                )
-            elif isinstance(result, Response):
-                # For other response types, try to cache
-                _cache[cache_key] = (
-                    result.body if hasattr(result, "body") else str(result),
-                    result.status_code,
-                    dict(result.headers) if hasattr(result, "headers") else {},
-                )
-            else:
-                # For dict/list/Pydantic responses (auto-converted to JSON by FastAPI)
-                _cache[cache_key] = (serialized_result, 200, {})
-
-            # Add cache headers to original response
-            # Cache-Control: no-store prevents browser caching, server-side TTL handles freshness
-            cache_headers = {
-                "X-Cache-Hit": "false",
-                "Cache-Control": "no-store, max-age=0",
-            }
             if isinstance(result, Response):
-                for key, value in cache_headers.items():
+                for key, value in _CACHE_HEADERS_MISS.items():
                     result.headers[key] = value
                 return result
-            # Return new JSONResponse with headers for non-Response results
-            return JSONResponse(
-                content=serialized_result,
-                status_code=200,
-                headers=cache_headers,
-            )
+
+            return JSONResponse(content=serialized, status_code=200, headers=_CACHE_HEADERS_MISS)
 
         return wrapper
 
@@ -244,75 +180,36 @@ def cache_response(
 
 
 def invalidate_cache_pattern(pattern: str) -> int:
-    """Invalidate cache entries matching a pattern.
-
-    Args:
-        pattern: Glob-style pattern to match cache keys
-                 Examples:
-                 - "*:user_123" - all caches for user 123
-                 - "GET:/api/watchlist:*" - all watchlist GET requests
-                 - "*" - clear all caches
-
-    Returns:
-        Number of cache entries invalidated
-    """
+    """Invalidate cache entries matching a glob-style pattern. Returns count removed."""
     if not CACHE_ENABLED:
         return 0
-
-    # Convert glob pattern to regex
-    regex_pattern = pattern.replace("*", ".*").replace("?", ".")
-    regex = re.compile(f"^{regex_pattern}$")
-
-    # Find matching keys
+    regex = re.compile(f"^{pattern.replace('*', '.*').replace('?', '.')}$")
     keys_to_delete = [key for key in _cache if regex.match(key)]
-
-    # Delete keys
     for key in keys_to_delete:
         del _cache[key]
         logger.debug("cache_invalidated", cache_key=key)
-
     count = len(keys_to_delete)
     _cache_stats["invalidations"] += count
-
     if count > 0:
         logger.info("cache_entries_invalidated", count=count, pattern=pattern)
-
     return count
 
 
 def clear_cache() -> int:
-    """Clear all cache entries.
-
-    Returns:
-        Number of cache entries cleared
-    """
+    """Clear all cache entries. Returns count cleared."""
     if not CACHE_ENABLED:
         return 0
-
     count = len(_cache)
     _cache.clear()
     _cache_stats["invalidations"] += count
-
     logger.info("cache_cleared", count=count)
     return count
 
 
 def get_cache_stats() -> CacheStatsDict:
-    """Get cache statistics.
-
-    Returns:
-        Dictionary with cache statistics including:
-        - size: Current number of cached entries
-        - max_size: Maximum cache size
-        - hits: Total cache hits
-        - misses: Total cache misses
-        - hit_rate: Cache hit rate percentage
-        - invalidations: Total cache invalidations
-        - enabled: Whether caching is enabled
-    """
-    total_requests = _cache_stats["hits"] + _cache_stats["misses"]
-    hit_rate = (_cache_stats["hits"] / total_requests * 100) if total_requests > 0 else 0.0
-
+    """Return cache statistics dict."""
+    total = _cache_stats["hits"] + _cache_stats["misses"]
+    hit_rate = round(_cache_stats["hits"] / total * 100, 2) if total > 0 else 0.0
     return {
         "enabled": CACHE_ENABLED,
         "size": len(_cache),
@@ -320,80 +217,37 @@ def get_cache_stats() -> CacheStatsDict:
         "ttl_default": CACHE_DEFAULT_TTL,
         "hits": _cache_stats["hits"],
         "misses": _cache_stats["misses"],
-        "hit_rate": round(hit_rate, 2),
+        "hit_rate": hit_rate,
         "invalidations": _cache_stats["invalidations"],
     }
 
 
 def invalidate_user_cache(user_id: str) -> int:
-    """Invalidate all cache entries for a specific user.
-
-    Args:
-        user_id: User ID to invalidate caches for
-
-    Returns:
-        Number of cache entries invalidated
-    """
-    pattern = f"*:{user_id}"
-    return invalidate_cache_pattern(pattern)
+    """Invalidate all cache entries for a specific user."""
+    return invalidate_cache_pattern(f"*:{user_id}")
 
 
 def invalidate_endpoint_cache(endpoint: str, method: str = "GET") -> int:
-    """Invalidate all cache entries for a specific endpoint.
-
-    Args:
-        endpoint: API endpoint path (e.g., "/api/watchlist")
-        method: HTTP method (default: "GET")
-
-    Returns:
-        Number of cache entries invalidated
-    """
-    variants = {endpoint}
-    if endpoint != "/":
-        variants.add(endpoint.rstrip("/"))
-        variants.add(f"{endpoint.rstrip('/')}/")
-
-    total = 0
-    for variant in variants:
-        total += invalidate_cache_pattern(f"{method}:{variant}:*")
-    return total
+    """Invalidate all cache entries for a specific endpoint."""
+    variants = {endpoint, endpoint.rstrip("/"), f"{endpoint.rstrip('/')}/"}
+    return sum(invalidate_cache_pattern(f"{method}:{v}:*") for v in variants)
 
 
 def invalidate_market_data_cache() -> int:
-    """Invalidate all market-related cache entries.
-
-    Call this after scheduled workflows update market data (OHLCV, F&G, indicators).
-
-    Returns:
-        Number of cache entries invalidated
-    """
-    patterns = [
-        "GET:/api/market/*",
-        "GET:/api/watchlist/*",
-        "GET:/api/portfolio/*",
-    ]
-    total = 0
-    for pattern in patterns:
-        total += invalidate_cache_pattern(pattern)
+    """Invalidate all market-related cache entries."""
+    patterns = ["GET:/api/market/*", "GET:/api/watchlist/*", "GET:/api/portfolio/*"]
+    total = sum(invalidate_cache_pattern(p) for p in patterns)
     logger.info("market_data_cache_invalidated", count=total)
     return total
 
 
 def invalidate_fear_greed_cache() -> int:
-    """Invalidate Fear & Greed specific caches.
-
-    Call this after calculate_fear_greed task completes.
-
-    Returns:
-        Number of cache entries invalidated
-    """
+    """Invalidate Fear & Greed specific caches."""
     patterns = [
         "GET:/api/market/intelligence:*",
         "GET:/api/market/fear-greed*",
         "GET:/api/market/conditions:*",
     ]
-    total = 0
-    for pattern in patterns:
-        total += invalidate_cache_pattern(pattern)
+    total = sum(invalidate_cache_pattern(p) for p in patterns)
     logger.info("fear_greed_cache_invalidated", count=total)
     return total
