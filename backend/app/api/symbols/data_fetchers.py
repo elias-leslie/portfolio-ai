@@ -13,6 +13,61 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+_PILLARS = ["price", "technical", "fundamental", "catalyst", "options_flow"]
+
+
+def _extract_pillar_scores(score: dict[str, Any]) -> dict[str, Any]:
+    """Return flattened pillar score fields from a score dict."""
+    result: dict[str, Any] = {}
+    for pillar in _PILLARS:
+        pillar_data = score.get(pillar) or {}
+        result[f"{pillar}_score"] = pillar_data.get("score")
+        result[f"{pillar}_sub_scores"] = pillar_data.get("sub_scores")
+        result[f"{pillar}_metadata"] = pillar_data.get("metadata")
+        result[f"{pillar}_stale"] = pillar_data.get("stale", False)
+
+    perf = score.get("performance_factor") or {}
+    result["performance_score"] = perf.get("score")
+    result["performance_sub_scores"] = perf.get("sub_scores")
+    result["performance_metadata"] = perf.get("metadata")
+    result["performance_stale"] = perf.get("stale", False)
+    return result
+
+
+def _build_watchlist_result(item: dict[str, Any]) -> dict[str, Any]:
+    """Build the watchlist result dict from a single watchlist item."""
+    score = item.get("score") or {}
+    dq = item.get("data_quality") or {}
+
+    result: dict[str, Any] = {
+        "id": str(item.get("id")),
+        "symbol": item.get("symbol"),
+        "note": item.get("note"),
+        "overall_score": score.get("overall"),
+        "signal_type": item.get("signal_type"),
+        "signal_strength": item.get("signal_strength"),
+        "recommended_style": item.get("recommended_style"),
+        "style_confidence": item.get("style_confidence"),
+        "optimal_holding_period": item.get("optimal_holding_period"),
+        "risk_level": item.get("risk_level"),
+        "entry_price": item.get("entry_price"),
+        "stop_loss": item.get("stop_loss"),
+        "profit_target": item.get("profit_target"),
+        "position_size_shares": item.get("position_size_shares"),
+        "company_health": item.get("company_health"),
+        "earnings_date": item.get("earnings_date"),
+        "earnings_days_away": item.get("earnings_days_away"),
+        "timeframe_short_aligned": item.get("timeframe_short_aligned"),
+        "timeframe_long_aligned": item.get("timeframe_long_aligned"),
+        "volume_relative": item.get("volume_relative"),
+        "news_intelligence": item.get("news_intelligence"),
+        "priority_indicators": item.get("priority_indicators"),
+        "data_quality_overall_pct": dq.get("overall_pct"),
+        "data_quality_pillars": dq.get("pillars"),
+    }
+    result.update(_extract_pillar_scores(score))
+    return result
+
 
 def get_watchlist_data(symbol: str, watchlist_service: WatchlistService) -> dict[str, Any] | None:
     """Fetch watchlist data for symbol using the watchlist service."""
@@ -20,54 +75,7 @@ def get_watchlist_data(symbol: str, watchlist_service: WatchlistService) -> dict
         items = watchlist_service.get_items_with_scores()
         for item in items:
             if item.get("symbol", "").upper() == symbol.upper():
-                score = item.get("score") or {}
-
-                result = {
-                    "id": str(item.get("id")),
-                    "symbol": item.get("symbol"),
-                    "note": item.get("note"),
-                    "overall_score": score.get("overall"),
-                    "signal_type": item.get("signal_type"),
-                    "signal_strength": item.get("signal_strength"),
-                    "recommended_style": item.get("recommended_style"),
-                    "style_confidence": item.get("style_confidence"),
-                    "optimal_holding_period": item.get("optimal_holding_period"),
-                    "risk_level": item.get("risk_level"),
-                    "entry_price": item.get("entry_price"),
-                    "stop_loss": item.get("stop_loss"),
-                    "profit_target": item.get("profit_target"),
-                    "position_size_shares": item.get("position_size_shares"),
-                    "company_health": item.get("company_health"),
-                    "earnings_date": item.get("earnings_date"),
-                    "earnings_days_away": item.get("earnings_days_away"),
-                    "timeframe_short_aligned": item.get("timeframe_short_aligned"),
-                    "timeframe_long_aligned": item.get("timeframe_long_aligned"),
-                    "volume_relative": item.get("volume_relative"),
-                    "news_intelligence": item.get("news_intelligence"),
-                    "priority_indicators": item.get("priority_indicators"),
-                }
-
-                # Extract pillar scores
-                for pillar in ["price", "technical", "fundamental", "catalyst", "options_flow"]:
-                    pillar_data = score.get(pillar) or {}
-                    result[f"{pillar}_score"] = pillar_data.get("score")
-                    result[f"{pillar}_sub_scores"] = pillar_data.get("sub_scores")
-                    result[f"{pillar}_metadata"] = pillar_data.get("metadata")
-                    result[f"{pillar}_stale"] = pillar_data.get("stale", False)
-
-                # Performance pillar
-                perf = score.get("performance_factor") or {}
-                result["performance_score"] = perf.get("score")
-                result["performance_sub_scores"] = perf.get("sub_scores")
-                result["performance_metadata"] = perf.get("metadata")
-                result["performance_stale"] = perf.get("stale", False)
-
-                # Data quality
-                dq = item.get("data_quality") or {}
-                result["data_quality_overall_pct"] = dq.get("overall_pct")
-                result["data_quality_pillars"] = dq.get("pillars")
-
-                return result
+                return _build_watchlist_result(item)
         return None
     except Exception as e:
         logger.warning("watchlist_data_fetch_failed", symbol=symbol, error=str(e))
@@ -166,11 +174,8 @@ def get_news_data(symbol: str, storage: PortfolioStorage) -> dict[str, Any]:
     return {}
 
 
-def get_market_data(storage: PortfolioStorage) -> dict[str, Any]:
-    """Fetch current market context."""
-    fear_greed = None
-    indicators: dict[str, Any] = {}
-
+def _fetch_fear_greed(storage: PortfolioStorage) -> dict[str, Any] | None:
+    """Fetch latest fear/greed row, return None on failure."""
     try:
         with storage.connection() as conn:
             fg_result = conn.execute(
@@ -183,10 +188,15 @@ def get_market_data(storage: PortfolioStorage) -> dict[str, Any]:
             )
             fg_row = fg_result.fetchone()
             if fg_row and fg_result.description:
-                fear_greed = row_to_dict(fg_row, fg_result.description)
+                return row_to_dict(fg_row, fg_result.description)
     except Exception as e:
         logger.warning("fear_greed_data_fetch_failed", error=str(e))
+    return None
 
+
+def _fetch_market_indicators(storage: PortfolioStorage) -> dict[str, Any]:
+    """Fetch VIX and S&P 500 indicator rows, return dict keyed by symbol."""
+    indicators: dict[str, Any] = {}
     try:
         with storage.connection() as conn:
             ind_result = conn.execute(
@@ -207,7 +217,13 @@ def get_market_data(storage: PortfolioStorage) -> dict[str, Any]:
                         indicators[r["symbol"]] = r
     except Exception as e:
         logger.warning("market_indicators_fetch_failed", error=str(e))
+    return indicators
 
+
+def get_market_data(storage: PortfolioStorage) -> dict[str, Any]:
+    """Fetch current market context."""
+    fear_greed = _fetch_fear_greed(storage)
+    indicators = _fetch_market_indicators(storage)
     return {
         "fear_greed": fear_greed,
         "vix": indicators.get("^VIX", {}).get("price"),
