@@ -11,16 +11,52 @@ Handles:
 from __future__ import annotations
 
 from datetime import date
-from typing import Any, Literal
+from typing import Literal, TypedDict
 
 from app.analytics.indicators import calculate_indicators_for_symbol
 from app.constants import TRADING_DAYS_PER_YEAR
 from app.storage import PortfolioStorage
 
+TrendStrength = Literal["strong_up", "weak_up", "neutral", "weak_down", "strong_down"]
+MomentumRating = Literal["accelerating", "steady", "decelerating"]
+VolumeProfile = Literal["increasing", "stable", "decreasing"]
+RsiZone = Literal["oversold", "healthy", "overbought"]
+
+
+class PriceVsMa(TypedDict):
+    """Price vs moving average ratios."""
+
+    _20d: float
+    _50d: float
+    _200d: float
+
+
+class TechnicalAnalysisResult(TypedDict):
+    """Result of technical analysis aggregation."""
+
+    trend_strength: TrendStrength
+    trend_duration_days: int
+    momentum_rating: MomentumRating
+    volume_profile: VolumeProfile
+    rsi_zone: RsiZone
+    price_vs_ma: dict[str, float]
+    confidence: float
+
+
+_EMPTY_RESULT: TechnicalAnalysisResult = {
+    "trend_strength": "neutral",
+    "trend_duration_days": 0,
+    "momentum_rating": "steady",
+    "volume_profile": "stable",
+    "rsi_zone": "healthy",
+    "price_vs_ma": {"20d": 1.0, "50d": 1.0, "200d": 1.0},
+    "confidence": 0.0,
+}
+
 
 def classify_trend_strength(
     price: float, sma_20: float, sma_50: float, sma_200: float
-) -> Literal["strong_up", "weak_up", "neutral", "weak_down", "strong_down"]:
+) -> TrendStrength:
     """Classify trend strength based on price vs moving averages.
 
     Args:
@@ -44,8 +80,8 @@ def classify_trend_strength(
 
 
 def analyze_momentum(
-    macd_data: dict[str, Any] | float,
-) -> Literal["accelerating", "steady", "decelerating"]:
+    macd_data: dict[str, float] | float,
+) -> MomentumRating:
     """Classify momentum using MACD histogram.
 
     Args:
@@ -62,7 +98,7 @@ def analyze_momentum(
     return "steady"
 
 
-def classify_rsi_zone(rsi_14: float) -> Literal["oversold", "healthy", "overbought"]:
+def classify_rsi_zone(rsi_14: float) -> RsiZone:
     """Classify RSI zone.
 
     Args:
@@ -76,6 +112,22 @@ def classify_rsi_zone(rsi_14: float) -> Literal["oversold", "healthy", "overboug
     if rsi_14 > 70:
         return "overbought"
     return "healthy"
+
+
+def _is_uptrend(trend_strength: str) -> bool:
+    return trend_strength in ("strong_up", "weak_up")
+
+
+def _is_downtrend(trend_strength: str) -> bool:
+    return trend_strength in ("strong_down", "weak_down")
+
+
+def _row_matches_trend(row: dict[str, float], trend_strength: str, sma_20: float) -> bool:
+    if _is_uptrend(trend_strength):
+        return row["close"] > sma_20
+    if _is_downtrend(trend_strength):
+        return row["close"] < sma_20
+    return False
 
 
 def calculate_trend_duration(
@@ -97,27 +149,20 @@ def calculate_trend_duration(
         return 0
 
     trend_rows = df.to_dicts()
+    if not trend_rows or trend_strength == "neutral":
+        return 0
+
     trend_duration_days = 0
-    if trend_rows:
-        for i, row in enumerate(trend_rows):
-            if trend_strength in ["strong_up", "weak_up"]:
-                if row["close"] > sma_20:
-                    trend_duration_days = i + 1
-                else:
-                    break
-            elif trend_strength in ["strong_down", "weak_down"]:
-                if row["close"] < sma_20:
-                    trend_duration_days = i + 1
-                else:
-                    break
-            else:
-                break
+    for i, row in enumerate(trend_rows):
+        if not _row_matches_trend(row, trend_strength, sma_20):
+            break
+        trend_duration_days = i + 1
     return trend_duration_days
 
 
 def analyze_volume_profile(
     storage: PortfolioStorage, symbol: str
-) -> Literal["increasing", "stable", "decreasing"]:
+) -> VolumeProfile:
     """Analyze volume profile by comparing recent to average volume.
 
     Args:
@@ -132,19 +177,45 @@ def analyze_volume_profile(
         return "stable"
 
     volume_rows = df.to_dicts()
-    if volume_rows and len(volume_rows) >= 20:
-        recent_5d_avg = sum(row["volume"] for row in volume_rows[:5]) / 5
-        recent_20d_avg = sum(row["volume"] for row in volume_rows) / 20
-        if recent_5d_avg > recent_20d_avg * 1.2:
-            return "increasing"
-        if recent_5d_avg < recent_20d_avg * 0.8:
-            return "decreasing"
+    if not volume_rows or len(volume_rows) < 20:
+        return "stable"
+
+    recent_5d_avg = sum(row["volume"] for row in volume_rows[:5]) / 5
+    recent_20d_avg = sum(row["volume"] for row in volume_rows) / 20
+    if recent_5d_avg > recent_20d_avg * 1.2:
+        return "increasing"
+    if recent_5d_avg < recent_20d_avg * 0.8:
+        return "decreasing"
     return "stable"
+
+
+def _extract_moving_averages(
+    indicators: dict[str, float], current_price: float
+) -> tuple[float, float, float]:
+    sma_20 = indicators.get("sma_20", current_price)
+    sma_50 = indicators.get("sma_50", current_price)
+    sma_200 = indicators.get("sma_200", current_price)
+    return sma_20, sma_50, sma_200
+
+
+def _build_price_vs_ma(
+    current_price: float, sma_20: float, sma_50: float, sma_200: float
+) -> dict[str, float]:
+    return {
+        "20d": round(current_price / sma_20, 4) if sma_20 > 0 else 1.0,
+        "50d": round(current_price / sma_50, 4) if sma_50 > 0 else 1.0,
+        "200d": round(current_price / sma_200, 4) if sma_200 > 0 else 1.0,
+    }
+
+
+def _calculate_confidence(storage: PortfolioStorage, symbol: str) -> float:
+    bar_count_val = storage.get_bar_count(symbol)
+    return min(1.0, bar_count_val / TRADING_DAYS_PER_YEAR)
 
 
 def aggregate_technical_analysis(
     storage: PortfolioStorage, symbol: str, as_of_date: date
-) -> dict[str, Any]:
+) -> TechnicalAnalysisResult:
     """Aggregate technical indicators and trends.
 
     Args:
@@ -155,60 +226,23 @@ def aggregate_technical_analysis(
     Returns:
         Dict with technical analysis fields
     """
-    # Calculate indicators using existing function
     indicators = calculate_indicators_for_symbol(
         symbol, indicators=["rsi", "macd", "sma_20", "sma_50", "sma_200", "ema_20", "atr"]
     )
-
     if not indicators:
-        # No technical data available
-        return {
-            "trend_strength": "neutral",
-            "trend_duration_days": 0,
-            "momentum_rating": "steady",
-            "volume_profile": "stable",
-            "rsi_zone": "healthy",
-            "price_vs_ma": {"20d": 1.0, "50d": 1.0, "200d": 1.0},
-            "confidence": 0.0,
-        }
+        return _EMPTY_RESULT
 
-    # Get current price
-    current_price = storage.get_current_price(symbol)
-    if current_price is None:
-        current_price = 100.0
-
-    # Extract indicators
+    current_price = storage.get_current_price(symbol) or 100.0
     rsi_14 = indicators.get("rsi_14", 50.0)
-    sma_20 = indicators.get("sma_20", current_price)
-    sma_50 = indicators.get("sma_50", current_price)
-    sma_200 = indicators.get("sma_200", current_price)
+    sma_20, sma_50, sma_200 = _extract_moving_averages(indicators, current_price)
 
-    # Classify trend strength
     trend_strength = classify_trend_strength(current_price, sma_20, sma_50, sma_200)
-
-    # Calculate trend duration (days above/below key moving average)
     trend_duration_days = calculate_trend_duration(storage, symbol, trend_strength, sma_20)
-
-    # Classify momentum
-    macd_data = indicators.get("macd_12_26_9", {})
-    momentum_rating = analyze_momentum(macd_data)
-
-    # Volume profile (requires recent volume data)
+    momentum_rating = analyze_momentum(indicators.get("macd_12_26_9", {}))
     volume_profile = analyze_volume_profile(storage, symbol)
-
-    # RSI zone classification
     rsi_zone = classify_rsi_zone(rsi_14)
-
-    # Price vs moving averages
-    price_vs_ma = {
-        "20d": round(current_price / sma_20, 4) if sma_20 > 0 else 1.0,
-        "50d": round(current_price / sma_50, 4) if sma_50 > 0 else 1.0,
-        "200d": round(current_price / sma_200, 4) if sma_200 > 0 else 1.0,
-    }
-
-    # Confidence (1.0 if we have 252 days of data)
-    bar_count_val = storage.get_bar_count(symbol)
-    confidence = 1.0 if bar_count_val >= TRADING_DAYS_PER_YEAR else (bar_count_val / TRADING_DAYS_PER_YEAR)
+    price_vs_ma = _build_price_vs_ma(current_price, sma_20, sma_50, sma_200)
+    confidence = _calculate_confidence(storage, symbol)
 
     return {
         "trend_strength": trend_strength,
