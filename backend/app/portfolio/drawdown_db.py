@@ -31,7 +31,6 @@ def get_portfolio_equity(
     Returns:
         Total equity value
     """
-    # Get cash balance
     cash_query = """
         SELECT cash_balance FROM portfolio_accounts
         WHERE id = $1
@@ -41,7 +40,6 @@ def get_portfolio_equity(
         return 0.0
     cash = float(cash_result.get_column("cash_balance")[0] or 0)
 
-    # Get position values using latest day_bars prices
     positions_query = """
         SELECT COALESCE(SUM(pp.shares * COALESCE(db.close, pp.cost_basis)), 0) as position_value
         FROM portfolio_positions pp
@@ -56,6 +54,26 @@ def get_portfolio_equity(
     position_value = float(positions_result.get_column("position_value")[0] or 0)
 
     return cash + position_value
+
+
+def _parse_date_value(value: date | datetime | str | None) -> date | None:
+    """Parse a date value from various types returned by database queries.
+
+    Args:
+        value: Raw date value from DB (date, datetime, str, or None)
+
+    Returns:
+        Parsed date or None if value is None or unrecognized
+    """
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, str):
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    if isinstance(value, date):
+        return value
+    return None
 
 
 def get_peak_equity(
@@ -81,21 +99,44 @@ def get_peak_equity(
     result = storage.query(query, [account_id])
 
     if result.is_empty():
-        # No historical data, use current equity as peak
         current_equity = get_portfolio_equity(storage, account_id)
         return (current_equity, date.today())
 
     peak_equity = float(result.get_column("equity")[0] or 0)
-    peak_date_val = result.get_column("snapshot_date")[0]
-
-    if isinstance(peak_date_val, datetime):
-        peak_date = peak_date_val.date()
-    elif isinstance(peak_date_val, str):
-        peak_date = datetime.strptime(peak_date_val, "%Y-%m-%d").date()
-    else:
-        peak_date = peak_date_val
+    peak_date = _parse_date_value(result.get_column("snapshot_date")[0])
 
     return (peak_equity, peak_date)
+
+
+def _get_first_snapshot_days(
+    storage: PortfolioStorage,
+    account_id: str,
+    current_date: date,
+) -> int:
+    """Calculate days since first snapshot when no peak is found.
+
+    Args:
+        storage: Database storage
+        account_id: Portfolio account ID
+        current_date: Date to calculate from
+
+    Returns:
+        Days since first snapshot, or 0 if no snapshots exist
+    """
+    first_query = """
+        SELECT MIN(snapshot_date) as first_date
+        FROM portfolio_snapshots
+        WHERE account_id = $1
+    """
+    first_result = storage.query(first_query, [account_id])
+    if first_result.is_empty():
+        return 0
+
+    first_date = _parse_date_value(first_result.get_column("first_date")[0])
+    if first_date is None:
+        return 0
+
+    return (current_date - first_date).days
 
 
 def calculate_underwater_days(
@@ -116,7 +157,6 @@ def calculate_underwater_days(
     if current_date is None:
         current_date = date.today()
 
-    # Get last peak date from snapshots
     query = """
         SELECT snapshot_date FROM portfolio_snapshots
         WHERE account_id = $1 AND drawdown_pct <= 0.01
@@ -126,40 +166,13 @@ def calculate_underwater_days(
     result = storage.query(query, [account_id])
 
     if result.is_empty():
-        # No peak recorded, check first snapshot date
-        first_query = """
-            SELECT MIN(snapshot_date) as first_date
-            FROM portfolio_snapshots
-            WHERE account_id = $1
-        """
-        first_result = storage.query(first_query, [account_id])
-        if first_result.is_empty():
-            return 0
-        first_date_raw = first_result.get_column("first_date")[0]
-        if first_date_raw is None:
-            return 0
-        if isinstance(first_date_raw, datetime):
-            first_date = first_date_raw.date()
-        elif isinstance(first_date_raw, str):
-            first_date = datetime.strptime(first_date_raw, "%Y-%m-%d").date()
-        elif isinstance(first_date_raw, date):
-            first_date = first_date_raw
-        else:
-            return 0
-        return (current_date - first_date).days
+        return _get_first_snapshot_days(storage, account_id, current_date)
 
-    peak_date_raw = result.get_column("snapshot_date")[0]
-    if isinstance(peak_date_raw, datetime):
-        peak_date = peak_date_raw.date()
-    elif isinstance(peak_date_raw, str):
-        peak_date = datetime.strptime(peak_date_raw, "%Y-%m-%d").date()
-    elif isinstance(peak_date_raw, date):
-        peak_date = peak_date_raw
-    else:
+    peak_date = _parse_date_value(result.get_column("snapshot_date")[0])
+    if peak_date is None:
         return 0
 
-    underwater_days = (current_date - peak_date).days
-    return max(0, underwater_days)
+    return max(0, (current_date - peak_date).days)
 
 
 def get_drawdown_history(
@@ -190,23 +203,83 @@ def get_drawdown_history(
     if result.is_empty():
         return []
 
-    history: list[dict[str, float | str]] = []
-    for row in result.iter_rows(named=True):
-        snapshot_date_val = row["snapshot_date"]
-        if isinstance(snapshot_date_val, datetime):
-            snapshot_date_str = str(snapshot_date_val.date())
-        else:
-            snapshot_date_str = str(snapshot_date_val)
-        history.append(
-            {
-                "date": snapshot_date_str,
-                "equity": float(row["equity"]),
-                "drawdown_pct": float(row["drawdown_pct"]),
-                "peak_equity": float(row["peak_equity"]),
-            }
-        )
+    return [_format_history_row(row) for row in result.iter_rows(named=True)]
 
-    return history
+
+def _format_history_row(row: dict[str, object]) -> dict[str, float | str]:
+    """Format a single snapshot row for history output.
+
+    Args:
+        row: Named row from portfolio_snapshots query
+
+    Returns:
+        Dict with date string, equity, drawdown_pct, peak_equity
+    """
+    snapshot_date_val = row["snapshot_date"]
+    if isinstance(snapshot_date_val, datetime):
+        snapshot_date_str = str(snapshot_date_val.date())
+    else:
+        snapshot_date_str = str(snapshot_date_val)
+
+    return {
+        "date": snapshot_date_str,
+        "equity": float(row["equity"]),  # type: ignore[arg-type]
+        "drawdown_pct": float(row["drawdown_pct"]),  # type: ignore[arg-type]
+        "peak_equity": float(row["peak_equity"]),  # type: ignore[arg-type]
+    }
+
+
+def _get_snapshot_cash(
+    storage: PortfolioStorage,
+    account_id: str,
+) -> float | None:
+    """Fetch cash balance for snapshot, validating account exists.
+
+    Args:
+        storage: Database storage
+        account_id: Portfolio account ID
+
+    Returns:
+        Cash balance or None if account not found
+    """
+    cash_query = """
+        SELECT COALESCE(cash_balance, 0) as cash FROM portfolio_accounts
+        WHERE id = $1
+    """
+    cash_result = storage.query(cash_query, [account_id])
+    if cash_result.is_empty():
+        return None
+    return float(cash_result.get_column("cash")[0] or 0)
+
+
+def _resolve_snapshot_values(
+    storage: PortfolioStorage,
+    account_id: str,
+    current_equity: float | None,
+    peak_equity: float | None,
+    drawdown_pct: float | None,
+) -> tuple[float, float, float]:
+    """Resolve snapshot values, computing any that are not provided.
+
+    Args:
+        storage: Database storage
+        account_id: Portfolio account ID
+        current_equity: Precalculated current equity (optional)
+        peak_equity: Precalculated peak equity (optional)
+        drawdown_pct: Precalculated drawdown (optional)
+
+    Returns:
+        Tuple of (current_equity, peak_equity, drawdown_pct)
+    """
+    if current_equity is None:
+        current_equity = get_portfolio_equity(storage, account_id)
+
+    if peak_equity is None or drawdown_pct is None:
+        peak_equity_calc, _ = get_peak_equity(storage, account_id)
+        peak_equity = max(peak_equity_calc, current_equity)
+        drawdown_pct = calculate_drawdown(peak_equity, current_equity)
+
+    return (current_equity, peak_equity, drawdown_pct)
 
 
 def save_portfolio_snapshot(
@@ -220,41 +293,63 @@ def save_portfolio_snapshot(
     """Save daily portfolio equity snapshot with drawdown.
 
     Should be called daily (market close) to track equity curve.
-
-    Args:
-        storage: Database storage
-        account_id: Portfolio account ID
-        snapshot_date: Date for snapshot (default: today)
-        current_equity: Precalculated current equity (optional)
-        peak_equity: Precalculated peak equity (optional)
-        drawdown_pct: Precalculated drawdown (optional)
+    All equity/drawdown values are optional and computed if omitted.
     """
     if snapshot_date is None:
         snapshot_date = date.today()
 
-    # Get cash and position breakdown, validate account exists (FK constraint)
-    cash_query = """
-        SELECT COALESCE(cash_balance, 0) as cash FROM portfolio_accounts
-        WHERE id = $1
-    """
-    cash_result = storage.query(cash_query, [account_id])
-    if cash_result.is_empty():
+    cash = _get_snapshot_cash(storage, account_id)
+    if cash is None:
         logger.warning("portfolio_snapshot_skipped_no_account", account_id=account_id)
         return
-    cash = float(cash_result.get_column("cash")[0] or 0)
 
-    # Use precalculated values if provided
-    if current_equity is None:
-        current_equity = get_portfolio_equity(storage, account_id)
-
+    current_equity, peak_equity, drawdown_pct = _resolve_snapshot_values(
+        storage, account_id, current_equity, peak_equity, drawdown_pct
+    )
     position_value = current_equity - cash
 
-    if peak_equity is None or drawdown_pct is None:
-        peak_equity_calc, _ = get_peak_equity(storage, account_id)
-        peak_equity = max(peak_equity_calc, current_equity)
-        drawdown_pct = calculate_drawdown(peak_equity, current_equity)
+    _upsert_snapshot(
+        storage,
+        account_id,
+        snapshot_date,
+        current_equity,
+        cash,
+        position_value,
+        peak_equity,
+        drawdown_pct,
+    )
 
-    # Upsert snapshot
+    logger.info(
+        "portfolio_snapshot_saved",
+        account_id=account_id,
+        date=str(snapshot_date),
+        equity=f"{current_equity:.2f}",
+        drawdown_pct=f"{drawdown_pct:.2f}",
+    )
+
+
+def _upsert_snapshot(
+    storage: PortfolioStorage,
+    account_id: str,
+    snapshot_date: date,
+    current_equity: float,
+    cash: float,
+    position_value: float,
+    peak_equity: float,
+    drawdown_pct: float,
+) -> None:
+    """Execute the upsert SQL for a portfolio snapshot.
+
+    Args:
+        storage: Database storage
+        account_id: Portfolio account ID
+        snapshot_date: Date of snapshot
+        current_equity: Total equity value
+        cash: Cash balance
+        position_value: Value of positions
+        peak_equity: Peak equity for drawdown calculation
+        drawdown_pct: Drawdown percentage
+    """
     upsert_query = """
         INSERT INTO portfolio_snapshots
             (account_id, snapshot_date, equity, cash, position_value, peak_equity, drawdown_pct, created_at)
@@ -279,12 +374,4 @@ def save_portfolio_snapshot(
             peak_equity,
             drawdown_pct,
         ],
-    )
-
-    logger.info(
-        "portfolio_snapshot_saved",
-        account_id=account_id,
-        date=str(snapshot_date),
-        equity=f"{current_equity:.2f}",
-        drawdown_pct=f"{drawdown_pct:.2f}",
     )
