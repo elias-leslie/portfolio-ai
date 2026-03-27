@@ -11,6 +11,23 @@ from app.constants import SECTOR_ETFS
 from app.storage import PortfolioStorage
 
 
+def _parse_row(row: tuple[Any, ...]) -> tuple[str, float] | None:
+    """Parse a (date, close) row into (date_str, close) or None if invalid."""
+    if not row[0] or row[1] is None:
+        return None
+    date_val = row[0]
+    if not isinstance(date_val, (datetime, date)):
+        return None
+    return date_val.isoformat(), float(row[1])
+
+
+def _calc_pct_change(close: float, base_price: float | None) -> float:
+    """Calculate percentage change from base price."""
+    if base_price is None or base_price == 0:
+        return 0.0
+    return (close - base_price) / base_price * 100
+
+
 def build_indicator_data_points(
     rows: list[tuple[Any, ...]],
     period_start: str,
@@ -32,27 +49,17 @@ def build_indicator_data_points(
     current_end = period_end
 
     for row in rows:
-        if row[0] and row[1] is not None:
-            # row[0] is date from SQL - handle as datetime/date object
-            date_val = row[0]
-            if not isinstance(date_val, (datetime, date)):
-                continue  # Skip if not a valid date type
-
-            date_str = date_val.isoformat()
-            close = float(row[1])
-            if base_price is None:
-                base_price = close
-                if not current_start:
-                    current_start = date_str
-            pct_change = ((close - base_price) / base_price * 100) if base_price else 0
-            data_points.append(
-                {
-                    "date": date_str,
-                    "close": close,
-                    "pct_change": round(pct_change, 2),
-                }
-            )
-            current_end = date_str
+        parsed = _parse_row(row)
+        if parsed is None:
+            continue
+        date_str, close = parsed
+        if base_price is None:
+            base_price = close
+            if not current_start:
+                current_start = date_str
+        pct_change = round(_calc_pct_change(close, base_price), 2)
+        data_points.append({"date": date_str, "close": close, "pct_change": pct_change})
+        current_end = date_str
 
     return data_points, current_start, current_end
 
@@ -83,36 +90,21 @@ def build_sector_history(
     current_end = period_end
 
     for row in rows:
-        if row[0] and row[1] is not None:
-            # row[0] is date from SQL - handle as datetime/date object
-            date_val = row[0]
-            if not isinstance(date_val, (datetime, date)):
-                continue  # Skip if not a valid date type
-
-            date_str = date_val.isoformat()
-            close = float(row[1])
-            if base_price is None:
-                base_price = close
-                if not current_start:
-                    current_start = date_str
-            pct_change = ((close - base_price) / base_price * 100) if base_price else 0
-            data_points.append(
-                SectorDataPoint(
-                    date=date_str,
-                    close=close,
-                    pct_change=round(pct_change, 2),
-                )
-            )
-            current_pct = round(pct_change, 2)
-            current_end = date_str
+        parsed = _parse_row(row)
+        if parsed is None:
+            continue
+        date_str, close = parsed
+        if base_price is None:
+            base_price = close
+            if not current_start:
+                current_start = date_str
+        pct_change = round(_calc_pct_change(close, base_price), 2)
+        data_points.append(SectorDataPoint(date=date_str, close=close, pct_change=pct_change))
+        current_pct = pct_change
+        current_end = date_str
 
     return (
-        SectorHistory(
-            name=name,
-            symbol=symbol,
-            data=data_points,
-            current_pct=current_pct,
-        ),
+        SectorHistory(name=name, symbol=symbol, data=data_points, current_pct=current_pct),
         current_start,
         current_end,
     )
@@ -160,16 +152,12 @@ def enrich_indicator_with_history(
     Returns:
         Enriched indicator dict with history
     """
-    # Calculate daily change percentage from day_bars historical data
     change_pct = calculate_daily_change_pct(storage, symbol, indicator_data.price)
 
-    # Get actual data timestamp (from day_bars) instead of cache timestamp
     actual_timestamp = actual_data_dates.get(symbol)
     if actual_timestamp:
-        # Temporarily override cached_at with actual data date
         indicator_data.cached_at = actual_timestamp
 
-    # Call the appropriate enrich function
     return cast(
         dict[str, Any], enrich_func(indicator_data, health_score_data, change_pct=change_pct)
     )
