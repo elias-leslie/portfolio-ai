@@ -14,10 +14,6 @@ from app.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-# ---------------------------------------------------------------------------
-# Private helpers
-# ---------------------------------------------------------------------------
-
 _ALLOWED_UPDATE_COLUMNS = {
     "status",
     "current_step",
@@ -57,7 +53,7 @@ def _row_to_status_dict(result: object) -> dict[str, object]:
 
 
 def _build_set_clause(updates: dict[str, object]) -> tuple[str, list[object]]:
-    """Build a parameterised SET clause from *updates*, returning (clause, values)."""
+    """Build a parameterised SET clause, returning (clause, values)."""
     parts: list[str] = []
     values: list[object] = []
     for i, (key, value) in enumerate(updates.items(), start=1):
@@ -71,7 +67,7 @@ def _build_set_clause(updates: dict[str, object]) -> tuple[str, list[object]]:
 def _attempt_retry(
     storage: PortfolioStorage, workflow_id: str, error: str
 ) -> dict[str, object] | None:
-    """Try to queue a retry for *workflow_id*.  Returns a result dict on success, None otherwise."""
+    """Try to queue a retry. Returns a result dict on success, None otherwise."""
     result = storage.query(
         "SELECT retry_count, max_retries FROM agent_workflows WHERE id = $1",
         [workflow_id],
@@ -125,6 +121,44 @@ def _mark_failed(storage: PortfolioStorage, workflow_id: str, error: str) -> Non
         conn.commit()
 
 
+def _insert_workflow(
+    storage: PortfolioStorage,
+    workflow_id: str,
+    workflow_type: str,
+    agents_list: list[str],
+    config: dict[str, object] | None,
+    triggered_by: str | None,
+    priority: int,
+    max_duration_seconds: int,
+    now: datetime,
+) -> None:
+    """Insert a new workflow row into the database."""
+    with storage.connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO agent_workflows (
+                id, workflow_type, status, current_step, agents_involved,
+                shared_context, triggered_by, priority, max_duration_seconds,
+                created_at, last_updated_at
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            [
+                workflow_id,
+                workflow_type,
+                "pending",
+                "initializing",
+                _pg_array(agents_list),
+                json.dumps(_build_shared_context(config)),
+                triggered_by,
+                priority,
+                max_duration_seconds,
+                now,
+                now,
+            ],
+        )
+        conn.commit()
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -139,49 +173,16 @@ def start_workflow(
     priority: int = 5,
     max_duration_seconds: int = 3600,
 ) -> dict[str, object]:
-    """Start a new multi-agent workflow.
-
-    Args:
-        storage: PortfolioStorage instance for database access
-        workflow_type: Type of workflow (e.g., 'daily_gap_analysis', 'paper_trade_validation')
-        config: Optional configuration for workflow
-        agents_involved: List of agent types participating (e.g., ['gemini', 'claude'])
-        triggered_by: Who/what triggered this workflow
-        priority: Priority 1-10 (1=urgent, 10=low, default=5)
-        max_duration_seconds: Maximum workflow runtime in seconds (default 3600)
-
-    Returns:
-        Result dictionary with workflow_id and status
-    """
+    """Start a new multi-agent workflow and return a status dict."""
     try:
         workflow_id = str(uuid.uuid4())
         agents_list = agents_involved or []
         now = datetime.now(UTC)
 
-        with storage.connection() as conn:
-            conn.execute(
-                """
-                INSERT INTO agent_workflows (
-                    id, workflow_type, status, current_step, agents_involved,
-                    shared_context, triggered_by, priority, max_duration_seconds,
-                    created_at, last_updated_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """,
-                [
-                    workflow_id,
-                    workflow_type,
-                    "pending",
-                    "initializing",
-                    _pg_array(agents_list),
-                    json.dumps(_build_shared_context(config)),
-                    triggered_by,
-                    priority,
-                    max_duration_seconds,
-                    now,
-                    now,
-                ],
-            )
-            conn.commit()
+        _insert_workflow(
+            storage, workflow_id, workflow_type, agents_list,
+            config, triggered_by, priority, max_duration_seconds, now,
+        )
 
         logger.info(
             "workflow_started",
@@ -208,15 +209,7 @@ def update_workflow_status(
     current_step: str | None = None,
     error: str | None = None,
 ) -> None:
-    """Update workflow status and current step.
-
-    Args:
-        storage: PortfolioStorage instance for database access
-        workflow_id: ID of the workflow
-        status: New status
-        current_step: Optional current step description
-        error: Optional error message (required if status='failed')
-    """
+    """Update workflow status and current step."""
     updates: dict[str, object] = {
         "status": status,
         "last_updated_at": datetime.now(UTC),
@@ -254,16 +247,7 @@ def update_workflow_status(
 def complete_workflow(
     storage: PortfolioStorage, workflow_id: str, result: dict[str, object]
 ) -> dict[str, object]:
-    """Mark a workflow as complete with final result.
-
-    Args:
-        storage: PortfolioStorage instance for database access
-        workflow_id: ID of the workflow
-        result: Final workflow result
-
-    Returns:
-        Status dictionary
-    """
+    """Mark a workflow as complete with final result."""
     try:
         now = datetime.now(UTC)
         with storage.connection() as conn:
@@ -288,17 +272,7 @@ def complete_workflow(
 def fail_workflow(
     storage: PortfolioStorage, workflow_id: str, error: str, retry: bool = False
 ) -> dict[str, object]:
-    """Mark a workflow as failed.
-
-    Args:
-        storage: PortfolioStorage instance for database access
-        workflow_id: ID of the workflow
-        error: Error message
-        retry: Whether to retry the workflow
-
-    Returns:
-        Status dictionary
-    """
+    """Mark a workflow as failed, optionally queuing a retry."""
     try:
         if retry:
             retry_result = _attempt_retry(storage, workflow_id, error)
@@ -315,15 +289,7 @@ def fail_workflow(
 
 
 def get_workflow_status(storage: PortfolioStorage, workflow_id: str) -> dict[str, object] | None:
-    """Get current status of a workflow.
-
-    Args:
-        storage: PortfolioStorage instance for database access
-        workflow_id: ID of the workflow
-
-    Returns:
-        Workflow status dictionary or None if not found
-    """
+    """Get current status of a workflow, or None if not found."""
     try:
         result = storage.query(
             """
