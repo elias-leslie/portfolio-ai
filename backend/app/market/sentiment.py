@@ -8,53 +8,19 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from pydantic import BaseModel, Field
-
 from app.constants import SECTOR_ETFS
 from app.logging_config import get_logger
+from app.market._sentiment_models import ComponentScore, MarketHealthScore, SectorScore
 from app.storage import get_storage
+
+# Re-export models so existing importers continue to work
+__all__ = ["ComponentScore", "MarketHealthScore", "SectorScore", "calculate_market_health"]
 
 logger = get_logger(__name__)
 
 
-# Response models for sentiment calculations
-class ComponentScore(BaseModel):
-    """Individual component score with details."""
-
-    name: str
-    score: int = Field(..., ge=0, le=100, description="Component score 0-100")
-    value: float | None = Field(None, description="Raw metric value")
-    interpretation: str = Field(..., description="Human-readable interpretation")
-    signal: str = Field(..., description="Bullish/Neutral/Bearish")
-    last_updated: str | None = Field(None, description="Last update timestamp (ISO 8601)")
-
-
-class SectorScore(BaseModel):
-    """Sector performance score."""
-
-    symbol: str = Field(..., description="Sector ETF symbol (e.g., XLK)")
-    name: str = Field(..., description="Sector name (e.g., Technology)")
-    price: float | None = Field(None, description="Current price")
-    change_pct: float | None = Field(None, description="Daily change percentage")
-    signal: str = Field(..., description="Leading/Neutral/Lagging")
-    last_updated: str | None = Field(None, description="Last update timestamp (ISO 8601)")
-
-
-class MarketHealthScore(BaseModel):
-    """Overall market health scoring."""
-
-    overall_score: int = Field(..., ge=0, le=100, description="Overall market health 0-100")
-    overall_label: str = Field(..., description="Extreme Fear/Fear/Neutral/Bullish/Very Bullish")
-    components: list[ComponentScore] = Field(..., description="Individual component scores")
-    sectors: list[SectorScore] = Field(
-        default_factory=list, description="Sector performance breakdown"
-    )
-    last_updated: str = Field(..., description="Last update timestamp")
-
-
 def calculate_vix_score(vix_price: float, timestamp: str | None) -> ComponentScore:
     """Calculate VIX volatility component score (inverted: low VIX = high score)."""
-    # VIX ranges: <15 = complacent, 15-20 = normal, 20-30 = elevated, >30 = fear
     if vix_price < 15:
         score, signal, interp = 85, "Bullish", "Low volatility suggests market complacency"
     elif vix_price < 20:
@@ -76,26 +42,11 @@ def calculate_vix_score(vix_price: float, timestamp: str | None) -> ComponentSco
     )
 
 
-def calculate_sp500_score(sp500_price: float, timestamp: str | None) -> ComponentScore:
-    """Calculate S&P 500 level component score using dynamic percentile-based approach.
-
-    Scores based on where current price sits in 252-day rolling window (1 trading year).
-    This automatically adapts to any market environment without manual threshold updates.
-
-    Percentile Scoring:
-    - ≥80th percentile: 75 (Bullish) - Top 20% of recent range
-    - ≥60th percentile: 60 (Bullish) - Upper 40%
-    - ≥40th percentile: 50 (Neutral) - Middle 20%
-    - <40th percentile: 40 (Bearish) - Bottom 40%
-
-    Falls back to price-based thresholds only if historical data unavailable.
-    """
+def _fetch_sp500_percentile(price: float) -> float | None:
+    """Query DB for current price's percentile rank within 252-day window."""
     storage = get_storage()
-    percentile = None
-
     try:
         with storage.connection() as conn:
-            # Calculate percentile rank of current price within 252-day window
             result = conn.execute(
                 """
                 WITH recent_prices AS (
@@ -108,33 +59,49 @@ def calculate_sp500_score(sp500_price: float, timestamp: str | None) -> Componen
                 SELECT COUNT(*) FILTER (WHERE close <= %s) * 100.0 / COUNT(*) as percentile
                 FROM recent_prices
                 """,
-                (sp500_price,),
+                (price,),
             )
             row = result.fetchone()
             if row and row[0] is not None:
-                percentile = float(row[0])
+                return float(row[0])
     except Exception as e:
         logger.debug("sp500_percentile_query_failed", error=str(e))
+    return None
 
-    # Score based on percentile rank (or fallback to price-based)
+
+def _score_from_percentile(percentile: float) -> tuple[int, str, str]:
+    """Map a percentile rank to (score, signal, interpretation)."""
+    if percentile >= 80:
+        return 75, "Bullish", "Strong market levels"
+    if percentile >= 60:
+        return 60, "Bullish", "Healthy market levels"
+    if percentile >= 40:
+        return 50, "Neutral", "Moderate market levels"
+    return 40, "Bearish", "Below average levels"
+
+
+def _score_from_sp500_price(price: float) -> tuple[int, str, str]:
+    """Fallback: map absolute S&P 500 price to (score, signal, interpretation)."""
+    if price > 6800:
+        return 75, "Bullish", "Strong market levels"
+    if price > 6400:
+        return 60, "Bullish", "Healthy market levels"
+    if price > 6000:
+        return 50, "Neutral", "Moderate market levels"
+    return 40, "Bearish", "Below average levels"
+
+
+def calculate_sp500_score(sp500_price: float, timestamp: str | None) -> ComponentScore:
+    """Calculate S&P 500 level component score using dynamic percentile-based approach.
+
+    Scores based on where current price sits in 252-day rolling window (1 trading year).
+    Falls back to price-based thresholds only if historical data unavailable.
+    """
+    percentile = _fetch_sp500_percentile(sp500_price)
     if percentile is not None:
-        if percentile >= 80:
-            score, signal, interp = 75, "Bullish", "Strong market levels"
-        elif percentile >= 60:
-            score, signal, interp = 60, "Bullish", "Healthy market levels"
-        elif percentile >= 40:
-            score, signal, interp = 50, "Neutral", "Moderate market levels"
-        else:
-            score, signal, interp = 40, "Bearish", "Below average levels"
-    # Fallback: Price-based thresholds (used only if no historical data)
-    elif sp500_price > 6800:
-        score, signal, interp = 75, "Bullish", "Strong market levels"
-    elif sp500_price > 6400:
-        score, signal, interp = 60, "Bullish", "Healthy market levels"
-    elif sp500_price > 6000:
-        score, signal, interp = 50, "Neutral", "Moderate market levels"
+        score, signal, interp = _score_from_percentile(percentile)
     else:
-        score, signal, interp = 40, "Bearish", "Below average levels"
+        score, signal, interp = _score_from_sp500_price(sp500_price)
 
     return ComponentScore(
         name="S&P 500 Level",
@@ -148,7 +115,6 @@ def calculate_sp500_score(sp500_price: float, timestamp: str | None) -> Componen
 
 def calculate_tnx_score(tnx_yield: float, timestamp: str | None) -> ComponentScore:
     """Calculate 10Y Treasury yield component score (Goldilocks: not too hot, not too cold)."""
-    # 10Y yield ranges: <3% = dovish, 3-4.5% = neutral, >4.5% = hawkish
     if 3.5 <= tnx_yield <= 4.5:
         score, signal, interp = 60, "Neutral", "Yields in healthy range"
     elif tnx_yield < 3.0:
@@ -172,7 +138,6 @@ def calculate_tnx_score(tnx_yield: float, timestamp: str | None) -> ComponentSco
 
 def calculate_dxy_score(dxy_price: float, timestamp: str | None) -> ComponentScore:
     """Calculate US Dollar Index component score."""
-    # DXY ranges: <100 = weak, 100-105 = normal, >105 = strong
     if dxy_price < 100:
         score, signal, interp = 65, "Bullish", "Weak dollar supports stocks"
     elif dxy_price < 105:
@@ -190,65 +155,59 @@ def calculate_dxy_score(dxy_price: float, timestamp: str | None) -> ComponentSco
     )
 
 
+def _sector_thresholds(changes: list[float]) -> tuple[float, float]:
+    """Return (top, bottom) thresholds for Leading/Lagging classification."""
+    if len(changes) <= 2:
+        return 0.5, -0.5
+    sorted_changes = sorted(changes)
+    return sorted_changes[int(len(sorted_changes) * 0.67)], sorted_changes[int(len(sorted_changes) * 0.33)]
+
+
+def _sector_signal(change_pct: float | None, top: float, bottom: float) -> str:
+    """Classify a sector change_pct as Leading, Lagging, Neutral, or Unknown."""
+    if change_pct is None:
+        return "Unknown"
+    if change_pct >= top:
+        return "Leading"
+    if change_pct <= bottom:
+        return "Lagging"
+    return "Neutral"
+
+
 def calculate_sector_scores(
     sector_data: dict[str, tuple[float | None, float | None, str | None]],
 ) -> list[SectorScore]:
     """Calculate sector rotation scores with relative performance signals."""
-    # Use centralized constants (DRY principle)
-    sector_names = SECTOR_ETFS
+    changes = [chg for _, (_, chg, _) in sector_data.items() if chg is not None]
+    top_threshold, bottom_threshold = _sector_thresholds(changes)
 
-    # Collect all valid change_pct values for relative comparison
-    changes = [
-        change_pct for _, (_, change_pct, _) in sector_data.items() if change_pct is not None
+    sectors = [
+        SectorScore(
+            symbol=symbol,
+            name=SECTOR_ETFS.get(symbol, symbol),
+            price=price,
+            change_pct=change_pct,
+            signal=_sector_signal(change_pct, top_threshold, bottom_threshold),
+            last_updated=timestamp,
+        )
+        for symbol, (price, change_pct, timestamp) in sector_data.items()
     ]
 
-    # Calculate thresholds for Leading/Neutral/Lagging
-    if changes:
-        changes_sorted = sorted(changes)
-        # Top 33% = Leading, Middle 34% = Neutral, Bottom 33% = Lagging
-        top_threshold = (
-            changes_sorted[int(len(changes_sorted) * 0.67)] if len(changes_sorted) > 2 else 0.5
-        )
-        bottom_threshold = (
-            changes_sorted[int(len(changes_sorted) * 0.33)] if len(changes_sorted) > 2 else -0.5
-        )
-    else:
-        top_threshold, bottom_threshold = 0.5, -0.5
-
-    # Create sector scores
-    sectors = []
-    for symbol, (price, change_pct, timestamp) in sector_data.items():
-        name = sector_names.get(symbol, symbol)
-
-        # Determine signal based on change_pct
-        if change_pct is not None:
-            if change_pct >= top_threshold:
-                signal = "Leading"
-            elif change_pct <= bottom_threshold:
-                signal = "Lagging"
-            else:
-                signal = "Neutral"
-        else:
-            signal = "Unknown"
-
-        sectors.append(
-            SectorScore(
-                symbol=symbol,
-                name=name,
-                price=price,
-                change_pct=change_pct,
-                signal=signal,
-                last_updated=timestamp,
-            )
-        )
-
-    # Sort sectors by change_pct descending (best performers first)
-    sectors.sort(
-        key=lambda s: s.change_pct if s.change_pct is not None else -999,
-        reverse=True,
-    )
-
+    sectors.sort(key=lambda s: s.change_pct if s.change_pct is not None else -999, reverse=True)
     return sectors
+
+
+def _overall_label(score: int) -> str:
+    """Map overall score to human-readable label."""
+    if score >= 75:
+        return "Very Bullish"
+    if score >= 60:
+        return "Bullish"
+    if score >= 45:
+        return "Neutral"
+    if score >= 30:
+        return "Bearish"
+    return "Extreme Fear"
 
 
 def calculate_market_health(
@@ -259,63 +218,25 @@ def calculate_market_health(
     sector_data: dict[str, tuple[float | None, float | None, str | None]] | None = None,
     current_timestamp: str | None = None,
 ) -> MarketHealthScore:
-    """Calculate overall market health score from indicators.
+    """Calculate overall market health score from indicators."""
+    indicator_funcs = [
+        (vix_price, calculate_vix_score),
+        (sp500_price, calculate_sp500_score),
+        (tnx_yield, calculate_tnx_score),
+        (dxy_price, calculate_dxy_score),
+    ]
+    components = [
+        fn(value, current_timestamp)
+        for value, fn in indicator_funcs
+        if value is not None
+    ]
 
-    Scoring philosophy:
-    - VIX: Lower = bullish (less fear), Higher = bearish (more fear)
-    - S&P 500: Use absolute level as proxy for sentiment
-    - Treasury yield: Moderate yields = healthy, extremes = concern
-    - Dollar: Stable/slightly weak = bullish for stocks
-
-    Args:
-        vix_price: Current VIX price
-        sp500_price: Current S&P 500 price
-        tnx_yield: Current 10Y Treasury yield
-        dxy_price: Current US Dollar Index price
-        sector_data: Dict mapping sector ETF symbol to (price, change_pct, timestamp) tuple
-        current_timestamp: Current fetch timestamp (ISO 8601) for real-time data
-
-    Returns:
-        MarketHealthScore with overall score and component breakdown
-    """
-    components: list[ComponentScore] = []
-
-    # Calculate component scores using helper functions
-    if vix_price is not None:
-        components.append(calculate_vix_score(vix_price, current_timestamp))
-
-    if sp500_price is not None:
-        components.append(calculate_sp500_score(sp500_price, current_timestamp))
-
-    if tnx_yield is not None:
-        components.append(calculate_tnx_score(tnx_yield, current_timestamp))
-
-    if dxy_price is not None:
-        components.append(calculate_dxy_score(dxy_price, current_timestamp))
-
-    # Calculate overall score (average of components)
-    total_score = sum(c.score for c in components)
-    overall_score = int(total_score / len(components)) if components else 50
-
-    # Map to label
-    if overall_score >= 75:
-        label = "Very Bullish"
-    elif overall_score >= 60:
-        label = "Bullish"
-    elif overall_score >= 45:
-        label = "Neutral"
-    elif overall_score >= 30:
-        label = "Bearish"
-    else:
-        label = "Extreme Fear"
-
-    # Calculate sector scores
-    sectors = calculate_sector_scores(sector_data) if sector_data else []
+    overall_score = int(sum(c.score for c in components) / len(components)) if components else 50
 
     return MarketHealthScore(
         overall_score=overall_score,
-        overall_label=label,
+        overall_label=_overall_label(overall_score),
         components=components,
-        sectors=sectors,
+        sectors=calculate_sector_scores(sector_data) if sector_data else [],
         last_updated=datetime.now(UTC).isoformat(),
     )
