@@ -36,6 +36,22 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+# ── Runtime context magic strings ──────────────────────────────────────────────
+_DEFAULT_PROJECT_NAME = "portfolio-ai"
+_DEFAULT_SYSTEM_STATUS = "unknown"
+_DOCUMENT_INTAKE_ROUTE = "/money?tab=intake"
+_DOCUMENT_PIPELINE_BEHAVIOR = (
+    "Uploads create household document records and can update document reviews, "
+    "household transactions, and planning items. They do not auto-create "
+    "portfolio_accounts from screenshots."
+)
+
+# ── Log event names ────────────────────────────────────────────────────────────
+_LOG_HEALTH_FAILED = "jenny_runtime_health_failed"
+_LOG_ROUTINES_FAILED = "jenny_runtime_routines_failed"
+_LOG_NOTIFICATIONS_FAILED = "jenny_runtime_notifications_failed"
+_LOG_PROJECT_INDEX_FAILED = "jenny_project_index_load_failed"
+
 
 def question_summary(question: HouseholdQuestion) -> dict[str, Any]:
     return {
@@ -69,7 +85,7 @@ def load_project_index() -> dict[str, Any]:
     try:
         loaded = yaml.safe_load(PROJECT_INDEX_PATH.read_text(encoding="utf-8")) or {}
     except Exception as exc:
-        logger.warning("jenny_project_index_load_failed", error=str(exc))
+        logger.warning(_LOG_PROJECT_INDEX_FAILED, error=str(exc))
         return {}
     return loaded if isinstance(loaded, dict) else {}
 
@@ -91,6 +107,49 @@ def build_document_context(documents: list[Any]) -> list[dict[str, Any]]:
     ]
 
 
+def _resolve_ports(services_index: Any, backend_port: int, frontend_port: int) -> dict[str, int]:
+    if isinstance(services_index, dict):
+        return {
+            "backend": services_index.get("backend_port", backend_port),
+            "frontend": services_index.get("frontend_port", frontend_port),
+        }
+    return {"backend": backend_port, "frontend": frontend_port}
+
+
+def _build_current_status(health: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "system": health.get("status", _DEFAULT_SYSTEM_STATUS),
+        "market": str(get_market_status(datetime.now(UTC))),
+        "workflow_health": _summarize_workflow_health(health.get("workflow_health")),
+        "services": _summarize_services(health.get("services")),
+    }
+
+
+def _build_jenny_operations(recent_routines: list[Any], open_notifications: list[Any]) -> dict[str, Any]:
+    return {
+        "recent_routines": [
+            {
+                "routine_type": routine.routine_type,
+                "status": routine.status,
+                "summary": routine.summary,
+                "started_at": routine.started_at,
+                "completed_at": routine.completed_at,
+            }
+            for routine in recent_routines
+        ],
+        "open_notifications": [
+            {
+                "symbol": notification.symbol,
+                "category": notification.category,
+                "severity": notification.severity,
+                "title": notification.title,
+                "status": notification.status,
+            }
+            for notification in open_notifications
+        ],
+    }
+
+
 def build_runtime_context(
     health_service: HealthCheckService,
     jenny_dashboard_reader: JennyDashboardReader,
@@ -100,73 +159,29 @@ def build_runtime_context(
     try:
         health = health_service.perform_health_check()
     except Exception as exc:
-        logger.warning("jenny_runtime_health_failed", error=str(exc))
+        logger.warning(_LOG_HEALTH_FAILED, error=str(exc))
         health = {}
 
     recent_routines = _safe_get_routines(jenny_dashboard_reader, jenny_service)
     open_notifications = _safe_get_notifications(jenny_dashboard_reader, jenny_service)
 
-    workflow_summary = _summarize_workflow_health(health.get("workflow_health"))
-    services_summary = _summarize_services(health.get("services"))
-
     index = project_index
-    pages = index.get("pages")
-    tasks = index.get("tasks")
-    endpoints = index.get("endpoints")
     services_index = index.get("services")
-
     backend_port = urlparse(settings.backend_url).port or PORTFOLIO_BACKEND_PORT
     frontend_port = urlparse(settings.frontend_url).port or PORTFOLIO_FRONTEND_PORT
 
     return {
-        "project": index.get("project") or "portfolio-ai",
+        "project": index.get("project") or _DEFAULT_PROJECT_NAME,
         "generated_at": index.get("generated_at"),
-        "ports": (
-            {
-                "backend": (services_index or {}).get("backend_port", backend_port),
-                "frontend": (services_index or {}).get("frontend_port", frontend_port),
-            }
-            if isinstance(services_index, dict)
-            else {"backend": backend_port, "frontend": frontend_port}
-        ),
-        "pages": pages if isinstance(pages, list) else [],
-        "api_endpoints": endpoints if isinstance(endpoints, list) else [],
-        "workflow_schedules": tasks if isinstance(tasks, list) else [],
-        "current_status": {
-            "system": health.get("status", "unknown"),
-            "market": str(get_market_status(datetime.now(UTC))),
-            "workflow_health": workflow_summary,
-            "services": services_summary,
-        },
-        "jenny_operations": {
-            "recent_routines": [
-                {
-                    "routine_type": routine.routine_type,
-                    "status": routine.status,
-                    "summary": routine.summary,
-                    "started_at": routine.started_at,
-                    "completed_at": routine.completed_at,
-                }
-                for routine in recent_routines
-            ],
-            "open_notifications": [
-                {
-                    "symbol": notification.symbol,
-                    "category": notification.category,
-                    "severity": notification.severity,
-                    "title": notification.title,
-                    "status": notification.status,
-                }
-                for notification in open_notifications
-            ],
-        },
+        "ports": _resolve_ports(services_index, backend_port, frontend_port),
+        "pages": index.get("pages") if isinstance(index.get("pages"), list) else [],
+        "api_endpoints": index.get("endpoints") if isinstance(index.get("endpoints"), list) else [],
+        "workflow_schedules": index.get("tasks") if isinstance(index.get("tasks"), list) else [],
+        "current_status": _build_current_status(health),
+        "jenny_operations": _build_jenny_operations(recent_routines, open_notifications),
         "document_pipeline": {
-            "intake_route": "/money?tab=intake",
-            "behavior": (
-                "Uploads create household document records and can update document reviews, "
-                "household transactions, and planning items. They do not auto-create "
-                "portfolio_accounts from screenshots."
-            ),
+            "intake_route": _DOCUMENT_INTAKE_ROUTE,
+            "behavior": _DOCUMENT_PIPELINE_BEHAVIOR,
         },
     }
 
@@ -183,7 +198,7 @@ def _summarize_services(services: Any) -> dict[str, str]:
     if not isinstance(services, dict):
         return {}
     return {
-        name: str((payload or {}).get("status") or "unknown")
+        name: str((payload or {}).get("status") or _DEFAULT_SYSTEM_STATUS)
         for name, payload in services.items()
     }
 
@@ -192,7 +207,7 @@ def _safe_get_routines(jenny_dashboard_reader: JennyDashboardReader, jenny_servi
     try:
         return jenny_dashboard_reader.get_recent_routines(jenny_service, limit=MAX_RECENT_ROUTINES)
     except Exception as exc:
-        logger.warning("jenny_runtime_routines_failed", error=str(exc))
+        logger.warning(_LOG_ROUTINES_FAILED, error=str(exc))
         return []
 
 
@@ -200,7 +215,7 @@ def _safe_get_notifications(jenny_dashboard_reader: JennyDashboardReader, jenny_
     try:
         return jenny_dashboard_reader.get_open_notifications(jenny_service, limit=MAX_OPEN_NOTIFICATIONS)
     except Exception as exc:
-        logger.warning("jenny_runtime_notifications_failed", error=str(exc))
+        logger.warning(_LOG_NOTIFICATIONS_FAILED, error=str(exc))
         return []
 
 
