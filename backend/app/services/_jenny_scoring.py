@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import uuid
 from collections import Counter, defaultdict
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
 
 from app.models.jenny import (
     JennyAgentEvaluation,
@@ -16,10 +16,58 @@ from app.models.jenny import (
 from app.models.thesis import Thesis
 
 
+@dataclass
+class _ScorecardMetrics:
+    win_rate: float | None
+    avg_return: float | None
+    agreement_rate: float | None
+    calibration_score: float | None
+    entry_quality_score: float | None
+    risk_judgment_score: float | None
+    exit_timing_score: float | None
+    alert_discipline_score: float | None
+
+
+def _pick_verdict(counts: Counter[str], priority: dict[str, int]) -> str:
+    """Return the highest-weighted verdict from a counter."""
+    return sorted(
+        counts,
+        key=lambda v: (counts[v], priority.get(v, 0)),
+        reverse=True,
+    )[0]
+
+
+def _normalize_evaluation(
+    evaluation: dict[str, object],
+    symbol: str,
+    thesis: Thesis | None,
+    now_iso: str,
+) -> JennyAgentEvaluation:
+    """Build a transient JennyAgentEvaluation from a raw dict."""
+    return JennyAgentEvaluation(
+        id=str(uuid.uuid4()),
+        routine_id="transient",
+        symbol=symbol,
+        agent_name=str(evaluation["agent_name"]),
+        provider=evaluation.get("provider"),
+        model=evaluation.get("model"),
+        verdict=str(evaluation["verdict"]),
+        confidence=evaluation.get("confidence"),
+        rationale=str(evaluation["rationale"]),
+        recommendation=evaluation.get("recommendation"),
+        strengths=list(evaluation.get("strengths", [])),
+        weaknesses=list(evaluation.get("weaknesses", [])),
+        thesis_id=thesis.id if thesis else None,
+        agent_run_id=evaluation.get("agent_run_id"),
+        created_at=now_iso,
+        metadata=evaluation.get("metadata", {}),
+    )
+
+
 def aggregate_symbol_review(
     *,
     symbol: str,
-    evaluations: list[dict[str, Any]] | list[JennyAgentEvaluation],
+    evaluations: list[dict[str, object]] | list[JennyAgentEvaluation],
     thesis: Thesis | None,
     final_verdict_priority: dict[str, int],
     now_iso: str,
@@ -28,40 +76,13 @@ def aggregate_symbol_review(
     for evaluation in evaluations:
         if isinstance(evaluation, JennyAgentEvaluation):
             normalized.append(evaluation)
-            continue
-        normalized.append(
-            JennyAgentEvaluation(
-                id=str(uuid.uuid4()),
-                routine_id="transient",
-                symbol=symbol,
-                agent_name=str(evaluation["agent_name"]),
-                provider=evaluation.get("provider"),
-                model=evaluation.get("model"),
-                verdict=str(evaluation["verdict"]),
-                confidence=evaluation.get("confidence"),
-                rationale=str(evaluation["rationale"]),
-                recommendation=evaluation.get("recommendation"),
-                strengths=list(evaluation.get("strengths", [])),
-                weaknesses=list(evaluation.get("weaknesses", [])),
-                thesis_id=thesis.id if thesis else None,
-                agent_run_id=evaluation.get("agent_run_id"),
-                created_at=now_iso,
-                metadata=evaluation.get("metadata", {}),
-            )
-        )
+        else:
+            normalized.append(_normalize_evaluation(evaluation, symbol, thesis, now_iso))
 
-    verdict_counts = Counter(evaluation.verdict for evaluation in normalized)
-    final_verdict = (
-        sorted(
-            verdict_counts,
-            key=lambda verdict: (verdict_counts[verdict], final_verdict_priority.get(verdict, 0)),
-            reverse=True,
-        )[0]
-        if verdict_counts
-        else "review"
-    )
-    confidences = [evaluation.confidence for evaluation in normalized if evaluation.confidence is not None]
-    reasons = [evaluation.rationale for evaluation in normalized[:3]]
+    verdict_counts: Counter[str] = Counter(e.verdict for e in normalized)
+    final_verdict = _pick_verdict(verdict_counts, final_verdict_priority) if verdict_counts else "review"
+    confidences = [e.confidence for e in normalized if e.confidence is not None]
+    reasons = [e.rationale for e in normalized[:3]]
 
     return JennySymbolReview(
         symbol=symbol,
@@ -78,6 +99,73 @@ def aggregate_symbol_review(
     )
 
 
+def _compute_agreement_and_calibration(
+    evaluations: list[JennyAgentEvaluation],
+    linked_pairs: list[tuple[JennyAgentEvaluation, JennyTradeReview]],
+    final_verdict_priority: dict[str, int],
+) -> tuple[float | None, float | None]:
+    """Return (agreement_rate, calibration_score) across all evaluations."""
+    if not evaluations:
+        return None, None
+
+    grouped: dict[str, list[JennyAgentEvaluation]] = defaultdict(list)
+    for evaluation in evaluations:
+        grouped[evaluation.symbol].append(evaluation)
+
+    agreement_hits = 0
+    calibration_scores: list[float] = []
+    for symbol_evals in grouped.values():
+        counts: Counter[str] = Counter(e.verdict for e in symbol_evals)
+        final = _pick_verdict(counts, final_verdict_priority)
+        for evaluation in symbol_evals:
+            if evaluation.verdict == final:
+                agreement_hits += 1
+            linked_review = next(
+                (r for cand, r in linked_pairs if cand.id == evaluation.id), None
+            )
+            if linked_review and evaluation.confidence is not None:
+                realized = 100.0 if (linked_review.return_pct or 0.0) > 0 else 0.0
+                calibration_scores.append(
+                    max(0.0, 100.0 - abs(evaluation.confidence * 100.0 - realized))
+                )
+
+    agreement_rate = agreement_hits / len(evaluations)
+    calibration_score = sum(calibration_scores) / len(calibration_scores) if calibration_scores else None
+    return agreement_rate, calibration_score
+
+
+def _compute_scorecard_metrics(
+    agent_name: str,
+    evaluations: list[JennyAgentEvaluation],
+    linked_pairs: list[tuple[JennyAgentEvaluation, JennyTradeReview]],
+    final_verdict_priority: dict[str, int],
+    positive_verdicts: set[str],
+) -> _ScorecardMetrics:
+    """Compute all numeric scoring metrics from linked evaluation-review pairs."""
+    unique_reviews = list({r.id: r for _, r in linked_pairs}.values())
+    completed = len(unique_reviews)
+    avg_return = (
+        sum((r.return_pct or 0.0) for r in unique_reviews) / completed if completed else None
+    )
+    win_rate = (
+        sum(1 for r in unique_reviews if (r.return_pct or 0.0) > 0) / completed
+        if completed else None
+    )
+    agreement_rate, calibration_score = _compute_agreement_and_calibration(
+        evaluations, linked_pairs, final_verdict_priority
+    )
+    return _ScorecardMetrics(
+        win_rate=win_rate,
+        avg_return=avg_return,
+        agreement_rate=agreement_rate,
+        calibration_score=calibration_score,
+        entry_quality_score=score_entry_quality(linked_pairs, positive_verdicts),
+        risk_judgment_score=score_risk_judgment(linked_pairs),
+        exit_timing_score=score_exit_timing(agent_name, linked_pairs),
+        alert_discipline_score=score_alert_discipline(linked_pairs, positive_verdicts),
+    )
+
+
 def build_scorecard(
     *,
     agent_name: str,
@@ -88,79 +176,77 @@ def build_scorecard(
     now_iso: str,
 ) -> JennyAgentScorecard:
     total_evaluations = len(evaluations)
-    positive_verdict_count = sum(1 for evaluation in evaluations if evaluation.verdict in positive_verdicts)
+    positive_verdict_count = sum(1 for e in evaluations if e.verdict in positive_verdicts)
     linked_pairs = link_evaluations_to_reviews(evaluations, reviews_by_symbol)
-    unique_reviews = {review.id: review for _, review in linked_pairs}.values()
-    completed_reviews = len(unique_reviews)
-    positive_reviews = [review for review in unique_reviews if (review.return_pct or 0.0) > 0]
-    avg_return = (
-        sum((review.return_pct or 0.0) for review in unique_reviews) / completed_reviews
-        if completed_reviews
-        else None
+    completed_reviews = len({r.id for _, r in linked_pairs})
+    m = _compute_scorecard_metrics(
+        agent_name, evaluations, linked_pairs, final_verdict_priority, positive_verdicts
     )
-    win_rate = len(positive_reviews) / completed_reviews if completed_reviews else None
-
-    grouped_by_symbol: dict[str, list[JennyAgentEvaluation]] = defaultdict(list)
-    for evaluation in evaluations:
-        grouped_by_symbol[evaluation.symbol].append(evaluation)
-    agreement_hits = 0
-    calibration_scores: list[float] = []
-    for symbol_evaluations in grouped_by_symbol.values():
-        counts = Counter(evaluation.verdict for evaluation in symbol_evaluations)
-        final_verdict = sorted(
-            counts,
-            key=lambda verdict: (counts[verdict], final_verdict_priority.get(verdict, 0)),
-            reverse=True,
-        )[0]
-        for evaluation in symbol_evaluations:
-            if evaluation.verdict == final_verdict:
-                agreement_hits += 1
-            linked_review = next(
-                (review for candidate, review in linked_pairs if candidate.id == evaluation.id),
-                None,
-            )
-            if linked_review and evaluation.confidence is not None:
-                realized = 100.0 if (linked_review.return_pct or 0.0) > 0 else 0.0
-                calibration_scores.append(max(0.0, 100.0 - abs(evaluation.confidence * 100.0 - realized)))
-
-    agreement_rate = agreement_hits / total_evaluations if total_evaluations else None
-    calibration_score = (
-        sum(calibration_scores) / len(calibration_scores) if calibration_scores else None
-    )
-    entry_quality_score = score_entry_quality(linked_pairs, positive_verdicts)
-    risk_judgment_score = score_risk_judgment(linked_pairs)
-    exit_timing_score = score_exit_timing(agent_name, linked_pairs)
-    alert_discipline_score = score_alert_discipline(linked_pairs, positive_verdicts)
     strengths, weaknesses = summarize_scorecard(
-        win_rate=win_rate,
-        avg_return=avg_return,
-        agreement_rate=agreement_rate,
-        calibration_score=calibration_score,
-        entry_quality_score=entry_quality_score,
-        risk_judgment_score=risk_judgment_score,
-        exit_timing_score=exit_timing_score,
-        alert_discipline_score=alert_discipline_score,
+        win_rate=m.win_rate,
+        avg_return=m.avg_return,
+        agreement_rate=m.agreement_rate,
+        calibration_score=m.calibration_score,
+        entry_quality_score=m.entry_quality_score,
+        risk_judgment_score=m.risk_judgment_score,
+        exit_timing_score=m.exit_timing_score,
+        alert_discipline_score=m.alert_discipline_score,
     )
-
-    last_evaluation_at = max((evaluation.created_at for evaluation in evaluations), default=None)
+    last_evaluation_at = max((e.created_at for e in evaluations), default=None)
     return JennyAgentScorecard(
         agent_name=agent_name,
         total_evaluations=total_evaluations,
         completed_reviews=completed_reviews,
         positive_verdicts=positive_verdict_count,
-        win_rate=win_rate,
-        avg_return_pct=avg_return,
-        agreement_rate=agreement_rate,
-        calibration_score=calibration_score,
-        entry_quality_score=entry_quality_score,
-        risk_judgment_score=risk_judgment_score,
-        exit_timing_score=exit_timing_score,
-        alert_discipline_score=alert_discipline_score,
+        win_rate=m.win_rate,
+        avg_return_pct=m.avg_return,
+        agreement_rate=m.agreement_rate,
+        calibration_score=m.calibration_score,
+        entry_quality_score=m.entry_quality_score,
+        risk_judgment_score=m.risk_judgment_score,
+        exit_timing_score=m.exit_timing_score,
+        alert_discipline_score=m.alert_discipline_score,
         strengths=strengths,
         weaknesses=weaknesses,
         last_evaluation_at=last_evaluation_at,
         updated_at=now_iso,
     )
+
+
+_SCORE_RULES: list[
+    tuple[str, float | None, float | None, str, str]
+] = [
+    # name          good_at  bad_at  strength_msg                                                         weakness_msg
+    ("win_rate",    0.55,    None,   "Its reviewed symbols have produced more winners than losers.",      "Its reviewed symbols have not cleared a strong win rate yet."),
+    ("avg_return",  5.0,     0.0,    "The average reviewed outcome has produced meaningful upside.",     "Average reviewed outcomes are still negative."),
+    ("agreement",   0.6,     None,   "It usually aligns with the final multi-agent verdict.",             "It frequently disagrees with the rest of the Jenny stack."),
+    ("calibration", 70.0,    None,   "Its confidence has been reasonably calibrated to outcomes.",       "Its confidence has been poorly calibrated to outcomes."),
+    ("entry",       65.0,    45.0,   "Its entry calls have lined up well with later trade outcomes.",    "Its entry calls have been too noisy versus realized outcomes."),
+    ("risk",        70.0,    50.0,   "It has done a good job flagging when risk should matter more than conviction.", "It has been late to respect downside risk when trades weaken."),
+    ("exit",        70.0,    50.0,   "Its exit and trim instincts have been timely enough to trust more.", "Its exit timing still needs work before it should drive sells."),
+    ("alert",       65.0,    45.0,   "Its alerts have usually been selective instead of noisy.",         "It still throws too many confident alerts that do not age well."),
+]
+
+
+def _classify_score(
+    value: float | None,
+    good_threshold: float | None,
+    bad_threshold: float | None,
+    strength_msg: str,
+    weakness_msg: str,
+) -> tuple[str | None, str | None]:
+    """Return (strength, weakness) label pair based on thresholds.
+
+    good_threshold: value must be >= to earn a strength (None = never strong).
+    bad_threshold: value must be < to earn a weakness (None = always weak if not strong).
+    """
+    if value is None:
+        return None, None
+    if good_threshold is not None and value >= good_threshold:
+        return strength_msg, None
+    if bad_threshold is None or value < bad_threshold:
+        return None, weakness_msg
+    return None, None
 
 
 def summarize_scorecard(
@@ -174,48 +260,16 @@ def summarize_scorecard(
     exit_timing_score: float | None,
     alert_discipline_score: float | None,
 ) -> tuple[list[str], list[str]]:
+    values = [win_rate, avg_return, agreement_rate, calibration_score,
+              entry_quality_score, risk_judgment_score, exit_timing_score, alert_discipline_score]
     strengths: list[str] = []
     weaknesses: list[str] = []
-
-    if win_rate is not None and win_rate >= 0.55:
-        strengths.append("Its reviewed symbols have produced more winners than losers.")
-    elif win_rate is not None:
-        weaknesses.append("Its reviewed symbols have not cleared a strong win rate yet.")
-
-    if avg_return is not None and avg_return > 5:
-        strengths.append("The average reviewed outcome has produced meaningful upside.")
-    elif avg_return is not None and avg_return < 0:
-        weaknesses.append("Average reviewed outcomes are still negative.")
-
-    if agreement_rate is not None and agreement_rate >= 0.6:
-        strengths.append("It usually aligns with the final multi-agent verdict.")
-    elif agreement_rate is not None:
-        weaknesses.append("It frequently disagrees with the rest of the Jenny stack.")
-
-    if calibration_score is not None and calibration_score >= 70:
-        strengths.append("Its confidence has been reasonably calibrated to outcomes.")
-    elif calibration_score is not None:
-        weaknesses.append("Its confidence has been poorly calibrated to outcomes.")
-
-    if entry_quality_score is not None and entry_quality_score >= 65:
-        strengths.append("Its entry calls have lined up well with later trade outcomes.")
-    elif entry_quality_score is not None and entry_quality_score < 45:
-        weaknesses.append("Its entry calls have been too noisy versus realized outcomes.")
-
-    if risk_judgment_score is not None and risk_judgment_score >= 70:
-        strengths.append("It has done a good job flagging when risk should matter more than conviction.")
-    elif risk_judgment_score is not None and risk_judgment_score < 50:
-        weaknesses.append("It has been late to respect downside risk when trades weaken.")
-
-    if exit_timing_score is not None and exit_timing_score >= 70:
-        strengths.append("Its exit and trim instincts have been timely enough to trust more.")
-    elif exit_timing_score is not None and exit_timing_score < 50:
-        weaknesses.append("Its exit timing still needs work before it should drive sells.")
-
-    if alert_discipline_score is not None and alert_discipline_score >= 65:
-        strengths.append("Its alerts have usually been selective instead of noisy.")
-    elif alert_discipline_score is not None and alert_discipline_score < 45:
-        weaknesses.append("It still throws too many confident alerts that do not age well.")
+    for (_, good_at, bad_at, s_msg, w_msg), value in zip(_SCORE_RULES, values, strict=True):
+        s, w = _classify_score(value, good_at, bad_at, s_msg, w_msg)
+        if s:
+            strengths.append(s)
+        if w:
+            weaknesses.append(w)
 
     if not strengths:
         strengths.append("Jenny is still gathering enough history to judge this agent fairly.")
@@ -235,13 +289,9 @@ def link_evaluations_to_reviews(
         if not reviews:
             continue
         evaluation_at = parse_timestamp(evaluation.created_at)
-        sorted_reviews = sorted(reviews, key=lambda review: parse_timestamp(review.created_at))
+        sorted_reviews = sorted(reviews, key=lambda r: parse_timestamp(r.created_at))
         review = next(
-            (
-                candidate
-                for candidate in sorted_reviews
-                if parse_timestamp(candidate.created_at) >= evaluation_at
-            ),
+            (r for r in sorted_reviews if parse_timestamp(r.created_at) >= evaluation_at),
             sorted_reviews[-1],
         )
         linked.append((evaluation, review))
@@ -278,9 +328,9 @@ def score_risk_judgment(
         "avoid": {True: 20.0, False: 90.0},
     }
     scores = [
-        risk_scores.get(evaluation.verdict, {True: 50.0, False: 50.0})[(review.return_pct or 0.0) > 0]
-        for evaluation, review in linked_pairs
-        if review.return_pct is not None
+        risk_scores.get(e.verdict, {True: 50.0, False: 50.0})[(r.return_pct or 0.0) > 0]
+        for e, r in linked_pairs
+        if r.return_pct is not None
     ]
     return sum(scores) / len(scores) if scores else None
 
@@ -327,4 +377,3 @@ def score_alert_discipline(
 
 def parse_timestamp(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
-
