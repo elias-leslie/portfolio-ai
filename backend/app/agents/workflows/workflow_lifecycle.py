@@ -14,6 +14,121 @@ from app.logging_config import get_logger
 
 logger = get_logger(__name__)
 
+# ---------------------------------------------------------------------------
+# Private helpers
+# ---------------------------------------------------------------------------
+
+_ALLOWED_UPDATE_COLUMNS = {
+    "status",
+    "current_step",
+    "started_at",
+    "completed_at",
+    "error",
+    "last_updated_at",
+}
+
+
+def _pg_array(items: list[str]) -> str:
+    """Format a Python list as a PostgreSQL text-array literal."""
+    return "{" + ",".join(items) + "}" if items else "{}"
+
+
+def _build_shared_context(config: dict[str, object] | None) -> dict[str, object]:
+    return {
+        "config": config or {},
+        "started_at": datetime.now(UTC).isoformat(),
+        "agents": {},
+        "votes": {},
+        "messages": [],
+    }
+
+
+def _row_to_status_dict(result: object) -> dict[str, object]:
+    """Convert a single-row query result to a workflow status dict."""
+    cols = [
+        "id", "workflow_type", "status", "current_step", "agents_involved",
+        "shared_context", "result", "error", "created_at", "started_at",
+        "completed_at", "last_updated_at", "max_duration_seconds",
+        "retry_count", "max_retries", "triggered_by", "priority",
+    ]
+    row = {col: result.get_column(col)[0] for col in cols}
+    row["workflow_id"] = row.pop("id")
+    return row
+
+
+def _build_set_clause(updates: dict[str, object]) -> tuple[str, list[object]]:
+    """Build a parameterised SET clause from *updates*, returning (clause, values)."""
+    parts: list[str] = []
+    values: list[object] = []
+    for i, (key, value) in enumerate(updates.items(), start=1):
+        if key not in _ALLOWED_UPDATE_COLUMNS:
+            raise ValueError(f"Invalid column name: {key}")
+        parts.append(f"{key} = ${i}")
+        values.append(value)
+    return ", ".join(parts), values
+
+
+def _attempt_retry(
+    storage: PortfolioStorage, workflow_id: str, error: str
+) -> dict[str, object] | None:
+    """Try to queue a retry for *workflow_id*.  Returns a result dict on success, None otherwise."""
+    result = storage.query(
+        "SELECT retry_count, max_retries FROM agent_workflows WHERE id = $1",
+        [workflow_id],
+    )
+    if result.is_empty():
+        return None
+
+    retry_count = result.get_column("retry_count")[0]
+    max_retries = result.get_column("max_retries")[0]
+    if retry_count >= max_retries:
+        return None
+
+    with storage.connection() as conn:
+        conn.execute(
+            """
+            UPDATE agent_workflows
+            SET status = 'pending', retry_count = retry_count + 1,
+                error = $1, last_updated_at = $2
+            WHERE id = $3
+            """,
+            [error, datetime.now(UTC), workflow_id],
+        )
+        conn.commit()
+
+    logger.info(
+        "workflow_retry_queued",
+        workflow_id=workflow_id,
+        retry_count=retry_count + 1,
+        max_retries=max_retries,
+    )
+    return {
+        "status": "retry_queued",
+        "workflow_id": workflow_id,
+        "retry_count": retry_count + 1,
+        "max_retries": max_retries,
+    }
+
+
+def _mark_failed(storage: PortfolioStorage, workflow_id: str, error: str) -> None:
+    """Unconditionally mark *workflow_id* as failed in the database."""
+    now = datetime.now(UTC)
+    with storage.connection() as conn:
+        conn.execute(
+            """
+            UPDATE agent_workflows
+            SET status = 'failed', error = $1, completed_at = $2, last_updated_at = $2
+            WHERE id = $3
+            """,
+            [error, now, workflow_id],
+        )
+        conn.commit()
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
 
 def start_workflow(
     storage: PortfolioStorage,
@@ -40,18 +155,8 @@ def start_workflow(
     """
     try:
         workflow_id = str(uuid.uuid4())
-
-        # Build shared context
-        shared_context: dict[str, object] = {
-            "config": config or {},
-            "started_at": datetime.now(UTC).isoformat(),
-            "agents": {},  # Will store agent-specific state
-            "votes": {},  # Will store consensus votes
-            "messages": [],  # Will store workflow messages
-        }
-
-        # Insert workflow record using direct SQL to avoid numpy array conversion
-        agents_list = agents_involved if agents_involved else []
+        agents_list = agents_involved or []
+        now = datetime.now(UTC)
 
         with storage.connection() as conn:
             conn.execute(
@@ -67,13 +172,13 @@ def start_workflow(
                     workflow_type,
                     "pending",
                     "initializing",
-                    "{" + ",".join(agents_list) + "}" if agents_list else "{}",
-                    json.dumps(shared_context),
+                    _pg_array(agents_list),
+                    json.dumps(_build_shared_context(config)),
                     triggered_by,
                     priority,
                     max_duration_seconds,
-                    datetime.now(UTC),
-                    datetime.now(UTC),
+                    now,
+                    now,
                 ],
             )
             conn.commit()
@@ -82,22 +187,18 @@ def start_workflow(
             "workflow_started",
             workflow_id=workflow_id,
             workflow_type=workflow_type,
-            agents_involved=agents_involved or [],
+            agents_involved=agents_list,
         )
-
         return {
             "status": "started",
             "workflow_id": workflow_id,
             "workflow_type": workflow_type,
-            "agents_involved": agents_involved or [],
+            "agents_involved": agents_list,
         }
 
     except Exception as e:
         logger.error("workflow_start_failed", error=str(e), exc_info=True)
-        return {
-            "status": "error",
-            "error": str(e),
-        }
+        return {"status": "error", "error": str(e)}
 
 
 def update_workflow_status(
@@ -125,11 +226,10 @@ def update_workflow_status(
         updates["current_step"] = current_step
 
     if status in ("running", "blocked", "complete", "failed"):
-        # Set started_at if not already set
-        result = storage.query(
+        row = storage.query(
             "SELECT started_at FROM agent_workflows WHERE id = $1", [workflow_id]
         )
-        if not result.is_empty() and result.get_column("started_at")[0] is None:
+        if not row.is_empty() and row.get_column("started_at")[0] is None:
             updates["started_at"] = datetime.now(UTC)
 
     if status in ("complete", "failed"):
@@ -138,26 +238,8 @@ def update_workflow_status(
     if status == "failed" and error:
         updates["error"] = error
 
-    # Build SET clause
-    # Validate column names against whitelist to prevent SQL injection
-    allowed_columns = {
-        "status",
-        "current_step",
-        "started_at",
-        "completed_at",
-        "error",
-        "last_updated_at",
-    }
-    set_parts = []
-    values = []
-    for i, (key, value) in enumerate(updates.items(), start=1):
-        if key not in allowed_columns:
-            raise ValueError(f"Invalid column name: {key}")
-        set_parts.append(f"{key} = ${i}")
-        values.append(value)
-
+    set_clause, values = _build_set_clause(updates)
     values.append(workflow_id)
-    set_clause = ", ".join(set_parts)
 
     with storage.connection() as conn:
         conn.execute(
@@ -183,6 +265,7 @@ def complete_workflow(
         Status dictionary
     """
     try:
+        now = datetime.now(UTC)
         with storage.connection() as conn:
             conn.execute(
                 """
@@ -190,24 +273,16 @@ def complete_workflow(
                 SET status = 'complete', result = %s, completed_at = %s, last_updated_at = %s
                 WHERE id = %s
                 """,
-                [json.dumps(result), datetime.now(UTC), datetime.now(UTC), workflow_id],
+                [json.dumps(result), now, now, workflow_id],
             )
             conn.commit()
 
         logger.info("workflow_completed", workflow_id=workflow_id)
-
-        return {
-            "status": "completed",
-            "workflow_id": workflow_id,
-            "result": result,
-        }
+        return {"status": "completed", "workflow_id": workflow_id, "result": result}
 
     except Exception as e:
         logger.error("workflow_completion_failed", error=str(e), exc_info=True)
-        return {
-            "status": "error",
-            "error": str(e),
-        }
+        return {"status": "error", "error": str(e)}
 
 
 def fail_workflow(
@@ -226,68 +301,17 @@ def fail_workflow(
     """
     try:
         if retry:
-            # Increment retry count
-            result = storage.query(
-                "SELECT retry_count, max_retries FROM agent_workflows WHERE id = $1",
-                [workflow_id],
-            )
+            retry_result = _attempt_retry(storage, workflow_id, error)
+            if retry_result is not None:
+                return retry_result
 
-            if not result.is_empty():
-                retry_count = result.get_column("retry_count")[0]
-                max_retries = result.get_column("max_retries")[0]
-
-                if retry_count < max_retries:
-                    with storage.connection() as conn:
-                        conn.execute(
-                            """
-                            UPDATE agent_workflows
-                            SET status = 'pending', retry_count = retry_count + 1,
-                                error = $1, last_updated_at = $2
-                            WHERE id = $3
-                            """,
-                            [error, datetime.now(UTC), workflow_id],
-                        )
-                        conn.commit()
-
-                    logger.info(
-                        "workflow_retry_queued",
-                        workflow_id=workflow_id,
-                        retry_count=retry_count + 1,
-                        max_retries=max_retries,
-                    )
-
-                    return {
-                        "status": "retry_queued",
-                        "workflow_id": workflow_id,
-                        "retry_count": retry_count + 1,
-                        "max_retries": max_retries,
-                    }
-
-        # Mark as failed (no retry or max retries exceeded)
-        with storage.connection() as conn:
-            conn.execute(
-                """
-                UPDATE agent_workflows
-                SET status = 'failed', error = $1, completed_at = $2, last_updated_at = $2
-                WHERE id = $3
-                """,
-                [error, datetime.now(UTC), workflow_id],
-            )
-
+        _mark_failed(storage, workflow_id, error)
         logger.error("workflow_failed", workflow_id=workflow_id, error=error)
-
-        return {
-            "status": "failed",
-            "workflow_id": workflow_id,
-            "error": error,
-        }
+        return {"status": "failed", "workflow_id": workflow_id, "error": error}
 
     except Exception as e:
         logger.error("workflow_fail_marking_failed", error=str(e), exc_info=True)
-        return {
-            "status": "error",
-            "error": str(e),
-        }
+        return {"status": "error", "error": str(e)}
 
 
 def get_workflow_status(storage: PortfolioStorage, workflow_id: str) -> dict[str, object] | None:
@@ -312,29 +336,9 @@ def get_workflow_status(storage: PortfolioStorage, workflow_id: str) -> dict[str
             """,
             [workflow_id],
         )
-
         if result.is_empty():
             return None
-
-        return {
-            "workflow_id": result.get_column("id")[0],
-            "workflow_type": result.get_column("workflow_type")[0],
-            "status": result.get_column("status")[0],
-            "current_step": result.get_column("current_step")[0],
-            "agents_involved": result.get_column("agents_involved")[0],
-            "shared_context": result.get_column("shared_context")[0],
-            "result": result.get_column("result")[0],
-            "error": result.get_column("error")[0],
-            "created_at": result.get_column("created_at")[0],
-            "started_at": result.get_column("started_at")[0],
-            "completed_at": result.get_column("completed_at")[0],
-            "last_updated_at": result.get_column("last_updated_at")[0],
-            "max_duration_seconds": result.get_column("max_duration_seconds")[0],
-            "retry_count": result.get_column("retry_count")[0],
-            "max_retries": result.get_column("max_retries")[0],
-            "triggered_by": result.get_column("triggered_by")[0],
-            "priority": result.get_column("priority")[0],
-        }
+        return _row_to_status_dict(result)
 
     except Exception as e:
         logger.error("workflow_status_fetch_failed", error=str(e), exc_info=True)
