@@ -136,6 +136,54 @@ def get_news_mentions(
 # =============================================================================
 
 
+def _score_gainer(gainer: dict[str, Any] | None) -> float:
+    """Return score contribution (0-4) from gainer data."""
+    if not gainer:
+        return 0.0
+    change_pct = gainer["change_pct"]
+    if change_pct >= 20:
+        return 4.0
+    if change_pct >= 15:
+        return 3.0
+    if change_pct >= 10:
+        return 2.0
+    if change_pct >= 5:
+        return 1.0
+    return 0.0
+
+
+def _score_volume(volume: dict[str, Any] | None) -> float:
+    """Return score contribution (0-4) from volume data."""
+    if not volume:
+        return 0.0
+    ratio = volume["volume_ratio"]
+    if ratio >= 5:
+        return 4.0
+    if ratio >= 4:
+        return 3.0
+    if ratio >= 3:
+        return 2.0
+    if ratio >= 2:
+        return 1.0
+    return 0.0
+
+
+def _score_news(news: dict[str, Any] | None) -> float:
+    """Return score contribution (0-4) from news data."""
+    if not news:
+        return 0.0
+    count = news["article_count"]
+    if count >= 10:
+        return 4.0
+    if count >= 7:
+        return 3.0
+    if count >= 5:
+        return 2.0
+    if count >= 3:
+        return 1.0
+    return 0.0
+
+
 def calculate_discovery_score(
     symbol: str,
     gainers_data: list[dict[str, Any]],
@@ -143,48 +191,10 @@ def calculate_discovery_score(
     news_data: list[dict[str, Any]],
 ) -> float:
     """Calculate combined discovery score for a symbol (0-12 scale)."""
-    score = 0.0
-
-    # Gainers score (0-4)
     gainer = next((g for g in gainers_data if g["symbol"] == symbol), None)
-    if gainer:
-        change_pct = gainer["change_pct"]
-        if change_pct >= 20:
-            score += 4.0
-        elif change_pct >= 15:
-            score += 3.0
-        elif change_pct >= 10:
-            score += 2.0
-        elif change_pct >= 5:
-            score += 1.0
-
-    # Volume score (0-4)
     volume = next((v for v in volume_data if v["symbol"] == symbol), None)
-    if volume:
-        ratio = volume["volume_ratio"]
-        if ratio >= 5:
-            score += 4.0
-        elif ratio >= 4:
-            score += 3.0
-        elif ratio >= 3:
-            score += 2.0
-        elif ratio >= 2:
-            score += 1.0
-
-    # News score (0-4)
     news = next((n for n in news_data if n["symbol"] == symbol), None)
-    if news:
-        count = news["article_count"]
-        if count >= 10:
-            score += 4.0
-        elif count >= 7:
-            score += 3.0
-        elif count >= 5:
-            score += 2.0
-        elif count >= 3:
-            score += 1.0
-
-    return score
+    return _score_gainer(gainer) + _score_volume(volume) + _score_news(news)
 
 
 # =============================================================================
@@ -206,6 +216,32 @@ def get_watchlist_size(storage: PortfolioStorage) -> int:
     return 0
 
 
+def _insert_watchlist_item(
+    storage: PortfolioStorage,
+    symbol: str,
+    item_id: str,
+    source: str,
+    metadata: dict[str, Any],
+    now: datetime,
+) -> str | None:
+    """Execute the DB insert and return item_id if a new row was created."""
+    with storage.connection() as conn:
+        cursor = conn.raw_connection.cursor()
+        ensure_symbol_exists(conn, symbol)
+        cursor.execute(
+            """
+            INSERT INTO watchlist_items (id, symbol, source, added_by, metadata, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (symbol) DO NOTHING
+            RETURNING id
+            """,
+            (item_id, symbol, source, "system_discovery", json.dumps(metadata), now, now),
+        )
+        result = cursor.fetchone()
+        conn.commit()
+    return item_id if result else None
+
+
 def add_symbol_to_watchlist(
     storage: PortfolioStorage,
     symbol: str,
@@ -220,40 +256,16 @@ def add_symbol_to_watchlist(
         "discovery_date": now.isoformat(),
         "auto_added": True,
     }
-
     try:
-        with storage.connection() as conn:
-            cursor = conn.raw_connection.cursor()
-            ensure_symbol_exists(conn, symbol.upper())
-            cursor.execute(
-                """
-                INSERT INTO watchlist_items (id, symbol, source, added_by, metadata, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (symbol) DO NOTHING
-                RETURNING id
-                """,
-                (
-                    item_id,
-                    symbol.upper(),
-                    source,
-                    "system_discovery",
-                    json.dumps(metadata),
-                    now,
-                    now,
-                ),
-            )
-            result = cursor.fetchone()
-            conn.commit()
-
-            if result:
-                logger.info(
-                    "watchlist_discovery_added",
-                    symbol=symbol,
-                    discovery_score=discovery_score,
-                    item_id=item_id,
-                )
-                return item_id
-            return None
+        result = _insert_watchlist_item(storage, symbol.upper(), item_id, source, metadata, now)
     except Exception as e:
         logger.error("watchlist_discovery_add_failed", symbol=symbol, error=str(e), exc_info=True)
         return None
+    if result:
+        logger.info(
+            "watchlist_discovery_added",
+            symbol=symbol,
+            discovery_score=discovery_score,
+            item_id=item_id,
+        )
+    return result
