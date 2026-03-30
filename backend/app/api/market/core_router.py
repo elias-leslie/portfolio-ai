@@ -9,11 +9,13 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from app.api.market._core_helpers import (
     _extract_price,
     _extract_price_timestamp,
-    build_fear_greed_response,
     build_intelligence_response_data,
+    fetch_core_market_data,
+)
+from app.api.market._response_builders import (
+    build_fear_greed_response,
     build_market_health_response,
     build_sector_rotation_response,
-    fetch_core_market_data,
 )
 from app.api.market_data_sources import get_market_data_timestamp
 from app.api.market_responses import (
