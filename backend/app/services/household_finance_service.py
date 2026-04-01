@@ -17,7 +17,6 @@ from app.portfolio.price_fetcher import PriceDataFetcher
 from app.services._household_dashboard_queries import fetch_inferred_value_rows
 from app.services._household_finance_document_methods import _HFDocumentMethods
 from app.services._household_finance_intake_methods import _HFIntakeMethods
-from app.services._household_finance_utils import iso, iso_or_none, to_float, to_int
 from app.services.household_dashboard_composer import HouseholdDashboardComposer
 from app.services.household_document_pipeline import HouseholdDocumentPipeline
 from app.services.household_document_review import HouseholdDocumentReviewService
@@ -37,12 +36,6 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
 
     def __init__(self) -> None:
         self.storage = get_storage()
-        # Shared row-normalizer helpers are still consumed by the planning and
-        # document pipeline modules via the service object.
-        self._iso = iso
-        self._iso_or_none = iso_or_none
-        self._to_float = to_float
-        self._to_int = to_int
         self.portfolio_mgr = PortfolioManager(self.storage)
         self.price_fetcher = PriceDataFetcher(self.storage)
         self.review_agent_service = HouseholdReviewAgentService()

@@ -13,6 +13,7 @@ from app.services._household_document_pipeline_utils import (
     parse_decimal,
     parse_row_date,
 )
+from app.services._household_finance_utils import to_float
 from app.services.household_finance_rows import FIELD_LABELS
 from app.storage.types import DatabaseConnection
 
@@ -163,7 +164,7 @@ def insert_inferred_values(
             [
                 str(uuid.uuid4()), field_name,
                 str(inferred.get("value") or "").strip() or None,
-                service._to_float(inferred.get("confidence")),
+                to_float(inferred.get("confidence")),
                 "inferred",
                 inferred.get("rationale"),
                 document.id,

@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.models.household_planning import HouseholdDocumentRequirementUpdate
+from app.services._household_finance_utils import iso
 from app.services.household_planning_rows import row_to_document_requirement
 
 _DOCUMENT_MATCHERS: dict[str, set[str]] = {
@@ -143,7 +144,7 @@ def list_document_requirements(service: Any) -> list[Any]:
                 label ASC
             """
         ).fetchall()
-    return [row_to_document_requirement(row, iso=service._iso) for row in rows]
+    return [row_to_document_requirement(row, iso=iso) for row in rows]
 
 
 def update_document_requirement_statuses(*, conn: Any, updates: list[dict[str, object]]) -> None:

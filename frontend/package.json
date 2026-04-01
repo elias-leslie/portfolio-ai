@@ -33,7 +33,7 @@
     "es-toolkit": "^1.43.0",
     "lucide-react": "^0.562.0",
     "motion": "^12.0.0",
-    "next": "^16.1.2",
+    "next": "^16.1.7",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "recharts": "^3.5.1",
@@ -56,5 +56,11 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.0.17"
+  },
+  "pnpm": {
+    "overrides": {
+      "flatted": ">=3.4.2",
+      "picomatch": ">=4.0.4"
+    }
   }
 }

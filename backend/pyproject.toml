@@ -24,7 +24,7 @@ dependencies = [
 
     # Data sources & API clients
     "yfinance==0.2.66",
-    "requests==2.32.5",
+    "requests>=2.33.0",
     "feedparser==6.0.12",
     "httpx==0.28.1",
     "python-multipart>=0.0.20",
@@ -40,7 +40,7 @@ dependencies = [
     # Configuration
     "pydantic-settings>=2.6.0",
     "python-dotenv>=1.0.0",
-    "pypdf>=5.4.0",
+    "pypdf>=6.9.2",
     "pypdfium2>=5.6.0",
     "Pillow>=12.1.0",
     "rapidocr_onnxruntime>=1.2.3",
@@ -93,6 +93,9 @@ ml = [
     "torch==2.9.1",
     "huggingface-hub==0.34.0",
 ]
+
+[tool.uv]
+constraint-dependencies = ["pygments>=2.20.0"]
 
 [build-system]
 requires = ["hatchling"]
