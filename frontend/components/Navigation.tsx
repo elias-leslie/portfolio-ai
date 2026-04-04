@@ -9,7 +9,6 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { NotesProvider, NotesButton } from '@summitflow/notes-ui'
 import { MarketStatusBadge } from '@/components/market/MarketStatusBadge'
 import {
   MAIN_PRODUCT_ROUTES,
@@ -89,9 +88,6 @@ function NavigationContent({ pathname }: { pathname: string }) {
 
           {/* Utility Items */}
           <div className="flex items-center gap-1 sm:gap-2">
-            <NotesProvider apiPrefix="/api" projectScope="portfolio-ai">
-              <NotesButton popOutUrl="/notes" />
-            </NotesProvider>
             <div className="hidden sm:block">
               <MarketStatusBadge />
             </div>

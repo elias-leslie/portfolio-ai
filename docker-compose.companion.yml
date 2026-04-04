@@ -1,0 +1,12 @@
+services:
+  portfolio-api:
+    environment:
+      AGENT_HUB_URL: ${AGENT_HUB_URL:?set AGENT_HUB_URL}
+      PORTFOLIO_CLIENT_ID: ${PORTFOLIO_CLIENT_ID:?set PORTFOLIO_CLIENT_ID}
+      PORTFOLIO_REQUEST_SOURCE: ${PORTFOLIO_REQUEST_SOURCE:-portfolio-ai}
+
+  portfolio-worker:
+    environment:
+      AGENT_HUB_URL: ${AGENT_HUB_URL:?set AGENT_HUB_URL}
+      PORTFOLIO_CLIENT_ID: ${PORTFOLIO_CLIENT_ID:?set PORTFOLIO_CLIENT_ID}
+      PORTFOLIO_REQUEST_SOURCE: ${PORTFOLIO_REQUEST_SOURCE:-portfolio-ai}

@@ -1,39 +1,18 @@
 import type { NextConfig } from 'next'
 import { PORTS } from './lib/api-config'
 
-const SUMMITFLOW_API_URL = process.env.SUMMITFLOW_API_URL || 'http://localhost:8001'
-
 const nextConfig: NextConfig = {
   output: 'standalone',
-  transpilePackages: ['@summitflow/notes-ui'],
   // Don't redirect trailing slashes - let FastAPI middleware normalize them
   skipTrailingSlashRedirect: true,
-  // API routing via Next.js rewrites for CF Access compatibility
-  // All /api/* requests are proxied to the backend on localhost,
-  // keeping everything same-origin to avoid CORS issues with CF Access cookies
+  // WebSocket routing still needs a rewrite because route handlers cannot proxy
+  // upgrade requests. Regular /api/* and /health/* traffic uses file-based
+  // route handlers so API_URL is resolved at runtime instead of build time.
   async rewrites() {
     const apiUrl = process.env.API_URL || `http://localhost:${PORTS.backend}`
     return {
-      beforeFiles: [
-        // Notes API → SummitFlow backend (centralized notes service)
-        {
-          source: '/api/notes/:path*',
-          destination: `${SUMMITFLOW_API_URL}/api/notes/:path*`,
-        },
-        {
-          source: '/api/notes',
-          destination: `${SUMMITFLOW_API_URL}/api/notes`,
-        },
-      ],
+      beforeFiles: [],
       afterFiles: [
-        {
-          source: '/api/:path*',
-          destination: `${apiUrl}/api/:path*`,
-        },
-        {
-          source: '/health/:path*',
-          destination: `${apiUrl}/health/:path*`,
-        },
         {
           source: '/ws/:path*',
           destination: `${apiUrl}/ws/:path*`,

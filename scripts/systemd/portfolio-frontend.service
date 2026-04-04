@@ -8,8 +8,9 @@ Type=simple
 WorkingDirectory=__PROJECT_ROOT__/frontend
 Environment="NODE_ENV=production"
 Environment="PORT=3000"
+Environment="HOSTNAME=0.0.0.0"
 Environment="API_URL=http://localhost:8000"
-ExecStart=/bin/bash -lc "pnpm start --hostname 0.0.0.0 --port 3000"
+ExecStart=/bin/bash -lc "pnpm start"
 TimeoutStopSec=10
 KillMode=mixed
 Restart=always

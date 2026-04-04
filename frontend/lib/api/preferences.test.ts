@@ -45,7 +45,7 @@ describe('preferences api', () => {
     await fetchPreferences()
 
     expect(global.fetch).toHaveBeenCalledWith(
-      'http://localhost:8000/api/preferences',
+      '/api/preferences',
       expect.objectContaining({
         method: 'GET',
       }),
@@ -72,7 +72,7 @@ describe('preferences api', () => {
     })
 
     expect(global.fetch).toHaveBeenCalledWith(
-      'http://localhost:8000/api/preferences',
+      '/api/preferences',
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({

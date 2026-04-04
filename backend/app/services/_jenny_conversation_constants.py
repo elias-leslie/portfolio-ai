@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from app.utils.project_paths import resolve_project_root
+
 # ── Symbol detection ──────────────────────────────────────────────────────────
 SYMBOL_TOKEN_PATTERN = re.compile(r"\b[A-Za-z]{1,5}\b")
 SYMBOL_STOPWORDS = frozenset(
@@ -44,7 +46,7 @@ MAX_RECENT_ROUTINES = 3
 MAX_OPEN_NOTIFICATIONS = 5
 
 # ── File paths ─────────────────────────────────────────────────────────────────
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+PROJECT_ROOT = resolve_project_root(Path(__file__).resolve())
 PROJECT_INDEX_PATH = PROJECT_ROOT / ".index.yaml"
 
 # ── Behavioral identifiers ─────────────────────────────────────────────────────

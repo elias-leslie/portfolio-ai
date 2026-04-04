@@ -1,0 +1,207 @@
+services:
+  portfolio-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: portfolio_ai
+      POSTGRES_USER: portfolio
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-portfolio}
+    ports:
+      - "${PORTFOLIO_DB_HOST_PORT:-5432}:5432"
+    volumes:
+      - portfolio-db-data:/var/lib/postgresql/data
+      - ./docker/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+      - ./docker/portfolio-ai-schema.sql:/docker-bootstrap/portfolio-ai-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portfolio -d portfolio_ai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  portfolio-redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "${PORTFOLIO_REDIS_HOST_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  hatchet-migrate:
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${HATCHET_TAG:-latest}
+    environment:
+      DATABASE_URL: postgresql://portfolio:${POSTGRES_PASSWORD:-portfolio}@portfolio-db:5432/hatchet
+    depends_on:
+      portfolio-db:
+        condition: service_healthy
+
+  hatchet-setup-config:
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-admin:${HATCHET_TAG:-latest}
+    command: /hatchet/hatchet-admin quickstart --skip certs --generated-config-dir /hatchet/config --overwrite=false
+    environment:
+      DATABASE_URL: postgresql://portfolio:${POSTGRES_PASSWORD:-portfolio}@portfolio-db:5432/hatchet
+      SERVER_AUTH_COOKIE_DOMAIN: localhost
+      SERVER_AUTH_COOKIE_INSECURE: "t"
+      SERVER_AUTH_SET_EMAIL_VERIFIED: "t"
+      SERVER_URL: http://localhost:${HATCHET_HEALTH_HOST_PORT:-8888}
+      SERVER_GRPC_INSECURE: "t"
+      SERVER_GRPC_BIND_ADDRESS: 0.0.0.0
+      SERVER_GRPC_BROADCAST_ADDRESS: hatchet:7070
+      SERVER_MSGQUEUE_KIND: postgres
+      SERVER_LOGGER_LEVEL: warn
+    volumes:
+      - ./docker/hatchet-config:/hatchet/config
+    depends_on:
+      hatchet-migrate:
+        condition: service_completed_successfully
+      portfolio-db:
+        condition: service_healthy
+
+  hatchet:
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-engine:${HATCHET_TAG:-latest}
+    command: /hatchet/hatchet-engine --config /hatchet/config
+    environment:
+      DATABASE_URL: postgresql://portfolio:${POSTGRES_PASSWORD:-portfolio}@portfolio-db:5432/hatchet
+      SERVER_GRPC_BIND_ADDRESS: 0.0.0.0
+      SERVER_GRPC_INSECURE: "t"
+    ports:
+      - "${HATCHET_GRPC_HOST_PORT:-7070}:7070"
+      - "${HATCHET_HEALTH_HOST_PORT:-8888}:8733"
+    volumes:
+      - ./docker/hatchet-config:/hatchet/config
+    depends_on:
+      hatchet-setup-config:
+        condition: service_completed_successfully
+      hatchet-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8733/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  hatchet-token:
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-admin:${HATCHET_TAG:-latest}
+    profiles: ["tools"]
+    environment:
+      DATABASE_URL: postgresql://portfolio:${POSTGRES_PASSWORD:-portfolio}@portfolio-db:5432/hatchet
+      HATCHET_TENANT_ID: ${HATCHET_TENANT_ID:-}
+    command:
+      - /bin/sh
+      - -lc
+      - |
+        test -n "$$HATCHET_TENANT_ID" || {
+          echo "Set HATCHET_TENANT_ID before running hatchet-token." >&2
+          exit 1
+        }
+        exec /hatchet/hatchet-admin token create --config /hatchet/config --tenant-id "$$HATCHET_TENANT_ID"
+    volumes:
+      - ./docker/hatchet-config:/hatchet/config
+    depends_on:
+      hatchet-setup-config:
+        condition: service_completed_successfully
+
+  portfolio-api:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    depends_on:
+      portfolio-db:
+        condition: service_healthy
+      portfolio-redis:
+        condition: service_healthy
+      hatchet:
+        condition: service_healthy
+    environment:
+      PORTFOLIO_DB_URL: ${PORTFOLIO_DOCKER_DB_URL:-postgresql://portfolio:${POSTGRES_PASSWORD:-portfolio}@portfolio-db:5432/portfolio_ai}
+      REDIS_URL: ${PORTFOLIO_DOCKER_REDIS_URL:-redis://portfolio-redis:6379/0}
+      HATCHET_CLIENT_TOKEN: ${HATCHET_CLIENT_TOKEN:?Set HATCHET_CLIENT_TOKEN in .env.local or .env}
+      HATCHET_CLIENT_TLS_STRATEGY: none
+      HATCHET_CLIENT_HOST_PORT: hatchet:7070
+      BACKEND_URL: http://portfolio-api:8000
+      FRONTEND_URL: http://portfolio-web:3000
+      FRONTEND_EXTRA_ORIGINS: ${FRONTEND_EXTRA_ORIGINS:-http://localhost:${PORTFOLIO_FRONTEND_HOST_PORT:-3000},http://127.0.0.1:${PORTFOLIO_FRONTEND_HOST_PORT:-3000}}
+      ARTIFACTS_DIR: /app/data/artifacts
+      LOG_DIR: /tmp/portfolio-ai-logs
+      CACHE_ENABLED: ${CACHE_ENABLED:-true}
+      CACHE_MAX_SIZE: ${CACHE_MAX_SIZE:-1000}
+      CACHE_DEFAULT_TTL: ${CACHE_DEFAULT_TTL:-300}
+      POLYGON_API_KEY: ${POLYGON_API_KEY:-}
+      TWELVEDATA_API_KEY: ${TWELVEDATA_API_KEY:-}
+      FMP_API_KEY: ${FMP_API_KEY:-}
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
+      ALPHAVANTAGE_API_KEY: ${ALPHAVANTAGE_API_KEY:-}
+    ports:
+      - "${PORTFOLIO_BACKEND_HOST_PORT:-8000}:8000"
+    volumes:
+      - portfolio-artifacts:/app/data/artifacts
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    init: true
+
+  portfolio-worker:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    command: ["python", "-m", "app.worker"]
+    depends_on:
+      hatchet:
+        condition: service_healthy
+      portfolio-api:
+        condition: service_healthy
+    environment:
+      PORTFOLIO_DB_URL: ${PORTFOLIO_DOCKER_DB_URL:-postgresql://portfolio:${POSTGRES_PASSWORD:-portfolio}@portfolio-db:5432/portfolio_ai}
+      REDIS_URL: ${PORTFOLIO_DOCKER_REDIS_URL:-redis://portfolio-redis:6379/0}
+      HATCHET_CLIENT_TOKEN: ${HATCHET_CLIENT_TOKEN:?Set HATCHET_CLIENT_TOKEN in .env.local or .env}
+      HATCHET_CLIENT_TLS_STRATEGY: none
+      HATCHET_CLIENT_HOST_PORT: hatchet:7070
+      BACKEND_URL: http://portfolio-api:8000
+      FRONTEND_URL: http://portfolio-web:3000
+      FRONTEND_EXTRA_ORIGINS: ${FRONTEND_EXTRA_ORIGINS:-http://localhost:${PORTFOLIO_FRONTEND_HOST_PORT:-3000},http://127.0.0.1:${PORTFOLIO_FRONTEND_HOST_PORT:-3000}}
+      ARTIFACTS_DIR: /app/data/artifacts
+      LOG_DIR: /tmp/portfolio-ai-logs
+      CACHE_ENABLED: ${CACHE_ENABLED:-true}
+      CACHE_MAX_SIZE: ${CACHE_MAX_SIZE:-1000}
+      CACHE_DEFAULT_TTL: ${CACHE_DEFAULT_TTL:-300}
+      POLYGON_API_KEY: ${POLYGON_API_KEY:-}
+      TWELVEDATA_API_KEY: ${TWELVEDATA_API_KEY:-}
+      FMP_API_KEY: ${FMP_API_KEY:-}
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
+      ALPHAVANTAGE_API_KEY: ${ALPHAVANTAGE_API_KEY:-}
+    volumes:
+      - portfolio-artifacts:/app/data/artifacts
+    init: true
+
+  portfolio-web:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+      args:
+        API_URL: http://portfolio-api:8000
+    depends_on:
+      portfolio-api:
+        condition: service_healthy
+    environment:
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      API_URL: http://portfolio-api:8000
+    ports:
+      - "${PORTFOLIO_FRONTEND_HOST_PORT:-3000}:3000"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://localhost:3000').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))\"",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  portfolio-db-data:
+  portfolio-artifacts:

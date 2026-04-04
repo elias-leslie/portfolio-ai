@@ -87,7 +87,7 @@ class SyslogPrefixFormatter(logging.Formatter):
         return f"<{priority}>{message}"
 
 
-def configure_logging(log_dir: str = "logs", log_file: str = "portfolio-ai.log") -> None:
+def configure_logging(log_dir: str | None = None, log_file: str = "portfolio-ai.log") -> None:
     """Configure structured logging with JSON output.
 
     Log level can be controlled via LOG_LEVEL environment variable.
@@ -98,11 +98,13 @@ def configure_logging(log_dir: str = "logs", log_file: str = "portfolio-ai.log")
     is disabled since systemd handles log capture via StandardOutput/StandardError.
 
     Args:
-        log_dir: Directory for log files
+        log_dir: Directory for log files. Defaults to LOG_DIR env var when set,
+            otherwise "logs".
         log_file: Log file name
     """
     # Get log level from environment (default: INFO)
     log_level = _parse_log_level(os.getenv("LOG_LEVEL"))
+    resolved_log_dir = log_dir or os.getenv("LOG_DIR") or "logs"
 
     # Check if running under systemd (systemd sets INVOCATION_ID)
     running_under_systemd = bool(os.getenv("INVOCATION_ID"))
@@ -113,7 +115,7 @@ def configure_logging(log_dir: str = "logs", log_file: str = "portfolio-ai.log")
     # (systemd captures stdout/stderr to journal automatically)
     if not running_under_systemd:
         # Create logs directory if it doesn't exist
-        log_path = Path(log_dir)
+        log_path = Path(resolved_log_dir)
         log_path.mkdir(exist_ok=True)
 
         # Configure standard library logging

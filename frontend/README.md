@@ -5,28 +5,45 @@ Portfolio-AI's frontend is a Next.js App Router application served on port `3000
 ### Local development
 
 ```bash
+pnpm install --frozen-lockfile
+pnpm build
+API_URL=http://localhost:8000 HOSTNAME=0.0.0.0 PORT=3000 pnpm start
+```
+
+The browser always uses same-origin `/api/*` and `/ws/*` routing. Next.js
+route handlers proxy `/api/*` at runtime and the WebSocket rewrite proxies
+`/ws/*` to `API_URL`, which keeps native and Docker installs aligned without
+requiring browser-side backend port knowledge.
+
+`pnpm start` stages `.next/static` and `public/` into the standalone runtime
+directory before launching `server.js`, which keeps native starts aligned with
+the Docker image layout.
+
+### SummitFlow runtime
+
+The shared internal workspace still uses the wrapper-managed rebuild flow:
+
+```bash
 pnpm install
 rebuild.sh portfolio-ai
 status.sh portfolio-ai
 ```
 
-Use `rebuild.sh portfolio-ai` as the supported way to run the full app locally. Reach for `pnpm dev` only when you intentionally need a frontend-only Next.js dev server and you are not using it as the canonical project runtime.
+Use `rebuild.sh portfolio-ai` only when you are inside the existing SummitFlow
+runtime and intentionally relying on the shared wrapper-managed services.
 
 ### Production-style rebuild
 
-Use the shared rebuild wrapper:
-
-```bash
-rebuild.sh portfolio-ai
-```
-
-That rebuilds the frontend, applies backend migrations, and restarts the frontend/backend/worker services together.
+For standalone release validation, prefer the root-level Docker compose stack or
+the native instructions in the root `README.md`.
 
 ### API routing
 
-- Local development on `localhost` calls the backend directly at `http://localhost:8000`
-- Any non-local browser host stays same-origin on `/api/*` and `/ws/*` so Next.js rewrites can proxy to the backend safely
-- Cloudflare Access handles perimeter auth, so the frontend client stays same-origin and auth-agnostic
+- Browser traffic stays same-origin on `/api/*` and `/ws/*`
+- App Router route handlers proxy `/api/*` and `/health/*` to `API_URL` at runtime
+- A Next.js rewrite proxies `/ws/*` to `API_URL`
+- Server-side rendering also uses `API_URL`
+- Production starts should use `pnpm start`, which stages standalone assets and runs `node server.js` from `.next/standalone`
 
 ## Watchlist Selective Update Animations
 

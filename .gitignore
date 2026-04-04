@@ -43,6 +43,8 @@ Thumbs.db
 .env
 .env.local
 .env*.local
+docker/hatchet-config/*
+!docker/hatchet-config/.gitkeep
 
 # Logs
 *.log

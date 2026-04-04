@@ -27,7 +27,7 @@ describe('home api', () => {
     await fetchHomeActionQueue()
 
     expect(global.fetch).toHaveBeenCalledWith(
-      'http://localhost:8000/api/home/action-queue',
+      '/api/home/action-queue',
       expect.objectContaining({ method: 'GET' }),
     )
   })
@@ -57,7 +57,7 @@ describe('home api', () => {
     await fetchAutomationCenter()
 
     expect(global.fetch).toHaveBeenCalledWith(
-      'http://localhost:8000/api/home/automation-center',
+      '/api/home/automation-center',
       expect.objectContaining({ method: 'GET' }),
     )
   })

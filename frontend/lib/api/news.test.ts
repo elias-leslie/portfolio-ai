@@ -27,7 +27,7 @@ describe('news api helpers', () => {
     const result = await fetchArticleFeedback('aapl-hash')
 
     expect(global.fetch).toHaveBeenCalledWith(
-      'http://localhost:8000/api/news/article-feedback/aapl-hash',
+      '/api/news/article-feedback/aapl-hash',
       expect.objectContaining({
         method: 'GET',
       }),
@@ -60,7 +60,7 @@ describe('news api helpers', () => {
     })
 
     expect(global.fetch).toHaveBeenCalledWith(
-      'http://localhost:8000/api/news/article-feedback',
+      '/api/news/article-feedback',
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({

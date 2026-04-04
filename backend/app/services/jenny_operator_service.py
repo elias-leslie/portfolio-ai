@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import functools
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 
 from app.agents.clients.agent_hub_client import AgentHubAPIClient
 from app.agents.workflow_orchestrator import WorkflowOrchestrator
@@ -47,18 +47,9 @@ PASSIVE_FUND_SYMBOLS = frozenset(INDEX_ETFS) | frozenset(FUND_CATEGORY_LABELS)
 ACTIVE_ROUTINE_WINDOW = timedelta(minutes=15)
 ROUTINE_ACTIVITY_STALE_WINDOW = timedelta(minutes=2)
 
-# Routing tables for __getattr__ delegation (maps service method → (sub_service_attr, target_method))
-_REVIEW_ENGINE_METHODS: dict[str, str] = {
-    "_evaluate_symbol": "evaluate_symbol",
-    "_run_agent_review": "run_agent_review",
-    "_build_agent_prompt": "build_agent_prompt",
-    "_parse_agent_response": "parse_agent_response",
-    "_fallback_evaluation": "fallback_evaluation",
-    "_create_notifications": "create_notifications",
-    "_upsert_notification": "upsert_notification",
-    "_build_position_action_map": "build_position_action_map",
-    "_get_position_action": "get_position_action",
-}
+# Routing tables for __getattr__ delegation
+_DelegateMode = Literal["positional", "keyword", "none"]
+
 _ROUTINE_COORDINATOR_METHODS: dict[str, str] = {
     "_create_routine": "create_routine",
     "_get_active_routine": "get_active_routine",
@@ -87,13 +78,23 @@ _LEARNING_SERVICE_METHODS: dict[str, str] = {
     "_build_scorecard": "build_scorecard",
 }
 
-# Combined lookup: method_name → (sub_service_attr, target_method_name)
-_DELEGATE_MAP: dict[str, tuple[str, str]] = {
-    **{k: ("review_engine", v) for k, v in _REVIEW_ENGINE_METHODS.items()},
-    **{k: ("routine_coordinator", v) for k, v in _ROUTINE_COORDINATOR_METHODS.items()},
-    **{k: ("symbol_profile_service", v) for k, v in _SYMBOL_PROFILE_METHODS.items()},
-    **{k: ("dashboard_reader", v) for k, v in _DASHBOARD_READER_METHODS.items()},
-    **{k: ("learning_service", v) for k, v in _LEARNING_SERVICE_METHODS.items()},
+# Combined lookup: method_name → (sub_service_attr, target_method_name, delegate_mode)
+_DELEGATE_MAP: dict[str, tuple[str, str, _DelegateMode]] = {
+    **{
+        "_evaluate_symbol": ("review_engine", "evaluate_symbol", "positional"),
+        "_run_agent_review": ("review_engine", "run_agent_review", "positional"),
+        "_build_agent_prompt": ("review_engine", "build_agent_prompt", "none"),
+        "_parse_agent_response": ("review_engine", "parse_agent_response", "none"),
+        "_fallback_evaluation": ("review_engine", "fallback_evaluation", "keyword"),
+        "_create_notifications": ("review_engine", "create_notifications", "positional"),
+        "_upsert_notification": ("review_engine", "upsert_notification", "positional"),
+        "_build_position_action_map": ("review_engine", "build_position_action_map", "positional"),
+        "_get_position_action": ("review_engine", "get_position_action", "positional"),
+    },
+    **{k: ("routine_coordinator", v, "positional") for k, v in _ROUTINE_COORDINATOR_METHODS.items()},
+    **{k: ("symbol_profile_service", v, "positional") for k, v in _SYMBOL_PROFILE_METHODS.items()},
+    **{k: ("dashboard_reader", v, "positional") for k, v in _DASHBOARD_READER_METHODS.items()},
+    **{k: ("learning_service", v, "positional") for k, v in _LEARNING_SERVICE_METHODS.items()},
 }
 
 
@@ -127,9 +128,14 @@ class JennyOperatorService:
         """Forward delegation-only methods to the appropriate sub-service."""
         routing = _DELEGATE_MAP.get(name)
         if routing is not None:
-            sub_service_attr, target_method = routing
+            sub_service_attr, target_method, delegate_mode = routing
             sub = object.__getattribute__(self, sub_service_attr)
-            return functools.partial(getattr(sub, target_method), self)
+            method = getattr(sub, target_method)
+            if delegate_mode == "positional":
+                return functools.partial(method, self)
+            if delegate_mode == "keyword":
+                return functools.partial(method, service=self)
+            return method
         raise AttributeError(f"{type(self).__name__!r} has no attribute {name!r}")
 
     def _agent_hub_client_class(self) -> type[AgentHubAPIClient]:

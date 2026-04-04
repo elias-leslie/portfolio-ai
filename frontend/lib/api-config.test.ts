@@ -41,6 +41,22 @@ describe('api-config', () => {
     expect(getWsUrl('/ws/health')).toBe('wss://port.summitflow.dev/ws/health')
   })
 
+  it('keeps api and websocket traffic same-origin on localhost too', () => {
+    Object.defineProperty(global, 'window', {
+      configurable: true,
+      value: {
+        location: {
+          hostname: 'localhost',
+          host: 'localhost:3200',
+          protocol: 'http:',
+        },
+      },
+    })
+
+    expect(getApiBaseUrl()).toBe('')
+    expect(getWsUrl('/ws/health')).toBe('ws://localhost:3200/ws/health')
+  })
+
   it('keeps api and websocket traffic same-origin on non-local browser hosts', () => {
     Object.defineProperty(global, 'window', {
       configurable: true,

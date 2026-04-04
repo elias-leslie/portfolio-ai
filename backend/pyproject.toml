@@ -2,7 +2,7 @@
 name = "portfolio-ai"
 version = "0.1.0"
 description = "AI-Led Portfolio Intelligence Platform"
-requires-python = ">=3.13"
+requires-python = ">=3.13,<3.14"
 license = "Apache-2.0"
 dependencies = [
     # Core API framework
@@ -28,7 +28,7 @@ dependencies = [
     "feedparser==6.0.12",
     "httpx==0.28.1",
     "python-multipart>=0.0.20",
-    "agent-hub-client @ git+https://github.com/summitflow-solutions/agent-hub.git#subdirectory=packages/agent-hub-client",
+    "agent-hub-client==0.3.0",
     "cachetools==5.5.0",
 
     # Caching & message broker
@@ -95,14 +95,15 @@ ml = [
 ]
 
 [tool.uv]
+# Keep Pygments on a fixed security floor; 2.20.0 is a published PyPI release and addresses known pre-2.20 vulnerabilities.
 constraint-dependencies = ["pygments>=2.20.0"]
+
+[tool.uv.sources]
+agent-hub-client = { path = "../docker/workspace-packages/agent_hub_client-0.3.0-py3-none-any.whl" }
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
-
-[tool.hatch.metadata]
-allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]

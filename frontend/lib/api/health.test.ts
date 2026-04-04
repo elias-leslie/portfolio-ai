@@ -33,7 +33,7 @@ describe('health api', () => {
     await fetchDetailedHealth()
 
     expect(global.fetch).toHaveBeenCalledWith(
-      'http://localhost:8000/health/detailed',
+      '/health/detailed',
       expect.objectContaining({ method: 'GET' }),
     )
   })

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 from datetime import timedelta
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from hatchet_sdk.runnables.types import TaskDefaults
@@ -9,6 +11,7 @@ from app.hatchet_app import (
     DEFAULT_TASK_EXECUTION_TIMEOUT,
     DEFAULT_TASK_SCHEDULE_TIMEOUT,
     _LazyHatchet,
+    get_hatchet,
 )
 
 
@@ -54,3 +57,37 @@ def test_workflow_wrapper_injects_task_defaults(monkeypatch) -> None:
     assert isinstance(task_defaults, TaskDefaults)
     assert task_defaults.schedule_timeout == DEFAULT_TASK_SCHEDULE_TIMEOUT
     assert task_defaults.execution_timeout == DEFAULT_TASK_EXECUTION_TIMEOUT
+
+
+def test_get_hatchet_primes_sdk_env_from_settings(monkeypatch) -> None:
+    captured: dict[str, str | None] = {}
+
+    class FakeHatchet:
+        def __init__(self) -> None:
+            captured["token"] = os.environ.get("HATCHET_CLIENT_TOKEN")
+            captured["host_port"] = os.environ.get("HATCHET_CLIENT_HOST_PORT")
+            captured["tls"] = os.environ.get("HATCHET_CLIENT_TLS_STRATEGY")
+
+    fake_settings = SimpleNamespace(
+        hatchet_client_token="token-from-env-file",
+        hatchet_client_host_port="127.0.0.1:57070",
+        hatchet_client_tls_strategy="none",
+    )
+
+    monkeypatch.delenv("HATCHET_CLIENT_TOKEN", raising=False)
+    monkeypatch.delenv("HATCHET_CLIENT_HOST_PORT", raising=False)
+    monkeypatch.delenv("HATCHET_CLIENT_TLS_STRATEGY", raising=False)
+    monkeypatch.setattr("app.hatchet_app.get_settings", lambda: fake_settings)
+    monkeypatch.setattr("hatchet_sdk.Hatchet", FakeHatchet)
+
+    get_hatchet.cache_clear()
+    try:
+        get_hatchet()
+    finally:
+        get_hatchet.cache_clear()
+
+    assert captured == {
+        "token": "token-from-env-file",
+        "host_port": "127.0.0.1:57070",
+        "tls": "none",
+    }

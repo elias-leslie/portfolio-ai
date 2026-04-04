@@ -12,6 +12,8 @@ from pathlib import Path
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from ..utils.project_paths import resolve_project_root
+
 # Ensure HOME is set before any library tries to create cache directories.
 # Libraries like yfinance, transformers, and edgartools fail without it.
 if not os.environ.get("HOME"):
@@ -24,16 +26,24 @@ PORTFOLIO_BACKEND_PORT = 8000
 PORTFOLIO_FRONTEND_PORT = 3000
 AGENT_HUB_BACKEND_PORT = 8003
 REDIS_PORT = 6379
+HATCHET_GRPC_PORT = 7070
+PROJECT_ROOT = resolve_project_root(Path(__file__).resolve())
+ENV_FILES = (
+    Path.home() / ".env.local",
+    PROJECT_ROOT / ".env",
+    PROJECT_ROOT / ".env.local",
+)
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables.
 
-    Loads from ~/.env.local by default.
+    Loads from repo-local env files first, with ~/.env.local kept as a fallback
+    for the current internal runtime.
     """
 
     model_config = SettingsConfigDict(
-        env_file=str(Path.home() / ".env.local"),
+        env_file=tuple(str(path) for path in ENV_FILES),
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -52,6 +62,11 @@ class Settings(BaseSettings):
     # Redis
     redis_url: str = f"redis://localhost:{REDIS_PORT}"
 
+    # Hatchet
+    hatchet_client_token: str = ""
+    hatchet_client_host_port: str = f"127.0.0.1:{HATCHET_GRPC_PORT}"
+    hatchet_client_tls_strategy: str = "none"
+
     # Frontend / CORS
     frontend_host: str | None = None
     frontend_extra_origins: str = ""
@@ -65,7 +80,6 @@ class Settings(BaseSettings):
     agent_hub_url: str = f"http://localhost:{AGENT_HUB_BACKEND_PORT}"
     agent_hub_enabled: bool | None = None
     portfolio_client_id: str = ""
-    portfolio_client_secret: str = ""
     portfolio_request_source: str = "portfolio-ai"
 
     # Self-referencing URLs (for internal service calls)
@@ -73,15 +87,13 @@ class Settings(BaseSettings):
     frontend_url: str = f"http://localhost:{PORTFOLIO_FRONTEND_PORT}"
 
     # Filesystem paths
-    artifacts_dir: Path = Path(__file__).resolve().parents[3] / "data" / "artifacts"
+    artifacts_dir: Path = PROJECT_ROOT / "data" / "artifacts"
 
     @model_validator(mode="after")
     def resolve_agent_hub_enabled(self) -> Settings:
-        """Enable Agent Hub automatically when credentials are configured."""
+        """Enable Agent Hub automatically when a client id is configured."""
         if self.agent_hub_enabled is None:
-            self.agent_hub_enabled = bool(
-                self.portfolio_client_id and self.portfolio_client_secret
-            )
+            self.agent_hub_enabled = bool(self.portfolio_client_id)
         return self
 
 
@@ -100,6 +112,15 @@ def get_settings() -> Settings:
 settings = get_settings()
 DATABASE_URL = settings.portfolio_db_url
 REDIS_URL = settings.redis_url
+
+# Some libraries read their configuration directly from process env instead of
+# the shared settings object. Bridge repo-local env files into that contract.
+if settings.hatchet_client_token:
+    os.environ.setdefault("HATCHET_CLIENT_TOKEN", settings.hatchet_client_token)
+if settings.hatchet_client_host_port:
+    os.environ.setdefault("HATCHET_CLIENT_HOST_PORT", settings.hatchet_client_host_port)
+if settings.hatchet_client_tls_strategy:
+    os.environ.setdefault("HATCHET_CLIENT_TLS_STRATEGY", settings.hatchet_client_tls_strategy)
 
 
 def sqlalchemy_database_url(database_url: str) -> str:

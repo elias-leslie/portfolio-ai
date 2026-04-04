@@ -15,9 +15,9 @@ export const PORTS = { frontend: 3000, backend: 8000 }
 /**
  * Get the base URL for Portfolio-AI backend API calls.
  *
- * In the browser, any non-localhost host stays same-origin so requests flow
- * through Next.js rewrites instead of incorrectly targeting the viewer's
- * localhost environment.
+ * In the browser, all requests stay same-origin and flow through Next.js
+ * rewrites. This keeps native and container installs aligned and avoids
+ * coupling browser traffic to whichever backend port the host machine uses.
  *
  * @returns Base URL (e.g., http://localhost:8000 for dev, empty string for prod)
  */
@@ -27,14 +27,6 @@ export function getApiBaseUrl(): string {
     return process.env.API_URL || `http://localhost:${PORTS.backend}`
   }
 
-  const host = window.location.hostname
-
-  // Development: localhost or 127.0.0.1
-  if (host === 'localhost' || host === '127.0.0.1') {
-    return `http://localhost:${PORTS.backend}`
-  }
-
-  // Any non-local browser host should stay same-origin via rewrites.
   return ''
 }
 
@@ -53,13 +45,5 @@ export function getWsUrl(path: string): string {
   }
 
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const host = window.location.hostname
-
-  // Development
-  if (host === 'localhost' || host === '127.0.0.1') {
-    return `ws://localhost:${PORTS.backend}${path}`
-  }
-
-  // Any non-local browser host should stay same-origin via rewrites.
   return `${protocol}//${window.location.host}${path}`
 }

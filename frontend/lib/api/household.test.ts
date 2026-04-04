@@ -126,7 +126,7 @@ describe('household api', () => {
     await fetchHouseholdDashboard()
 
     expect(global.fetch).toHaveBeenCalledWith(
-      'http://localhost:8000/api/household/dashboard',
+      '/api/household/dashboard',
       expect.objectContaining({ method: 'GET' }),
     )
   })
@@ -161,7 +161,7 @@ describe('household api', () => {
     await uploadHouseholdDocument({ file, sourceType: 'receipt' })
 
     expect(global.fetch).toHaveBeenCalledWith(
-      'http://localhost:8000/api/household/documents',
+      '/api/household/documents',
       expect.objectContaining({
         method: 'POST',
         body: expect.any(FormData),
@@ -196,7 +196,7 @@ describe('household api', () => {
     await answerHouseholdQuestion('question-1', { answerText: '60' })
 
     expect(global.fetch).toHaveBeenCalledWith(
-      'http://localhost:8000/api/household/questions/question-1/answer',
+      '/api/household/questions/question-1/answer',
       expect.objectContaining({
         method: 'POST',
       }),
@@ -217,7 +217,7 @@ describe('household api', () => {
     })
 
     expect(global.fetch).toHaveBeenCalledWith(
-      'http://localhost:8000/api/household/transactions/txn-1/categorize',
+      '/api/household/transactions/txn-1/categorize',
       expect.objectContaining({
         method: 'POST',
       }),

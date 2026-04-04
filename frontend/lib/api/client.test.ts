@@ -29,7 +29,7 @@ describe('api client helpers', () => {
     })
 
     expect(global.fetch).toHaveBeenCalledWith(
-      'http://localhost:8000/api/preferences',
+      '/api/preferences',
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({
@@ -59,7 +59,7 @@ describe('api client helpers', () => {
     })
 
     expect(global.fetch).toHaveBeenCalledWith(
-      'http://localhost:8000/api/preferences',
+      '/api/preferences',
       expect.objectContaining({
         method: 'PUT',
         body: JSON.stringify({

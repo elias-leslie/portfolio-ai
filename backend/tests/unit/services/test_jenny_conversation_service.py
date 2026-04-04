@@ -202,6 +202,32 @@ def test_chat_returns_document_aware_fallback_for_upload_questions() -> None:
     assert "do not auto-create portfolio accounts" in result["reply"]
 
 
+def test_chat_strips_agent_narration_tags_from_reply() -> None:
+    service = JennyConversationService()
+    service.household_service = Mock()
+    service.household_service.list_questions.return_value = HouseholdQuestionList(items=[])
+    service._build_context = Mock(return_value={"household": {}, "symbols": {"detected": []}})
+    service._complete_conversation = Mock(
+        return_value=SimpleNamespace(
+            content=(
+                "[[P:started:working the request]]\n"
+                "I cleaned up the planning summary.\n"
+                "[[S:completed:Returned a clean answer]]"
+            ),
+            session_id="session-clean",
+        )
+    )
+    service._reconcile_message = Mock(return_value=[])
+    service._extract_planning_updates = Mock(
+        return_value={"profile_updates": {}, "planning_items": []}
+    )
+
+    result = service.chat("hello")
+
+    assert result["reply"] == "I cleaned up the planning summary."
+    assert result["session_id"] == "session-clean"
+
+
 @patch("app.services.jenny_conversation_service.get_analytics_payload")
 def test_build_context_includes_recent_documents_and_runtime_status(
     get_analytics_payload: Mock,

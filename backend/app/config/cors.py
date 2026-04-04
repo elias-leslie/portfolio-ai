@@ -6,8 +6,6 @@ from urllib.parse import urlparse
 
 from . import PORTFOLIO_FRONTEND_PORT
 
-PRODUCTION_FRONTEND_ORIGIN = "https://port.summitflow.dev"
-
 
 def _local_origins(port: int) -> tuple[str, ...]:
     """Build localhost origin variants for a given port."""
@@ -40,8 +38,6 @@ def build_cors_origins(
 
     if frontend_host:
         origins.extend((f"http://{frontend_host}:{port}", f"https://{frontend_host}:{port}"))
-
-    origins.append(PRODUCTION_FRONTEND_ORIGIN)
 
     if extra_origins:
         origins.extend(origin.strip() for origin in extra_origins.split(",") if origin.strip())

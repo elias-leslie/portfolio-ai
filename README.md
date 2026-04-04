@@ -10,12 +10,12 @@ Portfolio AI is a full-stack application for managing investment portfolios, tra
 
 | Layer | Technology |
 |-------|-----------|
-| Backend | FastAPI, Python 3.13+, SQLAlchemy 2.0, Pydantic 2 |
+| Backend | FastAPI, Python 3.13.x, SQLAlchemy 2.0, Pydantic 2 |
 | Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS 4, shadcn/ui |
 | Database | PostgreSQL 15+ (psycopg 3, connection pooling) |
 | Caching | Redis |
 | Workflows | Hatchet (background tasks, scheduling) |
-| AI | Anthropic Claude (via Agent Hub completion API) |
+| AI | Optional Agent Hub companion for Jenny, thesis validation, and document review |
 | Data | yfinance, Finnhub, Polygon.io, FMP, TwelveData, AlphaVantage, FRED, RSS feeds |
 | Quality | Ruff, ty, pytest, Vitest, sf-browser verification, Biome |
 
@@ -45,7 +45,7 @@ portfolio-ai/
 │   ├── app/               # Pages (App Router)
 │   ├── components/        # React components
 │   └── lib/               # API clients, hooks, utilities
-└── scripts/               # Service management (symlinks to SummitFlow)
+└── scripts/               # Local helpers and runtime utilities
 ```
 
 ## Key Features
@@ -78,61 +78,127 @@ portfolio-ai/
 - Automated data freshness monitoring and stale data alerts
 - Strategy signal generation and watchlist candidate discovery
 
-## Ports
+## Install Modes
 
-| Service | Port |
-|---------|------|
-| Frontend (Next.js) | 3000 |
-| Backend (FastAPI) | 8000 |
+### Standalone
 
-## Getting Started
+Runs the full portfolio/watchlist/market/household product without SummitFlow.
+Agent Hub is not required. Core analytics, watchlist management, market data,
+and scheduled refreshes still work.
 
-### Prerequisites
+### Companion
 
-- Python 3.13+
+Adds Agent Hub as an optional companion service. This enables Jenny chat and
+review flows, household document review, thesis validation, and other
+agent-driven features. SummitFlow is not required for this repo.
+
+## Prerequisites
+
+- Python 3.13.x
 - Node.js 20+
-- PostgreSQL 15+
-- Redis
+- Docker Engine with Compose plugin for Docker installs and for native infra
+- `pnpm` for native frontend installs
+- `uv` for native backend installs
 
-### Backend
+Portfolio AI currently depends on `pandas-ta -> numba -> llvmlite`, so Python
+3.14 is not a supported native install target yet.
+
+## Quickstart
+
+### Fastest: Docker standalone
+
+```bash
+cp .env.example .env
+./scripts/generate-hatchet-dev-token.sh .env
+docker compose up -d --build
+```
+
+For the bundled Docker stack, keep `PORTFOLIO_DB_URL` and `REDIS_URL` blank in
+`.env`. Docker Compose injects the internal service URLs automatically.
+
+Then open `http://localhost:3000`.
+
+### Docker companion
+
+Populate the Agent Hub companion variables in `.env`, and make sure the
+standalone Agent Hub install was started with the same `PORTFOLIO_CLIENT_ID`
+so it auto-registers that first-party client. Then start with the
+companion override:
+
+```bash
+cp .env.example .env
+./scripts/generate-hatchet-dev-token.sh .env
+docker compose -f docker-compose.yml -f docker-compose.companion.yml up -d --build
+```
+
+Keep `PORTFOLIO_DB_URL` and `REDIS_URL` blank in the Docker `.env` file here as
+well so the compose stack uses its bundled database and Redis services.
+
+### Native standalone
+
+Use Docker for PostgreSQL, Redis, and Hatchet, then run the app processes
+natively:
+
+```bash
+cp .env.example .env.local
+./scripts/generate-hatchet-dev-token.sh .env.local
+docker compose --env-file .env.local up -d portfolio-db portfolio-redis hatchet-migrate hatchet-setup-config hatchet
+
+cd backend
+uv sync --python 3.13 --frozen --extra dev
+uv run alembic upgrade head
+
+cd ../frontend
+pnpm install --frozen-lockfile
+pnpm build
+```
+
+Start the processes in separate shells:
 
 ```bash
 cd backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-pip install -e ".[dev,ml]"  # Optional: enable FinBERT/news ML features
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-### Frontend
+```bash
+cd backend
+uv run python -m app.worker
+```
 
 ```bash
 cd frontend
-pnpm install
+API_URL=http://localhost:8000 HOSTNAME=0.0.0.0 PORT=3000 pnpm start
 ```
 
-### Start The App
+`pnpm start` stages `.next/static` and `public/` into the standalone runtime
+directory before launching the Next standalone server, so native installs match
+the Docker frontend layout.
 
-Use the shared wrapper for the supported local runtime:
+### Native companion
 
-```bash
-rebuild.sh portfolio-ai
-status.sh portfolio-ai
-```
+Use the same steps as native standalone, but also set `AGENT_HUB_URL`,
+`PORTFOLIO_CLIENT_ID`, and optionally `PORTFOLIO_REQUEST_SOURCE` in `.env.local`.
+Use the same `PORTFOLIO_CLIENT_ID` on the Agent Hub side so the companion
+client is auto-registered during Agent Hub startup.
+If you are not using the default backend port, keep `API_URL` aligned with the
+actual backend URL when starting the frontend so `/ws/*` resolves correctly.
 
-`rebuild.sh portfolio-ai` builds the frontend, applies backend migrations, restarts the native backend/frontend/worker services, and verifies health. Use this instead of manually starting `uvicorn`, `next dev`, or ad hoc migration commands.
+## Environment
 
-### Environment
+Use [`.env.example`](.env.example) as the template. Native installs should use
+repo-local `.env.local`. Docker Compose should use repo-local `.env`. The
+backend loads both automatically, and `~/.env.local` is only a legacy fallback
+for the current internal runtime.
 
-Use [`.env.example`](.env.example) and [`backend/.env.example`](backend/.env.example) as templates. Local secrets live in `~/.env.local`. Optional data source keys:
+`scripts/generate-hatchet-dev-token.sh` bootstraps a Hatchet client token using
+the tenant created by Hatchet quickstart and writes both
+`HATCHET_TENANT_ID` and `HATCHET_CLIENT_TOKEN` into the target env file. If
+you created a different tenant yourself, set `HATCHET_TENANT_ID` before
+running the script.
 
-- `POLYGON_API_KEY` - Polygon.io (5 req/min, 15m delay)
-- `TWELVEDATA_API_KEY` - TwelveData (8 req/min)
-- `FMP_API_KEY` - Financial Modeling Prep (250 req/day)
-- `FINNHUB_API_KEY` - Finnhub (60 req/min)
-- `ALPHAVANTAGE_API_KEY` - AlphaVantage (5 req/min, 25 req/day)
-
-yfinance, FRED, and RSS feeds are free and require no keys.
+Portfolio AI ships a bundled `agent-hub-client` wheel under
+`docker/workspace-packages/` so clean native installs do not need private Git
+access just to resolve the optional companion SDK.
 
 ## Testing
 
@@ -148,7 +214,8 @@ dt --check
 
 # Browser verification
 sf-browser health
-sf-browser check http://<host-ip-from-.index.yaml>:3000 /tmp/portfolio-home.png
+sf-browser open http://<host-ip-from-.index.yaml>:3000
+sf-browser screenshot /tmp/portfolio-home.png
 ```
 
 ## API
@@ -171,14 +238,18 @@ Full interactive docs at `http://localhost:8000/docs`.
 
 163+ tables covering portfolio positions, watchlist intelligence, market data caching, agent runs, strategy management, backtesting, and system monitoring. Schema managed via Alembic migrations.
 
-## Services
+## Internal SummitFlow Runtime
 
-Portfolio AI runs natively under `systemd --user` for the frontend, backend, and Hatchet worker. Shared PostgreSQL, Redis, and Hatchet infrastructure stay Docker-managed.
+Inside the existing SummitFlow workspace, Portfolio AI still supports the shared
+native wrapper flow:
 
 ```bash
 rebuild.sh portfolio-ai
 status.sh portfolio-ai
 ```
+
+That path is for the current internal multi-repo runtime. The public-ready
+standalone instructions are the Docker and native flows above.
 
 ## License
 

@@ -67,6 +67,9 @@ def get_process_by_pattern(pattern: str) -> int | None:
 
         return None
 
+    except FileNotFoundError as e:
+        logger.debug("process_lookup_tool_missing", pattern=pattern, error=str(e))
+        return None
     except (subprocess.TimeoutExpired, ValueError, subprocess.SubprocessError) as e:
         logger.debug("process_lookup_failed", pattern=pattern, error=str(e))
         return None
@@ -130,6 +133,10 @@ def check_backend_api(skip_http_check: bool = False) -> ServiceStatus:
         ServiceStatus for backend API
     """
     status = get_service_status("portfolio-backend", r"uvicorn.*main:app")
+
+    if status.status == "down" and _is_container():
+        status.status = "running"
+        status.message = "Container mode — backend health inferred from current process"
 
     if status.status == "running" and not skip_http_check:
         # Additional health check: try to ping /health/simple endpoint (avoid circular dependency)

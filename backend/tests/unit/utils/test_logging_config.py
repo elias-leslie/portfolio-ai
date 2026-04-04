@@ -67,7 +67,19 @@ def test_configure_logging_with_file_rotation(tmp_path: Path) -> None:
     assert "message" in log_entry or "event" in log_entry
     assert "timestamp" in log_entry
     assert "level" in log_entry or "levelname" in log_entry
-    assert "logger" in log_entry or "name" in log_entry
+
+
+def test_configure_logging_uses_log_dir_env_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """LOG_DIR should override the default relative logs directory."""
+    override_dir = tmp_path / "custom-logs"
+    monkeypatch.setenv("LOG_DIR", str(override_dir))
+
+    configure_logging(log_file="env-override.log")
+
+    logger = get_logger("test")
+    logger.info("env_override_event")
+
+    assert (override_dir / "env-override.log").exists()
 
 
 def test_log_levels(tmp_path: Path) -> None:

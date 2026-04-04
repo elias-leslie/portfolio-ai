@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@source "../node_modules/@summitflow/notes-ui/src";
 
 @custom-variant dark (&:is(.dark *));
 @custom-variant reduced-motion (&:is([data-reduced-motion="true"] *));

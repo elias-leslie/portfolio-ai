@@ -3,9 +3,12 @@
 
 from __future__ import annotations
 
+import os
 from datetime import timedelta
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any  # Any: __getattr__ return is inherently dynamic
+
+from app.config import get_settings
 
 if TYPE_CHECKING:
     from hatchet_sdk import Hatchet
@@ -19,6 +22,17 @@ DEFAULT_TASK_SCHEDULE_TIMEOUT = timedelta(days=7)
 DEFAULT_TASK_EXECUTION_TIMEOUT = timedelta(days=7)
 
 
+def _prime_hatchet_sdk_env() -> None:
+    """Expose repo-local Hatchet settings through the SDK's env contract."""
+    settings = get_settings()
+    if settings.hatchet_client_token:
+        os.environ.setdefault("HATCHET_CLIENT_TOKEN", settings.hatchet_client_token)
+    if settings.hatchet_client_host_port:
+        os.environ.setdefault("HATCHET_CLIENT_HOST_PORT", settings.hatchet_client_host_port)
+    if settings.hatchet_client_tls_strategy:
+        os.environ.setdefault("HATCHET_CLIENT_TLS_STRATEGY", settings.hatchet_client_tls_strategy)
+
+
 @lru_cache
 def get_hatchet() -> Hatchet:
     """Get cached Hatchet client instance.
@@ -26,6 +40,7 @@ def get_hatchet() -> Hatchet:
     Lazy initialization - only created on first call.
     Requires HATCHET_CLIENT_TOKEN env var.
     """
+    _prime_hatchet_sdk_env()
     from hatchet_sdk import Hatchet as HatchetClass
 
     return HatchetClass()

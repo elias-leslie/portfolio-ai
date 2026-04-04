@@ -5,12 +5,11 @@ from __future__ import annotations
 from app.config import Settings, sqlalchemy_database_url
 
 
-def test_agent_hub_enabled_defaults_true_when_credentials_present() -> None:
-    """Agent Hub should auto-enable when portfolio credentials exist."""
+def test_agent_hub_enabled_defaults_true_when_client_id_present() -> None:
+    """Agent Hub should auto-enable when a portfolio client id exists."""
     settings = Settings(
         portfolio_db_url="postgresql://test",
         portfolio_client_id="client-id",
-        portfolio_client_secret="client-secret",
         agent_hub_enabled=None,
     )
 
@@ -22,7 +21,6 @@ def test_agent_hub_enabled_respects_explicit_false() -> None:
     settings = Settings(
         portfolio_db_url="postgresql://test",
         portfolio_client_id="client-id",
-        portfolio_client_secret="client-secret",
         agent_hub_enabled=False,
     )
 

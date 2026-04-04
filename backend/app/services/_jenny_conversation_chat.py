@@ -13,6 +13,7 @@ from app.models.household_finance import (
 )
 
 from ._jenny_conversation_constants import PROVENANCE_JENNY_CHAT
+from ._jenny_response_cleanup import strip_agent_output_tags
 
 if TYPE_CHECKING:
     from app.services.household_finance_service import HouseholdFinanceService
@@ -97,7 +98,7 @@ def compose_reply(
     updated_fields: list[str],
     field_labels: dict[str, str],
 ) -> str:
-    reply = str(getattr(completion, "content", "") or "").strip()
+    reply = strip_agent_output_tags(str(getattr(completion, "content", "") or ""))
     planning_items = planning_updates.get("planning_items") if isinstance(planning_updates, dict) else None
     if resolved_questions:
         labels = [

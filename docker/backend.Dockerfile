@@ -17,7 +17,7 @@ WORKDIR /app
 
 # Copy dependency files first (cache-friendly layer)
 COPY backend/pyproject.toml backend/uv.lock ./
-COPY docker/workspace-packages/*.whl /tmp/wheels/
+COPY docker/workspace-packages/*.whl /docker/workspace-packages/
 
 # Optional ML extras (torch, transformers) — adds ~1GB
 ARG INSTALL_ML=false
@@ -25,19 +25,19 @@ ARG INSTALL_ML=false
 # Install deps and clean caches in same layer
 RUN uv export --frozen --no-dev --no-editable --format requirements-txt \
       --no-header > requirements.txt && \
-    sed -i '/^\.$/d; /agent-hub-client$/d; /^\.\.\//d' requirements.txt && \
+    sed -i '/^\.$/d' requirements.txt && \
     uv venv .venv && \
-    uv pip install --python .venv/bin/python \
-      -r requirements.txt /tmp/wheels/agent_hub_client-*.whl && \
+    uv pip install --python .venv/bin/python -r requirements.txt && \
     if [ "$INSTALL_ML" = "true" ]; then \
       uv export --frozen --no-dev --no-editable --format requirements-txt \
         --no-header --extra ml > ml-requirements.txt && \
       uv pip install --python .venv/bin/python -r ml-requirements.txt && \
       rm -f ml-requirements.txt; \
     fi && \
-    rm -rf /tmp/wheels /root/.cache/uv /root/.cache/pip requirements.txt
+    rm -rf /root/.cache/uv /root/.cache/pip requirements.txt
 
 # Copy application source
+COPY .index.yaml ./.index.yaml
 COPY backend/app ./app
 COPY backend/alembic.ini ./
 COPY backend/alembic ./alembic
@@ -55,11 +55,12 @@ RUN useradd -m -s /bin/bash appuser
 WORKDIR /app
 
 COPY --chown=appuser:appuser --from=builder /app/.venv /app/.venv
+COPY --chown=appuser:appuser --from=builder /app/.index.yaml /app/.index.yaml
 COPY --chown=appuser:appuser --from=builder /app/app ./app
 COPY --chown=appuser:appuser --from=builder /app/alembic.ini ./
 COPY --chown=appuser:appuser --from=builder /app/alembic ./alembic
 
-RUN mkdir -p /app/.cache && chown appuser:appuser /app/.cache
+RUN mkdir -p /app/.cache /app/logs && chown appuser:appuser /app/.cache /app/logs
 
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1

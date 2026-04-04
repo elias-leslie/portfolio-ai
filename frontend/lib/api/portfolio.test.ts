@@ -30,7 +30,7 @@ describe('portfolio api', () => {
     await fetchPortfolio()
 
     expect(global.fetch).toHaveBeenCalledWith(
-      'http://localhost:8000/api/portfolio',
+      '/api/portfolio',
       expect.objectContaining({
         method: 'GET',
       }),
@@ -54,7 +54,7 @@ describe('portfolio api', () => {
     await chatWithJenny({ message: 'What do you think about AMD?', sessionId: null })
 
     expect(global.fetch).toHaveBeenCalledWith(
-      'http://localhost:8000/api/portfolio/jenny/chat',
+      '/api/portfolio/jenny/chat',
       expect.objectContaining({
         method: 'POST',
       }),

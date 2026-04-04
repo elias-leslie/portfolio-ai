@@ -7,9 +7,7 @@ to reduce duplication across the codebase.
 from __future__ import annotations
 
 import uuid
-from typing import Any, TypeVar
-
-T = TypeVar("T", int, float)
+from typing import Any
 
 
 def rows_to_dicts(rows: list[tuple[Any, ...]], conn_wrapper: Any) -> list[dict[str, Any]]:
@@ -60,7 +58,13 @@ def fetch_rows(
     return rows_to_dicts(rows, result)
 
 
-def _safe_get(rows: list[dict[str, Any]], index: int, key: str, default: T, cast: type[T]) -> T:
+def _safe_get[T: (int, float)](
+    rows: list[dict[str, Any]],
+    index: int,
+    key: str,
+    default: T,
+    cast: type[T],
+) -> T:
     """Generic safe extraction of a typed value from query result rows."""
     if not rows or index >= len(rows):
         return default
