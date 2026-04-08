@@ -257,10 +257,10 @@ Licensed under the Apache License, Version 2.0. See `LICENSE` for the full text.
 
 ## Security
 
-If you discover a security issue, do not open a public issue. Report it privately via [GitHub Discussions](https://github.com/summitflow-solutions/portfolio-ai/discussions) with the affected area, reproduction steps, and any suggested mitigation.
+If you discover a security issue, do not open a public issue. Report it privately via [GitHub Discussions](https://github.com/elias-leslie/portfolio-ai/discussions) with the affected area, reproduction steps, and any suggested mitigation.
 
 ## Commercial
 
 Commercial use is permitted under Apache 2.0.
 
-For commercial support, custom development, partnerships, or private licensing for future versions, reach out via [GitHub Discussions](https://github.com/summitflow-solutions/portfolio-ai/discussions).
+For commercial support, custom development, partnerships, or private licensing for future versions, reach out via [GitHub Discussions](https://github.com/elias-leslie/portfolio-ai/discussions).

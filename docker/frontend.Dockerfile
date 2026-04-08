@@ -1,5 +1,5 @@
 # Portfolio AI Web — multi-stage Docker build with standalone output
-# Image: ghcr.io/summitflow-solutions/portfolio-web
+# Image: ghcr.io/elias-leslie/portfolio-web
 # Port: 3000
 # No workspace package dependencies
 

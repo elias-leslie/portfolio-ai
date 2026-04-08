@@ -5,7 +5,7 @@
 Please do not open public issues for security problems.
 
 Report vulnerabilities using
-[GitHub's private vulnerability reporting](https://github.com/summitflow-solutions/portfolio-ai/security/advisories/new).
+[GitHub's private vulnerability reporting](https://github.com/elias-leslie/portfolio-ai/security/advisories/new).
 
 Include:
 

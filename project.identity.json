@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "project": {
+    "id": "portfolio-ai",
+    "repo_name": "portfolio-ai",
+    "display_name": "Portfolio AI"
+  },
+  "branding": {
+    "short_name": "Portfolio AI",
+    "description": "Portfolio analysis and planning application."
+  },
+  "runtime": {
+    "backend_port": 8000,
+    "frontend_port": 3000,
+    "backend_dir": "backend",
+    "frontend_dir": "frontend",
+    "health_endpoint": "/health"
+  },
+  "services": {
+    "backend": "portfolio-backend.service",
+    "frontend": "portfolio-frontend.service",
+    "default_workers": [
+      "portfolio-hatchet-worker.service"
+    ],
+    "optional_workers": []
+  },
+  "hosts": {
+    "production_frontend": "port.summitflow.dev",
+    "production_api": "portapi.summitflow.dev"
+  },
+  "repository": {
+    "owner": "elias-leslie",
+    "name": "portfolio-ai",
+    "ssh_url": "git@github.com:elias-leslie/portfolio-ai.git",
+    "https_url": "https://github.com/elias-leslie/portfolio-ai"
+  }
+}

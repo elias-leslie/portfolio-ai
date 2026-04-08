@@ -1,5 +1,5 @@
 # Portfolio AI API — multi-stage Docker build
-# Image: ghcr.io/summitflow-solutions/portfolio-api
+# Image: ghcr.io/elias-leslie/portfolio-api
 # Port: 8000
 # Worker: same image with CMD ["python", "-m", "app.worker"]
 # Note: ML extras (torch, transformers) available via --build-arg INSTALL_ML=true
