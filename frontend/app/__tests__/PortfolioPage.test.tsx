@@ -82,6 +82,10 @@ vi.mock('@/components/watchlist/AddSymbolModal', () => ({
   ),
 }))
 
+vi.mock('@/components/portfolio/InvestingOverviewPanel', () => ({
+  InvestingOverviewPanel: () => <div>Investing Overview Panel</div>,
+}))
+
 vi.mock('@/lib/hooks/usePortfolio', () => ({
   useAccounts: vi.fn(),
   useAddPosition: vi.fn(),
@@ -214,7 +218,8 @@ describe('PortfolioPage', () => {
 
     render(<PortfolioPage />)
 
-    await user.click(screen.getByRole('button', { name: 'Add Account' }))
+    await user.click(screen.getByRole('button', { name: 'Holdings' }))
+    await user.click(screen.getByRole('button', { name: 'Open Add Account' }))
     await user.type(
       screen.getByLabelText('Account Name'),
       '  Joint   Brokerage  ',
@@ -289,7 +294,9 @@ describe('PortfolioPage', () => {
     render(<PortfolioPage />)
 
     await user.click(screen.getByRole('button', { name: 'Holdings' }))
-    await user.click(screen.getByRole('button', { name: 'Open Generic Add Position' }))
+    await user.click(
+      screen.getByRole('button', { name: 'Open Generic Add Position' }),
+    )
 
     await waitFor(() => {
       expect(
@@ -313,7 +320,8 @@ describe('PortfolioPage', () => {
 
     render(<PortfolioPage />)
 
-    await user.click(screen.getByRole('button', { name: 'Add Account' }))
+    await user.click(screen.getByRole('button', { name: 'Holdings' }))
+    await user.click(screen.getByRole('button', { name: 'Open Add Account' }))
     expect(screen.getByRole('button', { name: 'Creating...' })).toHaveAttribute(
       'aria-busy',
       'true',
@@ -341,7 +349,10 @@ describe('PortfolioPage', () => {
 
     render(<PortfolioPage />)
 
-    expect(screen.getByRole('button', { name: 'Add Position' })).toBeDisabled()
+    expect(
+      screen.queryByRole('button', { name: 'Add Position' }),
+    ).not.toBeInTheDocument()
     expect(screen.getByText('Watchlist Table')).toBeInTheDocument()
+    expect(screen.getByText('Investing Overview Panel')).toBeInTheDocument()
   })
 })

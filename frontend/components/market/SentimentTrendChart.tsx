@@ -96,7 +96,7 @@ export function SentimentTrendChart() {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="font-display italic text-lg tracking-tight text-text">
-          Market Sentiment
+          Market Mood
         </h3>
         <TimeframeSelector value={timeframe} onChange={setTimeframe} />
       </div>

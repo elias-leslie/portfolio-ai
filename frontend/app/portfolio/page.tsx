@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { AccountsWithPositionsContent } from '@/components/portfolio/AccountsWithPositions'
 import { AddAccountDialog } from '@/components/portfolio/AddAccountDialog'
 import { AddPositionDialog } from '@/components/portfolio/AddPositionDialog'
+import { InvestingOverviewPanel } from '@/components/portfolio/InvestingOverviewPanel'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
 import type { WorkspaceTab } from '@/components/shared/WorkspaceTabs'
@@ -75,12 +76,8 @@ export default function PortfolioPage() {
     error: accountsError,
     refetch: refetchAccounts,
   } = useAccounts()
-  const {
-    data: portfolio,
-  } = usePortfolio()
-  const {
-    data: analytics,
-  } = usePortfolioAnalytics()
+  const { data: portfolio } = usePortfolio()
+  const { data: analytics } = usePortfolioAnalytics()
   const {
     data: watchlistData,
     isLoading: watchlistLoading,
@@ -113,7 +110,6 @@ export default function PortfolioPage() {
   const [defaultAccountId, setDefaultAccountId] = useState('')
   const [addSymbolOpen, setAddSymbolOpen] = useState(false)
 
-  const hasAccounts = (accounts?.length ?? 0) > 0
   const positionCount = portfolio?.positions.length ?? 0
   const uniqueHeldSymbols = new Set(
     portfolio?.positions.map((position) => position.symbol.toUpperCase()) ?? [],
@@ -160,7 +156,7 @@ export default function PortfolioPage() {
         tone: 'default' as const,
       },
       {
-        label: 'Symbols',
+        label: 'Watchlist',
         value: String(totalCount),
         detail: `${uniqueHeldSymbols} held · ${flaggedCount} flagged · ${staleCount} stale.`,
         tone: 'default' as const,
@@ -282,7 +278,10 @@ export default function PortfolioPage() {
           ) : null}
 
           {!watchlistLoading && !watchlistError && filteredItems.length > 0 ? (
-            <WatchlistTable items={filteredItems} refreshStatus={refreshStatus} />
+            <WatchlistTable
+              items={filteredItems}
+              refreshStatus={refreshStatus}
+            />
           ) : null}
         </div>
       ),
@@ -311,6 +310,7 @@ export default function PortfolioPage() {
     <PageContainer className="space-y-6 py-8">
       <PageHeader
         title="Investing"
+        description="Start with the health of your portfolio, then open symbols or holdings only when you need the detail."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button
@@ -326,19 +326,6 @@ export default function PortfolioPage() {
                 )}
               />
               Refresh
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setAccountOpen(true)}
-            >
-              Add Account
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => openPositionDialog()}
-              disabled={!hasAccounts || accountsLoading}
-            >
-              Add Position
             </Button>
             <Button onClick={() => setAddSymbolOpen(true)}>
               <PlusCircle className="mr-2 h-4 w-4" />
@@ -359,6 +346,11 @@ export default function PortfolioPage() {
           />
         ))}
       </div>
+
+      <InvestingOverviewPanel
+        watchlistItems={watchlistData?.items ?? []}
+        positions={portfolio?.positions ?? []}
+      />
 
       <WorkspaceTabs
         defaultValue="symbols"

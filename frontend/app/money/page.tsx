@@ -79,9 +79,7 @@ type MoneyUtility = 'evidence' | 'planning'
 function resolveRequestedUtility(
   requested: string | null | undefined,
 ): MoneyUtility | null {
-  return requested === 'evidence' || requested === 'planning'
-    ? requested
-    : null
+  return requested === 'evidence' || requested === 'planning' ? requested : null
 }
 
 function readRequestedUtility(): MoneyUtility | null {
@@ -257,9 +255,7 @@ export default function MoneyPage() {
           >
             <Collapsible
               open={openUtility === 'evidence'}
-              onOpenChange={(open) =>
-                setOpenUtility(open ? 'evidence' : null)
-              }
+              onOpenChange={(open) => setOpenUtility(open ? 'evidence' : null)}
             >
               <SectionCard
                 variant="surface"
@@ -288,9 +284,7 @@ export default function MoneyPage() {
 
             <Collapsible
               open={openUtility === 'planning'}
-              onOpenChange={(open) =>
-                setOpenUtility(open ? 'planning' : null)
-              }
+              onOpenChange={(open) => setOpenUtility(open ? 'planning' : null)}
             >
               <SectionCard
                 variant="surface"
@@ -354,9 +348,7 @@ export default function MoneyPage() {
       <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
         <SectionCard variant="surface" title="Coverage">
           <div className="flex flex-wrap gap-2">
-            <CoverageBadge>
-              {dashboard.overview.visibilityLabel}
-            </CoverageBadge>
+            <CoverageBadge>{dashboard.overview.visibilityLabel}</CoverageBadge>
             <CoverageBadge>
               {dashboard.overview.visibilityScore}/100 visibility
             </CoverageBadge>

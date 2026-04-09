@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from app.api.portfolio.analytics_routes import get_analytics_payload
 from app.api.recommendations.logic import DEFAULT_POSITION_PCT
 from app.api.recommendations.queries import fetch_recommendations
 from app.api.symbols.decisions import build_symbol_decision
@@ -64,6 +65,7 @@ class HomeActionService:
     def get_action_queue(self) -> dict[str, object]:
         actions: list[dict[str, object]] = []
         actions.extend(self._recommendation_actions())
+        actions.extend(self._portfolio_health_actions())
         actions.extend(self._jenny_actions())
         actions.extend(self._workflow_actions())
         actions.extend(self._household_actions())
@@ -110,6 +112,70 @@ class HomeActionService:
             "actions": queue,
             "summary": summary,
         }
+
+    def _portfolio_health_actions(self) -> list[dict[str, object]]:
+        try:
+            analytics = get_analytics_payload(include_paper=False)
+        except Exception as exc:
+            logger.warning("home_action_portfolio_health_failed", error=str(exc))
+            return []
+
+        if analytics.num_positions == 0:
+            return []
+
+        concentration = analytics.concentration
+        top_holding_pct = float(concentration.get("top_holding_pct", 0.0) or 0.0)
+        top_3_pct = float(concentration.get("top_3_pct", 0.0) or 0.0)
+        diversification_score = (
+            analytics.diversification_score.score
+            if analytics.diversification_score is not None
+            else None
+        )
+
+        if top_holding_pct >= 35:
+            return [
+                {
+                    "id": "portfolio-health-top-holding",
+                    "source": "portfolio",
+                    "category": "investing",
+                    "priority": "high" if top_holding_pct >= 50 else "warning",
+                    "title": "Portfolio needs a concentration check",
+                    "detail": (
+                        f"Largest holding is {top_holding_pct:.1f}% of the portfolio. "
+                        "Open Investing to review the spread before adding more risk."
+                    ),
+                    "action_label": "Review investing",
+                    "href": "/portfolio#portfolio-overview",
+                    "symbol": None,
+                    "badge": "Concentration",
+                }
+            ]
+
+        if top_3_pct >= 70 or (diversification_score is not None and diversification_score < 50):
+            diversification_detail = (
+                f"Diversification score is {diversification_score:.0f}."
+                if diversification_score is not None
+                else "Diversification scoring is still limited."
+            )
+            return [
+                {
+                    "id": "portfolio-health-diversification",
+                    "source": "portfolio",
+                    "category": "investing",
+                    "priority": "warning",
+                    "title": "Portfolio spread needs a review",
+                    "detail": (
+                        f"Top three holdings are {top_3_pct:.1f}% of the portfolio. "
+                        f"{diversification_detail}"
+                    ),
+                    "action_label": "Review investing",
+                    "href": "/portfolio#portfolio-overview",
+                    "symbol": None,
+                    "badge": "Portfolio",
+                }
+            ]
+
+        return []
 
     def _recommendation_actions(self) -> list[dict[str, object]]:
         try:

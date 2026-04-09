@@ -24,6 +24,7 @@ def test_get_action_queue_sorts_and_dedupes_actions() -> None:
             "badge": "High",
         }
     ]
+    service._portfolio_health_actions = lambda: []
     service._jenny_actions = lambda: [
         {
             "id": "jenny-1",
@@ -50,6 +51,7 @@ def test_get_action_queue_sorts_and_dedupes_actions() -> None:
             "badge": "Critical",
         },
     ]
+    service._workflow_actions = lambda: []
     service._household_actions = lambda: []
 
     payload = service.get_action_queue()
@@ -132,3 +134,32 @@ def test_recommendation_actions_use_decision_contract(monkeypatch) -> None:
     assert actions[0]["title"] == "NVDA: Initiate position"
     assert actions[0]["detail"] == "Strong BUY signal (8/10) Suggested size $5,000."
     assert actions[0]["decision"]["source_kind"] == "live_signal_model"
+
+
+def test_portfolio_health_actions_flag_concentration(monkeypatch) -> None:
+    service = object.__new__(HomeActionService)
+
+    def fake_analytics(include_paper: bool = False) -> SimpleNamespace:
+        assert include_paper is False
+        return SimpleNamespace(
+            num_positions=4,
+            concentration={
+                "top_holding_pct": 38.2,
+                "top_3_pct": 74.1,
+                "top_10_pct": 100.0,
+                "herfindahl_index": 1800.0,
+            },
+            diversification_score=SimpleNamespace(score=46, level="Fair"),
+        )
+
+    monkeypatch.setattr(
+        "app.services.home_action_service.get_analytics_payload",
+        fake_analytics,
+    )
+
+    actions = service._portfolio_health_actions()
+
+    assert actions[0]["title"] == "Portfolio needs a concentration check"
+    assert actions[0]["href"] == "/portfolio#portfolio-overview"
+    assert actions[0]["badge"] == "Concentration"
+    assert "38.2%" in actions[0]["detail"]
