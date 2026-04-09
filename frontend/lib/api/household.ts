@@ -1,4 +1,4 @@
-import { get, post, postForm } from './client'
+import { del, get, post, postForm, put } from './client'
 import type {
   HouseholdPlanningSnapshot,
   HouseholdPlanningUpdate,
@@ -255,6 +255,31 @@ export interface HouseholdAccountGap {
   detail: string
 }
 
+export interface HouseholdTrackedAccount {
+  id: string
+  label: string
+  assetGroup: string
+  accountType: string
+  sourceType: string
+  institutionName: string | null
+  ownerName: string | null
+  accountMask: string | null
+  notes: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface HouseholdTrackedAccountInput {
+  label: string
+  assetGroup: string
+  accountType: string
+  sourceType: string
+  institutionName?: string | null
+  ownerName?: string | null
+  accountMask?: string | null
+  notes?: string | null
+}
+
 export interface HouseholdAccountSummary {
   id: string
   label: string
@@ -263,6 +288,8 @@ export interface HouseholdAccountSummary {
   sourceType: string
   institutionName: string | null
   ownerName: string | null
+  accountMask: string | null
+  notes: string | null
   currency: string | null
   currentValue: number | null
   balance: number | null
@@ -274,6 +301,8 @@ export interface HouseholdAccountSummary {
   sourceTypes: string[]
   linkedPortfolioAccountId: string | null
   linkedPortfolioAccountName: string | null
+  trackedAccountId: string | null
+  accountOrigin: string
   lastEvidenceAt: string | null
   daysSinceEvidence: number | null
   freshnessStatus: string
@@ -475,6 +504,25 @@ export async function fetchHouseholdDocuments(): Promise<HouseholdDocumentList> 
 
 export async function fetchHouseholdQuestions(): Promise<HouseholdQuestionList> {
   return get<HouseholdQuestionList>('/api/household/questions')
+}
+
+export async function createHouseholdTrackedAccount(
+  payload: HouseholdTrackedAccountInput,
+): Promise<HouseholdTrackedAccount> {
+  return post<HouseholdTrackedAccount>('/api/household/accounts', payload)
+}
+
+export async function updateHouseholdTrackedAccount(
+  accountId: string,
+  payload: HouseholdTrackedAccountInput,
+): Promise<HouseholdTrackedAccount> {
+  return put<HouseholdTrackedAccount>(`/api/household/accounts/${accountId}`, payload)
+}
+
+export async function deleteHouseholdTrackedAccount(
+  accountId: string,
+): Promise<{ ok: boolean }> {
+  return del<{ ok: boolean }>(`/api/household/accounts/${accountId}`)
 }
 
 export async function uploadHouseholdDocument(

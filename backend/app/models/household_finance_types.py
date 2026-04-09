@@ -228,6 +228,31 @@ class HouseholdEvidenceAccount(BaseModel):
     metadata: dict[str, object] = Field(default_factory=dict)
 
 
+class HouseholdTrackedAccount(BaseModel):
+    id: str
+    label: str
+    asset_group: str
+    account_type: str
+    source_type: str
+    institution_name: str | None = None
+    owner_name: str | None = None
+    account_mask: str | None = None
+    notes: str | None = None
+    created_at: str
+    updated_at: str
+
+
+class HouseholdTrackedAccountInput(BaseModel):
+    label: str
+    asset_group: str
+    account_type: str
+    source_type: str
+    institution_name: str | None = None
+    owner_name: str | None = None
+    account_mask: str | None = None
+    notes: str | None = None
+
+
 class HouseholdAccountGap(BaseModel):
     code: str
     severity: str
@@ -243,6 +268,8 @@ class HouseholdAccountSummary(BaseModel):
     source_type: str
     institution_name: str | None = None
     owner_name: str | None = None
+    account_mask: str | None = None
+    notes: str | None = None
     currency: str | None = None
     current_value: float | None = None
     balance: float | None = None
@@ -254,6 +281,8 @@ class HouseholdAccountSummary(BaseModel):
     source_types: list[str] = Field(default_factory=list)
     linked_portfolio_account_id: str | None = None
     linked_portfolio_account_name: str | None = None
+    tracked_account_id: str | None = None
+    account_origin: str = "evidence"
     last_evidence_at: str | None = None
     days_since_evidence: int | None = None
     freshness_status: str

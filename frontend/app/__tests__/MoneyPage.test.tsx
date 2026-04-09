@@ -170,7 +170,7 @@ function buildDashboard() {
         title: 'Refresh Chase Amazon card',
         detail: 'This account is getting stale.',
         actionLabel: 'Add evidence',
-        actionHref: '/money?utility=evidence#money-utilities',
+        actionHref: '/money?utility=evidence',
         relatedAccountId: 'account-2',
         relatedQuestionId: null,
         relatedDocumentIds: [],
@@ -256,11 +256,13 @@ describe('MoneyPage', () => {
 
     render(<MoneyPage />)
 
-    expect(screen.getByText('Coverage')).toBeInTheDocument()
-    expect(screen.getByText('Refresh Chase Amazon card')).toBeInTheDocument()
+    expect(screen.queryByText('Coverage')).not.toBeInTheDocument()
     expect(screen.getByText('Net Worth')).toBeInTheDocument()
     expect(
       screen.getByText('3 months of recent evidence coverage.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /add anything/i }),
     ).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: /Dashboard/i }),
@@ -273,7 +275,7 @@ describe('MoneyPage', () => {
       screen.queryByRole('button', { name: /Inbox/i }),
     ).not.toBeInTheDocument()
     expect(
-      screen.queryByRole('button', { name: /Intake/i }),
+      screen.queryByRole('button', { name: /^Intake$/i }),
     ).not.toBeInTheDocument()
   })
 
@@ -291,7 +293,7 @@ describe('MoneyPage', () => {
 
     render(<MoneyPage />)
 
-    await user.click(screen.getByRole('button', { name: 'Open Evidence' }))
+    await user.click(screen.getByRole('button', { name: 'Add anything' }))
     await user.click(screen.getByRole('button', { name: 'Retry' }))
 
     expect(refetchDocuments).toHaveBeenCalled()

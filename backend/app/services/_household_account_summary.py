@@ -12,6 +12,7 @@ from app.models.household_finance import (
     HouseholdDocument,
     HouseholdEvidenceAccount,
     HouseholdInboxItem,
+    HouseholdTrackedAccount,
 )
 from app.services._money_workspace_routes import (
     MONEY_ACCOUNTS_ROUTE,
@@ -147,8 +148,16 @@ def _portfolio_label(account: Any) -> str:
     return str(getattr(account, "name", None) or getattr(account, "account_type", "Account"))
 
 
+def _tracked_label(account: HouseholdTrackedAccount) -> str:
+    return account.label
+
+
 def _portfolio_summary_key(account: Any) -> str:
     return _compact_key("portfolio", getattr(account, "id", None) or _portfolio_label(account))
+
+
+def _tracked_summary_key(account: HouseholdTrackedAccount) -> str:
+    return _compact_key("tracked", account.id)
 
 
 def _portfolio_asset_group(account: Any) -> str:
@@ -211,6 +220,58 @@ def _match_portfolio_account(
         and _normalize_text(_portfolio_label(account)) == normalized_label
     ]
     return matches[0] if len(matches) == 1 else None
+
+
+def _match_tracked_account(
+    *,
+    label: str,
+    hint_label: str | None,
+    asset_group: str,
+    institution_name: str | None,
+    account_mask: str | None,
+    tracked_accounts: list[HouseholdTrackedAccount],
+) -> HouseholdTrackedAccount | None:
+    normalized_asset_group = _normalize_text(asset_group)
+    label_candidates = {
+        _normalize_text(candidate)
+        for candidate in (label, hint_label)
+        if _normalize_text(candidate)
+    }
+    evidence_signature = (
+        _compact_key(institution_name, account_mask)
+        if institution_name and account_mask
+        else ""
+    )
+    ranked: list[tuple[int, HouseholdTrackedAccount]] = []
+    for account in tracked_accounts:
+        if _normalize_text(account.asset_group) != normalized_asset_group:
+            continue
+        score = 0
+        if _normalize_text(account.label) in label_candidates:
+            score = 3
+        elif (
+            evidence_signature
+            and account.institution_name
+            and account.account_mask
+            and _compact_key(account.institution_name, account.account_mask)
+            == evidence_signature
+        ):
+            score = 2
+        elif (
+            hint_label
+            and account.institution_name
+            and _normalize_text(account.institution_name)
+            == _normalize_text(institution_name)
+        ):
+            score = 1
+        if score > 0:
+            ranked.append((score, account))
+    if not ranked:
+        return None
+    ranked.sort(key=lambda item: (-item[0], item[1].updated_at), reverse=False)
+    top_score = ranked[0][0]
+    best = [account for score, account in ranked if score == top_score]
+    return best[0] if len(best) == 1 else None
 
 
 def _document_issue_flags(document: HouseholdDocument | None) -> list[HouseholdAccountGap]:
@@ -338,6 +399,7 @@ def build_account_summaries(
     evidence_accounts: list[HouseholdEvidenceAccount],
     documents: list[HouseholdDocument],
     portfolio_accounts: list[Any],
+    tracked_accounts: list[HouseholdTrackedAccount],
     holdings_by_account: dict[str, float],
     statement_freshness: dict[str, Any],
 ) -> list[HouseholdAccountSummary]:
@@ -346,7 +408,18 @@ def build_account_summaries(
     for account in evidence_accounts:
         grouped[_evidence_group_key(account)].append(account)
 
-    linked_portfolio_ids: set[str] = set()
+    tracked_portfolio_matches = {
+        account.id: _match_portfolio_account(
+            label=_tracked_label(account),
+            asset_group=account.asset_group,
+            portfolio_accounts=portfolio_accounts,
+        )
+        for account in tracked_accounts
+    }
+    linked_portfolio_ids: set[str] = {
+        match.id for match in tracked_portfolio_matches.values() if match is not None
+    }
+    linked_tracked_ids: set[str] = set()
     summaries: list[HouseholdAccountSummary] = []
     duplicate_candidates: defaultdict[tuple[str, str], list[str]] = defaultdict(list)
 
@@ -361,29 +434,44 @@ def build_account_summaries(
         latest_document = documents_by_id.get(latest.document_id)
         last_dt = _latest_evidence_timestamp(latest, latest_document)
         days_since = (datetime.now(UTC).date() - last_dt.date()).days if last_dt is not None else None
-        portfolio_account = _match_portfolio_account(
+        tracked_account = _match_tracked_account(
             label=_account_label(latest),
+            hint_label=latest_document.account_label if latest_document is not None else None,
+            asset_group=latest.asset_group,
+            institution_name=latest.institution_name,
+            account_mask=latest.account_mask,
+            tracked_accounts=tracked_accounts,
+        )
+        if tracked_account is not None:
+            linked_tracked_ids.add(tracked_account.id)
+        portfolio_account = _match_portfolio_account(
+            label=_tracked_label(tracked_account) if tracked_account is not None else _account_label(latest),
             asset_group=latest.asset_group,
             portfolio_accounts=portfolio_accounts,
         )
         if portfolio_account is not None:
             linked_portfolio_ids.add(portfolio_account.id)
+        effective_asset_group = (
+            tracked_account.asset_group if tracked_account is not None else latest.asset_group
+        )
         match_confidence = _confidence_for_summary(
             latest,
             evidence_count=len(accounts),
-            linked=portfolio_account is not None,
+            linked=portfolio_account is not None or tracked_account is not None,
         )
         match_status = "tracked" if match_confidence >= 0.8 else "candidate"
-        if portfolio_account is not None:
+        if portfolio_account is not None or tracked_account is not None:
             match_status = "linked"
         summary = HouseholdAccountSummary(
             id=group_key,
-            label=_account_label(latest),
-            asset_group=latest.asset_group,
-            account_type=latest.account_type,
-            source_type=latest.source_type,
-            institution_name=latest.institution_name,
-            owner_name=latest.owner_name,
+            label=_tracked_label(tracked_account) if tracked_account is not None else _account_label(latest),
+            asset_group=effective_asset_group,
+            account_type=tracked_account.account_type if tracked_account is not None else latest.account_type,
+            source_type=tracked_account.source_type if tracked_account is not None else latest.source_type,
+            institution_name=tracked_account.institution_name if tracked_account is not None and tracked_account.institution_name is not None else latest.institution_name,
+            owner_name=tracked_account.owner_name if tracked_account is not None and tracked_account.owner_name is not None else latest.owner_name,
+            account_mask=tracked_account.account_mask if tracked_account is not None and tracked_account.account_mask is not None else latest.account_mask,
+            notes=tracked_account.notes if tracked_account is not None else None,
             currency=latest.currency,
             current_value=_account_value(latest),
             balance=latest.balance,
@@ -395,10 +483,12 @@ def build_account_summaries(
             source_types=sorted({account.source_type for account in accounts}),
             linked_portfolio_account_id=portfolio_account.id if portfolio_account is not None else None,
             linked_portfolio_account_name=_portfolio_label(portfolio_account) if portfolio_account is not None else None,
+            tracked_account_id=tracked_account.id if tracked_account is not None else None,
+            account_origin="tracked" if tracked_account is not None else "evidence",
             last_evidence_at=last_dt.isoformat() if last_dt is not None else None,
             days_since_evidence=days_since,
-            freshness_status=_freshness_state(latest.asset_group, days_since=days_since)[0],
-            freshness_label=_freshness_state(latest.asset_group, days_since=days_since)[1],
+            freshness_status=_freshness_state(effective_asset_group, days_since=days_since)[0],
+            freshness_label=_freshness_state(effective_asset_group, days_since=days_since)[1],
             match_status=match_status,
             match_confidence=match_confidence,
         )
@@ -422,6 +512,34 @@ def build_account_summaries(
                 latest_document_id=None,
                 linked_portfolio_account_id=account.id,
                 linked_portfolio_account_name=_portfolio_label(account),
+                account_origin="portfolio",
+                freshness_status="needs_evidence",
+                freshness_label="Needs evidence",
+                match_status="tracked",
+                match_confidence=1.0,
+            )
+        )
+
+    for account in tracked_accounts:
+        if account.id in linked_tracked_ids:
+            continue
+        portfolio_account = tracked_portfolio_matches.get(account.id)
+        summaries.append(
+            HouseholdAccountSummary(
+                id=_tracked_summary_key(account),
+                label=_tracked_label(account),
+                asset_group=account.asset_group,
+                account_type=account.account_type,
+                source_type=account.source_type,
+                institution_name=account.institution_name,
+                owner_name=account.owner_name,
+                account_mask=account.account_mask,
+                notes=account.notes,
+                latest_document_id=None,
+                linked_portfolio_account_id=portfolio_account.id if portfolio_account is not None else None,
+                linked_portfolio_account_name=_portfolio_label(portfolio_account) if portfolio_account is not None else None,
+                tracked_account_id=account.id,
+                account_origin="tracked",
                 freshness_status="needs_evidence",
                 freshness_label="Needs evidence",
                 match_status="tracked",
@@ -552,7 +670,6 @@ def build_money_inbox(
         action_href = MONEY_ACCOUNTS_ROUTE
         action_label = "Review account"
         if top_gap.code in {"missing_evidence", "refresh_soon", "stale_evidence", "incomplete_application"}:
-            action_href = MONEY_EVIDENCE_ROUTE
             action_label = "Add evidence"
         elif top_gap.code == "unconfirmed_match":
             action_label = "Confirm account"

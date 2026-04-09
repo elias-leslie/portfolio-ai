@@ -42,6 +42,38 @@ def test_evidence_upload_uses_canonical_intake_route(tmp_path: Path) -> None:
     assert payload["source_type"] == "credit_card"
 
 
+def test_evidence_upload_preserves_optional_account_hint(tmp_path: Path) -> None:
+    client = TestClient(app)
+
+    with (
+        patch(
+            "app.services.household_finance_service.HouseholdFinanceService._upload_root",
+            return_value=tmp_path,
+        ),
+        patch(
+            "app.services.household_document_review.HouseholdDocumentReviewService.review",
+            return_value={
+                "summary": "Brokerage statement with holdings.",
+                "document_type": "brokerage_statement",
+                "source_type": "brokerage",
+                "confidence": 0.95,
+                "structured_data": {"financial_accounts": []},
+                "inferred_values": [],
+                "questions": [],
+            },
+        ),
+    ):
+        response = client.post(
+            "/api/intake/evidence",
+            files={"file": ("brokerage.pdf", b"pdf bytes", "application/pdf")},
+            data={"account_label": "Individual - TOD"},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["account_label"] == "Individual - TOD"
+
+
 def test_evidence_list_reads_existing_intake_items(tmp_path: Path) -> None:
     client = TestClient(app)
 

@@ -8,6 +8,7 @@ from app.models.household_finance import (
     HouseholdDocument,
     HouseholdEvidenceAccount,
     HouseholdQuestion,
+    HouseholdTrackedAccount,
 )
 from app.portfolio.models import Account
 from app.services._household_account_summary import (
@@ -115,6 +116,7 @@ def test_build_account_summaries_groups_evidence_and_surfaces_freshness() -> Non
         evidence_accounts=evidence_accounts,
         documents=documents,
         portfolio_accounts=[],
+        tracked_accounts=[],
         holdings_by_account={},
         statement_freshness={"coverage_months": 3, "gap_months": []},
     )
@@ -142,6 +144,7 @@ def test_build_account_summaries_includes_portfolio_accounts_without_evidence() 
         evidence_accounts=[],
         documents=[],
         portfolio_accounts=[portfolio_account],
+        tracked_accounts=[],
         holdings_by_account={"portfolio-1": 9500.0},
         statement_freshness={"coverage_months": 0, "gap_months": []},
     )
@@ -167,6 +170,7 @@ def test_build_money_inbox_prioritizes_questions_and_account_gaps() -> None:
                 cash_balance=0.0,
             )
         ],
+        tracked_accounts=[],
         holdings_by_account={"portfolio-1": 15000.0},
         statement_freshness={"coverage_months": 0, "gap_months": ["1 month missing in range"]},
     )
@@ -204,7 +208,7 @@ def test_build_money_inbox_prioritizes_questions_and_account_gaps() -> None:
     assert any(item.related_account_id == account_summaries[0].id for item in inbox)
     assert any(
         item.related_account_id == account_summaries[0].id
-        and item.action_href == MONEY_EVIDENCE_ROUTE
+        and item.action_href == MONEY_ACCOUNTS_ROUTE
         for item in inbox
     )
     assert any(item.category == "coverage" for item in inbox)
@@ -212,3 +216,80 @@ def test_build_money_inbox_prioritizes_questions_and_account_gaps() -> None:
         item.category == "coverage" and item.action_href == MONEY_ACCOUNTS_ROUTE
         for item in inbox
     )
+
+
+def test_build_account_summaries_links_evidence_to_tracked_accounts() -> None:
+    documents = [
+        HouseholdDocument(
+            id="doc-1",
+            filename="checking-april.pdf",
+            source_type="bank",
+            document_type="statement",
+            status="parsed",
+            account_label="Main Checking",
+            file_size_bytes=10,
+            content_type="application/pdf",
+            classification_confidence=0.94,
+            review_status="complete",
+            review_summary="Reviewed",
+            review_confidence=0.94,
+            statement_start=None,
+            statement_end=_iso(3),
+            uploaded_at=_iso(2),
+            parsed_at=_iso(2),
+            metadata={
+                "file_available": True,
+                "application_summary": {"status": "applied"},
+            },
+        )
+    ]
+    evidence_accounts = [
+        HouseholdEvidenceAccount(
+            id="acct-1",
+            document_id="doc-1",
+            source_type="bank",
+            asset_group="cash",
+            account_type="checking",
+            institution_name="Fidelity",
+            account_name="Cash Management",
+            account_mask="4421",
+            owner_name=None,
+            currency="USD",
+            balance=25057.0,
+            holdings_value=None,
+            cash_balance=25057.0,
+            as_of_date=_iso(3),
+            confidence=0.93,
+            metadata={},
+        )
+    ]
+    tracked_accounts = [
+        HouseholdTrackedAccount(
+            id="tracked-1",
+            label="Main Checking",
+            asset_group="cash",
+            account_type="checking",
+            source_type="bank",
+            institution_name="Fidelity",
+            owner_name=None,
+            account_mask="4421",
+            notes=None,
+            created_at=_iso(10),
+            updated_at=_iso(1),
+        )
+    ]
+
+    summaries = build_account_summaries(
+        evidence_accounts=evidence_accounts,
+        documents=documents,
+        portfolio_accounts=[],
+        tracked_accounts=tracked_accounts,
+        holdings_by_account={},
+        statement_freshness={"coverage_months": 1, "gap_months": []},
+    )
+
+    assert len(summaries) == 1
+    assert summaries[0].label == "Main Checking"
+    assert summaries[0].tracked_account_id == "tracked-1"
+    assert summaries[0].account_origin == "tracked"
+    assert summaries[0].match_status == "linked"

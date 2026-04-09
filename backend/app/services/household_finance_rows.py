@@ -11,6 +11,7 @@ from app.models.household_finance import (
     HouseholdEvidenceAccount,
     HouseholdProfile,
     HouseholdQuestion,
+    HouseholdTrackedAccount,
 )
 
 FIELD_LABELS = {
@@ -244,4 +245,24 @@ def row_to_evidence_account(
         as_of_date=iso_or_none(row[13]),
         confidence=to_float(row[15]),
         metadata=metadata,
+    )
+
+
+def row_to_tracked_account(
+    row: tuple[Any, ...],
+    *,
+    iso: Callable[[Any], str],
+) -> HouseholdTrackedAccount:
+    return HouseholdTrackedAccount(
+        id=str(row[0]),
+        label=str(row[1]),
+        asset_group=str(row[2]),
+        account_type=str(row[3]),
+        source_type=str(row[4]),
+        institution_name=str(row[5]) if row[5] is not None else None,
+        owner_name=str(row[6]) if row[6] is not None else None,
+        account_mask=str(row[7]) if row[7] is not None else None,
+        notes=str(row[8]) if row[8] is not None else None,
+        created_at=iso(row[9]),
+        updated_at=iso(row[10]),
     )

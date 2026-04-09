@@ -392,6 +392,7 @@ def gather_service_data(service: Any) -> dict[str, Any]:
     planning = service.get_planning_snapshot()
     documents = service.list_documents(limit=100).items
     evidence_accounts = service.list_evidence_accounts(limit=100)
+    tracked_accounts = service.list_tracked_accounts(limit=100)
     questions = service.list_questions(limit=25).items
     accounts = [a for a in service.portfolio_mgr.get_accounts() if a.account_type != "paper"]
     positions = service.portfolio_mgr.get_positions()
@@ -408,6 +409,7 @@ def gather_service_data(service: Any) -> dict[str, Any]:
     return {
         "profile": profile, "planning": planning, "documents": documents, "questions": questions,
         "evidence_accounts": evidence_accounts,
+        "tracked_accounts": tracked_accounts,
         "accounts": accounts, "live_positions": live_positions,
         "holdings_by_account": holdings_by_account, "reports": reports,
     }

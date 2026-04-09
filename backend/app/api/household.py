@@ -21,6 +21,8 @@ from app.models.household_finance import (
     HouseholdQuestion,
     HouseholdQuestionAnswer,
     HouseholdQuestionList,
+    HouseholdTrackedAccount,
+    HouseholdTrackedAccountInput,
     HouseholdTransactionCategoryUpdate,
 )
 from app.models.household_planning import HouseholdPlanningSnapshot, HouseholdPlanningUpdate
@@ -76,6 +78,51 @@ async def list_household_documents() -> HouseholdDocumentList:
 async def list_household_questions() -> HouseholdQuestionList:
     """Return Jenny's open household follow-up questions."""
     return await run_in_threadpool(_service().list_questions)
+
+
+@router.get("/accounts", response_model=list[HouseholdTrackedAccount])
+async def list_household_accounts() -> list[HouseholdTrackedAccount]:
+    """Return manually tracked household accounts."""
+    return await run_in_threadpool(_service().list_tracked_accounts)
+
+
+@router.post("/accounts", response_model=HouseholdTrackedAccount)
+async def create_household_account(
+    payload: HouseholdTrackedAccountInput,
+) -> HouseholdTrackedAccount:
+    """Create a manually tracked household account."""
+    try:
+        return await run_in_threadpool(_service().create_tracked_account, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.put("/accounts/{account_id}", response_model=HouseholdTrackedAccount)
+async def update_household_account(
+    account_id: str,
+    payload: HouseholdTrackedAccountInput,
+) -> HouseholdTrackedAccount:
+    """Update a manually tracked household account."""
+    try:
+        account = await run_in_threadpool(
+            _service().update_tracked_account,
+            account_id,
+            payload,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if account is None:
+        raise HTTPException(status_code=404, detail=f"Household account not found: {account_id}")
+    return account
+
+
+@router.delete("/accounts/{account_id}")
+async def delete_household_account(account_id: str) -> dict[str, bool]:
+    """Delete a manually tracked household account."""
+    deleted = await run_in_threadpool(_service().delete_tracked_account, account_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Household account not found: {account_id}")
+    return {"ok": True}
 
 
 @router.post("/questions/{question_id}/answer", response_model=HouseholdQuestion)

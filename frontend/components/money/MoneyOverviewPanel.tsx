@@ -258,7 +258,7 @@ export function MoneyOverviewPanel({
                     <div className="mt-4">
                       <Button asChild size="sm" variant="outline">
                         <Link href="/money?tab=accounts">
-                          Open account cards
+                          Open accounts
                         </Link>
                       </Button>
                     </div>

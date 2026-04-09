@@ -33,7 +33,7 @@ describe('HouseholdDocumentCenter', () => {
       type: 'image/png',
     })
     const pasteTarget = screen.getByRole('button', {
-      name: /paste, drop, or choose household documents to upload/i,
+      name: /paste, drop, or choose evidence files to upload/i,
     })
 
     fireEvent.paste(pasteTarget, {
@@ -45,12 +45,13 @@ describe('HouseholdDocumentCenter', () => {
     expect(screen.getByText(/ready to upload: 1 file/i)).toBeInTheDocument()
     expect(screen.getByText('clipboard.png')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /upload document/i }))
+    fireEvent.click(screen.getByRole('button', { name: /upload file/i }))
 
     await waitFor(() => {
       expect(mutateAsync).toHaveBeenCalledWith(
         expect.objectContaining({
           file: screenshot,
+          accountLabel: undefined,
         }),
       )
     })
@@ -66,7 +67,7 @@ describe('HouseholdDocumentCenter', () => {
     const february = new File(['feb'], 'february.pdf', {
       type: 'application/pdf',
     })
-    const input = screen.getByLabelText(/file/i)
+    const input = screen.getByLabelText(/^files$/i)
 
     fireEvent.change(input, {
       target: {
@@ -76,10 +77,10 @@ describe('HouseholdDocumentCenter', () => {
 
     expect(screen.getByText(/ready to upload: 2 files/i)).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: /upload documents/i }),
+      screen.getByRole('button', { name: /upload files/i }),
     ).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /upload documents/i }))
+    fireEvent.click(screen.getByRole('button', { name: /upload files/i }))
 
     await waitFor(() => {
       expect(mutateAsync).toHaveBeenCalledTimes(2)
@@ -137,7 +138,7 @@ describe('HouseholdDocumentCenter', () => {
     const january = new File(['jan'], 'january.pdf', {
       type: 'application/pdf',
     })
-    const input = screen.getByLabelText(/file/i)
+    const input = screen.getByLabelText(/^files$/i)
 
     fireEvent.change(input, {
       target: {
@@ -147,7 +148,7 @@ describe('HouseholdDocumentCenter', () => {
 
     expect(screen.getByText(/ready to upload: 1 file/i)).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /clear queue/i }))
+    await user.click(screen.getByRole('button', { name: /^clear$/i }))
 
     expect(
       screen.queryByText(/ready to upload: 1 file/i),
@@ -161,7 +162,7 @@ describe('HouseholdDocumentCenter', () => {
     const january = new File(['jan'], 'january.pdf', {
       type: 'application/pdf',
     })
-    const input = screen.getByLabelText(/file/i)
+    const input = screen.getByLabelText(/^files$/i)
 
     fireEvent.change(input, {
       target: {
@@ -185,14 +186,8 @@ describe('HouseholdDocumentCenter', () => {
           trackedDocuments: 8,
           parsedDocuments: 5,
           suggestedFirstUploads: ['Checking account statement'],
-          automations: ['Match merchants automatically'],
-          supportedDocuments: [
-            {
-              label: 'Statements',
-              formats: ['PDF', 'CSV'],
-              extracts: ['Transactions', 'balances'],
-            },
-          ],
+          automations: [],
+          supportedDocuments: [],
         }}
         documents={[
           {
@@ -222,9 +217,6 @@ describe('HouseholdDocumentCenter', () => {
     expect(screen.getByText(/5 parsed so far/i)).toBeInTheDocument()
     expect(screen.getByText('Checking account statement')).toBeInTheDocument()
     expect(
-      screen.getByText('Match merchants automatically'),
-    ).toBeInTheDocument()
-    expect(
       screen.getByText(/statement window mar 1, 2026 to mar 31, 2026/i),
     ).toBeInTheDocument()
     expect(screen.getByText(/classifier 87%/i)).toBeInTheDocument()
@@ -242,7 +234,7 @@ describe('HouseholdDocumentCenter', () => {
     const january = new File(['jan'], 'january.pdf', {
       type: 'application/pdf',
     })
-    fireEvent.change(screen.getByLabelText(/file/i), {
+    fireEvent.change(screen.getByLabelText(/^files$/i), {
       target: {
         files: [january],
       },
@@ -253,7 +245,7 @@ describe('HouseholdDocumentCenter', () => {
       'true',
     )
     expect(
-      screen.getByRole('button', { name: /clear queue/i }),
+      screen.getByRole('button', { name: /^clear$/i }),
     ).toHaveAttribute('aria-busy', 'true')
   })
 })

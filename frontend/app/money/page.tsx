@@ -1,8 +1,6 @@
 'use client'
 
-import { Loader2, Settings2, Upload } from 'lucide-react'
-import Link from 'next/link'
-import type { ReactNode } from 'react'
+import { Loader2, PlusCircle, Settings2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { HouseholdDocumentCenter } from '@/components/money/HouseholdDocumentCenter'
 import { HouseholdPlanningPanels } from '@/components/money/HouseholdPlanningPanels'
@@ -18,16 +16,17 @@ import type { WorkspaceTab } from '@/components/shared/WorkspaceTabs'
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs'
 import { Button } from '@/components/ui/button'
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { formatCurrencyWhole } from '@/lib/formatters'
 import {
   useHouseholdDashboard,
   useHouseholdDocuments,
 } from '@/lib/hooks/useHousehold'
-import { formatRelativeTime } from '@/lib/utils'
 
 function LoadingState() {
   return (
@@ -63,14 +62,6 @@ function MetricCard({
       </p>
       <p className="mt-1 text-sm leading-relaxed text-text-muted">{detail}</p>
     </div>
-  )
-}
-
-function CoverageBadge({ children }: { children: ReactNode }) {
-  return (
-    <span className="rounded-full border border-border/40 bg-surface-muted/20 px-3 py-1 text-xs text-text-muted">
-      {children}
-    </span>
   )
 }
 
@@ -202,12 +193,7 @@ export default function MoneyPage() {
     {
       label: 'Accounts',
       value: String(dashboard.overview.trackedAccountCount),
-      detail: `${dashboard.overview.gapCount} explicit gap${dashboard.overview.gapCount === 1 ? '' : 's'} and ${dashboard.overview.candidateAccountCount} candidate${dashboard.overview.candidateAccountCount === 1 ? '' : 's'}.`,
-    },
-    {
-      label: 'Evidence',
-      value: String(trackedDocuments),
-      detail: `${dashboard.importCenter.parsedDocuments} parsed · updated ${formatRelativeTime(dashboard.generatedAt)}`,
+      detail: `${trackedDocuments} evidence file${trackedDocuments === 1 ? '' : 's'} · ${dashboard.overview.gapCount} active gap${dashboard.overview.gapCount === 1 ? '' : 's'}.`,
     },
   ]
 
@@ -227,7 +213,6 @@ export default function MoneyPage() {
       documents={documentItems}
       importCenter={dashboard.importCenter}
       documentRequirements={dashboard.planning?.documentRequirements ?? []}
-      evidenceAccounts={dashboard.evidenceAccounts}
     />
   )
 
@@ -237,6 +222,29 @@ export default function MoneyPage() {
       label: 'Dashboard',
       content: (
         <div className="space-y-6">
+          {dashboard.accounts.length === 0 && documentItems.length === 0 ? (
+            <SectionCard
+              variant="surface"
+              title="Get started"
+              actions={
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => setOpenUtility('evidence')}
+                >
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Add anything
+                </Button>
+              }
+            >
+              <p className="text-sm text-text-muted">
+                Upload a statement, screenshot, export, or bill and Jenny will
+                classify it, attach it to the right account when possible, or
+                create a new candidate when the account does not exist yet.
+              </p>
+            </SectionCard>
+          ) : null}
+
           <MoneyOverviewPanel dashboard={dashboard} />
 
           {openQuestions.length > 0 ? (
@@ -248,72 +256,6 @@ export default function MoneyPage() {
               />
             </div>
           ) : null}
-
-          <div
-            id="money-utilities"
-            className="grid gap-4 xl:grid-cols-[1fr_1fr]"
-          >
-            <Collapsible
-              open={openUtility === 'evidence'}
-              onOpenChange={(open) => setOpenUtility(open ? 'evidence' : null)}
-            >
-              <SectionCard
-                variant="surface"
-                title="Add Evidence"
-                actions={
-                  <CollapsibleTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      <Upload className="mr-2 h-4 w-4" />
-                      {openUtility === 'evidence'
-                        ? 'Hide Evidence'
-                        : 'Open Evidence'}
-                    </Button>
-                  </CollapsibleTrigger>
-                }
-              >
-                <p className="text-sm text-text-muted">
-                  Upload screenshots, statements, exports, or planning files in
-                  one place. Jenny will match them to accounts or create new
-                  candidates when needed.
-                </p>
-                <CollapsibleContent className="mt-4">
-                  {intakeContent}
-                </CollapsibleContent>
-              </SectionCard>
-            </Collapsible>
-
-            <Collapsible
-              open={openUtility === 'planning'}
-              onOpenChange={(open) => setOpenUtility(open ? 'planning' : null)}
-            >
-              <SectionCard
-                variant="surface"
-                title="Assumptions"
-                actions={
-                  <CollapsibleTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      <Settings2 className="mr-2 h-4 w-4" />
-                      {openUtility === 'planning'
-                        ? 'Hide Assumptions'
-                        : 'Open Assumptions'}
-                    </Button>
-                  </CollapsibleTrigger>
-                }
-              >
-                <p className="text-sm text-text-muted">
-                  Keep the household profile, goals, and planning assumptions
-                  available without crowding the default money view.
-                </p>
-                <CollapsibleContent className="mt-4 space-y-4">
-                  <HouseholdProfileCard
-                    profile={dashboard.profile}
-                    resolvedValues={dashboard.resolvedValues}
-                  />
-                  <HouseholdPlanningPanels dashboard={dashboard} />
-                </CollapsibleContent>
-              </SectionCard>
-            </Collapsible>
-          </div>
         </div>
       ),
     },
@@ -339,88 +281,38 @@ export default function MoneyPage() {
         eyebrow="Household Finance"
         title="Money"
         actions={
-          <Button asChild variant="outline" size="sm">
-            <Link href="/money?tab=accounts">Open Accounts</Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setOpenUtility('planning')}
+            >
+              <Settings2 className="mr-2 h-4 w-4" />
+              Assumptions
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setOpenUtility('evidence')}
+            >
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Add anything
+            </Button>
+          </div>
         }
       />
 
-      <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-        <SectionCard variant="surface" title="Coverage">
-          <div className="flex flex-wrap gap-2">
-            <CoverageBadge>{dashboard.overview.visibilityLabel}</CoverageBadge>
-            <CoverageBadge>
-              {dashboard.overview.visibilityScore}/100 visibility
-            </CoverageBadge>
-            <CoverageBadge>
-              Updated {formatRelativeTime(dashboard.generatedAt)}
-            </CoverageBadge>
-          </div>
-
-          <div className="mt-4 space-y-3">
-            {dashboard.inbox.slice(0, 3).map((item) => (
-              <div
-                key={item.id}
-                className="rounded-2xl border border-border/40 bg-surface-muted/20 px-4 py-3"
-              >
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-text">
-                      {item.title}
-                    </p>
-                    <p className="mt-1 text-sm text-text-muted">
-                      {item.detail}
-                    </p>
-                  </div>
-                  {item.actionHref ? (
-                    <Button asChild size="sm" variant="outline">
-                      <Link href={item.actionHref}>{item.actionLabel}</Link>
-                    </Button>
-                  ) : (
-                    <span className="text-xs uppercase tracking-[0.18em] text-text-muted">
-                      {item.actionLabel}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-
-            {dashboard.inbox.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-border/40 bg-surface-muted/10 px-4 py-5 text-sm text-text-muted">
-                No active freshness or completeness blocker right now.
-              </div>
-            ) : null}
-
-            {openQuestions.length > 0 ? (
-              <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
-                <p className="text-sm font-semibold text-text">
-                  {openQuestions.length} clarification
-                  {openQuestions.length === 1 ? '' : 's'} still need an answer.
-                </p>
-                <p className="mt-1 text-sm text-text-muted">
-                  Jenny only asks when the missing answer materially changes the
-                  money picture.
-                </p>
-                <div className="mt-3">
-                  <Button asChild size="sm" variant="outline">
-                    <Link href="#money-clarifications">Answer now</Link>
-                  </Button>
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </SectionCard>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          {metrics.map((metric) => (
-            <MetricCard
-              key={metric.label}
-              label={metric.label}
-              value={metric.value}
-              detail={metric.detail}
-            />
-          ))}
-        </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {metrics.map((metric) => (
+          <MetricCard
+            key={metric.label}
+            label={metric.label}
+            value={metric.value}
+            detail={metric.detail}
+          />
+        ))}
       </div>
 
       <WorkspaceTabs
@@ -428,6 +320,45 @@ export default function MoneyPage() {
         ariaLabel="Money workspace sections"
         tabs={tabs}
       />
+
+      <Dialog
+        open={openUtility === 'evidence'}
+        onOpenChange={(open) => setOpenUtility(open ? 'evidence' : null)}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>Add anything</DialogTitle>
+            <DialogDescription>
+              Upload screenshots, statements, exports, or planning files in one
+              place. Jenny uses the file itself to decide what it is, what
+              matters, and which account or financial area it belongs to.
+            </DialogDescription>
+          </DialogHeader>
+          {intakeContent}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={openUtility === 'planning'}
+        onOpenChange={(open) => setOpenUtility(open ? 'planning' : null)}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Assumptions</DialogTitle>
+            <DialogDescription>
+              Review the household profile, goals, and planning assumptions
+              without adding another default page section.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <HouseholdProfileCard
+              profile={dashboard.profile}
+              resolvedValues={dashboard.resolvedValues}
+            />
+            <HouseholdPlanningPanels dashboard={dashboard} />
+          </div>
+        </DialogContent>
+      </Dialog>
     </PageContainer>
   )
 }

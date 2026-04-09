@@ -133,7 +133,7 @@ describe('HomeActionQueue', () => {
     ).toHaveAttribute('href', '/portfolio')
     expect(screen.getByRole('link', { name: 'Add Evidence' })).toHaveAttribute(
       'href',
-      '/money#money-utilities',
+      '/money?utility=evidence',
     )
   })
 

@@ -55,6 +55,7 @@ class HouseholdDashboardComposer:
             evidence_accounts=d["evidence_accounts"],
             documents=d["documents"],
             portfolio_accounts=d["accounts"],
+            tracked_accounts=d["tracked_accounts"],
             holdings_by_account=d["holdings_by_account"],
             statement_freshness=freshness,
         )

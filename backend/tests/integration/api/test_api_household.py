@@ -50,6 +50,52 @@ def test_household_profile_is_created_and_can_be_updated(client: TestClient) -> 
     assert updated["target_retirement_age"] == 60
 
 
+def test_household_tracked_accounts_support_crud(client: TestClient) -> None:
+    create_response = client.post(
+        "/api/household/accounts",
+        json={
+            "label": "Joint Checking",
+            "asset_group": "cash",
+            "account_type": "checking",
+            "source_type": "bank",
+            "institution_name": "Wells Fargo",
+            "owner_name": "Household",
+            "account_mask": "4421",
+            "notes": "Primary bills account",
+        },
+    )
+
+    assert create_response.status_code == 200
+    created = create_response.json()
+    assert created["label"] == "Joint Checking"
+    assert created["asset_group"] == "cash"
+
+    list_response = client.get("/api/household/accounts")
+    assert list_response.status_code == 200
+    assert any(item["id"] == created["id"] for item in list_response.json())
+
+    update_response = client.put(
+        f"/api/household/accounts/{created['id']}",
+        json={
+            "label": "Joint Checking",
+            "asset_group": "cash",
+            "account_type": "checking",
+            "source_type": "bank",
+            "institution_name": "Wells Fargo",
+            "owner_name": "Household",
+            "account_mask": "4421",
+            "notes": "Updated note",
+        },
+    )
+
+    assert update_response.status_code == 200
+    assert update_response.json()["notes"] == "Updated note"
+
+    delete_response = client.delete(f"/api/household/accounts/{created['id']}")
+    assert delete_response.status_code == 200
+    assert delete_response.json() == {"ok": True}
+
+
 def test_household_planning_snapshot_can_be_updated_and_surfaces_document_placeholders(
     client: TestClient,
 ) -> None:

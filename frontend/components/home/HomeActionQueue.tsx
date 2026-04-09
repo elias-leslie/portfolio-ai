@@ -189,7 +189,7 @@ export function HomeActionQueue() {
                 <Link href="/portfolio">Review Investing</Link>
               </Button>
               <Button asChild size="sm" variant="outline">
-                <Link href="/money#money-utilities">Add Evidence</Link>
+                <Link href="/money?utility=evidence">Add Evidence</Link>
               </Button>
             </div>
           </div>

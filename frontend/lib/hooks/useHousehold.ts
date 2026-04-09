@@ -5,11 +5,15 @@ import {
   askJenny,
   categorizeHouseholdTransaction,
   confirmFact,
+  createHouseholdTrackedAccount,
+  deleteHouseholdTrackedAccount,
   fetchHouseholdDashboard,
   fetchHouseholdDocuments,
   type HouseholdDocumentUpload,
+  type HouseholdTrackedAccountInput,
   type HouseholdPlanningUpdate,
   type HouseholdProfileUpdate,
+  updateHouseholdTrackedAccount,
   updateHouseholdPlanning,
   updateHouseholdProfile,
   uploadHouseholdDocument,
@@ -104,6 +108,73 @@ export function useUploadHouseholdDocument() {
     onError: (error) => {
       toast.error(
         error instanceof Error ? error.message : 'Failed to upload document',
+      )
+    },
+  })
+}
+
+export function useCreateHouseholdTrackedAccount() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (payload: HouseholdTrackedAccountInput) =>
+      createHouseholdTrackedAccount(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ['household'],
+        refetchType: 'active',
+      })
+      toast.success('Tracked account created.')
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to create tracked account',
+      )
+    },
+  })
+}
+
+export function useUpdateHouseholdTrackedAccount() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      accountId,
+      payload,
+    }: {
+      accountId: string
+      payload: HouseholdTrackedAccountInput
+    }) => updateHouseholdTrackedAccount(accountId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ['household'],
+        refetchType: 'active',
+      })
+      toast.success('Tracked account updated.')
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to update tracked account',
+      )
+    },
+  })
+}
+
+export function useDeleteHouseholdTrackedAccount() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (accountId: string) => deleteHouseholdTrackedAccount(accountId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ['household'],
+        refetchType: 'active',
+      })
+      toast.success('Tracked account removed.')
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to remove tracked account',
       )
     },
   })
