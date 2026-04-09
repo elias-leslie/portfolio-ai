@@ -213,7 +213,9 @@ export default function MoneyPage() {
                   <CollapsibleTrigger asChild>
                     <Button variant="outline" size="sm">
                       <Upload className="mr-2 h-4 w-4" />
-                      {openUtility === 'evidence' ? 'Hide' : 'Open'}
+                      {openUtility === 'evidence'
+                        ? 'Hide Evidence'
+                        : 'Open Evidence'}
                     </Button>
                   </CollapsibleTrigger>
                 }
@@ -242,7 +244,9 @@ export default function MoneyPage() {
                   <CollapsibleTrigger asChild>
                     <Button variant="outline" size="sm">
                       <Settings2 className="mr-2 h-4 w-4" />
-                      {openUtility === 'planning' ? 'Hide' : 'Open'}
+                      {openUtility === 'planning'
+                        ? 'Hide Assumptions'
+                        : 'Open Assumptions'}
                     </Button>
                   </CollapsibleTrigger>
                 }
@@ -286,35 +290,9 @@ export default function MoneyPage() {
         eyebrow="Household Finance"
         title="Money"
         actions={
-          <div className="flex flex-wrap gap-2">
-            <Button asChild variant="outline" size="sm">
-              <Link href="/money?tab=accounts">Open Accounts</Link>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                setOpenUtility(
-                  openUtility === 'evidence' ? null : 'evidence',
-                )
-              }
-            >
-              <Upload className="mr-2 h-4 w-4" />
-              Add Evidence
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                setOpenUtility(
-                  openUtility === 'planning' ? null : 'planning',
-                )
-              }
-            >
-              <Settings2 className="mr-2 h-4 w-4" />
-              Assumptions
-            </Button>
-          </div>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/money?tab=accounts">Open Accounts</Link>
+          </Button>
         }
       />
 

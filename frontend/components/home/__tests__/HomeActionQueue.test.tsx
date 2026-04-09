@@ -72,11 +72,12 @@ describe('HomeActionQueue', () => {
 
     render(<HomeActionQueue />)
 
-    expect(
-      screen.getByText(
-        /1 prioritized action · 1 urgent · 1 quick action-ready/i,
-      ),
-    ).toBeInTheDocument()
+    expect(screen.getByText('Prioritized')).toBeInTheDocument()
+    expect(screen.getByText('Urgent')).toBeInTheDocument()
+    expect(screen.getByText('Quick Ready')).toBeInTheDocument()
+    expect(screen.getByText(/ranked action/i)).toBeInTheDocument()
+    expect(screen.getByText(/critical or high priority/i)).toBeInTheDocument()
+    expect(screen.getByText(/can be completed inline/i)).toBeInTheDocument()
     expect(screen.getByText(/live signal model/i)).toBeInTheDocument()
     expect(
       screen.getByRole('link', { name: /open decision/i }),
@@ -126,6 +127,7 @@ describe('HomeActionQueue', () => {
     expect(
       screen.getByText(/no urgent cross-workspace actions/i),
     ).toBeInTheDocument()
+    expect(screen.getAllByText('0')).toHaveLength(3)
     expect(
       screen.getByRole('link', { name: 'Review Investing' }),
     ).toHaveAttribute('href', '/portfolio')

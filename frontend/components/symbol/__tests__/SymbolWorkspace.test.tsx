@@ -134,11 +134,13 @@ describe('SymbolWorkspace', () => {
       screen.getByText(/score 78 · buy · confidence 7\/10/i),
     ).toBeInTheDocument()
     expect(screen.getByText(/live signal model/i)).toBeInTheDocument()
-    expect(screen.getByText(/\+1.4% · 0.2% of portfolio/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/8 shares · \+1.4% · 0.2% of portfolio/i),
+    ).toBeInTheDocument()
     expect(screen.queryByText(/\+0.2% of portfolio/i)).not.toBeInTheDocument()
     expect(
       screen.getByText(
-        /8 holdings · top 3 holdings make up 28.0% · diversification score 74/i,
+        /portfolio has 8 total holdings · top 3 holdings make up 28.0% · diversification score 74/i,
       ),
     ).toBeInTheDocument()
     expect(screen.getByText(/7\/10 confidence · medium/i)).toBeInTheDocument()
@@ -276,7 +278,7 @@ describe('SymbolWorkspace', () => {
     expect(screen.queryByText(/live signal model/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/0 recent article/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/0 green lights/i)).not.toBeInTheDocument()
-    expect(screen.getByText(/8 holdings/i)).toBeInTheDocument()
+    expect(screen.getByText(/portfolio has 8 total holdings/i)).toBeInTheDocument()
     expect(
       screen.queryByText(/top 3 holdings make up/i),
     ).not.toBeInTheDocument()

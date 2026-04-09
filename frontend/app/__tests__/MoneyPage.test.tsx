@@ -291,7 +291,7 @@ describe('MoneyPage', () => {
 
     render(<MoneyPage />)
 
-    await user.click(screen.getByRole('button', { name: 'Add Evidence' }))
+    await user.click(screen.getByRole('button', { name: 'Open Evidence' }))
     await user.click(screen.getByRole('button', { name: 'Retry' }))
 
     expect(refetchDocuments).toHaveBeenCalled()

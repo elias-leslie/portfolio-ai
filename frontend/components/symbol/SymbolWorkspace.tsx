@@ -58,6 +58,29 @@ function formatTenPointConfidence(confidence?: number | null) {
   return `${displayValue}/10 confidence`
 }
 
+function formatShareCount(shares?: number | null) {
+  if (shares == null) {
+    return null
+  }
+
+  return `${shares.toLocaleString('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: Number.isInteger(shares) ? 0 : 2,
+  })} share${Math.abs(shares) === 1 ? '' : 's'}`
+}
+
+function formatPortfolioWeight(weightPct?: number | null) {
+  if (weightPct == null) {
+    return null
+  }
+
+  if (weightPct > 0 && weightPct < 0.1) {
+    return '<0.1% of portfolio'
+  }
+
+  return `${formatPercent(weightPct)} of portfolio`
+}
+
 function formatIfNotHeldReasoning(reasoning?: string | null) {
   if (!reasoning) {
     return 'No extra context yet.'
@@ -131,6 +154,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
       (review) => review.symbol === uppercaseSymbol,
     ) ?? []
   const currentDecision = data?.decision
+  const heldPosition = data?.portfolio?.position ?? null
   const newsArticleCount = data?.news?.recentArticles.length ?? 0
   const alertCount = (data?.alerts.length ?? 0) + symbolNotifications.length
   const evidenceSummary = formatEvidenceSummary(
@@ -145,7 +169,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
         : undefined
   const portfolioContextParts = [
     data?.portfolio?.context?.numHoldings != null
-      ? `${data.portfolio.context.numHoldings} holding${data.portfolio.context.numHoldings === 1 ? '' : 's'}`
+      ? `Portfolio has ${data.portfolio.context.numHoldings} total holding${data.portfolio.context.numHoldings === 1 ? '' : 's'}`
       : null,
     data?.portfolio?.context?.concentrationTop3 != null
       ? `Top 3 holdings make up ${formatPercent(data.portfolio.context.concentrationTop3)}`
@@ -154,8 +178,15 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
       ? `Diversification score ${data.portfolio.context.diversificationScore.toFixed(0)}`
       : null,
   ].filter((part): part is string => Boolean(part))
+  const heldPositionSummary = [
+    formatShareCount(heldPosition?.shares),
+    heldPosition?.gainPct != null
+      ? formatPercent(heldPosition.gainPct, { sign: true })
+      : null,
+    formatPortfolioWeight(heldPosition?.weightPct),
+  ].filter((part): part is string => Boolean(part))
   const positionSummary = data?.portfolio?.held
-    ? `${formatPercent(data.portfolio.position?.gainPct, { sign: true })} · ${formatPercent(data.portfolio.position?.weightPct)} of portfolio`
+    ? heldPositionSummary.join(' · ') || 'Live position details unavailable.'
     : data?.recommendation?.ifNotHeld?.reasoning
       ? formatIfNotHeldReasoning(data.recommendation.ifNotHeld.reasoning)
       : 'Jenny does not see a live portfolio position.'
@@ -281,7 +312,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
         <SectionCard variant="surface" title="Your Position">
           <p className="font-display italic text-2xl tabular-nums text-text">
             {data?.portfolio?.held
-              ? formatCurrency(data.portfolio.position?.currentValue)
+              ? formatCurrency(heldPosition?.currentValue)
               : 'Not held'}
           </p>
           <p className="mt-2 text-sm text-text-muted">{positionSummary}</p>
