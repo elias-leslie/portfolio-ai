@@ -7,6 +7,7 @@ import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import type { HomeActionItem } from '@/lib/api/home'
+import { formatDecisionMeta, formatDecisionSeverity } from '@/lib/decision'
 import { useHomeActionQueue } from '@/lib/hooks/useHomeActionQueue'
 import { useAcknowledgeJennyNotification } from '@/lib/hooks/usePortfolio'
 import { useTransitionSymbolWorkflow } from '@/lib/hooks/useSymbolIntelligence'
@@ -162,6 +163,15 @@ export function HomeActionQueue() {
               priorityTone[action.priority as keyof typeof priorityTone] ??
               priorityTone.low
             const quickLabel = quickActionLabel(action)
+            const decisionMeta = formatDecisionMeta(action.decision, {
+              includeTimestamp: false,
+            })
+            const decisionTimestamp = action.decision?.sourceTimestamp
+              ? formatRelativeTime(action.decision.sourceTimestamp)
+              : null
+            const badgeLabel = action.decision?.severity
+              ? formatDecisionSeverity(action.decision.severity)
+              : action.badge
 
             return (
               <div
@@ -178,9 +188,19 @@ export function HomeActionQueue() {
                       <Icon className="h-4 w-4 shrink-0 text-text-muted" />
                       <span className="truncate text-sm font-semibold text-text">{action.title}</span>
                     </div>
+                    {decisionMeta ? (
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-text-muted">
+                        {decisionMeta}
+                        {decisionTimestamp ? ` · ${decisionTimestamp}` : ''}
+                      </p>
+                    ) : null}
                     <p className="text-sm leading-relaxed text-text-muted">{action.detail}</p>
                   </div>
-                  {action.badge ? <Badge variant="outline" className="shrink-0">{action.badge}</Badge> : null}
+                  {badgeLabel ? (
+                    <Badge variant="outline" className="shrink-0">
+                      {badgeLabel}
+                    </Badge>
+                  ) : null}
                 </div>
                 <div className="mt-4 flex flex-wrap items-center gap-2">
                   <Button asChild size="sm" variant="outline">

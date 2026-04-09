@@ -8,9 +8,15 @@ This module provides:
 
 from __future__ import annotations
 
+from collections import defaultdict
+from importlib import import_module
 from typing import TYPE_CHECKING, Any, cast
 
+from ...api.symbols.data_fetchers import get_market_data
+from ...api.symbols.decisions import build_symbol_decision
+from ...api.symbols.recommendations import generate_recommendation
 from ...logging_config import get_logger
+from ...storage.helpers import row_to_dict, rows_to_dicts
 from ..data_quality import calculate_data_quality
 from ..models import WatchlistItemDict
 from ..priority import calculate_priority_indicators
@@ -22,6 +28,69 @@ if TYPE_CHECKING:
 from .intelligence import build_news_intelligence, build_news_intelligence_batch
 
 logger = get_logger(__name__)
+
+
+def _get_jenny_dashboard() -> Any:
+    service_cls = import_module("app.services.jenny_operator_service").JennyOperatorService
+    return service_cls().get_dashboard()
+
+
+def _build_portfolio_context(
+    storage: PortfolioStorage,
+    symbols: list[str],
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any] | None]:
+    if not symbols:
+        return {}, None
+
+    unique_symbols = sorted({symbol.upper() for symbol in symbols if symbol})
+    placeholders = ", ".join(["%s"] * len(unique_symbols))
+
+    try:
+        with storage.connection() as conn:
+            position_result = conn.execute(
+                f"""
+                SELECT
+                    UPPER(p.symbol) AS symbol,
+                    SUM(p.shares) AS shares,
+                    SUM(p.shares * p.cost_basis) / NULLIF(SUM(p.shares), 0) AS cost_basis,
+                    MAX(pc.price) AS current_price
+                FROM portfolio_positions p
+                LEFT JOIN price_cache pc ON UPPER(p.symbol) = UPPER(pc.symbol)
+                WHERE UPPER(p.symbol) IN ({placeholders})
+                GROUP BY UPPER(p.symbol)
+                """,
+                unique_symbols,
+            )
+            position_rows = position_result.fetchall()
+            positions_by_symbol = (
+                {
+                    str(row["symbol"]): row
+                    for row in rows_to_dicts(position_rows, position_result.description)
+                }
+                if position_rows and position_result.description
+                else {}
+            )
+
+            summary_result = conn.execute(
+                """
+                SELECT
+                    COUNT(*) AS num_holdings,
+                    SUM(p.shares * COALESCE(pc.price, p.cost_basis)) AS total_value
+                FROM portfolio_positions p
+                LEFT JOIN price_cache pc ON UPPER(p.symbol) = UPPER(pc.symbol)
+                """
+            )
+            summary_row = summary_result.fetchone()
+            summary = (
+                row_to_dict(summary_row, summary_result.description)
+                if summary_row and summary_result.description
+                else None
+            )
+    except Exception as exc:
+        logger.warning("watchlist_portfolio_context_failed", error=str(exc))
+        return {}, None
+
+    return positions_by_symbol, summary
 
 
 def _serialize_data_quality(dq: Any) -> dict[str, Any]:
@@ -118,6 +187,66 @@ def build_data_quality_map(
         return {}
 
 
+def build_watchlist_decision_map(
+    storage: PortfolioStorage,
+    items: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Resolve current decision payloads for a batch of watchlist items."""
+    if not items:
+        return {}
+
+    positions_by_symbol, summary = _build_portfolio_context(
+        storage,
+        [str(item.get("symbol") or "") for item in items],
+    )
+    market = get_market_data(storage)
+
+    notifications_by_symbol: dict[str, list[Any]] = defaultdict(list)
+    reviews_by_symbol: dict[str, Any] = {}
+    try:
+        dashboard = _get_jenny_dashboard()
+    except Exception as exc:
+        logger.warning("watchlist_jenny_dashboard_failed", error=str(exc))
+    else:
+        for notification in getattr(dashboard, "notifications", []):
+            if notification.symbol:
+                notifications_by_symbol[str(notification.symbol).upper()].append(notification)
+        for review in getattr(dashboard, "symbol_reviews", []):
+            if review.symbol:
+                reviews_by_symbol.setdefault(str(review.symbol).upper(), review)
+
+    decisions: dict[str, dict[str, Any]] = {}
+    for item in items:
+        symbol = str(item.get("symbol") or "").upper()
+        if not symbol:
+            continue
+
+        notifications = notifications_by_symbol.get(symbol, [])
+        latest_review = reviews_by_symbol.get(symbol)
+        has_live_setup = bool(item.get("signal_type"))
+        if not has_live_setup and not notifications and latest_review is None:
+            continue
+
+        recommendation = generate_recommendation(
+            item,
+            {
+                "position": positions_by_symbol.get(symbol),
+                "summary": summary,
+            },
+            market,
+        )
+        decision = build_symbol_decision(
+            symbol=symbol,
+            recommendation=recommendation,
+            generated_at=item.get("decision_generated_at") or item.get("updated_at"),
+            notifications=notifications,
+            latest_review=latest_review,
+        )
+        decisions[symbol] = decision.model_dump(mode="json")
+
+    return decisions
+
+
 def enrich_priority_indicators(results: list[dict[str, Any]]) -> None:
     """Enrich each item in results with priority indicators in place."""
     typed_results = cast(list[WatchlistItemDict], results)
@@ -131,6 +260,7 @@ def enrich_priority_indicators(results: list[dict[str, Any]]) -> None:
 __all__ = [
     "build_data_quality_map",
     "build_news_intelligence_map",
+    "build_watchlist_decision_map",
     "enrich_data_quality",
     "enrich_news_intelligence",
     "enrich_priority_indicators",

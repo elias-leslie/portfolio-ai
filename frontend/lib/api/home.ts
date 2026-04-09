@@ -1,4 +1,5 @@
 import { get } from './client'
+import type { SymbolDecisionSection } from './symbols'
 
 export interface HomeActionExecution {
   kind: string
@@ -18,6 +19,7 @@ export interface HomeActionItem {
   href: string
   symbol: string | null
   badge: string | null
+  decision?: SymbolDecisionSection | null
   execution?: HomeActionExecution | null
 }
 

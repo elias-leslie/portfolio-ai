@@ -28,6 +28,7 @@ import {
   getWatchlistPriceSnapshot,
 } from '@/components/watchlist/watchlistTableUtils'
 import type { RefreshStatus, WatchlistItem } from '@/lib/api/watchlist'
+import { formatDecisionMeta } from '@/lib/decision'
 import { cn } from '@/lib/utils'
 
 interface WatchlistCardProps {
@@ -65,6 +66,7 @@ export function WatchlistCard({
       ?.slice()
       .sort((left, right) => right.priority - left.priority)
       .slice(0, 2) ?? []
+  const decisionMeta = formatDecisionMeta(item.decision, { includeTimestamp: false })
 
   return (
     <div
@@ -78,7 +80,7 @@ export function WatchlistCard({
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
             <Link
-              href={`/symbols/${item.symbol}`}
+              href={`/symbols/${item.symbol}?tab=decision`}
               className="text-lg font-semibold text-text underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
             >
               {item.symbol}
@@ -117,7 +119,7 @@ export function WatchlistCard({
         </div>
         <div className="flex items-center gap-1">
           <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-xs">
-            <Link href={`/symbols/${item.symbol}`}>Workspace</Link>
+            <Link href={`/symbols/${item.symbol}?tab=decision`}>Workspace</Link>
           </Button>
           <Button
             data-testid="watchlist-card-expand"
@@ -155,7 +157,7 @@ export function WatchlistCard({
               signalDisplay.color,
             )}
           >
-            {signalDisplay.icon} {signalDisplay.label}
+            {signalDisplay.icon} Setup {signalDisplay.label}
           </span>
         ) : null}
         {item.recommendedStyle ? (
@@ -194,6 +196,17 @@ export function WatchlistCard({
           </span>
         ) : null}
       </div>
+
+      {item.decision ? (
+        <div className="mb-3 rounded-2xl border border-border/40 bg-surface-muted/20 px-3 py-2.5">
+          <p className="text-xs uppercase tracking-[0.18em] text-text-muted">Current decision</p>
+          <p className="mt-1 text-sm font-semibold text-text">{item.decision.headline}</p>
+          <p className="mt-1 text-xs text-text-muted">
+            {decisionMeta ? `${decisionMeta} · ` : ''}
+            {item.decision.summary}
+          </p>
+        </div>
+      ) : null}
 
       {priceSnapshot ? (
         <div className="mb-3 rounded-2xl border border-border/40 bg-surface-muted/20 px-3 py-2.5">

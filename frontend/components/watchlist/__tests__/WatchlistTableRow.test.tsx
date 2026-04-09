@@ -53,6 +53,16 @@ function buildItem() {
         stale: false,
       },
     },
+    decision: {
+      action: 'position_exit',
+      headline: 'Exit this position',
+      summary: 'Reduce risk now.',
+      reasoning: ['The thesis broke.', 'Reduce risk now.'],
+      sourceKind: 'jenny_alert',
+      sourceLabel: 'Jenny alert',
+      sourceTimestamp: '2026-03-11T12:05:00Z',
+      severity: 'critical',
+    },
   }
 }
 
@@ -82,6 +92,12 @@ describe('WatchlistTableRow', () => {
     expect(
       screen.getByRole('button', { name: 'Expand MSFT details' }),
     ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'MSFT' })).toHaveAttribute(
+      'href',
+      '/symbols/MSFT?tab=decision',
+    )
+    expect(screen.getByText('Exit this position')).toBeInTheDocument()
+    expect(screen.getByText(/Jenny alert · Critical/i)).toBeInTheDocument()
   })
 
   it('does not toggle the row when the delete action is clicked', async () => {

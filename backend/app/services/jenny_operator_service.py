@@ -44,8 +44,8 @@ FINAL_VERDICT_PRIORITY = {"exit": 5, "trim": 4, "review": 3, "buy": 2, "avoid": 
 POSITIVE_VERDICTS = {"buy", "hold"}
 MIN_AGENT_REVIEW_DATA_QUALITY_PCT = 55.0
 PASSIVE_FUND_SYMBOLS = frozenset(INDEX_ETFS) | frozenset(FUND_CATEGORY_LABELS)
-ACTIVE_ROUTINE_WINDOW = timedelta(minutes=15)
-ROUTINE_ACTIVITY_STALE_WINDOW = timedelta(minutes=2)
+ACTIVE_ROUTINE_WINDOW = timedelta(hours=1)
+ROUTINE_ACTIVITY_STALE_WINDOW = timedelta(minutes=15)
 
 # Routing tables for __getattr__ delegation
 _DelegateMode = Literal["positional", "keyword", "none"]
@@ -65,8 +65,10 @@ _DASHBOARD_READER_METHODS: dict[str, str] = {
     "_get_recent_routines": "get_recent_routines",
     "_get_routine": "get_routine",
     "_get_open_notifications": "get_open_notifications",
+    "_get_open_notifications_for_symbol": "get_open_notifications_for_symbol",
     "_get_notification": "get_notification",
     "_get_latest_symbol_reviews": "get_latest_symbol_reviews",
+    "_get_latest_symbol_review": "get_latest_symbol_review",
     "_get_recent_trade_reviews": "get_recent_trade_reviews",
     "_get_scorecards": "get_scorecards",
     "_fetch_all_evaluations": "fetch_all_evaluations",

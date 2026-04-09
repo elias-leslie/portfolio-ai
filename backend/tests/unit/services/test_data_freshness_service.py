@@ -25,7 +25,7 @@ def test_trigger_remediation_uses_backfill_workflow_for_technical_indicators(
     )
 
     assert task_id == "run-123"
-    fake_admin.run_workflow.assert_called_once_with("portfolio-backfill-indicators", {})
+    fake_admin.run_workflow.assert_called_once_with("portfolio-backfill-indicators", "{}")
 
 
 def test_check_table_freshness_treats_market_dates_as_close_time(monkeypatch) -> None:

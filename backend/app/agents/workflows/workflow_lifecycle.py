@@ -113,10 +113,10 @@ def _mark_failed(storage: PortfolioStorage, workflow_id: str, error: str) -> Non
         conn.execute(
             """
             UPDATE agent_workflows
-            SET status = 'failed', error = $1, completed_at = $2, last_updated_at = $2
-            WHERE id = $3
+            SET status = 'failed', error = $1, completed_at = $2, last_updated_at = $3
+            WHERE id = $4
             """,
-            [error, now, workflow_id],
+            [error, now, now, workflow_id],
         )
         conn.commit()
 

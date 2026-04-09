@@ -62,6 +62,7 @@ class JennyDashboardReader:
                        recommendation, created_at, acknowledged_at, metadata
                 FROM jenny_notifications
                 WHERE status = 'open'
+                  AND created_at >= NOW() - INTERVAL '7 days'
                 ORDER BY
                     CASE severity
                         WHEN 'critical' THEN 0
@@ -72,6 +73,34 @@ class JennyDashboardReader:
                 LIMIT %s
                 """,
                 [limit],
+            ).fetchall()
+        return [row_to_notification(row) for row in rows]
+
+    def get_open_notifications_for_symbol(
+        self,
+        service: Any,
+        symbol: str,
+        limit: int = 5,
+    ) -> list[JennyNotification]:
+        with service.storage.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, routine_id, symbol, category, severity, status, title, detail,
+                       recommendation, created_at, acknowledged_at, metadata
+                FROM jenny_notifications
+                WHERE status = 'open'
+                  AND created_at >= NOW() - INTERVAL '7 days'
+                  AND symbol = %s
+                ORDER BY
+                    CASE severity
+                        WHEN 'critical' THEN 0
+                        WHEN 'warning' THEN 1
+                        ELSE 2
+                    END,
+                    created_at DESC
+                LIMIT %s
+                """,
+                [symbol, limit],
             ).fetchall()
         return [row_to_notification(row) for row in rows]
 
@@ -140,6 +169,51 @@ class JennyDashboardReader:
                 review.position_gain_pct = action.get("gain_pct")
                 review.position_weight_pct = action.get("weight_pct")
         return reviews[:limit]
+
+    def get_latest_symbol_review(
+        self,
+        service: Any,
+        symbol: str,
+    ) -> JennySymbolReview | None:
+        with service.storage.connection() as conn:
+            rows = conn.execute(
+                """
+                WITH latest_symbol_routine AS (
+                    SELECT routine_id
+                    FROM jenny_agent_evaluations
+                    WHERE created_at >= NOW() - INTERVAL '7 days'
+                      AND symbol = %s
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                )
+                SELECT e.id, e.routine_id, e.symbol, e.agent_name, e.provider, e.model, e.verdict, e.confidence,
+                       e.rationale, e.recommendation, e.strengths, e.weaknesses, e.metadata, e.thesis_id,
+                       e.agent_run_id, e.created_at
+                FROM jenny_agent_evaluations e
+                JOIN latest_symbol_routine lsr
+                  ON lsr.routine_id = e.routine_id
+                WHERE e.symbol = %s
+                ORDER BY e.created_at DESC
+                """,
+                [symbol, symbol],
+            ).fetchall()
+        evaluations = [row_to_evaluation(row) for row in rows]
+        if not evaluations:
+            return None
+
+        review = service._aggregate_symbol_review(
+            symbol,
+            evaluations,
+            service.thesis_service.get_thesis(symbol),
+        )
+        action_map = service._build_position_action_map({review.symbol: review})
+        action = action_map.get(review.symbol)
+        if action:
+            review.management_action = action["action"]
+            review.management_detail = action["detail"]
+            review.position_gain_pct = action.get("gain_pct")
+            review.position_weight_pct = action.get("weight_pct")
+        return review
 
     def build_review_consensus(self, service: Any, symbol: str) -> dict[str, Any]:
         latest_review = next(

@@ -59,7 +59,7 @@ class AutomationCenterService:
             jenny_rows = conn.execute(
                 """
                 SELECT id, routine_type, status, triggered_by, started_at, completed_at,
-                       symbols_scanned, notifications_created
+                       symbols_scanned, notifications_created, summary
                 FROM jenny_routines
                 ORDER BY started_at DESC
                 LIMIT 3
@@ -76,17 +76,25 @@ class AutomationCenterService:
             ).fetchall()
 
         for row in jenny_rows:
+            status = str(row[2])
+            summary = str(row[8]) if row[8] else None
+            if status in {"failed", "error"} and summary:
+                detail = summary
+            elif status == "running":
+                detail = summary or "Jenny is still working through this review."
+            else:
+                detail = (
+                    f"Reviewed {int(row[6] or 0)} symbols and created {int(row[7] or 0)} notifications."
+                )
             runs.append(
                 AutomationRecentRun(
                     id=str(row[0]),
                     label=f"Jenny {str(row[1]).replace('_', ' ')}",
-                    status=str(row[2]),
+                    status=status,
                     triggered_by=str(row[3]),
                     started_at=row[4].isoformat(),
                     completed_at=row[5].isoformat() if row[5] is not None else None,
-                    detail=(
-                        f"Reviewed {int(row[6] or 0)} symbols and created {int(row[7] or 0)} notifications."
-                    ),
+                    detail=detail,
                 )
             )
 
@@ -104,7 +112,28 @@ class AutomationCenterService:
             )
 
         runs.sort(key=lambda item: item.started_at, reverse=True)
-        return runs[:5]
+        collapsed: list[AutomationRecentRun] = []
+        counts: dict[tuple[str, str, str, str], int] = {}
+        order: list[tuple[str, str, str, str]] = []
+
+        for run in runs:
+            key = (run.label, run.status, run.triggered_by, run.detail)
+            if key not in counts:
+                counts[key] = 0
+                order.append(key)
+                collapsed.append(run)
+            counts[key] += 1
+
+        result: list[AutomationRecentRun] = []
+        for run in collapsed:
+            key = (run.label, run.status, run.triggered_by, run.detail)
+            count = counts[key]
+            detail = run.detail
+            if count > 1:
+                detail = f"{detail} Repeated {count} times in recent runs."
+            result.append(run.model_copy(update={"detail": detail}))
+
+        return result[:5]
 
     def _warnings(self) -> list[str]:
         with self.storage.connection() as conn:
@@ -135,4 +164,19 @@ class AutomationCenterService:
             f"{str(row[0]).replace('_', ' ')} has been running since {row[1].isoformat()}."
             for row in stale_rows
         )
-        return warnings[:5]
+        counts: dict[str, int] = {}
+        ordered_warnings: list[str] = []
+        for warning in warnings:
+            if warning not in counts:
+                counts[warning] = 0
+                ordered_warnings.append(warning)
+            counts[warning] += 1
+
+        deduped: list[str] = []
+        for warning in ordered_warnings:
+            count = counts[warning]
+            if count > 1:
+                deduped.append(f"{warning} Repeated {count} times.")
+            else:
+                deduped.append(warning)
+        return deduped[:5]

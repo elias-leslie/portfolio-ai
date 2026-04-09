@@ -3,6 +3,7 @@
  */
 
 import { apiRequest } from './client'
+import type { SymbolDecisionSection } from './symbols'
 
 // Types matching backend Pydantic models
 export interface ScoreComponent {
@@ -147,6 +148,7 @@ export interface WatchlistItem {
   priorityIndicators?: PriorityIndicator[]
   // Data Quality
   dataQuality?: DataQuality | null
+  decision?: SymbolDecisionSection | null
 }
 
 export interface WatchlistListResponse {

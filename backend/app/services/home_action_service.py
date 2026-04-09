@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 
 from app.api.recommendations.logic import DEFAULT_POSITION_PCT
 from app.api.recommendations.queries import fetch_recommendations
+from app.api.symbols.decisions import build_symbol_decision
 from app.logging_config import get_logger
 from app.portfolio.totals import get_live_portfolio_totals
 from app.services.household_finance_service import HouseholdFinanceService
@@ -22,6 +23,12 @@ PRIORITY_RANK = {
     "medium": 3,
     "low": 4,
 }
+
+
+def _title_with_symbol(symbol: str | None, headline: str) -> str:
+    if not symbol:
+        return headline
+    return f"{symbol}: {headline}"
 
 
 class HomeActionService:
@@ -124,6 +131,14 @@ class HomeActionService:
 
         actions: list[dict[str, object]] = []
         for recommendation in recommendations:
+            decision = build_symbol_decision(
+                symbol=recommendation.symbol,
+                recommendation={
+                    "action": "INITIATE_POSITION",
+                    "reasoning": [f"Strong BUY signal ({recommendation.signal_strength}/10)"],
+                },
+                generated_at=recommendation.generated_at or recommendation.signal_date,
+            ).model_dump(mode="json")
             confidence_badge = (
                 "High"
                 if recommendation.validation_type == "both"
@@ -135,15 +150,16 @@ class HomeActionService:
                     "source": "recommendations",
                     "category": "investing",
                     "priority": "high",
-                    "title": f"Review {recommendation.symbol}",
+                    "title": _title_with_symbol(recommendation.symbol, decision["headline"]),
                     "detail": (
-                        f"{recommendation.signal_type} signal at {recommendation.signal_strength}/10. "
+                        f"{decision['summary']} "
                         f"Suggested size ${recommendation.position_size_dollars:,.0f}."
                     ),
-                    "action_label": "Open symbol",
-                    "href": f"/symbols/{recommendation.symbol}",
+                    "action_label": "Open decision",
+                    "href": f"/symbols/{recommendation.symbol}?tab=decision",
                     "symbol": recommendation.symbol,
                     "badge": confidence_badge,
+                    "decision": decision,
                     "execution": {
                         "kind": "workflow_transition",
                         "symbol": recommendation.symbol,
@@ -162,7 +178,17 @@ class HomeActionService:
 
         actions: list[dict[str, object]] = []
         for notification in dashboard.notifications[:3]:
-            href = f"/symbols/{notification.symbol}" if notification.symbol else "/portfolio"
+            decision = build_symbol_decision(
+                symbol=notification.symbol or "",
+                recommendation=None,
+                generated_at=notification.created_at,
+                notifications=[notification],
+            ).model_dump(mode="json")
+            href = (
+                f"/symbols/{notification.symbol}?tab=decision"
+                if notification.symbol
+                else "/portfolio"
+            )
             priority = (
                 "critical"
                 if notification.severity == "critical"
@@ -176,12 +202,13 @@ class HomeActionService:
                     "source": "jenny",
                     "category": "investing",
                     "priority": priority,
-                    "title": notification.title,
-                    "detail": notification.recommendation or notification.detail,
+                    "title": _title_with_symbol(notification.symbol, decision["headline"]),
+                    "detail": decision["summary"],
                     "action_label": "Review with Jenny",
                     "href": href,
                     "symbol": notification.symbol,
                     "badge": notification.severity.title(),
+                    "decision": decision,
                     "execution": {
                         "kind": "acknowledge_notification",
                         "notification_id": notification.id,
@@ -199,7 +226,7 @@ class HomeActionService:
                     "title": f"Review outcome on {review.symbol}",
                     "detail": review.lesson,
                     "action_label": "Open symbol",
-                    "href": f"/symbols/{review.symbol}",
+                    "href": f"/symbols/{review.symbol}?tab=decision",
                     "symbol": review.symbol,
                     "badge": review.outcome_label.title(),
                 }

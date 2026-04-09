@@ -12,6 +12,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from app.api.symbols.models import DecisionSection
+
 from .models import NarrativeBulletsDict, NewsIntelligenceDict, RecentNewsDict
 
 
@@ -192,6 +194,7 @@ class WatchlistItemResponse(BaseModel):
     data_quality: DataQualityResponse | None = Field(
         None, description="Data quality assessment by pillar"
     )
+    decision: DecisionSection | None = None
 
     @classmethod
     def from_service_dict(cls, item: dict[str, Any]) -> WatchlistItemResponse:
@@ -294,6 +297,7 @@ class WatchlistItemResponse(BaseModel):
             data_quality=_build_data_quality_response(item.get("data_quality"))
             if item.get("data_quality")
             else None,
+            decision=item.get("decision"),
         )
 
 

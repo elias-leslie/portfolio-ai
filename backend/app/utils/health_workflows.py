@@ -31,7 +31,7 @@ class WorkflowHealthInfo(BaseModel):
     blocked_by_type: dict[str, int]
 
 
-def _query_workflow_health_data(storage: PortfolioStorage) -> tuple[object, object, object]:
+def _query_workflow_health_data(storage: PortfolioStorage) -> tuple[object, object, object, object]:
     """Run all DB queries needed for workflow health and return raw results."""
     with storage.connection() as conn:
         result = conn.execute(
@@ -62,7 +62,18 @@ def _query_workflow_health_data(storage: PortfolioStorage) -> tuple[object, obje
             """
         ).pl()
 
-    return result, total_result, last_success
+        stale_running = conn.execute(
+            """
+            SELECT workflow_type, COUNT(*) as count
+            FROM agent_workflows
+            WHERE created_at > NOW() - INTERVAL '24 hours'
+              AND status = 'running'
+              AND created_at < NOW() - make_interval(secs => COALESCE(max_duration_seconds, 3600))
+            GROUP BY workflow_type
+            """
+        ).pl()
+
+    return result, total_result, last_success, stale_running
 
 
 def _aggregate_workflow_stats(
@@ -97,12 +108,15 @@ def _determine_health_status(
     total_failed: int,
     total_blocked: int,
     success_rate: float,
+    evaluated_workflows: int,
 ) -> Literal["healthy", "warning", "critical"]:
     """Derive health status from failure/block counts and success rate."""
-    if total_failed > 0 or total_blocked > 2:
+    if total_failed > 0 or total_blocked > 0:
         if total_failed >= 2 or total_blocked >= 3:
             return "critical"
         return "warning"
+    if evaluated_workflows == 0:
+        return "healthy"
     if success_rate < 75:
         return "warning"
     return "healthy"
@@ -116,6 +130,16 @@ def _extract_last_success(
         return None, None
     row = last_success.row(0)
     return row[2], row[1]
+
+
+def _aggregate_stale_running_counts(stale_running: object) -> dict[str, int]:
+    """Aggregate overdue running workflow counts by type."""
+    if stale_running.is_empty():
+        return {}
+    return {
+        row["workflow_type"]: row["count"]
+        for row in stale_running.iter_rows(named=True)
+    }
 
 
 def _fallback_workflow_health() -> WorkflowHealthInfo:
@@ -138,25 +162,30 @@ def _fallback_workflow_health() -> WorkflowHealthInfo:
 def get_workflow_health(storage: PortfolioStorage) -> WorkflowHealthInfo:
     """Get workflow health status from agent_workflows table."""
     try:
-        result, total_result, last_success = _query_workflow_health_data(storage)
+        result, total_result, last_success, stale_running = _query_workflow_health_data(storage)
     except Exception as e:
         logger.warning("workflow_health_failed", error=str(e), exc_info=True)
         return _fallback_workflow_health()
 
     total_workflows = total_result.row(0)[0] if not total_result.is_empty() else 0
     stats, failures_by_type, blocked_by_type = _aggregate_workflow_stats(result)
+    stale_running_by_type = _aggregate_stale_running_counts(stale_running)
 
     total_successful = sum(s.get("complete", 0) for s in stats.values())
     total_failed = sum(s.get("failed", 0) for s in stats.values())
-    total_blocked = sum(s.get("blocked", 0) for s in stats.values())
+    total_blocked = sum(s.get("blocked", 0) for s in stats.values()) + sum(stale_running_by_type.values())
+    for workflow_type, count in stale_running_by_type.items():
+        blocked_by_type[workflow_type] = blocked_by_type.get(workflow_type, 0) + count
 
-    success_rate = (
-        (total_successful / (total_workflows - total_blocked) * 100)
-        if total_workflows > total_blocked
-        else 0
+    evaluated_workflows = total_successful + total_failed
+    success_rate = (total_successful / evaluated_workflows * 100) if evaluated_workflows > 0 else 0
+
+    health_status = _determine_health_status(
+        total_failed,
+        total_blocked,
+        success_rate,
+        evaluated_workflows,
     )
-
-    health_status = _determine_health_status(total_failed, total_blocked, success_rate)
     last_successful_time, last_successful_type = _extract_last_success(last_success)
 
     return WorkflowHealthInfo(

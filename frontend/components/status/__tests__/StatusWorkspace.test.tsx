@@ -63,7 +63,12 @@ describe('StatusWorkspace', () => {
             status: 'healthy',
             successRate: 100,
             totalWorkflows24H: 1,
+            successfulWorkflows: 1,
+            failedWorkflows: 0,
+            blockedWorkflows: 0,
             lastSuccessfulWorkflow: '2026-03-10T22:18:27.574496Z',
+            failuresByType: {},
+            blockedByType: {},
           },
           dataFreshnessStatus: {
             status: 'success',
@@ -140,7 +145,12 @@ describe('StatusWorkspace', () => {
             status: 'healthy',
             successRate: 100,
             totalWorkflows24H: 1,
+            successfulWorkflows: 1,
+            failedWorkflows: 0,
+            blockedWorkflows: 0,
             lastSuccessfulWorkflow: '2026-03-10T22:18:27.574496Z',
+            failuresByType: {},
+            blockedByType: {},
           },
           dataFreshnessStatus: {
             status: 'success',
@@ -203,6 +213,76 @@ describe('StatusWorkspace', () => {
     expect(screen.queryByText('Last success: Never')).not.toBeInTheDocument()
   })
 
+  it('describes overdue automation without pretending unfinished runs failed the success rate', () => {
+    useDetailedHealthMock.mockReturnValue(
+      createQueryResult({
+        data: {
+          status: 'healthy',
+          timestamp: '2026-03-10T23:26:56.894882+00:00',
+          checks: {},
+          sources: {},
+          services: {},
+          apiQuotas: [],
+          recentRemediations: [],
+          workflowHealth: {
+            status: 'warning',
+            successRate: 0,
+            totalWorkflows24H: 2,
+            successfulWorkflows: 0,
+            failedWorkflows: 0,
+            blockedWorkflows: 2,
+            lastSuccessfulWorkflow: '2026-03-10T22:18:27.574496Z',
+            failuresByType: {},
+            blockedByType: { jenny_daily_operator: 2 },
+          },
+          dataFreshnessStatus: {
+            status: 'success',
+            lastCheck: '2026-03-10T22:00:00.000000Z',
+            fresh: 4,
+            stale: 0,
+            critical: 0,
+          },
+          watchlistStats: {
+            itemsWithScores: 5,
+            lastRefresh: '2026-03-10T23:14:01.484006Z',
+          },
+        },
+      }),
+    )
+
+    useMarketStatusMock.mockReturnValue(
+      createQueryResult({
+        data: {
+          status: 'closed',
+          currentTimeEt: '6:00 PM ET',
+          expectedDataDate: '2026-03-10',
+          lastTradingDay: '2026-03-10',
+          nextTradingDay: '2026-03-11',
+          isHoliday: false,
+          isEarlyClose: false,
+        },
+      }),
+    )
+
+    useNewsHealthMock.mockReturnValue(
+      createQueryResult({
+        data: {
+          headlines24H: 0,
+          fallbackRate24H: 0,
+          vendors: {},
+          marketLastRefreshedAt: null,
+        },
+      }),
+    )
+
+    render(<StatusWorkspace />)
+
+    expect(
+      screen.getByText('No automation runs finished in the last 24h. 2 are stuck or overdue.'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('0 failed · 2 stuck')).toBeInTheDocument()
+  })
+
   it('shows resolved remediation history without duplicating cards', () => {
     useDetailedHealthMock.mockReturnValue(
       createQueryResult({
@@ -230,7 +310,12 @@ describe('StatusWorkspace', () => {
             status: 'healthy',
             successRate: 100,
             totalWorkflows24H: 1,
+            successfulWorkflows: 1,
+            failedWorkflows: 0,
+            blockedWorkflows: 0,
             lastSuccessfulWorkflow: '2026-03-10T22:18:27.574496Z',
+            failuresByType: {},
+            blockedByType: {},
           },
           dataFreshnessStatus: {
             status: 'success',
@@ -307,10 +392,13 @@ describe('StatusWorkspace', () => {
             status: 'healthy',
             successRate: 100,
             totalWorkflows24H: 1,
+            successfulWorkflows: 1,
             failedWorkflows: 0,
             blockedWorkflows: 0,
             lastSuccessfulType: 'daily_operator',
             lastSuccessfulWorkflow: '2026-03-10T22:18:27.574496Z',
+            failuresByType: {},
+            blockedByType: {},
           },
           dataFreshnessStatus: {
             status: 'success',
@@ -352,7 +440,9 @@ describe('StatusWorkspace', () => {
     expect(screen.queryByText('Failed to load the operations snapshot.')).not.toBeInTheDocument()
     expect(screen.getByText('active')).toBeInTheDocument()
     expect(screen.getByText('12ms')).toBeInTheDocument()
-    expect(screen.getByText(/100.0% of 1 automation runs finished successfully/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/completed automation runs finished successfully in the last 24h/i),
+    ).toBeInTheDocument()
     expect(screen.getByText(/0 failed · 0 stuck/i)).toBeInTheDocument()
     expect(screen.getByText(/last successful automation: daily operator/i)).toBeInTheDocument()
     expect(screen.getByText(/auto-fixes ran 1 time in the latest check/i)).toBeInTheDocument()
@@ -401,9 +491,12 @@ describe('StatusWorkspace', () => {
             status: 'healthy',
             successRate: 100,
             totalWorkflows24H: 1,
+            successfulWorkflows: 1,
             failedWorkflows: 0,
             blockedWorkflows: 0,
             lastSuccessfulWorkflow: '2026-03-10T22:18:27.574496Z',
+            failuresByType: {},
+            blockedByType: {},
           },
           dataFreshnessStatus: {
             status: 'success',
@@ -489,9 +582,12 @@ describe('StatusWorkspace', () => {
             status: 'warning',
             successRate: 82,
             totalWorkflows24H: 11,
+            successfulWorkflows: 9,
             failedWorkflows: 1,
             blockedWorkflows: 1,
             lastSuccessfulWorkflow: '2026-03-10T22:18:27.574496Z',
+            failuresByType: { jenny_daily_operator: 1 },
+            blockedByType: { check_all_data_freshness: 1 },
           },
           dataFreshnessStatus: {
             status: 'warning',
@@ -582,9 +678,12 @@ describe('StatusWorkspace', () => {
             status: 'warning',
             successRate: 70,
             totalWorkflows24H: 10,
+            successfulWorkflows: 7,
             failedWorkflows: 2,
             blockedWorkflows: 1,
             lastSuccessfulWorkflow: null,
+            failuresByType: { jenny_daily_operator: 2 },
+            blockedByType: { jenny_daily_operator: 1 },
           },
           dataFreshnessStatus: {
             status: 'warning',

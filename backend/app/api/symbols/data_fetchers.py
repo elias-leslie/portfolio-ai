@@ -61,6 +61,7 @@ def _build_watchlist_result(item: dict[str, Any]) -> dict[str, Any]:
         "timeframe_long_aligned": item.get("timeframe_long_aligned"),
         "volume_relative": item.get("volume_relative"),
         "news_intelligence": item.get("news_intelligence"),
+        "recent_news": item.get("recent_news"),
         "priority_indicators": item.get("priority_indicators"),
         "data_quality_overall_pct": dq.get("overall_pct"),
         "data_quality_pillars": dq.get("pillars"),
@@ -72,7 +73,7 @@ def _build_watchlist_result(item: dict[str, Any]) -> dict[str, Any]:
 def get_watchlist_data(symbol: str, watchlist_service: WatchlistService) -> dict[str, Any] | None:
     """Fetch watchlist data for symbol using the watchlist service."""
     try:
-        items = watchlist_service.get_items_with_scores()
+        items = watchlist_service.get_items_with_scores(include_decision=False)
         for item in items:
             if item.get("symbol", "").upper() == symbol.upper():
                 return _build_watchlist_result(item)

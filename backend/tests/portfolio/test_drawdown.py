@@ -9,7 +9,8 @@ Tests cover:
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -25,6 +26,31 @@ from app.portfolio.drawdown import (
     check_portfolio_drawdown_halt,
     get_recovery_estimate,
 )
+from app.portfolio.drawdown_db import get_drawdown_history
+
+
+class _FakeHistoryConnection:
+    def __init__(self, rows: list[tuple[object, object, object, object]]) -> None:
+        self.rows = rows
+        self.executed: list[tuple[str, list[object]]] = []
+
+    def execute(self, query: str, params: list[object]) -> _FakeHistoryConnection:
+        self.executed.append((query, params))
+        return self
+
+    def fetchall(self) -> list[tuple[object, object, object, object]]:
+        return self.rows
+
+
+class _FakeHistoryConnectionContext:
+    def __init__(self, conn: _FakeHistoryConnection) -> None:
+        self.conn = conn
+
+    def __enter__(self) -> _FakeHistoryConnection:
+        return self.conn
+
+    def __exit__(self, exc_type: object, exc: object, tb: object) -> bool:
+        return False
 
 
 class TestCalculateDrawdown:
@@ -132,6 +158,56 @@ class TestDrawdownMetrics:
         assert metrics.current_drawdown_pct == pytest.approx(25.0, rel=0.01)
         assert metrics.is_halted is True
         assert "25%" in (metrics.halt_reason or "")
+
+
+class TestDrawdownHistory:
+    def test_get_drawdown_history_reads_rows_without_polars_dataframe(
+        self,
+    ) -> None:
+        storage = MagicMock()
+        storage.query.side_effect = AssertionError("get_drawdown_history should not use storage.query")
+
+        conn = _FakeHistoryConnection(
+            [
+                (date(2026, 4, 1), Decimal("10000.50"), Decimal("0"), Decimal("10000.50")),
+                (
+                    datetime(2026, 4, 2, 12, 0),
+                    Decimal("9800.25"),
+                    Decimal("2.001"),
+                    Decimal("10000.50"),
+                ),
+            ]
+        )
+        storage.connection.return_value = _FakeHistoryConnectionContext(conn)
+
+        history = get_drawdown_history(storage, "acct-1", days=30)
+
+        assert history == [
+            {
+                "date": "2026-04-01",
+                "equity": 10000.5,
+                "drawdown_pct": 0.0,
+                "peak_equity": 10000.5,
+            },
+            {
+                "date": "2026-04-02",
+                "equity": 9800.25,
+                "drawdown_pct": 2.001,
+                "peak_equity": 10000.5,
+            },
+        ]
+        assert conn.executed == [
+            (
+                """
+        SELECT snapshot_date, equity, drawdown_pct, peak_equity
+        FROM portfolio_snapshots
+        WHERE account_id = $1
+          AND snapshot_date >= CURRENT_DATE - make_interval(days => $2)
+        ORDER BY snapshot_date ASC
+    """,
+                ["acct-1", 30],
+            )
+        ]
 
 
 class TestCheckPortfolioDrawdownHalt:

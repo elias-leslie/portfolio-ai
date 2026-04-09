@@ -30,6 +30,8 @@ export function TodayIdeasSection() {
   const trackMutation = useTrackInPortfolio()
   const recommendations = data?.recommendations ?? []
   const summary = data?.summary
+  const hasIdeas = recommendations.length > 0
+  const hasIdeaSummary = Boolean(data && data.total > 0)
   const isSizingRefreshing = deferredPortfolioSize !== portfolioSize
   const latestGeneratedAt =
     recommendations.find((r) => r.generatedAt)?.generatedAt ?? null
@@ -59,7 +61,7 @@ export function TodayIdeasSection() {
         title="Today"
         description="A short list of ideas worth a closer look right now."
       >
-        {!isLoading && !error && data ? (
+        {!isLoading && !error && data && hasIdeaSummary ? (
           <div className="info-banner mb-4 flex flex-wrap items-center justify-between gap-2">
             <span>
               Showing {recommendations.length} of {data.total} setup
@@ -79,34 +81,36 @@ export function TodayIdeasSection() {
           </div>
         ) : null}
 
-        <div className="mb-6 rounded-xl border border-border/60 bg-surface-muted/30 p-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-sm font-semibold text-text">Sizing baseline</p>
-              <p className="text-sm text-text-muted">
-                This sets the sample share count shown below using the default per-idea cap.
-              </p>
-            </div>
-            <div className="w-full md:max-w-sm">
-              <div className="mb-2 text-sm text-text-muted">
-                ${portfolioSize.toLocaleString()}
-              </div>
-              <Slider
-                value={[portfolioSize]}
-                onValueChange={(values) => setPortfolioSize(values[0] ?? portfolioSize)}
-                min={10_000}
-                max={500_000}
-                step={5_000}
-                aria-label="Portfolio sizing baseline"
-              />
-              {isSizingRefreshing ? (
-                <p className="mt-2 text-xs text-text-muted" aria-live="polite">
-                  Updating sizing guidance...
+        {!isLoading && !error && hasIdeaSummary ? (
+          <div className="mb-6 rounded-xl border border-border/60 bg-surface-muted/30 p-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-text">Sizing baseline</p>
+                <p className="text-sm text-text-muted">
+                  This sets the sample share count shown below using the default per-idea cap.
                 </p>
-              ) : null}
+              </div>
+              <div className="w-full md:max-w-sm">
+                <div className="mb-2 text-sm text-text-muted">
+                  ${portfolioSize.toLocaleString()}
+                </div>
+                <Slider
+                  value={[portfolioSize]}
+                  onValueChange={(values) => setPortfolioSize(values[0] ?? portfolioSize)}
+                  min={10_000}
+                  max={500_000}
+                  step={5_000}
+                  aria-label="Portfolio sizing baseline"
+                />
+                {isSizingRefreshing ? (
+                  <p className="mt-2 text-xs text-text-muted" aria-live="polite">
+                    Updating sizing guidance...
+                  </p>
+                ) : null}
+              </div>
             </div>
           </div>
-        </div>
+        ) : null}
 
         {isLoading && (
           <div className="flex items-center gap-2 text-sm text-text-muted" role="status" aria-live="polite">
@@ -140,7 +144,7 @@ export function TodayIdeasSection() {
           </div>
         ) : null}
 
-        {!isLoading && !error && recommendations.length === 0 && (
+        {!isLoading && !error && !hasIdeas && (
           <div className="rounded-xl border border-border/60 bg-surface-muted/30 p-5">
             <p className="text-sm text-text-muted">
               No clear ideas right now. That usually means the best move is to review the action
@@ -157,7 +161,7 @@ export function TodayIdeasSection() {
           </div>
         )}
 
-        {!isLoading && !error && data && summary && recommendations.length > 0 && (
+        {!isLoading && !error && data && summary && hasIdeas && (
           <>
             <div className="mb-4 flex flex-wrap gap-2 text-xs text-text-muted">
               <span className="rounded-full border border-border/40 bg-surface px-3 py-1">BUY {summary.buySignals}</span>

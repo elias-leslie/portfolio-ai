@@ -5,6 +5,7 @@ Transforms raw data into typed response sections.
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from .models import (
@@ -35,6 +36,17 @@ PILLAR_WEIGHTS = {
     "options_flow": 0.08,
     "performance": 0.05,
 }
+
+
+def _finite_float(value: Any) -> float | None:
+    """Return a JSON-safe float or None for invalid numeric inputs."""
+    if value is None:
+        return None
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return None
+    return numeric if math.isfinite(numeric) else None
 
 
 def build_scores_section(watchlist: dict[str, Any]) -> ScoresSection:
@@ -132,15 +144,37 @@ def build_alerts(watchlist: dict[str, Any]) -> list[AlertIndicator]:
 def build_news_section_from_watchlist(watchlist: dict[str, Any]) -> NewsSection | None:
     """Build the news section from watchlist news intelligence."""
     news_intel = watchlist.get("news_intelligence") or {}
-    if not news_intel:
+    recent_news = watchlist.get("recent_news") or {}
+    recent_news_summary = recent_news.get("summary") if isinstance(recent_news, dict) else {}
+    recent_news_articles = recent_news.get("articles") if isinstance(recent_news, dict) else []
+
+    if not news_intel and not recent_news_articles:
         return None
 
-    recent_articles_raw = news_intel.get("recent_articles") or []
+    recent_articles_raw = news_intel.get("recent_articles") or recent_news_articles or []
+    headline = (
+        news_intel.get("headline")
+        or (recent_news_summary.get("headline") if isinstance(recent_news_summary, dict) else None)
+        or (
+            recent_articles_raw[0].get("headline")
+            if recent_articles_raw and isinstance(recent_articles_raw[0], dict)
+            else None
+        )
+    )
+    article_count = (
+        news_intel.get("article_count_24h")
+        or (
+            recent_news_summary.get("article_count")
+            if isinstance(recent_news_summary, dict)
+            else None
+        )
+        or len([article for article in recent_articles_raw if isinstance(article, dict)])
+    )
     return NewsSection(
         sentiment_score=news_intel.get("sentiment_score"),
         sentiment_label=news_intel.get("sentiment_label"),
-        article_count_24h=news_intel.get("article_count_24h") or 0,
-        headline=news_intel.get("headline"),
+        article_count_24h=article_count,
+        headline=headline,
         key_events=[
             KeyEvent(
                 icon=e.get("icon", "") if isinstance(e, dict) else "",
@@ -251,6 +285,6 @@ def build_market_section(market: dict[str, Any]) -> MarketSection | None:
     return MarketSection(
         fear_greed_score=fg.get("score"),
         fear_greed_label=fg.get("label"),
-        vix=market.get("vix"),
-        sp500_change=market.get("sp500_change"),
+        vix=_finite_float(market.get("vix")),
+        sp500_change=_finite_float(market.get("sp500_change")),
     )

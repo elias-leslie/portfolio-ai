@@ -37,6 +37,7 @@ import {
   getWatchlistPriceSnapshot,
 } from '@/components/watchlist/watchlistTableUtils'
 import type { RefreshStatus, WatchlistItem } from '@/lib/api/watchlist'
+import { formatDecisionMeta } from '@/lib/decision'
 import { cn } from '@/lib/utils'
 
 interface WatchlistTableRowProps {
@@ -71,6 +72,7 @@ export function WatchlistTableRow({
   const hasScore = !!item.currentScore
   const overall = item.currentScore?.overall ?? 0
   const priceSnapshot = getWatchlistPriceSnapshot(item.currentScore?.price.metadata)
+  const decisionMeta = formatDecisionMeta(item.decision, { includeTimestamp: false })
 
   return (
     <Fragment key={item.id}>
@@ -116,48 +118,56 @@ export function WatchlistTableRow({
           </button>
         </TableCell>
         <TableCell className="font-medium" data-slot="table-cell">
-          <div className="flex items-center gap-2">
-            <Link
-              href={`/symbols/${item.symbol}`}
-              className="rounded-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-              onClick={(event) => event.stopPropagation()}
-            >
-              {item.symbol}
-            </Link>
-            {portfolioSymbols.has(item.symbol.toUpperCase()) && (
-              <Badge
-                variant="outline"
-                className="gap-1 border-accent/30 bg-accent/10 px-1.5 py-0 text-accent"
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/symbols/${item.symbol}?tab=decision`}
+                className="rounded-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                onClick={(event) => event.stopPropagation()}
               >
-                <Briefcase className="h-3 w-3" aria-hidden />
-                <span>Held</span>
-              </Badge>
-            )}
-            {item.currentScore?.price.metadata?.source &&
-            typeof item.currentScore.price.metadata.source === 'string' ? (
-              <SourceBadge
-                source={item.currentScore.price.metadata.source}
-                stale={item.currentScore.price.stale}
-                priority={
-                  typeof item.currentScore.price.metadata.priority === 'number'
-                    ? item.currentScore.price.metadata.priority
-                    : undefined
-                }
-              />
-            ) : null}
-            {refreshStatus?.isRefreshing &&
-              refreshStatus.currentSymbol === item.symbol && (
-                <Loader2
-                  className="h-4 w-4 animate-spin text-accent"
-                  aria-label="Refreshing..."
+                {item.symbol}
+              </Link>
+              {portfolioSymbols.has(item.symbol.toUpperCase()) && (
+                <Badge
+                  variant="outline"
+                  className="gap-1 border-accent/30 bg-accent/10 px-1.5 py-0 text-accent"
+                >
+                  <Briefcase className="h-3 w-3" aria-hidden />
+                  <span>Held</span>
+                </Badge>
+              )}
+              {item.currentScore?.price.metadata?.source &&
+              typeof item.currentScore.price.metadata.source === 'string' ? (
+                <SourceBadge
+                  source={item.currentScore.price.metadata.source}
+                  stale={item.currentScore.price.stale}
+                  priority={
+                    typeof item.currentScore.price.metadata.priority === 'number'
+                      ? item.currentScore.price.metadata.priority
+                      : undefined
+                  }
+                />
+              ) : null}
+              {refreshStatus?.isRefreshing &&
+                refreshStatus.currentSymbol === item.symbol && (
+                  <Loader2
+                    className="h-4 w-4 animate-spin text-accent"
+                    aria-label="Refreshing..."
+                  />
+                )}
+              {item.scoreAlert && (
+                <AlertCircle
+                  className="h-4 w-4 text-accent"
+                  aria-label="Score changed >10 points in last 7 days"
                 />
               )}
-            {item.scoreAlert && (
-              <AlertCircle
-                className="h-4 w-4 text-accent"
-                aria-label="Score changed >10 points in last 7 days"
-              />
-            )}
+            </div>
+            {item.decision ? (
+              <div className="text-xs leading-relaxed text-text-muted">
+                <span className="font-medium text-text">{item.decision.headline}</span>
+                {decisionMeta ? ` · ${decisionMeta}` : ''}
+              </div>
+            ) : null}
           </div>
         </TableCell>
         <TableCell

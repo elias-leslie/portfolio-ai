@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from ..agents.llm_client import DualProviderClient
-from ..config import settings
 from ..logging_config import get_logger
 from ..models.thesis import Thesis, ThesisStatus, ThesisVersion
 from ..portfolio.watchlist_sync import ensure_symbols_in_watchlist
@@ -30,10 +29,9 @@ class ThesisService:
     def __init__(
         self,
         llm_client: DualProviderClient | None = None,
-        api_base_url: str | None = None,
     ) -> None:
         self._app_storage = get_storage()
-        self._fetcher = IntelligenceFetcher(api_base_url or settings.backend_url)
+        self._fetcher = IntelligenceFetcher()
         self._generator = ThesisGenerator(llm_client)
         self._validator = ThesisValidator()
         self._storage = ThesisStorageManager()

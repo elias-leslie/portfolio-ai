@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class PillarScore(BaseModel):
@@ -185,6 +185,19 @@ class RecommendationSection(BaseModel):
     if_not_held: dict[str, Any] | None = None
 
 
+class DecisionSection(BaseModel):
+    """Current decision resolved across Jenny context and live signals."""
+
+    action: str
+    headline: str
+    summary: str
+    reasoning: list[str] = Field(default_factory=list)
+    source_kind: str
+    source_label: str
+    source_timestamp: str | None = None
+    severity: str | None = None
+
+
 class SymbolIntelligenceResponse(BaseModel):
     """Complete symbol intelligence response."""
 
@@ -202,5 +215,6 @@ class SymbolIntelligenceResponse(BaseModel):
     market: MarketSection | None = None
     alerts: list[AlertIndicator] = []
     recommendation: RecommendationSection | None = None
+    decision: DecisionSection | None = None
 
     error: str | None = None

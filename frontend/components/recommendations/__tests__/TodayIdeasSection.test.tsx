@@ -143,6 +143,35 @@ describe('TodayIdeasSection', () => {
     expect(screen.getByRole('status')).toBeInTheDocument()
   })
 
+  it('hides zero-state math and sizing controls when there are no live ideas', () => {
+    vi.mocked(useRecommendations).mockReturnValue({
+      data: {
+        total: 0,
+        summary: {
+          buySignals: 0,
+          sellSignals: 0,
+          holdSignals: 0,
+          totalPositionSize: 0,
+          avgSignalStrength: 0,
+          portfolioSize: 100000,
+          positionPct: 0.05,
+        },
+        recommendations: [],
+      },
+      isLoading: false,
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    } as never)
+
+    render(<TodayIdeasSection />)
+
+    expect(screen.getByText(/no clear ideas right now/i)).toBeInTheDocument()
+    expect(screen.queryByText(/showing 0 of 0 setups/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/suggested capital/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('slider', { name: /portfolio sizing baseline/i })).not.toBeInTheDocument()
+  })
+
   it('shows error UI when error is set', () => {
     const errorMessage = 'Failed to load recommendations'
     vi.mocked(useRecommendations).mockReturnValue({

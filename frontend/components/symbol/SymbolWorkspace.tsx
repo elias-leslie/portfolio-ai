@@ -8,6 +8,7 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs'
 import { Button } from '@/components/ui/button'
+import type { JennyNotification } from '@/lib/api/portfolio'
 import { useJennyDashboard } from '@/lib/hooks/usePortfolio'
 import { usePreferences } from '@/lib/hooks/usePreferences'
 import { useSymbolIntelligence } from '@/lib/hooks/useSymbolIntelligence'
@@ -24,10 +25,16 @@ function formatEvidenceSummary(
   confirmations?: number | null,
   avoidFlags?: number | null,
 ) {
-  return [
-    formatCountLabel(confirmations ?? 0, 'green light'),
-    formatCountLabel(avoidFlags ?? 0, 'caution flag'),
-  ].join(' · ')
+  const segments: string[] = []
+
+  if (confirmations != null) {
+    segments.push(formatCountLabel(confirmations, 'green light'))
+  }
+  if (avoidFlags != null && (avoidFlags > 0 || confirmations != null)) {
+    segments.push(formatCountLabel(avoidFlags, 'caution flag'))
+  }
+
+  return segments.length > 0 ? segments.join(' · ') : null
 }
 
 function formatTenPointConfidence(confidence?: number | null) {
@@ -55,6 +62,46 @@ function formatIfNotHeldReasoning(reasoning?: string | null) {
   )
 }
 
+function formatNewsSentimentSummary(news?: {
+  sentimentLabel?: string | null
+  sentimentScore?: number | null
+} | null) {
+  if (news?.sentimentLabel) {
+    return news.sentimentScore != null
+      ? `${news.sentimentLabel} · score ${news.sentimentScore.toFixed(1)}`
+      : news.sentimentLabel
+  }
+
+  if (news?.sentimentScore != null) {
+    return `Sentiment score ${news.sentimentScore.toFixed(1)}`
+  }
+
+  return 'Sentiment unavailable'
+}
+
+function stripSymbolPrefix(title: string, symbol: string) {
+  return title.replace(new RegExp(`^${symbol}:\\s*`, 'i'), '')
+}
+
+function compareNotifications(a: JennyNotification, b: JennyNotification) {
+  const severityRank = (severity?: string | null) => {
+    if (severity === 'critical') {
+      return 0
+    }
+    if (severity === 'warning') {
+      return 1
+    }
+    return 2
+  }
+
+  const severityDelta = severityRank(a.severity) - severityRank(b.severity)
+  if (severityDelta !== 0) {
+    return severityDelta
+  }
+
+  return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+}
+
 export function SymbolWorkspace({ symbol }: { symbol: string }) {
   const uppercaseSymbol = symbol.toUpperCase()
   const { data, isLoading, error, refetch, isFetching } = useSymbolIntelligence(
@@ -63,13 +110,44 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
   const { data: jennyDashboard, error: jennyError } = useJennyDashboard()
   const { data: preferences } = usePreferences()
   const userTimezone = preferences?.displayTimezone ?? 'America/New_York'
+  const symbolNotifications = [...(jennyDashboard?.notifications ?? [])]
+    .filter((notification) => notification.symbol === uppercaseSymbol)
+    .sort(compareNotifications)
+  const activeNotification = symbolNotifications[0] ?? null
   const latestReview = jennyDashboard?.symbolReviews.find(
     (review) => review.symbol === uppercaseSymbol,
   )
   const tradeReviews =
     jennyDashboard?.tradeReviews.filter((review) => review.symbol === uppercaseSymbol) ?? []
+  const currentDecision = data?.decision
   const newsArticleCount = data?.news?.recentArticles.length ?? 0
-  const alertCount = data?.alerts.length ?? 0
+  const alertCount = (data?.alerts.length ?? 0) + symbolNotifications.length
+  const evidenceSummary = formatEvidenceSummary(
+    data?.signal?.confirmations,
+    data?.signal?.avoidFlags,
+  )
+  const decisionBadge =
+    (currentDecision?.reasoning.length ?? 0) > 0
+      ? String(currentDecision?.reasoning.length ?? 0)
+      : activeNotification
+        ? '1'
+        : undefined
+  const portfolioContextParts = [
+    data?.portfolio?.context?.numHoldings != null
+      ? `${data.portfolio.context.numHoldings} holding${data.portfolio.context.numHoldings === 1 ? '' : 's'}`
+      : null,
+    data?.portfolio?.context?.concentrationTop3 != null
+      ? `Top 3 holdings make up ${formatPercent(data.portfolio.context.concentrationTop3)}`
+      : null,
+    data?.portfolio?.context?.diversificationScore != null
+      ? `Diversification score ${data.portfolio.context.diversificationScore.toFixed(0)}`
+      : null,
+  ].filter((part): part is string => Boolean(part))
+  const positionSummary = data?.portfolio?.held
+    ? `${formatPercent(data.portfolio.position?.gainPct, { sign: true })} · ${formatPercent(data.portfolio.position?.weightPct)} of portfolio`
+    : data?.recommendation?.ifNotHeld?.reasoning
+      ? formatIfNotHeldReasoning(data.recommendation.ifNotHeld.reasoning)
+      : 'Jenny does not see a live portfolio position.'
 
   if (isLoading) {
     return (
@@ -152,12 +230,24 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
           : 'Update time unavailable'}
         {' · '}
         {formatCountLabel(alertCount, 'alert')}
-        {' · '}
-        {formatCountLabel(newsArticleCount, 'recent article')}
-        {' · '}
-        {formatCountLabel(data?.news?.articleCount24H ?? 0, 'article')} in 24h
-        {' · '}
-        {formatEvidenceSummary(data?.signal?.confirmations, data?.signal?.avoidFlags)}
+        {newsArticleCount > 0 ? (
+          <>
+            {' · '}
+            {formatCountLabel(newsArticleCount, 'recent article')}
+          </>
+        ) : null}
+        {(data?.news?.articleCount24H ?? 0) > 0 ? (
+          <>
+            {' · '}
+            {formatCountLabel(data?.news?.articleCount24H ?? 0, 'article')} in 24h
+          </>
+        ) : null}
+        {evidenceSummary ? (
+          <>
+            {' · '}
+            {evidenceSummary}
+          </>
+        ) : null}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-4 animate-stagger">
@@ -169,16 +259,25 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             Current setup: {formatEnumLabel(data?.signal?.type, 'Unavailable')} · Confidence{' '}
             {data?.signal?.strength ?? '—'}/10
           </p>
-          <p className="mt-2 text-sm text-text-muted">
-            {formatEvidenceSummary(data?.signal?.confirmations, data?.signal?.avoidFlags)}
-          </p>
+          {evidenceSummary ? (
+            <p className="mt-2 text-sm text-text-muted">{evidenceSummary}</p>
+          ) : null}
         </SectionCard>
-        <SectionCard variant="surface" title="What Jenny Would Do">
+        <SectionCard variant="surface" title="Current Decision">
           <p className="font-display italic text-2xl text-text">
-            {formatEnumLabel(data?.recommendation?.action, '—')}
+            {currentDecision?.headline ?? '—'}
           </p>
           <p className="mt-2 text-sm text-text-muted">
-            {data?.recommendation?.reasoning?.[0] ?? 'No recommendation summary yet.'}
+            {currentDecision?.summary ?? 'No live recommendation summary is available yet.'}
+          </p>
+          <p className="mt-2 text-xs uppercase tracking-[0.18em] text-text-muted">
+            {currentDecision?.sourceLabel ?? 'Decision unavailable'}
+            {currentDecision?.severity
+              ? ` · ${formatEnumLabel(currentDecision.severity, 'Info')}`
+              : ''}
+            {currentDecision?.sourceTimestamp
+              ? ` · ${formatRelativeTime(currentDecision.sourceTimestamp)}`
+              : ''}
           </p>
         </SectionCard>
         <SectionCard variant="surface" title="Your Position">
@@ -186,16 +285,11 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             {data?.portfolio?.held ? formatCurrency(data.portfolio.position?.currentValue) : 'Not held'}
           </p>
           <p className="mt-2 text-sm text-text-muted">
-            {data?.portfolio?.held
-              ? `${formatPercent(data.portfolio.position?.gainPct, { sign: true })} · ${formatPercent(data.portfolio.position?.weightPct, { sign: true })} of portfolio`
-              : data?.recommendation?.ifNotHeld?.reasoning ?? 'Jenny does not see a live portfolio position.'}
+            {positionSummary}
           </p>
-          {data?.portfolio?.context ? (
+          {portfolioContextParts.length > 0 ? (
             <p className="mt-2 text-sm text-text-muted">
-              {data.portfolio.context.numHoldings} holding
-              {data.portfolio.context.numHoldings === 1 ? '' : 's'} · Top 3 holdings make up{' '}
-              {formatPercent(data.portfolio.context.concentrationTop3)} · Diversification score{' '}
-              {data.portfolio.context.diversificationScore?.toFixed(0) ?? '—'}
+              {portfolioContextParts.join(' · ')}
             </p>
           ) : null}
         </SectionCard>
@@ -228,18 +322,18 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
           {
             value: 'decision',
             label: 'Decision',
-            badge: data?.recommendation?.reasoning?.length ? String(data.recommendation.reasoning.length) : undefined,
+            badge: decisionBadge,
             description: 'See the case for action and Jenny review in one place.',
             content: (
               <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
                 <SectionCard
                   variant="surface"
-                  title="Why Jenny Leans This Way"
-                  description="The clearest plain-language case for acting, waiting, or passing."
+                  title="Why This Decision Shows Up"
+                  description="The clearest plain-language case behind the current call and the source that produced it."
                 >
                   <div className="space-y-4">
-                    {(data?.recommendation?.reasoning ?? []).length > 0 ? (
-                      (data?.recommendation?.reasoning ?? []).map((reason, idx) => (
+                    {(currentDecision?.reasoning ?? []).length > 0 ? (
+                      (currentDecision?.reasoning ?? []).map((reason, idx) => (
                         <div
                           key={reason}
                           className="rounded-xl border border-border/30 border-l-2 border-l-accent/40 bg-surface/40 p-4 text-sm leading-relaxed text-text-muted"
@@ -304,10 +398,30 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
 
                 <SectionCard
                   variant="surface"
-                  title="What Jenny Learned"
-                  description="Latest call and what finished outcomes are teaching."
+                  title="Jenny Review State"
+                  description="Recent operator calls, active alerts, and finished outcomes."
                 >
                   <div className="space-y-4">
+                    {activeNotification ? (
+                      <div className="rounded-2xl border border-warning/30 bg-warning/10 p-4">
+                        <p className="text-sm font-semibold text-text">
+                          Active alert: {stripSymbolPrefix(activeNotification.title, uppercaseSymbol)}
+                        </p>
+                        <p className="mt-2 text-sm text-text-muted">
+                          {activeNotification.detail}
+                        </p>
+                        {activeNotification.recommendation ? (
+                          <p className="mt-3 text-sm text-text">
+                            {activeNotification.recommendation}
+                          </p>
+                        ) : null}
+                        <p className="mt-3 text-xs uppercase tracking-[0.18em] text-text-muted">
+                          {formatEnumLabel(activeNotification.severity, 'Info')} ·{' '}
+                          {formatRelativeTime(activeNotification.createdAt)}
+                        </p>
+                      </div>
+                    ) : null}
+
                     {latestReview ? (
                       <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4">
                         <p className="text-sm font-semibold text-text">
@@ -322,7 +436,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                       </div>
                     ) : (
                       <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4 text-sm text-text-muted">
-                        Jenny has not reviewed {uppercaseSymbol} yet.
+                        No recent Jenny operator review in the last 7 days.
                       </div>
                     )}
 
@@ -381,14 +495,16 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                 <SectionCard
                   variant="surface"
                   title="News and Alerts"
-                  description={data?.news?.headline ?? 'Latest headlines and alert signals.'}
+                  description={
+                    data?.news?.headline ??
+                    ((data?.news?.articleCount24H ?? 0) > 0
+                      ? 'Article volume is available, but recent headlines were not attached to this snapshot.'
+                      : 'Latest headlines and alert signals.')
+                  }
                 >
                   <div className="space-y-3">
                     <div className="rounded-2xl border border-border/40 bg-surface/60 p-4 text-sm text-text-muted">
-                      {data?.news?.sentimentLabel ?? 'Sentiment unavailable'}
-                      {data?.news?.sentimentScore != null
-                        ? ` · score ${data.news.sentimentScore.toFixed(1)}`
-                        : ''}
+                      {formatNewsSentimentSummary(data?.news)}
                       {' · '}
                       {data?.news?.articleCount24H ?? 0} article
                       {data?.news?.articleCount24H === 1 ? '' : 's'} in the last 24h
@@ -443,6 +559,10 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                             </p>
                           </div>
                         ))}
+                      </div>
+                    ) : (data?.news?.articleCount24H ?? 0) > 0 ? (
+                      <div className="rounded-2xl border border-dashed border-border/40 bg-surface/40 p-4 text-sm text-text-muted">
+                        Article volume is available, but this snapshot did not attach recent headlines yet.
                       </div>
                     ) : null}
                   </div>

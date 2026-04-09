@@ -23,6 +23,8 @@ vi.mock('@/lib/hooks/usePreferences', () => ({
 
 describe('SymbolWorkspace', () => {
   beforeEach(() => {
+    vi.clearAllMocks()
+
     vi.mocked(useSymbolIntelligence).mockReturnValue({
       data: {
         symbol: 'VTI',
@@ -41,8 +43,15 @@ describe('SymbolWorkspace', () => {
           positionSizeDollars: 3360,
         },
         portfolio: {
-          held: false,
-          position: null,
+          held: true,
+          position: {
+            shares: 8,
+            costBasis: 201,
+            currentValue: 1634.42,
+            gain: 22.75,
+            gainPct: 1.4,
+            weightPct: 0.2,
+          },
           context: {
             totalValue: 200000,
             numHoldings: 8,
@@ -80,6 +89,16 @@ describe('SymbolWorkspace', () => {
             sizePct: 1,
           },
         },
+        decision: {
+          action: 'hold_for_breakout',
+          headline: 'Hold for breakout',
+          summary: 'No live recommendation summary is available yet.',
+          reasoning: [],
+          sourceKind: 'live_signal_model',
+          sourceLabel: 'Live signal model',
+          sourceTimestamp: '2026-03-10T15:30:00Z',
+          severity: null,
+        },
       },
       isLoading: false,
       isFetching: false,
@@ -101,22 +120,209 @@ describe('SymbolWorkspace', () => {
     } as never)
   })
 
-  it('shows generated-at telemetry, article context, and decision fallback copy', async () => {
+  it('shows live-model decisions clearly and keeps portfolio context honest', async () => {
     const user = userEvent.setup()
     render(<SymbolWorkspace symbol="vti" />)
 
-    expect(screen.getByText(/1 alert · 1 recent article · 4 articles in 24h · 3 green lights · 0 caution flags/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        /1 alert · 1 recent article · 4 articles in 24h · 3 green lights · 0 caution flags/i,
+      ),
+    ).toBeInTheDocument()
     expect(screen.getByText(/current setup: buy · confidence 7\/10/i)).toBeInTheDocument()
-    expect(screen.getByText(/8 holdings · top 3 holdings make up 28.0% · diversification score 74/i)).toBeInTheDocument()
+    expect(screen.getByText(/live signal model/i)).toBeInTheDocument()
+    expect(screen.getByText(/\+1.4% · 0.2% of portfolio/i)).toBeInTheDocument()
+    expect(screen.queryByText(/\+0.2% of portfolio/i)).not.toBeInTheDocument()
+    expect(
+      screen.getByText(
+        /8 holdings · top 3 holdings make up 28.0% · diversification score 74/i,
+      ),
+    ).toBeInTheDocument()
     expect(screen.getByText(/7\/10 confidence · medium/i)).toBeInTheDocument()
-    expect(screen.getByText(/if you do not own it yet: avoid · current setup: hold · confidence 2\/10 · starter size 1.0%/i)).toBeInTheDocument()
-    expect(screen.getByText(/no decision memo reasoning is available yet/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        /if you do not own it yet: avoid · current setup: hold · confidence 2\/10 · starter size 1.0%/i,
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/no decision memo reasoning is available yet for this symbol/i),
+    ).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Market' }))
 
     expect(screen.getByText(/recent articles/i)).toBeInTheDocument()
     expect(screen.getByText(/etf flows remain constructive/i)).toBeInTheDocument()
-    expect(screen.getByText(/constructive · score 0.7 · 4 articles in the last 24h/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/constructive · score 0.7 · 4 articles in the last 24h/i),
+    ).toBeInTheDocument()
+  })
+
+  it('prioritizes active Jenny alerts and omits placeholder metrics when data is missing', () => {
+    vi.mocked(useSymbolIntelligence).mockReturnValue({
+      data: {
+        symbol: 'VTI',
+        generatedAt: '2026-03-10T15:30:00Z',
+        scores: { overall: 68, signalType: 'BUY', signalStrength: 7, pillars: {} },
+        signal: { type: 'BUY', strength: 7, confirmations: null, avoidFlags: 0 },
+        trading: null,
+        portfolio: {
+          held: true,
+          position: {
+            shares: 8,
+            costBasis: 201,
+            currentValue: 1634.42,
+            gain: 22.75,
+            gainPct: 1.4,
+            weightPct: 0.2,
+          },
+          context: {
+            totalValue: 200000,
+            numHoldings: 8,
+            diversificationScore: null,
+            sectorWeight: null,
+            concentrationTop3: null,
+          },
+        },
+        news: {
+          articleCount24H: 0,
+          headline: 'Setup changed',
+          keyEvents: [],
+          recentArticles: [],
+        },
+        market: {
+          fearGreedLabel: 'Fear',
+          fearGreedScore: 28,
+          vix: 25.8,
+        },
+        alerts: [],
+        recommendation: {
+          action: 'buy_more',
+          reasoning: ['Strong BUY signal (7/10)'],
+          ifNotHeld: null,
+        },
+        decision: {
+          action: 'position_exit',
+          headline: 'Exit this position',
+          summary: 'Reduce risk now.',
+          reasoning: ['The position no longer fits the thesis.', 'Reduce risk now.'],
+          sourceKind: 'jenny_alert',
+          sourceLabel: 'Jenny alert',
+          sourceTimestamp: '2026-03-10T16:00:00Z',
+          severity: 'critical',
+        },
+      },
+      isLoading: false,
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    } as never)
+    vi.mocked(useJennyDashboard).mockReturnValue({
+      data: {
+        routines: [],
+        notifications: [
+          {
+            id: 'note-1',
+            routineId: 'routine-1',
+            symbol: 'VTI',
+            category: 'position_exit',
+            severity: 'critical',
+            status: 'open',
+            title: 'VTI: Exit this position',
+            detail: 'The position no longer fits the thesis.',
+            recommendation: 'Reduce risk now.',
+            createdAt: '2026-03-10T16:00:00Z',
+            acknowledgedAt: null,
+            metadata: {},
+          },
+        ],
+        symbolReviews: [],
+        tradeReviews: [],
+        scorecards: [],
+      },
+      isLoading: false,
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    } as never)
+
+    render(<SymbolWorkspace symbol="vti" />)
+
+    expect(screen.getByText(/exit this position/i)).toBeInTheDocument()
+    expect(screen.getByText(/reduce risk now\./i)).toBeInTheDocument()
+    expect(screen.getByText(/jenny alert · critical/i)).toBeInTheDocument()
+    expect(screen.getByText(/1 alert/i)).toBeInTheDocument()
+    expect(screen.queryByText(/live signal model/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/0 recent article/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/0 green lights/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/^8 holdings$/i)).toBeInTheDocument()
+    expect(screen.queryByText(/top 3 holdings make up/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/diversification score/i)).not.toBeInTheDocument()
+  })
+
+  it('explains when only aggregate news volume is available', async () => {
+    const user = userEvent.setup()
+
+    vi.mocked(useSymbolIntelligence).mockReturnValue({
+      data: {
+        symbol: 'NVDA',
+        generatedAt: '2026-03-10T15:30:00Z',
+        scores: { overall: 67, signalType: 'BUY', signalStrength: 7, pillars: {} },
+        signal: { type: 'BUY', strength: 7, confirmations: null, avoidFlags: 0 },
+        trading: null,
+        portfolio: { held: false, position: null, context: null },
+        news: {
+          sentimentLabel: null,
+          sentimentScore: 0.1,
+          articleCount24H: 200,
+          headline: null,
+          keyEvents: [],
+          recentArticles: [],
+        },
+        market: {
+          fearGreedLabel: 'Fear',
+          fearGreedScore: 28,
+          vix: 25.8,
+        },
+        alerts: [],
+        recommendation: {
+          action: 'buy_more',
+          reasoning: ['Strong BUY signal (7/10)'],
+          ifNotHeld: null,
+        },
+        decision: {
+          action: 'buy_more',
+          headline: 'Buy more',
+          summary: 'Strong BUY signal (7/10)',
+          reasoning: ['Strong BUY signal (7/10)'],
+          sourceKind: 'live_signal_model',
+          sourceLabel: 'Live signal model',
+          sourceTimestamp: '2026-03-10T15:30:00Z',
+          severity: null,
+        },
+      },
+      isLoading: false,
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    } as never)
+
+    render(<SymbolWorkspace symbol="nvda" />)
+
+    await user.click(screen.getByRole('button', { name: 'Market' }))
+
+    expect(
+      screen.getByText(
+        /article volume is available, but recent headlines were not attached to this snapshot/i,
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/sentiment score 0.1 · 200 articles in the last 24h/i),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        /article volume is available, but this snapshot did not attach recent headlines yet/i,
+      ),
+    ).toBeInTheDocument()
   })
 
   it('shows a Jenny warning when review data is unavailable', () => {
@@ -130,7 +336,9 @@ describe('SymbolWorkspace', () => {
 
     render(<SymbolWorkspace symbol="vti" />)
 
-    expect(screen.getByText(/jenny review data is temporarily unavailable/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/jenny review data is temporarily unavailable/i),
+    ).toBeInTheDocument()
   })
 
   it('marks the refresh control busy while symbol intelligence is refetching', () => {
@@ -139,7 +347,7 @@ describe('SymbolWorkspace', () => {
         symbol: 'VTI',
         generatedAt: '2026-03-10T15:30:00Z',
         scores: { overall: 78, signalType: 'BUY', signalStrength: 7, pillars: {} },
-        signal: { type: 'BUY', strength: 7, confirmations: 0, avoidFlags: 0 },
+        signal: { type: 'BUY', strength: 7, confirmations: null, avoidFlags: 0 },
         trading: null,
         portfolio: { held: false, position: null, context: null },
         news: {
@@ -159,6 +367,16 @@ describe('SymbolWorkspace', () => {
           reasoning: ['Wait.'],
           ifNotHeld: null,
         },
+        decision: {
+          action: 'watch',
+          headline: 'Watch',
+          summary: 'Wait.',
+          reasoning: ['Wait.'],
+          sourceKind: 'live_signal_model',
+          sourceLabel: 'Live signal model',
+          sourceTimestamp: '2026-03-10T15:30:00Z',
+          severity: null,
+        },
       },
       isLoading: false,
       isFetching: true,
@@ -168,6 +386,9 @@ describe('SymbolWorkspace', () => {
 
     render(<SymbolWorkspace symbol="vti" />)
 
-    expect(screen.getByRole('button', { name: 'Refresh' })).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('button', { name: 'Refresh' })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    )
   })
 })

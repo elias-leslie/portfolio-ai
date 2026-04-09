@@ -133,6 +133,10 @@ export function ServicePulsePanel({
   dataFreshnessStatus: DataFreshnessStatus | undefined
   workflowHealth: WorkflowHealthInfo | null | undefined
 }) {
+  const completedWorkflowCount =
+    (workflowHealth?.successfulWorkflows ?? 0) + (workflowHealth?.failedWorkflows ?? 0)
+  const totalWorkflowCount = getWorkflowCount(workflowHealth)
+
   return (
     <SectionCard
       variant="surface"
@@ -227,9 +231,13 @@ export function ServicePulsePanel({
               </Badge>
             </div>
             <p className="mt-2 text-sm text-text-muted">
-              {formatPercent(workflowHealth.successRate)} of{' '}
-              {formatInteger(getWorkflowCount(workflowHealth))} automation runs finished
-              successfully in the last 24h.
+              {completedWorkflowCount > 0
+                ? `${formatPercent(workflowHealth.successRate)} of ${formatInteger(completedWorkflowCount)} completed automation runs finished successfully in the last 24h.`
+                : workflowHealth.blockedWorkflows > 0
+                  ? `No automation runs finished in the last 24h. ${formatInteger(workflowHealth.blockedWorkflows)} ${workflowHealth.blockedWorkflows === 1 ? 'is' : 'are'} stuck or overdue.`
+                  : totalWorkflowCount && totalWorkflowCount > 0
+                    ? 'Automation started in the last 24h, but nothing has finished yet.'
+                    : 'No automation runs were recorded in the last 24h.'}
             </p>
             <p className="mt-2 text-sm text-text-muted">
               {formatInteger(workflowHealth.failedWorkflows)} failed ·{' '}

@@ -1,31 +1,20 @@
-"""Intelligence Fetcher - Fetches intelligence data from internal API."""
+"""Intelligence Fetcher - builds symbol intelligence in process."""
 
 from __future__ import annotations
 
 from typing import Any
 
-import httpx
-
-from ...config import settings
-from ...constants import DEFAULT_HTTP_TIMEOUT
+from ...api.symbols.service import build_symbol_intelligence
 from ...logging_config import get_logger
 
 logger = get_logger(__name__)
 
 
 class IntelligenceFetcher:
-    """Fetches intelligence data from internal symbols API."""
-
-    def __init__(self, api_base_url: str | None = None) -> None:
-        """Initialize fetcher.
-
-        Args:
-            api_base_url: Base URL for internal API calls
-        """
-        self._api_base_url = api_base_url or settings.backend_url
+    """Fetches thesis intelligence from the shared symbol assembly."""
 
     def fetch(self, symbol: str) -> dict[str, Any]:
-        """Fetch intelligence data from internal API.
+        """Build intelligence data without an internal HTTP round-trip.
 
         Args:
             symbol: Stock symbol
@@ -34,22 +23,22 @@ class IntelligenceFetcher:
             Intelligence data dictionary
 
         Raises:
-            RuntimeError: If API call fails
+            RuntimeError: If intelligence assembly fails
         """
-        url = f"{self._api_base_url}/api/symbols/{symbol}/intelligence"
+        symbol = symbol.upper()
 
         try:
-            logger.info("fetching_intelligence", symbol=symbol, url=url)
-            response = httpx.get(url, timeout=DEFAULT_HTTP_TIMEOUT)
-            response.raise_for_status()
-            data: dict[str, Any] = response.json()
-
+            logger.info("building_intelligence", symbol=symbol)
+            data = build_symbol_intelligence(
+                symbol,
+                include_market=True,
+                include_strategies=True,
+                include_decision=False,
+            ).model_dump(mode="json")
             if data.get("error"):
                 raise RuntimeError(f"Intelligence API returned error: {data['error']}")
-
-            logger.info("intelligence_fetched", symbol=symbol, sections=list(data.keys()))
+            logger.info("intelligence_built", symbol=symbol, sections=list(data.keys()))
             return data
-
-        except httpx.HTTPError as e:
-            logger.error("intelligence_fetch_failed", symbol=symbol, error=str(e), exc_info=True)
+        except Exception as e:
+            logger.error("intelligence_build_failed", symbol=symbol, error=str(e), exc_info=True)
             raise RuntimeError(f"Failed to fetch intelligence for {symbol}: {e}") from e

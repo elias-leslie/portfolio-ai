@@ -35,12 +35,22 @@ describe('HomeActionQueue', () => {
             source: 'workflow',
             category: 'investing',
             priority: 'high',
-            title: 'Review VTI',
-            detail: 'Review the workflow state.',
-            actionLabel: 'Open symbol',
-            href: '/symbols/VTI',
+            title: 'VTI: Initiate position',
+            detail: 'Strong BUY signal (8/10) Suggested size $5,000.',
+            actionLabel: 'Open decision',
+            href: '/symbols/VTI?tab=decision',
             symbol: 'VTI',
             badge: 'High',
+            decision: {
+              action: 'INITIATE_POSITION',
+              headline: 'Initiate position',
+              summary: 'Strong BUY signal (8/10)',
+              reasoning: ['Strong BUY signal (8/10)'],
+              sourceKind: 'live_signal_model',
+              sourceLabel: 'Live signal model',
+              sourceTimestamp: '2026-03-10T15:30:00Z',
+              severity: null,
+            },
             execution: {
               kind: 'workflow_transition',
               symbol: 'VTI',
@@ -63,6 +73,11 @@ describe('HomeActionQueue', () => {
     render(<HomeActionQueue />)
 
     expect(screen.getByText(/1 prioritized action · 1 urgent · 1 quick action-ready/i)).toBeInTheDocument()
+    expect(screen.getByText(/live signal model/i)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /open decision/i })).toHaveAttribute(
+      'href',
+      '/symbols/VTI?tab=decision',
+    )
 
     await user.click(screen.getByRole('button', { name: /advance workflow/i }))
 
@@ -132,5 +147,47 @@ describe('HomeActionQueue', () => {
 
     expect(screen.getByText('Update time unavailable')).toBeInTheDocument()
     expect(screen.queryByText(/Updated Never/i)).not.toBeInTheDocument()
+  })
+
+  it('surfaces Jenny decision provenance when an alert is active', () => {
+    useHomeActionQueueMock.mockReturnValue({
+      data: {
+        generatedAt: '2026-03-10T00:00:00Z',
+        summary: '1 prioritized action ready.',
+        actions: [
+          {
+            id: 'jenny-1',
+            source: 'jenny',
+            category: 'investing',
+            priority: 'critical',
+            title: 'NVDA: Exit this position',
+            detail: 'Reduce risk now.',
+            actionLabel: 'Review with Jenny',
+            href: '/symbols/NVDA?tab=decision',
+            symbol: 'NVDA',
+            badge: 'Critical',
+            decision: {
+              action: 'position_exit',
+              headline: 'Exit this position',
+              summary: 'Reduce risk now.',
+              reasoning: ['The thesis broke.', 'Reduce risk now.'],
+              sourceKind: 'jenny_alert',
+              sourceLabel: 'Jenny alert',
+              sourceTimestamp: '2026-03-10T16:00:00Z',
+              severity: 'critical',
+            },
+          },
+        ],
+      },
+      isLoading: false,
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    render(<HomeActionQueue />)
+
+    expect(screen.getByText(/jenny alert · critical/i)).toBeInTheDocument()
+    expect(screen.getByText('Reduce risk now.')).toBeInTheDocument()
   })
 })

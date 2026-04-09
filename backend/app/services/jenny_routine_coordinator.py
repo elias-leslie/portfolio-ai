@@ -64,9 +64,9 @@ class JennyRoutineCoordinator:
                 symbol_profile = symbol_profiles.get(symbol, service._default_symbol_profile(symbol))
                 thesis = service._ensure_thesis(symbol, symbol_profile)
                 evaluations = service._evaluate_symbol(
-                    symbol,
-                    thesis,
-                    price_data.get(symbol),
+                    symbol=symbol,
+                    thesis=thesis,
+                    price_data=price_data.get(symbol),
                     routine_id=routine_id,
                     workflow_id=workflow_id,
                     symbol_profile=symbol_profile,
@@ -291,7 +291,8 @@ class JennyRoutineCoordinator:
         with service.storage.connection() as conn:
             rows = conn.execute(
                 f"""
-                SELECT jr.id, jr.started_at, COALESCE(activity.last_activity_at, jr.started_at) AS last_activity_at
+                SELECT jr.id, jr.started_at, COALESCE(activity.last_activity_at, jr.started_at) AS last_activity_at,
+                       jr.metadata->>'workflow_id' AS workflow_id
                 FROM jenny_routines jr
                 LEFT JOIN LATERAL (
                     SELECT MAX(created_at) AS last_activity_at
@@ -306,13 +307,17 @@ class JennyRoutineCoordinator:
                 params,
             ).fetchall()
             cleared = 0
-            for routine_id_value, started_at, last_activity_at in rows:
+            for routine_id_value, started_at, last_activity_at, workflow_id in rows:
                 started_iso = getattr(started_at, "isoformat", None)
                 started = started_iso() if callable(started_iso) else str(started_at)
                 last_activity = (
                     last_activity_iso()
                     if callable(last_activity_iso := getattr(last_activity_at, "isoformat", None))
                     else str(last_activity_at)
+                )
+                summary = (
+                    f"Marked failed after stale running routine from {started} "
+                    f"with no activity after {last_activity}."
                 )
                 conn.execute(
                     """
@@ -324,11 +329,13 @@ class JennyRoutineCoordinator:
                     """,
                     [
                         "failed",
-                        f"Marked failed after stale running routine from {started} with no activity after {last_activity}.",
+                        summary,
                         datetime.now(UTC).isoformat(),
                         str(routine_id_value),
                     ],
                 )
+                if workflow_id:
+                    service.workflow_orchestrator.fail_workflow(str(workflow_id), summary, retry=False)
                 cleared += 1
             if cleared:
                 conn.commit()

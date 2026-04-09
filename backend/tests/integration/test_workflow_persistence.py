@@ -179,6 +179,40 @@ def test_workflow_update_status(storage: PortfolioStorage) -> None:
     assert db_current_step == "executing"
 
 
+def test_workflow_fail_persists_status_and_error(storage: PortfolioStorage) -> None:
+    """Failing a workflow should persist the failed state and error text."""
+    orchestrator = WorkflowOrchestrator(storage)
+
+    result = orchestrator.start_workflow(
+        workflow_type="test_fail",
+        agents_involved=["gemini"],
+        triggered_by="test",
+    )
+
+    workflow_id = result["workflow_id"]
+    assert isinstance(workflow_id, str)
+
+    fail_result = orchestrator.fail_workflow(
+        workflow_id=workflow_id,
+        error="simulated failure",
+        retry=False,
+    )
+
+    assert fail_result["status"] == "failed"
+
+    with storage.connection() as conn:
+        db_result = conn.execute(
+            "SELECT status, error, completed_at FROM agent_workflows WHERE id = $1",
+            [workflow_id],
+        ).fetchone()
+
+    assert db_result is not None
+    db_status, db_error, completed_at = db_result
+    assert db_status == "failed"
+    assert db_error == "simulated failure"
+    assert completed_at is not None
+
+
 def test_agent_message_storage(storage: PortfolioStorage) -> None:
     """Test that agent messages are stored correctly in agent_messages table."""
     from app.agents.tool_executors_collaboration import CollaborationTools

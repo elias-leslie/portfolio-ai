@@ -10,6 +10,8 @@ from fastapi import APIRouter
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
+from app.api.symbols.models import DecisionSection
+
 if TYPE_CHECKING:
     from app.services.automation_center_service import AutomationCenterService
     from app.services.home_action_service import HomeActionService
@@ -33,6 +35,7 @@ class HomeActionItemResponse(BaseModel):
     href: str
     symbol: str | None = None
     badge: str | None = None
+    decision: DecisionSection | None = None
     execution: HomeActionExecutionResponse | None = None
 
 

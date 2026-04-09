@@ -162,9 +162,12 @@ def test_fail_stale_routines_marks_old_running_entries_failed() -> None:
     """Abandoned Jenny runs should not stay stuck in running forever."""
     service = _service()
     service.storage = MagicMock()
+    service.workflow_orchestrator = Mock()
     connection = service.storage.connection.return_value.__enter__.return_value
     stale_started = datetime.now(UTC) - timedelta(minutes=45)
-    connection.execute.return_value.fetchall.return_value = [("routine-old", stale_started, stale_started)]
+    connection.execute.return_value.fetchall.return_value = [
+        ("routine-old", stale_started, stale_started, "workflow-old")
+    ]
 
     cleared = service._fail_stale_routines("daily_operator")
 
@@ -173,6 +176,30 @@ def test_fail_stale_routines_marks_old_running_entries_failed() -> None:
     assert update_params[0] == "failed"
     assert "stale" in update_params[1].lower()
     assert update_params[-1] == "routine-old"
+    service.workflow_orchestrator.fail_workflow.assert_called_once_with(
+        "workflow-old",
+        update_params[1],
+        retry=False,
+    )
+
+
+def test_fail_stale_routines_ignores_recent_running_entries() -> None:
+    """Active Jenny runs should not be marked stale while real work is still recent."""
+    service = _service()
+    service.storage = MagicMock()
+    service.workflow_orchestrator = Mock()
+    connection = service.storage.connection.return_value.__enter__.return_value
+    connection.execute.return_value.fetchall.return_value = []
+
+    before_call = datetime.now(UTC)
+    cleared = service._fail_stale_routines("daily_operator")
+    after_call = datetime.now(UTC)
+
+    assert cleared == 0
+    query_params = connection.execute.call_args.args[1]
+    activity_before = query_params[0]
+    assert before_call - timedelta(minutes=16) <= activity_before <= after_call - timedelta(minutes=14)
+    service.workflow_orchestrator.fail_workflow.assert_not_called()
 
 
 def test_run_daily_operator_reuses_existing_active_routine() -> None:
@@ -259,7 +286,14 @@ def test_run_daily_operator_completes_workflow_and_notifications() -> None:
         status="running",
         current_step="reviewing_symbols",
     )
-    service._evaluate_symbol.assert_called_once()
+    service._evaluate_symbol.assert_called_once_with(
+        symbol="AAPL",
+        thesis=thesis,
+        price_data=service.price_fetcher.fetch_price_data.return_value["AAPL"],
+        routine_id="routine-1",
+        workflow_id="workflow-1",
+        symbol_profile={"security_type": "equity", "is_passive_fund": False},
+    )
     service._create_notifications.assert_called_once()
     service._complete_routine.assert_called_once_with(
         "routine-1",

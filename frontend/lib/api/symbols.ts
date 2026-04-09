@@ -68,6 +68,17 @@ export interface SymbolRecommendationSection {
   } | null
 }
 
+export interface SymbolDecisionSection {
+  action: string
+  headline: string
+  summary: string
+  reasoning: string[]
+  sourceKind: string
+  sourceLabel: string
+  sourceTimestamp?: string | null
+  severity?: string | null
+}
+
 export interface SymbolNewsSection {
   sentimentScore?: number | null
   sentimentLabel?: string | null
@@ -118,6 +129,7 @@ export interface SymbolIntelligence {
   market?: SymbolMarketSection | null
   alerts: SymbolAlert[]
   recommendation?: SymbolRecommendationSection | null
+  decision?: SymbolDecisionSection | null
   error?: string | null
 }
 

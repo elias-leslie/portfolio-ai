@@ -22,6 +22,7 @@ from .helpers import _calculate_price_change
 from .item_enrichment import (
     build_data_quality_map,
     build_news_intelligence_map,
+    build_watchlist_decision_map,
     enrich_data_quality,
     enrich_news_intelligence,
     enrich_priority_indicators,
@@ -40,7 +41,7 @@ class WatchlistService:
         self.price_fetcher = PriceDataFetcher(storage)
         self.repo = WatchlistRepository(storage)
 
-    def get_items_with_scores(self) -> list[dict[str, Any]]:
+    def get_items_with_scores(self, *, include_decision: bool = True) -> list[dict[str, Any]]:
         """Get all watchlist items with latest scores (LATERAL JOIN eliminates N+1 pattern)."""
         items_df = self.repo.get_all_items_with_snapshots()
 
@@ -63,12 +64,21 @@ class WatchlistService:
 
             if row.get("overall_score") is not None:
                 build_snapshot_data(self.storage, item_data, row, stale_ttl_minutes)
+                item_data["decision_generated_at"] = row.get("fetched_at")
 
             symbol = row["symbol"]
             item_data["news_intelligence"] = news_intel_map.get(symbol)
             item_data["data_quality"] = data_quality_map.get(symbol)
 
             results.append(item_data)
+
+        if include_decision:
+            decision_map = build_watchlist_decision_map(self.storage, results)
+            for item_data in results:
+                item_data["decision"] = decision_map.get(item_data["symbol"])
+        else:
+            for item_data in results:
+                item_data["decision"] = None
 
         enrich_priority_indicators(results)
         return results
@@ -90,6 +100,7 @@ class WatchlistService:
             prefs = UserPreferences.load_all(self.storage)
             stale_ttl_minutes = prefs.get_stale_ttl_minutes()
             build_snapshot_data(self.storage, item_data, snap_row, stale_ttl_minutes)
+            item_data["decision_generated_at"] = snap_row.get("fetched_at")
 
         symbol = row["symbol"]
         enrich_news_intelligence(self.repo, symbol, item_data)
@@ -98,6 +109,7 @@ class WatchlistService:
         item_data["readiness_score"] = 100.0
         item_data["confidence_level"] = "HIGH"
         item_data["gap_warning"] = None
+        item_data["decision"] = build_watchlist_decision_map(self.storage, [item_data]).get(symbol)
 
         return item_data
 

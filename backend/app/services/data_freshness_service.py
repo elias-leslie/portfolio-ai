@@ -112,7 +112,7 @@ def trigger_remediation(
         return None
     _remediation_cooldowns[table_name] = now
     admin = get_admin_client()
-    result = admin.run_workflow(task_name, {})
+    result = admin.run_workflow(task_name, "{}")
     task_id = str(result.workflow_run_id) if result else None
     logger.info("remediation_triggered", table_name=table_name, task_name=task_name, task_id=task_id, age_hours=age_hours)
     return task_id
