@@ -117,7 +117,7 @@ def _extract_request(args: tuple, kwargs: dict) -> Request | None:
     for arg in args:
         if isinstance(arg, Request):
             return arg
-    return kwargs.get("request")  # type: ignore[return-value]
+    return kwargs.get("request")
 
 
 def cache_response(
@@ -145,7 +145,7 @@ def cache_response(
             if not CACHE_ENABLED:
                 return await func(*args, **kwargs)  # type: ignore[misc]
 
-            request = _extract_request(args, kwargs)  # type: ignore[arg-type]
+            request = _extract_request(args, kwargs)
             if request is None:
                 logger.warning("cache_no_request_object", func_name=func.__name__)
                 return await func(*args, **kwargs)  # type: ignore[misc]

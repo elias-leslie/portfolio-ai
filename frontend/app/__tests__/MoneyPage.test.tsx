@@ -138,6 +138,7 @@ describe('MoneyPage', () => {
           automations: [],
           supportedDocuments: [],
         },
+        evidenceAccounts: [],
         questions: [],
         jennyBrief: {
           headline: 'Jenny',
@@ -198,7 +199,7 @@ describe('MoneyPage', () => {
     expect(screen.getByRole('button', { name: 'Action' })).toBeInTheDocument()
     expect(screen.getByText(/60\/100 clarity score/i)).toBeInTheDocument()
     expect(screen.getByText(/0\/0 documents parsed/i)).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Uploads' }))
+    await user.click(screen.getByRole('button', { name: 'Intake' }))
     await user.click(screen.getByRole('button', { name: 'Retry' }))
 
     expect(refetchDocuments).toHaveBeenCalled()
@@ -319,6 +320,7 @@ describe('MoneyPage', () => {
           automations: [],
           supportedDocuments: [],
         },
+        evidenceAccounts: [],
         questions: [
           {
             id: 'question-1',

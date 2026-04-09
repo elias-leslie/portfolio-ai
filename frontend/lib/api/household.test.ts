@@ -161,12 +161,15 @@ describe('household api', () => {
     await uploadHouseholdDocument({ file, sourceType: 'receipt' })
 
     expect(global.fetch).toHaveBeenCalledWith(
-      '/api/household/documents',
+      '/api/intake/evidence',
       expect.objectContaining({
         method: 'POST',
         body: expect.any(FormData),
       }),
     )
+    const [, request] = vi.mocked(global.fetch).mock.calls[0]
+    const form = request?.body as FormData
+    expect(form.get('source_type')).toBe('receipt')
   })
 
   it('answers a household question', async () => {

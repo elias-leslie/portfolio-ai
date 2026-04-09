@@ -93,10 +93,6 @@ class HouseholdDocumentReviewService:
             signature_review["extracted_text"] = extracted_text
             return signature_review
 
-        if baseline["confidence"] >= 0.88:
-            baseline["extracted_text"] = extracted_text
-            return baseline
-
         if AGENT_HUB_ENABLED:
             reviewed = self._review_with_llm(
                 payload={
@@ -113,6 +109,10 @@ class HouseholdDocumentReviewService:
             )
             if reviewed is not None:
                 return self._merge_llm_result(reviewed, baseline, extracted_text)
+
+        if baseline["confidence"] >= 0.88:
+            baseline["extracted_text"] = extracted_text
+            return baseline
 
         baseline["extracted_text"] = extracted_text
         return baseline

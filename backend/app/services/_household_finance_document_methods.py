@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from fastapi import UploadFile
@@ -41,13 +42,31 @@ class _HFDocumentMethods:
             document_type=document_type, account_label=account_label,
         )
 
+    def _annotate_document(self, document: HouseholdDocument) -> HouseholdDocument:
+        metadata = document.metadata if isinstance(document.metadata, dict) else {}
+        stored_path = metadata.get("stored_path")
+        metadata["file_available"] = bool(isinstance(stored_path, str) and stored_path and Path(stored_path).exists())
+        existing_summary = metadata.get("application_summary")
+        if document.review_status or document.parsed_at or isinstance(existing_summary, dict):
+            metadata["application_summary"] = self.document_pipeline.describe_application_state(
+                self,
+                document=document,
+            )
+        document.metadata = metadata
+        return document
+
     def list_documents(self, limit: int = 20) -> HouseholdDocumentList:
         with self.storage.connection() as conn:
             rows = conn.execute(
                 f"{_DOC_SQL} ORDER BY uploaded_at DESC LIMIT %s", [limit]
             ).fetchall()
         return HouseholdDocumentList(
-            items=[row_to_document(row, to_float=to_float, iso=iso, iso_or_none=iso_or_none) for row in rows]
+            items=[
+                self._annotate_document(
+                    row_to_document(row, to_float=to_float, iso=iso, iso_or_none=iso_or_none)
+                )
+                for row in rows
+            ]
         )
 
     def get_document(self, document_id: str) -> HouseholdDocument | None:
@@ -55,7 +74,11 @@ class _HFDocumentMethods:
             row = conn.execute(
                 f"{_DOC_SQL} WHERE id = %s", [document_id]
             ).fetchone()
-        return row_to_document(row, to_float=to_float, iso=iso, iso_or_none=iso_or_none) if row is not None else None
+        if row is None:
+            return None
+        return self._annotate_document(
+            row_to_document(row, to_float=to_float, iso=iso, iso_or_none=iso_or_none)
+        )
 
     def review_document(self, document_id: str) -> None:
         self.document_pipeline.review_document(self, document_id)

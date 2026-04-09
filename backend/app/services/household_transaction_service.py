@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
 from itertools import pairwise
+from types import SimpleNamespace
 from typing import Any
 
 from app.logging_config import get_logger
@@ -329,6 +330,62 @@ class HouseholdTransactionService:
 
         return {"inserted": inserted, "updated": updated}
 
+    def backfill_from_latest_reviews(self, *, limit: int = 24) -> dict[str, int]:
+        with self.storage.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    d.id,
+                    d.filename,
+                    d.source_type,
+                    d.document_type,
+                    d.account_label,
+                    COALESCE(r.summary, d.review_summary) AS summary,
+                    r.extracted_text,
+                    r.structured_data
+                FROM household_documents d
+                JOIN LATERAL (
+                    SELECT summary, extracted_text, structured_data
+                    FROM household_document_reviews
+                    WHERE document_id = d.id
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                ) r ON TRUE
+                WHERE d.source_type IN ('bank', 'credit_card', 'receipt')
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM household_transactions t
+                      WHERE t.document_id = d.id
+                  )
+                ORDER BY d.uploaded_at DESC
+                LIMIT %s
+                """,
+                [limit],
+            ).fetchall()
+
+        inserted = 0
+        updated = 0
+        for row in rows:
+            result = self.import_document_transactions(
+                document=SimpleNamespace(
+                    id=str(row[0]),
+                    filename=str(row[1]),
+                    source_type=str(row[2]),
+                    document_type=str(row[3]),
+                    account_label=str(row[4]) if row[4] is not None else None,
+                ),
+                reviewed={
+                    "summary": row[5],
+                    "extracted_text": row[6] if isinstance(row[6], str) else "",
+                    "structured_data": row[7] if isinstance(row[7], dict) else {},
+                    "source_type": row[2],
+                    "document_type": row[3],
+                },
+            )
+            inserted += result["inserted"]
+            updated += result["updated"]
+        return {"inserted": inserted, "updated": updated}
+
     def build_reports(self) -> HouseholdReports:
         with self.storage.connection() as conn:
             expense_rows = conn.execute(
@@ -482,7 +539,9 @@ class HouseholdTransactionService:
             return []
 
         transactions: list[ExtractedTransaction] = []
-        if source_type == "credit_card" and document_type == "statement":
+        if filename.lower().endswith((".ofx", ".qfx")) or "<stmttrn>" in extracted_text.lower():
+            transactions.extend(self._parse_ofx_transactions(extracted_text, account_label, source_type))
+        elif source_type == "credit_card" and document_type == "statement":
             transactions.extend(self._parse_chase_statement(extracted_text, account_label))
         elif source_type == "bank" and document_type == "statement":
             transactions.extend(self._parse_wells_fargo_statement(extracted_text, account_label))
@@ -520,6 +579,67 @@ class HouseholdTransactionService:
                 )
 
         return transactions
+
+    def _parse_ofx_transactions(
+        self,
+        extracted_text: str,
+        account_label: str | None,
+        source_type: str,
+    ) -> list[ExtractedTransaction]:
+        rows: list[ExtractedTransaction] = []
+        blocks = re.findall(r"(?is)<stmttrn>(.*?)(?:</stmttrn>|(?=<stmttrn>|$))", extracted_text)
+        for raw_block in blocks:
+            date_match = re.search(r"(?is)<dtposted>\s*([0-9]{8})", raw_block)
+            amount_match = re.search(r"(?is)<trnamt>\s*([-+]?\d[\d.,]*)", raw_block)
+            name_match = re.search(r"(?is)<name>\s*([^\n<]+)", raw_block)
+            memo_match = re.search(r"(?is)<memo>\s*([^\n<]+)", raw_block)
+            fitid_match = re.search(r"(?is)<fitid>\s*([^\n<]+)", raw_block)
+            if not date_match or not amount_match:
+                continue
+            try:
+                transaction_date = datetime.strptime(date_match.group(1), "%Y%m%d").date()
+            except ValueError:
+                continue
+            amount = _parse_decimal(amount_match.group(1))
+            if amount is None:
+                continue
+            description = (
+                name_match.group(1).strip()
+                if name_match
+                else memo_match.group(1).strip()
+                if memo_match
+                else "OFX transaction"
+            )
+            normalized_amount = abs(amount)
+            if source_type == "credit_card":
+                flow_type = "expense" if amount < 0 else "payment"
+            else:
+                flow_type = "expense" if amount < 0 else "income"
+                if flow_type == "income" and "transfer" in description.lower():
+                    flow_type = "transfer_in"
+            category, essentiality = _classify_merchant(
+                raw_merchant=description,
+                description=description,
+                amount=float(normalized_amount),
+            )
+            rows.append(
+                ExtractedTransaction(
+                    transaction_date=transaction_date,
+                    description=description,
+                    raw_merchant=description,
+                    amount=normalized_amount,
+                    flow_type=flow_type,
+                    category=category,
+                    essentiality=essentiality,
+                    confidence=0.95,
+                    account_label=account_label,
+                    metadata={
+                        "source": "ofx_export",
+                        "fitid": fitid_match.group(1).strip() if fitid_match else None,
+                    },
+                )
+            )
+        return rows
 
     def _parse_chase_statement(
         self,

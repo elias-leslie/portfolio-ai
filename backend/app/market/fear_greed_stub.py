@@ -157,7 +157,7 @@ def _calculate_trend(
         Tuple of (trend direction, trend_change points) or (None, None) on error.
     """
     try:
-        result_7d = conn.execute(  # type: ignore[union-attr]
+        result_7d = conn.execute(
             """
             SELECT score
             FROM fear_greed_daily

@@ -179,7 +179,7 @@ export function HouseholdOperationsPanel({
             </div>
             {dashboard.recurringCommitments.length === 0 ? (
               <div className="rounded-2xl border border-border/40 bg-surface/60 p-4 text-sm text-text-muted">
-                Jenny is processing your documents to detect recurring
+                Jenny is processing your evidence to detect recurring
                 commitments.
               </div>
             ) : (

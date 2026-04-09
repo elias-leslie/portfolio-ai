@@ -127,6 +127,7 @@ function buildDashboard(overrides: Record<string, unknown> = {}) {
       automations: [],
       supportedDocuments: [],
     },
+    evidenceAccounts: [],
     jennyBrief: {
       headline: 'Jenny',
       body: 'Body',

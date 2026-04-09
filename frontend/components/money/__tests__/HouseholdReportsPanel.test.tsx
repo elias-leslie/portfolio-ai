@@ -85,6 +85,7 @@ describe('HouseholdReportsPanel', () => {
             automations: [],
             supportedDocuments: [],
           },
+          evidenceAccounts: [],
           questions: [],
           jennyBrief: {
             headline: 'Jenny',

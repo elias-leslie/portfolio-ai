@@ -109,6 +109,7 @@ describe('HouseholdPlanningPanels', () => {
             automations: [],
             supportedDocuments: [],
           },
+          evidenceAccounts: [],
           questions: [],
           jennyBrief: {
             headline: 'Jenny',
@@ -259,6 +260,7 @@ describe('HouseholdPlanningPanels', () => {
             automations: [],
             supportedDocuments: [],
           },
+          evidenceAccounts: [],
           questions: [],
           jennyBrief: {
             headline: 'Jenny',

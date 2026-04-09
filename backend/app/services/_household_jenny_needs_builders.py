@@ -12,7 +12,7 @@ STATEMENT_STALENESS_DAYS = 45
 
 
 def _jenny_statement_needs(coverage_months: int, days_since_latest: int | None) -> list[JennyNeed]:
-    """Critical: upload statements when coverage is insufficient."""
+    """Critical: upload financial evidence when coverage is insufficient."""
     statements_satisfied = (
         coverage_months >= MIN_COVERAGE_MONTHS
         and days_since_latest is not None
@@ -26,9 +26,12 @@ def _jenny_statement_needs(coverage_months: int, days_since_latest: int | None) 
             f"most recent {days_since_latest} days ago. More coverage improves accuracy."
         )
     else:
-        detail = "Jenny needs at least 3 months of recent statements to build accurate spending baselines."
+        detail = (
+            "Jenny needs at least 3 months of recent financial evidence to build "
+            "accurate spending baselines."
+        )
     return [JennyNeed(
-        id="need_statements", need_type="provide", title="Upload statements",
+        id="need_statements", need_type="provide", title="Upload financial evidence",
         detail=detail, priority="critical", status="unsatisfied",
         recurrence="periodic", action_href="/money?tab=intake",
     )]
@@ -43,7 +46,10 @@ def _jenny_confirmation_needs(
         needs.append(JennyNeed(
             id="need_account_completeness", need_type="confirm",
             title="Are all accounts covered?",
-            detail="Confirm that the uploaded statements cover all your active bank and credit card accounts.",
+            detail=(
+                "Confirm that your uploaded evidence covers all active bank, card, "
+                "brokerage, and retirement accounts."
+            ),
             priority="high", status="unsatisfied", recurrence="one_time",
             field_name="account_completeness",
         ))
@@ -94,8 +100,11 @@ def _jenny_account_question_needs(
         label = f"{institution} ...{partial}" if partial else institution
         needs.append(JennyNeed(
             id=f"need_account_{acct_key}", need_type="provide",
-            title=f"Upload {label} statements",
-            detail=f"Jenny spotted references to {label} in your transactions but has no statements for it.",
+            title=f"Add evidence for {label}",
+            detail=(
+                f"Jenny spotted references to {label} in your transactions but has no "
+                "supporting evidence for it yet."
+            ),
             priority="high", status="unsatisfied", recurrence="one_time", action_href="/money?tab=intake",
         ))
     for q in [q for q in questions if q.status == "open"][:3]:
@@ -143,12 +152,15 @@ def _jenny_retirement_category_needs(
 
 
 def _jenny_freshness_needs(documents: list[Any], days_since_latest: int | None) -> list[JennyNeed]:
-    """Low-priority freshness need when documents exist but are stale."""
+    """Low-priority freshness need when evidence exists but is stale."""
     if documents and days_since_latest is not None and days_since_latest >= STATEMENT_STALENESS_DAYS:
         return [JennyNeed(
             id="need_freshness", need_type="provide",
-            title="Upload newer statements",
-            detail=f"The most recent transaction is {days_since_latest} days old. Fresher data keeps pacing accurate.",
+            title="Add newer evidence",
+            detail=(
+                f"The most recent transaction is {days_since_latest} days old. "
+                "Fresher evidence keeps pacing accurate."
+            ),
             priority="low", status="unsatisfied", recurrence="periodic", action_href="/money?tab=intake",
         )]
     return []

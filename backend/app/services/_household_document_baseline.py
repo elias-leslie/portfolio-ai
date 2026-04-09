@@ -236,6 +236,15 @@ def _classify_by_content(
     elif "brokerage" in text_lower or "positions" in text_lower or "dividends" in text_lower:
         inferred_source, inferred_document, confidence = "brokerage", "brokerage_statement", 0.8
         summary = "Brokerage statement with investable assets and account activity."
+    elif "<invstmtmsgsrsv1>" in text_lower or "<invtranlist>" in text_lower:
+        inferred_source, inferred_document, confidence = "brokerage", "brokerage_statement", 0.84
+        summary = "Investment account export with machine-readable holdings and activity."
+    elif "<creditcardmsgsrsv1>" in text_lower or "<ccstmttrnrs>" in text_lower:
+        inferred_source, inferred_document, confidence = "credit_card", "statement", 0.84
+        summary = "Credit-card export with machine-readable transaction activity."
+    elif "<bankmsgsrsv1>" in text_lower or "<banktranlist>" in text_lower or "<stmttrn>" in text_lower:
+        inferred_source, inferred_document, confidence = "bank", "statement", 0.82
+        summary = "Bank account export with machine-readable transaction activity."
     elif "ira" in text_lower or "401(k)" in text_lower or "retirement" in text_lower:
         inferred_source, inferred_document, confidence = "retirement", "retirement_statement", 0.8
         summary = "Retirement account statement for long-term planning."

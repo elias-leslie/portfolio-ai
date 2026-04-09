@@ -16,6 +16,7 @@ from app.models.household_finance import HouseholdDocument
 from app.services._household_document_pipeline_db import (
     archive_prior_document_data,
     dismiss_open_document_questions,
+    fetch_document_application_counts,
     fetch_duplicate_document_row,
     insert_document_db,
     insert_inferred_values,
@@ -23,6 +24,7 @@ from app.services._household_document_pipeline_db import (
     mark_review_failed,
     save_upload_to_disk,
     update_document_and_log_review,
+    update_document_application_summary,
     update_import_summary,
     upsert_import_row,
     upsert_signature_record,
@@ -35,7 +37,7 @@ from app.services._household_document_pipeline_utils import (
     parse_row_date,
 )
 from app.services._household_finance_utils import iso, iso_or_none, to_float
-from app.services.household_finance_rows import row_to_document
+from app.services.household_finance_rows import FIELD_LABELS, row_to_document
 
 if TYPE_CHECKING:
     from app.services.household_finance_service import HouseholdFinanceService
@@ -89,9 +91,10 @@ class HouseholdDocumentPipeline:
             source_type=source_type,
             document_type=document_type,
         )
+        upload_root = service._upload_root()
         stored_path = save_upload_to_disk(
             content, document_id=document_id, filename=filename,
-            upload_dir=Path(__file__).resolve().parents[2] / "data" / "household_uploads",
+            upload_dir=upload_root,
         )
         now = datetime.now(UTC).isoformat()
         metadata: dict[str, object] = {
@@ -163,17 +166,16 @@ class HouseholdDocumentPipeline:
         )
         self._persist_review(service, document=document, reviewed=reviewed, now=now)
         self.upsert_document_signatures(service, document=document, reviewed=reviewed)
-        self.import_document_rows(service, document=document, reviewed=reviewed)
-        service.transaction_service.import_document_transactions(
-            document=document, reviewed=reviewed
+        application_summary = self.apply_review_outputs(
+            service, document=document, reviewed=reviewed
         )
-        planning_items = reviewed.get("planning_items")
-        if isinstance(planning_items, list):
-            service.merge_planning_items(
-                items=[item for item in planning_items if isinstance(item, dict)],
-                provenance="document_review",
-                source_document_id=document.id,
+        with service.storage.connection() as conn:
+            update_document_application_summary(
+                conn,
+                document_id=document.id,
+                application_summary=application_summary,
             )
+            conn.commit()
 
     def _persist_review(
         self,
@@ -262,13 +264,13 @@ class HouseholdDocumentPipeline:
         *,
         document: HouseholdDocument,
         reviewed: dict[str, object],
-    ) -> None:
+    ) -> dict[str, object]:
         dataset_type = detect_import_dataset(document=document, reviewed=reviewed)
         if dataset_type is None:
-            return
+            return {"dataset_type": None, "inserted": 0, "duplicates": 0}
         stored_path = document.metadata.get("stored_path")
         if not isinstance(stored_path, str) or not stored_path:
-            return
+            return {"dataset_type": dataset_type, "inserted": 0, "duplicates": 0}
 
         now = datetime.now(UTC).isoformat()
         with Path(stored_path).open("r", encoding="utf-8", errors="ignore", newline="") as fh:
@@ -286,3 +288,121 @@ class HouseholdDocumentPipeline:
                 inserted=inserted, duplicates=duplicates,
             )
             conn.commit()
+        return {"dataset_type": dataset_type, "inserted": inserted, "duplicates": duplicates}
+
+    def apply_review_outputs(
+        self,
+        service: HouseholdFinanceService,
+        *,
+        document: HouseholdDocument,
+        reviewed: dict[str, object],
+    ) -> dict[str, object]:
+        import_summary = self.import_document_rows(service, document=document, reviewed=reviewed)
+        transaction_summary = service.transaction_service.import_document_transactions(
+            document=document,
+            reviewed=reviewed,
+        )
+        evidence_account_count = service.evidence_service.replace_document_accounts(
+            service,
+            document=document,
+            reviewed=reviewed,
+        )
+        planning_items = reviewed.get("planning_items")
+        planning_count = 0
+        if isinstance(planning_items, list):
+            dict_items = [item for item in planning_items if isinstance(item, dict)]
+            if dict_items:
+                service.merge_planning_items(
+                    items=dict_items,
+                    provenance="document_review",
+                    source_document_id=document.id,
+                )
+                planning_count = len(dict_items)
+        inferred_count = 0
+        raw_inferred_values = reviewed.get("inferred_values")
+        if not isinstance(raw_inferred_values, list):
+            raw_inferred_values = []
+        for inferred in raw_inferred_values:
+            if not isinstance(inferred, dict):
+                continue
+            if str(inferred.get("field_name") or "").strip() in FIELD_LABELS:
+                inferred_count += 1
+
+        impacts: list[str] = []
+        if (import_summary.get("inserted") or 0) > 0:
+            impacts.append("imports")
+        if (transaction_summary.get("inserted") or 0) > 0 or (transaction_summary.get("updated") or 0) > 0:
+            impacts.append("transactions")
+        if evidence_account_count > 0:
+            impacts.append("accounts")
+        if planning_count > 0:
+            impacts.append("planning")
+        if inferred_count > 0:
+            impacts.append("inferences")
+        status = "applied" if impacts else "incomplete"
+
+        return {
+            "status": status,
+            "impacts": impacts,
+            "imports": import_summary,
+            "transactions": transaction_summary,
+            "evidence_accounts": evidence_account_count,
+            "planning_items": planning_count,
+            "inferred_values": inferred_count,
+            "needs_follow_up": not impacts,
+        }
+
+    def describe_application_state(
+        self,
+        service: HouseholdFinanceService,
+        *,
+        document: HouseholdDocument,
+    ) -> dict[str, object]:
+        metadata = document.metadata if isinstance(document.metadata, dict) else {}
+        existing_summary = metadata.get("application_summary")
+        existing = existing_summary if isinstance(existing_summary, dict) else {}
+        existing_imports = existing.get("imports")
+        existing_imports_dict = existing_imports if isinstance(existing_imports, dict) else {}
+        existing_transactions = existing.get("transactions")
+        existing_transactions_dict = (
+            existing_transactions if isinstance(existing_transactions, dict) else {}
+        )
+
+        with service.storage.connection() as conn:
+            counts = fetch_document_application_counts(conn, document_id=document.id)
+
+        import_count = int(counts["import_count"])
+        transaction_count = int(counts["transaction_count"])
+        evidence_account_count = int(counts["evidence_account_count"])
+        inferred_count = int(counts["inferred_count"])
+        planning_count = int(existing.get("planning_items") or 0)
+
+        impacts: list[str] = []
+        if import_count > 0:
+            impacts.append("imports")
+        if transaction_count > 0:
+            impacts.append("transactions")
+        if evidence_account_count > 0:
+            impacts.append("accounts")
+        if planning_count > 0:
+            impacts.append("planning")
+        if inferred_count > 0:
+            impacts.append("inferences")
+
+        return {
+            "status": "applied" if impacts else "incomplete",
+            "impacts": impacts,
+            "imports": {
+                "dataset_type": counts["dataset_type"] or existing_imports_dict.get("dataset_type"),
+                "inserted": import_count,
+                "duplicates": int(existing_imports_dict.get("duplicates") or 0),
+            },
+            "transactions": {
+                "inserted": transaction_count,
+                "updated": int(existing_transactions_dict.get("updated") or 0),
+            },
+            "evidence_accounts": evidence_account_count,
+            "planning_items": planning_count,
+            "inferred_values": inferred_count,
+            "needs_follow_up": not impacts,
+        }

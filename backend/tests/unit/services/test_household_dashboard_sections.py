@@ -50,5 +50,4 @@ def test_budget_input_status_reports_missing_inputs_without_documents() -> None:
 
     assert status["budget_ready"] is False
     assert "Monthly income target" in status["missing_inputs"]
-    assert "Recent statements and receipts" in status["missing_inputs"]
-
+    assert "Recent financial evidence" in status["missing_inputs"]

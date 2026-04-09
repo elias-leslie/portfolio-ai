@@ -153,17 +153,29 @@ def _extract_news_published_at(
 
 def _extract_news_publisher(item: dict[str, object], content: dict[str, object]) -> str | None:
     """Extract publisher name from a news item."""
-    provider: dict[str, object] = content.get("provider") or item.get("provider") or {}  # type: ignore[assignment]
-    return provider.get("displayName") or provider.get("sourceId") or item.get("publisher")  # type: ignore[return-value]
+    provider_raw = content.get("provider") or item.get("provider")
+    provider = provider_raw if isinstance(provider_raw, dict) else {}
+    for key in ("displayName", "sourceId"):
+        value = provider.get(key)
+        if isinstance(value, str) and value:
+            return value
+    publisher = item.get("publisher")
+    return publisher if isinstance(publisher, str) and publisher else None
 
 
 def _extract_news_image(item: dict[str, object], content: dict[str, object]) -> str | None:
     """Extract image URL from a news item."""
-    thumb: dict[str, object] = content.get("thumbnail") or item.get("thumbnail") or {}  # type: ignore[assignment]
+    thumb_raw = content.get("thumbnail") or item.get("thumbnail")
+    thumb = thumb_raw if isinstance(thumb_raw, dict) else {}
     resolutions = thumb.get("resolutions")
     if isinstance(resolutions, list) and resolutions:
-        return resolutions[0].get("url")  # type: ignore[return-value]
-    return thumb.get("originalUrl")  # type: ignore[return-value]
+        first = resolutions[0]
+        if isinstance(first, dict):
+            url = first.get("url")
+            if isinstance(url, str) and url:
+                return url
+    original_url = thumb.get("originalUrl")
+    return original_url if isinstance(original_url, str) and original_url else None
 
 
 def parse_news_item(
@@ -313,7 +325,7 @@ def parse_short_interest(info: dict[str, object], symbol: str) -> dict[str, obje
 
     short_pct_outstanding = None
     if short_shares and shares_outstanding:
-        short_pct_outstanding = float(short_shares) / float(shares_outstanding)  # type: ignore[arg-type]
+        short_pct_outstanding = float(short_shares) / float(shares_outstanding)
 
     return {
         "symbol": symbol,

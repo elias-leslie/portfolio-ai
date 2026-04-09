@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import type {
   HouseholdDocument,
   HouseholdDocumentRequirement,
+  HouseholdEvidenceAccount,
   ImportCenter,
 } from '@/lib/api/household'
 import { SectionCard } from '@/components/shared/SectionCard'
@@ -21,10 +22,12 @@ export function HouseholdDocumentCenter({
   documents,
   importCenter,
   documentRequirements = [],
+  evidenceAccounts = [],
 }: {
   documents: HouseholdDocument[]
   importCenter?: ImportCenter
   documentRequirements?: HouseholdDocumentRequirement[]
+  evidenceAccounts?: HouseholdEvidenceAccount[]
 }) {
   const upload = useUploadHouseholdDocument()
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -114,12 +117,12 @@ export function HouseholdDocumentCenter({
   return (
     <SectionCard
       variant="surface"
-      title="Document Intake"
-      description="Upload statements, receipts, screenshots, invoices, and exports here. Jenny should figure out the document type, source, and likely account on her own, then ask only for the gaps."
+      title="Evidence Intake"
+      description="Drop financial files here once. Jenny should decide what they are, what matters, and whether they belong in cash-flow, portfolio, planning, or reference context, then ask only for missing context."
     >
       <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
         <div className="rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-5">
-          <p className="text-sm font-semibold text-text">Stage a document</p>
+          <p className="text-sm font-semibold text-text">Drop evidence once</p>
           <div className="mt-4 space-y-4">
             <div
               role="button"
@@ -154,7 +157,7 @@ export function HouseholdDocumentCenter({
               ) : null}
             </div>
             <div>
-              <Label htmlFor="document-file">File</Label>
+              <Label htmlFor="document-file">Files</Label>
               <Input
                 id="document-file"
                 ref={inputRef}
@@ -165,8 +168,8 @@ export function HouseholdDocumentCenter({
               />
             </div>
             <div className="rounded-2xl border border-border/50 bg-surface-muted/20 p-4 text-sm text-text-muted">
-              Jenny will infer the source, document type, and likely account label from the file contents, filename, and screenshot evidence.
-              If anything is ambiguous, she will open a short follow-up question in the household plan queue.
+              Jenny will infer the source, document type, likely account, and where this belongs in your system from the file contents, filename, and screenshot evidence.
+              If anything materially changes the outcome, she will open one short follow-up instead of sending you through separate upload flows.
             </div>
             {dedupedCount > 0 ? (
               <div className="rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm text-text-muted">
@@ -199,6 +202,7 @@ export function HouseholdDocumentCenter({
           documents={documents}
           importCenter={importCenter}
           documentRequirements={documentRequirements}
+          evidenceAccounts={evidenceAccounts}
         />
       </div>
     </SectionCard>

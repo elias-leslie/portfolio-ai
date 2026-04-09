@@ -82,15 +82,18 @@ def next_best_action(
     if questions:
         action = questions[0]
     elif not has_docs:
-        action = "Upload recent bank and credit-card statements so Jenny can see actual cash flow."
+        action = (
+            "Drop in recent financial evidence so Jenny can map accounts, cash flow, "
+            "and portfolio activity."
+        )
     elif resolved_numeric_value("monthly_net_income_target") is None:
         # Documents exist — Jenny is working on it, don't blame the user
-        action = "Jenny is building your income profile from uploaded documents."
+        action = "Jenny is building your income profile from uploaded evidence."
     elif (
         resolved_numeric_value("monthly_essential_target") is None
         or resolved_numeric_value("monthly_discretionary_target") is None
     ):
-        action = "Jenny is analyzing your statements to establish spending guardrails."
+        action = "Jenny is analyzing your evidence to establish spending guardrails."
     elif (
         resolved_numeric_value("target_retirement_spend") is None
         or resolved_numeric_value("target_retirement_age") is None
@@ -113,13 +116,13 @@ def budget_input_status(
     # don't create homework items for inferable fields.
     if resolved_numeric_value("monthly_net_income_target") is None:
         if has_docs:
-            priorities.append("Jenny is working on inferring income from your uploaded documents.")
+            priorities.append("Jenny is working on inferring income from your uploaded evidence.")
         else:
             missing_inputs.append("Monthly income target")
             priorities.append("Upload paystubs, deposit screenshots, or answer Jenny's income question.")
     if resolved_numeric_value("monthly_essential_target") is None:
         if has_docs:
-            priorities.append("Jenny is analyzing statements to establish essential spending baselines.")
+            priorities.append("Jenny is analyzing evidence to establish essential spending baselines.")
         else:
             missing_inputs.append("Essential spending target")
             priorities.append("Jenny still needs bills and core spending data to infer the essentials budget.")
@@ -130,13 +133,13 @@ def budget_input_status(
             missing_inputs.append("Discretionary spending target")
             priorities.append("Feed more card and checking data so Jenny can separate flexible spend from essentials.")
     if not has_docs:
-        missing_inputs.append("Recent statements and receipts")
-        priorities.append("Upload the last 90 days of statements to turn targets into monitored reality.")
+        missing_inputs.append("Recent financial evidence")
+        priorities.append("Upload the last 90 days of statements, exports, or screenshots to turn targets into monitored reality.")
 
     return {
         "budget_ready": not missing_inputs,
         "missing_inputs": missing_inputs,
-        "priorities": priorities or ["Keep statement imports current so Jenny can monitor pacing and savings."],
+        "priorities": priorities or ["Keep evidence intake current so Jenny can monitor pacing and savings."],
     }
 
 
@@ -204,4 +207,3 @@ def retirement_next_steps(
     if not next_steps:
         next_steps.append("Start scenario planning: early retirement, higher health costs, and lower-return years.")
     return next_steps
-

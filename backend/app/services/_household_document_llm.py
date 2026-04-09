@@ -30,7 +30,32 @@ Schema:
     "currency": "optional",
     "account_hint": "optional",
     "owner_name": "optional",
-    "provider_name": "optional"
+    "provider_name": "optional",
+    "financial_accounts": [
+      {
+        "asset_group": "cash|retirement|taxable|education|debt|credit|other",
+        "account_type": "checking|savings|credit_card|brokerage|retirement|ira|401k|roth_ira|529|loan|mortgage|other",
+        "institution_name": "optional",
+        "account_name": "optional",
+        "account_mask": "optional",
+        "owner_name": "optional",
+        "currency": "optional",
+        "balance": "optional numeric string",
+        "holdings_value": "optional numeric string",
+        "cash_balance": "optional numeric string",
+        "as_of_date": "optional ISO date string",
+        "confidence": 0.0-1.0,
+        "holdings": [
+          {
+            "symbol": "optional",
+            "description": "optional",
+            "quantity": "optional numeric string",
+            "market_value": "optional numeric string",
+            "weight_pct": "optional numeric string"
+          }
+        ]
+      }
+    ]
   },
   "inferred_values": [
     {
@@ -88,6 +113,7 @@ Schema:
 Only infer values if the evidence is strong. Infer source_type, document_type, and account_hint from the file whenever possible.
 If account identity, institution, or document role is ambiguous, ask targeted questions instead of guessing.
 Only emit planning_items when the document clearly supports a durable planning row.
+Only emit financial_accounts when the document clearly exposes a real account snapshot with enough information to update the money system.
 """
 
 

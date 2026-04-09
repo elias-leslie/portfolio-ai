@@ -29,7 +29,7 @@ _FINANCIAL_SIGNAL_TERMS = (
 # ---------------------------------------------------------------------------
 
 @lru_cache(maxsize=1)
-def _build_image_ocr_engine():  # type: ignore[return]  # -> RapidOCR
+def _build_image_ocr_engine():  # -> RapidOCR
     from rapidocr_onnxruntime import RapidOCR  # noqa: PLC0415
 
     return RapidOCR()
@@ -152,14 +152,36 @@ def _extract_csv_text(stored_path: Path) -> str:
     return "\n".join(rows)
 
 
+def _extract_plain_text(stored_path: Path) -> str | None:
+    text = stored_path.read_text(encoding="utf-8", errors="ignore")
+    cleaned = text.strip()
+    return cleaned[:12000] if cleaned else None
+
+
+def _extract_financial_markup_text(stored_path: Path) -> str | None:
+    text = _extract_plain_text(stored_path)
+    if not text:
+        return None
+    normalized = re.sub(r">\s*<", ">\n<", text)
+    normalized = re.sub(r"(?i)<(stmttrn|banktranlist|creditcardmsgsrsv1|ccstmttrnrs|invstmtmsgsrsv1|invtranlist)", r"\n<\1", normalized)
+    return normalized[:12000]
+
+
 def _extract_text(stored_path: Path, content_type: str | None) -> str | None:
     suffix = stored_path.suffix.lower()
+    extracted: str | None = None
+
     if suffix == ".csv":
-        return _extract_csv_text(stored_path)
-    if suffix == ".pdf" or content_type == "application/pdf":
-        return _extract_pdf_text(stored_path)
-    if (content_type and content_type.startswith("image/")) or suffix in {".png", ".jpg", ".jpeg", ".webp", ".bmp"}:
-        return _extract_image_text(stored_path)
-    if suffix in {".txt", ".json"}:
-        return stored_path.read_text(encoding="utf-8", errors="ignore")[:12000]
-    return None
+        extracted = _extract_csv_text(stored_path)
+    elif suffix in {".ofx", ".qfx"}:
+        extracted = _extract_financial_markup_text(stored_path)
+    elif suffix == ".pdf" or content_type == "application/pdf":
+        extracted = _extract_pdf_text(stored_path)
+    elif (content_type and content_type.startswith("image/")) or suffix in {".png", ".jpg", ".jpeg", ".webp", ".bmp"}:
+        extracted = _extract_image_text(stored_path)
+    elif suffix in {".txt", ".json", ".xml", ".html", ".htm"} or (
+        content_type and (content_type.startswith("text/") or "xml" in content_type or "ofx" in content_type)
+    ):
+        extracted = _extract_plain_text(stored_path)
+
+    return extracted

@@ -33,7 +33,9 @@ def test_statement_and_freshness_needs_link_to_intake_tab() -> None:
     )[0]
 
     assert statement_need.action_href == "/money?tab=intake"
+    assert statement_need.title == "Upload financial evidence"
     assert freshness_need.action_href == "/money?tab=intake"
+    assert freshness_need.title == "Add newer evidence"
 
 
 def test_confirmation_needs_route_planning_and_document_gaps_to_specific_tabs() -> None:
@@ -83,3 +85,4 @@ def test_detected_account_upload_needs_link_to_intake_tab() -> None:
     )
 
     assert needs[0].action_href == "/money?tab=intake"
+    assert needs[0].title == "Add evidence for Chase ...1234"

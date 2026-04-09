@@ -99,6 +99,20 @@ def test_extract_csv_text_preserves_amazon_price_columns(tmp_path: Path) -> None
     assert "40.93" in extracted
 
 
+def test_extract_text_reads_ofx_like_exports(tmp_path: Path) -> None:
+    ofx_path = tmp_path / "transactions.ofx"
+    ofx_path.write_text(
+        "<OFX><BANKMSGSRSV1><STMTTRNRS><BANKTRANLIST><STMTTRN><TRNAMT>-12.34</TRNAMT></STMTTRN>",
+        encoding="utf-8",
+    )
+
+    extracted = _extract_text(ofx_path, "application/x-ofx")
+
+    assert extracted is not None
+    assert "<BANKMSGSRSV1>" in extracted
+    assert "<STMTTRN>" in extracted
+
+
 @patch(f"{_TEXT_MODULE}._extract_pdf_image_text")
 @patch(f"{_TEXT_MODULE}.PdfReader")
 def test_extract_pdf_text_uses_ocr_fallback_for_low_signal_pages(
@@ -167,6 +181,19 @@ def test_baseline_review_detects_529_college_fund_snapshot() -> None:
     assert payload["source_type"] == "brokerage"
     assert payload["structured_data"]["account_hint"] == "529 college savings account"
     assert "529" in payload["summary"]
+
+
+def test_baseline_review_detects_credit_card_qfx_export() -> None:
+    payload = _baseline_review(
+        filename="transactions.qfx",
+        source_type="other",
+        document_type="other",
+        extracted_text="<OFX><CREDITCARDMSGSRSV1><CCSTMTTRNRS><BANKTRANLIST><STMTTRN>",
+    )
+
+    assert payload["document_type"] == "statement"
+    assert payload["source_type"] == "credit_card"
+    assert "machine-readable transaction activity" in payload["summary"]
 
 
 def test_build_signature_candidates_includes_filename_pattern() -> None:

@@ -16,6 +16,7 @@ from app.api import (
     health,
     home,
     household,
+    intake,
     news,
     news_profiling,
     portfolio,
@@ -134,6 +135,7 @@ app.add_middleware(RequestIDMiddleware)
 # Register routers
 app.include_router(health.router)
 app.include_router(home.router)
+app.include_router(intake.router)
 app.include_router(household.router)
 app.include_router(portfolio.router)
 app.include_router(market_router)

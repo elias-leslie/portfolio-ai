@@ -13,16 +13,16 @@ export function HouseholdPlanningDocumentsCard({
     <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-text">Required planning documents</p>
+          <p className="text-sm font-semibold text-text">Evidence gaps Jenny sees</p>
           <p className="mt-1 text-sm text-text-muted">
-            Missing placeholders tied to current planning assumptions and uploaded evidence.
+            Durable evidence Jenny still wants before she treats related planning assumptions as grounded.
           </p>
         </div>
         <Badge variant="outline">{requirements.length}</Badge>
       </div>
       <div className="mt-4 space-y-3">
         {requirements.length === 0 ? (
-          <p className="text-sm text-text-muted">No planning document placeholders yet.</p>
+          <p className="text-sm text-text-muted">No evidence gaps surfaced yet.</p>
         ) : (
           requirements.map((requirement) => (
             <div
@@ -36,7 +36,7 @@ export function HouseholdPlanningDocumentsCard({
                 </Badge>
               </div>
               <p className="mt-2 text-sm text-text-muted">
-                {requirement.rationale ?? 'Jenny needs this document to support planning assumptions.'}
+                {requirement.rationale ?? 'Jenny needs stronger evidence here before she can trust the planning assumption.'}
               </p>
               <p className="mt-2 text-xs uppercase tracking-wide text-text-muted">
                 {formatEnumLabel(requirement.priority)} priority

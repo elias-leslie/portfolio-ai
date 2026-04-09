@@ -171,7 +171,7 @@ def _write_batch(conn: object, batch: list[tuple[str, str]], batch_num: int) -> 
     """Execute upsert for each row in a batch and log completion."""
     ts = datetime.now(UTC)
     for symbol, cik in batch:
-        conn.execute(_UPSERT_SQL, (symbol, cik, ts))  # type: ignore[union-attr]
+        conn.execute(_UPSERT_SQL, (symbol, cik, ts))
     logger.debug("cik_db_batch_saved", batch_num=batch_num, batch_size=len(batch))
 
 

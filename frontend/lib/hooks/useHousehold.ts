@@ -76,10 +76,10 @@ export function useUploadHouseholdDocument() {
     onSuccess: (document) => {
       queryClient.invalidateQueries({ queryKey: ['household'], refetchType: 'active' })
       if (document.metadata?.duplicate_detected === true) {
-        toast.info(`${document.filename} already exists in household intake.`)
+        toast.info(`${document.filename} already exists in evidence intake.`)
         return
       }
-      toast.success(`${document.filename} staged for household intake.`)
+      toast.success(`${document.filename} staged for evidence intake.`)
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Failed to upload document')

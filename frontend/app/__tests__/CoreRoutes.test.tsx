@@ -146,6 +146,7 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
         automations: [],
         supportedDocuments: [],
       },
+      evidenceAccounts: [],
       questions: [],
       jennyBrief: {
         headline: 'Jenny',

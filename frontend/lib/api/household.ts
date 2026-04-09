@@ -220,6 +220,25 @@ export interface ImportCenter {
   supportedDocuments: ImportFormat[]
 }
 
+export interface HouseholdEvidenceAccount {
+  id: string
+  documentId: string
+  sourceType: string
+  assetGroup: string
+  accountType: string
+  institutionName: string | null
+  accountName: string | null
+  accountMask: string | null
+  ownerName: string | null
+  currency: string | null
+  balance: number | null
+  holdingsValue: number | null
+  cashBalance: number | null
+  asOfDate: string | null
+  confidence: number | null
+  metadata: Record<string, unknown>
+}
+
 export interface HouseholdDocument {
   id: string
   filename: string
@@ -317,6 +336,7 @@ export interface HouseholdFinanceDashboard {
   retirementPreparedness: RetirementPreparedness
   jennyNeeds: JennyNeed[]
   importCenter: ImportCenter
+  evidenceAccounts: HouseholdEvidenceAccount[]
   questions: HouseholdQuestion[]
   jennyBrief: JennyMoneyBrief
   reports: HouseholdReports
@@ -391,7 +411,7 @@ export async function updateHouseholdPlanning(
 }
 
 export async function fetchHouseholdDocuments(): Promise<HouseholdDocumentList> {
-  return get<HouseholdDocumentList>('/api/household/documents')
+  return get<HouseholdDocumentList>('/api/intake/evidence')
 }
 
 export async function fetchHouseholdQuestions(): Promise<HouseholdQuestionList> {
@@ -404,15 +424,15 @@ export async function uploadHouseholdDocument(
   const form = new FormData()
   form.append('file', payload.file)
   if (payload.sourceType) {
-    form.append('sourceType', payload.sourceType)
+    form.append('source_type', payload.sourceType)
   }
   if (payload.documentType) {
-    form.append('documentType', payload.documentType)
+    form.append('document_type', payload.documentType)
   }
   if (payload.accountLabel) {
-    form.append('accountLabel', payload.accountLabel)
+    form.append('account_label', payload.accountLabel)
   }
-  return postForm<HouseholdDocument>('/api/household/documents', form)
+  return postForm<HouseholdDocument>('/api/intake/evidence', form)
 }
 
 export async function answerHouseholdQuestion(

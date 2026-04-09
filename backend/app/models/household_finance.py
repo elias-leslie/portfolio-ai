@@ -15,6 +15,7 @@ from app.models.household_finance_types import (
     HouseholdDocument,
     HouseholdDocumentList,
     HouseholdDocumentReview,
+    HouseholdEvidenceAccount,
     HouseholdExecutiveReport,
     HouseholdMerchantInsight,
     HouseholdMonthlyTrendPoint,
@@ -53,6 +54,7 @@ __all__ = [
     "HouseholdDocument",
     "HouseholdDocumentList",
     "HouseholdDocumentReview",
+    "HouseholdEvidenceAccount",
     "HouseholdExecutiveReport",
     "HouseholdFinanceDashboard",
     "HouseholdMerchantInsight",
@@ -151,6 +153,7 @@ class HouseholdFinanceDashboard(BaseModel):
     retirement_contribution_tracker: HouseholdRetirementContributionTracker
     retirement_scenarios: list[HouseholdRetirementScenario] = Field(default_factory=list)
     import_center: ImportCenter
+    evidence_accounts: list[HouseholdEvidenceAccount] = Field(default_factory=list)
     questions: list[HouseholdQuestion] = Field(default_factory=list)
     jenny_brief: JennyMoneyBrief
     portfolio_context: PortfolioHouseholdContext | None = None

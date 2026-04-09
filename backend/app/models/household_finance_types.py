@@ -200,6 +200,25 @@ class ImportCenter(BaseModel):
     supported_documents: list[ImportFormat] = Field(default_factory=list)
 
 
+class HouseholdEvidenceAccount(BaseModel):
+    id: str
+    document_id: str
+    source_type: str
+    asset_group: str
+    account_type: str
+    institution_name: str | None = None
+    account_name: str | None = None
+    account_mask: str | None = None
+    owner_name: str | None = None
+    currency: str | None = None
+    balance: float | None = None
+    holdings_value: float | None = None
+    cash_balance: float | None = None
+    as_of_date: str | None = None
+    confidence: float | None = None
+    metadata: dict[str, object] = Field(default_factory=dict)
+
+
 class HouseholdDocument(BaseModel):
     id: str
     filename: str

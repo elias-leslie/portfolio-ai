@@ -121,7 +121,7 @@ def test_chat_survives_planning_extract_failure() -> None:
     service.household_service.list_questions.return_value = HouseholdQuestionList(items=[])
     service._build_context = Mock(
         return_value={
-            "household": {"jenny_needs": [{"title": "Upload statements"}]},
+            "household": {"jenny_needs": [{"title": "Upload financial evidence"}]},
             "symbols": {"detected": []},
         }
     )
@@ -149,7 +149,7 @@ def test_chat_returns_fallback_reply_when_completion_fails() -> None:
         return_value={
             "household": {
                 "jenny_needs": [
-                    {"title": "Upload statements"},
+                    {"title": "Upload financial evidence"},
                     {"title": "Complete housing planning"},
                 ]
             },
@@ -164,7 +164,7 @@ def test_chat_returns_fallback_reply_when_completion_fails() -> None:
 
     result = service.chat("What should I do next?")
 
-    assert "Upload statements" in result["reply"]
+    assert "Upload financial evidence" in result["reply"]
     assert "Complete housing planning" in result["reply"]
     assert result["session_id"] == ""
 
@@ -199,7 +199,7 @@ def test_chat_returns_document_aware_fallback_for_upload_questions() -> None:
 
     assert "I do see your latest upload" in result["reply"]
     assert "529 college savings account snapshot" in result["reply"]
-    assert "do not auto-create portfolio accounts" in result["reply"]
+    assert "shared financial evidence" in result["reply"]
 
 
 def test_chat_strips_agent_narration_tags_from_reply() -> None:

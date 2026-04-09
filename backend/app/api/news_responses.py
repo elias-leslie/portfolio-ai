@@ -72,39 +72,39 @@ class NewsBundleResponse(BaseModel):
 def serialize_sentiment(payload: object) -> SentimentScoreResponse:
     """Serialize a sentiment domain object to a response model."""
     return SentimentScoreResponse(
-        score=payload.score,  # type: ignore[attr-defined]
-        label=payload.label,  # type: ignore[attr-defined]
-        confidence=payload.confidence,  # type: ignore[attr-defined]
-        model=payload.model,  # type: ignore[attr-defined]
-        probabilities=payload.probabilities or None,  # type: ignore[attr-defined]
+        score=payload.score,
+        label=payload.label,
+        confidence=payload.confidence,
+        model=payload.model,
+        probabilities=payload.probabilities or None,
     )
 
 
 def serialize_article(article: object) -> NewsArticleResponse:
     """Serialize a news article domain object to a response model."""
     published_at = (
-        article.published_at.isoformat().replace("+00:00", "Z")  # type: ignore[attr-defined]
+        article.published_at.isoformat().replace("+00:00", "Z")
         if getattr(article, "published_at", None)
         else None
     )
     fetched_at = (
-        article.fetched_at.isoformat().replace("+00:00", "Z")  # type: ignore[attr-defined]
+        article.fetched_at.isoformat().replace("+00:00", "Z")
         if getattr(article, "fetched_at", None)
         else ""
     )
 
     return NewsArticleResponse(
-        symbol=article.symbol,  # type: ignore[attr-defined]
-        headline=article.headline,  # type: ignore[attr-defined]
+        symbol=article.symbol,
+        headline=article.headline,
         article_hash=getattr(article, "content_hash", None),
-        url=article.url,  # type: ignore[attr-defined]
-        summary=article.summary,  # type: ignore[attr-defined]
-        source=article.source,  # type: ignore[attr-defined]
-        author=article.author,  # type: ignore[attr-defined]
-        image_url=article.image_url,  # type: ignore[attr-defined]
+        url=article.url,
+        summary=article.summary,
+        source=article.source,
+        author=article.author,
+        image_url=article.image_url,
         published_at=published_at,
         fetched_at=fetched_at or "",
-        sentiment=serialize_sentiment(article.sentiment),  # type: ignore[attr-defined]
+        sentiment=serialize_sentiment(article.sentiment),
         vendor=getattr(article, "vendor", None),
         impact_summary=getattr(article, "impact_summary", None),
         actionable_insight=getattr(article, "actionable_insight", None),
@@ -119,34 +119,34 @@ def serialize_article(article: object) -> NewsArticleResponse:
 def serialize_summary(summary: object) -> NewsSummaryResponse:
     """Serialize a news summary domain object to a response model."""
     latest_published_at = (
-        summary.latest_published_at.isoformat().replace("+00:00", "Z")  # type: ignore[attr-defined]
+        summary.latest_published_at.isoformat().replace("+00:00", "Z")
         if getattr(summary, "latest_published_at", None)
         else None
     )
     return NewsSummaryResponse(
-        symbol=summary.symbol,  # type: ignore[attr-defined]
-        score=summary.score,  # type: ignore[attr-defined]
-        score_change=summary.score_change,  # type: ignore[attr-defined]
-        positive_count=summary.positive_count,  # type: ignore[attr-defined]
-        neutral_count=summary.neutral_count,  # type: ignore[attr-defined]
-        negative_count=summary.negative_count,  # type: ignore[attr-defined]
-        article_count=summary.article_count,  # type: ignore[attr-defined]
+        symbol=summary.symbol,
+        score=summary.score,
+        score_change=summary.score_change,
+        positive_count=summary.positive_count,
+        neutral_count=summary.neutral_count,
+        negative_count=summary.negative_count,
+        article_count=summary.article_count,
         latest_published_at=latest_published_at,
-        top_positive=serialize_article(summary.top_positive)  # type: ignore[attr-defined]
+        top_positive=serialize_article(summary.top_positive)
         if getattr(summary, "top_positive", None)
         else None,
-        top_negative=serialize_article(summary.top_negative)  # type: ignore[attr-defined]
+        top_negative=serialize_article(summary.top_negative)
         if getattr(summary, "top_negative", None)
         else None,
-        model_breakdown=summary.model_breakdown or {},  # type: ignore[attr-defined]
+        model_breakdown=summary.model_breakdown or {},
     )
 
 
 def serialize_bundle(bundle: object, *, limit: int) -> NewsBundleResponse:
     """Serialize a news bundle domain object to a response model."""
-    articles = [serialize_article(article) for article in bundle.articles[:limit]]  # type: ignore[attr-defined]
+    articles = [serialize_article(article) for article in bundle.articles[:limit]]
     return NewsBundleResponse(
-        symbol=bundle.symbol,  # type: ignore[attr-defined]
-        summary=serialize_summary(bundle.summary),  # type: ignore[attr-defined]
+        symbol=bundle.symbol,
+        summary=serialize_summary(bundle.summary),
         articles=articles,
     )

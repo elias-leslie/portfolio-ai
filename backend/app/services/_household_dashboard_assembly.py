@@ -8,6 +8,7 @@ from typing import Any, cast
 from app.models.household_finance import (
     BudgetLane,
     BudgetReadiness,
+    HouseholdEvidenceAccount,
     HouseholdFinanceDashboard,
     HouseholdOverview,
     HouseholdProfile,
@@ -61,25 +62,25 @@ from app.services._household_jenny_needs_builders import (
 # ---------------------------------------------------------------------------
 
 _IMPORT_CENTER = ImportCenter(
-    headline="Use statements for coverage, then receipts and invoices for savings intelligence.",
+    headline="Use one intake inbox for statements, screenshots, exports, and planning documents.",
     tracked_documents=0,
     parsed_documents=0,
     suggested_first_uploads=[
-        "Checking statements for the last 3 months",
-        "Primary household credit-card statements for the last 3 months",
-        "Most recent brokerage and retirement statements",
-        "Utility, insurance, and mortgage or rent invoices",
+        "Recent bank or credit-card statements",
+        "Brokerage or retirement screenshots and statements",
+        "CSV, OFX, or QFX account exports",
+        "Payroll, tax, mortgage, insurance, or bill documents",
     ],
     automations=[
-        "Normalize merchants across accounts into one spend ledger.",
-        "Detect recurring charges, annual renewals, and price creep.",
-        "Reconcile brokerage cash flows, dividends, and fees against account balances.",
+        "Classify uploads into cash-flow, portfolio, planning, or reference context.",
+        "Normalize merchants and account evidence into one spend ledger.",
+        "Reconcile brokerage cash flows, balances, dividends, and fees against account context.",
     ],
     supported_documents=[
-        ImportFormat(label="Bank and credit statements", formats=["PDF", "CSV", "OFX", "QFX"], extracts=["transactions", "merchant names", "statement totals", "fees"]),
-        ImportFormat(label="Brokerage and retirement statements", formats=["PDF", "CSV"], extracts=["holdings", "cash flows", "dividends", "contributions", "fees"]),
-        ImportFormat(label="Planning and payroll documents", formats=["PDF", "PNG", "JPG"], extracts=["pay frequency", "benefits deductions", "tax withholding", "loan balance", "insurance coverage", "retirement income estimates"]),
-        ImportFormat(label="Receipts and invoices", formats=["PDF", "PNG", "JPG", "HEIC"], extracts=["merchant", "date", "line items", "subtotal", "tax", "total"]),
+        ImportFormat(label="Cash-flow evidence", formats=["PDF", "CSV", "OFX", "QFX"], extracts=["transactions", "merchant names", "statement totals", "fees"]),
+        ImportFormat(label="Portfolio evidence", formats=["PDF", "CSV", "PNG", "JPG"], extracts=["holdings", "balances", "cash flows", "dividends", "contributions", "fees"]),
+        ImportFormat(label="Planning evidence", formats=["PDF", "PNG", "JPG", "HEIC"], extracts=["pay frequency", "benefits deductions", "tax withholding", "loan balance", "insurance coverage", "retirement income estimates"]),
+        ImportFormat(label="Receipt and billing evidence", formats=["PDF", "PNG", "JPG", "HEIC"], extracts=["merchant", "date", "line items", "subtotal", "tax", "total"]),
     ],
 )
 
@@ -174,6 +175,7 @@ def build_jenny_needs(
 
 def build_overview(
     *, accounts: list[Any], live_positions: list[Any],
+    evidence_accounts: list[HouseholdEvidenceAccount],
     holdings_by_account: dict[str, float], documents: list[Any],
     questions: list[Any], resolved_values: list[HouseholdResolvedValue],
     service: Any | None = None,
@@ -188,14 +190,39 @@ def build_overview(
             retirement_assets += account_total
         if account.account_type in TAXABLE_ACCOUNT_TYPES:
             taxable_assets += account_total
+    evidence_totals = service.evidence_service.totals_by_group(evidence_accounts) if service is not None else {
+        "cash": 0.0,
+        "retirement": 0.0,
+        "taxable": 0.0,
+        "education": 0.0,
+        "debt": 0.0,
+        "credit": 0.0,
+        "other": 0.0,
+    }
+    if cash_reserve <= 0:
+        cash_reserve += evidence_totals.get("cash", 0.0)
+    if retirement_assets <= 0:
+        retirement_fallback = evidence_totals.get("retirement", 0.0)
+        retirement_assets += retirement_fallback
+        invested_assets += retirement_fallback
+    if taxable_assets <= 0:
+        taxable_fallback = evidence_totals.get("taxable", 0.0) + evidence_totals.get("education", 0.0)
+        taxable_assets += taxable_fallback
+        invested_assets += taxable_fallback
+    if invested_assets <= 0:
+        invested_assets += evidence_totals.get("other", 0.0)
     total_tracked_assets = invested_assets + cash_reserve
     rnv = lambda field: resolved_numeric_value(resolved_values, field)  # noqa: E731
+    effective_account_count = len(accounts) or len(evidence_accounts)
+    effective_position_count = len(live_positions) or (
+        service.evidence_service.investment_like_count(evidence_accounts) if service is not None else 0
+    )
     visibility_score = _call_service_override(
         service,
         "_compute_visibility_score",
         compute_visibility_score,
-        account_count=len(accounts),
-        position_count=len(live_positions),
+        account_count=effective_account_count,
+        position_count=effective_position_count,
         cash_reserve=cash_reserve,
         retirement_assets=retirement_assets,
         taxable_assets=taxable_assets,
@@ -348,9 +375,12 @@ def build_jenny_brief(profile: Any, reports: Any, resolved_values: list[Househol
 # ---------------------------------------------------------------------------
 
 def gather_service_data(service: Any) -> dict[str, Any]:
+    service.transaction_service.backfill_from_latest_reviews(limit=24)
+    service.evidence_service.backfill_from_latest_reviews(service, limit=24)
     profile = service.get_profile()
     planning = service.get_planning_snapshot()
     documents = service.list_documents(limit=12).items
+    evidence_accounts = service.list_evidence_accounts(limit=12)
     questions = service.list_questions(limit=12).items
     accounts = [a for a in service.portfolio_mgr.get_accounts() if a.account_type != "paper"]
     positions = service.portfolio_mgr.get_positions()
@@ -366,6 +396,7 @@ def gather_service_data(service: Any) -> dict[str, Any]:
     reports = service.transaction_service.build_reports()
     return {
         "profile": profile, "planning": planning, "documents": documents, "questions": questions,
+        "evidence_accounts": evidence_accounts,
         "accounts": accounts, "live_positions": live_positions,
         "holdings_by_account": holdings_by_account, "reports": reports,
     }
@@ -418,6 +449,7 @@ def assemble_finance_dashboard(
             baseline_monthly_spend=reports.executive.average_monthly_spend,
         ),
         import_center=build_import_center(documents, planning),
+        evidence_accounts=d["evidence_accounts"],
         questions=visible_questions,
         jenny_brief=build_jenny_brief(profile, reports, resolved_values),
         portfolio_context=build_portfolio_context(

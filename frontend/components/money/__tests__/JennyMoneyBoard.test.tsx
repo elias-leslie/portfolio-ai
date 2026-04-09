@@ -112,6 +112,7 @@ describe('JennyMoneyBoard', () => {
             automations: [],
             supportedDocuments: [],
           },
+          evidenceAccounts: [],
           questions: [],
           jennyBrief: {
             headline: 'Jenny',
@@ -230,6 +231,7 @@ describe('JennyMoneyBoard', () => {
             automations: [],
             supportedDocuments: [],
           },
+          evidenceAccounts: [],
           questions: [],
           jennyBrief: {
             headline: 'Jenny',
@@ -260,6 +262,6 @@ describe('JennyMoneyBoard', () => {
     expect(screen.getByText(/no follow-up prompts right now\./i)).toBeInTheDocument()
     expect(screen.getByText(/no unresolved needs are currently blocking the system\./i)).toBeInTheDocument()
     expect(screen.getByText(/Jenny does not need a follow-up prompt right now\./i)).toBeInTheDocument()
-    expect(screen.getByText(/upload statements to give jenny real household evidence/i)).toBeInTheDocument()
+    expect(screen.getByText(/upload financial evidence to give jenny real household context/i)).toBeInTheDocument()
   })
 })

@@ -95,19 +95,19 @@ function LoadingState() {
 const onboardingSteps = [
   {
     icon: FileUp,
-    title: 'Upload',
-    detail: 'Drop 1-2 months of bank or credit card statements.',
+    title: 'Drop evidence',
+    detail: 'Upload whatever best reflects your finances right now: screenshots, statements, exports, or planning docs.',
   },
   {
     icon: Search,
     title: 'Jenny analyzes',
     detail:
-      'She reads every line, categorizes spending, and finds patterns.',
+      'She figures out what each file is, extracts what matters, and routes it into the right part of the system.',
   },
   {
     icon: ThumbsUp,
     title: 'You confirm',
-    detail: 'Review what Jenny found, answer a few questions, and go.',
+    detail: 'You only step in when the evidence is ambiguous or the decision would materially change the result.',
   },
 ]
 
@@ -132,7 +132,7 @@ export default function MoneyPage() {
         <PageHeader
           eyebrow="Household Finance"
           title="Money System"
-          description="One place for budgeting, saving, statement intake, and retirement preparedness."
+          description="One place for budgeting, saving, financial evidence intake, and retirement preparedness."
         />
         <LoadingState />
       </PageContainer>
@@ -145,7 +145,7 @@ export default function MoneyPage() {
         <PageHeader
           eyebrow="Household Finance"
           title="Money System"
-          description="One place for budgeting, saving, statement intake, and retirement preparedness."
+          description="One place for budgeting, saving, financial evidence intake, and retirement preparedness."
         />
         <LoadErrorState
           title="Failed to load the household finance workspace."
@@ -181,7 +181,7 @@ export default function MoneyPage() {
         <PageHeader
           eyebrow="Household Finance"
           title="Let Jenny see your finances"
-          description="Upload 1-2 months of bank or credit card statements. Jenny will analyze your cash flow, categorize spending, and build your financial picture automatically."
+          description="Upload the files that best represent your finances right now. Jenny will determine what they are, extract the useful facts, and build your financial picture automatically."
         />
 
         <div className="grid gap-4 md:grid-cols-3 animate-stagger">
@@ -223,6 +223,7 @@ export default function MoneyPage() {
           <HouseholdDocumentCenter
             documents={documents?.items ?? []}
             importCenter={dashboard.importCenter}
+            evidenceAccounts={dashboard.evidenceAccounts}
           />
         )}
       </PageContainer>
@@ -236,7 +237,7 @@ export default function MoneyPage() {
         <PageHeader
           eyebrow="Household Finance"
           title="Money System"
-          description="Jenny is getting to know your finances. More tools unlock as she processes your statements."
+          description="Jenny is getting to know your finances. More tools unlock as she processes your evidence."
         />
 
         <div className="rounded-2xl border border-primary/30 bg-primary/5 px-5 py-4">
@@ -244,12 +245,12 @@ export default function MoneyPage() {
             <Loader2 className="h-4 w-4 animate-spin text-primary" />
             <div>
               <p className="text-sm font-semibold text-text">
-                Jenny is analyzing your statements...
+                Jenny is analyzing your evidence...
               </p>
               <p className="mt-1 text-sm text-text-muted">
-                She is reading transactions, categorizing spending, and building
+                She is classifying files, extracting facts, categorizing spending, and building
                 your financial picture. Analysis and planning tools will unlock
-                once processing is complete.
+                once intake processing is complete.
               </p>
             </div>
           </div>
@@ -261,9 +262,9 @@ export default function MoneyPage() {
           tabs={[
             {
               value: 'intake',
-              label: 'Uploads',
+              label: 'Intake',
               description:
-                'Add statements and review what Jenny imported.',
+                'Drop evidence once and review what Jenny understood.',
               badge: docCount > 0 ? String(docCount) : undefined,
               content: documentsError ? (
                 <LoadErrorState
@@ -280,6 +281,7 @@ export default function MoneyPage() {
                 <HouseholdDocumentCenter
                   documents={documents?.items ?? []}
                   importCenter={dashboard.importCenter}
+                  evidenceAccounts={dashboard.evidenceAccounts}
                 />
               ),
             },
@@ -305,9 +307,9 @@ export default function MoneyPage() {
   // Stage 3 and 4: Build the full tab set, gating Operate to stage 4
   const intakeTab: WorkspaceTab = {
     value: 'intake',
-    label: 'Uploads',
+    label: 'Intake',
     description:
-      'Add statements and review imported documents without forcing the rest of the page to grow.',
+      'Drop evidence once and review intake results without forcing the rest of the page to grow.',
     badge: docCount > 0 ? String(docCount) : undefined,
     content: documentsError ? (
       <LoadErrorState
@@ -325,6 +327,7 @@ export default function MoneyPage() {
         documents={documents?.items ?? []}
         importCenter={dashboard.importCenter}
         documentRequirements={dashboard.planning?.documentRequirements ?? []}
+        evidenceAccounts={dashboard.evidenceAccounts}
       />
     ),
   }
@@ -394,7 +397,7 @@ export default function MoneyPage() {
       <PageHeader
         eyebrow="Household Finance"
         title="Money System"
-        description="See spending, savings, retirement planning, and statement uploads in one shared workspace for you and Jenny."
+        description="See spending, savings, retirement planning, and financial evidence intake in one shared workspace for you and Jenny."
       />
 
       <div className="rounded-2xl border border-border/30 border-l-2 border-l-primary/40 bg-surface/40 px-5 py-4">

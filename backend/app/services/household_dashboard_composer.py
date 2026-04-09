@@ -48,6 +48,7 @@ class HouseholdDashboardComposer:
         )
         overview, retirement_assets, taxable_assets, cash_reserve, total_tracked_assets = build_overview(
             accounts=d["accounts"], live_positions=d["live_positions"],
+            evidence_accounts=d["evidence_accounts"],
             holdings_by_account=d["holdings_by_account"], documents=d["documents"],
             questions=visible_questions, resolved_values=resolved_values,
             service=service,

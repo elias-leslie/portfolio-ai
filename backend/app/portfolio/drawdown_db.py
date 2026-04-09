@@ -197,13 +197,23 @@ def get_drawdown_history(
           AND snapshot_date >= CURRENT_DATE - make_interval(days => $2)
         ORDER BY snapshot_date ASC
     """
+    with storage.connection() as conn:
+        rows = conn.execute(query, [account_id, days]).fetchall()
 
-    result = storage.query(query, [account_id, days])
-
-    if result.is_empty():
+    if not rows:
         return []
 
-    return [_format_history_row(row) for row in result.iter_rows(named=True)]
+    return [
+        _format_history_row(
+            {
+                "snapshot_date": snapshot_date,
+                "equity": equity,
+                "drawdown_pct": drawdown_pct,
+                "peak_equity": peak_equity,
+            }
+        )
+        for snapshot_date, equity, drawdown_pct, peak_equity in rows
+    ]
 
 
 def _format_history_row(row: dict[str, object]) -> dict[str, float | str]:
@@ -223,9 +233,9 @@ def _format_history_row(row: dict[str, object]) -> dict[str, float | str]:
 
     return {
         "date": snapshot_date_str,
-        "equity": float(row["equity"]),  # type: ignore[arg-type]
-        "drawdown_pct": float(row["drawdown_pct"]),  # type: ignore[arg-type]
-        "peak_equity": float(row["peak_equity"]),  # type: ignore[arg-type]
+        "equity": float(row["equity"]),
+        "drawdown_pct": float(row["drawdown_pct"]),
+        "peak_equity": float(row["peak_equity"]),
     }
 
 

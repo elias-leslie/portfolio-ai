@@ -452,3 +452,82 @@ def update_import_summary(
             document_id,
         ],
     )
+
+
+def update_document_application_summary(
+    conn: DatabaseConnection,
+    *,
+    document_id: str,
+    application_summary: dict[str, object],
+) -> None:
+    """Patch the document metadata with the evidence-application summary."""
+    conn.execute(
+        """
+        UPDATE household_documents
+        SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
+        WHERE id = %s
+        """,
+        [
+            json.dumps({"application_summary": application_summary}),
+            document_id,
+        ],
+    )
+
+
+def fetch_document_application_counts(
+    conn: DatabaseConnection,
+    *,
+    document_id: str,
+) -> dict[str, object]:
+    """Return the current applied-output counts for a document."""
+    row = conn.execute(
+        """
+        SELECT
+            COALESCE(
+                (SELECT COUNT(*)
+                 FROM household_import_rows
+                 WHERE document_id = %s),
+                0
+            ) AS import_count,
+            (
+                SELECT MIN(dataset_type)
+                FROM household_import_rows
+                WHERE document_id = %s
+            ) AS dataset_type,
+            COALESCE(
+                (SELECT COUNT(*)
+                 FROM household_transactions
+                 WHERE document_id = %s),
+                0
+            ) AS transaction_count,
+            COALESCE(
+                (SELECT COUNT(*)
+                 FROM household_evidence_accounts
+                 WHERE document_id = %s),
+                0
+            ) AS evidence_account_count,
+            COALESCE(
+                (SELECT COUNT(*)
+                 FROM household_inferred_values
+                 WHERE source_document_id = %s
+                   AND status IN ('inferred', 'confirmed')),
+                0
+            ) AS inferred_count
+        """,
+        [document_id, document_id, document_id, document_id, document_id],
+    ).fetchone()
+    if row is None:
+        return {
+            "import_count": 0,
+            "dataset_type": None,
+            "transaction_count": 0,
+            "evidence_account_count": 0,
+            "inferred_count": 0,
+        }
+    return {
+        "import_count": int(row[0] or 0),
+        "dataset_type": str(row[1]) if row[1] is not None else None,
+        "transaction_count": int(row[2] or 0),
+        "evidence_account_count": int(row[3] or 0),
+        "inferred_count": int(row[4] or 0),
+    }

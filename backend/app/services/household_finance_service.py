@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from app.models.household_finance import (
+    HouseholdEvidenceAccount,
     HouseholdFinanceDashboard,
     HouseholdProfile,
     HouseholdProfileUpdate,
@@ -20,6 +22,7 @@ from app.services._household_finance_intake_methods import _HFIntakeMethods
 from app.services.household_dashboard_composer import HouseholdDashboardComposer
 from app.services.household_document_pipeline import HouseholdDocumentPipeline
 from app.services.household_document_review import HouseholdDocumentReviewService
+from app.services.household_evidence_service import HouseholdEvidenceService
 from app.services.household_finance_rows import FIELD_LABELS
 from app.services.household_planning_service import HouseholdPlanningService
 from app.services.household_profile_service import HouseholdProfileService
@@ -43,6 +46,7 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
             agent_service=self.review_agent_service
         )
         self.transaction_service = HouseholdTransactionService()
+        self.evidence_service = HouseholdEvidenceService()
         self.dashboard_composer = HouseholdDashboardComposer()
         self.document_pipeline = HouseholdDocumentPipeline()
         self.question_reconciler = HouseholdQuestionReconciler()
@@ -71,6 +75,12 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
 
     def update_transaction_category(self, transaction_id: str, payload: HouseholdTransactionCategoryUpdate) -> bool:
         return self.transaction_rule_service.update_transaction_category(self, transaction_id, payload)
+
+    def list_evidence_accounts(self, limit: int = 20) -> list[HouseholdEvidenceAccount]:
+        return self.evidence_service.list_accounts(self, limit=limit)
+
+    def _upload_root(self) -> Path:
+        return Path(__file__).resolve().parents[2] / "data" / "household_uploads"
 
     def get_resolved_values(self, *, profile: HouseholdProfile, questions: list[Any]) -> list[HouseholdResolvedValue]:
         inferred_map = fetch_inferred_value_rows(self.storage)

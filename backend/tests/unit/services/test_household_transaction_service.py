@@ -52,6 +52,30 @@ def test_parse_wells_fargo_statement_extracts_payroll_and_spotify() -> None:
     assert transactions[1].category == "Income"
 
 
+def test_parse_ofx_transactions_extracts_credit_card_expenses_and_payments() -> None:
+    service = HouseholdTransactionService()
+
+    transactions = service._parse_ofx_transactions(
+        (
+            "<OFX><CREDITCARDMSGSRSV1><CCSTMTTRNRS><BANKTRANLIST>"
+            "<STMTTRN><DTPOSTED>20260301</DTPOSTED><TRNAMT>-14.99</TRNAMT>"
+            "<FITID>abc123</FITID><NAME>Spotify</NAME></STMTTRN>"
+            "<STMTTRN><DTPOSTED>20260302</DTPOSTED><TRNAMT>1200.00</TRNAMT>"
+            "<FITID>def456</FITID><NAME>Payment Thank You</NAME></STMTTRN>"
+            "</BANKTRANLIST></CCSTMTTRNRS></CREDITCARDMSGSRSV1></OFX>"
+        ),
+        "Primary card",
+        "credit_card",
+    )
+
+    assert len(transactions) == 2
+    assert transactions[0].flow_type == "expense"
+    assert float(transactions[0].amount) == 14.99
+    assert transactions[0].metadata["fitid"] == "abc123"
+    assert transactions[1].flow_type == "payment"
+    assert float(transactions[1].amount) == 1200.00
+
+
 def test_merchant_aliases_collapse_walmart_variants() -> None:
     aliases = _merchant_aliases("WM SUPERCENTER #5831 LARGO FL")
 

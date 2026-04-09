@@ -56,7 +56,7 @@ export function JennyMoneyBoard({
       detail:
         coverageMonths > 0
           ? `${coverageMonths} month${coverageMonths === 1 ? '' : 's'} of normalized spend evidence.`
-          : 'Upload statements to give Jenny real household evidence.',
+          : 'Upload financial evidence to give Jenny real household context.',
     },
   ]
   const portfolioStats = [
@@ -137,7 +137,7 @@ export function JennyMoneyBoard({
               </>
             ) : (
               <p className="mt-2 text-sm text-text-muted">
-                Jenny does not have an urgent blocker right now. Upload fresher documents or answer
+                Jenny does not have an urgent blocker right now. Upload fresher evidence or answer
                 open questions to keep the system current.
               </p>
             )}
@@ -196,7 +196,7 @@ export function JennyMoneyBoard({
               {promptCount === 0 ? (
                 <div className="rounded-2xl border border-border/40 bg-surface/70 px-4 py-3 text-sm text-text-muted">
                   Jenny does not need a follow-up prompt right now. Upload
-                  fresher documents or answer household questions to generate the
+                  fresher evidence or answer household questions to generate the
                   next briefing prompts.
                 </div>
               ) : (
@@ -253,7 +253,7 @@ export function JennyMoneyBoard({
               <div className="rounded-2xl border border-gain/30 bg-gain/10 p-4 text-sm text-text-muted">
                 Jenny is getting started. {openQuestionCount > 0
                   ? `There ${openQuestionCount === 1 ? 'is' : 'are'} ${openQuestionCount} open question${openQuestionCount === 1 ? '' : 's'} waiting in Planning.`
-                  : 'Upload statements or answer household questions to see her first findings here.'}
+                  : 'Upload evidence or answer household questions to see her first findings here.'}
               </div>
             )}
           </div>

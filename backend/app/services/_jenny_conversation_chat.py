@@ -133,8 +133,8 @@ def build_fallback_reply(message: str, context: dict[str, Any]) -> str:
                 "Jenny hit an upstream model issue, but I can still confirm the latest intake state. "
                 f"I do see your latest upload: {summary} "
                 f"(type: {document_type}, status: {status}). "
-                "Household uploads do not auto-create portfolio accounts from screenshots, "
-                "so this should appear in intake context first rather than immediately as a new account."
+                "Jenny treats uploads as shared financial evidence first, then promotes "
+                "high-confidence facts into the money and portfolio system after review."
             )
     return _fallback_from_needs(household)
 

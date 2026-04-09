@@ -6,7 +6,12 @@ import json
 from collections.abc import Callable
 from typing import Any
 
-from app.models.household_finance import HouseholdDocument, HouseholdProfile, HouseholdQuestion
+from app.models.household_finance import (
+    HouseholdDocument,
+    HouseholdEvidenceAccount,
+    HouseholdProfile,
+    HouseholdQuestion,
+)
 
 FIELD_LABELS = {
     "adult_count": "Adults in household",
@@ -211,5 +216,32 @@ def row_to_document(
         statement_end=iso_or_none(row[13]),
         uploaded_at=iso(row[14]),
         parsed_at=iso_or_none(row[15]),
+        metadata=metadata,
+    )
+
+
+def row_to_evidence_account(
+    row: tuple[Any, ...],
+    *,
+    to_float: Callable[[Any], float | None],
+    iso_or_none: Callable[[Any], str | None],
+) -> HouseholdEvidenceAccount:
+    metadata = _load_json_object(row[14])
+    return HouseholdEvidenceAccount(
+        id=str(row[0]),
+        document_id=str(row[1]),
+        source_type=str(row[2]),
+        asset_group=str(row[3]),
+        account_type=str(row[4]),
+        institution_name=str(row[5]) if row[5] is not None else None,
+        account_name=str(row[6]) if row[6] is not None else None,
+        account_mask=str(row[7]) if row[7] is not None else None,
+        owner_name=str(row[8]) if row[8] is not None else None,
+        currency=str(row[9]) if row[9] is not None else None,
+        balance=to_float(row[10]),
+        holdings_value=to_float(row[11]),
+        cash_balance=to_float(row[12]),
+        as_of_date=iso_or_none(row[13]),
+        confidence=to_float(row[15]),
         metadata=metadata,
     )
