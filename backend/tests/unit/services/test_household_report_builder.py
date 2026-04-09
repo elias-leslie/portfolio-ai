@@ -97,3 +97,124 @@ def test_build_household_reports_uses_today_for_recent_spend_window() -> None:
     assert [point.month for point in reports.monthly_spend_trend] == sorted(
         point.month for point in reports.monthly_spend_trend
     )
+
+
+def test_build_household_reports_limits_executive_summary_to_recent_months() -> None:
+    reports = build_household_reports(
+        report_rows=[
+            {
+                "date": date(2025, 1, 15),
+                "merchant": "History January",
+                "description": "Old spend",
+                "amount": 100.0,
+                "category": "Legacy",
+                "essentiality": "discretionary",
+                "account_label": "Checking",
+                "document_id": "doc-jan",
+                "document_type": "statement",
+                "source_type": "bank",
+                "source_kind": "transaction",
+            },
+            {
+                "date": date(2025, 2, 15),
+                "merchant": "History February",
+                "description": "Old spend",
+                "amount": 200.0,
+                "category": "Legacy",
+                "essentiality": "discretionary",
+                "account_label": "Checking",
+                "document_id": "doc-feb",
+                "document_type": "statement",
+                "source_type": "bank",
+                "source_kind": "transaction",
+            },
+            {
+                "date": date(2025, 3, 15),
+                "merchant": "Recent March",
+                "description": "Recent spend",
+                "amount": 300.0,
+                "category": "Current",
+                "essentiality": "essential",
+                "account_label": "Checking",
+                "document_id": "doc-mar",
+                "document_type": "statement",
+                "source_type": "bank",
+                "source_kind": "transaction",
+            },
+            {
+                "date": date(2025, 4, 15),
+                "merchant": "Recent April",
+                "description": "Recent spend",
+                "amount": 400.0,
+                "category": "Current",
+                "essentiality": "essential",
+                "account_label": "Checking",
+                "document_id": "doc-apr",
+                "document_type": "statement",
+                "source_type": "bank",
+                "source_kind": "transaction",
+            },
+            {
+                "date": date(2025, 5, 15),
+                "merchant": "Recent May",
+                "description": "Recent spend",
+                "amount": 500.0,
+                "category": "Current",
+                "essentiality": "essential",
+                "account_label": "Checking",
+                "document_id": "doc-may",
+                "document_type": "statement",
+                "source_type": "bank",
+                "source_kind": "transaction",
+            },
+            {
+                "date": date(2025, 6, 15),
+                "merchant": "Recent June",
+                "description": "Recent spend",
+                "amount": 600.0,
+                "category": "Current",
+                "essentiality": "essential",
+                "account_label": "Checking",
+                "document_id": "doc-jun",
+                "document_type": "statement",
+                "source_type": "bank",
+                "source_kind": "transaction",
+            },
+            {
+                "date": date(2025, 7, 15),
+                "merchant": "Recent July",
+                "description": "Recent spend",
+                "amount": 700.0,
+                "category": "Current",
+                "essentiality": "essential",
+                "account_label": "Checking",
+                "document_id": "doc-jul",
+                "document_type": "statement",
+                "source_type": "bank",
+                "source_kind": "transaction",
+            },
+            {
+                "date": date(2025, 8, 15),
+                "merchant": "Recent August",
+                "description": "Recent spend",
+                "amount": 800.0,
+                "category": "Current",
+                "essentiality": "essential",
+                "account_label": "Checking",
+                "document_id": "doc-aug",
+                "document_type": "statement",
+                "source_type": "bank",
+                "source_kind": "transaction",
+            },
+        ],
+        cadence_for_dates=lambda dates: {"label": "monthly"} if len(dates) > 1 else None,
+        merchant_recommendation=lambda *, merchant, category, cadence: f"{merchant}:{category}:{cadence}",
+    )
+
+    assert reports.executive.coverage_months == 6
+    assert reports.executive.average_monthly_spend == 550.0
+    assert reports.executive.average_monthly_essentials == 550.0
+    assert reports.category_breakdown[0].category == "Current"
+    assert reports.category_breakdown[0].total_spend == 3300.0
+    assert reports.monthly_spend_trend[0].month == "2025-03"
+    assert reports.monthly_spend_trend[-1].month == "2025-08"

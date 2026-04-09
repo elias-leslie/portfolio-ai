@@ -128,7 +128,10 @@ export default function MoneyPage() {
       value: formatCurrencyWhole(
         dashboard.reports.executive.averageMonthlySpend,
       ),
-      detail: `${dashboard.reports.executive.coverageMonths} month${dashboard.reports.executive.coverageMonths === 1 ? '' : 's'} of spend coverage.`,
+      detail:
+        dashboard.overview.coverageMonths > 0
+          ? `${dashboard.overview.coverageMonths} month${dashboard.overview.coverageMonths === 1 ? '' : 's'} of recent evidence coverage.`
+          : 'No recent statement coverage yet.',
     },
     {
       label: 'Accounts',

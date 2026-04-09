@@ -263,6 +263,9 @@ describe('MoneyPage', () => {
     expect(screen.getByText('Refresh Chase Amazon card')).toBeInTheDocument()
     expect(screen.getByText('Net Worth')).toBeInTheDocument()
     expect(
+      screen.getByText('3 months of recent evidence coverage.'),
+    ).toBeInTheDocument()
+    expect(
       screen.getByRole('button', { name: /Overview/i }),
     ).toBeInTheDocument()
     expect(

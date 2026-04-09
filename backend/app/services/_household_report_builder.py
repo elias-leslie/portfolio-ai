@@ -16,6 +16,8 @@ from app.models.household_finance import (
     HouseholdReports,
 )
 
+_EXECUTIVE_WINDOW_MONTHS = 6
+
 
 def _merchant_root(merchant: str) -> str:
     normalized = merchant.strip().lower()
@@ -100,14 +102,24 @@ def build_household_reports(
 
     monthly_totals: dict[str, float] = {}
     monthly_counts: dict[str, int] = {}
-    category_totals: dict[tuple[str, str], float] = {}
-    merchant_totals: dict[str, dict[str, Any]] = {}
     recent_cutoff = date.today().toordinal() - 30
 
     for row in expense_only:
         month_key = row["date"].strftime("%Y-%m")
         monthly_totals[month_key] = monthly_totals.get(month_key, 0.0) + row["amount"]
         monthly_counts[month_key] = monthly_counts.get(month_key, 0) + 1
+
+    recent_month_keys = sorted(monthly_totals.keys())[-_EXECUTIVE_WINDOW_MONTHS:]
+    recent_month_set = set(recent_month_keys)
+    recent_rows = [
+        row
+        for row in expense_only
+        if row["date"].strftime("%Y-%m") in recent_month_set
+    ]
+    category_totals: dict[tuple[str, str], float] = {}
+    merchant_totals: dict[str, dict[str, Any]] = {}
+
+    for row in recent_rows:
         category_key = (row["category"], row["essentiality"])
         category_totals[category_key] = category_totals.get(category_key, 0.0) + row["amount"]
         merchant_state = merchant_totals.setdefault(
@@ -118,15 +130,17 @@ def build_household_reports(
         merchant_state["count"] += 1
         merchant_state["dates"].append(row["date"])
 
-    coverage_months = max(len(monthly_totals), 1)
-    total_spend = sum(monthly_totals.values())
+    coverage_months = max(len(recent_month_keys), 1)
+    total_spend = sum(monthly_totals[month_key] for month_key in recent_month_keys)
     essential_spend = sum(
         amount for (_, essentiality), amount in category_totals.items() if essentiality == "essential"
     )
     discretionary_spend = sum(
         amount for (_, essentiality), amount in category_totals.items() if essentiality == "discretionary"
     )
-    recent_30_day_spend = sum(row["amount"] for row in expense_only if row["date"].toordinal() >= recent_cutoff)
+    recent_30_day_spend = sum(
+        row["amount"] for row in recent_rows if row["date"].toordinal() >= recent_cutoff
+    )
     recurring_merchant_count = sum(
         1
         for state in merchant_totals.values()
@@ -137,7 +151,7 @@ def build_household_reports(
         headline="Jenny now has a real household spending ledger to work from.",
         summary=(
             f"Average monthly spend is ${total_spend / coverage_months:,.0f} across "
-            f"{coverage_months} tracked month{'s' if coverage_months != 1 else ''}, "
+            f"{coverage_months} recent tracked month{'s' if coverage_months != 1 else ''}, "
             f"with {recurring_merchant_count} recurring merchant patterns already visible."
         ),
         average_monthly_spend=round(total_spend / coverage_months, 2),
@@ -145,7 +159,7 @@ def build_household_reports(
         average_monthly_discretionary=round(discretionary_spend / coverage_months, 2),
         recent_30_day_spend=round(recent_30_day_spend, 2),
         recurring_merchant_count=recurring_merchant_count,
-        tracked_expense_count=len(expense_only),
+        tracked_expense_count=len(recent_rows),
         coverage_months=coverage_months,
     )
 
@@ -188,7 +202,7 @@ def build_household_reports(
             total_spend=round(monthly_totals[month], 2),
             transaction_count=monthly_counts[month],
         )
-        for month in sorted(monthly_totals.keys())[-6:]
+        for month in recent_month_keys
     ]
 
     recent_transactions = [
@@ -202,7 +216,7 @@ def build_household_reports(
             account_label=row["account_label"],
             source_document_id=row["document_id"],
         )
-        for row in sorted(expense_only, key=lambda item: item["date"], reverse=True)[:10]
+        for row in sorted(recent_rows, key=lambda item: item["date"], reverse=True)[:10]
     ]
 
     return HouseholdReports(
