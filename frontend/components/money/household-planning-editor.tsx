@@ -1,10 +1,10 @@
 'use client'
 
-import type { HouseholdPlanningSnapshot } from '@/lib/api/household-planning'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import type { HouseholdPlanningSnapshot } from '@/lib/api/household-planning'
 
 export type EditableValue = boolean | number | string | null | undefined
 
@@ -41,9 +41,9 @@ export function emptyPlanning(): HouseholdPlanningSnapshot {
   }
 }
 
-export function stripPlanningMeta<T extends { createdAt: string; updatedAt: string }>(
-  item: T,
-): Omit<T, 'createdAt' | 'updatedAt'> {
+export function stripPlanningMeta<
+  T extends { createdAt: string; updatedAt: string },
+>(item: T): Omit<T, 'createdAt' | 'updatedAt'> {
   const { createdAt: _createdAt, updatedAt: _updatedAt, ...rest } = item
   return rest
 }
@@ -71,7 +71,9 @@ export function normalizeEditableItems(
       return next
     })
     .filter((item) =>
-      Object.entries(item).some(([key, value]) => key !== 'id' && value !== '' && value != null),
+      Object.entries(item).some(
+        ([key, value]) => key !== 'id' && value !== '' && value != null,
+      ),
     )
 }
 
@@ -95,7 +97,11 @@ export function EditableListSection({
   isSaving: boolean
 }) {
   const updateField = (index: number, key: string, value: string) => {
-    onChange(items.map((item, itemIndex) => (itemIndex === index ? { ...item, [key]: value } : item)))
+    onChange(
+      items.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [key]: value } : item,
+      ),
+    )
   }
 
   const removeItem = (index: number) => {
@@ -123,13 +129,17 @@ export function EditableListSection({
               <div className="grid gap-3 md:grid-cols-2">
                 {fields.map((field) => (
                   <div key={`${field.key}-${index}`}>
-                    <Label htmlFor={`${title}-${field.key}-${index}`}>{field.label}</Label>
+                    <Label htmlFor={`${title}-${field.key}-${index}`}>
+                      {field.label}
+                    </Label>
                     <Input
                       id={`${title}-${field.key}-${index}`}
                       type={field.type ?? 'text'}
                       inputMode={field.inputMode ?? 'text'}
                       value={String(item[field.key] ?? '')}
-                      onChange={(event) => updateField(index, field.key, event.target.value)}
+                      onChange={(event) =>
+                        updateField(index, field.key, event.target.value)
+                      }
                       placeholder={field.placeholder}
                     />
                   </div>
@@ -149,7 +159,12 @@ export function EditableListSection({
           ))
         )}
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" onClick={onAdd} disabled={isSaving}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onAdd}
+            disabled={isSaving}
+          >
             Add item
           </Button>
           <Button type="button" onClick={onSave} disabled={isSaving}>

@@ -7,7 +7,6 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion'
 import { Badge } from '@/components/ui/badge'
-import { cn } from '@/lib/utils'
 import {
   Tooltip,
   TooltipContent,
@@ -15,6 +14,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import type { ScoreComponent, WatchlistItem } from '@/lib/api/watchlist'
+import { cn } from '@/lib/utils'
 import { formatTimestamp, getScoreBadgeVariant } from './ExpandedRowUtils'
 
 interface ExpandedRowScoreBreakdownProps {
@@ -146,7 +146,10 @@ function PillarCard({ pillarKey, pillar, userTimezone }: PillarCardProps) {
             </Tooltip>
             <div className="flex-1 h-2 bg-surface-muted rounded-full overflow-hidden">
               <div
-                className={cn('h-full transition-all', getScoreBarColor(pillar.score))}
+                className={cn(
+                  'h-full transition-all',
+                  getScoreBarColor(pillar.score),
+                )}
                 style={{
                   width: `${Math.max(0, Math.min(100, pillar.score))}%`,
                 }}
@@ -177,7 +180,9 @@ function PillarCard({ pillarKey, pillar, userTimezone }: PillarCardProps) {
           {/* Sub-scores */}
           {hasSubScores && (
             <div className="space-y-2">
-              <p className="text-xs font-medium text-text">What drove this score</p>
+              <p className="text-xs font-medium text-text">
+                What drove this score
+              </p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {Object.entries(pillar.subScores!).map(([key, value]) => (
                   <div
@@ -211,7 +216,9 @@ function PillarCard({ pillarKey, pillar, userTimezone }: PillarCardProps) {
                       <span className="text-text-muted">
                         {formatMetadataKey(key)}:
                       </span>
-                      <span className="font-medium tabular-nums">{formatValue(value)}</span>
+                      <span className="font-medium tabular-nums">
+                        {formatValue(value)}
+                      </span>
                     </div>
                   ))}
               </div>

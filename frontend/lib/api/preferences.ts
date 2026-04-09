@@ -99,7 +99,9 @@ const DEFAULT_WATCHLIST_REFRESH_MINUTES = 15
 
 export type RefreshPreferenceSnapshot = Pick<
   PreferencesResponse,
-  'defaultRefreshMinutes' | 'watchlistRefreshOverride' | 'watchlistRefreshMinutes'
+  | 'defaultRefreshMinutes'
+  | 'watchlistRefreshOverride'
+  | 'watchlistRefreshMinutes'
 >
 
 export function getWatchlistRefreshMinutes(
@@ -109,12 +111,24 @@ export function getWatchlistRefreshMinutes(
     return DEFAULT_WATCHLIST_REFRESH_MINUTES
   }
 
-  if (typeof preferences.watchlistRefreshOverride === 'number' && preferences.watchlistRefreshOverride > 0) {
-    return Math.max(preferences.watchlistRefreshOverride, DEFAULT_WATCHLIST_REFRESH_MINUTES)
+  if (
+    typeof preferences.watchlistRefreshOverride === 'number' &&
+    preferences.watchlistRefreshOverride > 0
+  ) {
+    return Math.max(
+      preferences.watchlistRefreshOverride,
+      DEFAULT_WATCHLIST_REFRESH_MINUTES,
+    )
   }
 
-  if (typeof preferences.defaultRefreshMinutes === 'number' && preferences.defaultRefreshMinutes > 0) {
-    return Math.max(preferences.defaultRefreshMinutes, DEFAULT_WATCHLIST_REFRESH_MINUTES)
+  if (
+    typeof preferences.defaultRefreshMinutes === 'number' &&
+    preferences.defaultRefreshMinutes > 0
+  ) {
+    return Math.max(
+      preferences.defaultRefreshMinutes,
+      DEFAULT_WATCHLIST_REFRESH_MINUTES,
+    )
   }
 
   return Math.max(

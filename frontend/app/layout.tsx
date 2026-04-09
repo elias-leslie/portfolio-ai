@@ -42,7 +42,13 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className="dark" data-theme="dark" style={{ colorScheme: 'dark' }} suppressHydrationWarning>
+    <html
+      lang="en"
+      className="dark"
+      data-theme="dark"
+      style={{ colorScheme: 'dark' }}
+      suppressHydrationWarning
+    >
       <head>
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -63,7 +69,12 @@ export default function RootLayout({
         <Providers>
           <Navigation />
           <main className="flex-1 overflow-auto">{children}</main>
-          <Toaster position="top-right" richColors theme="dark" toastOptions={{ className: 'border-border/50' }} />
+          <Toaster
+            position="top-right"
+            richColors
+            theme="dark"
+            toastOptions={{ className: 'border-border/50' }}
+          />
         </Providers>
         <Script
           id="sw-cleanup"

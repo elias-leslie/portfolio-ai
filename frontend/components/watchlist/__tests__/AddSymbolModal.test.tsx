@@ -23,7 +23,8 @@ vi.mock('@/lib/api/watchlist', () => ({
 }))
 
 vi.mock('@/lib/hooks/useRules', () => ({
-  useTradingRules: (options?: { enabled?: boolean }) => useTradingRulesMock(options),
+  useTradingRules: (options?: { enabled?: boolean }) =>
+    useTradingRulesMock(options),
 }))
 
 vi.mock('sonner', () => ({
@@ -105,12 +106,16 @@ describe('AddSymbolModal', () => {
     const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
     const { onOpenChange } = renderModal(queryClient)
 
-    createWatchlistItemMock.mockRejectedValueOnce(new Error('Symbol VTI already in watchlist'))
+    createWatchlistItemMock.mockRejectedValueOnce(
+      new Error('Symbol VTI already in watchlist'),
+    )
 
     await user.type(screen.getByLabelText('Symbols'), 'VTI')
     await user.click(screen.getByRole('button', { name: /add 1 symbol/i }))
 
-    await waitFor(() => expect(createWatchlistItemMock).toHaveBeenCalledTimes(1))
+    await waitFor(() =>
+      expect(createWatchlistItemMock).toHaveBeenCalledTimes(1),
+    )
 
     expect(invalidateQueries).not.toHaveBeenCalled()
     expect(toastErrorMock).toHaveBeenCalledWith('Failed to add 1 symbol: VTI')
@@ -136,7 +141,9 @@ describe('AddSymbolModal', () => {
     )
     await user.click(screen.getByRole('button', { name: /add 2 symbols/i }))
 
-    await waitFor(() => expect(createWatchlistItemMock).toHaveBeenCalledTimes(2))
+    await waitFor(() =>
+      expect(createWatchlistItemMock).toHaveBeenCalledTimes(2),
+    )
 
     expect(invalidateQueries).toHaveBeenCalledTimes(1)
     expect(toastWarningMock).toHaveBeenCalledWith(

@@ -17,7 +17,9 @@ vi.mock('@/components/watchlist/SourceBadge', () => ({
 }))
 
 vi.mock('@/components/watchlist/SparklineWithHistory', () => ({
-  SparklineWithHistory: ({ itemId }: { itemId: string }) => <div>History {itemId}</div>,
+  SparklineWithHistory: ({ itemId }: { itemId: string }) => (
+    <div>History {itemId}</div>
+  ),
 }))
 
 function buildItem() {
@@ -105,8 +107,14 @@ describe('WatchlistCard', () => {
       />,
     )
 
-    expect(screen.getByRole('link', { name: 'MSFT' })).toHaveAttribute('href', '/symbols/MSFT?tab=decision')
-    expect(screen.getByRole('link', { name: 'Workspace' })).toHaveAttribute('href', '/symbols/MSFT?tab=decision')
+    expect(screen.getByRole('link', { name: 'MSFT' })).toHaveAttribute(
+      'href',
+      '/symbols/MSFT?tab=decision',
+    )
+    expect(screen.getByRole('link', { name: 'Workspace' })).toHaveAttribute(
+      'href',
+      '/symbols/MSFT?tab=decision',
+    )
     expect(screen.getByText('Portfolio')).toBeInTheDocument()
     expect(screen.getByText('Data quality 91%')).toBeInTheDocument()
     expect(screen.getByText(/Refreshing 2\/5/i)).toBeInTheDocument()
@@ -116,7 +124,9 @@ describe('WatchlistCard', () => {
     expect(screen.getByText('🟢 Setup BUY')).toBeInTheDocument()
     expect(screen.getByText('Current decision')).toBeInTheDocument()
     expect(screen.getByText('Exit this position')).toBeInTheDocument()
-    expect(screen.getByText(/jenny alert · critical · reduce risk now\./i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/jenny alert · critical · reduce risk now\./i),
+    ).toBeInTheDocument()
     expect(screen.getByText('Style Trend')).toBeInTheDocument()
     expect(screen.getByText('Earnings soon')).toBeInTheDocument()
     expect(screen.getByText('History item-1')).toBeInTheDocument()

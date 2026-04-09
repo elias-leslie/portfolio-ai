@@ -2,9 +2,9 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import {
-  TimeframeSelector,
   calculateTickInterval,
   formatChartDate,
+  TimeframeSelector,
   timeframeToDays,
 } from '../TimeframeSelector'
 
@@ -15,8 +15,14 @@ describe('TimeframeSelector', () => {
     const buttons = screen.getAllByRole('button')
     expect(buttons).toHaveLength(6)
 
-    expect(screen.getByRole('button', { name: '3M' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('button', { name: '1Y' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: '3M' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: '1Y' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
   })
 
   it('calls onChange with the clicked timeframe value', async () => {

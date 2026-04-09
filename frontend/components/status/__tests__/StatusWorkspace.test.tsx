@@ -19,7 +19,9 @@ vi.mock('@/lib/hooks/useNewsHealth', () => ({
   useNewsHealth: () => useNewsHealthMock(),
 }))
 
-function createQueryResult<T>(overrides: Partial<Record<string, unknown>> & { data?: T } = {}) {
+function createQueryResult<T>(
+  overrides: Partial<Record<string, unknown>> & { data?: T } = {},
+) {
   return {
     data: undefined,
     error: null,
@@ -121,10 +123,22 @@ describe('StatusWorkspace', () => {
     expect(screen.getByText('4.0h')).toBeInTheDocument()
     expect(screen.getByText('Version 2026.03.10')).toBeInTheDocument()
     expect(screen.getByText('Cached prices 12 · age 1.5h')).toBeInTheDocument()
-    expect(screen.getByText('No app-service status entries are available right now.')).toBeInTheDocument()
-    expect(screen.getByText('No data-source health signals are available right now.')).toBeInTheDocument()
-    expect(screen.getByText('No news-source diagnostics are available right now.')).toBeInTheDocument()
-    expect(screen.getByText('No API-limit data is available right now.')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'No app-service status entries are available right now.',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'No data-source health signals are available right now.',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('No news-source diagnostics are available right now.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('No API-limit data is available right now.'),
+    ).toBeInTheDocument()
   })
 
   it('shows recent vendor activity when runtime success timestamps are unavailable', () => {
@@ -278,7 +292,9 @@ describe('StatusWorkspace', () => {
     render(<StatusWorkspace />)
 
     expect(
-      screen.getByText('No automation runs finished in the last 24h. 2 are stuck or overdue.'),
+      screen.getByText(
+        'No automation runs finished in the last 24h. 2 are stuck or overdue.',
+      ),
     ).toBeInTheDocument()
     expect(screen.getByText('0 failed · 2 stuck')).toBeInTheDocument()
   })
@@ -361,8 +377,12 @@ describe('StatusWorkspace', () => {
 
     expect(screen.getAllByText('technical_indicators')).toHaveLength(1)
     expect(screen.getByText('resolved')).toBeInTheDocument()
-    expect(screen.getByText('This happened 2 times in the last 24h.')).toBeInTheDocument()
-    expect(screen.getByText(/Cleared during the latest data-recency check at/i)).toBeInTheDocument()
+    expect(
+      screen.getByText('This happened 2 times in the last 24h.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/Cleared during the latest data-recency check at/i),
+    ).toBeInTheDocument()
   })
 
   it('keeps the workspace visible when one live signal fails', () => {
@@ -437,15 +457,23 @@ describe('StatusWorkspace', () => {
 
     expect(screen.getByText('Partial snapshot')).toBeInTheDocument()
     expect(screen.getByText('Core Connections')).toBeInTheDocument()
-    expect(screen.queryByText('Failed to load the operations snapshot.')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Failed to load the operations snapshot.'),
+    ).not.toBeInTheDocument()
     expect(screen.getByText('active')).toBeInTheDocument()
     expect(screen.getByText('12ms')).toBeInTheDocument()
     expect(
-      screen.getByText(/completed automation runs finished successfully in the last 24h/i),
+      screen.getByText(
+        /completed automation runs finished successfully in the last 24h/i,
+      ),
     ).toBeInTheDocument()
     expect(screen.getByText(/0 failed · 0 stuck/i)).toBeInTheDocument()
-    expect(screen.getByText(/last successful automation: daily operator/i)).toBeInTheDocument()
-    expect(screen.getByText(/auto-fixes ran 1 time in the latest check/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/last successful automation: daily operator/i),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/auto-fixes ran 1 time in the latest check/i),
+    ).toBeInTheDocument()
   })
 
   it('shows the fatal error state only when every live signal fails', () => {
@@ -467,7 +495,9 @@ describe('StatusWorkspace', () => {
 
     render(<StatusWorkspace />)
 
-    expect(screen.getByText('Failed to load the operations snapshot.')).toBeInTheDocument()
+    expect(
+      screen.getByText('Failed to load the operations snapshot.'),
+    ).toBeInTheDocument()
   })
 
   it('refreshes all live status queries from the header action', async () => {
@@ -649,11 +679,21 @@ describe('StatusWorkspace', () => {
 
     expect(screen.getByText(/rate-limit hits: 3/i)).toBeInTheDocument()
     expect(screen.getByText(/pause remaining: 3m/i)).toBeInTheDocument()
-    expect(screen.getByText(/data recency issue: one table was stale/i)).toBeInTheDocument()
-    expect(screen.getByText(/1 of 1 data provider connected/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/data recency issue: one table was stale/i),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/1 of 1 data provider connected/i),
+    ).toBeInTheDocument()
     expect(screen.getAllByText(/last (good update|success):/i)).toHaveLength(2)
-    expect(screen.getByText(/notes: fallback engaged briefly during ingest/i)).toBeInTheDocument()
-    expect(screen.getByText(/backup news source stepped in for 14 headlines in the last 24h/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/notes: fallback engaged briefly during ingest/i),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        /backup news source stepped in for 14 headlines in the last 24h/i,
+      ),
+    ).toBeInTheDocument()
   })
 
   it('uses explicit unavailable copy when status timestamps are missing', () => {
@@ -729,8 +769,12 @@ describe('StatusWorkspace', () => {
     render(<StatusWorkspace />)
 
     expect(screen.getByText('Update time unavailable')).toBeInTheDocument()
-    expect(screen.getByText('No successful automation run recorded yet.')).toBeInTheDocument()
-    expect(screen.getByText('Last good update: No successful fetch recorded')).toBeInTheDocument()
+    expect(
+      screen.getByText('No successful automation run recorded yet.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Last good update: No successful fetch recorded'),
+    ).toBeInTheDocument()
     expect(screen.queryByText(/Updated Never/i)).not.toBeInTheDocument()
   })
 })

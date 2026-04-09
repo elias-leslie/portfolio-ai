@@ -58,7 +58,12 @@ describe('PortfolioStats', () => {
         analytics={{
           ...baseAnalytics,
           riskProfile: null,
-          diversificationScore: { score: 0.75, level: 'good', numHoldings: 5, numSectors: 3 },
+          diversificationScore: {
+            score: 0.75,
+            level: 'good',
+            numHoldings: 5,
+            numSectors: 3,
+          },
           topPerformers: [
             {
               symbol: 'MSFT',
@@ -107,7 +112,12 @@ describe('PortfolioStats', () => {
         analytics={{
           ...baseAnalytics,
           riskProfile: { level: 'conservative', score: 30, factors: {} },
-          diversificationScore: { score: 0.85, level: 'excellent', numHoldings: 8, numSectors: 5 },
+          diversificationScore: {
+            score: 0.85,
+            level: 'excellent',
+            numHoldings: 8,
+            numSectors: 5,
+          },
           topPerformers: [],
         }}
       />,

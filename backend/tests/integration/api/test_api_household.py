@@ -348,11 +348,16 @@ def test_household_dashboard_uses_profile_documents_and_portfolio(
     assert dashboard["overview"]["retirement_assets"] == 4740
     assert dashboard["overview"]["taxable_assets"] == 14750
     assert dashboard["overview"]["visibility_score"] >= 90
+    assert dashboard["overview"]["tracked_account_count"] >= 2
+    assert dashboard["overview"]["needs_refresh_count"] >= 2
+    assert dashboard["overview"]["inbox_count"] >= 1
     assert dashboard["budget_readiness"]["status"] == "ready_for_budgeting"
     assert dashboard["retirement_preparedness"]["status"] == "scenario_ready"
     assert dashboard["budget_snapshot"]["monthly_income_target"] == 12500
     assert dashboard["budget_snapshot"]["monthly_plan_total"] == 9600
     assert dashboard["overview"]["next_best_action"]
+    assert dashboard["accounts"][0]["gap_flags"]
+    assert dashboard["inbox"][0]["title"]
     assert isinstance(dashboard["jenny_needs"], list)
     assert dashboard["import_center"]["tracked_documents"] == 1
     assert dashboard["reports"]["executive"]["tracked_expense_count"] == 0
@@ -429,6 +434,60 @@ def test_household_dashboard_includes_transaction_reports_from_documents(
     assert dashboard["reports"]["merchant_highlights"][0]["average_ticket"] > 0
     assert dashboard["reports"]["recent_transactions"][0]["merchant"]
     assert dashboard["reports"]["recent_transactions"][0]["essentiality"] in {"essential", "discretionary", "mixed"}
+
+
+def test_household_dashboard_surfaces_canonical_account_summaries(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    review = {
+        "summary": "Fidelity brokerage statement with a current balance snapshot.",
+        "document_type": "statement",
+        "source_type": "brokerage",
+        "confidence": 0.94,
+        "structured_data": {
+            "provider_name": "Fidelity",
+            "financial_accounts": [
+                {
+                    "asset_group": "taxable",
+                    "account_type": "brokerage",
+                    "account_name": "Brokerage",
+                    "account_mask": "1234",
+                    "holdings_value": "12000.00",
+                    "cash_balance": "500.00",
+                    "as_of_date": "2026-03-15",
+                }
+            ],
+        },
+        "inferred_values": [],
+        "questions": [],
+    }
+
+    with (
+        patch(
+            "app.services.household_finance_service.HouseholdFinanceService._upload_root",
+            return_value=tmp_path,
+        ),
+        patch(
+            "app.services.household_document_review.HouseholdDocumentReviewService.review",
+            return_value=review,
+        ),
+    ):
+        upload = client.post(
+            "/api/intake/evidence",
+            files={"file": ("fidelity_statement.pdf", b"statement bytes", "application/pdf")},
+        )
+        dashboard_response = client.get("/api/household/dashboard")
+
+    assert upload.status_code == 200
+    assert dashboard_response.status_code == 200
+    dashboard = dashboard_response.json()
+    assert dashboard["overview"]["tracked_account_count"] >= 1
+    assert dashboard["accounts"][0]["label"] == "Fidelity · Brokerage"
+    assert dashboard["accounts"][0]["current_value"] == 12500.0
+    assert dashboard["accounts"][0]["freshness_status"] in {"fresh", "aging", "stale"}
+    assert dashboard["accounts"][0]["document_ids"]
+    assert any(item["related_account_id"] == dashboard["accounts"][0]["id"] for item in dashboard["inbox"]) is False
 
 
 def test_household_dashboard_dedupes_overlapping_transaction_and_import_rows(

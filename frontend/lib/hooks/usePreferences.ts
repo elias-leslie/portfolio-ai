@@ -31,7 +31,10 @@ export function useUpdatePreferences() {
     onSuccess: () => {
       // Invalidate preferences query to refetch
       queryClient.invalidateQueries({ queryKey: ['preferences'] })
-      queryClient.invalidateQueries({ queryKey: ['home'], refetchType: 'active' })
+      queryClient.invalidateQueries({
+        queryKey: ['home'],
+        refetchType: 'active',
+      })
     },
   })
 }

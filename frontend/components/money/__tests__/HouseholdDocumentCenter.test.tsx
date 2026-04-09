@@ -60,8 +60,12 @@ describe('HouseholdDocumentCenter', () => {
     mutateAsync.mockResolvedValue(undefined)
     render(<HouseholdDocumentCenter documents={[]} />)
 
-    const january = new File(['jan'], 'january.pdf', { type: 'application/pdf' })
-    const february = new File(['feb'], 'february.pdf', { type: 'application/pdf' })
+    const january = new File(['jan'], 'january.pdf', {
+      type: 'application/pdf',
+    })
+    const february = new File(['feb'], 'february.pdf', {
+      type: 'application/pdf',
+    })
     const input = screen.getByLabelText(/file/i)
 
     fireEvent.change(input, {
@@ -71,7 +75,9 @@ describe('HouseholdDocumentCenter', () => {
     })
 
     expect(screen.getByText(/ready to upload: 2 files/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /upload documents/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /upload documents/i }),
+    ).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /upload documents/i }))
 
@@ -115,16 +121,22 @@ describe('HouseholdDocumentCenter', () => {
       />,
     )
 
-    expect(screen.getByText(/source pending · type pending/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/source pending · type pending/i),
+    ).toBeInTheDocument()
     expect(screen.getByText(/^staged$/i)).toBeInTheDocument()
-    expect(screen.getByText(/older document awaiting re-review/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/older document awaiting re-review/i),
+    ).toBeInTheDocument()
   })
 
   it('clears the staged file queue without uploading', async () => {
     const user = userEvent.setup()
     render(<HouseholdDocumentCenter documents={[]} />)
 
-    const january = new File(['jan'], 'january.pdf', { type: 'application/pdf' })
+    const january = new File(['jan'], 'january.pdf', {
+      type: 'application/pdf',
+    })
     const input = screen.getByLabelText(/file/i)
 
     fireEvent.change(input, {
@@ -137,14 +149,18 @@ describe('HouseholdDocumentCenter', () => {
 
     await user.click(screen.getByRole('button', { name: /clear queue/i }))
 
-    expect(screen.queryByText(/ready to upload: 1 file/i)).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(/ready to upload: 1 file/i),
+    ).not.toBeInTheDocument()
     expect(mutateAsync).not.toHaveBeenCalled()
   })
 
   it('reports duplicate files already staged in the queue', () => {
     render(<HouseholdDocumentCenter documents={[]} />)
 
-    const january = new File(['jan'], 'january.pdf', { type: 'application/pdf' })
+    const january = new File(['jan'], 'january.pdf', {
+      type: 'application/pdf',
+    })
     const input = screen.getByLabelText(/file/i)
 
     fireEvent.change(input, {
@@ -205,8 +221,12 @@ describe('HouseholdDocumentCenter', () => {
     expect(screen.getByText('8')).toBeInTheDocument()
     expect(screen.getByText(/5 parsed so far/i)).toBeInTheDocument()
     expect(screen.getByText('Checking account statement')).toBeInTheDocument()
-    expect(screen.getByText('Match merchants automatically')).toBeInTheDocument()
-    expect(screen.getByText(/statement window mar 1, 2026 to mar 31, 2026/i)).toBeInTheDocument()
+    expect(
+      screen.getByText('Match merchants automatically'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/statement window mar 1, 2026 to mar 31, 2026/i),
+    ).toBeInTheDocument()
     expect(screen.getByText(/classifier 87%/i)).toBeInTheDocument()
   })
 
@@ -219,14 +239,21 @@ describe('HouseholdDocumentCenter', () => {
 
     render(<HouseholdDocumentCenter documents={[]} />)
 
-    const january = new File(['jan'], 'january.pdf', { type: 'application/pdf' })
+    const january = new File(['jan'], 'january.pdf', {
+      type: 'application/pdf',
+    })
     fireEvent.change(screen.getByLabelText(/file/i), {
       target: {
         files: [january],
       },
     })
 
-    expect(screen.getByRole('button', { name: /uploading/i })).toHaveAttribute('aria-busy', 'true')
-    expect(screen.getByRole('button', { name: /clear queue/i })).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('button', { name: /uploading/i })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    )
+    expect(
+      screen.getByRole('button', { name: /clear queue/i }),
+    ).toHaveAttribute('aria-busy', 'true')
   })
 })

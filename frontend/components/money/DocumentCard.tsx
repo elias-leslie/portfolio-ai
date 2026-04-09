@@ -1,11 +1,13 @@
-import type { HouseholdDocument } from '@/lib/api/household'
 import { Badge } from '@/components/ui/badge'
-import { formatDate, formatRelativeTime } from '@/lib/utils'
+import type { HouseholdDocument } from '@/lib/api/household'
 import { formatEnumLabel, formatFileSize } from '@/lib/formatters'
+import { formatDate, formatRelativeTime } from '@/lib/utils'
 
 export function DocumentCard({ document }: { document: HouseholdDocument }) {
   const metadata =
-    document.metadata && typeof document.metadata === 'object' ? document.metadata : {}
+    document.metadata && typeof document.metadata === 'object'
+      ? document.metadata
+      : {}
   const applicationSummary =
     metadata.application_summary &&
     typeof metadata.application_summary === 'object' &&
@@ -29,7 +31,8 @@ export function DocumentCard({ document }: { document: HouseholdDocument }) {
             </Badge>
             {document.classificationConfidence != null ? (
               <Badge variant="outline">
-                Classifier {Math.round(document.classificationConfidence * 100)}%
+                Classifier {Math.round(document.classificationConfidence * 100)}
+                %
               </Badge>
             ) : null}
             {applicationSummary?.status === 'applied' ? (
@@ -37,13 +40,19 @@ export function DocumentCard({ document }: { document: HouseholdDocument }) {
             ) : applicationSummary?.status === 'incomplete' ? (
               <Badge variant="outline">Needs completion</Badge>
             ) : null}
-            {!fileAvailable ? <Badge variant="outline">Source file unavailable</Badge> : null}
+            {!fileAvailable ? (
+              <Badge variant="outline">Source file unavailable</Badge>
+            ) : null}
           </div>
           {document.accountLabel ? (
-            <p className="mt-1 text-sm text-text-muted">{document.accountLabel}</p>
+            <p className="mt-1 text-sm text-text-muted">
+              {document.accountLabel}
+            </p>
           ) : null}
           {document.reviewSummary ? (
-            <p className="mt-2 text-sm text-text-muted">{document.reviewSummary}</p>
+            <p className="mt-2 text-sm text-text-muted">
+              {document.reviewSummary}
+            </p>
           ) : null}
           {applicationSummary ? (
             <p className="mt-2 text-xs text-text-muted">
@@ -52,7 +61,9 @@ export function DocumentCard({ document }: { document: HouseholdDocument }) {
           ) : null}
           <p className="mt-2 text-xs text-text-muted">
             Uploaded {formatRelativeTime(document.uploadedAt)}
-            {document.parsedAt ? ` · Parsed ${formatRelativeTime(document.parsedAt)}` : ''}
+            {document.parsedAt
+              ? ` · Parsed ${formatRelativeTime(document.parsedAt)}`
+              : ''}
           </p>
           <StatementDates document={document} />
         </div>
@@ -66,7 +77,9 @@ export function DocumentCard({ document }: { document: HouseholdDocument }) {
             </p>
           ) : null}
           <p className="mt-1">{formatFileSize(document.fileSizeBytes)}</p>
-          {document.contentType ? <p className="mt-1">{document.contentType}</p> : null}
+          {document.contentType ? (
+            <p className="mt-1">{document.contentType}</p>
+          ) : null}
         </div>
       </div>
     </div>
@@ -83,17 +96,30 @@ function buildApplicationSummary(summary: Record<string, unknown>): string {
     summary.imports && typeof summary.imports === 'object'
       ? (summary.imports as Record<string, unknown>)
       : null
-  const txCount = Number(transactionSummary?.inserted ?? 0) + Number(transactionSummary?.updated ?? 0)
+  const txCount =
+    Number(transactionSummary?.inserted ?? 0) +
+    Number(transactionSummary?.updated ?? 0)
   const importCount = Number(imported?.inserted ?? 0)
   const accountCount = Number(summary.evidence_accounts ?? 0)
   const planningCount = Number(summary.planning_items ?? 0)
   const inferredCount = Number(summary.inferred_values ?? 0)
 
-  if (txCount > 0) parts.push(`${txCount} transaction${txCount === 1 ? '' : 's'}`)
-  if (importCount > 0) parts.push(`${importCount} import row${importCount === 1 ? '' : 's'}`)
-  if (accountCount > 0) parts.push(`${accountCount} account snapshot${accountCount === 1 ? '' : 's'}`)
-  if (planningCount > 0) parts.push(`${planningCount} planning item${planningCount === 1 ? '' : 's'}`)
-  if (inferredCount > 0) parts.push(`${inferredCount} inferred value${inferredCount === 1 ? '' : 's'}`)
+  if (txCount > 0)
+    parts.push(`${txCount} transaction${txCount === 1 ? '' : 's'}`)
+  if (importCount > 0)
+    parts.push(`${importCount} import row${importCount === 1 ? '' : 's'}`)
+  if (accountCount > 0)
+    parts.push(
+      `${accountCount} account snapshot${accountCount === 1 ? '' : 's'}`,
+    )
+  if (planningCount > 0)
+    parts.push(
+      `${planningCount} planning item${planningCount === 1 ? '' : 's'}`,
+    )
+  if (inferredCount > 0)
+    parts.push(
+      `${inferredCount} inferred value${inferredCount === 1 ? '' : 's'}`,
+    )
 
   if (parts.length === 0) {
     return 'Jenny reviewed this file, but it still needs enough usable evidence to apply it safely.'

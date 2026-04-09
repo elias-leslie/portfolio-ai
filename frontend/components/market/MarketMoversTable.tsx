@@ -34,7 +34,9 @@ export function MarketMoversTable() {
   }
 
   if (error || !data) {
-    return <MarketPanelMessage message="Unable to load market movers right now." />
+    return (
+      <MarketPanelMessage message="Unable to load market movers right now." />
+    )
   }
 
   const getItems = (): MarketMoverItem[] => {
@@ -63,14 +65,40 @@ export function MarketMoversTable() {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <h3 className="font-display italic text-lg tracking-tight text-text">Market Movers</h3>
-        <div className="flex gap-0.5 rounded-lg border border-border/30 bg-surface-muted/50 p-0.5" role="group" aria-label="Market mover categories">
-          {([
-            { key: 'gainers' as Tab, icon: TrendingUp, label: 'Gainers', activeColor: 'text-gain' },
-            { key: 'losers' as Tab, icon: TrendingDown, label: 'Losers', activeColor: 'text-loss' },
-            { key: 'volume' as Tab, icon: BarChart3, label: 'Volume', activeColor: 'text-text' },
-            { key: 'rvol' as Tab, icon: Zap, label: 'RVOL', activeColor: 'text-text' },
-          ]).map(({ key, icon: TabIcon, label, activeColor }) => (
+        <h3 className="font-display italic text-lg tracking-tight text-text">
+          Market Movers
+        </h3>
+        <div
+          className="flex gap-0.5 rounded-lg border border-border/30 bg-surface-muted/50 p-0.5"
+          role="group"
+          aria-label="Market mover categories"
+        >
+          {[
+            {
+              key: 'gainers' as Tab,
+              icon: TrendingUp,
+              label: 'Gainers',
+              activeColor: 'text-gain',
+            },
+            {
+              key: 'losers' as Tab,
+              icon: TrendingDown,
+              label: 'Losers',
+              activeColor: 'text-loss',
+            },
+            {
+              key: 'volume' as Tab,
+              icon: BarChart3,
+              label: 'Volume',
+              activeColor: 'text-text',
+            },
+            {
+              key: 'rvol' as Tab,
+              icon: Zap,
+              label: 'RVOL',
+              activeColor: 'text-text',
+            },
+          ].map(({ key, icon: TabIcon, label, activeColor }) => (
             <button
               key={key}
               type="button"

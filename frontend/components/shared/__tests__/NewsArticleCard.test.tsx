@@ -40,7 +40,9 @@ describe('NewsArticleCard', () => {
       />,
     )
 
-    await user.click(screen.getByRole('button', { name: 'Mark article as useful' }))
+    await user.click(
+      screen.getByRole('button', { name: 'Mark article as useful' }),
+    )
 
     expect(submitFeedbackMutate).toHaveBeenCalledWith({
       articleUrl: 'https://example.com/aapl',

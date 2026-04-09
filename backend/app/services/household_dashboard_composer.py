@@ -13,6 +13,10 @@ from app.models.household_finance import (
     HouseholdRetirementScenario,
     HouseholdSinkingFund,
 )
+from app.services._household_account_summary import (
+    build_account_summaries,
+    build_money_inbox,
+)
 from app.services._household_dashboard_assembly import (
     assemble_finance_dashboard,
     build_jenny_needs,
@@ -43,12 +47,28 @@ class HouseholdDashboardComposer:
 
     def build_dashboard(self, service: Any) -> HouseholdFinanceDashboard:
         d = gather_service_data(service)
+        freshness = check_statement_freshness(service.storage)
         resolved_values, visible_questions = resolve_dashboard_values(
             service, profile=d["profile"], reports=d["reports"], questions=d["questions"]
         )
+        account_summaries = build_account_summaries(
+            evidence_accounts=d["evidence_accounts"],
+            documents=d["documents"],
+            portfolio_accounts=d["accounts"],
+            holdings_by_account=d["holdings_by_account"],
+            statement_freshness=freshness,
+        )
+        inbox = build_money_inbox(
+            accounts=account_summaries,
+            questions=visible_questions,
+            tracked_documents=len(d["documents"]),
+            parsed_documents=sum(1 for document in d["documents"] if document.status in {"parsed", "needs_review"}),
+            statement_freshness=freshness,
+        )
         overview, retirement_assets, taxable_assets, cash_reserve, total_tracked_assets = build_overview(
             accounts=d["accounts"], live_positions=d["live_positions"],
-            evidence_accounts=d["evidence_accounts"],
+            evidence_accounts=d["evidence_accounts"], account_summaries=account_summaries,
+            inbox=inbox, statement_freshness=freshness,
             holdings_by_account=d["holdings_by_account"], documents=d["documents"],
             questions=visible_questions, resolved_values=resolved_values,
             service=service,
@@ -60,10 +80,12 @@ class HouseholdDashboardComposer:
             questions=visible_questions, resolved_values=resolved_values, reports=d["reports"],
             confirmed_facts=fetch_confirmed_facts(service.storage),
             detected_accounts=detect_unknown_accounts(service.storage, d["documents"]),
-            freshness=check_statement_freshness(service.storage),
+            freshness=freshness,
             categorization_queue=categorization_queue,
         )
-        if jenny_needs:
+        if inbox:
+            overview = update_overview_action(overview, inbox[0].title)
+        elif jenny_needs:
             overview = update_overview_action(overview, jenny_needs[0].title)
         return assemble_finance_dashboard(
             d=d, service=service, overview=overview, resolved_values=resolved_values,
@@ -71,6 +93,7 @@ class HouseholdDashboardComposer:
             retirement_assets=retirement_assets, taxable_assets=taxable_assets,
             cash_reserve=cash_reserve, total_tracked_assets=total_tracked_assets,
             categorization_queue=categorization_queue, recurring_commitments=recurring_commitments,
+            account_summaries=account_summaries, inbox=inbox,
         )
 
     def build_budget_snapshot(self, service: Any, *, profile: Any, reports: Any) -> HouseholdBudgetSnapshot:

@@ -110,7 +110,10 @@ describe('PortfolioPage', () => {
     render(<PortfolioPage />)
 
     await user.click(screen.getByRole('button', { name: 'Open Add Account' }))
-    await user.type(screen.getByLabelText('Account Name'), '  Joint   Brokerage  ')
+    await user.type(
+      screen.getByLabelText('Account Name'),
+      '  Joint   Brokerage  ',
+    )
     await user.click(screen.getByRole('button', { name: 'Create Account' }))
 
     expect(createAccountMutate).toHaveBeenCalledWith(
@@ -184,9 +187,9 @@ describe('PortfolioPage', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByRole('combobox', { name: 'Account' })).toHaveTextContent(
-        'Brokerage (Taxable)',
-      )
+      expect(
+        screen.getByRole('combobox', { name: 'Account' }),
+      ).toHaveTextContent('Brokerage (Taxable)')
     })
   })
 
@@ -206,11 +209,17 @@ describe('PortfolioPage', () => {
     render(<PortfolioPage />)
 
     await user.click(screen.getByRole('button', { name: 'Open Add Account' }))
-    expect(screen.getByRole('button', { name: 'Creating...' })).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('button', { name: 'Creating...' })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    )
 
     await user.click(screen.getByRole('button', { name: 'Close' }))
     await user.click(screen.getByRole('button', { name: 'Open Add Position' }))
-    expect(screen.getByRole('button', { name: 'Adding...' })).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('button', { name: 'Adding...' })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    )
   })
 
   it('keeps the header add-position action disabled until an account exists', async () => {

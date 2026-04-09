@@ -40,20 +40,23 @@ export function NewsCardHeader({
           type="button"
           className="flex items-center gap-2 hover:opacity-80 transition-opacity"
           onClick={onToggleExpanded}
-          aria-label={isExpanded ? 'Collapse news section' : 'Expand news section'}
+          aria-label={
+            isExpanded ? 'Collapse news section' : 'Expand news section'
+          }
         >
           {isMarketNews && <Newspaper className="h-5 w-5 text-accent" />}
           <CardTitle
             className={
-              isMarketNews
-                ? 'text-lg font-semibold text-text'
-                : 'text-base'
+              isMarketNews ? 'text-lg font-semibold text-text' : 'text-base'
             }
           >
             {cardTitle}
           </CardTitle>
           <ChevronDown
-            className={cn('h-4 w-4 text-text-muted transition-transform', isExpanded && 'rotate-180')}
+            className={cn(
+              'h-4 w-4 text-text-muted transition-transform',
+              isExpanded && 'rotate-180',
+            )}
           />
           {!isExpanded && summary && (
             <Badge variant="outline" className="ml-2 text-xs">

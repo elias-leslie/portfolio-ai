@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
 import { ArrowRight, GitBranch, RotateCcw } from 'lucide-react'
+import { useState } from 'react'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Button } from '@/components/ui/button'
@@ -38,7 +38,8 @@ export function SymbolWorkflowPanel({
     managementAction?: string | null
   } | null
 }) {
-  const { data, isLoading, error, refetch, isFetching } = useSymbolWorkflow(symbol)
+  const { data, isLoading, error, refetch, isFetching } =
+    useSymbolWorkflow(symbol)
   const transitionWorkflow = useTransitionSymbolWorkflow(symbol)
   const recordOutcome = useRecordSymbolWorkflowOutcome(symbol)
   const [outcomeNote, setOutcomeNote] = useState('')
@@ -78,13 +79,16 @@ export function SymbolWorkflowPanel({
               <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
                 Current stage
               </p>
-              <p className="mt-2 text-2xl font-semibold text-text">{formatStage(data.stage)}</p>
+              <p className="mt-2 text-2xl font-semibold text-text">
+                {formatStage(data.stage)}
+              </p>
               <p className="mt-2 text-sm text-text-muted">{data.summary}</p>
               {data.notes ? (
                 <p className="mt-3 text-sm text-text-muted">{data.notes}</p>
               ) : null}
               <p className="mt-4 text-xs text-text-muted">
-                Updated {formatTimestamp(data.lastTransitionAt)} by {data.updatedBy}
+                Updated {formatTimestamp(data.lastTransitionAt)} by{' '}
+                {data.updatedBy}
               </p>
               {data.nextReviewAt ? (
                 <p className="mt-1 text-xs text-text-muted">
@@ -97,7 +101,8 @@ export function SymbolWorkflowPanel({
                     Live position
                   </p>
                   <p className="mt-2 text-sm text-text">
-                    {data.position.shares.toFixed(2)} shares · basis ${data.position.costBasis.toFixed(2)}
+                    {data.position.shares.toFixed(2)} shares · basis $
+                    {data.position.costBasis.toFixed(2)}
                   </p>
                   <p className="mt-1 text-sm text-text-muted">
                     {data.position.marketValue !== null
@@ -112,11 +117,13 @@ export function SymbolWorkflowPanel({
             </div>
 
             <div className="rounded-2xl border border-border/40 bg-surface/70 p-4">
-              <p className="text-sm font-semibold text-text">Available transitions</p>
+              <p className="text-sm font-semibold text-text">
+                Available transitions
+              </p>
               {data.availableTransitions.length === 0 ? (
                 <div className="mt-4 rounded-2xl border border-border/40 bg-surface-muted/20 p-4 text-sm text-text-muted">
-                  No stage transitions are available right now. This symbol is waiting on the next
-                  review or outcome capture.
+                  No stage transitions are available right now. This symbol is
+                  waiting on the next review or outcome capture.
                 </div>
               ) : (
                 <div className="mt-4 flex flex-wrap gap-2">
@@ -124,7 +131,9 @@ export function SymbolWorkflowPanel({
                     <Button
                       key={stage}
                       size="sm"
-                      variant={stage === 'invalidated' ? 'destructive' : 'outline'}
+                      variant={
+                        stage === 'invalidated' ? 'destructive' : 'outline'
+                      }
                       onClick={() => transitionWorkflow.mutate({ stage })}
                       disabled={transitionWorkflow.isPending}
                       aria-busy={transitionWorkflow.isPending}
@@ -145,7 +154,8 @@ export function SymbolWorkflowPanel({
           <div className="rounded-2xl border border-border/40 bg-surface/70 p-4">
             <p className="text-sm font-semibold text-text">Outcome capture</p>
             <p className="mt-2 text-sm text-text-muted">
-              Record the real decision on the live position so future reviews remember the context.
+              Record the real decision on the live position so future reviews
+              remember the context.
             </p>
             <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto]">
               <Input
@@ -158,19 +168,30 @@ export function SymbolWorkflowPanel({
                   <Button
                     key={action}
                     size="sm"
-                    variant={action === 'invalidate' ? 'destructive' : 'outline'}
+                    variant={
+                      action === 'invalidate' ? 'destructive' : 'outline'
+                    }
                     onClick={() =>
                       recordOutcome.mutate({
                         action,
-                        note: outcomeNote || `Recorded ${action} decision from symbol workspace.`,
+                        note:
+                          outcomeNote ||
+                          `Recorded ${action} decision from symbol workspace.`,
                         jennyVerdict: latestReview?.finalVerdict ?? null,
-                        managementAction: latestReview?.managementAction ?? null,
+                        managementAction:
+                          latestReview?.managementAction ?? null,
                       })
                     }
                     disabled={recordOutcome.isPending}
                     aria-busy={recordOutcome.isPending}
                   >
-                    {action === 'exit' ? 'Record exit' : action === 'hold' ? 'Record hold' : action === 'trim' ? 'Record trim' : 'Invalidate'}
+                    {action === 'exit'
+                      ? 'Record exit'
+                      : action === 'hold'
+                        ? 'Record hold'
+                        : action === 'trim'
+                          ? 'Record trim'
+                          : 'Invalidate'}
                   </Button>
                 ))}
               </div>
@@ -180,7 +201,9 @@ export function SymbolWorkflowPanel({
                 <p className="text-sm font-semibold text-text">
                   Latest recorded outcome: {data.latestOutcome.action}
                 </p>
-                <p className="mt-2 text-sm text-text-muted">{data.latestOutcome.note}</p>
+                <p className="mt-2 text-sm text-text-muted">
+                  {data.latestOutcome.note}
+                </p>
                 <p className="mt-2 text-xs text-text-muted">
                   {formatTimestamp(data.latestOutcome.createdAt)}
                   {data.latestOutcome.jennyVerdict
@@ -195,7 +218,8 @@ export function SymbolWorkflowPanel({
             <p className="text-sm font-semibold text-text">Recent history</p>
             {data.history.length === 0 ? (
               <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4 text-sm text-text-muted">
-                No workflow history yet. The first transition will start the audit trail.
+                No workflow history yet. The first transition will start the
+                audit trail.
               </div>
             ) : (
               data.history.map((event) => (
@@ -207,8 +231,10 @@ export function SymbolWorkflowPanel({
                     <div className="flex items-center gap-2 text-sm font-semibold text-text">
                       <GitBranch className="h-4 w-4 text-primary" />
                       <span>
-                        {event.fromStage ? formatStage(event.fromStage) : 'System'} to{' '}
-                        {formatStage(event.toStage)}
+                        {event.fromStage
+                          ? formatStage(event.fromStage)
+                          : 'System'}{' '}
+                        to {formatStage(event.toStage)}
                       </span>
                     </div>
                     <span className="text-xs text-text-muted">

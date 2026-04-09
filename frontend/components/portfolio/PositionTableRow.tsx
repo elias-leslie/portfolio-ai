@@ -2,12 +2,12 @@ import { Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { TableCell, TableRow } from '@/components/ui/table'
 import type { PositionWithValue } from '@/lib/api/portfolio'
-import { cn } from '@/lib/utils'
 import {
   formatCurrency,
   formatPercent,
   formatPnlDollars,
 } from '@/lib/formatters'
+import { cn } from '@/lib/utils'
 
 interface PositionTableRowProps {
   position: PositionWithValue
@@ -32,7 +32,9 @@ export function PositionTableRow({
   return (
     <TableRow>
       <TableCell className="font-medium">{position.symbol}</TableCell>
-      <TableCell className="text-right tabular-nums">{position.shares}</TableCell>
+      <TableCell className="text-right tabular-nums">
+        {position.shares}
+      </TableCell>
       <TableCell className="text-right tabular-nums">
         {formatCurrency(position.costBasis)}
       </TableCell>
@@ -43,14 +45,22 @@ export function PositionTableRow({
         {position.currentValue ? formatCurrency(position.currentValue) : '—'}
       </TableCell>
       <TableCell
-        className={cn('text-right tabular-nums font-semibold', pnlDollars >= 0 ? 'text-gain' : 'text-loss')}
+        className={cn(
+          'text-right tabular-nums font-semibold',
+          pnlDollars >= 0 ? 'text-gain' : 'text-loss',
+        )}
       >
         {position.currentValue ? formatPnlDollars(pnlDollars) : '—'}
       </TableCell>
       <TableCell
-        className={cn('text-right tabular-nums', pnlPercent >= 0 ? 'text-gain' : 'text-loss')}
+        className={cn(
+          'text-right tabular-nums',
+          pnlPercent >= 0 ? 'text-gain' : 'text-loss',
+        )}
       >
-        {position.currentValue ? formatPercent(pnlPercent, { decimals: 2, sign: true }) : '—'}
+        {position.currentValue
+          ? formatPercent(pnlPercent, { decimals: 2, sign: true })
+          : '—'}
       </TableCell>
       <TableCell className="text-right">
         <div className="flex items-center justify-end gap-1">

@@ -20,7 +20,8 @@ import { SectorPerformanceChart } from './SectorPerformanceChart'
 import { SentimentTrendChart } from './SentimentTrendChart'
 
 export function MarketIntelligence() {
-  const { data, isLoading, error, refetch, isFetching } = useMarketIntelligence()
+  const { data, isLoading, error, refetch, isFetching } =
+    useMarketIntelligence()
 
   if (isLoading) {
     return (
@@ -62,7 +63,8 @@ export function MarketIntelligence() {
         </h2>
         {lastUpdated ? (
           <span className="text-xs text-text-muted">
-            Updated {new Date(lastUpdated).toLocaleString('en-US', {
+            Updated{' '}
+            {new Date(lastUpdated).toLocaleString('en-US', {
               month: 'short',
               day: 'numeric',
               hour: 'numeric',

@@ -1,11 +1,11 @@
 'use client'
 
 import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 import {
   formatSentimentScore,
   getSentimentBadgeVariant,
 } from '@/lib/utils/news-formatting'
-import { cn } from '@/lib/utils'
 import type { NewsSentimentDetail } from './news-card/types'
 
 interface SentimentBreakdownSectionProps {
@@ -43,7 +43,10 @@ export function SentimentBreakdownSection({
 
   return (
     <div
-      className={cn('flex flex-wrap items-start justify-between gap-4 px-6 py-3', isExpanded && 'border-b border-border')}
+      className={cn(
+        'flex flex-wrap items-start justify-between gap-4 px-6 py-3',
+        isExpanded && 'border-b border-border',
+      )}
     >
       <div>
         <p className="text-xs uppercase tracking-wide text-text-muted">

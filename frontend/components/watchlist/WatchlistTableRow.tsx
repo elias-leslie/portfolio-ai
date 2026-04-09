@@ -12,10 +12,7 @@ import Link from 'next/link'
 import { Fragment } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  TableCell,
-  TableRow,
-} from '@/components/ui/table'
+import { TableCell, TableRow } from '@/components/ui/table'
 import {
   Tooltip,
   TooltipContent,
@@ -71,8 +68,12 @@ export function WatchlistTableRow({
 }: WatchlistTableRowProps) {
   const hasScore = !!item.currentScore
   const overall = item.currentScore?.overall ?? 0
-  const priceSnapshot = getWatchlistPriceSnapshot(item.currentScore?.price.metadata)
-  const decisionMeta = formatDecisionMeta(item.decision, { includeTimestamp: false })
+  const priceSnapshot = getWatchlistPriceSnapshot(
+    item.currentScore?.price.metadata,
+  )
+  const decisionMeta = formatDecisionMeta(item.decision, {
+    includeTimestamp: false,
+  })
 
   return (
     <Fragment key={item.id}>
@@ -80,7 +81,8 @@ export function WatchlistTableRow({
         ref={rowRef}
         className={cn(
           'cursor-pointer transition-all duration-150 hover:bg-surface-muted/25 hover:shadow-[inset_2px_0_0_0] hover:shadow-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
-          isExpanded && 'bg-surface-muted/30 shadow-[inset_2px_0_0_0] shadow-primary/30',
+          isExpanded &&
+            'bg-surface-muted/30 shadow-[inset_2px_0_0_0] shadow-primary/30',
           highlightedSymbol === item.symbol && 'bg-accent/10 animate-pulse',
         )}
         role="button"
@@ -142,7 +144,8 @@ export function WatchlistTableRow({
                   source={item.currentScore.price.metadata.source}
                   stale={item.currentScore.price.stale}
                   priority={
-                    typeof item.currentScore.price.metadata.priority === 'number'
+                    typeof item.currentScore.price.metadata.priority ===
+                    'number'
                       ? item.currentScore.price.metadata.priority
                       : undefined
                   }
@@ -164,7 +167,9 @@ export function WatchlistTableRow({
             </div>
             {item.decision ? (
               <div className="text-xs leading-relaxed text-text-muted">
-                <span className="font-medium text-text">{item.decision.headline}</span>
+                <span className="font-medium text-text">
+                  {item.decision.headline}
+                </span>
                 {decisionMeta ? ` · ${decisionMeta}` : ''}
               </div>
             ) : null}
@@ -177,9 +182,7 @@ export function WatchlistTableRow({
           {priceSnapshot ? (
             <div
               className="text-sm tabular-nums price-display"
-              data-changed={
-                changedCells[item.id]?.price ? 'true' : undefined
-              }
+              data-changed={changedCells[item.id]?.price ? 'true' : undefined}
             >
               <div className="font-medium">{priceSnapshot.priceLabel}</div>
               {priceSnapshot.changeLabel ? (
@@ -303,9 +306,7 @@ export function WatchlistTableRow({
         <TableCell
           className="text-xs text-text-muted"
           data-slot="table-cell"
-          data-changed={
-            changedCells[item.id]?.updatedAt ? 'true' : undefined
-          }
+          data-changed={changedCells[item.id]?.updatedAt ? 'true' : undefined}
         >
           {item.currentScore?.price?.updatedAt
             ? formatDate(item.currentScore.price.updatedAt, userTimezone)

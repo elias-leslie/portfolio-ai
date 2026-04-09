@@ -2,33 +2,33 @@
 
 import { AlertCircle, Loader2, RefreshCw } from 'lucide-react'
 import { useMemo } from 'react'
-import type { NewsHealthResponse } from '@/lib/api/news'
-import { useDetailedHealth } from '@/lib/hooks/useHealth'
-import { useMarketStatus } from '@/lib/hooks/useMarketIntelligence'
-import { useNewsHealth } from '@/lib/hooks/useNewsHealth'
-import { cn, formatRelativeTime } from '@/lib/utils'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Button } from '@/components/ui/button'
+import type { NewsHealthResponse } from '@/lib/api/news'
 import {
-  SummaryStat,
-  SystemChecksPanel,
-  ServicePulsePanel,
-  SourceHealthPanel,
+  formatEnumLabel,
+  formatHours,
+  formatInteger,
+  formatPercent,
+} from '@/lib/formatters'
+import { useDetailedHealth } from '@/lib/hooks/useHealth'
+import { useMarketStatus } from '@/lib/hooks/useMarketIntelligence'
+import { useNewsHealth } from '@/lib/hooks/useNewsHealth'
+import { cn, formatRelativeTime } from '@/lib/utils'
+import {
+  MarketTimingPanel,
   NewsVendorsPanel,
   QuotaCoveragePanel,
   RecentRemediationsPanel,
+  ServicePulsePanel,
+  SourceHealthPanel,
   StaleMaintenancePanel,
-  MarketTimingPanel,
+  SummaryStat,
+  SystemChecksPanel,
 } from './StatusPanels'
-import {
-  formatEnumLabel,
-  formatInteger,
-  formatPercent,
-  formatHours,
-} from '@/lib/formatters'
-import { marketLabel, systemTone, marketTone } from './statusUtils'
+import { marketLabel, marketTone, systemTone } from './statusUtils'
 
 export function StatusWorkspace() {
   const healthQuery = useDetailedHealth()
@@ -48,21 +48,29 @@ export function StatusWorkspace() {
   const hasFatalError = failedSections.length === 3
   const hasPartialError = failedSections.length > 0 && !hasFatalError
   const isFetching =
-    healthQuery.isFetching || marketQuery.isFetching || newsHealthQuery.isFetching
+    healthQuery.isFetching ||
+    marketQuery.isFetching ||
+    newsHealthQuery.isFetching
 
   const sourceRows = useMemo(
     () =>
-      Object.entries(healthQuery.data?.sources ?? {}).sort((a, b) => a[0].localeCompare(b[0])),
+      Object.entries(healthQuery.data?.sources ?? {}).sort((a, b) =>
+        a[0].localeCompare(b[0]),
+      ),
     [healthQuery.data?.sources],
   )
   const checkRows = useMemo(
     () =>
-      Object.entries(healthQuery.data?.checks ?? {}).sort((a, b) => a[0].localeCompare(b[0])),
+      Object.entries(healthQuery.data?.checks ?? {}).sort((a, b) =>
+        a[0].localeCompare(b[0]),
+      ),
     [healthQuery.data?.checks],
   )
   const serviceRows = useMemo(
     () =>
-      Object.entries(healthQuery.data?.services ?? {}).sort((a, b) => a[0].localeCompare(b[0])),
+      Object.entries(healthQuery.data?.services ?? {}).sort((a, b) =>
+        a[0].localeCompare(b[0]),
+      ),
     [healthQuery.data?.services],
   )
   const vendorRows = useMemo(
@@ -76,10 +84,13 @@ export function StatusWorkspace() {
   const apiQuotas = healthQuery.data?.apiQuotas ?? []
   const configuredQuotaCount = apiQuotas.filter((q) => q.configured).length
   const totalQuotaCount = apiQuotas.length
-  const staleMaintenanceCount = healthQuery.data?.staleMaintenanceRuns?.length ?? 0
+  const staleMaintenanceCount =
+    healthQuery.data?.staleMaintenanceRuns?.length ?? 0
 
-  const watchlistItemsWithScores = healthQuery.data?.watchlistStats?.itemsWithScores ?? null
-  const watchlistTotalItems = healthQuery.data?.watchlistStats?.totalItems ?? null
+  const watchlistItemsWithScores =
+    healthQuery.data?.watchlistStats?.itemsWithScores ?? null
+  const watchlistTotalItems =
+    healthQuery.data?.watchlistStats?.totalItems ?? null
   const watchlistCoveragePct =
     watchlistItemsWithScores !== null &&
     watchlistTotalItems !== null &&
@@ -95,7 +106,9 @@ export function StatusWorkspace() {
 
   const cacheStats = healthQuery.data?.cacheStats
   const cacheAge = formatHours(
-    cacheStats?.cacheAgeMinutes != null ? cacheStats.cacheAgeMinutes / 60 : null,
+    cacheStats?.cacheAgeMinutes != null
+      ? cacheStats.cacheAgeMinutes / 60
+      : null,
   )
   const cacheValue =
     cacheStats?.enabled === false
@@ -115,7 +128,8 @@ export function StatusWorkspace() {
           : 'Cache details unavailable'
 
   const newsPipelineDetail =
-    newsHealthQuery.data?.fallbackHeadlines24H && newsHealthQuery.data.fallbackHeadlines24H > 0
+    newsHealthQuery.data?.fallbackHeadlines24H &&
+    newsHealthQuery.data.fallbackHeadlines24H > 0
       ? `Backup news source stepped in for ${formatInteger(newsHealthQuery.data.fallbackHeadlines24H)} headline${newsHealthQuery.data.fallbackHeadlines24H === 1 ? '' : 's'} in the last 24h`
       : 'Primary news source handled the last 24h'
 
@@ -136,7 +150,9 @@ export function StatusWorkspace() {
             disabled={isFetching}
             aria-busy={isFetching}
           >
-            <RefreshCw className={cn('mr-2 h-4 w-4', isFetching && 'animate-spin')} />
+            <RefreshCw
+              className={cn('mr-2 h-4 w-4', isFetching && 'animate-spin')}
+            />
             Refresh
           </Button>
         }
@@ -164,8 +180,8 @@ export function StatusWorkspace() {
               Failed to load the operations snapshot.
             </div>
             <p className="mt-2 text-loss/90">
-              We could not refresh {failedSections.join(', ')}. Check backend availability and try the
-              refresh action again.
+              We could not refresh {failedSections.join(', ')}. Check backend
+              availability and try the refresh action again.
             </p>
           </div>
         </SectionCard>
@@ -179,8 +195,8 @@ export function StatusWorkspace() {
               Partial snapshot
             </div>
             <p className="mt-2">
-              We could not refresh {failedSections.join(', ')}. The rest of the operating signals
-              are still shown below.
+              We could not refresh {failedSections.join(', ')}. The rest of the
+              operating signals are still shown below.
             </p>
           </div>
         </SectionCard>
@@ -202,7 +218,9 @@ export function StatusWorkspace() {
             <SummaryStat
               label="Market"
               value={marketLabel(marketQuery.data?.status)}
-              detail={marketQuery.data?.currentTimeEt ?? 'No market clock available'}
+              detail={
+                marketQuery.data?.currentTimeEt ?? 'No market clock available'
+              }
               tone={marketTone(marketQuery.data?.status)}
             />
             <SummaryStat
@@ -210,7 +228,9 @@ export function StatusWorkspace() {
               value={
                 watchlistCoveragePct !== null
                   ? formatPercent(watchlistCoveragePct)
-                  : formatInteger(healthQuery.data?.watchlistStats?.itemsWithScores)
+                  : formatInteger(
+                      healthQuery.data?.watchlistStats?.itemsWithScores,
+                    )
               }
               detail={watchlistCoverageDetail}
             />
@@ -232,7 +252,11 @@ export function StatusWorkspace() {
                   : 'Version unavailable'
               }
             />
-            <SummaryStat label="Cache" value={cacheValue} detail={cacheDetail} />
+            <SummaryStat
+              label="Cache"
+              value={cacheValue}
+              detail={cacheDetail}
+            />
             <SummaryStat
               label="API Keys"
               value={`${formatInteger(configuredQuotaCount)}/${formatInteger(totalQuotaCount)}`}
@@ -279,7 +303,9 @@ export function StatusWorkspace() {
             />
           </div>
 
-          <StaleMaintenancePanel staleRuns={healthQuery.data?.staleMaintenanceRuns ?? []} />
+          <StaleMaintenancePanel
+            staleRuns={healthQuery.data?.staleMaintenanceRuns ?? []}
+          />
 
           <MarketTimingPanel
             marketData={marketQuery.data}

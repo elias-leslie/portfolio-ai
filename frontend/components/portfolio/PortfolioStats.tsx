@@ -3,8 +3,8 @@
 import { BarChart3 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import type { PortfolioAnalytics } from '@/lib/api/portfolio'
-import { cn } from '@/lib/utils'
 import { formatCurrencyWhole } from '@/lib/formatters'
+import { cn } from '@/lib/utils'
 
 interface PortfolioStatsProps {
   analytics: PortfolioAnalytics
@@ -20,7 +20,9 @@ export function PortfolioStats({ analytics }: PortfolioStatsProps) {
     <Card className="p-6">
       <div className="mb-4 flex items-center gap-2">
         <BarChart3 className="h-4 w-4 text-accent" />
-        <h3 className="font-display italic text-lg tracking-tight text-text">Portfolio Stats</h3>
+        <h3 className="font-display italic text-lg tracking-tight text-text">
+          Portfolio Stats
+        </h3>
       </div>
 
       <div className="space-y-3">
@@ -65,7 +67,8 @@ export function PortfolioStats({ analytics }: PortfolioStatsProps) {
         <div className="border-t border-border/40 pt-3">
           <div className="data-row">
             <span className="text-sm text-text-muted">Return Quality</span>
-            {analytics.sharpeRatio !== null && Number.isFinite(analytics.sharpeRatio) ? (
+            {analytics.sharpeRatio !== null &&
+            Number.isFinite(analytics.sharpeRatio) ? (
               <span
                 className={cn(
                   'text-sm font-medium',
@@ -79,11 +82,14 @@ export function PortfolioStats({ analytics }: PortfolioStatsProps) {
                 {analytics.sharpeRatio.toFixed(2)}
               </span>
             ) : (
-              <span className="text-sm font-medium tabular-nums text-text-muted">Unavailable</span>
+              <span className="text-sm font-medium tabular-nums text-text-muted">
+                Unavailable
+              </span>
             )}
           </div>
           <p className="mt-1 text-xs text-text-muted">
-            {analytics.sharpeRatio !== null && Number.isFinite(analytics.sharpeRatio)
+            {analytics.sharpeRatio !== null &&
+            Number.isFinite(analytics.sharpeRatio)
               ? 'Higher means your returns have been steadier for the amount of risk taken.'
               : 'This needs enough portfolio history to judge fairly, so the app is holding it back for now.'}
           </p>

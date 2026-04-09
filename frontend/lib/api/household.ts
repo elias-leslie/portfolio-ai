@@ -16,6 +16,15 @@ export interface HouseholdOverview {
   taxableAssets: number
   cashReserve: number
   totalTrackedAssets: number
+  liabilitiesTotal: number
+  netWorth: number
+  trackedAccountCount: number
+  needsRefreshCount: number
+  candidateAccountCount: number
+  gapCount: number
+  inboxCount: number
+  coverageMonths: number
+  lastTransactionDate: string | null
   visibilityScore: number
   visibilityLabel: string
   nextBestAction: string
@@ -239,6 +248,54 @@ export interface HouseholdEvidenceAccount {
   metadata: Record<string, unknown>
 }
 
+export interface HouseholdAccountGap {
+  code: string
+  severity: string
+  title: string
+  detail: string
+}
+
+export interface HouseholdAccountSummary {
+  id: string
+  label: string
+  assetGroup: string
+  accountType: string
+  sourceType: string
+  institutionName: string | null
+  ownerName: string | null
+  currency: string | null
+  currentValue: number | null
+  balance: number | null
+  holdingsValue: number | null
+  cashBalance: number | null
+  evidenceCount: number
+  documentIds: string[]
+  latestDocumentId: string | null
+  sourceTypes: string[]
+  linkedPortfolioAccountId: string | null
+  linkedPortfolioAccountName: string | null
+  lastEvidenceAt: string | null
+  daysSinceEvidence: number | null
+  freshnessStatus: string
+  freshnessLabel: string
+  matchStatus: string
+  matchConfidence: number | null
+  gapFlags: HouseholdAccountGap[]
+}
+
+export interface HouseholdInboxItem {
+  id: string
+  category: string
+  priority: string
+  title: string
+  detail: string
+  actionLabel: string
+  actionHref: string | null
+  relatedAccountId: string | null
+  relatedQuestionId: string | null
+  relatedDocumentIds: string[]
+}
+
 export interface HouseholdDocument {
   id: string
   filename: string
@@ -337,6 +394,8 @@ export interface HouseholdFinanceDashboard {
   jennyNeeds: JennyNeed[]
   importCenter: ImportCenter
   evidenceAccounts: HouseholdEvidenceAccount[]
+  accounts: HouseholdAccountSummary[]
+  inbox: HouseholdInboxItem[]
   questions: HouseholdQuestion[]
   jennyBrief: JennyMoneyBrief
   reports: HouseholdReports
@@ -439,7 +498,10 @@ export async function answerHouseholdQuestion(
   questionId: string,
   payload: HouseholdQuestionAnswer,
 ): Promise<HouseholdQuestion> {
-  return post<HouseholdQuestion>(`/api/household/questions/${questionId}/answer`, payload)
+  return post<HouseholdQuestion>(
+    `/api/household/questions/${questionId}/answer`,
+    payload,
+  )
 }
 
 export async function fetchConfirmedFacts(): Promise<HouseholdConfirmedFact[]> {
@@ -450,7 +512,10 @@ export async function confirmFact(
   factKey: string,
   factValue: string,
 ): Promise<HouseholdConfirmedFact> {
-  return post<HouseholdConfirmedFact>('/api/household/facts', { factKey, factValue })
+  return post<HouseholdConfirmedFact>('/api/household/facts', {
+    factKey,
+    factValue,
+  })
 }
 
 export async function askJenny(question: string): Promise<HouseholdQuestion> {
@@ -461,5 +526,8 @@ export async function categorizeHouseholdTransaction(
   transactionId: string,
   payload: HouseholdTransactionCategoryUpdate,
 ): Promise<{ ok: boolean }> {
-  return post<{ ok: boolean }>(`/api/household/transactions/${transactionId}/categorize`, payload)
+  return post<{ ok: boolean }>(
+    `/api/household/transactions/${transactionId}/categorize`,
+    payload,
+  )
 }

@@ -1,8 +1,5 @@
-import { useQuery, type UseQueryResult } from '@tanstack/react-query'
-import {
-  fetchTradingRules,
-  type TradingRulesResponse,
-} from '@/lib/api/rules'
+import { type UseQueryResult, useQuery } from '@tanstack/react-query'
+import { fetchTradingRules, type TradingRulesResponse } from '@/lib/api/rules'
 
 export function useTradingRules(options?: {
   enabled?: boolean

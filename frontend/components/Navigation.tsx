@@ -1,12 +1,6 @@
 'use client'
 
-import {
-  Briefcase,
-  Eye,
-  LayoutDashboard,
-  Radar,
-  Wallet,
-} from 'lucide-react'
+import { Briefcase, Eye, LayoutDashboard, Radar, Wallet } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { MarketStatusBadge } from '@/components/market/MarketStatusBadge'
@@ -113,13 +107,19 @@ function NavigationContent({ pathname }: { pathname: string }) {
                       : 'border-border/40 bg-surface/60 text-text-muted hover:border-border/60 hover:bg-surface/80 hover:text-text',
                   )}
                 >
-                  <Icon className="size-4" aria-hidden suppressHydrationWarning />
+                  <Icon
+                    className="size-4"
+                    aria-hidden
+                    suppressHydrationWarning
+                  />
                   <span>{link.label}</span>
                 </Link>
               )
             })}
           </div>
-          <p className="mt-2 text-sm text-text-muted">{activeRoute.description}</p>
+          <p className="mt-2 text-sm text-text-muted">
+            {activeRoute.description}
+          </p>
         </div>
       </div>
     </nav>

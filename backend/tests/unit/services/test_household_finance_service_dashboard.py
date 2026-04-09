@@ -117,5 +117,8 @@ def test_get_dashboard_returns_composed_household_view() -> None:
     assert dashboard.budget_readiness.status == "ready_for_budgeting"
     assert dashboard.retirement_preparedness.status == "scenario_ready"
     assert dashboard.questions[0].id == "question-1"
+    assert dashboard.overview.inbox_count >= 1
+    assert dashboard.inbox[0].category in {"intake", "question"}
+    assert dashboard.accounts == []
     assert isinstance(dashboard.jenny_needs, list)
     assert datetime.fromisoformat(dashboard.generated_at).tzinfo == UTC

@@ -102,7 +102,9 @@ describe('api client helpers', () => {
   it('does not retry unsafe POST requests after transient failures', async () => {
     global.fetch = vi
       .fn()
-      .mockRejectedValue(new Error('temporary network failure')) as unknown as typeof fetch
+      .mockRejectedValue(
+        new Error('temporary network failure'),
+      ) as unknown as typeof fetch
 
     await expect(
       post('/api/preferences', {

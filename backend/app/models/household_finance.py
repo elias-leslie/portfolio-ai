@@ -8,6 +8,8 @@ from app.models.household_finance_types import (
     BudgetLane,
     BudgetReadiness,
     ConfirmFactRequest,
+    HouseholdAccountGap,
+    HouseholdAccountSummary,
     HouseholdBudgetSnapshot,
     HouseholdCategorizationCandidate,
     HouseholdCategoryBreakdown,
@@ -17,6 +19,7 @@ from app.models.household_finance_types import (
     HouseholdDocumentReview,
     HouseholdEvidenceAccount,
     HouseholdExecutiveReport,
+    HouseholdInboxItem,
     HouseholdMerchantInsight,
     HouseholdMonthlyTrendPoint,
     HouseholdOpportunity,
@@ -47,6 +50,8 @@ __all__ = [
     "BudgetLane",
     "BudgetReadiness",
     "ConfirmFactRequest",
+    "HouseholdAccountGap",
+    "HouseholdAccountSummary",
     "HouseholdBudgetSnapshot",
     "HouseholdCategorizationCandidate",
     "HouseholdCategoryBreakdown",
@@ -57,6 +62,7 @@ __all__ = [
     "HouseholdEvidenceAccount",
     "HouseholdExecutiveReport",
     "HouseholdFinanceDashboard",
+    "HouseholdInboxItem",
     "HouseholdMerchantInsight",
     "HouseholdMonthlyTrendPoint",
     "HouseholdOpportunity",
@@ -154,6 +160,8 @@ class HouseholdFinanceDashboard(BaseModel):
     retirement_scenarios: list[HouseholdRetirementScenario] = Field(default_factory=list)
     import_center: ImportCenter
     evidence_accounts: list[HouseholdEvidenceAccount] = Field(default_factory=list)
+    accounts: list[HouseholdAccountSummary] = Field(default_factory=list)
+    inbox: list[HouseholdInboxItem] = Field(default_factory=list)
     questions: list[HouseholdQuestion] = Field(default_factory=list)
     jenny_brief: JennyMoneyBrief
     portfolio_context: PortfolioHouseholdContext | None = None

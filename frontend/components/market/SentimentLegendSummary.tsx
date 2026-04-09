@@ -19,7 +19,9 @@ export function SentimentLegendSummary({
   expectedDataDate,
 }: SentimentSummaryData) {
   const dataDate = latestDate?.split('T')[0]
-  const freshness = dataDate ? checkDataFreshness(dataDate, expectedDataDate) : null
+  const freshness = dataDate
+    ? checkDataFreshness(dataDate, expectedDataDate)
+    : null
 
   return (
     <div className="flex flex-col gap-1.5">

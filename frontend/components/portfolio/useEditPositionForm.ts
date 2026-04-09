@@ -11,7 +11,8 @@ import {
 export function useEditPositionForm() {
   const updatePosition = useUpdatePosition()
   const [editOpen, setEditOpen] = useState(false)
-  const [editingPosition, setEditingPosition] = useState<PositionWithValue | null>(null)
+  const [editingPosition, setEditingPosition] =
+    useState<PositionWithValue | null>(null)
   const [editAccountId, setEditAccountId] = useState('')
   const [editSymbol, setEditSymbol] = useState('')
   const [editShares, setEditShares] = useState('')
@@ -24,7 +25,8 @@ export function useEditPositionForm() {
     shares: editShares,
     costBasis: editCostBasis,
   })
-  const canUpdatePosition = Boolean(editingPosition) && isPositionFormValid(editFormErrors)
+  const canUpdatePosition =
+    Boolean(editingPosition) && isPositionFormValid(editFormErrors)
 
   const resetEditForm = () => {
     setEditOpen(false)

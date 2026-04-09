@@ -37,10 +37,7 @@ function buildCoachAlerts(
     ([, left], [, right]) => right - left,
   )[0]
 
-  if (
-    analytics.concentration.topHoldingPct >= 15 &&
-    largestPosition
-  ) {
+  if (analytics.concentration.topHoldingPct >= 15 && largestPosition) {
     alerts.push({
       title: `Trim candidate: ${largestPosition.symbol}`,
       detail: `${largestPosition.symbol} is ${analytics.concentration.topHoldingPct.toFixed(1)}% of your portfolio. If that is larger than you intended, scale it back instead of letting one stock decide your month.`,
@@ -101,7 +98,8 @@ function toneClasses(tone: CoachAlert['tone']) {
       }
     case 'caution':
       return {
-        border: 'border-warning/30 border-l-warning/60 border-l-[3px] bg-warning/10',
+        border:
+          'border-warning/30 border-l-warning/60 border-l-[3px] bg-warning/10',
         icon: 'text-warning',
         iconNode: <ScissorsLineDashed className="h-4 w-4" />,
       }
@@ -123,7 +121,9 @@ export function PortfolioCoachAlerts({
   return (
     <Card className="p-6">
       <div className="mb-4">
-        <h3 className="font-display italic text-lg tracking-tight text-text">Coach Alerts</h3>
+        <h3 className="font-display italic text-lg tracking-tight text-text">
+          Coach Alerts
+        </h3>
         <p className="mt-1 text-sm text-text-muted">
           Simple prompts for when to trim, review, or do nothing.
         </p>
@@ -138,9 +138,13 @@ export function PortfolioCoachAlerts({
               className={cn('rounded-xl border p-4', styles.border)}
             >
               <div className="flex items-start gap-3">
-                <div className={cn('mt-0.5', styles.icon)}>{styles.iconNode}</div>
+                <div className={cn('mt-0.5', styles.icon)}>
+                  {styles.iconNode}
+                </div>
                 <div>
-                  <p className="text-sm font-semibold text-text">{alert.title}</p>
+                  <p className="text-sm font-semibold text-text">
+                    {alert.title}
+                  </p>
                   <p className="mt-1 text-sm text-text-muted">{alert.detail}</p>
                 </div>
               </div>

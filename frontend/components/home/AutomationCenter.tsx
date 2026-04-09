@@ -1,13 +1,19 @@
 'use client'
 
-import { Bot, Clock3, RefreshCw, ShieldCheck, TriangleAlert } from 'lucide-react'
+import {
+  Bot,
+  Clock3,
+  RefreshCw,
+  ShieldCheck,
+  TriangleAlert,
+} from 'lucide-react'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
-import { useRunJennyRoutine } from '@/lib/hooks/usePortfolio'
 import { useAutomationCenter } from '@/lib/hooks/useHomeActionQueue'
+import { useRunJennyRoutine } from '@/lib/hooks/usePortfolio'
 import { useUpdatePreferences } from '@/lib/hooks/usePreferences'
 import { cn, formatRelativeTime } from '@/lib/utils'
 
@@ -51,7 +57,9 @@ export function AutomationCenter() {
             disabled={isFetching || isMutating}
             aria-busy={isFetching}
           >
-            <RefreshCw className={cn('mr-2 h-4 w-4', isFetching && 'animate-spin')} />
+            <RefreshCw
+              className={cn('mr-2 h-4 w-4', isFetching && 'animate-spin')}
+            />
             Refresh
           </Button>
           <Button
@@ -77,8 +85,9 @@ export function AutomationCenter() {
       {!isLoading && !error && data ? (
         <div className="info-banner mb-4 flex flex-wrap items-center justify-between gap-2">
           <span>
-            {data.guardrails.length} guardrail{data.guardrails.length === 1 ? '' : 's'} ·{' '}
-            {data.recentRuns.length} recent run{data.recentRuns.length === 1 ? '' : 's'}
+            {data.guardrails.length} guardrail
+            {data.guardrails.length === 1 ? '' : 's'} · {data.recentRuns.length}{' '}
+            recent run{data.recentRuns.length === 1 ? '' : 's'}
           </span>
           <span>
             {data.generatedAt
@@ -89,7 +98,11 @@ export function AutomationCenter() {
       ) : null}
 
       {isLoading ? (
-        <div className="grid gap-3 lg:grid-cols-2" role="status" aria-live="polite">
+        <div
+          className="grid gap-3 lg:grid-cols-2"
+          role="status"
+          aria-live="polite"
+        >
           {[...Array(4)].map((_, index) => (
             <div
               key={`automation-skeleton-${index}`}
@@ -115,8 +128,9 @@ export function AutomationCenter() {
           <div className="space-y-3">
             {data.guardrails.length === 0 ? (
               <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4 text-sm text-text-muted">
-                No automation guardrails are configured yet. Add runtime preferences so daily
-                reviews and thesis generation are easier to trust.
+                No automation guardrails are configured yet. Add runtime
+                preferences so daily reviews and thesis generation are easier to
+                trust.
               </div>
             ) : (
               data.guardrails.map((guardrail) => {
@@ -134,7 +148,9 @@ export function AutomationCenter() {
                       <div className="flex items-center gap-2">
                         <ShieldCheck className="h-4 w-4 text-primary" />
                         <div>
-                          <p className="text-sm font-semibold text-text">{guardrail.label}</p>
+                          <p className="text-sm font-semibold text-text">
+                            {guardrail.label}
+                          </p>
                           <p className="text-xs text-text-muted">
                             {guardrail.source === 'preferences'
                               ? 'Runtime override'
@@ -157,9 +173,13 @@ export function AutomationCenter() {
                         }}
                       />
                     </div>
-                    <p className="mt-2 text-sm text-text-muted">{guardrail.detail}</p>
+                    <p className="mt-2 text-sm text-text-muted">
+                      {guardrail.detail}
+                    </p>
                     <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <Badge variant={guardrail.enabled ? 'success' : 'secondary'}>
+                      <Badge
+                        variant={guardrail.enabled ? 'success' : 'secondary'}
+                      >
                         {guardrail.enabled ? 'enabled' : 'disabled'}
                       </Badge>
                       <Badge variant="outline">{guardrail.value}</Badge>
@@ -192,8 +212,9 @@ export function AutomationCenter() {
           <div className="space-y-3">
             {data.recentRuns.length === 0 ? (
               <div className="rounded-2xl border border-border/40 bg-surface/70 p-4 text-sm text-text-muted">
-                No automation runs have been recorded yet. Kick off a manual review to confirm the
-                automation path and generate fresh portfolio signals.
+                No automation runs have been recorded yet. Kick off a manual
+                review to confirm the automation path and generate fresh
+                portfolio signals.
               </div>
             ) : (
               data.recentRuns.map((run) => (
@@ -205,9 +226,13 @@ export function AutomationCenter() {
                     <div>
                       <div className="flex items-center gap-2">
                         <Bot className="h-4 w-4 text-primary" />
-                        <p className="text-sm font-semibold text-text">{run.label}</p>
+                        <p className="text-sm font-semibold text-text">
+                          {run.label}
+                        </p>
                       </div>
-                      <p className="mt-2 text-sm text-text-muted">{run.detail}</p>
+                      <p className="mt-2 text-sm text-text-muted">
+                        {run.detail}
+                      </p>
                     </div>
                     <span className="rounded-full bg-surface-muted/60 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-text">
                       {run.status}

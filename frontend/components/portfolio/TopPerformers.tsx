@@ -16,7 +16,9 @@ export function TopPerformers({
 }: TopPerformersProps) {
   return (
     <Card className="p-6">
-      <h3 className="mb-4 font-display italic text-lg tracking-tight text-text">Top Performers</h3>
+      <h3 className="mb-4 font-display italic text-lg tracking-tight text-text">
+        Top Performers
+      </h3>
       <div className="space-y-6">
         {/* Winners */}
         <div>
@@ -43,7 +45,10 @@ export function TopPerformers({
                   </div>
                   <div className="text-right">
                     <div className="text-sm font-medium tabular-nums text-gain">
-                      {formatPercent(position.gainPct, { decimals: 2, sign: true })}
+                      {formatPercent(position.gainPct, {
+                        decimals: 2,
+                        sign: true,
+                      })}
                     </div>
                     <div className="text-xs tabular-nums text-text-muted">
                       {formatCurrency(position.gainAmount)}
@@ -52,7 +57,9 @@ export function TopPerformers({
                 </div>
               ))
             ) : (
-              <div className="rounded-lg bg-surface-muted/10 px-3 py-2 text-sm text-text-muted">No performers with enough history yet</div>
+              <div className="rounded-lg bg-surface-muted/10 px-3 py-2 text-sm text-text-muted">
+                No performers with enough history yet
+              </div>
             )}
           </div>
         </div>
@@ -85,7 +92,10 @@ export function TopPerformers({
                   </div>
                   <div className="text-right">
                     <div className="text-sm font-medium tabular-nums text-loss">
-                      {formatPercent(position.gainPct, { decimals: 2, sign: true })}
+                      {formatPercent(position.gainPct, {
+                        decimals: 2,
+                        sign: true,
+                      })}
                     </div>
                     <div className="text-xs tabular-nums text-text-muted">
                       {formatCurrency(position.gainAmount)}
@@ -94,7 +104,9 @@ export function TopPerformers({
                 </div>
               ))
             ) : (
-              <div className="rounded-lg bg-surface-muted/10 px-3 py-2 text-sm text-text-muted">No performers with enough history yet</div>
+              <div className="rounded-lg bg-surface-muted/10 px-3 py-2 text-sm text-text-muted">
+                No performers with enough history yet
+              </div>
             )}
           </div>
         </div>

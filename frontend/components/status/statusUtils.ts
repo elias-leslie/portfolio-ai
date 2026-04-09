@@ -1,6 +1,6 @@
-import type { NewsHealthResponse } from '@/lib/api/news'
 import type { CheckStatus } from '@/lib/api/health'
 import type { MarketStatusResponse } from '@/lib/api/market'
+import type { NewsHealthResponse } from '@/lib/api/news'
 import { formatDateTime } from '@/lib/utils'
 
 export function checkVariant(status: CheckStatus | undefined) {
@@ -16,7 +16,9 @@ export function checkVariant(status: CheckStatus | undefined) {
   }
 }
 
-export function systemTone(status: string | undefined): 'default' | 'positive' | 'warning' | 'negative' {
+export function systemTone(
+  status: string | undefined,
+): 'default' | 'positive' | 'warning' | 'negative' {
   switch (status) {
     case 'healthy':
       return 'positive'
@@ -29,7 +31,9 @@ export function systemTone(status: string | undefined): 'default' | 'positive' |
   }
 }
 
-export function marketTone(status: MarketStatusResponse['status'] | undefined): 'default' | 'positive' | 'warning' | 'negative' {
+export function marketTone(
+  status: MarketStatusResponse['status'] | undefined,
+): 'default' | 'positive' | 'warning' | 'negative' {
   switch (status) {
     case 'open':
       return 'positive'
@@ -41,7 +45,9 @@ export function marketTone(status: MarketStatusResponse['status'] | undefined): 
   }
 }
 
-export function marketLabel(status: MarketStatusResponse['status'] | undefined) {
+export function marketLabel(
+  status: MarketStatusResponse['status'] | undefined,
+) {
   switch (status) {
     case 'open':
       return 'Market Open'
@@ -62,8 +68,12 @@ export function vendorVariant(vendor: NewsHealthResponse['vendors'][string]) {
   return vendor.lastErrorAt ? 'warning' : 'secondary'
 }
 
-export function getVendorActivityTimestamp(vendor: NewsHealthResponse['vendors'][string]) {
-  return vendor.lastSuccessAt ?? vendor.lastArticleAt ?? vendor.lastAttemptAt ?? null
+export function getVendorActivityTimestamp(
+  vendor: NewsHealthResponse['vendors'][string],
+) {
+  return (
+    vendor.lastSuccessAt ?? vendor.lastArticleAt ?? vendor.lastAttemptAt ?? null
+  )
 }
 
 export function formatLabel(value: string) {
@@ -77,7 +87,10 @@ export function formatServiceName(name: string, serviceName?: string) {
   return formatLabel(serviceName ?? name)
 }
 
-export function isServiceActive(service: { active?: boolean; status?: string }) {
+export function isServiceActive(service: {
+  active?: boolean
+  status?: string
+}) {
   if (typeof service.active === 'boolean') return service.active
   return service.status === 'running'
 }
@@ -95,14 +108,22 @@ export function getWorkflowCount(
     | null
     | undefined,
 ) {
-  return workflowHealth?.totalWorkflows24h ?? workflowHealth?.totalWorkflows24H ?? null
+  return (
+    workflowHealth?.totalWorkflows24h ??
+    workflowHealth?.totalWorkflows24H ??
+    null
+  )
 }
 
 export function remediationPresentation(remediation: {
   status: string
   resolved?: boolean
   resolvedAt?: string | null
-}): { badgeLabel: string; badgeVariant: 'success' | 'warning'; detail: string | null } {
+}): {
+  badgeLabel: string
+  badgeVariant: 'success' | 'warning'
+  detail: string | null
+} {
   if (remediation.resolved) {
     return {
       badgeLabel: 'resolved',

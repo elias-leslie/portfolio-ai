@@ -43,11 +43,36 @@ export function SentimentChart({
         data={data}
         margin={{ top: 10, right: 10, left: -20, bottom: 5 }}
       >
-        <ReferenceArea y1={0} y2={25} fill="var(--color-sentiment-fear)" fillOpacity={0.1} />
-        <ReferenceArea y1={25} y2={45} fill="var(--color-sentiment-caution)" fillOpacity={0.1} />
-        <ReferenceArea y1={45} y2={55} fill="var(--color-sentiment-neutral)" fillOpacity={0.1} />
-        <ReferenceArea y1={55} y2={75} fill="var(--color-sentiment-optimism)" fillOpacity={0.1} />
-        <ReferenceArea y1={75} y2={100} fill="var(--color-sentiment-greed)" fillOpacity={0.1} />
+        <ReferenceArea
+          y1={0}
+          y2={25}
+          fill="var(--color-sentiment-fear)"
+          fillOpacity={0.1}
+        />
+        <ReferenceArea
+          y1={25}
+          y2={45}
+          fill="var(--color-sentiment-caution)"
+          fillOpacity={0.1}
+        />
+        <ReferenceArea
+          y1={45}
+          y2={55}
+          fill="var(--color-sentiment-neutral)"
+          fillOpacity={0.1}
+        />
+        <ReferenceArea
+          y1={55}
+          y2={75}
+          fill="var(--color-sentiment-optimism)"
+          fillOpacity={0.1}
+        />
+        <ReferenceArea
+          y1={75}
+          y2={100}
+          fill="var(--color-sentiment-greed)"
+          fillOpacity={0.1}
+        />
         <XAxis
           dataKey="date"
           tickFormatter={formatXAxis}
@@ -72,8 +97,16 @@ export function SentimentChart({
         <Tooltip content={<SentimentTooltip />} />
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="var(--color-chart-purple)" stopOpacity={0.3} />
-            <stop offset="95%" stopColor="var(--color-chart-purple)" stopOpacity={0} />
+            <stop
+              offset="5%"
+              stopColor="var(--color-chart-purple)"
+              stopOpacity={0.3}
+            />
+            <stop
+              offset="95%"
+              stopColor="var(--color-chart-purple)"
+              stopOpacity={0}
+            />
           </linearGradient>
         </defs>
         <Area

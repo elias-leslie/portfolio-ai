@@ -1,7 +1,12 @@
 'use client'
 
 import { useEffect, useMemo, useReducer } from 'react'
-import type { HouseholdFinanceDashboard, HouseholdPlanningUpdate } from '@/lib/api/household'
+import { SectionCard } from '@/components/shared/SectionCard'
+import { Badge } from '@/components/ui/badge'
+import type {
+  HouseholdFinanceDashboard,
+  HouseholdPlanningUpdate,
+} from '@/lib/api/household'
 import type {
   HouseholdDebtObligationInput,
   HouseholdHousingCostInput,
@@ -11,14 +16,12 @@ import type {
   HouseholdPlanningMemberInput,
   HouseholdRetirementIncomeSourceInput,
 } from '@/lib/api/household-planning'
-import { SectionCard } from '@/components/shared/SectionCard'
-import { Badge } from '@/components/ui/badge'
-import { useUpdateHouseholdPlanning } from '@/lib/hooks/useHousehold'
 import { formatCurrency, formatEnumLabel } from '@/lib/formatters'
+import { useUpdateHouseholdPlanning } from '@/lib/hooks/useHousehold'
 import { HouseholdPlanningDocumentsCard } from './household-planning-documents-card'
 import {
-  EditableListSection,
   type EditableItem,
+  EditableListSection,
   emptyPlanning,
   normalizeEditableItems,
   stripPlanningMeta,
@@ -36,11 +39,16 @@ function statusBadge(status: string) {
   }
 }
 
-function toEditableItems<T extends { id?: string | null }>(items: T[]): EditableItem[] {
+function toEditableItems<T extends { id?: string | null }>(
+  items: T[],
+): EditableItem[] {
   return items.map((item) => ({ ...item }))
 }
 
-function normalizeSection<T>(items: EditableItem[], numericKeys: string[]): T[] {
+function normalizeSection<T>(
+  items: EditableItem[],
+  numericKeys: string[],
+): T[] {
   return normalizeEditableItems(items, numericKeys) as T[]
 }
 
@@ -66,26 +74,44 @@ type SectionsAction =
       template: EditableItem
     }
 
-function sectionsReducer(state: SectionsState, action: SectionsAction): SectionsState {
+function sectionsReducer(
+  state: SectionsState,
+  action: SectionsAction,
+): SectionsState {
   switch (action.type) {
     case 'RESET_ALL':
       return action.payload
     case 'UPDATE_DRAFT':
       return { ...state, [action.section]: action.items }
     case 'ADD_ITEM':
-      return { ...state, [action.section]: [...state[action.section], action.template] }
+      return {
+        ...state,
+        [action.section]: [...state[action.section], action.template],
+      }
   }
 }
 
-function buildSectionsState(planning: ReturnType<typeof emptyPlanning>): SectionsState {
+function buildSectionsState(
+  planning: ReturnType<typeof emptyPlanning>,
+): SectionsState {
   return {
     members: toEditableItems(planning.members.map(stripPlanningMeta)),
-    incomeSources: toEditableItems(planning.incomeSources.map(stripPlanningMeta)),
-    debtObligations: toEditableItems(planning.debtObligations.map(stripPlanningMeta)),
+    incomeSources: toEditableItems(
+      planning.incomeSources.map(stripPlanningMeta),
+    ),
+    debtObligations: toEditableItems(
+      planning.debtObligations.map(stripPlanningMeta),
+    ),
     housingCosts: toEditableItems(planning.housingCosts.map(stripPlanningMeta)),
-    insurancePolicies: toEditableItems(planning.insurancePolicies.map(stripPlanningMeta)),
-    retirementIncomeSources: toEditableItems(planning.retirementIncomeSources.map(stripPlanningMeta)),
-    plannedExpenses: toEditableItems(planning.plannedExpenses.map(stripPlanningMeta)),
+    insurancePolicies: toEditableItems(
+      planning.insurancePolicies.map(stripPlanningMeta),
+    ),
+    retirementIncomeSources: toEditableItems(
+      planning.retirementIncomeSources.map(stripPlanningMeta),
+    ),
+    plannedExpenses: toEditableItems(
+      planning.plannedExpenses.map(stripPlanningMeta),
+    ),
   }
 }
 
@@ -96,10 +122,15 @@ export function HouseholdPlanningPanels({
 }: {
   dashboard: HouseholdFinanceDashboard
 }) {
-  const planning = useMemo(() => dashboard.planning ?? emptyPlanning(), [dashboard.planning])
+  const planning = useMemo(
+    () => dashboard.planning ?? emptyPlanning(),
+    [dashboard.planning],
+  )
   const updatePlanning = useUpdateHouseholdPlanning()
 
-  const [sections, dispatch] = useReducer(sectionsReducer, planning, (p) => buildSectionsState(p))
+  const [sections, dispatch] = useReducer(sectionsReducer, planning, (p) =>
+    buildSectionsState(p),
+  )
 
   useEffect(() => {
     dispatch({ type: 'RESET_ALL', payload: buildSectionsState(planning) })
@@ -119,9 +150,12 @@ export function HouseholdPlanningPanels({
           title="Planning Coverage"
           description="How much of the household planning graph is already structured."
         >
-          <p className="text-3xl font-semibold text-text">{planning.summary.completionScore}%</p>
+          <p className="text-3xl font-semibold text-text">
+            {planning.summary.completionScore}%
+          </p>
           <p className="mt-2 text-sm text-text-muted">
-            {planning.summary.readySections} of {planning.summary.totalSections} core sections are structured.
+            {planning.summary.readySections} of {planning.summary.totalSections}{' '}
+            core sections are structured.
           </p>
         </SectionCard>
         <SectionCard
@@ -129,9 +163,12 @@ export function HouseholdPlanningPanels({
           title="Missing Documents"
           description="Planning placeholders Jenny is still waiting on."
         >
-          <p className="text-3xl font-semibold text-text">{planning.summary.missingDocumentCount}</p>
+          <p className="text-3xl font-semibold text-text">
+            {planning.summary.missingDocumentCount}
+          </p>
           <p className="mt-2 text-sm text-text-muted">
-            {planning.summary.highPriorityDocumentCount} high-priority document gap
+            {planning.summary.highPriorityDocumentCount} high-priority document
+            gap
             {planning.summary.highPriorityDocumentCount === 1 ? '' : 's'}.
           </p>
         </SectionCard>
@@ -142,12 +179,19 @@ export function HouseholdPlanningPanels({
         >
           <div className="space-y-2">
             {planningSections.length === 0 ? (
-              <p className="text-sm text-text-muted">Jenny has not scored the planning workbook yet.</p>
+              <p className="text-sm text-text-muted">
+                Jenny has not scored the planning workbook yet.
+              </p>
             ) : (
               planningSections.slice(0, 4).map((section) => (
-                <div key={section.section} className="flex items-center justify-between gap-3 text-sm">
+                <div
+                  key={section.section}
+                  className="flex items-center justify-between gap-3 text-sm"
+                >
                   <span className="text-text">{section.label}</span>
-                  <Badge variant={statusBadge(section.status)}>{formatEnumLabel(section.status)}</Badge>
+                  <Badge variant={statusBadge(section.status)}>
+                    {formatEnumLabel(section.status)}
+                  </Badge>
                 </div>
               ))
             )}
@@ -166,7 +210,9 @@ export function HouseholdPlanningPanels({
               <p className="text-sm font-semibold text-text">Missing inputs</p>
               <div className="mt-3 space-y-2">
                 {dashboard.budgetReadiness.missingInputs.length === 0 ? (
-                  <p className="text-sm text-text-muted">Jenny has the core budget inputs she needs.</p>
+                  <p className="text-sm text-text-muted">
+                    Jenny has the core budget inputs she needs.
+                  </p>
                 ) : (
                   dashboard.budgetReadiness.missingInputs.map((item) => (
                     <p key={item} className="text-sm text-text-muted">
@@ -181,14 +227,24 @@ export function HouseholdPlanningPanels({
               <div className="mt-3 space-y-3">
                 {dashboard.budgetReadiness.starterLanes.length === 0 ? (
                   <p className="text-sm text-text-muted">
-                    No starter lanes yet. Jenny will suggest these once more recurring spend patterns are confirmed.
+                    No starter lanes yet. Jenny will suggest these once more
+                    recurring spend patterns are confirmed.
                   </p>
                 ) : (
                   dashboard.budgetReadiness.starterLanes.map((lane) => (
-                    <div key={lane.name} className="rounded-xl border border-border/40 bg-surface-muted/20 p-3">
-                      <p className="text-sm font-semibold text-text">{lane.name}</p>
-                      <p className="mt-1 text-sm text-text-muted">{lane.objective}</p>
-                      <p className="mt-2 text-xs uppercase tracking-wide text-primary">{lane.status}</p>
+                    <div
+                      key={lane.name}
+                      className="rounded-xl border border-border/40 bg-surface-muted/20 p-3"
+                    >
+                      <p className="text-sm font-semibold text-text">
+                        {lane.name}
+                      </p>
+                      <p className="mt-1 text-sm text-text-muted">
+                        {lane.objective}
+                      </p>
+                      <p className="mt-2 text-xs uppercase tracking-wide text-primary">
+                        {lane.status}
+                      </p>
                     </div>
                   ))
                 )}
@@ -204,10 +260,15 @@ export function HouseholdPlanningPanels({
         >
           <div className="space-y-5">
             <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4">
-              <p className="text-sm font-semibold text-text">Contribution tracker</p>
+              <p className="text-sm font-semibold text-text">
+                Contribution tracker
+              </p>
               <p className="mt-2 text-2xl font-semibold text-text">
                 {dashboard.retirementContributionTracker.monthlyTarget
-                  ? formatCurrency(dashboard.retirementContributionTracker.monthlyGap, { decimals: 0, nullDisplay: 'Not set' })
+                  ? formatCurrency(
+                      dashboard.retirementContributionTracker.monthlyGap,
+                      { decimals: 0, nullDisplay: 'Not set' },
+                    )
                   : '—'}
               </p>
               <p className="mt-2 text-sm text-text-muted">
@@ -223,11 +284,16 @@ export function HouseholdPlanningPanels({
                     Jenny has not identified a strong retirement edge yet.
                   </p>
                 ) : (
-                  dashboard.retirementPreparedness.strengths.map((item, index) => (
-                    <p key={`${item}-${index}`} className="text-sm text-text-muted">
-                      {item}
-                    </p>
-                  ))
+                  dashboard.retirementPreparedness.strengths.map(
+                    (item, index) => (
+                      <p
+                        key={`${item}-${index}`}
+                        className="text-sm text-text-muted"
+                      >
+                        {item}
+                      </p>
+                    ),
+                  )
                 )}
               </div>
             </div>
@@ -239,11 +305,16 @@ export function HouseholdPlanningPanels({
                     No retirement blockers are flagged right now.
                   </p>
                 ) : (
-                  dashboard.retirementPreparedness.blockers.map((item, index) => (
-                    <p key={`${item}-${index}`} className="text-sm text-text-muted">
-                      {item}
-                    </p>
-                  ))
+                  dashboard.retirementPreparedness.blockers.map(
+                    (item, index) => (
+                      <p
+                        key={`${item}-${index}`}
+                        className="text-sm text-text-muted"
+                      >
+                        {item}
+                      </p>
+                    ),
+                  )
                 )}
               </div>
             </div>
@@ -255,21 +326,29 @@ export function HouseholdPlanningPanels({
                     Jenny does not have a next-step recommendation yet.
                   </p>
                 ) : (
-                  dashboard.retirementPreparedness.nextSteps.map((item, index) => (
-                    <p key={`${item}-${index}`} className="text-sm text-text-muted">
-                      {item}
-                    </p>
-                  ))
+                  dashboard.retirementPreparedness.nextSteps.map(
+                    (item, index) => (
+                      <p
+                        key={`${item}-${index}`}
+                        className="text-sm text-text-muted"
+                      >
+                        {item}
+                      </p>
+                    ),
+                  )
                 )}
               </div>
             </div>
 
             <div>
-              <p className="text-sm font-semibold text-text">Retirement scenarios</p>
+              <p className="text-sm font-semibold text-text">
+                Retirement scenarios
+              </p>
               <div className="mt-3 space-y-3">
                 {dashboard.retirementScenarios.length === 0 ? (
                   <p className="text-sm text-text-muted">
-                    Retirement scenarios will appear once Jenny has enough spending and contribution evidence.
+                    Retirement scenarios will appear once Jenny has enough
+                    spending and contribution evidence.
                   </p>
                 ) : (
                   dashboard.retirementScenarios.map((scenario) => (
@@ -279,14 +358,23 @@ export function HouseholdPlanningPanels({
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-sm font-semibold text-text">{scenario.name}</p>
-                          <p className="mt-1 text-sm text-text-muted">{scenario.detail}</p>
+                          <p className="text-sm font-semibold text-text">
+                            {scenario.name}
+                          </p>
+                          <p className="mt-1 text-sm text-text-muted">
+                            {scenario.detail}
+                          </p>
                         </div>
                         <div className="text-right text-sm">
                           <p className="font-semibold text-text">
-                            {formatCurrency(scenario.monthlySpend, { decimals: 0, nullDisplay: 'Not set' })}
+                            {formatCurrency(scenario.monthlySpend, {
+                              decimals: 0,
+                              nullDisplay: 'Not set',
+                            })}
                           </p>
-                          <p className="text-text-muted">{scenario.fundedYears} years funded</p>
+                          <p className="text-text-muted">
+                            {scenario.fundedYears} years funded
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -310,8 +398,17 @@ export function HouseholdPlanningPanels({
             fields={[
               { key: 'displayName', label: 'Name', placeholder: 'Alex' },
               { key: 'role', label: 'Role', placeholder: 'adult or child' },
-              { key: 'relationship', label: 'Relationship', placeholder: 'spouse, son, parent' },
-              { key: 'birthYear', label: 'Birth year', placeholder: '2018', inputMode: 'numeric' },
+              {
+                key: 'relationship',
+                label: 'Relationship',
+                placeholder: 'spouse, son, parent',
+              },
+              {
+                key: 'birthYear',
+                label: 'Birth year',
+                placeholder: '2018',
+                inputMode: 'numeric',
+              },
             ]}
             items={sections.members}
             onChange={(items) =>
@@ -321,12 +418,20 @@ export function HouseholdPlanningPanels({
               dispatch({
                 type: 'ADD_ITEM',
                 section: 'members',
-                template: { displayName: '', role: '', relationship: '', birthYear: null },
+                template: {
+                  displayName: '',
+                  role: '',
+                  relationship: '',
+                  birthYear: null,
+                },
               })
             }
             onSave={() =>
               saveSection({
-                members: normalizeSection<HouseholdPlanningMemberInput>(sections.members, ['birthYear']),
+                members: normalizeSection<HouseholdPlanningMemberInput>(
+                  sections.members,
+                  ['birthYear'],
+                ),
               })
             }
             isSaving={updatePlanning.isPending}
@@ -338,25 +443,44 @@ export function HouseholdPlanningPanels({
             fields={[
               { key: 'label', label: 'Label', placeholder: 'Primary salary' },
               { key: 'sourceType', label: 'Type', placeholder: 'salary' },
-              { key: 'payFrequency', label: 'Frequency', placeholder: 'biweekly' },
-              { key: 'monthlyAmount', label: 'Monthly amount', placeholder: '8500', inputMode: 'decimal' },
+              {
+                key: 'payFrequency',
+                label: 'Frequency',
+                placeholder: 'biweekly',
+              },
+              {
+                key: 'monthlyAmount',
+                label: 'Monthly amount',
+                placeholder: '8500',
+                inputMode: 'decimal',
+              },
             ]}
             items={sections.incomeSources}
             onChange={(items) =>
-              dispatch({ type: 'UPDATE_DRAFT', section: 'incomeSources', items })
+              dispatch({
+                type: 'UPDATE_DRAFT',
+                section: 'incomeSources',
+                items,
+              })
             }
             onAdd={() =>
               dispatch({
                 type: 'ADD_ITEM',
                 section: 'incomeSources',
-                template: { label: '', sourceType: '', payFrequency: '', monthlyAmount: null },
+                template: {
+                  label: '',
+                  sourceType: '',
+                  payFrequency: '',
+                  monthlyAmount: null,
+                },
               })
             }
             onSave={() =>
               saveSection({
-                incomeSources: normalizeSection<HouseholdIncomeSourceInput>(sections.incomeSources, [
-                  'monthlyAmount',
-                ]),
+                incomeSources: normalizeSection<HouseholdIncomeSourceInput>(
+                  sections.incomeSources,
+                  ['monthlyAmount'],
+                ),
               })
             }
             isSaving={updatePlanning.isPending}
@@ -368,18 +492,37 @@ export function HouseholdPlanningPanels({
             fields={[
               { key: 'label', label: 'Label', placeholder: 'Primary mortgage' },
               { key: 'debtType', label: 'Type', placeholder: 'mortgage' },
-              { key: 'balance', label: 'Balance', placeholder: '420000', inputMode: 'decimal' },
-              { key: 'monthlyPayment', label: 'Monthly payment', placeholder: '2450', inputMode: 'decimal' },
+              {
+                key: 'balance',
+                label: 'Balance',
+                placeholder: '420000',
+                inputMode: 'decimal',
+              },
+              {
+                key: 'monthlyPayment',
+                label: 'Monthly payment',
+                placeholder: '2450',
+                inputMode: 'decimal',
+              },
             ]}
             items={sections.debtObligations}
             onChange={(items) =>
-              dispatch({ type: 'UPDATE_DRAFT', section: 'debtObligations', items })
+              dispatch({
+                type: 'UPDATE_DRAFT',
+                section: 'debtObligations',
+                items,
+              })
             }
             onAdd={() =>
               dispatch({
                 type: 'ADD_ITEM',
                 section: 'debtObligations',
-                template: { label: '', debtType: '', balance: null, monthlyPayment: null },
+                template: {
+                  label: '',
+                  debtType: '',
+                  balance: null,
+                  monthlyPayment: null,
+                },
               })
             }
             onSave={() =>
@@ -397,10 +540,24 @@ export function HouseholdPlanningPanels({
             title="Housing costs"
             description="Rent or owned-home carrying costs plus major housing assumptions."
             fields={[
-              { key: 'label', label: 'Label', placeholder: 'Primary residence' },
+              {
+                key: 'label',
+                label: 'Label',
+                placeholder: 'Primary residence',
+              },
               { key: 'housingType', label: 'Type', placeholder: 'own or rent' },
-              { key: 'monthlyPayment', label: 'Monthly payment', placeholder: '2450', inputMode: 'decimal' },
-              { key: 'mortgageBalance', label: 'Mortgage balance', placeholder: '420000', inputMode: 'decimal' },
+              {
+                key: 'monthlyPayment',
+                label: 'Monthly payment',
+                placeholder: '2450',
+                inputMode: 'decimal',
+              },
+              {
+                key: 'mortgageBalance',
+                label: 'Mortgage balance',
+                placeholder: '420000',
+                inputMode: 'decimal',
+              },
             ]}
             items={sections.housingCosts}
             onChange={(items) =>
@@ -421,10 +578,10 @@ export function HouseholdPlanningPanels({
             }
             onSave={() =>
               saveSection({
-                housingCosts: normalizeSection<HouseholdHousingCostInput>(sections.housingCosts, [
-                  'monthlyPayment',
-                  'mortgageBalance',
-                ]),
+                housingCosts: normalizeSection<HouseholdHousingCostInput>(
+                  sections.housingCosts,
+                  ['monthlyPayment', 'mortgageBalance'],
+                ),
               })
             }
             isSaving={updatePlanning.isPending}
@@ -434,28 +591,56 @@ export function HouseholdPlanningPanels({
             title="Insurance policies"
             description="Coverage, premiums, and risk-transfer assumptions Jenny should respect."
             fields={[
-              { key: 'label', label: 'Label', placeholder: 'Family health plan' },
-              { key: 'coverageType', label: 'Coverage type', placeholder: 'health' },
-              { key: 'premiumMonthly', label: 'Monthly premium', placeholder: '780', inputMode: 'decimal' },
-              { key: 'coverageAmount', label: 'Coverage amount', placeholder: '500000', inputMode: 'decimal' },
+              {
+                key: 'label',
+                label: 'Label',
+                placeholder: 'Family health plan',
+              },
+              {
+                key: 'coverageType',
+                label: 'Coverage type',
+                placeholder: 'health',
+              },
+              {
+                key: 'premiumMonthly',
+                label: 'Monthly premium',
+                placeholder: '780',
+                inputMode: 'decimal',
+              },
+              {
+                key: 'coverageAmount',
+                label: 'Coverage amount',
+                placeholder: '500000',
+                inputMode: 'decimal',
+              },
             ]}
             items={sections.insurancePolicies}
             onChange={(items) =>
-              dispatch({ type: 'UPDATE_DRAFT', section: 'insurancePolicies', items })
+              dispatch({
+                type: 'UPDATE_DRAFT',
+                section: 'insurancePolicies',
+                items,
+              })
             }
             onAdd={() =>
               dispatch({
                 type: 'ADD_ITEM',
                 section: 'insurancePolicies',
-                template: { label: '', coverageType: '', premiumMonthly: null, coverageAmount: null },
+                template: {
+                  label: '',
+                  coverageType: '',
+                  premiumMonthly: null,
+                  coverageAmount: null,
+                },
               })
             }
             onSave={() =>
               saveSection({
-                insurancePolicies: normalizeSection<HouseholdInsurancePolicyInput>(
-                  sections.insurancePolicies,
-                  ['premiumMonthly', 'coverageAmount'],
-                ),
+                insurancePolicies:
+                  normalizeSection<HouseholdInsurancePolicyInput>(
+                    sections.insurancePolicies,
+                    ['premiumMonthly', 'coverageAmount'],
+                  ),
               })
             }
             isSaving={updatePlanning.isPending}
@@ -465,20 +650,47 @@ export function HouseholdPlanningPanels({
             title="Retirement income sources"
             description="Social Security, pensions, annuities, and bridge income."
             fields={[
-              { key: 'label', label: 'Label', placeholder: 'Social Security - Jamie' },
-              { key: 'sourceType', label: 'Type', placeholder: 'social_security' },
-              { key: 'startAge', label: 'Start age', placeholder: '67', inputMode: 'numeric' },
-              { key: 'monthlyAmount', label: 'Monthly amount', placeholder: '2800', inputMode: 'decimal' },
+              {
+                key: 'label',
+                label: 'Label',
+                placeholder: 'Social Security - Jamie',
+              },
+              {
+                key: 'sourceType',
+                label: 'Type',
+                placeholder: 'social_security',
+              },
+              {
+                key: 'startAge',
+                label: 'Start age',
+                placeholder: '67',
+                inputMode: 'numeric',
+              },
+              {
+                key: 'monthlyAmount',
+                label: 'Monthly amount',
+                placeholder: '2800',
+                inputMode: 'decimal',
+              },
             ]}
             items={sections.retirementIncomeSources}
             onChange={(items) =>
-              dispatch({ type: 'UPDATE_DRAFT', section: 'retirementIncomeSources', items })
+              dispatch({
+                type: 'UPDATE_DRAFT',
+                section: 'retirementIncomeSources',
+                items,
+              })
             }
             onAdd={() =>
               dispatch({
                 type: 'ADD_ITEM',
                 section: 'retirementIncomeSources',
-                template: { label: '', sourceType: '', startAge: null, monthlyAmount: null },
+                template: {
+                  label: '',
+                  sourceType: '',
+                  startAge: null,
+                  monthlyAmount: null,
+                },
               })
             }
             onSave={() =>
@@ -498,13 +710,26 @@ export function HouseholdPlanningPanels({
             description="Large one-time costs and sinking-fund style future goals."
             fields={[
               { key: 'label', label: 'Label', placeholder: 'Roof replacement' },
-              { key: 'expenseKind', label: 'Kind', placeholder: 'major_expense or goal_bucket' },
-              { key: 'targetAmount', label: 'Target amount', placeholder: '18000', inputMode: 'decimal' },
+              {
+                key: 'expenseKind',
+                label: 'Kind',
+                placeholder: 'major_expense or goal_bucket',
+              },
+              {
+                key: 'targetAmount',
+                label: 'Target amount',
+                placeholder: '18000',
+                inputMode: 'decimal',
+              },
               { key: 'targetDate', label: 'Target date', type: 'date' },
             ]}
             items={sections.plannedExpenses}
             onChange={(items) =>
-              dispatch({ type: 'UPDATE_DRAFT', section: 'plannedExpenses', items })
+              dispatch({
+                type: 'UPDATE_DRAFT',
+                section: 'plannedExpenses',
+                items,
+              })
             }
             onAdd={() =>
               dispatch({

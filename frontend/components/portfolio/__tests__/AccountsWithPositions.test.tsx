@@ -1,7 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
-import { AccountsWithPositionsContent } from '../AccountsWithPositions'
 import {
   useAccounts,
   useDeleteAccount,
@@ -9,7 +8,10 @@ import {
   usePortfolio,
   useUpdatePosition,
 } from '@/lib/hooks/usePortfolio'
-import { AccountsWithPositions } from '../AccountsWithPositions'
+import {
+  AccountsWithPositions,
+  AccountsWithPositionsContent,
+} from '../AccountsWithPositions'
 
 vi.mock('@/lib/hooks/usePortfolio', () => ({
   useAccounts: vi.fn(),
@@ -28,7 +30,14 @@ const mockUseUpdatePosition = useUpdatePosition as unknown as Mock
 describe('AccountsWithPositions', () => {
   beforeEach(() => {
     mockUsePortfolio.mockReturnValue({
-      data: { positions: [], cashBalanceTotal: 0, totalValue: 0, totalCostBasis: 0, totalGain: 0, totalGainPct: 0 },
+      data: {
+        positions: [],
+        cashBalanceTotal: 0,
+        totalValue: 0,
+        totalCostBasis: 0,
+        totalGain: 0,
+        totalGainPct: 0,
+      },
       isLoading: false,
     })
     mockUseDeleteAccount.mockReturnValue({
@@ -71,7 +80,9 @@ describe('AccountsWithPositions', () => {
     render(<AccountsWithPositions />)
 
     expect(
-      screen.getByText(/No accounts yet\. Create one above to start organizing your portfolio\./i),
+      screen.getByText(
+        /No accounts yet\. Create one above to start organizing your portfolio\./i,
+      ),
     ).toBeVisible()
   })
 
@@ -111,7 +122,9 @@ describe('AccountsWithPositions', () => {
     expect(screen.getByText('Roth IRA')).toBeVisible()
     expect(screen.getByText('$47,880.13')).toBeVisible()
     expect(screen.getByText(/Cash \$47,880\.13/)).toBeVisible()
-    expect(screen.queryByText(/No positions in this account yet/i)).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(/No positions in this account yet/i),
+    ).not.toBeInTheDocument()
   })
 
   it('shows a top-level add-position action and preselects the only account', async () => {
@@ -153,7 +166,9 @@ describe('AccountsWithPositions', () => {
 
     await user.click(screen.getByRole('button', { name: 'Retry' }))
 
-    expect(screen.getByText(/failed to load portfolio accounts/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/failed to load portfolio accounts/i),
+    ).toBeInTheDocument()
     expect(retryAccounts).toHaveBeenCalled()
   })
 })

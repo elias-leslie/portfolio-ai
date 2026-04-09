@@ -9,10 +9,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { Account } from '@/lib/api/portfolio'
-import type {
-  PositionFormErrors,
-  PositionType,
-} from './portfolio-form-utils'
+import type { PositionFormErrors, PositionType } from './portfolio-form-utils'
 
 interface PositionFormFieldsProps {
   idPrefix: string

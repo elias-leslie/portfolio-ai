@@ -9,55 +9,56 @@
  *   market-events.ts  — economic calendar events (FOMC, CPI, NFP, …)
  */
 
-export type {
-  ComponentScore,
-  SectorScore,
-  MarketHealthScore,
-  MarketConditionsResponse,
-  PriceResponse,
-  PricesResponse,
-  FearGreedReading,
-  FearGreedComponent,
-  MarketTrendsResponse,
-  PutCallContext,
-  EnrichedIndicator,
-  SectorInfo,
-  SectorRotationSummary,
-  MarketHealthScoreSimple,
-  FearGreedScore,
-  SectorWeight,
-  OptionsActivityMetrics,
-  MarketIntelligenceResponse,
-  FearGreedHistoryResponse,
-  NewsSentimentHistoryResponse,
-  IndicatorDataPoint,
-  IndicatorHistoryResponse,
-  SectorDataPoint,
-  SectorHistory,
-  SectorHistoryResponse,
-  MarketMoverItem,
-  MarketMoversResponse,
-  MarketStatusResponse,
-  MarketEvent,
-  MarketEventsChartResponse,
-  MarketEventType,
-  MarketEventTypesResponse,
-} from './market-types'
-
 export {
   fetchMarketConditions,
   fetchMarketIntelligence,
-  fetchPrices,
   fetchMarketTrends,
+  fetchPrices,
 } from './market-core'
+export {
+  fetchMarketEventsForChart,
+  fetchMarketEventTypes,
+} from './market-events'
 
 export {
   fetchFearGreedHistory,
-  fetchNewsSentimentHistory,
   fetchIndicatorHistory,
+  fetchNewsSentimentHistory,
   fetchSectorHistory,
 } from './market-history'
 
 export { fetchMarketMovers, fetchMarketStatus } from './market-movers'
-
-export { fetchMarketEventsForChart, fetchMarketEventTypes } from './market-events'
+export type {
+  ComponentScore,
+  EnrichedIndicator,
+  FearGreedComponent,
+  FearGreedHistoryResponse,
+  FearGreedReading,
+  FearGreedScore,
+  IndicatorDataPoint,
+  IndicatorHistoryResponse,
+  MarketConditionsResponse,
+  MarketEvent,
+  MarketEventsChartResponse,
+  MarketEventType,
+  MarketEventTypesResponse,
+  MarketHealthScore,
+  MarketHealthScoreSimple,
+  MarketIntelligenceResponse,
+  MarketMoverItem,
+  MarketMoversResponse,
+  MarketStatusResponse,
+  MarketTrendsResponse,
+  NewsSentimentHistoryResponse,
+  OptionsActivityMetrics,
+  PriceResponse,
+  PricesResponse,
+  PutCallContext,
+  SectorDataPoint,
+  SectorHistory,
+  SectorHistoryResponse,
+  SectorInfo,
+  SectorRotationSummary,
+  SectorScore,
+  SectorWeight,
+} from './market-types'

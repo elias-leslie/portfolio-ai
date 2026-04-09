@@ -1,19 +1,21 @@
 'use client'
 
 import { useState } from 'react'
-import type { HouseholdQuestion } from '@/lib/api/household'
-import { useAnswerHouseholdQuestion } from '@/lib/hooks/useHousehold'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import type { HouseholdQuestion } from '@/lib/api/household'
+import { useAnswerHouseholdQuestion } from '@/lib/hooks/useHousehold'
 import {
   getQuestionSourceDocument,
   questionSourceLabel,
 } from './household-profile-utils'
 
-function normalizeQuestionFormat(questionFormat: string | null | undefined): string {
+function normalizeQuestionFormat(
+  questionFormat: string | null | undefined,
+): string {
   switch ((questionFormat ?? 'short_text').toLowerCase()) {
     case 'text':
       return 'short_text'
@@ -39,9 +41,9 @@ export function JennyQuestionInbox({
 }) {
   const answerQuestion = useAnswerHouseholdQuestion()
   const [drafts, setDrafts] = useState<Record<string, string>>({})
-  const [multiSelectDrafts, setMultiSelectDrafts] = useState<Record<string, string[]>>(
-    {},
-  )
+  const [multiSelectDrafts, setMultiSelectDrafts] = useState<
+    Record<string, string[]>
+  >({})
 
   const openQuestions = questions.filter(
     (question) =>
@@ -80,19 +82,24 @@ export function JennyQuestionInbox({
       description={description}
       actions={
         <Badge variant={openQuestions.length > 0 ? 'warning' : 'success'}>
-          {openQuestions.length > 0 ? `${openQuestions.length} open` : 'No open questions'}
+          {openQuestions.length > 0
+            ? `${openQuestions.length} open`
+            : 'No open questions'}
         </Badge>
       }
     >
       <div className="space-y-4">
         {openQuestions.length === 0 ? (
           <div className="rounded-2xl border border-border/40 bg-surface/70 px-4 py-3 text-sm text-text-muted">
-            Jenny has enough confirmed information for now. She will reopen the queue only when confidence drops.
+            Jenny has enough confirmed information for now. She will reopen the
+            queue only when confidence drops.
           </div>
         ) : (
           openQuestions.map((question) => {
             const sourceDocument = getQuestionSourceDocument(question)
-            const questionFormat = normalizeQuestionFormat(question.questionFormat)
+            const questionFormat = normalizeQuestionFormat(
+              question.questionFormat,
+            )
             const options = question.options ?? []
 
             return (
@@ -113,14 +120,22 @@ export function JennyQuestionInbox({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-semibold text-text">{question.question}</p>
-                  <Badge variant={question.priority === 'high' ? 'warning' : 'secondary'}>
+                  <p className="text-sm font-semibold text-text">
+                    {question.question}
+                  </p>
+                  <Badge
+                    variant={
+                      question.priority === 'high' ? 'warning' : 'secondary'
+                    }
+                  >
                     {question.priority}
                   </Badge>
                 </div>
 
                 {question.rationale ? (
-                  <p className="mt-2 text-sm text-text-muted">{question.rationale}</p>
+                  <p className="mt-2 text-sm text-text-muted">
+                    {question.rationale}
+                  </p>
                 ) : null}
 
                 {question.recommendation ? (
@@ -167,7 +182,9 @@ export function JennyQuestionInbox({
                   <div className="mt-3 space-y-3">
                     <div className="flex flex-wrap gap-2">
                       {options.map((option) => {
-                        const selected = multiSelectDrafts[question.id]?.includes(option) ?? false
+                        const selected =
+                          multiSelectDrafts[question.id]?.includes(option) ??
+                          false
                         return (
                           <Button
                             key={option}
@@ -178,7 +195,9 @@ export function JennyQuestionInbox({
                                 return {
                                   ...current,
                                   [question.id]: selected
-                                    ? existing.filter((value) => value !== option)
+                                    ? existing.filter(
+                                        (value) => value !== option,
+                                      )
                                     : [...existing, option],
                                 }
                               })
@@ -192,7 +211,10 @@ export function JennyQuestionInbox({
                     </div>
                     <Button
                       onClick={() =>
-                        submitAnswer(question.id, (multiSelectDrafts[question.id] ?? []).join(', '))
+                        submitAnswer(
+                          question.id,
+                          (multiSelectDrafts[question.id] ?? []).join(', '),
+                        )
                       }
                       disabled={
                         answerQuestion.isPending ||
@@ -204,9 +226,13 @@ export function JennyQuestionInbox({
                   </div>
                 ) : null}
 
-                {['short_text', 'integer', 'currency', 'date', 'long_text'].includes(
-                  questionFormat,
-                ) ? (
+                {[
+                  'short_text',
+                  'integer',
+                  'currency',
+                  'date',
+                  'long_text',
+                ].includes(questionFormat) ? (
                   <div className="mt-3 flex flex-col gap-3 sm:flex-row">
                     {questionFormat === 'long_text' ? (
                       <Textarea
@@ -224,11 +250,14 @@ export function JennyQuestionInbox({
                         type={
                           questionFormat === 'date'
                             ? 'date'
-                            : questionFormat === 'integer' || questionFormat === 'currency'
+                            : questionFormat === 'integer' ||
+                                questionFormat === 'currency'
                               ? 'number'
                               : 'text'
                         }
-                        step={questionFormat === 'currency' ? '0.01' : undefined}
+                        step={
+                          questionFormat === 'currency' ? '0.01' : undefined
+                        }
                         value={drafts[question.id] ?? ''}
                         onChange={(event) =>
                           setDrafts((current) => ({
@@ -246,8 +275,13 @@ export function JennyQuestionInbox({
                       />
                     )}
                     <Button
-                      onClick={() => submitAnswer(question.id, drafts[question.id] ?? '')}
-                      disabled={answerQuestion.isPending || !(drafts[question.id] ?? '').trim()}
+                      onClick={() =>
+                        submitAnswer(question.id, drafts[question.id] ?? '')
+                      }
+                      disabled={
+                        answerQuestion.isPending ||
+                        !(drafts[question.id] ?? '').trim()
+                      }
                     >
                       Confirm
                     </Button>

@@ -28,8 +28,8 @@ export default function SymbolError({
           Failed to load symbol data
         </h2>
         <p className="max-w-md text-sm text-text-muted leading-relaxed">
-          Could not load the requested symbol. The data source may be temporarily
-          unavailable.
+          Could not load the requested symbol. The data source may be
+          temporarily unavailable.
         </p>
       </div>
       <Button type="button" onClick={reset}>

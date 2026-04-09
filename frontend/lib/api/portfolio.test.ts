@@ -51,7 +51,10 @@ describe('portfolio api', () => {
       }),
     }) as unknown as typeof fetch
 
-    await chatWithJenny({ message: 'What do you think about AMD?', sessionId: null })
+    await chatWithJenny({
+      message: 'What do you think about AMD?',
+      sessionId: null,
+    })
 
     expect(global.fetch).toHaveBeenCalledWith(
       '/api/portfolio/jenny/chat',

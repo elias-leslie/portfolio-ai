@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import { AccountsWithPositionsContent } from '@/components/portfolio/AccountsWithPositions'
 import { AddAccountDialog } from '@/components/portfolio/AddAccountDialog'
 import { AddPositionDialog } from '@/components/portfolio/AddPositionDialog'
-import { AccountsWithPositionsContent } from '@/components/portfolio/AccountsWithPositions'
 import { PortfolioOverview } from '@/components/portfolio/PortfolioOverview'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -55,8 +55,8 @@ export default function PortfolioPage() {
 
       {!accountsLoading && !hasAccounts ? (
         <div className="rounded-2xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
-          Create an account before adding your first position so portfolio coaching has account
-          context.
+          Create an account before adding your first position so portfolio
+          coaching has account context.
         </div>
       ) : null}
 

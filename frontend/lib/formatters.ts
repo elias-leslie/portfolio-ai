@@ -23,7 +23,10 @@ export function formatCurrencyWhole(
   value: number | null | undefined,
   opts?: { nullDisplay?: string },
 ): string {
-  return formatCurrency(value, { decimals: 0, nullDisplay: opts?.nullDisplay ?? '—' })
+  return formatCurrency(value, {
+    decimals: 0,
+    nullDisplay: opts?.nullDisplay ?? '—',
+  })
 }
 
 /** Format a number as a percentage string. */
@@ -83,6 +86,7 @@ export function formatFileSize(bytes: number): string {
   if (bytes <= 0) return '0 B'
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  if (bytes < 1024 * 1024 * 1024)
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
 }

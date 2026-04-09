@@ -1,81 +1,25 @@
 'use client'
 
+import { Loader2 } from 'lucide-react'
 import Link from 'next/link'
-import { ArrowRight, FileUp, Loader2, Search, ThumbsUp } from 'lucide-react'
-import type { HouseholdFinanceDashboard } from '@/lib/api/household'
 import { HouseholdDocumentCenter } from '@/components/money/HouseholdDocumentCenter'
-import { HouseholdOperationsPanel } from '@/components/money/HouseholdOperationsPanel'
-import { HouseholdOverviewGrid } from '@/components/money/HouseholdOverviewGrid'
 import { HouseholdPlanningPanels } from '@/components/money/HouseholdPlanningPanels'
 import { HouseholdProfileCard } from '@/components/money/HouseholdProfileCard'
-import { HouseholdReportsPanel } from '@/components/money/HouseholdReportsPanel'
-import { JennyChatPanel } from '@/components/money/JennyChatPanel'
-import { JennyQuestionInbox } from '@/components/money/JennyQuestionInbox'
-import { JennyMoneyBoard } from '@/components/money/JennyMoneyBoard'
+import { MoneyAccountsPanel } from '@/components/money/MoneyAccountsPanel'
+import { MoneyInboxPanel } from '@/components/money/MoneyInboxPanel'
+import { MoneyOverviewPanel } from '@/components/money/MoneyOverviewPanel'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { SectionCard } from '@/components/shared/SectionCard'
 import type { WorkspaceTab } from '@/components/shared/WorkspaceTabs'
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs'
-import { Button } from '@/components/ui/button'
-import { useHouseholdDashboard, useHouseholdDocuments } from '@/lib/hooks/useHousehold'
+import { formatCurrencyWhole } from '@/lib/formatters'
+import {
+  useHouseholdDashboard,
+  useHouseholdDocuments,
+} from '@/lib/hooks/useHousehold'
 import { formatRelativeTime } from '@/lib/utils'
-
-type OnboardingStage = 1 | 2 | 3 | 4
-
-function getOnboardingStage(
-  dashboard: HouseholdFinanceDashboard,
-  docCount: number,
-): OnboardingStage {
-  const executive = dashboard.reports?.executive as
-    | HouseholdFinanceDashboard['reports']['executive']
-    | undefined
-  if (docCount === 0 && !executive) return 1
-  if (docCount > 0 && !executive?.averageMonthlySpend) return 2
-  const criticalHighNeeds = dashboard.jennyNeeds?.filter(
-    (n) =>
-      n.status === 'unsatisfied' &&
-      (n.priority === 'critical' || n.priority === 'high'),
-  )
-  if (!criticalHighNeeds || criticalHighNeeds.length === 0) return 4
-  const hasConfirmed = dashboard.resolvedValues?.some(
-    (v) => v.status === 'confirmed',
-  )
-  if (hasConfirmed) return 4
-  return 3
-}
-
-function getOnboardingStageLabel(stage: OnboardingStage): string {
-  switch (stage) {
-    case 1:
-      return 'Intake setup'
-    case 2:
-      return 'Document processing'
-    case 3:
-      return 'Confirm assumptions'
-    case 4:
-      return 'Operate'
-  }
-}
-
-function getPrimaryNeedAction(dashboard: HouseholdFinanceDashboard): {
-  href: string
-  label: string
-} | null {
-  const actionableNeed = dashboard.jennyNeeds.find(
-    (need) => need.status === 'unsatisfied' && Boolean(need.actionHref),
-  )
-
-  if (!actionableNeed?.actionHref) {
-    return null
-  }
-
-  return {
-    href: actionableNeed.actionHref,
-    label: actionableNeed.title,
-  }
-}
 
 function LoadingState() {
   return (
@@ -92,24 +36,27 @@ function LoadingState() {
   )
 }
 
-const onboardingSteps = [
-  {
-    icon: FileUp,
-    title: 'Drop evidence',
-    detail: 'Upload whatever best reflects your finances right now: screenshots, statements, exports, or planning docs.',
-  },
-  {
-    icon: Search,
-    title: 'Jenny analyzes',
-    detail:
-      'She figures out what each file is, extracts what matters, and routes it into the right part of the system.',
-  },
-  {
-    icon: ThumbsUp,
-    title: 'You confirm',
-    detail: 'You only step in when the evidence is ambiguous or the decision would materially change the result.',
-  },
-]
+function MetricCard({
+  label,
+  value,
+  detail,
+}: {
+  label: string
+  value: string
+  detail: string
+}) {
+  return (
+    <div className="rounded-2xl border border-border/40 bg-surface/60 px-4 py-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+        {label}
+      </p>
+      <p className="mt-3 text-2xl font-semibold tracking-tight text-text">
+        {value}
+      </p>
+      <p className="mt-2 text-sm leading-relaxed text-text-muted">{detail}</p>
+    </div>
+  )
+}
 
 export default function MoneyPage() {
   const {
@@ -132,7 +79,7 @@ export default function MoneyPage() {
         <PageHeader
           eyebrow="Household Finance"
           title="Money System"
-          description="One place for budgeting, saving, financial evidence intake, and retirement preparedness."
+          description="One compact view of accounts, cash flow, evidence freshness, and what Jenny still needs."
         />
         <LoadingState />
       </PageContainer>
@@ -145,11 +92,11 @@ export default function MoneyPage() {
         <PageHeader
           eyebrow="Household Finance"
           title="Money System"
-          description="One place for budgeting, saving, financial evidence intake, and retirement preparedness."
+          description="One compact view of accounts, cash flow, evidence freshness, and what Jenny still needs."
         />
         <LoadErrorState
           title="Failed to load the household finance workspace."
-          detail="Retry to refresh the household dashboard before working through questions, reports, and planning."
+          detail="Retry to refresh the overview, account cards, and inbox."
           onRetry={() => {
             void refetchDashboard()
           }}
@@ -161,317 +108,194 @@ export default function MoneyPage() {
     )
   }
 
-  const docCount =
-    documents?.items.length ?? dashboard.importCenter.trackedDocuments
-  const stage = getOnboardingStage(dashboard, docCount)
-  const stageLabel = getOnboardingStageLabel(stage)
-  const unsatisfiedNeedCount = dashboard.jennyNeeds.filter(
-    (n) => n.status === 'unsatisfied',
-  ).length
-  const openQuestionCount = dashboard.questions.filter(
-    (question) => !question.answeredAt,
-  ).length
-  const evidenceMonths = dashboard.reports.executive.coverageMonths
-  const primaryNeedAction = getPrimaryNeedAction(dashboard)
+  const documentItems = documents?.items ?? []
+  const trackedDocuments =
+    documentItems.length || dashboard.importCenter.trackedDocuments
+  const primaryInboxItem = dashboard.inbox[0] ?? null
+  const metrics = [
+    {
+      label: 'Net Worth',
+      value: formatCurrencyWhole(dashboard.overview.netWorth),
+      detail: `${formatCurrencyWhole(dashboard.overview.totalTrackedAssets)} assets less ${formatCurrencyWhole(dashboard.overview.liabilitiesTotal)} liabilities.`,
+    },
+    {
+      label: 'Cash',
+      value: formatCurrencyWhole(dashboard.overview.cashReserve),
+      detail: `${dashboard.overview.needsRefreshCount} account${dashboard.overview.needsRefreshCount === 1 ? '' : 's'} need fresher evidence.`,
+    },
+    {
+      label: 'Monthly Spend',
+      value: formatCurrencyWhole(
+        dashboard.reports.executive.averageMonthlySpend,
+      ),
+      detail: `${dashboard.reports.executive.coverageMonths} month${dashboard.reports.executive.coverageMonths === 1 ? '' : 's'} of spend coverage.`,
+    },
+    {
+      label: 'Accounts',
+      value: String(dashboard.overview.trackedAccountCount),
+      detail: `${dashboard.overview.candidateAccountCount} candidate${dashboard.overview.candidateAccountCount === 1 ? '' : 's'} still need confirmation.`,
+    },
+    {
+      label: 'Inbox',
+      value: String(dashboard.overview.inboxCount),
+      detail: `${dashboard.overview.gapCount} explicit freshness or completeness gap${dashboard.overview.gapCount === 1 ? '' : 's'} surfaced.`,
+    },
+    {
+      label: 'Evidence',
+      value: String(trackedDocuments),
+      detail: `${dashboard.importCenter.parsedDocuments} parsed · updated ${formatRelativeTime(dashboard.generatedAt)}`,
+    },
+  ]
 
-  // Stage 1: No data at all — focused onboarding with intake UI only
-  if (stage === 1) {
-    return (
-      <PageContainer className="space-y-10 py-10">
-        <PageHeader
-          eyebrow="Household Finance"
-          title="Let Jenny see your finances"
-          description="Upload the files that best represent your finances right now. Jenny will determine what they are, extract the useful facts, and build your financial picture automatically."
+  const intakeContent = documentsError ? (
+    <LoadErrorState
+      title="Failed to load intake documents."
+      detail="Retry to refresh the intake queue and uploaded household files."
+      onRetry={() => {
+        void refetchDocuments()
+      }}
+      isRetrying={isFetchingDocuments}
+    />
+  ) : !documents && isFetchingDocuments ? (
+    <LoadingState />
+  ) : (
+    <HouseholdDocumentCenter
+      documents={documentItems}
+      importCenter={dashboard.importCenter}
+      documentRequirements={dashboard.planning?.documentRequirements ?? []}
+      evidenceAccounts={dashboard.evidenceAccounts}
+    />
+  )
+
+  const tabs: WorkspaceTab[] = [
+    {
+      value: 'overview',
+      label: 'Overview',
+      description:
+        'Start here for the visual summary, then drill into the accounts or categories behind it.',
+      content: <MoneyOverviewPanel dashboard={dashboard} />,
+    },
+    {
+      value: 'accounts',
+      label: 'Accounts',
+      description:
+        'Every account/entity card shows freshness, confidence, and the exact gaps Jenny still sees.',
+      badge:
+        dashboard.overview.needsRefreshCount > 0
+          ? String(dashboard.overview.needsRefreshCount)
+          : undefined,
+      content: (
+        <MoneyAccountsPanel
+          accounts={dashboard.accounts}
+          documents={documentItems}
         />
-
-        <div className="grid gap-4 md:grid-cols-3 animate-stagger">
-          {onboardingSteps.map((step, index) => (
-            <SectionCard
-              key={step.title}
-              variant="surface"
-              className="overflow-hidden"
-              contentClassName="space-y-3"
-            >
-              <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                  {index + 1}
-                </div>
-                <step.icon className="h-5 w-5 text-primary" />
-                <p className="text-sm font-semibold text-text">
-                  {step.title}
-                </p>
-              </div>
-              <p className="text-sm leading-6 text-text-muted">
-                {step.detail}
-              </p>
-            </SectionCard>
-          ))}
+      ),
+    },
+    {
+      value: 'inbox',
+      label: 'Inbox',
+      description:
+        'One ranked list of stale accounts, missing evidence, and focused clarifications.',
+      badge:
+        dashboard.overview.inboxCount > 0
+          ? String(dashboard.overview.inboxCount)
+          : undefined,
+      content: (
+        <MoneyInboxPanel
+          inbox={dashboard.inbox}
+          questions={dashboard.questions}
+        />
+      ),
+    },
+    {
+      value: 'intake',
+      label: 'Intake',
+      description:
+        'Use the single evidence inbox for uploads, then inspect what Jenny understood.',
+      badge: trackedDocuments > 0 ? String(trackedDocuments) : undefined,
+      content: intakeContent,
+    },
+    {
+      value: 'planning',
+      label: 'Planning',
+      description:
+        'Keep profile assumptions, goals, and planning context available without crowding the default view.',
+      badge:
+        dashboard.questions.length > 0
+          ? String(dashboard.questions.length)
+          : undefined,
+      content: (
+        <div className="space-y-6">
+          <HouseholdProfileCard
+            profile={dashboard.profile}
+            resolvedValues={dashboard.resolvedValues}
+          />
+          <HouseholdPlanningPanels dashboard={dashboard} />
         </div>
-
-        {documentsError ? (
-          <LoadErrorState
-            title="Failed to load intake documents."
-            detail="Retry to refresh the intake queue and uploaded household files."
-            onRetry={() => {
-              void refetchDocuments()
-            }}
-            isRetrying={isFetchingDocuments}
-          />
-        ) : !documents && isFetchingDocuments ? (
-          <LoadingState />
-        ) : (
-          <HouseholdDocumentCenter
-            documents={documents?.items ?? []}
-            importCenter={dashboard.importCenter}
-            evidenceAccounts={dashboard.evidenceAccounts}
-          />
-        )}
-      </PageContainer>
-    )
-  }
-
-  // Stage 2: Documents uploaded but not yet processed — intake + status
-  if (stage === 2) {
-    return (
-      <PageContainer className="space-y-10 py-10">
-        <PageHeader
-          eyebrow="Household Finance"
-          title="Money System"
-          description="Jenny is getting to know your finances. More tools unlock as she processes your evidence."
-        />
-
-        <div className="rounded-2xl border border-primary/30 bg-primary/5 px-5 py-4">
-          <div className="flex items-center gap-3">
-            <Loader2 className="h-4 w-4 animate-spin text-primary" />
-            <div>
-              <p className="text-sm font-semibold text-text">
-                Jenny is analyzing your evidence...
-              </p>
-              <p className="mt-1 text-sm text-text-muted">
-                She is classifying files, extracting facts, categorizing spending, and building
-                your financial picture. Analysis and planning tools will unlock
-                once intake processing is complete.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <WorkspaceTabs
-          defaultValue="intake"
-          ariaLabel="Money workspace sections"
-          tabs={[
-            {
-              value: 'intake',
-              label: 'Intake',
-              description:
-                'Drop evidence once and review what Jenny understood.',
-              badge: docCount > 0 ? String(docCount) : undefined,
-              content: documentsError ? (
-                <LoadErrorState
-                  title="Failed to load intake documents."
-                  detail="Retry to refresh the intake queue and uploaded household files."
-                  onRetry={() => {
-                    void refetchDocuments()
-                  }}
-                  isRetrying={isFetchingDocuments}
-                />
-              ) : !documents && isFetchingDocuments ? (
-                <LoadingState />
-              ) : (
-                <HouseholdDocumentCenter
-                  documents={documents?.items ?? []}
-                  importCenter={dashboard.importCenter}
-                  evidenceAccounts={dashboard.evidenceAccounts}
-                />
-              ),
-            },
-            {
-              value: 'operate',
-              label: 'Action',
-              description:
-                'See what Jenny still needs while she processes your documents.',
-              badge:
-                unsatisfiedNeedCount > 0
-                  ? String(unsatisfiedNeedCount)
-                  : undefined,
-              content: (
-                <HouseholdOperationsPanel dashboard={dashboard} />
-              ),
-            },
-          ]}
-        />
-      </PageContainer>
-    )
-  }
-
-  // Stage 3 and 4: Build the full tab set, gating Operate to stage 4
-  const intakeTab: WorkspaceTab = {
-    value: 'intake',
-    label: 'Intake',
-    description:
-      'Drop evidence once and review intake results without forcing the rest of the page to grow.',
-    badge: docCount > 0 ? String(docCount) : undefined,
-    content: documentsError ? (
-      <LoadErrorState
-        title="Failed to load intake documents."
-        detail="Retry to refresh the intake queue and uploaded household files."
-        onRetry={() => {
-          void refetchDocuments()
-        }}
-        isRetrying={isFetchingDocuments}
-      />
-    ) : !documents && isFetchingDocuments ? (
-      <LoadingState />
-    ) : (
-      <HouseholdDocumentCenter
-        documents={documents?.items ?? []}
-        importCenter={dashboard.importCenter}
-        documentRequirements={dashboard.planning?.documentRequirements ?? []}
-        evidenceAccounts={dashboard.evidenceAccounts}
-      />
-    ),
-  }
-
-  const analysisTab: WorkspaceTab = {
-    value: 'analysis',
-    label: 'Reports',
-    description:
-      "Review spending reports and Jenny\u2019s money brief together.",
-    badge: evidenceMonths > 0 ? `${evidenceMonths} mo` : undefined,
-    content: (
-      <div className="space-y-6">
-        <HouseholdReportsPanel dashboard={dashboard} />
-        <JennyMoneyBoard dashboard={dashboard} />
-      </div>
-    ),
-  }
-
-  const planningTab: WorkspaceTab = {
-    value: 'planning',
-    label: 'Planning',
-    description:
-      'Keep your assumptions, retirement goals, and open questions in one place.',
-    badge:
-      openQuestionCount > 0
-        ? String(openQuestionCount)
-        : dashboard.resolvedValues.length > 0
-          ? String(dashboard.resolvedValues.length)
-        : undefined,
-    content: (
-      <div className="space-y-6">
-        {stage < 4 && dashboard.questions.length > 0 ? (
-          <JennyQuestionInbox
-            questions={dashboard.questions}
-            title="Questions Blocking Jenny"
-            description="Before Action unlocks, answer Jenny here so she can finish building your money system."
-          />
-        ) : null}
-        {stage < 4 ? <JennyChatPanel title="Talk to Jenny" /> : null}
-        <HouseholdProfileCard
-          profile={dashboard.profile}
-          resolvedValues={dashboard.resolvedValues}
-        />
-        <HouseholdPlanningPanels dashboard={dashboard} />
-      </div>
-    ),
-  }
-
-  const operateTab: WorkspaceTab = {
-    value: 'operate',
-    label: 'Action',
-    description:
-      'Handle the questions, categories, bills, and budget follow-up Jenny needs.',
-    badge: unsatisfiedNeedCount > 0 ? String(unsatisfiedNeedCount) : undefined,
-    content: <HouseholdOperationsPanel dashboard={dashboard} />,
-  }
-
-  const tabs: WorkspaceTab[] =
-    stage === 4
-      ? [operateTab, analysisTab, planningTab, intakeTab]
-      : [analysisTab, planningTab, intakeTab]
-
-  const defaultTab = stage === 4 ? 'operate' : 'analysis'
+      ),
+    },
+  ]
 
   return (
     <PageContainer className="space-y-10 py-10">
       <PageHeader
         eyebrow="Household Finance"
         title="Money System"
-        description="See spending, savings, retirement planning, and financial evidence intake in one shared workspace for you and Jenny."
+        description="One compact view of accounts, cash flow, evidence freshness, and what Jenny still needs."
       />
 
-      <div className="rounded-2xl border border-border/30 border-l-2 border-l-primary/40 bg-surface/40 px-5 py-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0 space-y-3">
-            <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-text-muted">
-              <span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 tracking-[0.18em] text-primary">
-                Stage {stage} of 4
-              </span>
-              <span>{stageLabel}</span>
-            </div>
-            <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
-              <h2 className="font-display italic text-2xl tracking-tight text-text">
-                {dashboard.overview.visibilityLabel}
-              </h2>
-              <p className="text-sm tabular-nums text-text-muted">
-                {dashboard.overview.visibilityScore}/100 clarity score
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2 text-sm">
-              <span className="rounded-full border border-border/40 bg-surface-muted/30 px-3 py-1.5 text-sm text-text tabular-nums">
-                {unsatisfiedNeedCount} to-do item{unsatisfiedNeedCount === 1 ? '' : 's'}
-              </span>
-              <span className="rounded-full border border-border/40 bg-surface-muted/30 px-3 py-1.5 text-sm text-text tabular-nums">
-                {openQuestionCount} open question{openQuestionCount === 1 ? '' : 's'}
-              </span>
-              <span className="rounded-full border border-border/40 bg-surface-muted/30 px-3 py-1.5 text-sm text-text tabular-nums">
-                {dashboard.importCenter.parsedDocuments}/{docCount} documents parsed
-              </span>
-              {evidenceMonths > 0 ? (
-                <span className="rounded-full border border-border/40 bg-surface-muted/30 px-3 py-1.5 text-sm text-text tabular-nums">
-                  {evidenceMonths} month{evidenceMonths === 1 ? '' : 's'} of history
-                </span>
-              ) : null}
-              <span className="rounded-full border border-border/40 bg-surface-muted/30 px-3 py-1.5 text-sm text-text tabular-nums">
-                Updated {formatRelativeTime(dashboard.generatedAt)}
-              </span>
-            </div>
+      <SectionCard
+        variant="surface"
+        title="Next Up"
+        description="The top priority comes from the same inbox that drives the rest of the page."
+        actions={
+          primaryInboxItem?.actionHref ? (
+            <Link
+              href={primaryInboxItem.actionHref}
+              className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/15"
+            >
+              {primaryInboxItem.actionLabel}
+            </Link>
+          ) : undefined
+        }
+      >
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-xl font-semibold tracking-tight text-text">
+              {primaryInboxItem?.title ?? dashboard.overview.nextBestAction}
+            </p>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-text-muted">
+              {primaryInboxItem?.detail ??
+                'Jenny is keeping the overview, account cards, and inbox aligned to the same evidence-backed account model.'}
+            </p>
           </div>
-          <div className="flex w-full flex-col gap-2 lg:w-auto lg:max-w-sm lg:items-end">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-muted">
-              Do this next
-            </p>
-            <p className="text-sm text-text lg:text-right">
-              {dashboard.overview.nextBestAction}
-            </p>
-            {primaryNeedAction ? (
-              <Button asChild size="sm" className="w-full lg:w-auto">
-                <Link href={primaryNeedAction.href}>{primaryNeedAction.label}</Link>
-              </Button>
-            ) : null}
+          <div className="flex flex-wrap gap-2 text-xs text-text-muted">
+            <span className="rounded-full border border-border/40 bg-surface-muted/20 px-3 py-1.5">
+              {dashboard.overview.visibilityLabel}
+            </span>
+            <span className="rounded-full border border-border/40 bg-surface-muted/20 px-3 py-1.5">
+              {dashboard.overview.visibilityScore}/100 visibility
+            </span>
+            <span className="rounded-full border border-border/40 bg-surface-muted/20 px-3 py-1.5">
+              Updated {formatRelativeTime(dashboard.generatedAt)}
+            </span>
           </div>
         </div>
+      </SectionCard>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {metrics.map((metric) => (
+          <MetricCard
+            key={metric.label}
+            label={metric.label}
+            value={metric.value}
+            detail={metric.detail}
+          />
+        ))}
       </div>
 
-      {stage === 3 ? (
-        <div className="flex items-start gap-3 rounded-2xl border border-primary/30 bg-primary/5 px-5 py-4">
-          <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-          <div>
-            <p className="text-sm font-semibold text-text">
-              Here is what Jenny found
-            </p>
-            <p className="mt-1 text-sm text-text-muted">
-              Your reports and analysis are ready. Review the findings, confirm
-              key assumptions in Planning, and Jenny will unlock your full
-              action workspace.
-            </p>
-          </div>
-        </div>
-      ) : null}
-
-      <HouseholdOverviewGrid dashboard={dashboard} stage={stage} />
       <WorkspaceTabs
-        defaultValue={defaultTab}
+        defaultValue="overview"
         ariaLabel="Money workspace sections"
         tabs={tabs}
       />

@@ -3,7 +3,10 @@
 import { ExternalLink, Loader2, ThumbsDown, ThumbsUp } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { useArticleFeedback, useSubmitArticleFeedback } from '@/lib/hooks/useNews'
+import {
+  useArticleFeedback,
+  useSubmitArticleFeedback,
+} from '@/lib/hooks/useNews'
 import {
   formatConfidence,
   formatNewsDate,

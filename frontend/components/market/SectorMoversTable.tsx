@@ -52,7 +52,9 @@ export function SectorMoversTable({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="font-display italic text-lg tracking-tight text-text">Sector Movers</h3>
+        <h3 className="font-display italic text-lg tracking-tight text-text">
+          Sector Movers
+        </h3>
         <div className="flex gap-2 text-xs text-text-muted">
           <span className="flex items-center gap-1">
             <TrendingUp className="h-3 w-3 text-gain" />
@@ -89,7 +91,9 @@ export function SectorMoversTable({
                     <span
                       className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                       style={{
-                        backgroundColor: SECTOR_COLORS[sector.symbol] || 'var(--color-neutral)',
+                        backgroundColor:
+                          SECTOR_COLORS[sector.symbol] ||
+                          'var(--color-neutral)',
                       }}
                     />
                     <span className="font-medium text-text">{sector.name}</span>

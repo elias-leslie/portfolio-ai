@@ -7,7 +7,9 @@ describe('MarketPanelMessage', () => {
     render(<MarketPanelMessage message="Market data temporarily unavailable" />)
 
     expect(screen.getByRole('status')).toBeInTheDocument()
-    expect(screen.getByText('Market data temporarily unavailable')).toBeInTheDocument()
+    expect(
+      screen.getByText('Market data temporarily unavailable'),
+    ).toBeInTheDocument()
   })
 
   it('applies custom className', () => {

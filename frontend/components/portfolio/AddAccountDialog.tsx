@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+import { toast } from 'sonner'
 import {
   type AccountType,
   getAccountNameError,
@@ -24,15 +26,16 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useCreateAccount } from '@/lib/hooks/usePortfolio'
-import { useState } from 'react'
-import { toast } from 'sonner'
 
 interface AddAccountDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) {
+export function AddAccountDialog({
+  open,
+  onOpenChange,
+}: AddAccountDialogProps) {
   const createAccount = useCreateAccount()
   const [accountName, setAccountName] = useState('')
   const [accountType, setAccountType] = useState<AccountType>('Taxable')
@@ -93,7 +96,9 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
                 placeholder="e.g., My IRA Account"
                 value={accountName}
                 onChange={(event) => setAccountName(event.target.value)}
-                aria-invalid={submitAttempted && accountNameError ? true : undefined}
+                aria-invalid={
+                  submitAttempted && accountNameError ? true : undefined
+                }
               />
               {submitAttempted && accountNameError ? (
                 <p className="text-xs text-loss">{accountNameError}</p>

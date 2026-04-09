@@ -9,7 +9,9 @@ type PendingAction =
   | { type: 'position'; id: string; symbol: string }
   | null
 
-export function useDeleteConfirmation(positions: PositionWithValue[] | undefined) {
+export function useDeleteConfirmation(
+  positions: PositionWithValue[] | undefined,
+) {
   const deleteAccount = useDeleteAccount()
   const deletePosition = useDeletePosition()
   const [pendingAction, setPendingAction] = useState<PendingAction>(null)
@@ -40,8 +42,12 @@ export function useDeleteConfirmation(positions: PositionWithValue[] | undefined
     } catch (error) {
       if (pendingAction.type === 'account') {
         const message =
-          error instanceof Error ? error.message : 'Unable to complete the request'
-        toast.error(`Failed to delete account "${pendingAction.name}": ${message}`)
+          error instanceof Error
+            ? error.message
+            : 'Unable to complete the request'
+        toast.error(
+          `Failed to delete account "${pendingAction.name}": ${message}`,
+        )
       }
       throw error
     }

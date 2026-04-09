@@ -2,18 +2,16 @@
 
 import { Loader2 } from 'lucide-react'
 import { Suspense, useEffect, useRef, useState } from 'react'
-import { AutomationCenter } from '@/components/home/AutomationCenter'
-import { MarketIntelligence } from '@/components/market/MarketIntelligence'
 import { HomeActionQueue } from '@/components/home/HomeActionQueue'
-import { TodayIdeasSection } from '@/components/recommendations/TodayIdeasSection'
-import { PageContainer } from '@/components/shared/PageContainer'
+import { MarketIntelligence } from '@/components/market/MarketIntelligence'
+import { PortfolioOverview } from '@/components/portfolio/PortfolioOverview'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
+import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { SectionCard } from '@/components/shared/SectionCard'
 import { UnifiedNewsIntelligenceCard } from '@/components/shared/UnifiedNewsIntelligenceCard'
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs'
 import { useNewsIntelligence } from '@/lib/hooks/useNews'
-import { PortfolioOverview } from '@/components/portfolio/PortfolioOverview'
-import { SectionCard } from '@/components/shared/SectionCard'
 
 function SectionContentSkeleton({ rows = 3 }: { rows?: number }) {
   return (
@@ -137,7 +135,7 @@ export default function Dashboard() {
     <PageContainer className="space-y-10 py-10">
       <PageHeader
         title="Today"
-        description="What matters today: a short list of ideas, market context, and portfolio checks."
+        description="Start with one ranked action list, then drill into market or portfolio context only if you need it."
       />
 
       <WorkspaceTabs
@@ -147,24 +145,22 @@ export default function Dashboard() {
           {
             value: 'operate',
             label: 'Operate',
-            description: 'Start with the action queue, automation controls, and today’s ideas.',
-            content: (
-              <div className="space-y-6">
-                <HomeActionQueue />
-                <AutomationCenter />
-                <TodayIdeasSection />
-              </div>
-            ),
+            description: 'Start with the single cross-workspace action queue.',
+            content: <HomeActionQueue />,
           },
           {
             value: 'market',
             label: 'Market',
-            description: 'Keep the market context and latest headlines together instead of buried lower on the page.',
+            description:
+              'Keep the market context and latest headlines together instead of buried lower on the page.',
             content: (
               <div className="space-y-6">
                 <Suspense
                   fallback={
-                    <SectionLoadingState label="Loading market intelligence" rows={5} />
+                    <SectionLoadingState
+                      label="Loading market intelligence"
+                      rows={5}
+                    />
                   }
                 >
                   <MarketIntelligence />
@@ -176,7 +172,8 @@ export default function Dashboard() {
           {
             value: 'portfolio',
             label: 'Portfolio',
-            description: 'Use the portfolio coach when you need a concentration and sizing check.',
+            description:
+              'Use the portfolio coach when you need a concentration and sizing check.',
             content: (
               <SectionCard
                 variant="surface"
@@ -184,7 +181,12 @@ export default function Dashboard() {
                 description="A plain-English check on size, concentration, and recent performance."
               >
                 <Suspense
-                  fallback={<SectionLoadingState label="Loading portfolio overview" rows={4} />}
+                  fallback={
+                    <SectionLoadingState
+                      label="Loading portfolio overview"
+                      rows={4}
+                    />
+                  }
                 >
                   <PortfolioOverview />
                 </Suspense>

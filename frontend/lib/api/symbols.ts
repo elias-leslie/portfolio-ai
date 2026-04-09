@@ -182,7 +182,9 @@ export async function fetchSymbolIntelligence(
   return get<SymbolIntelligence>(`/api/symbols/${symbol}/intelligence`)
 }
 
-export async function fetchSymbolWorkflow(symbol: string): Promise<SymbolWorkflow> {
+export async function fetchSymbolWorkflow(
+  symbol: string,
+): Promise<SymbolWorkflow> {
   return get<SymbolWorkflow>(`/api/symbols/${symbol}/workflow`)
 }
 
@@ -190,7 +192,10 @@ export async function transitionSymbolWorkflow(
   symbol: string,
   payload: { stage: string; note?: string },
 ): Promise<SymbolWorkflow> {
-  return post<SymbolWorkflow>(`/api/symbols/${symbol}/workflow/transition`, payload)
+  return post<SymbolWorkflow>(
+    `/api/symbols/${symbol}/workflow/transition`,
+    payload,
+  )
 }
 
 export async function recordSymbolWorkflowOutcome(
@@ -202,5 +207,8 @@ export async function recordSymbolWorkflowOutcome(
     managementAction?: string | null
   },
 ): Promise<SymbolWorkflow> {
-  return post<SymbolWorkflow>(`/api/symbols/${symbol}/workflow/outcome`, payload)
+  return post<SymbolWorkflow>(
+    `/api/symbols/${symbol}/workflow/outcome`,
+    payload,
+  )
 }

@@ -1,7 +1,7 @@
-import { useQuery, type UseQueryResult } from '@tanstack/react-query'
+import { type UseQueryResult, useQuery } from '@tanstack/react-query'
 import {
-  fetchDetailedHealth,
   type DetailedHealthCheckResponse,
+  fetchDetailedHealth,
 } from '@/lib/api/health'
 
 export function useDetailedHealth(): UseQueryResult<DetailedHealthCheckResponse> {

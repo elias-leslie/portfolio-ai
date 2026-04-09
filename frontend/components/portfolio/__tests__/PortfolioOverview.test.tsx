@@ -1,18 +1,12 @@
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  usePortfolio,
-  usePortfolioAnalytics,
-} from '@/lib/hooks/usePortfolio'
-import type {
-  PortfolioResponse,
-  PortfolioAnalytics,
-} from '@/lib/api/portfolio'
+import type { PortfolioAnalytics, PortfolioResponse } from '@/lib/api/portfolio'
+import { usePortfolio, usePortfolioAnalytics } from '@/lib/hooks/usePortfolio'
 import { PortfolioOverview } from '../PortfolioOverview'
 
 // Helper to create properly typed portfolio mock
 function createPortfolioMock(
-  overrides?: Partial<ReturnType<typeof usePortfolio>>
+  overrides?: Partial<ReturnType<typeof usePortfolio>>,
 ): ReturnType<typeof usePortfolio> {
   return {
     data: {
@@ -33,7 +27,7 @@ function createPortfolioMock(
 
 // Helper to create properly typed portfolio analytics mock
 function createPortfolioAnalyticsMock(
-  overrides?: Partial<ReturnType<typeof usePortfolioAnalytics>>
+  overrides?: Partial<ReturnType<typeof usePortfolioAnalytics>>,
 ): ReturnType<typeof usePortfolioAnalytics> {
   return {
     data: {
@@ -103,7 +97,7 @@ describe('PortfolioOverview', () => {
   beforeEach(() => {
     vi.mocked(usePortfolio).mockReturnValue(createPortfolioMock())
     vi.mocked(usePortfolioAnalytics).mockReturnValue(
-      createPortfolioAnalyticsMock()
+      createPortfolioAnalyticsMock(),
     )
   })
 
@@ -112,18 +106,20 @@ describe('PortfolioOverview', () => {
       createPortfolioMock({
         data: undefined,
         error: new Error('portfolio down'),
-      })
+      }),
     )
     vi.mocked(usePortfolioAnalytics).mockReturnValue(
       createPortfolioAnalyticsMock({
         data: undefined,
         error: new Error('analytics down'),
-      })
+      }),
     )
 
     render(<PortfolioOverview />)
 
-    expect(screen.getByText(/failed to load portfolio overview/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/failed to load portfolio overview/i),
+    ).toBeInTheDocument()
   })
 
   it('keeps core balances visible when analytics fail', () => {
@@ -131,14 +127,20 @@ describe('PortfolioOverview', () => {
       createPortfolioAnalyticsMock({
         data: undefined,
         error: new Error('analytics down'),
-      })
+      }),
     )
 
     render(<PortfolioOverview />)
 
-    expect(screen.getByText(/some portfolio signals are unavailable right now/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/some portfolio signals are unavailable right now/i),
+    ).toBeInTheDocument()
     expect(screen.getByText(/\$25,000.00/)).toBeInTheDocument()
     expect(screen.getByText(/0 live positions/i)).toBeInTheDocument()
-    expect(screen.getByText(/top-performer and allocation breakdowns are waiting on portfolio analytics/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        /top-performer and allocation breakdowns are waiting on portfolio analytics/i,
+      ),
+    ).toBeInTheDocument()
   })
 })

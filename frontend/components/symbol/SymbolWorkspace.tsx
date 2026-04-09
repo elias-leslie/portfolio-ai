@@ -7,17 +7,25 @@ import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs'
+import { SymbolWorkflowPanel } from '@/components/symbol/SymbolWorkflowPanel'
 import { Button } from '@/components/ui/button'
+import { ThesisSection } from '@/components/watchlist/ThesisSection'
 import type { JennyNotification } from '@/lib/api/portfolio'
+import {
+  formatCurrency,
+  formatEnumLabel,
+  formatPercent,
+} from '@/lib/formatters'
 import { useJennyDashboard } from '@/lib/hooks/usePortfolio'
 import { usePreferences } from '@/lib/hooks/usePreferences'
 import { useSymbolIntelligence } from '@/lib/hooks/useSymbolIntelligence'
 import { cn, formatRelativeTime } from '@/lib/utils'
-import { formatCurrency, formatEnumLabel, formatPercent } from '@/lib/formatters'
-import { SymbolWorkflowPanel } from '@/components/symbol/SymbolWorkflowPanel'
-import { ThesisSection } from '@/components/watchlist/ThesisSection'
 
-function formatCountLabel(count: number, singular: string, plural = `${singular}s`) {
+function formatCountLabel(
+  count: number,
+  singular: string,
+  plural = `${singular}s`,
+) {
   return `${count} ${count === 1 ? singular : plural}`
 }
 
@@ -62,10 +70,12 @@ function formatIfNotHeldReasoning(reasoning?: string | null) {
   )
 }
 
-function formatNewsSentimentSummary(news?: {
-  sentimentLabel?: string | null
-  sentimentScore?: number | null
-} | null) {
+function formatNewsSentimentSummary(
+  news?: {
+    sentimentLabel?: string | null
+    sentimentScore?: number | null
+  } | null,
+) {
   if (news?.sentimentLabel) {
     return news.sentimentScore != null
       ? `${news.sentimentLabel} · score ${news.sentimentScore.toFixed(1)}`
@@ -104,9 +114,8 @@ function compareNotifications(a: JennyNotification, b: JennyNotification) {
 
 export function SymbolWorkspace({ symbol }: { symbol: string }) {
   const uppercaseSymbol = symbol.toUpperCase()
-  const { data, isLoading, error, refetch, isFetching } = useSymbolIntelligence(
-    uppercaseSymbol,
-  )
+  const { data, isLoading, error, refetch, isFetching } =
+    useSymbolIntelligence(uppercaseSymbol)
   const { data: jennyDashboard, error: jennyError } = useJennyDashboard()
   const { data: preferences } = usePreferences()
   const userTimezone = preferences?.displayTimezone ?? 'America/New_York'
@@ -118,7 +127,9 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
     (review) => review.symbol === uppercaseSymbol,
   )
   const tradeReviews =
-    jennyDashboard?.tradeReviews.filter((review) => review.symbol === uppercaseSymbol) ?? []
+    jennyDashboard?.tradeReviews.filter(
+      (review) => review.symbol === uppercaseSymbol,
+    ) ?? []
   const currentDecision = data?.decision
   const newsArticleCount = data?.news?.recentArticles.length ?? 0
   const alertCount = (data?.alerts.length ?? 0) + symbolNotifications.length
@@ -152,7 +163,10 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
   if (isLoading) {
     return (
       <PageContainer className="space-y-10 py-10">
-        <PageHeader title={uppercaseSymbol} description="Loading symbol workspace..." />
+        <PageHeader
+          title={uppercaseSymbol}
+          description="Loading symbol workspace..."
+        />
         <div className="grid gap-4 lg:grid-cols-4">
           {[...Array(4)].map((_, index) => (
             <div
@@ -208,7 +222,9 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
               disabled={isFetching}
               aria-busy={isFetching}
             >
-              <RefreshCw className={cn('mr-2 h-4 w-4', isFetching && 'animate-spin')} />
+              <RefreshCw
+                className={cn('mr-2 h-4 w-4', isFetching && 'animate-spin')}
+              />
               Refresh
             </Button>
           </>
@@ -218,8 +234,8 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
       {jennyError ? (
         <SectionCard variant="surface">
           <div className="rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning">
-            Jenny review data is temporarily unavailable. Live symbol intelligence is still shown
-            below.
+            Jenny review data is temporarily unavailable. Live symbol
+            intelligence is still shown below.
           </div>
         </SectionCard>
       ) : null}
@@ -239,7 +255,8 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
         {(data?.news?.articleCount24H ?? 0) > 0 ? (
           <>
             {' · '}
-            {formatCountLabel(data?.news?.articleCount24H ?? 0, 'article')} in 24h
+            {formatCountLabel(data?.news?.articleCount24H ?? 0, 'article')} in
+            24h
           </>
         ) : null}
         {evidenceSummary ? (
@@ -256,8 +273,8 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             {data?.scores?.overall?.toFixed(0) ?? '—'}
           </p>
           <p className="mt-2 text-sm text-text-muted">
-            Current setup: {formatEnumLabel(data?.signal?.type, 'Unavailable')} · Confidence{' '}
-            {data?.signal?.strength ?? '—'}/10
+            Current setup: {formatEnumLabel(data?.signal?.type, 'Unavailable')}{' '}
+            · Confidence {data?.signal?.strength ?? '—'}/10
           </p>
           {evidenceSummary ? (
             <p className="mt-2 text-sm text-text-muted">{evidenceSummary}</p>
@@ -268,7 +285,8 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             {currentDecision?.headline ?? '—'}
           </p>
           <p className="mt-2 text-sm text-text-muted">
-            {currentDecision?.summary ?? 'No live recommendation summary is available yet.'}
+            {currentDecision?.summary ??
+              'No live recommendation summary is available yet.'}
           </p>
           <p className="mt-2 text-xs uppercase tracking-[0.18em] text-text-muted">
             {currentDecision?.sourceLabel ?? 'Decision unavailable'}
@@ -282,11 +300,11 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
         </SectionCard>
         <SectionCard variant="surface" title="Your Position">
           <p className="font-display italic text-2xl tabular-nums text-text">
-            {data?.portfolio?.held ? formatCurrency(data.portfolio.position?.currentValue) : 'Not held'}
+            {data?.portfolio?.held
+              ? formatCurrency(data.portfolio.position?.currentValue)
+              : 'Not held'}
           </p>
-          <p className="mt-2 text-sm text-text-muted">
-            {positionSummary}
-          </p>
+          <p className="mt-2 text-sm text-text-muted">{positionSummary}</p>
           {portfolioContextParts.length > 0 ? (
             <p className="mt-2 text-sm text-text-muted">
               {portfolioContextParts.join(' · ')}
@@ -305,7 +323,8 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             <p className="mt-2 text-sm text-text-muted">
               {data.market.sector.name ?? 'Sector unavailable'} ·{' '}
               {data.market.sector.signal ?? 'No sector signal'} ·{' '}
-              {formatPercent(data.market.sector.relativeToSpy, { sign: true })} vs SPY
+              {formatPercent(data.market.sector.relativeToSpy, { sign: true })}{' '}
+              vs SPY
             </p>
           ) : data?.market?.sp500Change != null ? (
             <p className="mt-2 text-sm text-text-muted">
@@ -323,7 +342,8 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             value: 'decision',
             label: 'Decision',
             badge: decisionBadge,
-            description: 'See the case for action and Jenny review in one place.',
+            description:
+              'See the case for action and Jenny review in one place.',
             content: (
               <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
                 <SectionCard
@@ -344,7 +364,8 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                       ))
                     ) : (
                       <div className="rounded-xl border border-dashed border-border/40 bg-surface-muted/10 p-4 text-sm text-text-muted">
-                        No decision memo reasoning is available yet for this symbol.
+                        No decision memo reasoning is available yet for this
+                        symbol.
                       </div>
                     )}
                     {data?.trading ? (
@@ -354,7 +375,8 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                             Buy zone / downside limit
                           </p>
                           <p className="mt-2 text-sm tabular-nums text-text">
-                            {formatCurrency(data.trading.entryPrice)} / {formatCurrency(data.trading.stopLoss)}
+                            {formatCurrency(data.trading.entryPrice)} /{' '}
+                            {formatCurrency(data.trading.stopLoss)}
                           </p>
                         </div>
                         <div className="rounded-2xl border border-border/40 bg-surface/60 p-4">
@@ -362,7 +384,8 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                             Upside target / starter size
                           </p>
                           <p className="mt-2 text-sm tabular-nums text-text">
-                            {formatCurrency(data.trading.profitTarget)} / {data.trading.positionSizeShares ?? '—'} shares
+                            {formatCurrency(data.trading.profitTarget)} /{' '}
+                            {data.trading.positionSizeShares ?? '—'} shares
                           </p>
                         </div>
                         <div className="rounded-2xl border border-border/40 bg-surface/60 p-4">
@@ -370,8 +393,8 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                             Confidence / Risk
                           </p>
                           <p className="mt-2 text-sm text-text">
-                            {formatTenPointConfidence(data.trading.confidence)} ·{' '}
-                            {data.trading.riskLevel ?? 'Risk unavailable'}
+                            {formatTenPointConfidence(data.trading.confidence)}{' '}
+                            · {data.trading.riskLevel ?? 'Risk unavailable'}
                           </p>
                         </div>
                         <div className="rounded-2xl border border-border/40 bg-surface/60 p-4">
@@ -379,15 +402,23 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                             Typical holding time
                           </p>
                           <p className="mt-2 text-sm text-text">
-                            {data.trading.holdingPeriod ?? '—'} · {data.trading.style ?? 'Unknown style'}
+                            {data.trading.holdingPeriod ?? '—'} ·{' '}
+                            {data.trading.style ?? 'Unknown style'}
                           </p>
                         </div>
                       </div>
                     ) : null}
                     {data?.recommendation?.ifNotHeld ? (
                       <div className="rounded-2xl border border-border/40 bg-primary/5 p-4 text-sm text-text">
-                        If you do not own it yet: {formatEnumLabel(data.recommendation.ifNotHeld.action, 'Review')} ·{' '}
-                        {formatIfNotHeldReasoning(data.recommendation.ifNotHeld.reasoning)}
+                        If you do not own it yet:{' '}
+                        {formatEnumLabel(
+                          data.recommendation.ifNotHeld.action,
+                          'Review',
+                        )}{' '}
+                        ·{' '}
+                        {formatIfNotHeldReasoning(
+                          data.recommendation.ifNotHeld.reasoning,
+                        )}
                         {data.recommendation.ifNotHeld.sizePct != null
                           ? ` · Starter size ${data.recommendation.ifNotHeld.sizePct.toFixed(1)}%`
                           : ''}
@@ -405,7 +436,11 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                     {activeNotification ? (
                       <div className="rounded-2xl border border-warning/30 bg-warning/10 p-4">
                         <p className="text-sm font-semibold text-text">
-                          Active alert: {stripSymbolPrefix(activeNotification.title, uppercaseSymbol)}
+                          Active alert:{' '}
+                          {stripSymbolPrefix(
+                            activeNotification.title,
+                            uppercaseSymbol,
+                          )}
                         </p>
                         <p className="mt-2 text-sm text-text-muted">
                           {activeNotification.detail}
@@ -416,8 +451,8 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                           </p>
                         ) : null}
                         <p className="mt-3 text-xs uppercase tracking-[0.18em] text-text-muted">
-                          {formatEnumLabel(activeNotification.severity, 'Info')} ·{' '}
-                          {formatRelativeTime(activeNotification.createdAt)}
+                          {formatEnumLabel(activeNotification.severity, 'Info')}{' '}
+                          · {formatRelativeTime(activeNotification.createdAt)}
                         </p>
                       </div>
                     ) : null}
@@ -428,10 +463,13 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                           Latest call: {latestReview.finalVerdict}
                         </p>
                         <p className="mt-2 text-sm text-text-muted">
-                          {latestReview.reasons[0] ?? 'Jenny has a review but no short summary yet.'}
+                          {latestReview.reasons[0] ??
+                            'Jenny has a review but no short summary yet.'}
                         </p>
                         {latestReview.managementDetail ? (
-                          <p className="mt-3 text-sm text-text">{latestReview.managementDetail}</p>
+                          <p className="mt-3 text-sm text-text">
+                            {latestReview.managementDetail}
+                          </p>
                         ) : null}
                       </div>
                     ) : (
@@ -454,12 +492,15 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                               {formatPercent(review.returnPct, { sign: true })}
                             </span>
                           </div>
-                          <p className="mt-2 text-sm text-text-muted">{review.lesson}</p>
+                          <p className="mt-2 text-sm text-text-muted">
+                            {review.lesson}
+                          </p>
                         </div>
                       ))
                     ) : (
                       <div className="rounded-2xl border border-border/40 bg-surface/60 p-4 text-sm text-text-muted">
-                        No finished review outcomes yet. This section becomes useful after live ideas have time to play out.
+                        No finished review outcomes yet. This section becomes
+                        useful after live ideas have time to play out.
                       </div>
                     )}
                   </div>
@@ -471,7 +512,8 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             value: 'workflow',
             label: 'Workflow',
             badge: data?.alerts.length ? String(data.alerts.length) : undefined,
-            description: 'Capture the case, queue the follow-up, and keep the reasoning close.',
+            description:
+              'Capture the case, queue the follow-up, and keep the reasoning close.',
             content: (
               <div className="space-y-6">
                 <SymbolWorkflowPanel
@@ -481,15 +523,21 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                     managementAction: latestReview?.managementAction ?? null,
                   }}
                 />
-                <ThesisSection symbol={uppercaseSymbol} userTimezone={userTimezone} />
+                <ThesisSection
+                  symbol={uppercaseSymbol}
+                  userTimezone={userTimezone}
+                />
               </div>
             ),
           },
           {
             value: 'market',
             label: 'Market',
-            badge: data?.news?.articleCount24H ? String(data.news.articleCount24H) : undefined,
-            description: 'Alerts, headlines, and the next routing action without forcing a long scroll.',
+            badge: data?.news?.articleCount24H
+              ? String(data.news.articleCount24H)
+              : undefined,
+            description:
+              'Alerts, headlines, and the next routing action without forcing a long scroll.',
             content: (
               <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
                 <SectionCard
@@ -507,7 +555,8 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                       {formatNewsSentimentSummary(data?.news)}
                       {' · '}
                       {data?.news?.articleCount24H ?? 0} article
-                      {data?.news?.articleCount24H === 1 ? '' : 's'} in the last 24h
+                      {data?.news?.articleCount24H === 1 ? '' : 's'} in the last
+                      24h
                     </div>
                     {data?.alerts?.length ? (
                       <div className="flex flex-wrap gap-2">
@@ -528,8 +577,12 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                           key={`${event.text}-${event.timeAgo}`}
                           className="rounded-2xl border border-border/40 bg-surface/60 p-4"
                         >
-                          <p className="text-sm font-medium text-text">{event.text}</p>
-                          <p className="mt-1 text-xs text-text-muted">{event.timeAgo}</p>
+                          <p className="text-sm font-medium text-text">
+                            {event.text}
+                          </p>
+                          <p className="mt-1 text-xs text-text-muted">
+                            {event.timeAgo}
+                          </p>
                         </div>
                       ))
                     ) : (
@@ -539,30 +592,39 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                     )}
                     {(data?.news?.recentArticles ?? []).length > 0 ? (
                       <div className="space-y-3">
-                        <p className="text-sm font-semibold text-text">Recent articles</p>
-                        {data?.news?.recentArticles.slice(0, 4).map((article, idx) => (
-                          <div
-                            key={`${article.headline}-${article.publishedAt ?? idx}`}
-                            className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
-                          >
-                            <p className="text-sm font-medium text-text">{article.headline}</p>
-                            <p className="mt-1 text-xs text-text-muted">
-                              {article.source ?? 'Unknown source'}
-                              {article.publishedAt
-                                ? ` · ${new Date(article.publishedAt).toLocaleString('en-US', {
-                                    month: 'short',
-                                    day: 'numeric',
-                                    hour: 'numeric',
-                                    minute: '2-digit',
-                                  })}`
-                                : ''}
-                            </p>
-                          </div>
-                        ))}
+                        <p className="text-sm font-semibold text-text">
+                          Recent articles
+                        </p>
+                        {data?.news?.recentArticles
+                          .slice(0, 4)
+                          .map((article, idx) => (
+                            <div
+                              key={`${article.headline}-${article.publishedAt ?? idx}`}
+                              className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
+                            >
+                              <p className="text-sm font-medium text-text">
+                                {article.headline}
+                              </p>
+                              <p className="mt-1 text-xs text-text-muted">
+                                {article.source ?? 'Unknown source'}
+                                {article.publishedAt
+                                  ? ` · ${new Date(
+                                      article.publishedAt,
+                                    ).toLocaleString('en-US', {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      hour: 'numeric',
+                                      minute: '2-digit',
+                                    })}`
+                                  : ''}
+                              </p>
+                            </div>
+                          ))}
                       </div>
                     ) : (data?.news?.articleCount24H ?? 0) > 0 ? (
                       <div className="rounded-2xl border border-dashed border-border/40 bg-surface/40 p-4 text-sm text-text-muted">
-                        Article volume is available, but this snapshot did not attach recent headlines yet.
+                        Article volume is available, but this snapshot did not
+                        attach recent headlines yet.
                       </div>
                     ) : null}
                   </div>
@@ -585,12 +647,15 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                       href="/portfolio"
                       className="group flex items-center justify-between rounded-2xl border border-border/40 bg-surface-muted/20 p-4 text-sm text-text transition-all duration-200 hover:border-primary/40 hover:bg-surface-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                     >
-                      <span>Compare the idea against current portfolio concentration</span>
+                      <span>
+                        Compare the idea against current portfolio concentration
+                      </span>
                       <ArrowRight className="h-4 w-4 text-text-muted transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
                     </Link>
                     <div className="rounded-2xl border border-border/40 bg-surface/60 p-4 text-sm text-text-muted">
                       <AlertCircle className="mb-2 h-4 w-4 text-primary" />
-                      Use this page to sanity-check the thesis, position size, and review history before you act.
+                      Use this page to sanity-check the thesis, position size,
+                      and review history before you act.
                     </div>
                   </div>
                 </SectionCard>

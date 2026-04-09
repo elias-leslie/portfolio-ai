@@ -29,7 +29,12 @@ describe('SymbolWorkspace', () => {
       data: {
         symbol: 'VTI',
         generatedAt: '2026-03-10T15:30:00Z',
-        scores: { overall: 78, signalType: 'BUY', signalStrength: 7, pillars: {} },
+        scores: {
+          overall: 78,
+          signalType: 'BUY',
+          signalStrength: 7,
+          pillars: {},
+        },
         signal: { type: 'BUY', strength: 7, confirmations: 3, avoidFlags: 0 },
         trading: {
           style: 'swing',
@@ -129,7 +134,9 @@ describe('SymbolWorkspace', () => {
         /1 alert · 1 recent article · 4 articles in 24h · 3 green lights · 0 caution flags/i,
       ),
     ).toBeInTheDocument()
-    expect(screen.getByText(/current setup: buy · confidence 7\/10/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/current setup: buy · confidence 7\/10/i),
+    ).toBeInTheDocument()
     expect(screen.getByText(/live signal model/i)).toBeInTheDocument()
     expect(screen.getByText(/\+1.4% · 0.2% of portfolio/i)).toBeInTheDocument()
     expect(screen.queryByText(/\+0.2% of portfolio/i)).not.toBeInTheDocument()
@@ -145,15 +152,21 @@ describe('SymbolWorkspace', () => {
       ),
     ).toBeInTheDocument()
     expect(
-      screen.getByText(/no decision memo reasoning is available yet for this symbol/i),
+      screen.getByText(
+        /no decision memo reasoning is available yet for this symbol/i,
+      ),
     ).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Market' }))
 
     expect(screen.getByText(/recent articles/i)).toBeInTheDocument()
-    expect(screen.getByText(/etf flows remain constructive/i)).toBeInTheDocument()
     expect(
-      screen.getByText(/constructive · score 0.7 · 4 articles in the last 24h/i),
+      screen.getByText(/etf flows remain constructive/i),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        /constructive · score 0.7 · 4 articles in the last 24h/i,
+      ),
     ).toBeInTheDocument()
   })
 
@@ -162,8 +175,18 @@ describe('SymbolWorkspace', () => {
       data: {
         symbol: 'VTI',
         generatedAt: '2026-03-10T15:30:00Z',
-        scores: { overall: 68, signalType: 'BUY', signalStrength: 7, pillars: {} },
-        signal: { type: 'BUY', strength: 7, confirmations: null, avoidFlags: 0 },
+        scores: {
+          overall: 68,
+          signalType: 'BUY',
+          signalStrength: 7,
+          pillars: {},
+        },
+        signal: {
+          type: 'BUY',
+          strength: 7,
+          confirmations: null,
+          avoidFlags: 0,
+        },
         trading: null,
         portfolio: {
           held: true,
@@ -204,7 +227,10 @@ describe('SymbolWorkspace', () => {
           action: 'position_exit',
           headline: 'Exit this position',
           summary: 'Reduce risk now.',
-          reasoning: ['The position no longer fits the thesis.', 'Reduce risk now.'],
+          reasoning: [
+            'The position no longer fits the thesis.',
+            'Reduce risk now.',
+          ],
           sourceKind: 'jenny_alert',
           sourceLabel: 'Jenny alert',
           sourceTimestamp: '2026-03-10T16:00:00Z',
@@ -255,7 +281,9 @@ describe('SymbolWorkspace', () => {
     expect(screen.queryByText(/0 recent article/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/0 green lights/i)).not.toBeInTheDocument()
     expect(screen.getByText(/^8 holdings$/i)).toBeInTheDocument()
-    expect(screen.queryByText(/top 3 holdings make up/i)).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(/top 3 holdings make up/i),
+    ).not.toBeInTheDocument()
     expect(screen.queryByText(/diversification score/i)).not.toBeInTheDocument()
   })
 
@@ -266,8 +294,18 @@ describe('SymbolWorkspace', () => {
       data: {
         symbol: 'NVDA',
         generatedAt: '2026-03-10T15:30:00Z',
-        scores: { overall: 67, signalType: 'BUY', signalStrength: 7, pillars: {} },
-        signal: { type: 'BUY', strength: 7, confirmations: null, avoidFlags: 0 },
+        scores: {
+          overall: 67,
+          signalType: 'BUY',
+          signalStrength: 7,
+          pillars: {},
+        },
+        signal: {
+          type: 'BUY',
+          strength: 7,
+          confirmations: null,
+          avoidFlags: 0,
+        },
         trading: null,
         portfolio: { held: false, position: null, context: null },
         news: {
@@ -346,8 +384,18 @@ describe('SymbolWorkspace', () => {
       data: {
         symbol: 'VTI',
         generatedAt: '2026-03-10T15:30:00Z',
-        scores: { overall: 78, signalType: 'BUY', signalStrength: 7, pillars: {} },
-        signal: { type: 'BUY', strength: 7, confirmations: null, avoidFlags: 0 },
+        scores: {
+          overall: 78,
+          signalType: 'BUY',
+          signalStrength: 7,
+          pillars: {},
+        },
+        signal: {
+          type: 'BUY',
+          strength: 7,
+          confirmations: null,
+          avoidFlags: 0,
+        },
         trading: null,
         portfolio: { held: false, position: null, context: null },
         news: {

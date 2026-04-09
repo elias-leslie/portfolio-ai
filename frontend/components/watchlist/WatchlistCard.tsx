@@ -21,8 +21,8 @@ import {
   getScoreBadgeVariant,
   getSignalDisplay,
 } from '@/components/watchlist/ExpandedRowUtils'
-import { SparklineWithHistory } from '@/components/watchlist/SparklineWithHistory'
 import { SourceBadge } from '@/components/watchlist/SourceBadge'
+import { SparklineWithHistory } from '@/components/watchlist/SparklineWithHistory'
 import {
   formatDate,
   getWatchlistPriceSnapshot,
@@ -59,14 +59,20 @@ export function WatchlistCard({
     refreshStatus?.isRefreshing && refreshStatus.currentSymbol === item.symbol
   const latestUpdatedAt = item.currentScore?.price.updatedAt ?? item.updatedAt
   const riskConfig = item.riskLevel ? getRiskLevelConfig(item.riskLevel) : null
-  const signalDisplay = item.signalType ? getSignalDisplay(item.signalType) : null
-  const priceSnapshot = getWatchlistPriceSnapshot(item.currentScore?.price.metadata)
+  const signalDisplay = item.signalType
+    ? getSignalDisplay(item.signalType)
+    : null
+  const priceSnapshot = getWatchlistPriceSnapshot(
+    item.currentScore?.price.metadata,
+  )
   const highlightedIndicators =
     item.priorityIndicators
       ?.slice()
       .sort((left, right) => right.priority - left.priority)
       .slice(0, 2) ?? []
-  const decisionMeta = formatDecisionMeta(item.decision, { includeTimestamp: false })
+  const decisionMeta = formatDecisionMeta(item.decision, {
+    includeTimestamp: false,
+  })
 
   return (
     <div
@@ -95,7 +101,10 @@ export function WatchlistCard({
               </Badge>
             )}
             {isRefreshing ? (
-              <Loader2 className="h-4 w-4 animate-spin text-accent" aria-label="Refreshing..." />
+              <Loader2
+                className="h-4 w-4 animate-spin text-accent"
+                aria-label="Refreshing..."
+              />
             ) : null}
             {item.scoreAlert && (
               <AlertCircle
@@ -118,7 +127,12 @@ export function WatchlistCard({
           ) : null}
         </div>
         <div className="flex items-center gap-1">
-          <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-xs">
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-xs"
+          >
             <Link href={`/symbols/${item.symbol}?tab=decision`}>Workspace</Link>
           </Button>
           <Button
@@ -190,7 +204,9 @@ export function WatchlistCard({
             {indicator.label}
           </span>
         ))}
-        {isRefreshing && refreshStatus?.processedItems !== undefined && refreshStatus?.totalItems !== undefined ? (
+        {isRefreshing &&
+        refreshStatus?.processedItems !== undefined &&
+        refreshStatus?.totalItems !== undefined ? (
           <span>
             Refreshing {refreshStatus.processedItems}/{refreshStatus.totalItems}
           </span>
@@ -199,8 +215,12 @@ export function WatchlistCard({
 
       {item.decision ? (
         <div className="mb-3 rounded-2xl border border-border/40 bg-surface-muted/20 px-3 py-2.5">
-          <p className="text-xs uppercase tracking-[0.18em] text-text-muted">Current decision</p>
-          <p className="mt-1 text-sm font-semibold text-text">{item.decision.headline}</p>
+          <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
+            Current decision
+          </p>
+          <p className="mt-1 text-sm font-semibold text-text">
+            {item.decision.headline}
+          </p>
           <p className="mt-1 text-xs text-text-muted">
             {decisionMeta ? `${decisionMeta} · ` : ''}
             {item.decision.summary}
@@ -212,7 +232,9 @@ export function WatchlistCard({
         <div className="mb-3 rounded-2xl border border-border/40 bg-surface-muted/20 px-3 py-2.5">
           <p className="text-xs text-text-muted">Live price snapshot</p>
           <div className="mt-1 flex items-baseline justify-between gap-3">
-            <p className="text-base font-semibold text-text">{priceSnapshot.priceLabel}</p>
+            <p className="text-base font-semibold text-text">
+              {priceSnapshot.priceLabel}
+            </p>
             {priceSnapshot.changeLabel ? (
               <p
                 className={cn(
@@ -287,7 +309,8 @@ export function WatchlistCard({
 
       {/* Updated Timestamp */}
       <p className="text-xs text-text-muted">
-        {hasScore ? 'Scored' : 'Updated'} {formatDate(latestUpdatedAt, userTimezone)}
+        {hasScore ? 'Scored' : 'Updated'}{' '}
+        {formatDate(latestUpdatedAt, userTimezone)}
       </p>
 
       {/* Expanded Content */}

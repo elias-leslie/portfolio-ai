@@ -6,8 +6,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import type { WatchlistCounts } from './useWatchlistFilters'
 import { cn } from '@/lib/utils'
+import type { WatchlistCounts } from './useWatchlistFilters'
 import type { RiskFilter, SignalFilter, StyleFilter } from './watchlistFilters'
 
 function SignalDot({ className }: { className: string }) {
@@ -41,7 +41,9 @@ export function WatchlistFilterBar({
 }: WatchlistFilterBarProps) {
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border/30 bg-surface/40 px-4 py-3 backdrop-blur-sm">
-      <span className="mr-1 text-xs font-semibold uppercase tracking-widest text-text-muted/50">Filters</span>
+      <span className="mr-1 text-xs font-semibold uppercase tracking-widest text-text-muted/50">
+        Filters
+      </span>
       <Select
         value={signalFilter}
         onValueChange={(value) => onSignalChange(value as SignalFilter)}
@@ -58,12 +60,14 @@ export function WatchlistFilterBar({
           </SelectItem>
           <SelectItem value="HOLD">
             <span className="inline-flex items-center gap-1.5">
-              <SignalDot className="bg-warning" /> HOLD ({counts.signal.HOLD || 0})
+              <SignalDot className="bg-warning" /> HOLD (
+              {counts.signal.HOLD || 0})
             </span>
           </SelectItem>
           <SelectItem value="AVOID">
             <span className="inline-flex items-center gap-1.5">
-              <SignalDot className="bg-loss" /> AVOID ({counts.signal.AVOID || 0})
+              <SignalDot className="bg-loss" /> AVOID (
+              {counts.signal.AVOID || 0})
             </span>
           </SelectItem>
         </SelectContent>
@@ -78,11 +82,21 @@ export function WatchlistFilterBar({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All Styles ({totalCount})</SelectItem>
-          <SelectItem value="Index">Index ({counts.style.Index || 0})</SelectItem>
-          <SelectItem value="Trend">Trend ({counts.style.Trend || 0})</SelectItem>
-          <SelectItem value="Value">Value ({counts.style.Value || 0})</SelectItem>
-          <SelectItem value="Swing">Swing ({counts.style.Swing || 0})</SelectItem>
-          <SelectItem value="Event">Event ({counts.style.Event || 0})</SelectItem>
+          <SelectItem value="Index">
+            Index ({counts.style.Index || 0})
+          </SelectItem>
+          <SelectItem value="Trend">
+            Trend ({counts.style.Trend || 0})
+          </SelectItem>
+          <SelectItem value="Value">
+            Value ({counts.style.Value || 0})
+          </SelectItem>
+          <SelectItem value="Swing">
+            Swing ({counts.style.Swing || 0})
+          </SelectItem>
+          <SelectItem value="Event">
+            Event ({counts.style.Event || 0})
+          </SelectItem>
         </SelectContent>
       </Select>
 
@@ -102,12 +116,14 @@ export function WatchlistFilterBar({
           </SelectItem>
           <SelectItem value="Medium-Low">
             <span className="inline-flex items-center gap-1.5">
-              <SignalDot className="bg-warning" /> Medium-Low ({counts.risk['Medium-Low'] || 0})
+              <SignalDot className="bg-warning" /> Medium-Low (
+              {counts.risk['Medium-Low'] || 0})
             </span>
           </SelectItem>
           <SelectItem value="Medium">
             <span className="inline-flex items-center gap-1.5">
-              <SignalDot className="bg-warning" /> Medium ({counts.risk.Medium || 0})
+              <SignalDot className="bg-warning" /> Medium (
+              {counts.risk.Medium || 0})
             </span>
           </SelectItem>
           <SelectItem value="High">

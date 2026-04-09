@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { SentimentTooltip, normalizeNewsSentiment } from '../SentimentTooltip'
+import { normalizeNewsSentiment, SentimentTooltip } from '../SentimentTooltip'
 
 describe('normalizeNewsSentiment', () => {
   it('maps -1 to 0', () => {

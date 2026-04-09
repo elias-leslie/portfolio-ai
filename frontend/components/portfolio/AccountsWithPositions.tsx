@@ -24,7 +24,8 @@ interface AccountsWithPositionsProps {
   onAddPosition?: (accountId?: string) => void
 }
 
-export interface AccountsWithPositionsContentProps extends AccountsWithPositionsProps {
+export interface AccountsWithPositionsContentProps
+  extends AccountsWithPositionsProps {
   accounts: Awaited<ReturnType<typeof useAccounts>>['data']
   accountsLoading: boolean
   accountsFetching?: boolean
@@ -70,7 +71,8 @@ export function AccountsWithPositionsContent({
               <div>
                 <CardTitle>Accounts & Positions</CardTitle>
                 <CardDescription>
-                  Reload account and position data before making portfolio edits.
+                  Reload account and position data before making portfolio
+                  edits.
                 </CardDescription>
               </div>
             </div>
@@ -78,7 +80,11 @@ export function AccountsWithPositionsContent({
           <CardContent>
             <LoadErrorState
               title="Failed to load portfolio accounts."
-              detail={accountsError?.message ?? portfolioError?.message ?? 'Unknown error'}
+              detail={
+                accountsError?.message ??
+                portfolioError?.message ??
+                'Unknown error'
+              }
               onRetry={() => {
                 onRetryAccounts?.()
                 void refetchPortfolio?.()
@@ -100,7 +106,9 @@ export function AccountsWithPositionsContent({
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Accounts & Positions</CardTitle>
-                <CardDescription>Organize your portfolio by account</CardDescription>
+                <CardDescription>
+                  Organize your portfolio by account
+                </CardDescription>
               </div>
               {onAddAccount && (
                 <Button variant="outline" size="sm" onClick={onAddAccount}>
@@ -112,7 +120,8 @@ export function AccountsWithPositionsContent({
           </CardHeader>
           <CardContent>
             <div className="rounded-xl border border-dashed border-border/50 bg-surface/40 p-6 text-center text-sm text-text-muted">
-              No accounts yet. Create one above to start organizing your portfolio.
+              No accounts yet. Create one above to start organizing your
+              portfolio.
             </div>
           </CardContent>
         </Card>
@@ -140,7 +149,9 @@ export function AccountsWithPositionsContent({
                   variant="outline"
                   size="sm"
                   onClick={() =>
-                    onAddPosition(accounts.length === 1 ? accounts[0].id : undefined)
+                    onAddPosition(
+                      accounts.length === 1 ? accounts[0].id : undefined,
+                    )
                   }
                 >
                   <PlusCircle className="mr-2 h-4 w-4" />
@@ -159,8 +170,8 @@ export function AccountsWithPositionsContent({
         <CardContent>
           {portfolio?.positions.length === 0 ? (
             <div className="mb-4 rounded-xl border border-border/50 bg-surface-muted/20 p-4 text-sm text-text-muted">
-              You have accounts set up but no live positions yet. Add your first holding to
-              start tracking concentration, sizing, and performance.
+              You have accounts set up but no live positions yet. Add your first
+              holding to start tracking concentration, sizing, and performance.
             </div>
           ) : null}
           <Accordion type="single" collapsible className="w-full">

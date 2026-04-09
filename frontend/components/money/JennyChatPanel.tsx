@@ -136,14 +136,17 @@ export function JennyChatPanel({
       contentClassName="grid gap-4"
       actions={
         <Badge variant={chatMutation.isPending ? 'warning' : 'secondary'}>
-          {chatMutation.isPending ? 'Jenny is thinking' : 'Portfolio-wide context'}
+          {chatMutation.isPending
+            ? 'Jenny is thinking'
+            : 'Portfolio-wide context'}
         </Badge>
       }
     >
       <div className="grid gap-4">
         {messages.length === 0 ? (
           <div className="rounded-2xl border border-border/40 bg-surface/70 px-4 py-3 text-sm text-text-muted">
-            Try: &quot;What does Jenny think about AMD?&quot;, &quot;How much cash is in our IRA?&quot;, or &quot;I want to retire at 60.&quot;
+            Try: &quot;What does Jenny think about AMD?&quot;, &quot;How much
+            cash is in our IRA?&quot;, or &quot;I want to retire at 60.&quot;
           </div>
         ) : (
           <div className="max-h-[26rem] space-y-3 overflow-y-auto pr-1">
@@ -168,7 +171,8 @@ export function JennyChatPanel({
 
         {lastResolvedCount > 0 ? (
           <div className="rounded-2xl border border-gain/30 bg-gain/10 px-4 py-3 text-sm text-text">
-            Jenny reconciled {lastResolvedCount} question{lastResolvedCount === 1 ? '' : 's'} from your last message.
+            Jenny reconciled {lastResolvedCount} question
+            {lastResolvedCount === 1 ? '' : 's'} from your last message.
           </div>
         ) : null}
 

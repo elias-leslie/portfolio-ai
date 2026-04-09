@@ -21,6 +21,15 @@ describe('HouseholdPlanningPanels', () => {
             taxableAssets: 0,
             cashReserve: 0,
             totalTrackedAssets: 0,
+            liabilitiesTotal: 0,
+            netWorth: 0,
+            trackedAccountCount: 0,
+            needsRefreshCount: 0,
+            candidateAccountCount: 0,
+            gapCount: 0,
+            inboxCount: 0,
+            coverageMonths: 0,
+            lastTransactionDate: null,
             visibilityScore: 60,
             visibilityLabel: 'Developing',
             nextBestAction: 'Upload more statements.',
@@ -110,21 +119,53 @@ describe('HouseholdPlanningPanels', () => {
             supportedDocuments: [],
           },
           evidenceAccounts: [],
+          accounts: [],
+          inbox: [],
           questions: [],
           jennyBrief: {
             headline: 'Jenny',
             body: 'Body',
             prompts: [],
           },
+          planning: {
+            summary: {
+              completionScore: 0,
+              readySections: 0,
+              totalSections: 0,
+              missingDocumentCount: 0,
+              highPriorityDocumentCount: 0,
+              sections: [],
+            },
+            members: [],
+            incomeSources: [],
+            debtObligations: [],
+            housingCosts: [],
+            insurancePolicies: [],
+            retirementIncomeSources: [],
+            plannedExpenses: [],
+            documentRequirements: [],
+          },
         }}
       />,
     )
 
     expect(screen.getByText(/no starter lanes yet/i)).toBeInTheDocument()
-    expect(screen.getByText(/jenny has not identified a strong retirement edge yet/i)).toBeInTheDocument()
-    expect(screen.getByText(/contribution rate is below target/i)).toBeInTheDocument()
-    expect(screen.getByText(/jenny does not have a next-step recommendation yet/i)).toBeInTheDocument()
-    expect(screen.getByText(/retirement scenarios will appear once jenny has enough spending/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        /jenny has not identified a strong retirement edge yet/i,
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/contribution rate is below target/i),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/jenny does not have a next-step recommendation yet/i),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        /retirement scenarios will appear once jenny has enough spending/i,
+      ),
+    ).toBeInTheDocument()
   })
 
   it('renders populated dashboard with starter lanes, strengths, next steps, and retirement scenarios', () => {
@@ -138,6 +179,15 @@ describe('HouseholdPlanningPanels', () => {
             taxableAssets: 50000,
             cashReserve: 25000,
             totalTrackedAssets: 425000,
+            liabilitiesTotal: 0,
+            netWorth: 425000,
+            trackedAccountCount: 0,
+            needsRefreshCount: 0,
+            candidateAccountCount: 0,
+            gapCount: 0,
+            inboxCount: 0,
+            coverageMonths: 12,
+            lastTransactionDate: '2026-03-09',
             visibilityScore: 95,
             visibilityLabel: 'Excellent',
             nextBestAction: 'Review retirement strategies.',
@@ -261,11 +311,31 @@ describe('HouseholdPlanningPanels', () => {
             supportedDocuments: [],
           },
           evidenceAccounts: [],
+          accounts: [],
+          inbox: [],
           questions: [],
           jennyBrief: {
             headline: 'Jenny',
             body: 'Body',
             prompts: [],
+          },
+          planning: {
+            summary: {
+              completionScore: 0,
+              readySections: 0,
+              totalSections: 0,
+              missingDocumentCount: 0,
+              highPriorityDocumentCount: 0,
+              sections: [],
+            },
+            members: [],
+            incomeSources: [],
+            debtObligations: [],
+            housingCosts: [],
+            insurancePolicies: [],
+            retirementIncomeSources: [],
+            plannedExpenses: [],
+            documentRequirements: [],
           },
         }}
       />,
@@ -273,10 +343,18 @@ describe('HouseholdPlanningPanels', () => {
 
     expect(screen.getByText('Emergency Fund')).toBeInTheDocument()
     expect(screen.getByText('Vacation Savings')).toBeInTheDocument()
-    expect(screen.getByText('High savings rate relative to income')).toBeInTheDocument()
-    expect(screen.getByText('Diverse retirement account types')).toBeInTheDocument()
-    expect(screen.getByText('Consider increasing contribution limits')).toBeInTheDocument()
-    expect(screen.getByText('Review asset allocation annually')).toBeInTheDocument()
+    expect(
+      screen.getByText('High savings rate relative to income'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Diverse retirement account types'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Consider increasing contribution limits'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Review asset allocation annually'),
+    ).toBeInTheDocument()
     expect(screen.getByText('Conservative')).toBeInTheDocument()
     expect(screen.getByText('Moderate')).toBeInTheDocument()
   })

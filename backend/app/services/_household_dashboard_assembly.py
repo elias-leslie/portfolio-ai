@@ -148,12 +148,7 @@ def build_import_center(documents: list[Any], planning: Any) -> ImportCenter:
 
 
 def update_overview_action(overview: HouseholdOverview, title: str) -> HouseholdOverview:
-    return HouseholdOverview(
-        invested_assets=overview.invested_assets, retirement_assets=overview.retirement_assets,
-        taxable_assets=overview.taxable_assets, cash_reserve=overview.cash_reserve,
-        total_tracked_assets=overview.total_tracked_assets, visibility_score=overview.visibility_score,
-        visibility_label=overview.visibility_label, next_best_action=title,
-    )
+    return overview.model_copy(update={"next_best_action": title})
 
 
 def build_jenny_needs(
@@ -176,6 +171,9 @@ def build_jenny_needs(
 def build_overview(
     *, accounts: list[Any], live_positions: list[Any],
     evidence_accounts: list[HouseholdEvidenceAccount],
+    account_summaries: list[Any],
+    inbox: list[Any],
+    statement_freshness: dict[str, Any],
     holdings_by_account: dict[str, float], documents: list[Any],
     questions: list[Any], resolved_values: list[HouseholdResolvedValue],
     service: Any | None = None,
@@ -212,8 +210,10 @@ def build_overview(
     if invested_assets <= 0:
         invested_assets += evidence_totals.get("other", 0.0)
     total_tracked_assets = invested_assets + cash_reserve
+    liabilities_total = evidence_totals.get("debt", 0.0) + evidence_totals.get("credit", 0.0)
+    net_worth = total_tracked_assets - liabilities_total
     rnv = lambda field: resolved_numeric_value(resolved_values, field)  # noqa: E731
-    effective_account_count = len(accounts) or len(evidence_accounts)
+    effective_account_count = len(account_summaries) or len(accounts) or len(evidence_accounts)
     effective_position_count = len(live_positions) or (
         service.evidence_service.investment_like_count(evidence_accounts) if service is not None else 0
     )
@@ -232,7 +232,18 @@ def build_overview(
     overview = HouseholdOverview(
         invested_assets=invested_assets, retirement_assets=retirement_assets,
         taxable_assets=taxable_assets, cash_reserve=cash_reserve,
-        total_tracked_assets=total_tracked_assets, visibility_score=visibility_score,
+        total_tracked_assets=total_tracked_assets, liabilities_total=liabilities_total,
+        net_worth=net_worth,
+        tracked_account_count=len(account_summaries),
+        needs_refresh_count=sum(
+            1 for account in account_summaries if account.freshness_status in {"aging", "stale", "needs_evidence"}
+        ),
+        candidate_account_count=sum(1 for account in account_summaries if account.match_status == "candidate"),
+        gap_count=sum(len(account.gap_flags) for account in account_summaries),
+        inbox_count=len(inbox),
+        coverage_months=int(statement_freshness.get("coverage_months") or 0),
+        last_transaction_date=str(statement_freshness.get("most_recent_date")) if statement_freshness.get("most_recent_date") else None,
+        visibility_score=visibility_score,
         visibility_label=_call_service_override(service, "_visibility_label", visibility_label, visibility_score),
         next_best_action=_call_service_override(
             service,
@@ -375,13 +386,13 @@ def build_jenny_brief(profile: Any, reports: Any, resolved_values: list[Househol
 # ---------------------------------------------------------------------------
 
 def gather_service_data(service: Any) -> dict[str, Any]:
-    service.transaction_service.backfill_from_latest_reviews(limit=24)
-    service.evidence_service.backfill_from_latest_reviews(service, limit=24)
+    service.transaction_service.backfill_from_latest_reviews(limit=100)
+    service.evidence_service.backfill_from_latest_reviews(service, limit=100)
     profile = service.get_profile()
     planning = service.get_planning_snapshot()
-    documents = service.list_documents(limit=12).items
-    evidence_accounts = service.list_evidence_accounts(limit=12)
-    questions = service.list_questions(limit=12).items
+    documents = service.list_documents(limit=100).items
+    evidence_accounts = service.list_evidence_accounts(limit=100)
+    questions = service.list_questions(limit=25).items
     accounts = [a for a in service.portfolio_mgr.get_accounts() if a.account_type != "paper"]
     positions = service.portfolio_mgr.get_positions()
     account_ids = {a.id for a in accounts}
@@ -417,6 +428,7 @@ def assemble_finance_dashboard(
     jenny_needs: list[JennyNeed], retirement_assets: float, taxable_assets: float,
     cash_reserve: float, total_tracked_assets: float,
     categorization_queue: list[Any], recurring_commitments: list[Any],
+    account_summaries: list[Any], inbox: list[Any],
 ) -> HouseholdFinanceDashboard:
     profile, reports, documents, planning = d["profile"], d["reports"], d["documents"], d["planning"]
     return HouseholdFinanceDashboard(
@@ -450,6 +462,8 @@ def assemble_finance_dashboard(
         ),
         import_center=build_import_center(documents, planning),
         evidence_accounts=d["evidence_accounts"],
+        accounts=account_summaries,
+        inbox=inbox,
         questions=visible_questions,
         jenny_brief=build_jenny_brief(profile, reports, resolved_values),
         portfolio_context=build_portfolio_context(

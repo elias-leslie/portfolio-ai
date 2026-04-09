@@ -13,7 +13,10 @@ interface DecisionMemoCardProps {
 }
 
 function getConfidenceLabel(recommendation: TradeRecommendation): string {
-  if (recommendation.validationType === 'both' && recommendation.signalStrength >= 8) {
+  if (
+    recommendation.validationType === 'both' &&
+    recommendation.signalStrength >= 8
+  ) {
     return 'High'
   }
   if (recommendation.signalStrength >= 6) {
@@ -55,7 +58,9 @@ export function DecisionMemoCard({
       <CardHeader className="gap-3 pb-3">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <CardTitle className="font-display italic text-2xl">{recommendation.symbol}</CardTitle>
+            <CardTitle className="font-display italic text-2xl">
+              {recommendation.symbol}
+            </CardTitle>
             <p className="mt-1 text-sm text-text-muted">
               {recommendation.strategyName}
             </p>
@@ -104,11 +109,11 @@ export function DecisionMemoCard({
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Button onClick={onTrackInPortfolio}>
-            Track in Portfolio
-          </Button>
+          <Button onClick={onTrackInPortfolio}>Track in Portfolio</Button>
           <Button asChild variant="outline">
-            <Link href={`/symbols/${recommendation.symbol}`}>Symbol Workspace</Link>
+            <Link href={`/symbols/${recommendation.symbol}`}>
+              Symbol Workspace
+            </Link>
           </Button>
         </div>
       </CardContent>

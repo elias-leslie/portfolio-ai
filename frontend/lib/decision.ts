@@ -23,7 +23,9 @@ export function formatDecisionMeta(
   const parts = [
     decision.sourceLabel,
     formatDecisionSeverity(decision.severity),
-    options?.includeTimestamp === false ? null : decision.sourceTimestamp ?? null,
+    options?.includeTimestamp === false
+      ? null
+      : (decision.sourceTimestamp ?? null),
   ].filter((part): part is string => Boolean(part))
 
   return parts.length > 0 ? parts.join(' · ') : null

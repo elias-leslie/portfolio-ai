@@ -1,4 +1,4 @@
-import { useQuery, type UseQueryResult } from '@tanstack/react-query'
+import { type UseQueryResult, useQuery } from '@tanstack/react-query'
 import { fetchNewsHealth, type NewsHealthResponse } from '@/lib/api/news'
 
 export function useNewsHealth(

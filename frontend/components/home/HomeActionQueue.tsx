@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowRight, Brain, House, Target, CheckCircle2 } from 'lucide-react'
+import { ArrowRight, Brain, CheckCircle2, House, Target } from 'lucide-react'
 import Link from 'next/link'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { SectionCard } from '@/components/shared/SectionCard'
@@ -59,7 +59,9 @@ export function HomeActionQueue() {
   const urgentCount = actions.filter((action) =>
     ['critical', 'high'].includes(action.priority),
   ).length
-  const quickActionCount = actions.filter((action) => Boolean(action.execution)).length
+  const quickActionCount = actions.filter((action) =>
+    Boolean(action.execution),
+  ).length
 
   const handleExecution = (action: HomeActionItem) => {
     const execution = action.execution
@@ -67,7 +69,10 @@ export function HomeActionQueue() {
       return
     }
 
-    if (execution.kind === 'acknowledge_notification' && execution.notificationId) {
+    if (
+      execution.kind === 'acknowledge_notification' &&
+      execution.notificationId
+    ) {
       acknowledgeNotification.mutate(execution.notificationId)
       return
     }
@@ -98,7 +103,9 @@ export function HomeActionQueue() {
           <span>
             {actions.length} prioritized action{actions.length === 1 ? '' : 's'}
             {urgentCount > 0 ? ` · ${urgentCount} urgent` : ''}
-            {quickActionCount > 0 ? ` · ${quickActionCount} quick action-ready` : ''}
+            {quickActionCount > 0
+              ? ` · ${quickActionCount} quick action-ready`
+              : ''}
           </span>
           <span>
             {data?.generatedAt
@@ -109,7 +116,11 @@ export function HomeActionQueue() {
       ) : null}
 
       {isLoading ? (
-        <div className="grid gap-3 lg:grid-cols-2" role="status" aria-live="polite">
+        <div
+          className="grid gap-3 lg:grid-cols-2"
+          role="status"
+          aria-live="polite"
+        >
           {[...Array(4)].map((_, index) => (
             <div
               key={`home-action-skeleton-${index}`}
@@ -140,8 +151,9 @@ export function HomeActionQueue() {
           </div>
           <p className="font-display italic text-xl text-text">All clear</p>
           <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-text-muted">
-            No urgent cross-workspace actions right now. Use this time to tighten the watchlist, review the
-            portfolio, or upload new household documents so Jenny has fresher evidence.
+            No urgent cross-workspace actions right now. Use this time to
+            tighten the watchlist, review the portfolio, or upload new household
+            documents so Jenny has fresher evidence.
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-2">
             <Button asChild size="sm" variant="outline">
@@ -158,7 +170,8 @@ export function HomeActionQueue() {
         <div className="grid gap-3 lg:grid-cols-2 animate-stagger">
           {actions.map((action) => {
             const Icon =
-              categoryIcons[action.category as keyof typeof categoryIcons] ?? ArrowRight
+              categoryIcons[action.category as keyof typeof categoryIcons] ??
+              ArrowRight
             const tone =
               priorityTone[action.priority as keyof typeof priorityTone] ??
               priorityTone.low
@@ -184,9 +197,18 @@ export function HomeActionQueue() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 space-y-2">
                     <div className="flex items-center gap-2.5">
-                      <div className={cn('h-2 w-2 shrink-0 rounded-full', priorityDot[action.priority as keyof typeof priorityDot] ?? priorityDot.low)} />
+                      <div
+                        className={cn(
+                          'h-2 w-2 shrink-0 rounded-full',
+                          priorityDot[
+                            action.priority as keyof typeof priorityDot
+                          ] ?? priorityDot.low,
+                        )}
+                      />
                       <Icon className="h-4 w-4 shrink-0 text-text-muted" />
-                      <span className="truncate text-sm font-semibold text-text">{action.title}</span>
+                      <span className="truncate text-sm font-semibold text-text">
+                        {action.title}
+                      </span>
                     </div>
                     {decisionMeta ? (
                       <p className="text-[11px] uppercase tracking-[0.18em] text-text-muted">
@@ -194,7 +216,9 @@ export function HomeActionQueue() {
                         {decisionTimestamp ? ` · ${decisionTimestamp}` : ''}
                       </p>
                     ) : null}
-                    <p className="text-sm leading-relaxed text-text-muted">{action.detail}</p>
+                    <p className="text-sm leading-relaxed text-text-muted">
+                      {action.detail}
+                    </p>
                   </div>
                   {badgeLabel ? (
                     <Badge variant="outline" className="shrink-0">
@@ -214,7 +238,8 @@ export function HomeActionQueue() {
                       size="sm"
                       onClick={() => handleExecution(action)}
                       disabled={
-                        acknowledgeNotification.isPending || transitionWorkflow.isPending
+                        acknowledgeNotification.isPending ||
+                        transitionWorkflow.isPending
                       }
                     >
                       {quickLabel}

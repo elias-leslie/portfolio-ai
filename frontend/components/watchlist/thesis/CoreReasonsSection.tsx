@@ -25,7 +25,10 @@ export function CoreReasonsSection({ reasons }: { reasons: CoreReason[] }) {
             </div>
             <div className="h-1.5 bg-surface-muted rounded-full overflow-hidden">
               <div
-                className={cn('h-full transition-all', getConfidenceColor(reason.confidence))}
+                className={cn(
+                  'h-full transition-all',
+                  getConfidenceColor(reason.confidence),
+                )}
                 style={{ width: `${reason.confidence * 100}%` }}
               />
             </div>

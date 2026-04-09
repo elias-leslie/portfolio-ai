@@ -259,9 +259,11 @@
   --shadow-elev-1:
     0 1px 3px 0 oklch(0.1 0.01 262 / 0.5), 0 0 0 1px oklch(0.3 0.01 262 / 0.5);
   --shadow-elev-3:
-    0 8px 24px -8px oklch(0.08 0.02 277 / 0.5), 0 0 0 1px oklch(0.3 0.01 262 / 0.35);
+    0 8px 24px -8px oklch(0.08 0.02 277 / 0.5),
+    0 0 0 1px oklch(0.3 0.01 262 / 0.35);
   --shadow-elev-6:
-    0 20px 56px -12px oklch(0.06 0.02 277 / 0.6), 0 0 0 1px oklch(0.3 0.01 262 / 0.3);
+    0 20px 56px -12px oklch(0.06 0.02 277 / 0.6),
+    0 0 0 1px oklch(0.3 0.01 262 / 0.3);
 
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;
@@ -306,10 +308,26 @@
     min-height: 100%;
     background-color: var(--color-bg);
     background-image:
-      radial-gradient(ellipse 90% 50% at 50% -15%, oklch(0.22 0.05 277 / 0.45) 0%, transparent 55%),
-      radial-gradient(ellipse 50% 60% at 0% 30%, oklch(0.18 0.03 210 / 0.2) 0%, transparent 50%),
-      radial-gradient(ellipse 60% 40% at 100% 60%, oklch(0.2 0.03 277 / 0.12) 0%, transparent 50%),
-      radial-gradient(ellipse 40% 30% at 80% 90%, oklch(0.18 0.04 210 / 0.08) 0%, transparent 40%);
+      radial-gradient(
+        ellipse 90% 50% at 50% -15%,
+        oklch(0.22 0.05 277 / 0.45) 0%,
+        transparent 55%
+      ),
+      radial-gradient(
+        ellipse 50% 60% at 0% 30%,
+        oklch(0.18 0.03 210 / 0.2) 0%,
+        transparent 50%
+      ),
+      radial-gradient(
+        ellipse 60% 40% at 100% 60%,
+        oklch(0.2 0.03 277 / 0.12) 0%,
+        transparent 50%
+      ),
+      radial-gradient(
+        ellipse 40% 30% at 80% 90%,
+        oklch(0.18 0.04 210 / 0.08) 0%,
+        transparent 40%
+      );
     color: var(--color-text);
     font-feature-settings:
       "case" 1,
@@ -398,17 +416,34 @@
   .animate-stagger > * {
     animation: fade-in-up 0.35s var(--ease-standard) both;
   }
-  .animate-stagger > *:nth-child(1) { animation-delay: 0ms; }
-  .animate-stagger > *:nth-child(2) { animation-delay: 60ms; }
-  .animate-stagger > *:nth-child(3) { animation-delay: 120ms; }
-  .animate-stagger > *:nth-child(4) { animation-delay: 180ms; }
-  .animate-stagger > *:nth-child(5) { animation-delay: 240ms; }
-  .animate-stagger > *:nth-child(6) { animation-delay: 300ms; }
-  .animate-stagger > *:nth-child(n+7) { animation-delay: 340ms; }
+  .animate-stagger > *:nth-child(1) {
+    animation-delay: 0ms;
+  }
+  .animate-stagger > *:nth-child(2) {
+    animation-delay: 60ms;
+  }
+  .animate-stagger > *:nth-child(3) {
+    animation-delay: 120ms;
+  }
+  .animate-stagger > *:nth-child(4) {
+    animation-delay: 180ms;
+  }
+  .animate-stagger > *:nth-child(5) {
+    animation-delay: 240ms;
+  }
+  .animate-stagger > *:nth-child(6) {
+    animation-delay: 300ms;
+  }
+  .animate-stagger > *:nth-child(n + 7) {
+    animation-delay: 340ms;
+  }
 
   /* Subtle card lift on hover */
   .card-interactive {
-    transition: transform 200ms var(--ease-standard), box-shadow 200ms var(--ease-standard), border-color 200ms var(--ease-standard);
+    transition:
+      transform 200ms var(--ease-standard),
+      box-shadow 200ms var(--ease-standard),
+      border-color 200ms var(--ease-standard);
   }
   .card-interactive:hover {
     transform: translateY(-1px);
@@ -420,11 +455,16 @@
     position: relative;
   }
   .glow-border::after {
-    content: '';
+    content: "";
     position: absolute;
     inset: -1px;
     border-radius: inherit;
-    background: linear-gradient(135deg, oklch(0.68 0.22 277 / 0.15), oklch(0.63 0.14 210 / 0.1), transparent 60%);
+    background: linear-gradient(
+      135deg,
+      oklch(0.68 0.22 277 / 0.15),
+      oklch(0.63 0.14 210 / 0.1),
+      transparent 60%
+    );
     pointer-events: none;
     opacity: 0;
     transition: opacity 200ms var(--ease-standard);
@@ -448,7 +488,8 @@
     background: linear-gradient(
       90deg,
       var(--color-surface-muted) 0%,
-      color-mix(in oklch, var(--color-surface-muted) 70%, var(--color-border)) 40%,
+      color-mix(in oklch, var(--color-surface-muted) 70%, var(--color-border))
+        40%,
       var(--color-surface-muted) 80%
     );
     background-size: 200% 100%;
@@ -491,7 +532,7 @@
     gap: 0.5rem;
   }
   .data-row::after {
-    content: '';
+    content: "";
     flex: 1;
     border-bottom: 1px dotted var(--color-border-subtle);
     margin-bottom: 0.2em;
@@ -504,8 +545,13 @@
   .info-banner {
     border-radius: var(--radius-md);
     border: 1px solid color-mix(in oklch, var(--color-border) 30%, transparent);
-    border-left: 3px solid color-mix(in oklch, var(--color-primary) 50%, transparent);
-    background: linear-gradient(to right, color-mix(in oklch, var(--color-primary) 4%, transparent), color-mix(in oklch, var(--color-surface) 40%, transparent));
+    border-left: 3px solid
+      color-mix(in oklch, var(--color-primary) 50%, transparent);
+    background: linear-gradient(
+      to right,
+      color-mix(in oklch, var(--color-primary) 4%, transparent),
+      color-mix(in oklch, var(--color-surface) 40%, transparent)
+    );
     padding: 0.75rem 1rem;
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);

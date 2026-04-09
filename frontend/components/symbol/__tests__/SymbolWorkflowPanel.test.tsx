@@ -99,7 +99,9 @@ describe('SymbolWorkflowPanel', () => {
     render(<SymbolWorkflowPanel symbol="VTI" latestReview={null} />)
 
     expect(screen.getByText(/no action until earnings/i)).toBeInTheDocument()
-    expect(screen.getByText(/no stage transitions are available right now/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/no stage transitions are available right now/i),
+    ).toBeInTheDocument()
   })
 
   it('marks workflow actions busy while a transition is saving', () => {
@@ -115,7 +117,11 @@ describe('SymbolWorkflowPanel', () => {
 
     render(<SymbolWorkflowPanel symbol="VTI" latestReview={null} />)
 
-    expect(screen.getByRole('button', { name: /move to live/i })).toHaveAttribute('aria-busy', 'true')
-    expect(screen.getByRole('button', { name: /record hold/i })).toHaveAttribute('aria-busy', 'true')
+    expect(
+      screen.getByRole('button', { name: /move to live/i }),
+    ).toHaveAttribute('aria-busy', 'true')
+    expect(
+      screen.getByRole('button', { name: /record hold/i }),
+    ).toHaveAttribute('aria-busy', 'true')
   })
 })

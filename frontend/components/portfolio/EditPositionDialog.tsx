@@ -1,3 +1,4 @@
+import type { FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -9,11 +10,7 @@ import {
 } from '@/components/ui/dialog'
 import type { Account } from '@/lib/api/portfolio'
 import { PositionFormFields } from './PositionFormFields'
-import type {
-  PositionFormErrors,
-  PositionType,
-} from './portfolio-form-utils'
-import type { FormEvent } from 'react'
+import type { PositionFormErrors, PositionType } from './portfolio-form-utils'
 
 interface EditPositionDialogProps {
   open: boolean

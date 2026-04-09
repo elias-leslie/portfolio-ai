@@ -2,7 +2,6 @@
 
 import { Loader2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { cn } from '@/lib/utils'
 import {
   Line,
   LineChart,
@@ -16,7 +15,7 @@ import {
   useMarketStatus,
   useSectorHistory,
 } from '@/lib/hooks/useMarketIntelligence'
-import { checkDataFreshness, formatDate } from '@/lib/utils'
+import { checkDataFreshness, cn, formatDate } from '@/lib/utils'
 import { MarketPanelMessage } from './MarketPanelMessage'
 import { SECTOR_COLORS } from './sector-colors'
 import {
@@ -74,17 +73,29 @@ export function SectorPerformanceChart() {
   }
 
   if (error) {
-    return <MarketPanelMessage message="Unable to load sector performance right now." className="min-h-64" />
+    return (
+      <MarketPanelMessage
+        message="Unable to load sector performance right now."
+        className="min-h-64"
+      />
+    )
   }
 
   if (!data?.sectors?.length || chartData.length === 0) {
-    return <MarketPanelMessage message="Sector performance history is not available yet." className="min-h-64" />
+    return (
+      <MarketPanelMessage
+        message="Sector performance history is not available yet."
+        className="min-h-64"
+      />
+    )
   }
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="font-display italic text-lg tracking-tight text-text">Sector Performance</h3>
+        <h3 className="font-display italic text-lg tracking-tight text-text">
+          Sector Performance
+        </h3>
         <TimeframeSelector value={timeframe} onChange={setTimeframe} />
       </div>
 
@@ -122,21 +133,23 @@ export function SectorPerformanceChart() {
                 fontSize: '12px',
               }}
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              formatter={((
-                value: number | undefined,
-                name: string | undefined,
-                props: { payload?: Record<string, number> },
-              ) => {
-                if (!name) return ['', '']
-                const sector = data.sectors.find((s) => s.symbol === name)
-                const price = props.payload?.[`${name}_price`]
-                const formattedPrice = price?.toFixed(2) ?? ''
-                const numValue = value ?? 0
-                return [
-                  `$${formattedPrice} (${numValue >= 0 ? '+' : ''}${numValue.toFixed(1)}%)`,
-                  sector?.name || name,
-                ]
-              }) as any}
+              formatter={
+                ((
+                  value: number | undefined,
+                  name: string | undefined,
+                  props: { payload?: Record<string, number> },
+                ) => {
+                  if (!name) return ['', '']
+                  const sector = data.sectors.find((s) => s.symbol === name)
+                  const price = props.payload?.[`${name}_price`]
+                  const formattedPrice = price?.toFixed(2) ?? ''
+                  const numValue = value ?? 0
+                  return [
+                    `$${formattedPrice} (${numValue >= 0 ? '+' : ''}${numValue.toFixed(1)}%)`,
+                    sector?.name || name,
+                  ]
+                }) as any
+              }
               labelFormatter={(label) =>
                 // Append T12:00:00 to avoid timezone shift
                 new Date(`${label}T12:00:00`).toLocaleDateString('en-US', {
@@ -181,12 +194,16 @@ export function SectorPerformanceChart() {
               }
               className={cn(
                 'rounded-md px-1.5 py-0.5 transition-all hover:bg-surface-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
-                highlightedSector !== null && highlightedSector !== sector.symbol && 'opacity-40',
+                highlightedSector !== null &&
+                  highlightedSector !== sector.symbol &&
+                  'opacity-40',
               )}
             >
               <span
                 className="font-medium"
-                style={{ color: SECTOR_COLORS[sector.symbol] || 'var(--color-neutral)' }}
+                style={{
+                  color: SECTOR_COLORS[sector.symbol] || 'var(--color-neutral)',
+                }}
               >
                 {sector.name}
               </span>

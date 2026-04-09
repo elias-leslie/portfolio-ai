@@ -72,12 +72,15 @@ describe('HomeActionQueue', () => {
 
     render(<HomeActionQueue />)
 
-    expect(screen.getByText(/1 prioritized action · 1 urgent · 1 quick action-ready/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        /1 prioritized action · 1 urgent · 1 quick action-ready/i,
+      ),
+    ).toBeInTheDocument()
     expect(screen.getByText(/live signal model/i)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /open decision/i })).toHaveAttribute(
-      'href',
-      '/symbols/VTI?tab=decision',
-    )
+    expect(
+      screen.getByRole('link', { name: /open decision/i }),
+    ).toHaveAttribute('href', '/symbols/VTI?tab=decision')
 
     await user.click(screen.getByRole('button', { name: /advance workflow/i }))
 
@@ -120,11 +123,12 @@ describe('HomeActionQueue', () => {
 
     render(<HomeActionQueue />)
 
-    expect(screen.getByText(/no urgent cross-workspace actions/i)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Review Watchlist' })).toHaveAttribute(
-      'href',
-      '/watchlist',
-    )
+    expect(
+      screen.getByText(/no urgent cross-workspace actions/i),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Review Watchlist' }),
+    ).toHaveAttribute('href', '/watchlist')
     expect(screen.getByRole('link', { name: 'Open Intake' })).toHaveAttribute(
       'href',
       '/money?tab=intake',

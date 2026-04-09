@@ -1,11 +1,12 @@
 'use client'
 
+import { useState } from 'react'
 import { PositionFormFields } from '@/components/portfolio/PositionFormFields'
 import {
-  type PositionType,
   getPositionFormErrors,
   isPositionFormValid,
   normalizeSymbol,
+  type PositionType,
 } from '@/components/portfolio/portfolio-form-utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -17,7 +18,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useAccounts, useAddPosition } from '@/lib/hooks/usePortfolio'
-import { useState } from 'react'
 
 interface AddPositionDialogProps {
   open: boolean
@@ -41,7 +41,12 @@ export function AddPositionDialog({
   const [positionType, setPositionType] = useState<PositionType>('long')
   const [submitAttempted, setSubmitAttempted] = useState(false)
 
-  const positionFormErrors = getPositionFormErrors({ accountId, symbol, shares, costBasis })
+  const positionFormErrors = getPositionFormErrors({
+    accountId,
+    symbol,
+    shares,
+    costBasis,
+  })
   const canSubmit = isPositionFormValid(positionFormErrors)
 
   const resetForm = (nextAccountId = '') => {
@@ -86,7 +91,8 @@ export function AddPositionDialog({
         <DialogHeader>
           <DialogTitle>Add Position</DialogTitle>
           <DialogDescription>
-            Add a new position to your portfolio. Enter the live holding details below.
+            Add a new position to your portfolio. Enter the live holding details
+            below.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -108,8 +114,8 @@ export function AddPositionDialog({
             accountHint={
               !accounts?.length && !accountsLoading ? (
                 <p className="text-xs text-warning">
-                  Create an account first so the position is tracked in the right tax and ownership
-                  bucket.
+                  Create an account first so the position is tracked in the
+                  right tax and ownership bucket.
                 </p>
               ) : undefined
             }

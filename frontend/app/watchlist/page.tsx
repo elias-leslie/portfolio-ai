@@ -6,7 +6,6 @@ import { toast } from 'sonner'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
 import { AddSymbolModal } from '@/components/watchlist/AddSymbolModal'
 import { useWatchlistFilters } from '@/components/watchlist/useWatchlistFilters'
 import { WatchlistFilterBar } from '@/components/watchlist/WatchlistFilterBar'
@@ -17,12 +16,23 @@ import {
   WatchlistLoadingSkeleton,
 } from '@/components/watchlist/WatchlistStateViews'
 import { WatchlistTable } from '@/components/watchlist/WatchlistTable'
-import { useRefreshStatus, useRefreshWatchlist, useWatchlist } from '@/lib/hooks/useWatchlist'
+import {
+  useRefreshStatus,
+  useRefreshWatchlist,
+  useWatchlist,
+} from '@/lib/hooks/useWatchlist'
+import { cn } from '@/lib/utils'
 
 export default function WatchlistPage() {
   const [addSymbolOpen, setAddSymbolOpen] = useState(false)
 
-  const { data: watchlistData, isLoading, error, refetch, isFetching } = useWatchlist()
+  const {
+    data: watchlistData,
+    isLoading,
+    error,
+    refetch,
+    isFetching,
+  } = useWatchlist()
   const refreshMutation = useRefreshWatchlist()
   const totalCount = watchlistData?.items.length ?? 0
   const { data: refreshStatus } = useRefreshStatus(totalCount > 0)
@@ -46,13 +56,20 @@ export default function WatchlistPage() {
     refreshMutation.mutate(undefined, {
       onSuccess: (data) => {
         if (data.status === 'success') {
-          toast.success(data.message || `Refreshed ${data.refreshedCount} symbols`)
+          toast.success(
+            data.message || `Refreshed ${data.refreshedCount} symbols`,
+          )
         } else if (data.status === 'partial_success') {
           const failedSymbols =
-            data.failed?.slice(0, 3).map((f) => f.symbol).join(', ') || ''
+            data.failed
+              ?.slice(0, 3)
+              .map((f) => f.symbol)
+              .join(', ') || ''
           const moreCount = (data.failedCount || 0) - 3
           const failedMsg =
-            moreCount > 0 ? `${failedSymbols} and ${moreCount} more` : failedSymbols
+            moreCount > 0
+              ? `${failedSymbols} and ${moreCount} more`
+              : failedSymbols
           toast.warning(data.message, {
             description: failedMsg ? `Failed: ${failedMsg}` : undefined,
           })
@@ -77,11 +94,11 @@ export default function WatchlistPage() {
       : `Showing all ${totalCount} symbols.`
   const scoredCount = useMemo(
     () => watchlistData?.items.filter((item) => item.currentScore).length ?? 0,
-    [watchlistData?.items]
+    [watchlistData?.items],
   )
   const alertCount = useMemo(
     () => watchlistData?.items.filter((item) => item.scoreAlert).length ?? 0,
-    [watchlistData?.items]
+    [watchlistData?.items],
   )
   const staleCount = useMemo(
     () =>
@@ -91,7 +108,7 @@ export default function WatchlistPage() {
           item.currentScore?.technical.stale ||
           item.dataQuality?.overallPct === 0,
       ).length ?? 0,
-    [watchlistData?.items]
+    [watchlistData?.items],
   )
   const scoreCoveragePct =
     totalCount > 0 ? Math.round((scoredCount / totalCount) * 100) : 0
@@ -102,46 +119,65 @@ export default function WatchlistPage() {
         title="Watchlist"
         description={description}
         size="md"
-        actions={totalCount > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              onClick={handleRefresh}
-              disabled={refreshMutation.isPending}
-              aria-busy={refreshMutation.isPending}
-            >
-              <RefreshCw
-                className={cn('mr-2 h-4 w-4', refreshMutation.isPending && 'animate-spin')}
-              />
-              Refresh
-            </Button>
-            <Button onClick={() => setAddSymbolOpen(true)}>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Add Symbol
-            </Button>
-          </div>
-        ) : undefined}
+        actions={
+          totalCount > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={handleRefresh}
+                disabled={refreshMutation.isPending}
+                aria-busy={refreshMutation.isPending}
+              >
+                <RefreshCw
+                  className={cn(
+                    'mr-2 h-4 w-4',
+                    refreshMutation.isPending && 'animate-spin',
+                  )}
+                />
+                Refresh
+              </Button>
+              <Button onClick={() => setAddSymbolOpen(true)}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Add Symbol
+              </Button>
+            </div>
+          ) : undefined
+        }
       />
 
       {!isLoading && !error && totalCount > 0 ? (
         <div className="info-banner">
           <div className="flex flex-wrap items-center gap-x-1 gap-y-2 tabular-nums">
-            <span>{totalCount} symbol{totalCount === 1 ? '' : 's'}</span>
-            <span className="text-border" aria-hidden>·</span>
-            <span>{scoredCount} scored ({scoreCoveragePct}%)</span>
-            <span className="text-border" aria-hidden>·</span>
+            <span>
+              {totalCount} symbol{totalCount === 1 ? '' : 's'}
+            </span>
+            <span className="text-border" aria-hidden>
+              ·
+            </span>
+            <span>
+              {scoredCount} scored ({scoreCoveragePct}%)
+            </span>
+            <span className="text-border" aria-hidden>
+              ·
+            </span>
             <span>{alertCount} flagged</span>
-            <span className="text-border" aria-hidden>·</span>
+            <span className="text-border" aria-hidden>
+              ·
+            </span>
             <span>{staleCount} with stale inputs</span>
             {hasActiveFilters && filteredItems.length !== totalCount ? (
               <>
-                <span className="text-border" aria-hidden>·</span>
+                <span className="text-border" aria-hidden>
+                  ·
+                </span>
                 <span>{filteredItems.length} visible after filters</span>
               </>
             ) : null}
             {refreshStatus?.isRefreshing ? (
               <>
-                <span className="text-border" aria-hidden>·</span>
+                <span className="text-border" aria-hidden>
+                  ·
+                </span>
                 <span>
                   Refreshing
                   {refreshStatus.percentComplete != null
@@ -155,7 +191,9 @@ export default function WatchlistPage() {
             ) : null}
             {refreshStatus?.currentSymbol ? (
               <>
-                <span className="text-border" aria-hidden>·</span>
+                <span className="text-border" aria-hidden>
+                  ·
+                </span>
                 <span>Current symbol {refreshStatus.currentSymbol}</span>
               </>
             ) : null}
@@ -196,7 +234,7 @@ export default function WatchlistPage() {
       {!isLoading && !error && totalCount === 0 && (
         <WatchlistEmptyState
           title="No symbols yet"
-          detail='Add a symbol to start tracking live setups, thesis quality, and refresh status.'
+          detail="Add a symbol to start tracking live setups, thesis quality, and refresh status."
           primaryAction={{
             label: 'Add Symbol',
             onClick: () => setAddSymbolOpen(true),

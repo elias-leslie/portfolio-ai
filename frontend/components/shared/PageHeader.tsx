@@ -69,7 +69,9 @@ export function PageHeader({
           {title}
         </h1>
         {description && (
-          <p className="mt-1 text-sm leading-relaxed text-text-muted/80">{description}</p>
+          <p className="mt-1 text-sm leading-relaxed text-text-muted/80">
+            {description}
+          </p>
         )}
       </div>
       {actions && (

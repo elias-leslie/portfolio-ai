@@ -231,8 +231,7 @@ export function useRefreshStatus(enabled = true) {
     queryKey: watchlistKeys.refreshStatus(),
     queryFn: () => fetchRefreshStatus(),
     enabled,
-    refetchInterval: (query) =>
-      query.state.data?.isRefreshing ? 1000 : false,
+    refetchInterval: (query) => (query.state.data?.isRefreshing ? 1000 : false),
     refetchIntervalInBackground: false,
     staleTime: 0, // Always consider stale to enable polling
   })

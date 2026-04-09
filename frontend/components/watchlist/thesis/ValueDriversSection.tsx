@@ -19,7 +19,10 @@ export function ValueDriversSection({
       <h5 className="text-xs font-semibold text-text">Value Drivers</h5>
       <div className="grid grid-cols-2 gap-2">
         {items.map((item) => (
-          <div key={item.label} className="bg-surface-muted/50 rounded px-2 py-1.5">
+          <div
+            key={item.label}
+            className="bg-surface-muted/50 rounded px-2 py-1.5"
+          >
             <p className="text-xs text-text-muted">{item.label}</p>
             <p className="text-sm font-medium text-text">{item.value}</p>
           </div>

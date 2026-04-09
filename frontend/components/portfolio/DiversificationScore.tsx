@@ -63,7 +63,9 @@ export function DiversificationScore({
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Target className="h-4 w-4 text-accent" />
-          <h3 className="font-display italic text-lg tracking-tight text-text">Diversification</h3>
+          <h3 className="font-display italic text-lg tracking-tight text-text">
+            Diversification
+          </h3>
         </div>
         <span
           className={cn(
@@ -93,7 +95,10 @@ export function DiversificationScore({
           aria-label="Diversification score"
         >
           <div
-            className={cn('h-full transition-all duration-500', getProgressColor(diversification.level))}
+            className={cn(
+              'h-full transition-all duration-500',
+              getProgressColor(diversification.level),
+            )}
             style={{ width: `${diversification.score}%` }}
           />
         </div>

@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useId, useState } from 'react'
 import type { ReactNode } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 

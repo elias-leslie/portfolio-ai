@@ -2,7 +2,6 @@
 
 import { Loader2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { cn } from '@/lib/utils'
 import {
   Line,
   LineChart,
@@ -16,7 +15,7 @@ import {
   useIndicatorHistory,
   useMarketStatus,
 } from '@/lib/hooks/useMarketIntelligence'
-import { checkDataFreshness, formatDate } from '@/lib/utils'
+import { checkDataFreshness, cn, formatDate } from '@/lib/utils'
 import { MarketPanelMessage } from './MarketPanelMessage'
 import {
   calculateTickInterval,
@@ -90,7 +89,12 @@ export function IndicatorsTrendChart() {
   }
 
   if (error) {
-    return <MarketPanelMessage message="Unable to load key indicator history right now." className="min-h-48" />
+    return (
+      <MarketPanelMessage
+        message="Unable to load key indicator history right now."
+        className="min-h-48"
+      />
+    )
   }
 
   const formatTooltip = (
@@ -120,13 +124,20 @@ export function IndicatorsTrendChart() {
   }
 
   if (!data?.sp500?.length || chartData.length === 0) {
-    return <MarketPanelMessage message="Key indicator history is not available yet." className="min-h-48" />
+    return (
+      <MarketPanelMessage
+        message="Key indicator history is not available yet."
+        className="min-h-48"
+      />
+    )
   }
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="font-display italic text-lg tracking-tight text-text">Key Indicators</h3>
+        <h3 className="font-display italic text-lg tracking-tight text-text">
+          Key Indicators
+        </h3>
         <TimeframeSelector value={timeframe} onChange={setTimeframe} />
       </div>
 
@@ -213,9 +224,7 @@ export function IndicatorsTrendChart() {
                 />
                 <span className="text-text-muted">
                   {config.name}{' '}
-                  <span
-                    className={pct >= 0 ? 'text-gain' : 'text-loss'}
-                  >
+                  <span className={pct >= 0 ? 'text-gain' : 'text-loss'}>
                     {pct >= 0 ? '+' : ''}
                     {pct.toFixed(1)}%
                   </span>

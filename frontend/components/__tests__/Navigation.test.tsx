@@ -24,7 +24,9 @@ describe('Navigation', () => {
       })[0],
     ).toHaveAttribute('aria-current', 'page')
     expect(
-      screen.getByText(/track setups, score health, and symbol-specific follow-up work/i),
+      screen.getByText(
+        /track setups, score health, and symbol-specific follow-up work/i,
+      ),
     ).toBeInTheDocument()
   })
 
@@ -33,10 +35,20 @@ describe('Navigation', () => {
 
     render(<Navigation />)
 
-    expect(screen.getAllByRole('link', { name: /today\./i }).length).toBeGreaterThan(0)
-    expect(screen.getAllByRole('link', { name: /watchlist\./i }).length).toBeGreaterThan(0)
-    expect(screen.getAllByRole('link', { name: /portfolio coach\./i }).length).toBeGreaterThan(0)
-    expect(screen.getAllByRole('link', { name: /money system\./i }).length).toBeGreaterThan(0)
-    expect(screen.getAllByRole('link', { name: /status\./i }).length).toBeGreaterThan(0)
+    expect(
+      screen.getAllByRole('link', { name: /today\./i }).length,
+    ).toBeGreaterThan(0)
+    expect(
+      screen.getAllByRole('link', { name: /watchlist\./i }).length,
+    ).toBeGreaterThan(0)
+    expect(
+      screen.getAllByRole('link', { name: /portfolio coach\./i }).length,
+    ).toBeGreaterThan(0)
+    expect(
+      screen.getAllByRole('link', { name: /money system\./i }).length,
+    ).toBeGreaterThan(0)
+    expect(
+      screen.getAllByRole('link', { name: /status\./i }).length,
+    ).toBeGreaterThan(0)
   })
 })

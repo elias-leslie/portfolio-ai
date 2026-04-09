@@ -3,10 +3,10 @@ import type { WatchlistItem } from '@/lib/api/watchlist'
 import {
   getStoredFilter,
   RISK_FILTER_VALUES,
-  SIGNAL_FILTER_VALUES,
-  STYLE_FILTER_VALUES,
   type RiskFilter,
+  SIGNAL_FILTER_VALUES,
   type SignalFilter,
+  STYLE_FILTER_VALUES,
   type StyleFilter,
 } from './watchlistFilters'
 

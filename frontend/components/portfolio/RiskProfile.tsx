@@ -54,7 +54,9 @@ export function RiskProfile({ riskProfile }: RiskProfileProps) {
           <span className={getLevelColor(riskProfile.level)}>
             {getIcon(riskProfile.level)}
           </span>
-          <h3 className="font-display italic text-lg tracking-tight text-text">Risk Profile</h3>
+          <h3 className="font-display italic text-lg tracking-tight text-text">
+            Risk Profile
+          </h3>
         </div>
         <span
           className={cn(

@@ -87,7 +87,9 @@ describe('HouseholdProfileCard', () => {
     )
 
     expect(
-      screen.getByText(/jenny has not resolved any structured planning values yet/i),
+      screen.getByText(
+        /jenny has not resolved any structured planning values yet/i,
+      ),
     ).toBeInTheDocument()
   })
 
@@ -116,6 +118,9 @@ describe('HouseholdProfileCard', () => {
       />,
     )
 
-    expect(screen.getByRole('button', { name: /saving/i })).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('button', { name: /saving/i })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    )
   })
 })

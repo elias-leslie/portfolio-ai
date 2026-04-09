@@ -9,12 +9,14 @@ export const MAIN_PRODUCT_ROUTES: MainRoute[] = [
   {
     href: '/',
     label: 'Today',
-    description: 'Start with the highest-priority actions, ideas, and market context.',
+    description:
+      'Start with the highest-priority actions, ideas, and market context.',
   },
   {
     href: '/watchlist',
     label: 'Watchlist',
-    description: 'Track setups, score health, and symbol-specific follow-up work.',
+    description:
+      'Track setups, score health, and symbol-specific follow-up work.',
     matchPrefixes: ['/watchlist', '/symbols'],
   },
   {

@@ -44,9 +44,16 @@ const skeletonWidths = [
 
 export function WatchlistLoadingSkeleton() {
   return (
-    <div className="overflow-hidden rounded-xl border border-border/40 bg-surface/60" role="status" aria-live="polite">
+    <div
+      className="overflow-hidden rounded-xl border border-border/40 bg-surface/60"
+      role="status"
+      aria-live="polite"
+    >
       {skeletonWidths.map((widths, i) => (
-        <div key={i} className="flex items-center gap-4 border-b border-border/30 px-4 py-3.5 last:border-b-0">
+        <div
+          key={i}
+          className="flex items-center gap-4 border-b border-border/30 px-4 py-3.5 last:border-b-0"
+        >
           <div className={`h-4 ${widths.symbol} skeleton`} />
           <div className={`h-4 ${widths.price} skeleton`} />
           <div className={`h-5 ${widths.badge} skeleton rounded-md`} />
@@ -73,7 +80,9 @@ export function WatchlistEmptyState({
         </div>
       </div>
       <p className="font-display italic text-xl text-text">{title}</p>
-      <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-text-muted">{detail}</p>
+      <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-text-muted">
+        {detail}
+      </p>
       {primaryAction ? (
         <div className="mt-6">
           <Button type="button" onClick={primaryAction.onClick}>

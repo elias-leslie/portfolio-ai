@@ -68,7 +68,10 @@ describe('ThesisSection', () => {
 
     render(<ThesisSection symbol="MSFT" userTimezone="America/New_York" />)
 
-    expect(screen.getByRole('button', { name: /generating/i })).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('button', { name: /generating/i })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    )
   })
 
   it('marks regenerate and invalidate actions busy while thesis mutations are running', async () => {
@@ -103,7 +106,11 @@ describe('ThesisSection', () => {
 
     await user.click(screen.getByRole('button', { name: /admin/i }))
 
-    expect(screen.getByRole('button', { name: /regenerating/i })).toHaveAttribute('aria-busy', 'true')
-    expect(screen.getByRole('button', { name: /invalidating/i })).toHaveAttribute('aria-busy', 'true')
+    expect(
+      screen.getByRole('button', { name: /regenerating/i }),
+    ).toHaveAttribute('aria-busy', 'true')
+    expect(
+      screen.getByRole('button', { name: /invalidating/i }),
+    ).toHaveAttribute('aria-busy', 'true')
   })
 })

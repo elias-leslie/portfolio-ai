@@ -35,7 +35,10 @@ export function formatResolvedValue(value: HouseholdResolvedValue): string {
   if (value.fieldName === 'target_retirement_age') {
     return `Age ${value.value}`
   }
-  if (value.fieldName === 'adult_count' || value.fieldName === 'dependent_count') {
+  if (
+    value.fieldName === 'adult_count' ||
+    value.fieldName === 'dependent_count'
+  ) {
     return value.value
   }
   if (value.fieldName === 'emergency_fund_target_months') {
@@ -49,10 +52,14 @@ export function formatResolvedValue(value: HouseholdResolvedValue): string {
     return `${value.value}%`
   }
   const numeric = Number(value.value)
-  return Number.isFinite(numeric) ? formatCurrency(numeric, { decimals: 0, nullDisplay: 'Not set' }) : value.value
+  return Number.isFinite(numeric)
+    ? formatCurrency(numeric, { decimals: 0, nullDisplay: 'Not set' })
+    : value.value
 }
 
-export function getQuestionSourceDocument(question: HouseholdQuestion): QuestionSourceDocument | null {
+export function getQuestionSourceDocument(
+  question: HouseholdQuestion,
+): QuestionSourceDocument | null {
   const sourceDocument = question.metadata.sourceDocument
   if (!sourceDocument || typeof sourceDocument !== 'object') {
     return null

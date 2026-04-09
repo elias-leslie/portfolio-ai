@@ -90,9 +90,7 @@ function EventMarker({ event, position }: EventMarkerProps) {
                 {formatEventDate(event.date)}
               </span>
             </div>
-            <p className="text-sm font-medium text-text">
-              {event.title}
-            </p>
+            <p className="text-sm font-medium text-text">{event.title}</p>
             {(event.actualValue !== null || event.expectedValue !== null) && (
               <div className="flex gap-3 text-xs">
                 {event.expectedValue !== null && (

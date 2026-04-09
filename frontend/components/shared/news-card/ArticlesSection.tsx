@@ -36,7 +36,9 @@ export function ArticlesSection({
   if (articles.length === 0) {
     return (
       <div className="text-sm text-text-muted py-4">
-        {symbol ? 'No recent articles available' : 'No recent market news available'}
+        {symbol
+          ? 'No recent articles available'
+          : 'No recent market news available'}
       </div>
     )
   }

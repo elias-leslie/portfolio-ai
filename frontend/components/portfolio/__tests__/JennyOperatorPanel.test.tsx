@@ -1,6 +1,10 @@
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useAcknowledgeJennyNotification, useJennyDashboard, useRunJennyRoutine } from '@/lib/hooks/usePortfolio'
+import {
+  useAcknowledgeJennyNotification,
+  useJennyDashboard,
+  useRunJennyRoutine,
+} from '@/lib/hooks/usePortfolio'
 import { JennyOperatorPanel } from '../JennyOperatorPanel'
 
 vi.mock('@/lib/hooks/usePortfolio', () => ({
@@ -32,7 +36,9 @@ describe('JennyOperatorPanel', () => {
 
     render(<JennyOperatorPanel />)
 
-    expect(screen.getByText(/failed to load jenny operator status/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/failed to load jenny operator status/i),
+    ).toBeInTheDocument()
   })
 
   it('shows counts and truncation hints for Jenny data', () => {
@@ -108,10 +114,22 @@ describe('JennyOperatorPanel', () => {
 
     render(<JennyOperatorPanel />)
 
-    expect(screen.getByText(/5 alerts · 4 symbol reviews · 4 scorecards/i)).toBeInTheDocument()
-    expect(screen.getByText(/latest routine completed · 10 symbols scanned · 6 alerts created · 0 critical · 0 warning · 5 other/i)).toBeInTheDocument()
-    expect(screen.getByText(/showing the newest 4 of 5 alerts/i)).toBeInTheDocument()
-    expect(screen.getByText(/showing the top 3 of 4 symbol reviews/i)).toBeInTheDocument()
-    expect(screen.getByText(/showing the strongest 3 of 4 scorecards/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/5 alerts · 4 symbol reviews · 4 scorecards/i),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        /latest routine completed · 10 symbols scanned · 6 alerts created · 0 critical · 0 warning · 5 other/i,
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/showing the newest 4 of 5 alerts/i),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/showing the top 3 of 4 symbol reviews/i),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/showing the strongest 3 of 4 scorecards/i),
+    ).toBeInTheDocument()
   })
 })

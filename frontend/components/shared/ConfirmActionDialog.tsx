@@ -79,7 +79,9 @@ export function ConfirmActionDialog({
       onOpenChange(false)
     } catch (error) {
       setSubmitError(
-        error instanceof Error ? error.message : 'Unable to complete that action.',
+        error instanceof Error
+          ? error.message
+          : 'Unable to complete that action.',
       )
     } finally {
       setIsSubmitting(false)
@@ -94,7 +96,9 @@ export function ConfirmActionDialog({
           {description ? (
             <DialogDescription>{description}</DialogDescription>
           ) : (
-            <DialogDescription className="sr-only">Confirm action dialog</DialogDescription>
+            <DialogDescription className="sr-only">
+              Confirm action dialog
+            </DialogDescription>
           )}
         </DialogHeader>
         {submitError ? (

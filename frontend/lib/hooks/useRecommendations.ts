@@ -4,10 +4,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import {
-  getRecommendations,
-  trackInPortfolio,
-} from '@/lib/api/recommendations'
+import { getRecommendations, trackInPortfolio } from '@/lib/api/recommendations'
 
 // ============================================================================
 // Query Keys

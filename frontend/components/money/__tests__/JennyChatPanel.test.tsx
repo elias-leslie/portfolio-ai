@@ -42,7 +42,9 @@ describe('JennyChatPanel', () => {
         sessionId: null,
       }),
     )
-    expect(await screen.findByText('Jenny says AMD still looks constructive.')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Jenny says AMD still looks constructive.'),
+    ).toBeInTheDocument()
   })
 
   it('shows when Jenny reconciled household questions from chat', async () => {
@@ -64,10 +66,15 @@ describe('JennyChatPanel', () => {
 
     render(<JennyChatPanel />)
 
-    await user.type(screen.getByPlaceholderText(/ask anything about portfolio-ai/i), 'I want to retire at 60.')
+    await user.type(
+      screen.getByPlaceholderText(/ask anything about portfolio-ai/i),
+      'I want to retire at 60.',
+    )
     await user.click(screen.getByRole('button', { name: /send to jenny/i }))
 
-    expect(await screen.findByText(/jenny reconciled 1 question/i)).toBeInTheDocument()
+    expect(
+      await screen.findByText(/jenny reconciled 1 question/i),
+    ).toBeInTheDocument()
   })
 
   it('keeps the draft and empty-state history intact when Jenny chat fails', async () => {
@@ -89,16 +96,18 @@ describe('JennyChatPanel', () => {
       }),
     )
 
-    expect(screen.getByPlaceholderText(/ask anything about portfolio-ai/i)).toHaveValue(
-      'Please try this again.',
-    )
+    expect(
+      screen.getByPlaceholderText(/ask anything about portfolio-ai/i),
+    ).toHaveValue('Please try this again.')
     expect(
       screen.getByText(/Jenny could not reply yet\. chat failed/i),
     ).toBeInTheDocument()
     expect(
       screen.getByText(/Try: "What does Jenny think about AMD\?"/i),
     ).toBeInTheDocument()
-    expect(window.localStorage.getItem('portfolio-ai:jenny-chat:history')).toBe('[]')
+    expect(window.localStorage.getItem('portfolio-ai:jenny-chat:history')).toBe(
+      '[]',
+    )
   })
 
   it('clears the error message once the user edits the draft', async () => {
@@ -107,7 +116,9 @@ describe('JennyChatPanel', () => {
 
     render(<JennyChatPanel />)
 
-    const input = screen.getByPlaceholderText(/ask anything about portfolio-ai/i)
+    const input = screen.getByPlaceholderText(
+      /ask anything about portfolio-ai/i,
+    )
     await user.type(input, 'Retry this')
     await user.click(screen.getByRole('button', { name: /send to jenny/i }))
 

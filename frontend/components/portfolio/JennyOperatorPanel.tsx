@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { cn } from '@/lib/utils'
 import type {
   JennyAgentScorecard,
   JennyNotification,
@@ -16,6 +15,7 @@ import {
   useJennyDashboard,
   useRunJennyRoutine,
 } from '@/lib/hooks/usePortfolio'
+import { cn } from '@/lib/utils'
 
 function verdictLabel(verdict: string) {
   switch (verdict) {
@@ -161,7 +161,8 @@ export function JennyOperatorPanel() {
     <Card className="p-6">
       {error ? (
         <div className="mb-4 rounded-xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning">
-          Jenny data is partially stale. The latest cached operator view is shown below.
+          Jenny data is partially stale. The latest cached operator view is
+          shown below.
         </div>
       ) : null}
 
@@ -169,20 +170,24 @@ export function JennyOperatorPanel() {
         <div>
           <div className="flex items-center gap-2">
             <Brain className="h-4 w-4 text-primary" />
-            <h3 className="font-display italic text-lg tracking-tight text-text">Jenny Operator</h3>
+            <h3 className="font-display italic text-lg tracking-tight text-text">
+              Jenny Operator
+            </h3>
           </div>
           <p className="mt-1 text-sm text-text-muted">
             Jenny reviews your positions, keeps score on her agents, and only
             surfaces actions worth your attention.
           </p>
           <p className="mt-2 text-xs text-text-muted">
-            Last routine: {latestRoutine?.summary ?? 'No Jenny routine has run yet.'}
+            Last routine:{' '}
+            {latestRoutine?.summary ?? 'No Jenny routine has run yet.'}
           </p>
           <p className="mt-1 text-xs text-text-muted">
             Updated {formatTimestamp(latestRoutine?.completedAt ?? null)}
           </p>
           <p className="mt-1 text-xs text-text-muted">
-            {dashboard?.notifications.length ?? 0} alerts · {dashboard?.symbolReviews.length ?? 0} symbol reviews ·{' '}
+            {dashboard?.notifications.length ?? 0} alerts ·{' '}
+            {dashboard?.symbolReviews.length ?? 0} symbol reviews ·{' '}
             {dashboard?.scorecards.length ?? 0} scorecards
           </p>
         </div>
@@ -195,7 +200,10 @@ export function JennyOperatorPanel() {
             aria-busy={runRoutine.isPending}
           >
             <RefreshCw
-              className={cn('mr-2 h-4 w-4', runRoutine.isPending && 'animate-spin')}
+              className={cn(
+                'mr-2 h-4 w-4',
+                runRoutine.isPending && 'animate-spin',
+              )}
             />
             Run Review
           </Button>
@@ -214,7 +222,9 @@ export function JennyOperatorPanel() {
 
       <div className="mt-4 rounded-xl border border-border/40 bg-surface-muted/20 px-4 py-3 text-sm text-text-muted">
         Latest routine {latestRoutine?.status ?? 'not_run'}
-        {latestRoutine?.symbolsScanned != null ? ` · ${latestRoutine.symbolsScanned} symbols scanned` : ''}
+        {latestRoutine?.symbolsScanned != null
+          ? ` · ${latestRoutine.symbolsScanned} symbols scanned`
+          : ''}
         {latestRoutine?.notificationsCreated != null
           ? ` · ${latestRoutine.notificationsCreated} alert${latestRoutine.notificationsCreated === 1 ? '' : 's'} created`
           : ''}
@@ -229,7 +239,9 @@ export function JennyOperatorPanel() {
       <div className="mt-6 grid gap-4 lg:grid-cols-[1.1fr_1fr]">
         <div className="space-y-3">
           <div>
-            <h3 className="font-display italic text-base tracking-tight text-text">Action queue</h3>
+            <h3 className="font-display italic text-base tracking-tight text-text">
+              Action queue
+            </h3>
             <p className="mt-1 text-sm text-text-muted">
               Only urgent portfolio actions and high-conviction opportunities.
             </p>
@@ -244,7 +256,10 @@ export function JennyOperatorPanel() {
             topNotifications.map((notification) => (
               <div
                 key={notification.id}
-                className={cn('rounded-xl border p-4', severityTone(notification.severity))}
+                className={cn(
+                  'rounded-xl border p-4',
+                  severityTone(notification.severity),
+                )}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -274,16 +289,20 @@ export function JennyOperatorPanel() {
               </div>
             ))
           )}
-          {dashboard && dashboard.notifications.length > topNotifications.length ? (
+          {dashboard &&
+          dashboard.notifications.length > topNotifications.length ? (
             <p className="text-xs text-text-muted">
-              Showing the newest {topNotifications.length} of {dashboard.notifications.length} alerts.
+              Showing the newest {topNotifications.length} of{' '}
+              {dashboard.notifications.length} alerts.
             </p>
           ) : null}
         </div>
 
         <div className="space-y-4">
           <div>
-            <h3 className="font-display italic text-base tracking-tight text-text">Top symbol reviews</h3>
+            <h3 className="font-display italic text-base tracking-tight text-text">
+              Top symbol reviews
+            </h3>
             <div className="mt-3 space-y-3">
               {topReviews.length === 0 ? (
                 <div className="rounded-xl border border-border/40 bg-surface-muted/20 p-4 text-sm text-text-muted">
@@ -298,7 +317,10 @@ export function JennyOperatorPanel() {
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-sm font-semibold text-text">
-                          <Link href={`/symbols/${review.symbol}`} className="hover:underline">
+                          <Link
+                            href={`/symbols/${review.symbol}`}
+                            className="hover:underline"
+                          >
                             {review.symbol}
                           </Link>
                         </p>
@@ -333,13 +355,16 @@ export function JennyOperatorPanel() {
             </div>
             {dashboard && dashboard.symbolReviews.length > topReviews.length ? (
               <p className="text-xs text-text-muted">
-                Showing the top {topReviews.length} of {dashboard.symbolReviews.length} symbol reviews.
+                Showing the top {topReviews.length} of{' '}
+                {dashboard.symbolReviews.length} symbol reviews.
               </p>
             ) : null}
           </div>
 
           <div>
-            <h3 className="font-display italic text-base tracking-tight text-text">Agent scorecards</h3>
+            <h3 className="font-display italic text-base tracking-tight text-text">
+              Agent scorecards
+            </h3>
             <div className="mt-3 space-y-3">
               {topScorecards.length === 0 ? (
                 <div className="rounded-xl border border-border/40 bg-surface-muted/20 p-4 text-sm text-text-muted">
@@ -383,7 +408,8 @@ export function JennyOperatorPanel() {
             </div>
             {dashboard && dashboard.scorecards.length > topScorecards.length ? (
               <p className="text-xs text-text-muted">
-                Showing the strongest {topScorecards.length} of {dashboard.scorecards.length} scorecards.
+                Showing the strongest {topScorecards.length} of{' '}
+                {dashboard.scorecards.length} scorecards.
               </p>
             ) : null}
           </div>

@@ -13,13 +13,11 @@ import {
 import { WatchlistCard } from '@/components/watchlist/WatchlistCard'
 import { WatchlistTableRow } from '@/components/watchlist/WatchlistTableRow'
 import type { RefreshStatus, WatchlistItem } from '@/lib/api/watchlist'
-import { cn } from '@/lib/utils'
 import { usePortfolio } from '@/lib/hooks/usePortfolio'
 import { usePreferences } from '@/lib/hooks/usePreferences'
-import {
-  useDeleteWatchlistItem,
-} from '@/lib/hooks/useWatchlist'
+import { useDeleteWatchlistItem } from '@/lib/hooks/useWatchlist'
 import { useWatchlistChangeDetection } from '@/lib/hooks/useWatchlistChangeDetection'
+import { cn } from '@/lib/utils'
 import {
   type SortDirection,
   type SortField,
@@ -35,7 +33,9 @@ export function WatchlistTable({ items, refreshStatus }: WatchlistTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [sortField, setSortField] = useState<SortField>('symbol')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
-  const [highlightedSymbol, setHighlightedSymbol] = useState<string | null>(null)
+  const [highlightedSymbol, setHighlightedSymbol] = useState<string | null>(
+    null,
+  )
   const [pendingDelete, setPendingDelete] = useState<{
     id: string
     symbol: string
@@ -46,7 +46,8 @@ export function WatchlistTable({ items, refreshStatus }: WatchlistTableProps) {
   const { data: portfolio } = usePortfolio()
   const searchParams = useSearchParams()
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map())
-  const { changedCells, recentlyUpdatedRows } = useWatchlistChangeDetection(items)
+  const { changedCells, recentlyUpdatedRows } =
+    useWatchlistChangeDetection(items)
 
   const userTimezone = preferences?.displayTimezone ?? 'America/New_York'
 
@@ -100,9 +101,7 @@ export function WatchlistTable({ items, refreshStatus }: WatchlistTableProps) {
             : 'text-text-muted/40 opacity-0 group-hover:opacity-100',
         )}
       >
-        {sortField === field
-          ? sortDirection === 'asc' ? '▲' : '▼'
-          : '▲'}
+        {sortField === field ? (sortDirection === 'asc' ? '▲' : '▼') : '▲'}
       </span>
     </button>
   )
@@ -196,7 +195,9 @@ export function WatchlistTable({ items, refreshStatus }: WatchlistTableProps) {
             setPendingDelete(null)
           }
         }}
-        title={pendingDelete ? `Remove ${pendingDelete.symbol}` : 'Remove symbol'}
+        title={
+          pendingDelete ? `Remove ${pendingDelete.symbol}` : 'Remove symbol'
+        }
         description="Removing a symbol clears its saved scores and expansions."
         confirmLabel="Remove"
         isPending={deleteMutation.isPending}

@@ -55,7 +55,9 @@ describe('AutomationCenter', () => {
 
     render(<AutomationCenter />)
 
-    await user.click(screen.getByRole('switch', { name: /toggle thesis generation/i }))
+    await user.click(
+      screen.getByRole('switch', { name: /toggle thesis generation/i }),
+    )
 
     expect(updatePreferencesMutate).toHaveBeenCalledWith({
       thesisGenerationEnabled: true,
@@ -90,7 +92,9 @@ describe('AutomationCenter', () => {
 
     expect(screen.getByText('Jenny daily operator')).toBeInTheDocument()
     expect(screen.getByText('Running')).toBeInTheDocument()
-    expect(screen.getByText('monitor thesis health reported failed.')).toBeInTheDocument()
+    expect(
+      screen.getByText('monitor thesis health reported failed.'),
+    ).toBeInTheDocument()
   })
 
   it('offers retry when the automation query fails', async () => {
@@ -127,7 +131,10 @@ describe('AutomationCenter', () => {
 
     render(<AutomationCenter />)
 
-    expect(screen.getByRole('button', { name: 'Refresh' })).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('button', { name: 'Refresh' })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    )
   })
 
   it('renders empty-state guidance when guardrails and recent runs are missing', () => {
@@ -146,8 +153,12 @@ describe('AutomationCenter', () => {
 
     render(<AutomationCenter />)
 
-    expect(screen.getByText(/no automation guardrails are configured yet/i)).toBeInTheDocument()
-    expect(screen.getByText(/no automation runs have been recorded yet/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/no automation guardrails are configured yet/i),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/no automation runs have been recorded yet/i),
+    ).toBeInTheDocument()
   })
 
   it('avoids mutating unknown guardrail mappings', () => {
@@ -175,7 +186,9 @@ describe('AutomationCenter', () => {
 
     render(<AutomationCenter />)
 
-    expect(screen.getByRole('switch', { name: /toggle unknown guardrail/i })).toBeDisabled()
+    expect(
+      screen.getByRole('switch', { name: /toggle unknown guardrail/i }),
+    ).toBeDisabled()
     expect(screen.getByText('Read only')).toBeInTheDocument()
 
     expect(updatePreferencesMutate).not.toHaveBeenCalled()

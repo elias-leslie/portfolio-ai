@@ -3,17 +3,17 @@
 import { Activity, DollarSign, Gauge, TrendingUp } from 'lucide-react'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { Card } from '@/components/ui/card'
+import { formatCurrency, formatPercent } from '@/lib/formatters'
 import { usePortfolio, usePortfolioAnalytics } from '@/lib/hooks/usePortfolio'
 import { cn } from '@/lib/utils'
 import { AssetAllocation } from './AssetAllocation'
+import { DiversificationScore } from './DiversificationScore'
 import { JennyOperatorPanel } from './JennyOperatorPanel'
 import { PortfolioCoachAlerts } from './PortfolioCoachAlerts'
-import { DiversificationScore } from './DiversificationScore'
 import { PortfolioStats } from './PortfolioStats'
+import { formatDisplayLabel } from './portfolio-utils'
 import { RiskProfile } from './RiskProfile'
 import { TopPerformers } from './TopPerformers'
-import { formatCurrency, formatPercent } from '@/lib/formatters'
-import { formatDisplayLabel } from './portfolio-utils'
 
 export function PortfolioOverview() {
   const {
@@ -79,13 +79,16 @@ export function PortfolioOverview() {
     <div className="space-y-6">
       {hasPartialError ? (
         <div className="rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning">
-          Some portfolio signals are unavailable right now. Core balances are still shown below.
+          Some portfolio signals are unavailable right now. Core balances are
+          still shown below.
         </div>
       ) : null}
 
       <div className="info-banner">
         {positionCount} live position{positionCount === 1 ? '' : 's'}
-        {analytics?.numSymbols != null ? ` · ${analytics.numSymbols} unique symbol${analytics.numSymbols === 1 ? '' : 's'}` : ''}
+        {analytics?.numSymbols != null
+          ? ` · ${analytics.numSymbols} unique symbol${analytics.numSymbols === 1 ? '' : 's'}`
+          : ''}
         {analytics?.cashInclusiveTotalValue != null
           ? ` · ${formatCurrency(analytics.cashInclusiveTotalValue)} including cash`
           : ''}
@@ -115,7 +118,14 @@ export function PortfolioOverview() {
           </div>
         </Card>
 
-        <Card className={cn('group p-6', (portfolio?.totalGain ?? 0) >= 0 ? 'hover:border-gain/30' : 'hover:border-loss/30')}>
+        <Card
+          className={cn(
+            'group p-6',
+            (portfolio?.totalGain ?? 0) >= 0
+              ? 'hover:border-gain/30'
+              : 'hover:border-loss/30',
+          )}
+        >
           <div className="flex items-center gap-3">
             <div
               className={cn(
@@ -131,11 +141,19 @@ export function PortfolioOverview() {
               <div className="text-xs font-semibold uppercase tracking-widest text-text-muted">
                 Total Gain/Loss
               </div>
-              <div className={cn('mt-1 font-display italic text-2xl tabular-nums', gainColor)}>
+              <div
+                className={cn(
+                  'mt-1 font-display italic text-2xl tabular-nums',
+                  gainColor,
+                )}
+              >
                 {formatCurrency(portfolio?.totalGain ?? 0)}
               </div>
               <div className={cn('mt-1 text-xs', gainColor)}>
-                {formatPercent(portfolio?.totalGainPct ?? 0, { decimals: 2, sign: true })}
+                {formatPercent(portfolio?.totalGainPct ?? 0, {
+                  decimals: 2,
+                  sign: true,
+                })}
               </div>
             </div>
           </div>
@@ -174,18 +192,25 @@ export function PortfolioOverview() {
                   ? `${(analytics.portfolioVolatility * 100).toFixed(1)}%`
                   : '—'}
               </div>
-              <div className="mt-1 text-xs text-text-muted">Based on recent history</div>
+              <div className="mt-1 text-xs text-text-muted">
+                Based on recent history
+              </div>
             </div>
           </div>
         </Card>
 
         {analytics?.diversificationScore ? (
-          <DiversificationScore diversification={analytics.diversificationScore} />
+          <DiversificationScore
+            diversification={analytics.diversificationScore}
+          />
         ) : (
           <Card className="p-6">
-            <div className="text-sm font-medium text-text-muted">Diversification</div>
+            <div className="text-sm font-medium text-text-muted">
+              Diversification
+            </div>
             <div className="mt-2 text-sm text-text-muted">
-              Diversification scoring is unavailable until analytics refresh successfully.
+              Diversification scoring is unavailable until analytics refresh
+              successfully.
             </div>
           </Card>
         )}
@@ -194,9 +219,12 @@ export function PortfolioOverview() {
           <PortfolioStats analytics={analytics} />
         ) : (
           <Card className="p-6">
-            <div className="text-sm font-medium text-text-muted">Portfolio Stats</div>
+            <div className="text-sm font-medium text-text-muted">
+              Portfolio Stats
+            </div>
             <div className="mt-2 text-sm text-text-muted">
-              Sharpe, symbol breadth, and risk statistics will return once analytics are back.
+              Sharpe, symbol breadth, and risk statistics will return once
+              analytics are back.
             </div>
           </Card>
         )}
@@ -219,7 +247,8 @@ export function PortfolioOverview() {
 
       {portfolio && portfolio.positions.length === 0 ? (
         <Card className="p-6 text-sm text-text-muted">
-          No live positions yet. Add a holding below to unlock concentration, risk, and performance coaching.
+          No live positions yet. Add a holding below to unlock concentration,
+          risk, and performance coaching.
         </Card>
       ) : null}
 
@@ -234,7 +263,8 @@ export function PortfolioOverview() {
         </div>
       ) : (
         <Card className="p-6 text-sm text-text-muted">
-          Top-performer and allocation breakdowns are waiting on portfolio analytics to refresh.
+          Top-performer and allocation breakdowns are waiting on portfolio
+          analytics to refresh.
         </Card>
       )}
 
@@ -247,14 +277,28 @@ export function PortfolioOverview() {
             </h3>
             <div className="space-y-2.5">
               {[
-                { label: 'Top Holding', value: `${analytics.concentration.topHoldingPct.toFixed(1)}%` },
-                { label: 'Top 3', value: `${analytics.concentration.top3Pct.toFixed(1)}%` },
-                { label: 'Top 10', value: `${analytics.concentration.top10Pct.toFixed(1)}%` },
-                { label: 'Concentration Score', value: analytics.concentration.herfindahlIndex.toFixed(3) },
+                {
+                  label: 'Top Holding',
+                  value: `${analytics.concentration.topHoldingPct.toFixed(1)}%`,
+                },
+                {
+                  label: 'Top 3',
+                  value: `${analytics.concentration.top3Pct.toFixed(1)}%`,
+                },
+                {
+                  label: 'Top 10',
+                  value: `${analytics.concentration.top10Pct.toFixed(1)}%`,
+                },
+                {
+                  label: 'Concentration Score',
+                  value: analytics.concentration.herfindahlIndex.toFixed(3),
+                },
               ].map(({ label, value }) => (
                 <div key={label} className="data-row">
                   <span className="text-sm text-text-muted">{label}</span>
-                  <span className="text-sm font-medium tabular-nums">{value}</span>
+                  <span className="text-sm font-medium tabular-nums">
+                    {value}
+                  </span>
                 </div>
               ))}
             </div>
@@ -269,10 +313,7 @@ export function PortfolioOverview() {
                 .sort(([, a], [, b]) => b - a)
                 .slice(0, 5)
                 .map(([sector, percentage]) => (
-                  <div
-                    key={sector}
-                    className="data-row"
-                  >
+                  <div key={sector} className="data-row">
                     <span className="text-sm text-text-muted">
                       {formatDisplayLabel(sector)}
                     </span>
@@ -286,7 +327,8 @@ export function PortfolioOverview() {
         </div>
       ) : (
         <Card className="p-6 text-sm text-text-muted">
-          Concentration and sector exposure require portfolio analytics and will return once that query succeeds.
+          Concentration and sector exposure require portfolio analytics and will
+          return once that query succeeds.
         </Card>
       )}
     </div>

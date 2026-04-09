@@ -30,7 +30,8 @@ describe('JennyQuestionInbox', () => {
             priority: 'high',
             question: 'Is this your primary household checking account?',
             rationale: null,
-            recommendation: 'Answer yes if most household cash flow passes through here.',
+            recommendation:
+              'Answer yes if most household cash flow passes through here.',
             answerText: null,
             sourceDocumentId: 'doc-1',
             questionFormat: 'boolean',

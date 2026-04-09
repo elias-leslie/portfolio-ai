@@ -8,9 +8,5 @@ export function ActionBadge({ action }: { action: 'BUY' | 'HOLD' | 'SELL' }) {
     SELL: 'bg-loss/10 text-loss border-loss/20',
   }
 
-  return (
-    <Badge className={cn(config[action], 'font-semibold')}>
-      {action}
-    </Badge>
-  )
+  return <Badge className={cn(config[action], 'font-semibold')}>{action}</Badge>
 }

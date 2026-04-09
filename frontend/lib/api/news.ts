@@ -96,7 +96,9 @@ export async function fetchNewsHealth(): Promise<NewsHealthResponse> {
 export async function fetchArticleFeedback(
   articleHash: string,
 ): Promise<ArticleFeedback> {
-  return get<ArticleFeedback>(`/api/news/article-feedback/${encodeURIComponent(articleHash)}`)
+  return get<ArticleFeedback>(
+    `/api/news/article-feedback/${encodeURIComponent(articleHash)}`,
+  )
 }
 
 export async function submitArticleFeedback(

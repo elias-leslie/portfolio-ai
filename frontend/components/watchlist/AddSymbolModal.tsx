@@ -224,8 +224,8 @@ export function AddSymbolModal({
                   Approaching watchlist limit
                 </p>
                 <p className="mt-1 text-xs text-text-muted">
-                  You have {currentCount} of {maxSymbols} symbols. Free tier
-                  API quotas are optimized for up to {maxSymbols} symbols with
+                  You have {currentCount} of {maxSymbols} symbols. Free tier API
+                  quotas are optimized for up to {maxSymbols} symbols with
                   15-minute refresh intervals.
                 </p>
               </div>

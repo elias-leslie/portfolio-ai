@@ -5,11 +5,11 @@ import {
   askJenny,
   categorizeHouseholdTransaction,
   confirmFact,
+  fetchHouseholdDashboard,
+  fetchHouseholdDocuments,
   type HouseholdDocumentUpload,
   type HouseholdPlanningUpdate,
   type HouseholdProfileUpdate,
-  fetchHouseholdDashboard,
-  fetchHouseholdDocuments,
   updateHouseholdPlanning,
   updateHouseholdProfile,
   uploadHouseholdDocument,
@@ -41,14 +41,22 @@ export function useUpdateHouseholdProfile() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (payload: HouseholdProfileUpdate) => updateHouseholdProfile(payload),
+    mutationFn: (payload: HouseholdProfileUpdate) =>
+      updateHouseholdProfile(payload),
     onSuccess: (profile) => {
       queryClient.setQueryData(['household', 'profile'], profile)
-      queryClient.invalidateQueries({ queryKey: ['household'], refetchType: 'active' })
+      queryClient.invalidateQueries({
+        queryKey: ['household'],
+        refetchType: 'active',
+      })
       toast.success('Household profile updated.')
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Failed to update household profile')
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Failed to update household profile',
+      )
     },
   })
 }
@@ -57,13 +65,21 @@ export function useUpdateHouseholdPlanning() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (payload: HouseholdPlanningUpdate) => updateHouseholdPlanning(payload),
+    mutationFn: (payload: HouseholdPlanningUpdate) =>
+      updateHouseholdPlanning(payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['household'], refetchType: 'active' })
+      queryClient.invalidateQueries({
+        queryKey: ['household'],
+        refetchType: 'active',
+      })
       toast.success('Household planning sections updated.')
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Failed to update household planning')
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Failed to update household planning',
+      )
     },
   })
 }
@@ -72,9 +88,13 @@ export function useUploadHouseholdDocument() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (payload: HouseholdDocumentUpload) => uploadHouseholdDocument(payload),
+    mutationFn: (payload: HouseholdDocumentUpload) =>
+      uploadHouseholdDocument(payload),
     onSuccess: (document) => {
-      queryClient.invalidateQueries({ queryKey: ['household'], refetchType: 'active' })
+      queryClient.invalidateQueries({
+        queryKey: ['household'],
+        refetchType: 'active',
+      })
       if (document.metadata?.duplicate_detected === true) {
         toast.info(`${document.filename} already exists in evidence intake.`)
         return
@@ -82,7 +102,9 @@ export function useUploadHouseholdDocument() {
       toast.success(`${document.filename} staged for evidence intake.`)
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Failed to upload document')
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to upload document',
+      )
     },
   })
 }
@@ -91,14 +113,26 @@ export function useAnswerHouseholdQuestion() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ questionId, answerText }: { questionId: string; answerText: string }) =>
-      answerHouseholdQuestion(questionId, { answerText }),
+    mutationFn: ({
+      questionId,
+      answerText,
+    }: {
+      questionId: string
+      answerText: string
+    }) => answerHouseholdQuestion(questionId, { answerText }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['household'], refetchType: 'active' })
+      queryClient.invalidateQueries({
+        queryKey: ['household'],
+        refetchType: 'active',
+      })
       toast.success('Jenny updated the household plan.')
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Failed to answer Jenny question')
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Failed to answer Jenny question',
+      )
     },
   })
 }
@@ -107,14 +141,24 @@ export function useConfirmFact() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ factKey, factValue }: { factKey: string; factValue: string }) =>
-      confirmFact(factKey, factValue),
+    mutationFn: ({
+      factKey,
+      factValue,
+    }: {
+      factKey: string
+      factValue: string
+    }) => confirmFact(factKey, factValue),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['household'], refetchType: 'active' })
+      queryClient.invalidateQueries({
+        queryKey: ['household'],
+        refetchType: 'active',
+      })
       toast.success('Jenny noted your confirmation.')
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Failed to confirm fact')
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to confirm fact',
+      )
     },
   })
 }
@@ -125,11 +169,18 @@ export function useAskJenny() {
   return useMutation({
     mutationFn: (question: string) => askJenny(question),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['household'], refetchType: 'active' })
+      queryClient.invalidateQueries({
+        queryKey: ['household'],
+        refetchType: 'active',
+      })
       toast.success('Question sent to Jenny.')
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Failed to send question to Jenny')
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Failed to send question to Jenny',
+      )
     },
   })
 }
@@ -155,11 +206,18 @@ export function useCategorizeHouseholdTransaction() {
         applyToMerchant,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['household'], refetchType: 'active' })
+      queryClient.invalidateQueries({
+        queryKey: ['household'],
+        refetchType: 'active',
+      })
       toast.success('Household category confirmed.')
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Failed to categorize transaction')
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Failed to categorize transaction',
+      )
     },
   })
 }

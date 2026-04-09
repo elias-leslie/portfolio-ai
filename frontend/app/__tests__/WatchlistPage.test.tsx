@@ -130,7 +130,9 @@ describe('WatchlistPage', () => {
 
     render(<WatchlistPage />)
 
-    expect(screen.getByText('No symbols match the current filters')).toBeInTheDocument()
+    expect(
+      screen.getByText('No symbols match the current filters'),
+    ).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Show all symbols' }))
 

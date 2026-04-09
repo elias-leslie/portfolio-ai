@@ -4,8 +4,8 @@ import {
   fetchArticleFeedback,
   fetchNewsIntelligence,
   type NewsBundle,
-  submitArticleFeedback,
   type SubmitArticleFeedbackInput,
+  submitArticleFeedback,
 } from '@/lib/api/news'
 
 export const newsKeys = {
@@ -53,15 +53,19 @@ export function useSubmitArticleFeedback() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (payload: SubmitArticleFeedbackInput) => submitArticleFeedback(payload),
+    mutationFn: (payload: SubmitArticleFeedbackInput) =>
+      submitArticleFeedback(payload),
 
     onSuccess: (_result, variables) => {
-      queryClient.setQueryData(newsKeys.articleFeedback(variables.articleHash), {
-        exists: true,
-        vendor: variables.vendor,
-        isUseful: variables.isUseful,
-        createdAt: new Date().toISOString(),
-      })
+      queryClient.setQueryData(
+        newsKeys.articleFeedback(variables.articleHash),
+        {
+          exists: true,
+          vendor: variables.vendor,
+          isUseful: variables.isUseful,
+          createdAt: new Date().toISOString(),
+        },
+      )
 
       toast.success(
         variables.isUseful

@@ -92,6 +92,9 @@ export function getWatchlistPriceSnapshot(
   return {
     priceLabel,
     changeLabel,
-    isPositiveChange: numericChange !== null ? numericChange >= 0 : !String(rawChange).trim().startsWith('-'),
+    isPositiveChange:
+      numericChange !== null
+        ? numericChange >= 0
+        : !String(rawChange).trim().startsWith('-'),
   }
 }

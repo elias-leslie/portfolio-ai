@@ -39,12 +39,16 @@ export function useTransitionSymbolWorkflow(defaultSymbol?: string) {
       const symbol = variables.symbol ?? defaultSymbol ?? ''
       queryClient.invalidateQueries({ queryKey: ['symbol-workflow', symbol] })
       queryClient.invalidateQueries({ queryKey: ['thesis', symbol] })
-      queryClient.invalidateQueries({ queryKey: ['symbol-intelligence', symbol] })
+      queryClient.invalidateQueries({
+        queryKey: ['symbol-intelligence', symbol],
+      })
       queryClient.invalidateQueries({ queryKey: ['home'] })
       toast.success('Workflow updated.')
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Failed to update workflow')
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to update workflow',
+      )
     },
   })
 }
@@ -69,13 +73,17 @@ export function useRecordSymbolWorkflowOutcome(defaultSymbol?: string) {
     onSuccess: (_result, variables) => {
       const symbol = variables.symbol ?? defaultSymbol ?? ''
       queryClient.invalidateQueries({ queryKey: ['symbol-workflow', symbol] })
-      queryClient.invalidateQueries({ queryKey: ['symbol-intelligence', symbol] })
+      queryClient.invalidateQueries({
+        queryKey: ['symbol-intelligence', symbol],
+      })
       queryClient.invalidateQueries({ queryKey: ['portfolio', 'jenny'] })
       queryClient.invalidateQueries({ queryKey: ['home'] })
       toast.success('Outcome captured.')
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Failed to capture outcome')
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to capture outcome',
+      )
     },
   })
 }

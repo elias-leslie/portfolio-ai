@@ -11,6 +11,15 @@ class HouseholdOverview(BaseModel):
     taxable_assets: float
     cash_reserve: float
     total_tracked_assets: float
+    liabilities_total: float = 0.0
+    net_worth: float = 0.0
+    tracked_account_count: int = 0
+    needs_refresh_count: int = 0
+    candidate_account_count: int = 0
+    gap_count: int = 0
+    inbox_count: int = 0
+    coverage_months: int = 0
+    last_transaction_date: str | None = None
     visibility_score: int
     visibility_label: str
     next_best_action: str
@@ -217,6 +226,54 @@ class HouseholdEvidenceAccount(BaseModel):
     as_of_date: str | None = None
     confidence: float | None = None
     metadata: dict[str, object] = Field(default_factory=dict)
+
+
+class HouseholdAccountGap(BaseModel):
+    code: str
+    severity: str
+    title: str
+    detail: str
+
+
+class HouseholdAccountSummary(BaseModel):
+    id: str
+    label: str
+    asset_group: str
+    account_type: str
+    source_type: str
+    institution_name: str | None = None
+    owner_name: str | None = None
+    currency: str | None = None
+    current_value: float | None = None
+    balance: float | None = None
+    holdings_value: float | None = None
+    cash_balance: float | None = None
+    evidence_count: int = 0
+    document_ids: list[str] = Field(default_factory=list)
+    latest_document_id: str | None = None
+    source_types: list[str] = Field(default_factory=list)
+    linked_portfolio_account_id: str | None = None
+    linked_portfolio_account_name: str | None = None
+    last_evidence_at: str | None = None
+    days_since_evidence: int | None = None
+    freshness_status: str
+    freshness_label: str
+    match_status: str
+    match_confidence: float | None = None
+    gap_flags: list[HouseholdAccountGap] = Field(default_factory=list)
+
+
+class HouseholdInboxItem(BaseModel):
+    id: str
+    category: str
+    priority: str
+    title: str
+    detail: str
+    action_label: str
+    action_href: str | None = None
+    related_account_id: str | None = None
+    related_question_id: str | None = None
+    related_document_ids: list[str] = Field(default_factory=list)
 
 
 class HouseholdDocument(BaseModel):

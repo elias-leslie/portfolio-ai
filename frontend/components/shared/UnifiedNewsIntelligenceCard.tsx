@@ -6,11 +6,11 @@ import {
   formatSentimentScore,
   getSentimentBadgeVariant,
 } from '@/lib/utils/news-formatting'
-import { SentimentBreakdownSection } from './SentimentBreakdownSection'
 import { ArticlesSection } from './news-card/ArticlesSection'
 import { KeyEventsSection } from './news-card/KeyEventsSection'
 import { NewsCardHeader } from './news-card/NewsCardHeader'
 import { useNewsCard } from './news-card/useNewsCard'
+import { SentimentBreakdownSection } from './SentimentBreakdownSection'
 
 export type {
   KeyEvent,
@@ -51,7 +51,13 @@ export function UnifiedNewsIntelligenceCard({
     negativeCount,
     showToggleButton,
     handleToggleShowAll,
-  } = useNewsCard({ newsIntelligence, marketNewsData, recentNews, onRequestExpanded, defaultCollapsed })
+  } = useNewsCard({
+    newsIntelligence,
+    marketNewsData,
+    recentNews,
+    onRequestExpanded,
+    defaultCollapsed,
+  })
 
   // Early returns AFTER all hooks
   if (newsHidden) return null
@@ -87,7 +93,11 @@ export function UnifiedNewsIntelligenceCard({
               <div className="flex flex-wrap items-center gap-3 text-xs">
                 <div>
                   <span className="text-text-muted">Sentiment: </span>
-                  <Badge variant={getSentimentBadgeVariant(newsIntelligence.sentimentLabel)}>
+                  <Badge
+                    variant={getSentimentBadgeVariant(
+                      newsIntelligence.sentimentLabel,
+                    )}
+                  >
                     {newsIntelligence.sentimentLabel} (
                     {formatSentimentScore(newsIntelligence.sentimentScore)})
                   </Badge>

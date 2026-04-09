@@ -13,11 +13,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import type { Account, PositionWithValue } from '@/lib/api/portfolio'
+import { formatCurrency, formatPercent } from '@/lib/formatters'
 import { PositionTableRow } from './PositionTableRow'
-import {
-  formatCurrency,
-  formatPercent,
-} from '@/lib/formatters'
 import {
   getAccountPositions,
   getAccountTotalGain,
@@ -60,7 +57,9 @@ export function AccountAccordionItem({
           <div className="flex items-center justify-between w-full pr-4">
             <div className="flex flex-col items-start gap-1">
               <div className="flex items-center gap-3">
-                <span className="font-display italic text-lg tracking-tight">{account.name}</span>
+                <span className="font-display italic text-lg tracking-tight">
+                  {account.name}
+                </span>
                 <span className="text-xs text-text-muted bg-surface-muted px-2 py-0.5 rounded">
                   {account.accountType}
                 </span>

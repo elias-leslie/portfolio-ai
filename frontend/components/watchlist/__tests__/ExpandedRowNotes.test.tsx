@@ -44,8 +44,13 @@ describe('ExpandedRowNotes', () => {
     render(<ExpandedRowNotes item={buildItem({ note: 'Original note' })} />)
 
     await user.click(screen.getByRole('button', { name: /edit/i }))
-    await user.clear(screen.getByPlaceholderText(/add a note about this symbol/i))
-    await user.type(screen.getByPlaceholderText(/add a note about this symbol/i), 'Updated note')
+    await user.clear(
+      screen.getByPlaceholderText(/add a note about this symbol/i),
+    )
+    await user.type(
+      screen.getByPlaceholderText(/add a note about this symbol/i),
+      'Updated note',
+    )
     await user.click(screen.getByRole('button', { name: /save/i }))
 
     expect(mutate).toHaveBeenCalledWith(
@@ -71,7 +76,13 @@ describe('ExpandedRowNotes', () => {
 
     await user.click(screen.getByRole('button', { name: /edit/i }))
 
-    expect(screen.getByRole('button', { name: /cancel/i })).toHaveAttribute('aria-busy', 'true')
-    expect(screen.getByRole('button', { name: /save/i })).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('button', { name: /cancel/i })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: /save/i })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    )
   })
 })
